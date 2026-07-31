@@ -1,0 +1,88 @@
+const server_url = process.env.TEST_SERVER_URL;
+
+if (!server_url)
+	throw new Error('TEST_SERVER_URL is required');
+
+export type JsonResponse<T> = {
+	response: Response;
+	json: T;
+};
+
+export type RegisteredClient = {
+	client_identifier: string;
+	client_key: string;
+	friend_code: string;
+	display_name: string;
+	icon_id: string;
+	session_token: string;
+};
+
+export async function request(path: string, init: RequestInit = {}): Promise<Response> {
+	return fetch(new URL(path, server_url), init);
+}
+
+export async function request_json<T>(path: string, init: RequestInit = {}): Promise<JsonResponse<T>> {
+	const response = await request(path, init);
+	const json = await response.json() as T;
+
+	return { response, json };
+}
+
+export async function post(
+	path: string,
+	body: unknown,
+	session_token?: string,
+	headers: HeadersInit = {}
+): Promise<Response> {
+	const request_headers = new Headers(headers);
+	request_headers.set('Content-Type', 'application/json');
+
+	if (session_token)
+		request_headers.set('X-Session-Token', session_token);
+
+	return request(path, {
+		method: 'POST',
+		headers: request_headers,
+		body: JSON.stringify(body)
+	});
+}
+
+export async function post_json<T>(
+	path: string,
+	body: unknown,
+	session_token?: string,
+	headers: HeadersInit = {}
+): Promise<JsonResponse<T>> {
+	const response = await post(path, body, session_token, headers);
+	const json = await response.json() as T;
+
+	return { response, json };
+}
+
+export async function get_with_session(path: string, session_token: string): Promise<Response> {
+	return request(path, {
+		headers: {
+			'X-Session-Token': session_token
+		}
+	});
+}
+
+export async function get_json_with_session<T>(path: string, session_token: string): Promise<JsonResponse<T>> {
+	const response = await get_with_session(path, session_token);
+	const json = await response.json() as T;
+
+	return { response, json };
+}
+
+export async function register_client(display_name = 'Test Idler'): Promise<RegisteredClient> {
+	const client_key = crypto.randomUUID();
+	const { response, json } = await post_json<Omit<RegisteredClient, 'client_key'>>('/api/register', {
+		client_key,
+		display_name
+	});
+
+	if (!response.ok)
+		throw new Error(`Client registration failed with ${response.status}: ${JSON.stringify(json)}`);
+
+	return { ...json, client_key };
+}

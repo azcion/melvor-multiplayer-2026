@@ -1,7 +1,14 @@
-Version 1.1.0
-- Fixed issue preventing iOS and Android clients from connecting to the multiplayer server.
-- Fixed issue with items re-appearing in transfer inventory.
-- Fixed issue with transfer inventory quantity not updating in navigation bar.
-- Fixed an issue allowing gifts to be sent containing negative GP.
-- Buying from the marketplace will no longer put players into debt if they cannot afford the item.
-- Increased visible items in The Charitree from 76 to 156.
+# Changelog
+
+## 0.1.0-public-test.10
+
+- Rebuilt the server around Bun and SQLite with containerized startup, health checks, backups, and automated tests.
+- Replaced shared server-wide multiplayer activity with Guild-isolated trades, gifts, marketplaces, Charitree
+  inventories, and Campaigns.
+- Added Guild creation, discovery, applications, membership, departure, dissolution, and equal member decisions.
+- Added Council petitions and ballots for Guild appellation, heraldry, and member banishment.
+- Scaled Campaign goals for Guild size and capped automatic progress so member participation remains necessary.
+- Added custom multiplayer display names, player avatars, Guild icons, and per-server character identities.
+- Added custom HTTPS server selection with loopback HTTP support for local development.
+- Improved refresh behavior, transfer recovery, concurrency handling, authentication, request limits, numeric
+  boundaries, and persistent restart behavior.

@@ -1,38 +1,38 @@
 {
 	"campaign_jungle": {
-		"name_lang": "MOD_KMM_CAMPAIGN_NAME_JUNGLE",
+		"name_lang": "MOD_MP_CAMPAIGN_NAME_JUNGLE",
 		"asset": "campaign_jungle",
 		"color_code": "#9fba41",
-		"pet": "kru_melvor_multiplayer:Multiplayer_Pet_Campaign_Jungle"
+		"pet": "multiplayer:Multiplayer_Pet_Campaign_Jungle"
 	},
 	"campaign_desert": {
-		"name_lang": "MOD_KMM_CAMPAIGN_NAME_DESERT",
+		"name_lang": "MOD_MP_CAMPAIGN_NAME_DESERT",
 		"asset": "campaign_desert",
 		"color_code": "#ffc222",
-		"pet": "kru_melvor_multiplayer:Multiplayer_Pet_Campaign_Desert"
+		"pet": "multiplayer:Multiplayer_Pet_Campaign_Desert"
 	},
 	"campaign_snow": {
-		"name_lang": "MOD_KMM_CAMPAIGN_NAME_SNOW",
+		"name_lang": "MOD_MP_CAMPAIGN_NAME_SNOW",
 		"asset": "campaign_snow",
 		"color_code": "#41abb5",
-		"pet": "kru_melvor_multiplayer:Multiplayer_Pet_Campaign_Snow"
+		"pet": "multiplayer:Multiplayer_Pet_Campaign_Snow"
 	},
 	"campaign_forsaken": {
-		"name_lang": "MOD_KMM_CAMPAIGN_NAME_FORSAKEN",
+		"name_lang": "MOD_MP_CAMPAIGN_NAME_FORSAKEN",
 		"asset": "campaign_forsaken",
 		"color_code": "#265170",
-		"pet": "kru_melvor_multiplayer:Multiplayer_Pet_Campaign_Forsaken"
+		"pet": "multiplayer:Multiplayer_Pet_Campaign_Forsaken"
 	},
 	"campaign_volcanic": {
-		"name_lang": "MOD_KMM_CAMPAIGN_NAME_VOLCANIC",
+		"name_lang": "MOD_MP_CAMPAIGN_NAME_VOLCANIC",
 		"asset": "campaign_volcanic",
 		"color_code": "#5f8d2b",
-		"pet": "kru_melvor_multiplayer:Multiplayer_Pet_Campaign_Volcanic"
+		"pet": "multiplayer:Multiplayer_Pet_Campaign_Volcanic"
 	},
 	"campaign_forest": {
-		"name_lang": "MOD_KMM_CAMPAIGN_NAME_FOREST",
+		"name_lang": "MOD_MP_CAMPAIGN_NAME_FOREST",
 		"asset": "campaign_woodland",
 		"color_code": "#1fb159",
-		"pet": "kru_melvor_multiplayer:Multiplayer_Pet_Campaign_Forest"
+		"pet": "multiplayer:Multiplayer_Pet_Campaign_Forest"
 	}
 }

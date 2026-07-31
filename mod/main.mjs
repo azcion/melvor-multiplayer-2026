@@ -1,5 +1,8 @@
 // #region CONSTANTS
-const SERVER_HOST = 'https://melvormultiplayer.net';
+const SERVER_HOST = 'http://127.0.0.1:3000';
+const SERVER_INSTANCE_STORAGE_PREFIX = 'instance:local-mac:';
+const LOCAL_MOD_CHARACTER_STORAGE_PREFIX = 'mp:local-character:';
+const LEGACY_LOCAL_MOD_CHARACTER_STORAGE_PREFIX = 'kru-melvor-multiplayer:local-character:';
 const LOG_PREFIX = '[multiplayer] ';
 
 const IS_DEV_MODE = false;
@@ -21,9 +24,8 @@ const GIFT_FLAG_RETURNED = 1 << 0;
 const CHARITY_TIMEOUT = 1000 * 60 * 60 * 24; // 24 hours
 const CHARITY_CHECK_TIMEOUT = 10 * 1000; // 10 seconds
 
-const CAMPAIGN_MAX_SOLO_CONTRIB_FAC = 0.25;
-
 const MARKET_ITEMS_PER_PAGE = 30;
+const CLIENT_EVENT_POLL_INTERVAL = 20 * 1000; // 20 seconds
 // #endregion
 
 // #region GLOBALS
@@ -31,6 +33,18 @@ const ctx = mod.getContext(import.meta);
 
 let session_token = null;
 let is_connecting = false;
+let client_event_poll_id = 0;
+let server_host = SERVER_HOST;
+let server_instance_storage_prefix = SERVER_INSTANCE_STORAGE_PREFIX;
+let server_settings_section = null;
+let resolve_server_config = null;
+let get_custom_server_validation_error = null;
+let custom_server_max_length = null;
+let modal_queue_guard = null;
+let open_transfer_page = null;
+let remove_sold_out_market_result = null;
+let apply_banishment_claim = null;
+let is_reconciling_banishment_returns = false;
 
 let last_charity_check = 0;
 
@@ -49,12 +63,14 @@ const state = ui.createStore({
 	is_updating_transfer_contents: false,
 
 	removing_friend: null,
-	gifting_friend: null,
+	gifting_recipient: null,
 
 	friend_code: '',
+	display_name_input: '',
+	profile_display_name: '',
 	icon_search: '',
 	picked_icon: '',
-	profile_icon: 'melvorF:Fire_Acolyte_Wizard_Hat',
+	profile_icon: 'melvorD:Plant',
 
 	add_gp_value: 0,
 	item_slider_value: 0,
@@ -78,6 +94,7 @@ const state = ui.createStore({
 	campaign_pct: 0,
 	campaign_item_total: 0,
 	campaign_contribution: 0,
+	campaign_max_contribution: 0,
 	campaign_loading: false,
 	campaign_has_data: false,
 	campaign_history: [],
@@ -100,7 +117,8 @@ const state = ui.createStore({
 	market_current_page: 1,
 
 	events: {
-		friend_requests: []
+		friend_requests: [],
+		guild_applicants: []
 	},
 
 	trades: [],
@@ -110,6 +128,30 @@ const state = ui.createStore({
 	available_icons: [],
 
 	friends: [],
+
+	guild_state: { affiliation: 'none' },
+	guilds: [],
+	guild_members: [],
+	guild_applicants: [],
+	guild_client_id: null,
+	guild_list_search: '',
+	guild_name_input: '',
+	guild_icon_search: '',
+	guild_icons: [],
+	picked_guild_icon: '',
+	guild_page_error: '',
+	council_petitions: [],
+	council_has_more: false,
+	council_resolved_page: 0,
+	council_loading: false,
+	council_show_resolved: false,
+	council_type: null,
+	council_name_input: '',
+	council_icon_search: '',
+	council_picked_icon: '',
+	council_target_client_id: null,
+	council_error: '',
+	pending_banishment_guild_name: '',
 	// #endregion
 
 	// #region COMPUTED PROPS
@@ -146,8 +188,54 @@ const state = ui.createStore({
 		return this.available_icons.filter(icon => icon.search_name.includes(icon_search_lower)).slice(0, 32);
 	},
 
+	get filtered_guild_icons() {
+		const search = this.guild_icon_search.trim().toLowerCase();
+		const matches = search.length === 0
+			? this.guild_icons
+			: this.guild_icons.filter(icon => icon.search_name.includes(search));
+		return matches.slice(0, 32);
+	},
+
+	get filtered_council_icons() {
+		const search = this.council_icon_search.trim().toLowerCase();
+		const matches = search.length === 0
+			? this.guild_icons
+			: this.guild_icons.filter(icon => icon.search_name.includes(search));
+		return matches.slice(0, 32);
+	},
+
+	get visible_council_petitions() {
+		return this.council_show_resolved
+			? this.council_petitions
+			: this.council_petitions.filter(petition => petition.lifecycle === 'active');
+	},
+
+	get has_resolved_council_petitions() {
+		return this.council_petitions.some(petition => petition.lifecycle !== 'active');
+	},
+
+	get filtered_guilds() {
+		const search = this.guild_list_search.trim().toLowerCase();
+		return search.length === 0
+			? this.guilds
+			: this.guilds.filter(guild => guild.name.toLowerCase().includes(search));
+	},
+
+	get is_guild_member() {
+		return this.guild_state.affiliation === 'member';
+	},
+
+	get guild_recipients() {
+		return this.guild_members.filter(member => member.client_id !== this.guild_client_id);
+	},
+
+	get has_transfer_access() {
+		return this.is_guild_member || this.transfer_inventory.length > 0 || this.gifts.length > 0 ||
+			this.resolved_trades.length > 0;
+	},
+
 	get num_notifications() {
-		return this.num_friend_requests + this.num_transfer_offers + this.num_market_sold_items;
+		return this.num_guild_applicants + this.num_transfer_offers + this.num_market_sold_items;
 	},
 
 	get num_market_sold_items() {
@@ -164,6 +252,10 @@ const state = ui.createStore({
 
 	get num_friend_requests() {
 		return this.events.friend_requests.length;
+	},
+
+	get num_guild_applicants() {
+		return this.events.guild_applicants.length;
 	},
 
 	get num_active_transfers() {
@@ -195,12 +287,25 @@ const state = ui.createStore({
 		return this.get_item_icon(state.campaign_item_id);
 	},
 
+	get campaign_item_owned_qty() {
+		const item = game.items.getObjectByID(state.campaign_item_id);
+		return item === undefined ? 0 : game.bank.getQty(item);
+	},
+
 	get campaign_max_solo_contrib() {
-		return this.campaign_item_total * CAMPAIGN_MAX_SOLO_CONTRIB_FAC;
+		return this.campaign_max_contribution;
 	},
 
 	get campaign_max_solo_contrib_reached() {
 		return this.campaign_contribution >= this.campaign_max_solo_contrib;
+	},
+
+	get campaign_contribution_remaining() {
+		return Math.max(this.campaign_max_solo_contrib - this.campaign_contribution, 0);
+	},
+
+	get campaign_item_remaining() {
+		return Math.max(this.campaign_item_total - this.campaign_item_current, 0);
 	},
 
 	get campaign_next_formatted() {
@@ -264,6 +369,16 @@ const state = ui.createStore({
 		return item?.name ?? 'Unknown Item';
 	},
 
+	get_avatar_icon(id) {
+		const monster = game.monsters.getObjectByID(id);
+		return monster?.media ?? 'assets/media/main/question.png';
+	},
+
+	get_guild_icon(id) {
+		const area = game.combatAreas.getObjectByID(id);
+		return area?.media ?? 'assets/media/main/question.png';
+	},
+
 	get_pet_icon(id) {
 		const pet = game.pets.getObjectByID(id);
 		return pet?.media ?? 'assets/media/main/question.png';
@@ -301,7 +416,7 @@ const state = ui.createStore({
 		if (!has_sorted_market_filter_items)
 			load_market_filter_items();
 
-		setTimeout(() => $('kmm-market-filter-input').focus(), 1);
+		setTimeout(() => $('mp-market-filter-input').focus(), 1);
 	},
 
 	select_market_filter_item(item_id) {
@@ -314,7 +429,7 @@ const state = ui.createStore({
 		this.market_buy_item = item;
 
 		const item_name = this.get_item_name(item.item_id);
-		queue_modal(getLangString('MOD_KMM_MARKET_BUY_MODAL_TITLE') + item_name, 'market-buy-modal', this.get_item_icon(item.item_id), {
+		queue_modal(getLangString('MOD_MP_MARKET_BUY_MODAL_TITLE') + item_name, 'market-buy-modal', this.get_item_icon(item.item_id), {
 			showConfirmButton: false
 		}, false, false);
 	},
@@ -326,17 +441,17 @@ const state = ui.createStore({
 			return;
 
 		if (!state.market_buy_item)
-			return notify_error('MOD_KMM_GENERIC_ERR');
+			return notify_error('MOD_MP_GENERIC_ERR');
 
 		if (state.item_slider_value <= 0)
-			return notify_error('MOD_KMM_MARKET_BUY_NOTHING');
+			return notify_error('MOD_MP_MARKET_BUY_NOTHING');
 
 		const item = game.items.getObjectByID(state.market_buy_item.item_id);
 		if (!item)
-			return notify_error('MOD_KMM_MARKET_BUY_ERROR_UNKNOWN');
+			return notify_error('MOD_MP_MARKET_BUY_ERROR_UNKNOWN');
 
 		if (game.gp.amount < state.item_slider_value * state.market_buy_item.price)
-			return notify_error('MOD_KMM_MARKET_INSUFFICIENT_GP');
+			return notify_error('MOD_MP_MARKET_INSUFFICIENT_GP');
 
 		show_button_spinner($button);
 
@@ -349,9 +464,14 @@ const state = ui.createStore({
 			add_bank_item(res.item_id, res.item_qty);
 			game.gp.remove(res.gp_loss);
 
-			state.market_buy_item.available = res.new_item_qty;
+			if (res.new_item_qty > 0) {
+				state.market_buy_item.available = res.new_item_qty;
+			} else {
+				remove_sold_out_market_result(state, state.market_buy_item.id, MARKET_ITEMS_PER_PAGE);
+				await update_market_search();
+			}
 		} else {
-			notify_error(res?.error_lang ?? 'MOD_KMM_MARKET_BUY_ERROR');
+			notify_error(res?.error_lang ?? 'MOD_MP_MARKET_BUY_ERROR');
 		}
 
 		hide_button_spinner($button);
@@ -422,6 +542,9 @@ const state = ui.createStore({
 
 		const res = await api_post('/api/market/' + (cancel ? 'cancel' : 'payout'), { id: item.id });
 		if (res?.success) {
+			if (cancel && res.item_qty > 0)
+				add_bank_item(res.item_id, res.item_qty);
+
 			if (res.payout > 0) {
 				game.gp.add(res.payout);
 				item.payout += res.payout;
@@ -432,7 +555,7 @@ const state = ui.createStore({
 				state.market_completed = state.market_completed.filter(listing => listing !== item.id);
 			}
 		} else {
-			notify_error('MOD_KMM_GENERIC_ERR');
+			notify_error('MOD_MP_GENERIC_ERR');
 		}
 
 		hide_button_spinner($button);
@@ -449,7 +572,7 @@ const state = ui.createStore({
 	},
 
 	get_campaign_title(id) {
-		return getLangString(this.campaign_data[id]?.name_lang ?? 'MOD_KMM_CAMPAIGN_NAME_UNKNOWN');
+		return getLangString(this.campaign_data[id]?.name_lang ?? 'MOD_MP_CAMPAIGN_NAME_UNKNOWN');
 	},
 
 	get_current_campaign_title() {
@@ -465,14 +588,14 @@ const state = ui.createStore({
 	},
 
 	show_campaign_contribute_modal() {
-		queue_modal('MOD_KMM_CAMPAIGN_CONTRIBUTE', 'campaign-contribute-modal', this.campaign_item_icon, {
+		queue_modal('MOD_MP_CAMPAIGN_CONTRIBUTE', 'campaign-contribute-modal', this.campaign_item_icon, {
 			showConfirmButton: false
 		}, true, false);
 	},
 
 	async contribute_to_campaign(event) {
 		if (!state.campaign_active || !state.campaign_has_data)
-			return notify_error('MOD_KMM_CAMPAIGN_CONTRIBUTE_ERR');
+			return notify_error('MOD_MP_CAMPAIGN_CONTRIBUTE_ERR');
 
 		const item_amount = state.item_slider_value;
 		if (item_amount <= 0)
@@ -482,7 +605,7 @@ const state = ui.createStore({
 		const item_owned_qty = game.bank.getQty(item);
 
 		if (item_owned_qty < item_amount)
-			return notify_error('MOD_KMM_CAMPAIGN_CONTRIBUTE_AMOUNT_ERR');
+			return notify_error('MOD_MP_CAMPAIGN_CONTRIBUTE_AMOUNT_ERR');
 
 		const $button = event.currentTarget;
 		if (is_button_spinning($button))
@@ -498,9 +621,9 @@ const state = ui.createStore({
 			state.campaign_pct = res.campaign_pct;
 
 			update_campaign_nav();
-			notify_item('MOD_KMM_CAMPAIGN_CONTRIBUTED', 'success', remove_item, res.item_loss);
+			notify_item('MOD_MP_CAMPAIGN_CONTRIBUTED', 'success', remove_item, res.item_loss);
 		} else {
-			notify_error('MOD_KMM_CAMPAIGN_CONTRIBUTE_ERR');
+			notify_error('MOD_MP_CAMPAIGN_CONTRIBUTE_ERR');
 		}
 
 		hide_button_spinner($button);
@@ -528,7 +651,7 @@ const state = ui.createStore({
 			game.gp.add(reward_value);
 			campaign.taken = reward_value;
 		} else {
-			notify_error('MOD_KMM_GENERIC_ERR');
+			notify_error('MOD_MP_GENERIC_ERR');
 		}
 
 		hide_button_spinner($button);
@@ -543,7 +666,7 @@ const state = ui.createStore({
 	async charity_take_item(event) {
 		const item = this.charity_tree_inventory.find(e => e.id === state.selected_charity_item_id);
 		if (!item)
-			return notify_error('MOD_KMM_CHARITY_INVALID_ITEM');
+			return notify_error('MOD_MP_CHARITY_INVALID_ITEM');
 
 		const $button = event.currentTarget;
 		if (is_button_spinning($button))
@@ -559,7 +682,7 @@ const state = ui.createStore({
 			add_bank_item(item.id, res.item_qty);
 			state.charity_tree_inventory = state.charity_tree_inventory.filter(e => e.id !== item.id);
 		} else {
-			notify_error(res?.error_lang ?? 'MOD_KMM_CHARITY_TAKEN');
+			notify_error(res?.error_lang ?? 'MOD_MP_CHARITY_TAKEN');
 		}
 
 		if (res?.timeout !== undefined) {
@@ -579,12 +702,12 @@ const state = ui.createStore({
 		const items = state.transfer_inventory;
 
 		if (items.length === 0)
-			return notify_error('MOD_KMM_CHARITY_NO_SELECTION');
+			return notify_error('MOD_MP_CHARITY_NO_SELECTION');
 
 		for (const item_entry of items) {
 			const item = game.items.getObjectByID(item_entry.id);
 			if (item.isModded)
-				return notify_error('MOD_KMM_CHARITY_MODDED_ITEM');
+				return notify_error('MOD_MP_CHARITY_MODDED_ITEM');
 		}
 
 		const $button = event.currentTarget;
@@ -600,13 +723,13 @@ const state = ui.createStore({
 			clear_transfer_inventory();
 			last_charity_check = 0;
 
-			notify('MOD_KMM_CHARITY_DONATED');
+			notify('MOD_MP_CHARITY_DONATED');
 
 			// 0.1% + for every 10,000,000 worth of donation, % to get pet is +1%, capped at 10%
 			const pet_pct = Math.min(0.1 + Math.floor(donation_value / 10000000) / 100, 0.1);
 			if (Math.random() < pet_pct) {
 				state.charity_bonus_unlocked = true;
-				game.petManager.unlockPetByID('kru_melvor_multiplayer:Multiplayer_Pet_Charity');
+				game.petManager.unlockPetByID('multiplayer:Multiplayer_Pet_Charity');
 			}
 		}
 
@@ -615,21 +738,22 @@ const state = ui.createStore({
 	// #endregion
 
 	// #region TRADE ACTIONS
-	create_trade() {
+	async create_trade() {
 		if (state.transfer_inventory.length > 0) {
-			queue_modal('MOD_KMM_TITLE_SEND_TRADE_OFFER', 'create-trade-modal', 'assets/transfer_bag.svg', {
+			await refresh_guild_state();
+			queue_modal('MOD_MP_TITLE_SEND_TRADE_OFFER', 'create-trade-modal', 'assets/transfer_bag.svg', {
 				showConfirmButton: false
 			}, true);
 		} else {
-			notify_error('MOD_KMM_TRANSFER_NO_ITEMS_ERR');
+			notify_error('MOD_MP_TRANSFER_NO_ITEMS_ERR');
 		}
 	},
 
-	async select_trade_recipient(friend) {
+	async select_trade_recipient(recipient) {
 		this.close_modal();
 
 		const res = await api_post('/api/trade/offer', {
-			recipient_id: friend.friend_id,
+			recipient_id: recipient.client_id,
 			items: state.transfer_inventory
 		});
 
@@ -707,7 +831,7 @@ const state = ui.createStore({
 			}, 1);
 
 		} else {
-			notify_error('MOD_KMM_GENERIC_ERR');
+			notify_error('MOD_MP_GENERIC_ERR');
 		}
 	},
 
@@ -733,7 +857,7 @@ const state = ui.createStore({
 
 			state.resolved_trades = state.resolved_trades.filter(trade => trade.trade_id !== trade_id);
 		} else {
-			notify_error('MOD_KMM_GENERIC_ERR');
+			notify_error('MOD_MP_GENERIC_ERR');
 		}
 	},
 
@@ -755,7 +879,7 @@ const state = ui.createStore({
 		if (res?.success === true) {
 			state.trades = state.trades.filter(trade => trade.trade_id !== trade_id);
 		} else {
-			notify_error('MOD_KMM_GENERIC_ERR');
+			notify_error('MOD_MP_GENERIC_ERR');
 		}
 	},
 
@@ -781,7 +905,7 @@ const state = ui.createStore({
 
 			state.trades = state.trades.filter(trade => trade.trade_id !== trade_id);
 		} else {
-			notify_error('MOD_KMM_GENERIC_ERR');
+			notify_error('MOD_MP_GENERIC_ERR');
 		}
 	},
 
@@ -811,7 +935,7 @@ const state = ui.createStore({
 			
 			state.trades = state.trades.filter(trade => trade.trade_id !== trade_id);
 		} else {
-			notify_error('MOD_KMM_GENERIC_ERR');
+			notify_error('MOD_MP_GENERIC_ERR');
 		}
 	},
 	// #endregion
@@ -829,7 +953,7 @@ const state = ui.createStore({
 
 		const gift = this.gifts.find(g => g.id === gift_id);
 		if (gift === undefined)
-			return notify_error('MOD_KMM_GENERIC_ERR');
+			return notify_error('MOD_MP_GENERIC_ERR');
 
 		show_button_spinner($button);
 
@@ -847,26 +971,27 @@ const state = ui.createStore({
 
 			this.gifts = this.gifts.filter(g => g.id !== gift_id);
 		} else {
-			notify_error('MOD_KMM_GENERIC_ERR');
+			notify_error('MOD_MP_GENERIC_ERR');
 		}
 	},
 
-	gift_friend() {
+	async gift_friend() {
 		if (state.transfer_inventory.length > 0) {
-			queue_modal('MOD_KMM_TITLE_SEND_GIFT', 'gift-friend-modal', 'assets/media/bank/present.png', {
+			await refresh_guild_state();
+			queue_modal('MOD_MP_TITLE_SEND_GIFT', 'gift-friend-modal', 'assets/media/bank/present.png', {
 				showConfirmButton: false
 			}, true, false);
 		} else {
-			notify_error('MOD_KMM_TRANSFER_NO_ITEMS_ERR');
+			notify_error('MOD_MP_TRANSFER_NO_ITEMS_ERR');
 		}
 	},
 
-	select_gift_recipient(friend) {
+	select_gift_recipient(recipient) {
 		this.close_modal();
 
-		state.gifting_friend = friend;
+		state.gifting_recipient = recipient;
 
-		queue_modal('MOD_KMM_TITLE_CONFIRM_GIFT_RECIPIENT', 'confirm-gift-recipient-modal', 'assets/media/bank/present.png', {
+		queue_modal('MOD_MP_TITLE_CONFIRM_GIFT_RECIPIENT', 'confirm-gift-recipient-modal', 'assets/media/bank/present.png', {
 			showConfirmButton: false
 		}, true, false);
 	},
@@ -878,16 +1003,16 @@ const state = ui.createStore({
 			return;
 
 		show_button_spinner($button);
-		const friend_id = state.gifting_friend.friend_id;
+		const recipient_id = state.gifting_recipient.client_id;
 
 		const res = await api_post('/api/gift/send', {
-			friend_id,
+			recipient_id,
 			items: state.transfer_inventory
 		});
 
 		try {
 			if (res === null)
-				throw new Error('MOD_KMM_GENERIC_ERR');
+				throw new Error('MOD_MP_GENERIC_ERR');
 
 			if (res.error_lang)
 				throw new Error(res.error_lang);
@@ -900,7 +1025,7 @@ const state = ui.createStore({
 
 		clear_transfer_inventory();
 
-		notify('MOD_KMM_NOTIF_GIFT_SENT');
+		notify('MOD_MP_NOTIF_GIFT_SENT');
 		state.close_modal();
 	},
 	// #endregion
@@ -925,15 +1050,26 @@ const state = ui.createStore({
 		return game.gp.formatAmount(numberWithCommas(total_value));
 	},
 
-	open_transfer_data_page() {
+	async open_transfer_data_page() {
 		state.hide_online_dropdown();
-		changePage(game.pages.getObjectByID('kru_melvor_multiplayer:Transfer_Items'));
+		await open_transfer_page({
+			refresh_events: get_client_events,
+			refresh_guild: refresh_guild_state,
+			update_contents: update_transfer_contents,
+			navigate: () => changePage(game.pages.getObjectByID('multiplayer:Transfer_Items'))
+		});
 	},
 
-	open_market_page(tab_id) {
+	async open_market_page(tab_id) {
 		state.hide_online_dropdown();
-		changePage(game.pages.getObjectByID('kru_melvor_multiplayer:Multiplayer_Market'));
+		changePage(game.pages.getObjectByID('multiplayer:Multiplayer_Market'));
 		state.market_active_tab = tab_id;
+		await update_market_page();
+	},
+
+	open_guild_page() {
+		this.hide_online_dropdown();
+		changePage(game.pages.getObjectByID('multiplayer:Guild'));
 	},
 
 	async add_gp_to_transfer() {
@@ -942,7 +1078,7 @@ const state = ui.createStore({
 	},
 
 	show_add_gp_modal() {
-		queue_modal('MOD_KMM_TITLE_ADD_GP', 'add-gp-modal', 'assets/media/main/coins.png', {
+		queue_modal('MOD_MP_TITLE_ADD_GP', 'add-gp-modal', 'assets/media/main/coins.png', {
 			showConfirmButton: false
 		}, true, false);
 	},
@@ -953,6 +1089,43 @@ const state = ui.createStore({
 
 	transfer_return_all() {
 		return_all_transfer_inventory();
+	},
+	// #endregion
+
+	// #region DISPLAY NAME ACTIONS
+	async confirm_display_name(event) {
+		const $button = event.currentTarget;
+		if (is_button_spinning($button))
+			return;
+
+		const display_name = this.display_name_input.trim();
+		if (display_name.length === 0)
+			return show_modal_error(getLangString('MOD_MP_DISPLAY_NAME_REQUIRED_ERR'));
+
+		if (display_name.length > 20)
+			return show_modal_error(getLangString('MOD_MP_DISPLAY_NAME_TOO_LONG_ERR'));
+
+		hide_modal_error();
+		show_button_spinner($button);
+
+		const res = await api_post('/api/client/set_display_name', { display_name });
+
+		hide_button_spinner($button);
+		if (res?.success) {
+			this.profile_display_name = res.display_name;
+			this.close_modal();
+		} else {
+			show_modal_error(getLangString('MOD_MP_GENERIC_ERR'));
+		}
+	},
+
+	show_display_name_modal() {
+		this.hide_online_dropdown();
+		this.display_name_input = this.profile_display_name;
+
+		queue_modal('MOD_MP_TITLE_DISPLAY_NAME', 'change-display-name-modal', this.get_avatar_icon(this.profile_icon), {
+			showConfirmButton: false
+		}, true, false);
 	},
 	// #endregion
 
@@ -967,6 +1140,9 @@ const state = ui.createStore({
 	},
 
 	async confirm_icon_pick(event) {
+		if (this.picked_icon === '')
+			return;
+
 		const $button = event.currentTarget;
 		if (is_button_spinning($button))
 			return;
@@ -987,9 +1163,251 @@ const state = ui.createStore({
 
 		state.picked_icon = '';
 
-		queue_modal(game.characterName, 'change-icon-modal', game.items.getObjectByID(state.profile_icon).media, {
+		queue_modal(game.characterName, 'change-icon-modal', this.get_avatar_icon(state.profile_icon), {
 			showConfirmButton: false
 		}, false, false);
+	},
+	// #endregion
+
+	// #region GUILD ACTIONS
+	pick_guild_icon(icon) {
+		this.picked_guild_icon = icon.id;
+		this.guild_page_error = '';
+	},
+
+	async create_guild(event) {
+		const name = this.guild_name_input.trim();
+		if (name.length === 0)
+			return this.guild_page_error = getLangString('MOD_MP_GUILD_NAME_REQUIRED');
+		if (name.length > 20)
+			return this.guild_page_error = getLangString('MOD_MP_GUILD_NAME_TOO_LONG');
+		if (this.picked_guild_icon === '')
+			return this.guild_page_error = getLangString('MOD_MP_GUILD_ICON_REQUIRED');
+
+		const $button = event.currentTarget;
+		if (is_button_spinning($button))
+			return;
+		this.guild_page_error = '';
+		show_button_spinner($button);
+
+		const res = await api_post('/api/guilds/create', {
+			name,
+			icon_id: this.picked_guild_icon
+		});
+		hide_button_spinner($button);
+
+		if (!res?.success) {
+			this.guild_page_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+			return;
+		}
+
+		this.guild_name_input = '';
+		this.guild_icon_search = '';
+		this.picked_guild_icon = '';
+		await refresh_guild_state();
+		notify('MOD_MP_GUILD_CREATED', 'success');
+	},
+
+	async apply_to_guild(event, guild) {
+		const $button = event.currentTarget;
+		if (is_button_spinning($button))
+			return;
+		show_button_spinner($button);
+		const res = await api_post('/api/guilds/apply', { guild_id: guild.guild_id });
+		hide_button_spinner($button);
+
+		if (!res?.success)
+			return notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+
+		await refresh_guild_state();
+		notify('MOD_MP_GUILD_APPLICATION_SENT', 'success');
+	},
+
+	async withdraw_guild_application(event) {
+		const $button = event.currentTarget;
+		if (is_button_spinning($button))
+			return;
+		show_button_spinner($button);
+		const res = await api_post('/api/guilds/withdraw', {});
+		hide_button_spinner($button);
+
+		if (!res?.success)
+			return notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+
+		await refresh_guild_page();
+		notify('MOD_MP_GUILD_APPLICATION_WITHDRAWN');
+	},
+
+	async decide_guild_application(event, application, approve) {
+		const $button = event.currentTarget;
+		if (is_button_spinning($button))
+			return;
+		show_button_spinner($button);
+		const res = await api_post('/api/guilds/application/decide', {
+			application_id: application.application_id,
+			approve
+		});
+		hide_button_spinner($button);
+
+		if (!res?.success)
+			return notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+
+		this.guild_applicants = this.guild_applicants.filter(
+			applicant => applicant.application_id !== application.application_id
+		);
+		this.events.guild_applicants = this.events.guild_applicants.filter(
+			applicant => applicant.application_id !== application.application_id
+		);
+		if (approve)
+			await refresh_guild_state();
+	},
+
+	show_raise_petition_modal() {
+		this.council_error = '';
+		queue_modal('MOD_MP_COUNCIL_RAISE', 'council-raise-modal', 'assets/multiplayer.svg', {
+			showConfirmButton: false
+		});
+	},
+
+	show_council_petition_modal(type) {
+		this.close_modal();
+		this.council_type = type;
+		this.council_error = '';
+		this.council_name_input = '';
+		this.council_icon_search = '';
+		this.council_picked_icon = '';
+		setup_guild_icons();
+		const template = type === 'appellation'
+			? 'council-appellation-modal'
+			: type === 'heraldry'
+				? 'council-heraldry-modal'
+				: 'council-banishment-modal';
+		queue_modal(getLangString('MOD_MP_COUNCIL_RAISE_PREFIX') + this.get_council_type_lang(type), template, 'assets/multiplayer.svg', {
+			showConfirmButton: false
+		}, false);
+	},
+
+	toggle_resolved_council_petitions() {
+		this.council_show_resolved = !this.council_show_resolved;
+	},
+
+	pick_council_icon(icon) {
+		this.council_picked_icon = icon.id;
+		this.council_error = '';
+	},
+
+	async submit_council_petition(event, type, target_client_id = null) {
+		const payload = { type };
+		if (type === 'appellation') {
+			const name = this.council_name_input.trim();
+			if (name.length === 0)
+				return this.council_error = getLangString('MOD_MP_GUILD_NAME_REQUIRED');
+			if (name.length > 20)
+				return this.council_error = getLangString('MOD_MP_GUILD_NAME_TOO_LONG');
+			payload.name = name;
+		} else if (type === 'heraldry') {
+			if (this.council_picked_icon === '')
+				return this.council_error = getLangString('MOD_MP_GUILD_ICON_REQUIRED');
+			payload.icon_id = this.council_picked_icon;
+		} else {
+			payload.target_client_id = target_client_id;
+		}
+
+		const $button = event.currentTarget;
+		if (is_button_spinning($button))
+			return;
+		show_button_spinner($button);
+		const res = await api_post('/api/guilds/petitions/raise', payload);
+		hide_button_spinner($button);
+		if (!res?.success)
+			return this.council_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+
+		this.close_modal();
+		await refresh_council();
+	},
+
+	async vote_council_petition(event, petition, choice) {
+		const $button = event.currentTarget;
+		if (is_button_spinning($button))
+			return;
+		show_button_spinner($button);
+		const res = await api_post('/api/guilds/petitions/vote', {
+			petition_id: petition.petition_id,
+			choice
+		});
+		hide_button_spinner($button);
+		if (!res?.success)
+			return notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+		await Promise.all([refresh_guild_state(), refresh_council()]);
+	},
+
+	async withdraw_council_petition(event, petition) {
+		const $button = event.currentTarget;
+		if (is_button_spinning($button))
+			return;
+		show_button_spinner($button);
+		const res = await api_post('/api/guilds/petitions/withdraw', {
+			petition_id: petition.petition_id
+		});
+		hide_button_spinner($button);
+		if (!res?.success)
+			return notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+		await refresh_council();
+	},
+
+	get_council_type_lang(type) {
+		return getLangString('MOD_MP_COUNCIL_TYPE_' + type.toUpperCase());
+	},
+
+	get_council_outcome_lang(lifecycle) {
+		return getLangString('MOD_MP_COUNCIL_OUTCOME_' + lifecycle.toUpperCase());
+	},
+
+	get_council_choice_lang(choice) {
+		return getLangString(choice === 'aye' ? 'MOD_MP_COUNCIL_AYE' : 'MOD_MP_COUNCIL_NAY');
+	},
+
+	get_council_execution_lang(execution_state) {
+		return execution_state === 'failed'
+			? getLangString('MOD_MP_COUNCIL_ACTION_DELAYED')
+			: getLangString('MOD_MP_COUNCIL_ACTION_PENDING');
+	},
+
+	get_council_tally_width(petition, choice) {
+		if (!petition.tally || petition.tally.eligible === 0)
+			return '0%';
+		return (petition.tally[choice] / petition.tally.eligible * 100) + '%';
+	},
+
+	async load_more_council_petitions(event) {
+		const $button = event.currentTarget;
+		if (is_button_spinning($button))
+			return;
+		show_button_spinner($button);
+		await refresh_council(this.council_resolved_page + 1, true);
+		hide_button_spinner($button);
+	},
+
+	confirm_leave_guild() {
+		queue_modal('MOD_MP_TITLE_LEAVE_GUILD', 'leave-guild-modal', 'assets/multiplayer.svg', {
+			showConfirmButton: false
+		});
+	},
+
+	async leave_guild(event) {
+		const $button = event.currentTarget;
+		if (is_button_spinning($button))
+			return;
+		show_button_spinner($button);
+		const res = await api_post('/api/guilds/leave', {});
+		hide_button_spinner($button);
+
+		if (!res?.success)
+			return show_modal_error(getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR'));
+
+		this.close_modal();
+		await refresh_guild_page();
+		notify('MOD_MP_GUILD_LEFT');
 	},
 	// #endregion
 
@@ -1013,7 +1431,7 @@ const state = ui.createStore({
 			if (res.friend)
 				state.friends.push(res.friend);
 		} else {
-			notify_error('MOD_KMM_GENERIC_ERR');
+			notify_error('MOD_MP_GENERIC_ERR');
 		}
 	},
 
@@ -1033,13 +1451,14 @@ const state = ui.createStore({
 		if (res?.success === true) {
 			state.events.friend_requests.splice(state.events.friend_requests.indexOf(request), 1);
 		} else {
-			notify_error('MOD_KMM_GENERIC_ERR');
+			notify_error('MOD_MP_GENERIC_ERR');
 		}
 	},
 
-	show_friend_request_modal() {
+	async show_friend_request_modal() {
 		state.hide_online_dropdown();
-		queue_modal('MOD_KMM_TITLE_FRIEND_REQUESTS', 'friend-request-modal');
+		await get_client_events();
+		queue_modal('MOD_MP_TITLE_FRIEND_REQUESTS', 'friend-request-modal');
 	},
 	// #endregion
 
@@ -1049,7 +1468,7 @@ const state = ui.createStore({
 
 		state.removing_friend = friend;
 
-		queue_modal('MOD_KMM_TITLE_REMOVE_FRIEND_CONFIRM', 'remove-friend-modal', 'assets/remove_friend.svg', {
+		queue_modal('MOD_MP_TITLE_REMOVE_FRIEND_CONFIRM', 'remove-friend-modal', 'assets/remove_friend.svg', {
 			showConfirmButton: false
 		});
 	},
@@ -1066,31 +1485,32 @@ const state = ui.createStore({
 
 		if (res?.success) {
 			state.friends = state.friends.filter(f => f.friend_id !== friend_id);
-			notify('MOD_KMM_NOTIF_FRIEND_REMOVED');
+			notify('MOD_MP_NOTIF_FRIEND_REMOVED');
 		}
 
 		hide_button_spinner($button);
 		state.close_modal();
 	},
 
-	show_friends_modal() {
+	async show_friends_modal() {
 		state.hide_online_dropdown();
-		queue_modal('MOD_KMM_TITLE_FRIENDS', 'friends-modal');
+		await get_friends();
+		queue_modal('MOD_MP_TITLE_FRIENDS', 'friends-modal');
 	},
 	// #endregion
 
 	// #region FRIEND ACTIONS
 	show_friend_code_modal() {
 		state.hide_online_dropdown();
-		state.friend_code = get_character_storage_item('friend_code');
+		state.friend_code = get_instance_storage_item('friend_code');
 
-		queue_modal('MOD_KMM_TITLE_FRIEND_CODE', 'friend-code-modal');
+		queue_modal('MOD_MP_TITLE_FRIEND_CODE', 'friend-code-modal');
 	},
 
 	show_add_friend_modal() {
 		state.hide_online_dropdown();
 
-		queue_modal('MOD_KMM_TITLE_ADD_FRIEND', 'add-friend-modal', 'assets/add_user.svg', {
+		queue_modal('MOD_MP_TITLE_ADD_FRIEND', 'add-friend-modal', 'assets/add_user.svg', {
 			showConfirmButton: false
 		});
 	},
@@ -1103,19 +1523,19 @@ const state = ui.createStore({
 		hide_modal_error();
 		show_button_spinner($button);
 
-		const friend_code = $('kmm-add-friend-modal-field').value.trim();
+		const friend_code = $('mp-add-friend-modal-field').value.trim();
 
 		try {
 			if (!/^\d{3}-\d{3}-\d{3}$/.test(friend_code))
-				throw new Error('MOD_KMM_INVALID_FRIEND_CODE_ERR');
+				throw new Error('MOD_MP_INVALID_FRIEND_CODE_ERR');
 
-			const client_friend_code = get_character_storage_item('friend_code');
+			const client_friend_code = get_instance_storage_item('friend_code');
 			if (friend_code === client_friend_code)
-				throw new Error('MOD_KMM_NO_SELF_LOVE_ERR');
+				throw new Error('MOD_MP_NO_SELF_LOVE_ERR');
 
 			const res = await api_post('/api/friends/add', { friend_code });
 			if (res === null)
-				throw new Error('MOD_KMM_GENERIC_ERR');
+				throw new Error('MOD_MP_GENERIC_ERR');
 
 			if (res.error_lang)
 				throw new Error(res.error_lang);
@@ -1126,7 +1546,7 @@ const state = ui.createStore({
 
 		hide_button_spinner($button);
 
-		notify('MOD_KMM_NOTIF_FRIEND_REQ_SENT');
+		notify('MOD_MP_NOTIF_FRIEND_REQ_SENT');
 		state.close_modal();
 	},
 	// #endregion
@@ -1134,7 +1554,12 @@ const state = ui.createStore({
 
 // #region COMMON FUNCTIONS
 function queue_modal(title_lang, template_id, image_url = 'assets/multiplayer.svg', data = {}, localize_title = true, get_image = true) {
-	addModalToQueue(Object.assign({
+	if (!modal_queue_guard.reserve(template_id)) {
+		log('ignored duplicate modal request (%s)', template_id);
+		return;
+	}
+
+	const modal_options = Object.assign({
 		title: localize_title ? getLangString(title_lang) : title_lang,
 		html: modal_component(template_id),
 		imageUrl: get_image ? ctx.getResourceUrl(image_url) : image_url,
@@ -1142,17 +1567,30 @@ function queue_modal(title_lang, template_id, image_url = 'assets/multiplayer.sv
 		imageHeight: 64,
 		allowOutsideClick: true,
 		backdrop: true
-	}, data));
+	}, data);
+
+	const did_close = modal_options.didClose;
+	modal_options.didClose = (...args) => {
+		modal_queue_guard.release(template_id);
+		did_close?.(...args);
+	};
+
+	try {
+		addModalToQueue(modal_options);
+	} catch (error) {
+		modal_queue_guard.release(template_id);
+		throw error;
+	}
 }
 
 function show_modal_error(text) {
-	const $modal_error = $('kmm-modal-error');
+	const $modal_error = $('mp-modal-error');
 	$modal_error.textContent = text;
 	$modal_error.classList.remove('d-none');
 }
 
 function hide_modal_error() {
-	$('kmm-modal-error').classList.add('d-none');
+	$('mp-modal-error').classList.add('d-none');
 }
 
 function show_button_spinner(element) {
@@ -1180,11 +1618,11 @@ function is_button_spinning(element) {
 }
 
 function modal_component(template_id) {
-	return `<kmm-modal-component data-template-id="${template_id}"></kmm-modal-component>`;
+	return `<mp-modal-component data-template-id="${template_id}"></mp-modal-component>`;
 }
 
 function make_template(id, parent = null) {
-	return ui.create({ $template: '#template-kru-multiplayer-' + id, state }, parent ?? document.body);
+	return ui.create({ $template: '#template-mp-' + id, state }, parent ?? document.body);
 }
 
 function $(id) {
@@ -1222,14 +1660,68 @@ function get_character_storage_item(key) {
 	if (IS_DEV_MODE)
 		return DEV_CHARACTER_STORAGE[key];
 
+	if (is_creator_toolkit_local_mod()) {
+		const storage_key = get_local_character_storage_key(key);
+		let stored_value = localStorage.getItem(storage_key);
+		let legacy_storage_key;
+
+		if (stored_value === null) {
+			legacy_storage_key = get_local_character_storage_key(key, LEGACY_LOCAL_MOD_CHARACTER_STORAGE_PREFIX);
+			stored_value = localStorage.getItem(legacy_storage_key);
+		}
+
+		if (stored_value === null)
+			return undefined;
+
+		try {
+			const value = JSON.parse(stored_value);
+
+			if (legacy_storage_key !== undefined) {
+				localStorage.setItem(storage_key, stored_value);
+				localStorage.removeItem(legacy_storage_key);
+			}
+
+			return value;
+		} catch (e) {
+			error('failed to read local character storage key %s (%s)', key, e);
+			return undefined;
+		}
+	}
+
 	return ctx.characterStorage.getItem(key);
 }
 
 function set_character_storage_item(key, value) {
-	if (IS_DEV_MODE)
+	if (IS_DEV_MODE) {
 		DEV_CHARACTER_STORAGE[key] = value;
-	else
+	} else {
 		ctx.characterStorage.setItem(key, value);
+
+		if (is_creator_toolkit_local_mod()) {
+			const storage_key = get_local_character_storage_key(key);
+			if (value === undefined)
+				localStorage.removeItem(storage_key);
+			else
+				localStorage.setItem(storage_key, JSON.stringify(value));
+		}
+	}
+}
+
+function is_creator_toolkit_local_mod() {
+	return ctx.version === '';
+}
+
+function get_local_character_storage_key(key, prefix = LOCAL_MOD_CHARACTER_STORAGE_PREFIX) {
+	const save_slot = typeof currentCharacter === 'number' ? currentCharacter : 'unknown';
+	return `${prefix}${save_slot}:${key}`;
+}
+
+function get_instance_storage_item(key) {
+	return get_character_storage_item(server_instance_storage_prefix + key);
+}
+
+function set_instance_storage_item(key, value) {
+	set_character_storage_item(server_instance_storage_prefix + key, value);
 }
 
 function on_page_toggle(id, callback, visible_only) {
@@ -1249,9 +1741,12 @@ function on_page_toggle(id, callback, visible_only) {
 // #endregion
 
 // #region MARKET FUNCTIONS
-async function update_market_page() {
+async function update_market_page(force_reload = false) {
+	if (!state.is_guild_member)
+		return;
+
 	if (state.market_active_tab === 'search') {
-		if (!has_done_first_market_search) {
+		if (force_reload || !has_done_first_market_search) {
 			has_done_first_market_search = true;
 			await update_market_search();
 		}
@@ -1261,17 +1756,20 @@ async function update_market_page() {
 }
 
 async function market_create_listing(item, item_qty, item_sell_price) {
+	if (!state.is_guild_member)
+		return notify_error('MOD_MP_GUILD_REQUIRED');
+
 	if (item_qty <= 0)
-		return notify_error('MOD_KMM_MARKET_CANNOT_SELL_NOTHING');
+		return notify_error('MOD_MP_MARKET_CANNOT_SELL_NOTHING');
 
 	if (item_sell_price <= 0)
-		return notify_error('MOD_KMM_MARKET_CANNOT_SELL_FREE');
+		return notify_error('MOD_MP_MARKET_CANNOT_SELL_FREE');
 
 	if (game.bank.getQty(item) < item_qty)
-		return notify_error('MOD_KMM_MARKET_NOT_ENOUGH_ITEM');
+		return notify_error('MOD_MP_MARKET_NOT_ENOUGH_ITEM');
 
 	if (item.isModded)
-		return notify_error('MOD_KMM_MARKET_CANNOT_SELL_MODDED');
+		return notify_error('MOD_MP_MARKET_CANNOT_SELL_MODDED');
 
 	const res = await api_post('/api/market/sell', {
 		item_id: item.id,
@@ -1281,12 +1779,12 @@ async function market_create_listing(item, item_qty, item_sell_price) {
 
 	if (res?.success) {
 		game.bank.removeItemQuantity(item, item_qty);
-		notify('MOD_KMM_MARKET_ITEM_LISTED', 'success', 'assets/market.svg', item_qty);
+		notify('MOD_MP_MARKET_ITEM_LISTED', 'success', 'assets/market.svg', item_qty);
 
 		if (state.market_active_tab === 'listing')
 			update_market_listings();
 	} else {
-		notify_error(res?.error_lang ?? 'MOD_KMM_GENERIC_ERR');
+		notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 	}
 }
 
@@ -1350,17 +1848,20 @@ function load_market_filter_items() {
 // #endregion
 
 // #region CAMPAIGN FUNCTIONS
-async function update_campaign_info() {
+async function update_campaign_info(force_reload = false) {
 	state.campaign_update_time = Date.now();
 
-	if (state.campaign_loading || state.campaign_has_data)
+	if (!state.is_guild_member)
+		return;
+
+	if (state.campaign_loading || (!force_reload && state.campaign_has_data))
 		return;
 
 	state.campaign_loading = true;
 
 	const res = await api_get('/api/campaign/info');
 
-	if (res !== null) {
+	if (res !== null && !res.error_lang) {
 		state.campaign_has_data = true;
 		state.campaign_history = res.history;
 		state.campaign_rankings = res.rankings;
@@ -1370,13 +1871,14 @@ async function update_campaign_info() {
 			state.campaign_item_id = res.item_id;
 			state.campaign_item_total = res.item_total;
 			state.campaign_contribution = res.contribution;
+			state.campaign_max_contribution = res.max_contribution;
 		} else {
 			state.campaign_next_timestamp = res.next_campaign;
 		}
 
 		check_campaign_pets();
 	} else {
-		notify_error('MOD_KMM_GENERIC_ERR');
+		notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 	}
 
 	state.campaign_loading = false;
@@ -1400,7 +1902,7 @@ async function load_campaign_data(ctx) {
 }
 
 function update_campaign_nav() {
-	const aside = document.querySelector('.kmm-campaign-nav');
+	const aside = document.querySelector('.mp-campaign-nav');
 
 	if (state.campaign_active)
 		aside.textContent = Math.floor(state.campaign_pct * 100) + '%';
@@ -1424,7 +1926,7 @@ async function load_pets(ctx) {
 
 	// Providing customDescription to pets does not appear to work, so we hack it in.
 	for (const pet of pets) {
-		const pet_obj = game.pets.getObjectByID('kru_melvor_multiplayer:' + pet.id);
+		const pet_obj = game.pets.getObjectByID('multiplayer:' + pet.id);
 		pet_obj._customDescription = getLangString(pet.customDescription);
 		skill_pets.set(pet.id, pet_obj);
 	}
@@ -1436,21 +1938,24 @@ function has_pet_by_id(pet_id) {
 // #endregion
 
 // #region CHARITY FUNCTIONS
-async function request_charity_tree_contents() {
+async function request_charity_tree_contents(force_reload = false) {
 	state.charity_update_time = Date.now();
+
+	if (!state.is_guild_member)
+		return;
 
 	if (state.charity_tree_loading)
 		return;
 
 	const current_time = Date.now();
-	if (current_time < last_charity_check + CHARITY_CHECK_TIMEOUT)
+	if (!force_reload && current_time < last_charity_check + CHARITY_CHECK_TIMEOUT)
 		return;
 
 	last_charity_check = current_time;
 	state.charity_tree_loading = true;
 
 	const res = await api_get('/api/charity/contents');
-	if (res !== null)
+	if (Array.isArray(res?.items))
 		state.charity_tree_inventory = res.items;
 
 	state.charity_tree_loading = false;
@@ -1518,26 +2023,29 @@ function return_selected_transfer_inventory() {
 			update_transfer_inventory_nav();
 		}
 	} else {
-		notify_error('MOD_KMM_TRANSFER_NO_ITEM_SELECTED');
+		notify_error('MOD_MP_TRANSFER_NO_ITEM_SELECTED');
 	}
 }
 
 function update_transfer_inventory_nav() {
-	const aside = document.querySelector('.kmm-transfer-nav');
+	const aside = document.querySelector('.mp-transfer-nav');
 	aside.textContent = state.transfer_inventory.length + ' / ' + TRANSFER_INVENTORY_MAX_LIMIT;
 	aside.classList.toggle('text-danger', state.transfer_inventory.length >= TRANSFER_INVENTORY_MAX_LIMIT);
 }
 
 function add_gp_to_transfer(amount) {
+	if (!state.is_guild_member)
+		return notify_error('MOD_MP_GUILD_REQUIRED');
+
 	if (game.gp.amount < amount)
-		return notify_error('MOD_KMM_INSUFFICIENT_GP_ERR');
+		return notify_error('MOD_MP_INSUFFICIENT_GP_ERR');
 
 	const existing_entry = state.transfer_inventory.find(e => e.id === 'melvorD:GP');
 	if (existing_entry) {
 		existing_entry.qty += amount;
 	} else {
 		if (state.transfer_inventory.length >= TRANSFER_INVENTORY_MAX_LIMIT)
-			return notify_error('MOD_KMM_TRANSFER_INVENTORY_FULL');
+			return notify_error('MOD_MP_TRANSFER_INVENTORY_FULL');
 
 		state.transfer_inventory.unshift({
 			id: 'melvorD:GP',
@@ -1551,12 +2059,15 @@ function add_gp_to_transfer(amount) {
 }
 
 function add_item_to_transfer_inventory(item, qty) {
+	if (!state.is_guild_member)
+		return notify_error('MOD_MP_GUILD_REQUIRED');
+
 	const existing_entry = state.transfer_inventory.find(e => e.id === item.id);
 	if (existing_entry) {
 		existing_entry.qty += qty;
 	} else {
 		if (state.transfer_inventory.length >= TRANSFER_INVENTORY_MAX_LIMIT)
-			return notify_error('MOD_KMM_TRANSFER_INVENTORY_FULL');
+			return notify_error('MOD_MP_TRANSFER_INVENTORY_FULL');
 
 		state.transfer_inventory.push({
 			id: item.id,
@@ -1584,11 +2095,70 @@ function load_transfer_inventory() {
 	state.transfer_inventory = stored ?? [];
 	update_transfer_inventory_nav();
 }
+
+function show_pending_banishment_notice() {
+	const guild_name = get_character_storage_item('pending_banishment_guild_name');
+	if (typeof guild_name !== 'string' || guild_name.length === 0)
+		return;
+	state.pending_banishment_guild_name = guild_name;
+	queue_modal('MOD_MP_COUNCIL_BANISHED_TITLE', 'banished-modal', 'assets/multiplayer.svg', {
+		showConfirmButton: false,
+		didOpen() {
+			set_character_storage_item('pending_banishment_guild_name', undefined);
+		}
+	});
+}
+
+async function reconcile_banishment_returns() {
+	if (is_reconciling_banishment_returns)
+		return;
+	is_reconciling_banishment_returns = true;
+	try {
+		for (let claims = 0; claims < TRANSFER_INVENTORY_MAX_LIMIT + 1; claims++) {
+			const existing_item_ids = state.transfer_inventory.map(item => item.id);
+			const res = await api_post('/api/banishment/returns/claim', {
+				existing_item_ids,
+				available_slots: TRANSFER_INVENTORY_MAX_LIMIT - state.transfer_inventory.length
+			});
+			const claim = res?.claim;
+			if (!claim)
+				break;
+
+			const stored_claim_ids = get_character_storage_item('processed_banishment_claim_ids');
+			const processed_claim_ids = Array.isArray(stored_claim_ids) ? stored_claim_ids : [];
+			if (apply_banishment_claim(
+				state.transfer_inventory,
+				processed_claim_ids,
+				claim,
+				TRANSFER_INVENTORY_MAX_LIMIT
+			)) {
+				persist_transfer_inventory();
+				set_character_storage_item('processed_banishment_claim_ids', processed_claim_ids);
+			}
+			if (claim.banished?.guild_name) {
+				set_character_storage_item('pending_banishment_guild_name', claim.banished.guild_name);
+				state.pending_banishment_guild_name = claim.banished.guild_name;
+			}
+
+			const acknowledged = await api_post('/api/banishment/returns/acknowledge', {
+				claim_id: claim.claim_id
+			});
+			if (!acknowledged?.success)
+				break;
+		}
+		update_transfer_inventory_nav();
+		show_pending_banishment_notice();
+	} catch (e) {
+		error('failed to reconcile Banishment Return (%s)', e);
+	} finally {
+		is_reconciling_banishment_returns = false;
+	}
+}
 // #endregion
 
 // #region API FUNCTIONS
 async function api_get(endpoint) {
-	const res = await fetch(SERVER_HOST + endpoint, {
+	const res = await fetch(server_host + endpoint, {
 		method: 'GET',
 		headers: {
 			'X-Session-Token': session_token ?? undefined
@@ -1602,7 +2172,7 @@ async function api_get(endpoint) {
 }
 
 async function api_post(endpoint, payload) {
-	const res = await fetch(SERVER_HOST + endpoint, {
+	const res = await fetch(server_host + endpoint, {
 		method: 'POST',
 		body: JSON.stringify(payload),
 		headers: {
@@ -1620,7 +2190,7 @@ async function api_post(endpoint, payload) {
 function set_session_token(token) {
 	session_token = token;
 	state.is_connected = true;
-	log('client session authenticated (%s)', token);
+	log('client session authenticated');
 }
 
 async function get_friends() {
@@ -1629,10 +2199,72 @@ async function get_friends() {
 		state.friends = res.friends;
 }
 
+async function refresh_guild_state() {
+	const res = await api_get('/api/guilds/state');
+	if (res === null)
+		return null;
+
+	state.guild_state = res;
+	state.guild_members = res.members ?? [];
+	state.guild_applicants = res.applicants ?? [];
+	state.guild_client_id = res.current_client_id ?? null;
+	state.events.guild_applicants = state.guild_applicants;
+
+	if (res.affiliation !== 'member') {
+		state.council_petitions = [];
+		state.council_has_more = false;
+		state.council_resolved_page = 0;
+		state.council_show_resolved = false;
+		state.market_completed = [];
+		state.market_results = [];
+		state.market_listings = [];
+		state.charity_tree_inventory = [];
+		state.campaign_has_data = false;
+		state.campaign_history = [];
+		state.campaign_rankings = {};
+	}
+
+	return res;
+}
+
+async function refresh_guild_list() {
+	const res = await api_get('/api/guilds/list');
+	state.guilds = res?.guilds ?? [];
+}
+
+async function refresh_guild_page() {
+	setup_guild_icons();
+	const guild_state = await refresh_guild_state();
+
+	if (guild_state?.affiliation === 'member')
+		await refresh_council();
+	else if (guild_state?.affiliation === 'none')
+		await refresh_guild_list();
+}
+
+async function refresh_council(page = 0, append = false) {
+	if (!state.is_guild_member || state.council_loading)
+		return;
+	state.council_loading = true;
+	const res = await api_get('/api/guilds/council?page=' + page);
+	if (res !== null) {
+		if (append) {
+			const known = new Set(state.council_petitions.map(petition => petition.petition_id));
+			state.council_petitions.push(...res.petitions.filter(petition => !known.has(petition.petition_id)));
+		} else {
+			state.council_petitions = res.petitions ?? [];
+		}
+		state.council_resolved_page = res.resolved_page ?? page;
+		state.council_has_more = res.has_more === true;
+	}
+	state.council_loading = false;
+}
+
 async function get_client_events() {
 	const res = await api_get('/api/events');
 	if (res !== null) {
 		state.events.friend_requests = res.friend_requests;
+		state.events.guild_applicants = res.guild_applicants ?? [];
 		state.market_completed = res.market_completed;
 
 		for (const trade of res.trades) {
@@ -1673,6 +2305,7 @@ async function get_client_events() {
 			state.campaign_item_id = '';
 			state.campaign_item_total = 0;
 			state.campaign_contribution = 0;
+			state.campaign_max_contribution = 0;
 		}
 
 		const campaign_state_changed = state.campaign_active !== res.campaign.active;
@@ -1689,14 +2322,55 @@ async function get_client_events() {
 
 		if (state.is_transfer_page_visible)
 			setTimeout(() => update_transfer_contents(), 1);
+		if (res.banishment_return_pending) {
+			await reconcile_banishment_returns();
+			await refresh_guild_state();
+		}
+		show_pending_banishment_notice();
 	}
+}
 
-	setTimeout(get_client_events, 60000);
+function start_client_event_polling() {
+	poll_client_events(++client_event_poll_id);
+}
+
+async function poll_client_events(poll_id) {
+	await get_client_events();
+	if (poll_id === client_event_poll_id)
+		setTimeout(() => poll_client_events(poll_id), CLIENT_EVENT_POLL_INTERVAL);
 }
 // #region
 
 // #region SETUP FUNCTIONS
 export async function setup(ctx) {
+	const { ModalQueueGuard } = await ctx.loadModule('modal-queue.mjs');
+	const transfer_page = await ctx.loadModule('transfer-page.mjs');
+	const market_results = await ctx.loadModule('market-results.mjs');
+	const banishment_returns = await ctx.loadModule('banishment-returns.mjs');
+	const server_config = await ctx.loadModule('server-config.mjs');
+	modal_queue_guard = new ModalQueueGuard(template_id =>
+		document.querySelector(`mp-modal-component[data-template-id="${template_id}"]`) !== null
+	);
+	open_transfer_page = transfer_page.open_transfer_page;
+	remove_sold_out_market_result = market_results.remove_sold_out_market_result;
+	apply_banishment_claim = banishment_returns.apply_banishment_claim;
+	resolve_server_config = server_config.resolve_server_config;
+	get_custom_server_validation_error = server_config.get_custom_server_validation_error;
+	custom_server_max_length = server_config.CUSTOM_SERVER_MAX_LENGTH;
+
+	server_settings_section = ctx.settings.section('Connection');
+	server_settings_section.add({
+		type: 'text',
+		name: 'custom-server',
+		label: 'Custom server',
+		hint: 'Optional HTTPS server origin. Clear this field to use the default server. Changes apply after a full game reload.',
+		default: '',
+		maxLength: custom_server_max_length,
+		onChange(value) {
+			return get_custom_server_validation_error(value) ?? true;
+		}
+	});
+
 	await patch_localization(ctx);
 	await ctx.loadTemplates('ui/templates.html');
 
@@ -1706,6 +2380,7 @@ export async function setup(ctx) {
 	load_campaign_data(ctx);
 
 	ctx.onCharacterLoaded(() => {
+		apply_server_configuration();
 		start_multiplayer_session();
 		load_transfer_inventory();
 
@@ -1721,31 +2396,76 @@ export async function setup(ctx) {
 		const $button_tray = document.getElementById('header-theme').querySelector('.align-items-right');
 
 		make_template('online-button', $button_tray);
-		make_template('dropdown', $('kru-mm-online-button-container'));
+		make_template('dropdown', $('mp-online-button-container'));
 
-		state.$dropdown_menu = $('kru-mm-online-dropdown');
+		state.$dropdown_menu = $('mp-online-dropdown');
 
 		const $main_container = $('main-container');
-		for (const page of ['transfer', 'charity', 'campaign', 'market'])
+		for (const page of ['guild', 'transfer', 'charity', 'campaign', 'market'])
 			make_template(page + '-page', $main_container);
 
 		patch_bank();
 		patch_bank_market();
+		show_pending_banishment_notice();
 		
-		on_page_toggle('kru-multiplayer-charity-page', () => request_charity_tree_contents(), true);
-		on_page_toggle('kru-multiplayer-campaign-page', () => update_campaign_info(), true);
-		on_page_toggle('kru-multiplayer-market-page', () => update_market_page(), true);
+		on_page_toggle('mp-guild-page', refresh_guild_page, true);
+		on_page_toggle('mp-charity-page', async () => {
+			await refresh_guild_state();
+			await request_charity_tree_contents(true);
+		}, true);
+		on_page_toggle('mp-campaign-page', async () => {
+			await Promise.all([get_client_events(), refresh_guild_state()]);
+			await update_campaign_info(true);
+		}, true);
+		on_page_toggle('mp-market-page', async () => {
+			await refresh_guild_state();
+			await update_market_page(true);
+		}, true);
 	});
+}
+
+function apply_server_configuration() {
+	try {
+		const config = resolve_server_config(
+			SERVER_HOST,
+			SERVER_INSTANCE_STORAGE_PREFIX,
+			server_settings_section.get('custom-server')
+		);
+		server_host = config.host;
+		server_instance_storage_prefix = config.storage_prefix;
+		log('using %s multiplayer server', config.is_custom ? 'custom' : 'default');
+	} catch (e) {
+		server_host = SERVER_HOST;
+		server_instance_storage_prefix = SERVER_INSTANCE_STORAGE_PREFIX;
+		error('invalid saved custom server setting; using default server (%s)', e);
+	}
 }
 
 function setup_icons() {
 	if (state.available_icons.length === 0) {
-		const namespace_maps = game.items.namespaceMaps;
-		state.available_icons = [...namespace_maps.get('melvorF'), ...namespace_maps.get('melvorD')].map(e => {
-			const item = e[1];
-			return {id: item.id, search_name: item.name.toLowerCase(), media: item.media };
-		});
+		state.available_icons = [...game.monsters.registeredObjects].map(entry => {
+			const monster = entry[1];
+			return {
+				id: monster.id,
+				search_name: monster.name.toLowerCase(),
+				media: monster.media
+			};
+		}).filter(icon => icon.id.startsWith('melvorF:') || icon.id.startsWith('melvorD:'));
 	}
+}
+
+function setup_guild_icons() {
+	if (state.guild_icons.length > 0)
+		return;
+
+	state.guild_icons = [...game.combatAreas.registeredObjects].map(entry => {
+		const area = entry[1];
+		return {
+			id: area.id,
+			search_name: area.name.toLowerCase(),
+			media: area.media
+		};
+	}).filter(icon => icon.id.startsWith('melvorF:') || icon.id.startsWith('melvorD:'));
 }
 
 function patch_bank_market() {
@@ -1754,13 +2474,13 @@ function patch_bank_market() {
 
 	make_template('bank-market-container', $gutter);
 
-	const $slider_element = document.getElementById('kmm-market-slider');
+	const $slider_element = document.getElementById('mp-market-slider');
 	const slider = new BankRangeSlider($slider_element);
 
 	let selected_bank_item = null;
 	let sell_price = 1;
 
-	const $sell_value = document.getElementById('kmm-market-sell-value');
+	const $sell_value = document.getElementById('mp-market-sell-value');
 	function update_sell_value() {
 		const amount = slider.quantity;
 		const sell_total = amount * sell_price;
@@ -1768,8 +2488,8 @@ function patch_bank_market() {
 		$sell_value.textContent = selected_bank_item.item.sellsFor.currency.formatAmount(numberWithCommas(sell_total));
 	}
 
-	const $sell_amount_input = document.getElementById('kmm-market-sell-amount');
-	const $sell_price_input = document.getElementById('kmm-market-sell-price');
+	const $sell_amount_input = document.getElementById('mp-market-sell-amount');
+	const $sell_price_input = document.getElementById('mp-market-sell-price');
 
 	function update_bank_item(orig_func, ...args) {
 		orig_func.call(this, ...args);
@@ -1777,6 +2497,9 @@ function patch_bank_market() {
 		selected_bank_item = args[0];
 		sell_price = game.bank.getItemSalePrice(selected_bank_item.item);
 		$sell_price_input.value = sell_price;
+
+		if (slider.sliderInstance === undefined)
+			return;
 
 		slider.setSliderRange(selected_bank_item);
 		update_sell_value();
@@ -1804,14 +2527,20 @@ function patch_bank_market() {
 		update_sell_value();
 	};
 
-	const $market_sell_button = document.getElementById('kmm-market-sell-button');
+	const $market_sell_button = document.getElementById('mp-market-sell-button');
 	$market_sell_button.addEventListener('click', async () => {
 		if (is_button_spinning($market_sell_button))
 			return;
 
 		show_button_spinner($market_sell_button);
-		await market_create_listing(selected_bank_item.item, slider.quantity, sell_price);
-		hide_button_spinner($market_sell_button);
+		try {
+			await market_create_listing(selected_bank_item.item, slider.quantity, sell_price);
+		} catch (e) {
+			error('failed to create market listing (%s)', e);
+			notify_error('MOD_MP_GENERIC_ERR');
+		} finally {
+			hide_button_spinner($market_sell_button);
+		}
 	});
 }
 
@@ -1821,12 +2550,12 @@ function patch_bank() {
 
 	make_template('bank-container', $gutter);
 
-	const $slider_element = document.getElementById('kmm-transfer-slider');
+	const $slider_element = document.getElementById('mp-transfer-slider');
 	const slider = new BankRangeSlider($slider_element);
 
 	let selected_bank_item = null;
 
-	const $transfer_value = document.getElementById('kmm-transfer-value');
+	const $transfer_value = document.getElementById('mp-transfer-value');
 
 	function update_transfer_value() {
 		const amount = slider.quantity;
@@ -1837,6 +2566,9 @@ function patch_bank() {
 		orig_func.call(this, ...args);
 
 		selected_bank_item = args[0];
+		if (slider.sliderInstance === undefined)
+			return;
+
 		slider.setSliderRange(selected_bank_item);
 		update_transfer_value();
 	}
@@ -1851,7 +2583,7 @@ function patch_bank() {
 		update_bank_item.call(this, orig_set_item, ...args);
 	}
 
-	const $transfer_input = document.getElementById('kmm-transfer-amount');
+	const $transfer_input = document.getElementById('mp-transfer-amount');
 	$transfer_input.addEventListener('input', () => slider.setSliderPosition($transfer_input.value));
 
 	slider.customOnChange = (amount) => {
@@ -1859,22 +2591,24 @@ function patch_bank() {
 		update_transfer_value();
 	};
 
-	const $transfer_all_button = document.getElementById('kmm-transfer-all');
+	const $transfer_all_button = document.getElementById('mp-transfer-all');
 	$transfer_all_button.addEventListener('click', () => slider.setSliderPosition(Infinity));
 
-	const $transfer_all_but_1_button = document.getElementById('kmm-transfer-all-but-1');
+	const $transfer_all_but_1_button = document.getElementById('mp-transfer-all-but-1');
 	$transfer_all_but_1_button.addEventListener('click', () => slider.setSliderPosition(slider.sliderMax - 1));
 
-	const $transfer_button = document.getElementById('kmm-transfer-button');
+	const $transfer_button = document.getElementById('mp-transfer-button');
 	$transfer_button.addEventListener('click', () => {
 		add_item_to_transfer_inventory(selected_bank_item.item, slider.quantity);
 	});
 
 	// detect data page open
-	on_page_toggle('kru-multiplayer-transfer-page', is_visible => {
+	on_page_toggle('mp-transfer-page', async is_visible => {
 		state.is_transfer_page_visible = is_visible;
-		if (is_visible)
-			update_transfer_contents();
+		if (is_visible) {
+			await Promise.all([get_client_events(), refresh_guild_state()]);
+			await update_transfer_contents();
+		}
 	});
 }
 
@@ -1912,26 +2646,26 @@ async function start_multiplayer_session() {
 
 	is_connecting = true;
 
-	const client_identifier = get_character_storage_item('client_identifier');
-	const client_key = get_character_storage_item('client_key');
+	const client_identifier = get_instance_storage_item('client_identifier');
+	const client_key = get_instance_storage_item('client_key');
 	const display_name = game.characterName;
 
 	if (client_identifier !== undefined && client_key !== undefined) {
 		log('existing client identity found, authenticating session...');
 		const auth_res = await api_post('/api/authenticate', {
 			client_identifier,
-			client_key,
-			display_name
+			client_key
 		});
 
 		if (auth_res !== null) {
 			set_session_token(auth_res.session_token);
+			state.profile_display_name = auth_res.display_name;
 			state.profile_icon = auth_res.icon_id;
 
-			get_client_events();
-			get_friends();
+			start_client_event_polling();
+			refresh_guild_state();
 		} else {
-			notify_error('MOD_KMM_MULTIPLAYER_CONNECTION_ERR');
+			notify_error('MOD_MP_MULTIPLAYER_CONNECTION_ERR');
 			error('failed to authenticate client, multiplayer features not available');
 		}
 	} else {
@@ -1944,17 +2678,18 @@ async function start_multiplayer_session() {
 		});
 
 		if (register_res !== null) {
-			set_character_storage_item('client_key', client_key);
-			set_character_storage_item('client_identifier', register_res.client_identifier);
-			set_character_storage_item('friend_code', register_res.friend_code);
+			set_instance_storage_item('client_key', client_key);
+			set_instance_storage_item('client_identifier', register_res.client_identifier);
+			set_instance_storage_item('friend_code', register_res.friend_code);
 
+			state.profile_display_name = register_res.display_name;
 			state.profile_icon = register_res.icon_id;
 
 			set_session_token(register_res.session_token);
-			get_client_events();
-			get_friends();
+			start_client_event_polling();
+			refresh_guild_state();
 		} else {
-			notify_error('MOD_KMM_MULTIPLAYER_CONNECTION_ERR');
+			notify_error('MOD_MP_MULTIPLAYER_CONNECTION_ERR');
 			error('failed to register client, multiplayer features not available');
 		}
 	}
@@ -1964,11 +2699,12 @@ async function start_multiplayer_session() {
 // #endregion
 
 // #region COMPONENTS
-class KMMModalComponent extends HTMLElement {
+class MPModalComponent extends HTMLElement {
 	constructor() {
 		super();
 
 		const template_id = this.getAttribute('data-template-id');
+		modal_queue_guard.release(template_id);
 		make_template(template_id, this);
 	}
 }
@@ -2018,7 +2754,7 @@ class LangStringFormattedElement extends HTMLElement {
 	}
 }
 
-class KMMItemIcon extends HTMLElement {
+class MPItemIcon extends HTMLElement {
 	constructor() {
 		super();
 	}
@@ -2076,7 +2812,7 @@ class KMMItemIcon extends HTMLElement {
 	}
 }
 
-class KMMGPSlider extends HTMLElement {
+class MPGPSlider extends HTMLElement {
 	constructor() {
 		super();
 
@@ -2112,7 +2848,7 @@ class KMMGPSlider extends HTMLElement {
 	}
 }
 
-class KMMItemSlider extends HTMLElement {
+class MPItemSlider extends HTMLElement {
 	constructor() {
 		super();
 
@@ -2171,8 +2907,8 @@ class KMMItemSlider extends HTMLElement {
 }
 
 window.customElements.define('lang-string-f', LangStringFormattedElement);
-window.customElements.define('kmm-modal-component', KMMModalComponent);
-window.customElements.define('kmm-item-icon', KMMItemIcon);
-window.customElements.define('kmm-gp-slider', KMMGPSlider);
-window.customElements.define('kmm-item-slider', KMMItemSlider);
+window.customElements.define('mp-modal-component', MPModalComponent);
+window.customElements.define('mp-item-icon', MPItemIcon);
+window.customElements.define('mp-gp-slider', MPGPSlider);
+window.customElements.define('mp-item-slider', MPItemSlider);
 // #endregion

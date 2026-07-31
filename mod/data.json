@@ -3,17 +3,30 @@
 	"data": {
 		"pages": [
 			{
+				"id": "Guild",
+				"customName": "Guild",
+				"media": "assets/multiplayer.svg",
+				"containerID": "mp-guild-page",
+				"headerBgClass": "mp-guild-bg",
+				"hasGameGuide": false,
+				"canBeDefault": false,
+				"sidebarItem": {
+					"categoryID": "Multiplayer",
+					"icon": "assets/multiplayer.svg"
+				}
+			},
+			{
 				"id": "Transfer_Items",
 				"customName": "Trade / Gift",
 				"media": "assets/transfer_bag.svg",
-				"containerID": "kru-multiplayer-transfer-page",
-				"headerBgClass": "kmm-transfer-bg",
+				"containerID": "mp-transfer-page",
+				"headerBgClass": "mp-transfer-bg",
 				"hasGameGuide": false,
 				"canBeDefault": false,
 				"sidebarItem": {
 					"categoryID": "Multiplayer",
 					"icon": "assets/transfer_bag.svg",
-					"asideClass": "kmm-transfer-nav",
+					"asideClass": "mp-transfer-nav",
 					"aside": "?? / ??"
 				}
 			},
@@ -21,8 +34,8 @@
 				"id": "Multiplayer_Market",
 				"customName": "Marketplace",
 				"media": "assets/market.svg",
-				"containerID": "kru-multiplayer-market-page",
-				"headerBgClass": "kmm-market-bg",
+				"containerID": "mp-market-page",
+				"headerBgClass": "mp-market-bg",
 				"hasGameGuide": false,
 				"canBeDefault": false,
 				"sidebarItem": {
@@ -34,8 +47,8 @@
 				"id": "Charity_Tree",
 				"customName": "The Charitree",
 				"media": "assets/charity_tree.svg",
-				"containerID": "kru-multiplayer-charity-page",
-				"headerBgClass": "kmm-charity-bg",
+				"containerID": "mp-charity-page",
+				"headerBgClass": "mp-charity-bg",
 				"hasGameGuide": false,
 				"canBeDefault": false,
 				"sidebarItem": {
@@ -47,14 +60,14 @@
 				"id": "Campaign_Effort",
 				"customName": "Campaign",
 				"media": "assets/campaigns.svg",
-				"containerID": "kru-multiplayer-campaign-page",
-				"headerBgClass": "kmm-campaign-bg",
+				"containerID": "mp-campaign-page",
+				"headerBgClass": "mp-campaign-bg",
 				"hasGameGuide": false,
 				"canBeDefault": false,
 				"sidebarItem": {
 					"categoryID": "Multiplayer",
 					"icon": "assets/campaigns.svg",
-					"asideClass": "kmm-campaign-nav",
+					"asideClass": "mp-campaign-nav",
 					"aside": "Inactive"
 				}
 			}

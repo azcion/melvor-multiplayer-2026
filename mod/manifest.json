@@ -1,5 +1,5 @@
 {
-	"namespace": "kru_melvor_multiplayer",
+	"namespace": "multiplayer",
 	"setup": "main.mjs",
 	"icon": "assets/multiplayer.svg",
 	"load": [

@@ -1,35 +1,13 @@
 {
-	"name": "melvormultiplayer.net",
+	"name": "multiplayer-server",
 	"type": "module",
 	"module": "index.ts",
-	"spooder": {
-		"auto_restart": {
-			"enabled": true,
-			"max_attempts": -1,
-			"backoff_max": 300000,
-			"backoff_grace": 30000 
-		},
-		"run": "bun run index.ts",
-		"update": [
-			"git reset --hard",
-			"git clean -fd",
-			"git pull origin main",
-			"bun install"
-		],
-		"canary": {
-			"enabled": true,
-			"account": "kruithne",
-			"repository": "kruithne/melvor_multiplayer",
-			"crash_console_history": 64,
-			"labels": ["⚠️ canary-report"],
-			"throttle": 86400
-		}
-	},
-	"dependencies": {
-		"mysql2": "^3.11.0",
-		"spooder": "^4.5.3"
+	"scripts": {
+		"admin": "bun run admin.ts",
+		"backup": "bun run backup.ts",
+		"test": "bun test --timeout 15000 tests"
 	},
 	"devDependencies": {
-		"bun-types": "^1.0.14"
+		"bun-types": "1.3.14"
 	}
 }

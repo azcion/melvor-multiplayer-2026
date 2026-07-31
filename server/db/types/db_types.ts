@@ -1,14 +1,18 @@
 export type campaign_state = {
 	id: number;
+	guild_id: number;
 	campaign_id: string;
 	item_id: string;
 	item_amount: number;
 	item_current: number;
+	required_contributors: number;
+	auto_contribution: number;
 	campaign_next: number;
 	complete: number;
 };
 
 export type charity_items = {
+	guild_id: number;
 	item_id: string;
 	qty: number;
 };
@@ -26,7 +30,13 @@ export type clients = {
 	display_name: string,
 	icon_id: string,
 	last_charity: number,
-	last_bonus_charity: number
+	last_bonus_charity: number,
+	disabled: number
+};
+
+export type service_settings = {
+	key: string;
+	value: string;
 };
 
 export type friend_requests = {
@@ -52,6 +62,60 @@ export type gifts = {
 	client_id: number;
 	sender_id: number;
 	flags: number;
+};
+
+export type guilds = {
+	id: number;
+	name: string;
+	icon_id: string;
+};
+
+export type guild_memberships = {
+	id: number;
+	client_id: number;
+	guild_id: number;
+};
+
+export type guild_petitions = {
+	id: number;
+	guild_id: number;
+	guild_name: string;
+	type: 'appellation' | 'heraldry' | 'banishment';
+	conflict_subject: string;
+	subject_locked: number;
+	petitioner_id: number;
+	proposed_name: string | null;
+	proposed_icon_id: string | null;
+	target_client_id: number | null;
+	target_membership_id: number | null;
+	created_at: number;
+	expires_at: number;
+	resolved_at: number | null;
+	lifecycle: 'active' | 'granted' | 'denied' | 'lapsed' | 'withdrawn';
+	execution_state: 'not_applicable' | 'pending' | 'running' | 'succeeded' | 'failed';
+	execution_attempts: number;
+	execution_last_attempt_at: number | null;
+	execution_failure_category: string | null;
+	execution_failure_message: string | null;
+	execution_effect: string | null;
+};
+
+export type guild_petition_voters = {
+	petition_id: number;
+	client_id: number;
+};
+
+export type guild_petition_votes = {
+	petition_id: number;
+	client_id: number;
+	choice: 'aye' | 'nay';
+	submitted_at: number;
+};
+
+export type guild_applications = {
+	id: number;
+	client_id: number;
+	guild_id: number;
 };
 
 export type resolved_trade_offers = {
@@ -86,10 +150,45 @@ export type campaign_contributions = {
 
 export type market_items = {
 	id: number;
+	guild_id: number;
 	client_id: number;
 	item_id: string;
 	qty: number;
 	available: number;
 	price: number;
 	payout: number;
+};
+
+export type banishment_returns = {
+	id: number;
+	petition_id: number;
+	client_id: number;
+	guild_id: number;
+	guild_name: string;
+	notice_pending: number;
+	gp: number;
+	created_at: number;
+	completed_at: number | null;
+};
+
+export type banishment_return_items = {
+	return_id: number;
+	item_id: string;
+	qty: number;
+};
+
+export type banishment_return_claims = {
+	id: string;
+	return_id: number;
+	client_id: number;
+	gp: number;
+	includes_notice: number;
+	created_at: number;
+	acknowledged_at: number | null;
+};
+
+export type banishment_return_claim_items = {
+	claim_id: string;
+	item_id: string;
+	qty: number;
 };

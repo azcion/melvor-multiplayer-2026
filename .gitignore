@@ -1,3 +1,62 @@
-.env.local
-node_modules
-bun.lockb
+# -----------------------------------------------------------------------------
+# Operating system and editor files
+# -----------------------------------------------------------------------------
+
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+*~
+~$*
+*.bak
+*.orig
+*.swp
+*.swo
+*.tmp
+*.temp
+
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/
+.localhistory/
+
+# -----------------------------------------------------------------------------
+# Local environment and secrets
+# -----------------------------------------------------------------------------
+
+.env
+.env.*
+!.env.example
+!.env.template
+!.env.sample
+
+# -----------------------------------------------------------------------------
+# Bun, Node.js, TypeScript, and generated output
+# -----------------------------------------------------------------------------
+
+node_modules/
+.bun/
+.npm/
+.pnpm-store/
+.yarn/cache/
+.yarn/install-state.gz
+.yarn/unplugged/
+
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+dist/
+coverage/
+.nyc_output/
+test-results/
+*.tsbuildinfo
+/server/data/
+/backups/
+/logs/
