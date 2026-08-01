@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0-public-test.11
+
+- Added the Free Fellowship, a permanent server-wide Guild that players can join directly without an application.
+- Added Guild equipment sharing. Members can view another member's latest shared equipment setup in a read-only view, while each player controls whether their equipment is visible.
+- Improved Guild member selection with search and pagination for gifts and trades.
+- Consolidated display name, avatar, equipment visibility, and Guild departure controls under the new Options menu.
+- Added independent backend deployment versioning.
+
 ## 0.1.0-public-test.10
 
 - Rebuilt the server around Bun and SQLite with containerized startup, health checks, backups, and automated tests.

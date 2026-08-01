@@ -391,4 +391,36 @@ export const migrations: Migration[] = [{
 			FOREIGN KEY (claim_id) REFERENCES banishment_return_claims (id) ON DELETE CASCADE
 		);
 	`
-}];
+	}, {
+		version: 9,
+		sql: `
+		ALTER TABLE clients ADD COLUMN equipment_visible INTEGER NOT NULL DEFAULT 1
+			CHECK (equipment_visible IN (0, 1));
+
+		CREATE TABLE equipment_snapshots (
+			client_id INTEGER PRIMARY KEY,
+			FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
+		);
+
+		CREATE TABLE equipment_snapshot_items (
+			client_id INTEGER NOT NULL,
+			slot_id TEXT NOT NULL,
+			item_id TEXT NOT NULL,
+			PRIMARY KEY (client_id, slot_id),
+			FOREIGN KEY (client_id) REFERENCES equipment_snapshots (client_id) ON DELETE CASCADE
+		);
+		`
+	}, {
+		version: 10,
+		sql: `
+			ALTER TABLE guilds ADD COLUMN type TEXT NOT NULL DEFAULT 'private'
+				CHECK (type IN ('private', 'free_fellowship'));
+
+			CREATE UNIQUE INDEX idx_guilds_free_fellowship
+				ON guilds (type) WHERE type = 'free_fellowship';
+
+			INSERT INTO guilds (type, name, icon_id)
+			SELECT 'free_fellowship', 'Free Fellowship', 'multiplayer'
+			WHERE NOT EXISTS (SELECT 1 FROM guilds WHERE type = 'free_fellowship');
+		`
+	}];

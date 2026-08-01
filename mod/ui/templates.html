@@ -14,12 +14,9 @@
 			<h5 class="dropdown-header text-warning">
 				<lang-string lang-id="MOD_MP_MENU_HEADER"></lang-string>
 			</h5>
-			<a class="dropdown-item pointer-enabled" @click.stop="state.show_display_name_modal()">
-				<lang-string lang-id="MOD_MP_MENU_CHANGE_DISPLAY_NAME"></lang-string>
-			</a>
-			<a class="dropdown-item pointer-enabled" @click.stop="state.show_icon_modal()">
+			<a class="dropdown-item pointer-enabled" @click.stop="state.show_options_modal()">
 				<img class="skill-icon-xxs" :src="state.get_avatar_icon(state.profile_icon)"/>
-				<lang-string lang-id="MOD_MP_MENU_CHANGE_ICON"></lang-string>
+				<lang-string lang-id="MOD_MP_MENU_OPTIONS"></lang-string>
 			</a>
 			<h5 class="dropdown-header text-warning">
 				<lang-string lang-id="MOD_MP_MENU_HEADER_GUILD"></lang-string>
@@ -54,6 +51,47 @@
 			</a>
 		</div>
 	</div>
+</template>
+<template id="template-mp-member-actions-modal">
+	<div class="mp-member-actions" v-if="state.selected_guild_member">
+		<template v-if="state.selected_guild_member.client_id === state.guild_client_id || state.guild_client_id === null">
+			<button type="button" class="btn btn-primary" @click="state.open_display_name_from_options()">
+				<lang-string lang-id="MOD_MP_MENU_CHANGE_DISPLAY_NAME"></lang-string>
+			</button>
+			<button type="button" class="btn btn-primary" @click="state.open_icon_from_options()">
+				<lang-string lang-id="MOD_MP_MENU_CHANGE_ICON"></lang-string>
+			</button>
+			<label class="mp-equipment-visibility">
+				<input type="checkbox" :checked="state.equipment_visible" :disabled="state.equipment_visibility_pending" @click="state.set_equipment_visibility($event)">
+				<span><lang-string lang-id="MOD_MP_EQUIPMENT_VISIBILITY"></lang-string></span>
+				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.equipment_visibility_pending"></span>
+			</label>
+			<template v-if="state.is_guild_member">
+				<hr class="mp-member-actions-rule">
+				<div class="font-size-sm font-w600 text-danger text-uppercase"><lang-string lang-id="MOD_MP_GUILD_DANGER_ZONE"></lang-string></div>
+				<button type="button" class="btn btn-danger" @click="state.leave_guild_from_options()"><lang-string lang-id="MOD_MP_BUTTON_LEAVE_GUILD"></lang-string></button>
+			</template>
+		</template>
+		<template v-else>
+			<button type="button" class="btn btn-primary" :disabled="!state.selected_guild_member.equipment_visible || !state.selected_guild_member.equipment_available" @click="state.view_member_equipment($event)">
+				<span class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></span>
+				<lang-string lang-id="MOD_MP_EQUIPMENT_VIEW"></lang-string>
+			</button>
+			<div class="font-size-sm text-muted" v-if="!state.selected_guild_member.equipment_visible"><lang-string lang-id="MOD_MP_EQUIPMENT_NOT_SHARED"></lang-string></div>
+			<div class="font-size-sm text-muted" v-else-if="!state.selected_guild_member.equipment_available"><lang-string lang-id="MOD_MP_EQUIPMENT_NOT_AVAILABLE_HINT"></lang-string></div>
+		</template>
+		<div class="text-danger" v-if="state.member_actions_error">{{ state.member_actions_error }}</div>
+	</div>
+</template>
+<template id="template-mp-equipment-modal">
+	<div class="mp-equipment-grid" role="list" aria-label="Shared equipment">
+		<div class="mp-equipment-slot" :class="{ 'mp-equipment-slot-unknown': slot.unknown, 'mp-equipment-slot-blocked': slot.blocked }" :style="{ gridColumn: slot.col, gridRow: slot.row }" role="listitem" v-for="slot in state.viewed_equipment_grid" :key="slot.slot_id">
+			<mp-equipment-item v-if="slot.item" :data-item-id="slot.item_id"><img :src="slot.media" :alt="slot.item.name"></mp-equipment-item>
+			<img v-else :src="slot.media" :alt="slot.unknown ? 'Unknown or unavailable item' : slot.slot_name">
+			<span class="sr-only" v-if="slot.unknown"><lang-string lang-id="MOD_MP_EQUIPMENT_UNKNOWN_ITEM"></lang-string></span>
+		</div>
+	</div>
+	<button type="button" class="btn btn-secondary mt-3" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
 </template>
 <template id="template-mp-leave-guild-modal">
 	<div class="mp-modal-text">
@@ -136,7 +174,7 @@
 						<div>
 							<div class="font-size-sm text-muted"><lang-string lang-id="MOD_MP_GUILD_YOUR_GUILD"></lang-string></div>
 							<h3 class="font-w600 mb-1">{{ state.guild_state.guild.name }}</h3>
-							<lang-string-f lang-id="MOD_MP_GUILD_MEMBER_COUNT" :lang-arg-1="state.guild_members.length"></lang-string-f>
+							<lang-string-f lang-id="MOD_MP_GUILD_MEMBER_COUNT" :lang-arg-1="state.guild_member_count"></lang-string-f>
 						</div>
 					</div>
 				</div>
@@ -144,21 +182,30 @@
 				<div class="mp-guild-columns">
 					<div class="block block-rounded">
 						<div class="block-header block-header-default">
-							<h3 class="block-title"><lang-string lang-id="MOD_MP_GUILD_MEMBERS"></lang-string></h3>
-							<span class="badge badge-secondary">{{ state.guild_members.length }}</span>
+							<div>
+								<h3 class="block-title"><lang-string lang-id="MOD_MP_GUILD_MEMBERS"></lang-string></h3>
+								<span class="badge badge-secondary">{{ state.guild_member_count }}</span>
+							</div>
+							<span class="font-size-sm text-muted" v-if="state.is_free_fellowship && state.guild_member_directory_loading">Loading...</span>
+						</div>
+						<div class="block-content" v-if="state.is_free_fellowship">
+							<input class="mp-input-text w-100" type="search" v-model="state.guild_member_search" :placeholder="state.get_free_fellowship_search_placeholder()" @change="state.search_guild_members()">
 						</div>
 						<div class="block-content p-0">
-							<div class="mp-guild-person" v-for="member in state.guild_members">
+							<button type="button" class="mp-guild-person mp-guild-member-button" v-for="member in state.guild_members" @click="state.show_member_actions(member)">
 								<img class="skill-icon-xs" :src="state.get_avatar_icon(member.icon_id)">
 								<span class="font-w600">{{ member.display_name }}</span>
 								<span class="badge badge-info ml-auto" v-if="member.client_id === state.guild_client_id">
 									<lang-string lang-id="MOD_MP_GUILD_YOU"></lang-string>
 								</span>
-							</div>
+							</button>
+						</div>
+						<div class="block-content text-center" v-if="state.is_free_fellowship && state.guild_member_directory_has_more">
+							<button type="button" class="btn btn-sm btn-secondary" @click="state.load_more_guild_members()" :disabled="state.guild_member_directory_loading">Load more</button>
 						</div>
 					</div>
 
-					<div class="block block-rounded">
+					<div class="block block-rounded" v-if="!state.is_free_fellowship">
 						<div class="block-header block-header-default">
 							<h3 class="block-title"><lang-string lang-id="MOD_MP_GUILD_APPLICANTS"></lang-string></h3>
 							<span class="badge badge-success">{{ state.guild_applicants.length }}</span>
@@ -185,7 +232,7 @@
 					</div>
 				</div>
 
-				<div class="block block-rounded mp-council">
+				<div class="block block-rounded mp-council" v-if="!state.is_free_fellowship && state.guild_state.guild.capabilities.council">
 					<div class="block-header block-header-default">
 						<h3 class="block-title"><lang-string lang-id="MOD_MP_COUNCIL"></lang-string></h3>
 						<div class="mp-council-header-actions">
@@ -211,20 +258,6 @@
 					<div class="block-content text-center" v-if="state.council_show_resolved && state.council_has_more"><button type="button" class="btn btn-sm btn-secondary" @click="state.load_more_council_petitions($event)"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_LOAD_MORE"></lang-string></button></div>
 				</div>
 
-				<div class="block block-rounded mp-guild-danger-zone">
-					<div class="block-content mp-guild-danger-content">
-						<div>
-							<div class="font-size-sm font-w600 text-danger text-uppercase">
-								<lang-string lang-id="MOD_MP_GUILD_DANGER_ZONE"></lang-string>
-							</div>
-							<h4 class="mb-1"><lang-string lang-id="MOD_MP_GUILD_LEAVE_TITLE"></lang-string></h4>
-							<div class="font-size-sm text-muted"><lang-string lang-id="MOD_MP_GUILD_LEAVE_INFO"></lang-string></div>
-						</div>
-						<button type="button" class="btn btn-danger" @click="state.confirm_leave_guild()">
-							<lang-string lang-id="MOD_MP_BUTTON_LEAVE_GUILD"></lang-string>
-						</button>
-					</div>
-				</div>
 			</template>
 
 			<template v-else-if="state.guild_state.affiliation === 'applicant'">
@@ -272,14 +305,22 @@
 						<div class="mp-guild-list" v-if="state.filtered_guilds.length > 0">
 							<div class="mp-guild-result" v-for="guild in state.filtered_guilds">
 								<img class="skill-icon-xs" :src="state.get_guild_icon(guild.icon_id)">
-								<span class="font-w600">{{ guild.name }}</span>
-								<span class="badge badge-secondary">
-									<lang-string-f lang-id="MOD_MP_GUILD_MEMBER_COUNT" :lang-arg-1="guild.member_count"></lang-string-f>
-								</span>
-								<button type="button" class="btn btn-sm btn-success" @click="state.apply_to_guild($event, guild)">
-									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-									<lang-string lang-id="MOD_MP_BUTTON_APPLY"></lang-string>
-								</button>
+								<div class="mp-guild-result-details">
+									<span class="font-w600 mp-guild-result-name">{{ guild.name }}</span>
+									<div class="font-size-sm text-muted" v-if="guild.is_free_fellowship"><lang-string lang-id="MOD_MP_FREE_FELLOWSHIP_LABEL"></lang-string></div>
+								</div>
+								<div class="mp-guild-result-actions">
+									<button type="button" class="btn btn-sm btn-success" v-if="guild.is_free_fellowship" @click="state.join_free_fellowship($event, guild)">
+										<lang-string lang-id="MOD_MP_BUTTON_JOIN"></lang-string>
+									</button>
+									<button type="button" class="btn btn-sm btn-success" v-else @click="state.apply_to_guild($event, guild)">
+										<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+										<lang-string lang-id="MOD_MP_BUTTON_APPLY"></lang-string>
+									</button>
+									<span class="badge badge-secondary">
+										<lang-string-f lang-id="MOD_MP_GUILD_MEMBER_COUNT" :lang-arg-1="guild.member_count"></lang-string-f>
+									</span>
+								</div>
 							</div>
 						</div>
 						<div class="text-muted" v-else>
@@ -321,6 +362,14 @@
 			</div>
 		</div>
 	</div>
+</template>
+<template id="template-mp-free-fellowship-confirm-modal">
+	<div class="mp-modal-text"><lang-string lang-id="MOD_MP_FREE_FELLOWSHIP_CONFIRM_PUBLIC"></lang-string></div>
+	<button type="button" class="btn btn-success" @click="state.confirm_join_free_fellowship($event)">
+		<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+		<lang-string lang-id="MOD_MP_BUTTON_JOIN_FREE_FELLOWSHIP"></lang-string>
+	</button>
+	<button type="button" class="btn btn-danger" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
 </template>
 <template id="template-mp-friend-code-modal">
 	<div class="mp-modal-text">
@@ -1274,6 +1323,7 @@
 	</div>
 </template>
 <template id="template-mp-gift-friend-modal">
+	<input class="mp-input-text w-100 mb-3" v-if="state.is_free_fellowship" type="search" v-model="state.guild_member_search" :placeholder="state.get_free_fellowship_search_placeholder()" @change="state.search_guild_members()">
 	<div class="mp-friends" v-if="state.guild_recipients.length > 0">
 		<div v-for="recipient in state.guild_recipients" class="mp-friend">
 			<img class="skill-icon-xs" :src="state.get_avatar_icon(recipient.icon_id)"/>
@@ -1286,11 +1336,13 @@
 	<div class="mp-modal-text" v-else>
 		<lang-string lang-id="MOD_MP_MODAL_NO_GUILD_RECIPIENTS"></lang-string>
 	</div>
+	<button type="button" class="btn btn-secondary" v-if="state.is_free_fellowship && state.guild_member_directory_has_more" @click="state.load_more_guild_members()"><lang-string lang-id="MOD_MP_COUNCIL_LOAD_MORE"></lang-string></button>
 	<button type="button" class="btn btn-danger" @click="state.close_modal()">
 		<lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string>
 	</button>
 </template>
 <template id="template-mp-create-trade-modal">
+	<input class="mp-input-text w-100 mb-3" v-if="state.is_free_fellowship" type="search" v-model="state.guild_member_search" :placeholder="state.get_free_fellowship_search_placeholder()" @change="state.search_guild_members()">
 	<div class="mp-friends" v-if="state.guild_recipients.length > 0">
 		<div v-for="recipient in state.guild_recipients" class="mp-friend">
 			<img class="skill-icon-xs" :src="state.get_avatar_icon(recipient.icon_id)"/>
@@ -1303,6 +1355,7 @@
 	<div class="mp-modal-text" v-else>
 		<lang-string lang-id="MOD_MP_MODAL_NO_GUILD_RECIPIENTS"></lang-string>
 	</div>
+	<button type="button" class="btn btn-secondary" v-if="state.is_free_fellowship && state.guild_member_directory_has_more" @click="state.load_more_guild_members()"><lang-string lang-id="MOD_MP_COUNCIL_LOAD_MORE"></lang-string></button>
 	<button type="button" class="btn btn-danger" @click="state.close_modal()">
 		<lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string>
 	</button>

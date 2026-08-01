@@ -20,6 +20,8 @@ describe('SQLite persistence probe', () => {
 			'charity_items',
 			'client_sessions',
 			'clients',
+			'equipment_snapshot_items',
+			'equipment_snapshots',
 			'friend_requests',
 			'friends',
 			'gift_items',

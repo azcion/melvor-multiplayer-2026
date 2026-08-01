@@ -169,6 +169,18 @@ body.superDark {
 	border-bottom: 0;
 }
 
+.mp-guild-member-button {
+	width: 100%;
+	border: 0;
+	background: transparent;
+	color: inherit;
+}
+
+.mp-guild-member-button:hover,
+.mp-guild-member-button:focus-visible {
+	background: rgba(255, 255, 255, 0.06);
+}
+
 .mp-guild-person-actions {
 	display: flex;
 	gap: 6px;
@@ -187,6 +199,71 @@ body.superDark {
 	gap: 20px;
 }
 
+.mp-member-actions {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 10px;
+	max-width: 420px;
+	margin: 0 auto;
+}
+
+.mp-member-actions-rule {
+	width: 70%;
+	margin: 8px auto;
+	border-color: rgba(255, 255, 255, 0.2);
+}
+
+.mp-equipment-visibility {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	margin: 4px 0;
+}
+
+.mp-equipment-grid {
+	display: grid;
+	grid-auto-columns: 56px;
+	grid-auto-rows: 56px;
+	justify-content: center;
+	gap: 6px;
+	max-width: 100%;
+	overflow-x: auto;
+	padding: 8px;
+}
+
+.mp-equipment-slot {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 56px;
+	height: 56px;
+	border: 1px solid rgba(255, 255, 255, 0.16);
+	border-radius: 5px;
+	background: rgba(0, 0, 0, 0.16);
+}
+
+.mp-equipment-slot img {
+	width: 48px;
+	height: 48px;
+	object-fit: contain;
+}
+
+.mp-equipment-slot mp-equipment-item {
+	display: block;
+	cursor: help;
+}
+
+.mp-equipment-slot-unknown img {
+	filter: grayscale(1);
+	opacity: 0.75;
+}
+
+.mp-equipment-slot-blocked {
+	opacity: 0.35;
+}
+
 .mp-guild-application {
 	max-width: 760px;
 }
@@ -198,7 +275,7 @@ body.superDark {
 
 .mp-guild-result {
 	display: grid;
-	grid-template-columns: auto minmax(0, 1fr) auto auto;
+	grid-template-columns: auto minmax(0, 1fr) auto;
 	align-items: center;
 	gap: 10px;
 	min-height: 58px;
@@ -208,6 +285,22 @@ body.superDark {
 
 .mp-guild-result:last-child {
 	border-bottom: 0;
+}
+
+.mp-guild-result-details {
+	min-width: 0;
+}
+
+.mp-guild-result-name {
+	display: block;
+	overflow-wrap: anywhere;
+}
+
+.mp-guild-result-actions {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 6px;
 }
 
 .mp-guild-icon-selector {
@@ -567,14 +660,6 @@ mp-item-slider .noUi-target * {
 	.mp-guild-danger-content {
 		align-items: stretch;
 		flex-direction: column;
-	}
-
-	.mp-guild-result {
-		grid-template-columns: auto minmax(0, 1fr) auto;
-	}
-
-	.mp-guild-result .badge {
-		display: none;
 	}
 
 	.mp-council-list {

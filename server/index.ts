@@ -43,6 +43,7 @@ import { load_request_limit_configuration, RequestLimitPolicy } from './security
 import { AVAILABLE_CAMPAIGNS } from './campaign_data';
 import type { CampaignData, CampaignItemData } from './campaign_data';
 import type * as db_row from './db/types/db_types';
+import { BACKEND_VERSION } from './version';
 // #endregion
 
 // #region TYPES
@@ -74,11 +75,70 @@ type ClientDisplayInfo = {
 	icon_id: string;
 }
 
+type EquipmentSnapshotSlot = {
+	slot_id: string;
+	item_id: string;
+}
+
 type GuildSummary = {
 	guild_id: number;
 	name: string;
 	icon_id: string;
 	member_count: number;
+	is_free_fellowship?: boolean;
+}
+
+type GuildType = 'private' | 'free_fellowship';
+
+type GuildCapabilities = {
+	roster: boolean;
+	equipment_snapshots: boolean;
+	gifts: boolean;
+	trades: boolean;
+	marketplace: boolean;
+	charitree: boolean;
+	campaigns: boolean;
+	council: boolean;
+	member_search: boolean;
+};
+
+const FREE_FELLOWSHIP_TYPE: GuildType = 'free_fellowship';
+const GUILD_MEMBER_PAGE_SIZE = 50;
+
+const GUILD_CAPABILITIES: Record<GuildType, GuildCapabilities> = {
+	private: {
+		roster: true,
+		equipment_snapshots: true,
+		gifts: true,
+		trades: true,
+		marketplace: true,
+		charitree: true,
+		campaigns: true,
+		council: true,
+		member_search: true
+	},
+	free_fellowship: {
+		roster: true,
+		equipment_snapshots: true,
+		gifts: true,
+		trades: true,
+		marketplace: true,
+		charitree: true,
+		campaigns: true,
+		council: false,
+		member_search: true
+	}
+};
+
+function get_guild_capabilities(type: GuildType): GuildCapabilities {
+	return { ...GUILD_CAPABILITIES[type] };
+}
+
+function guild_summary_from_row(row: GuildSummary & { type: GuildType }): GuildSummary {
+	return row.type === FREE_FELLOWSHIP_TYPE
+		? { guild_id: row.guild_id, name: row.name, icon_id: row.icon_id, member_count: row.member_count,
+			is_free_fellowship: true }
+		: { guild_id: row.guild_id, name: row.name, icon_id: row.icon_id, member_count: row.member_count };
 }
 
 type CouncilPetitionRow = db_row.guild_petitions & {
@@ -110,6 +170,8 @@ type GuildCampaign = {
 const DEFAULT_USER_ICON_ID = 'melvorD:Plant';
 const DEFAULT_USER_DISPLAY_NAME = 'Unknown Idler';
 const MAX_TRANSFER_ITEM_COUNT = 32;
+const MAX_EQUIPMENT_SLOT_COUNT = 32;
+const MAX_EQUIPMENT_ID_LENGTH = 256;
 
 // maximum cache life is X * 2, minimum is X.
 const CACHE_SESSION_LIFETIME = 1000 * 60 * 60; // 1 hour
@@ -281,6 +343,30 @@ function parse_guild_name(guild_name: unknown): string | null {
 
 function is_valid_icon_id(icon_id: unknown): icon_id is string {
 	return typeof icon_id === 'string' && (icon_id.startsWith('melvorF:') || icon_id.startsWith('melvorD:'));
+}
+
+function is_valid_equipment_id(id: unknown): id is string {
+	return typeof id === 'string' && id.length > 0 && id.length <= MAX_EQUIPMENT_ID_LENGTH &&
+		/^[A-Za-z0-9_-]+:[A-Za-z0-9_-]+$/.test(id);
+}
+
+function parse_equipment_snapshot(slots: unknown): EquipmentSnapshotSlot[] | null {
+	if (!Array.isArray(slots) || slots.length > MAX_EQUIPMENT_SLOT_COUNT)
+		return null;
+
+	const parsed: EquipmentSnapshotSlot[] = [];
+	const seen_slots = new Set<string>();
+	for (const slot of slots) {
+		if (typeof slot !== 'object' || slot === null || Array.isArray(slot))
+			return null;
+		const { slot_id, item_id } = slot as Record<string, unknown>;
+		if (!is_valid_equipment_id(slot_id) || !is_valid_equipment_id(item_id) || seen_slots.has(slot_id))
+			return null;
+		seen_slots.add(slot_id);
+		parsed.push({ slot_id, item_id });
+	}
+
+	return parsed;
 }
 // #endregion
 
@@ -585,11 +671,21 @@ async function start_new_campaign(guild_id: number): Promise<GuildCampaign | nul
 		return null;
 	}
 
-	const campaign_data = array_random(AVAILABLE_CAMPAIGNS) as CampaignData;
-	const campaign_item = array_random(campaign_data.items) as CampaignItemData;
 	const guild = await get_guild_summary(guild_id);
 	if (guild === null)
 		return null;
+	if (guild.is_free_fellowship === true && guild.member_count === 0) {
+		const existing = guild_campaigns.get(guild_id);
+		if (existing === undefined)
+			return null;
+		if (existing.restart_timer !== null)
+			clearTimeout(existing.restart_timer);
+			existing.restart_timer = null;
+		return existing;
+	}
+
+	const campaign_data = array_random(AVAILABLE_CAMPAIGNS) as CampaignData;
+	const campaign_item = array_random(campaign_data.items) as CampaignItemData;
 
 	const campaign = guild_campaigns.get(guild_id) ?? empty_guild_campaign(guild_id);
 	if (campaign.restart_timer !== null)
@@ -688,7 +784,13 @@ async function load_campaign_state(guild_id: number): Promise<GuildCampaign | nu
 }
 
 async function ensure_guild_campaign(guild_id: number): Promise<GuildCampaign | null> {
-	return guild_campaigns.get(guild_id) ?? load_campaign_state(guild_id);
+	const cached = guild_campaigns.get(guild_id);
+	if (cached !== undefined) {
+		if (cached.active_id === 0 && cached.next_active_timestamp <= Date.now())
+			return start_new_campaign(guild_id);
+		return cached;
+	}
+	return load_campaign_state(guild_id);
 }
 
 async function resize_unprogressed_campaign(guild_id: number) {
@@ -819,6 +921,9 @@ async function tick_campaign_baseline_advancement() {
 	for (const campaign of guild_campaigns.values()) {
 		if (campaign.active_id === 0)
 			continue;
+		const guild = await get_guild_summary(campaign.guild_id);
+		if (guild?.is_free_fellowship === true && guild.member_count === 0)
+			continue;
 
 		const adv_value = get_campaign_auto_advance(
 			campaign.item_total,
@@ -840,7 +945,11 @@ function schedule_campaign_baseline_advancement() {
 }
 
 async function load_all_campaign_states() {
-	const guilds = await db_get_all('SELECT `id` FROM `guilds`');
+	const guilds = await db_get_all(
+		' SELECT g.`id` FROM `guilds` AS g ' +
+		"WHERE g.`type` != 'free_fellowship' OR EXISTS " +
+		'(SELECT 1 FROM `guild_memberships` WHERE `guild_id` = g.`id`)'
+	);
 	for (const guild of guilds)
 		await ensure_guild_campaign(guild.id);
 }
@@ -963,20 +1072,70 @@ async function guild_membership_exists(client_id_a: number, client_id_b: number)
 
 async function get_guild_summary(guild_id: number): Promise<GuildSummary | null> {
 	const guild = await db_get_single(
-		'SELECT g.`id` AS `guild_id`, g.`name`, g.`icon_id`, COUNT(m.`client_id`) AS `member_count` ' +
+		'SELECT g.`id` AS `guild_id`, g.`type`, g.`name`, g.`icon_id`, COUNT(m.`client_id`) AS `member_count` ' +
 		'FROM `guilds` AS g LEFT JOIN `guild_memberships` AS m ON m.`guild_id` = g.`id` ' +
 		'WHERE g.`id` = ? GROUP BY g.`id`',
 		[guild_id]
-	) as GuildSummary;
-	return guild;
+	) as GuildSummary & { type: GuildType };
+	return guild === null ? null : guild_summary_from_row(guild);
 }
 
 async function get_guild_members(guild_id: number) {
-	return db_get_all(
-		'SELECT c.`id` AS `client_id`, c.`display_name`, c.`icon_id` FROM `guild_memberships` AS m ' +
+	const members = await db_get_all(
+		'SELECT c.`id` AS `client_id`, c.`display_name`, c.`icon_id`, ' +
+		'c.`equipment_visible`, ' +
+		'EXISTS(SELECT 1 FROM `equipment_snapshots` AS es WHERE es.`client_id` = c.`id`) AS `equipment_available` ' +
+		'FROM `guild_memberships` AS m ' +
 		'JOIN `clients` AS c ON c.`id` = m.`client_id` WHERE m.`guild_id` = ? ORDER BY c.`display_name`, c.`id`',
 		[guild_id]
 	);
+	return members.map(member => ({
+		...member,
+		equipment_visible: member.equipment_visible === 1,
+		equipment_available: member.equipment_available === 1
+	}));
+}
+
+async function get_guild_member_directory(guild_id: number, page: number, search: string) {
+	const escaped_search = search.replace(/[\\%_]/g, '\\$&');
+	const search_pattern = `%${escaped_search}%`;
+	const [members, count] = await Promise.all([
+		db_get_all(
+			'SELECT c.`id` AS `client_id`, c.`display_name`, c.`icon_id`, ' +
+			'c.`equipment_visible`, ' +
+			'EXISTS(SELECT 1 FROM `equipment_snapshots` AS es WHERE es.`client_id` = c.`id`) AS `equipment_available` ' +
+			'FROM `guild_memberships` AS m JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
+			'WHERE m.`guild_id` = ? AND LOWER(c.`display_name`) LIKE LOWER(?) ESCAPE \'\\\' ' +
+			'ORDER BY c.`display_name` COLLATE NOCASE, c.`id` LIMIT ? OFFSET ?',
+			[guild_id, search_pattern, GUILD_MEMBER_PAGE_SIZE, page * GUILD_MEMBER_PAGE_SIZE]
+		),
+		db_get_single(
+			' SELECT COUNT(*) AS `count` FROM `guild_memberships` AS m ' +
+			'JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
+			'WHERE m.`guild_id` = ? AND LOWER(c.`display_name`) LIKE LOWER(?) ESCAPE \'\\\'',
+			[guild_id, search_pattern]
+		)
+	]);
+
+	return {
+		members: members.map(member => ({
+			...member,
+			equipment_visible: member.equipment_visible === 1,
+			equipment_available: member.equipment_available === 1
+		})),
+		page,
+		page_size: GUILD_MEMBER_PAGE_SIZE,
+		search,
+		total: count?.count ?? 0,
+		has_more: (page + 1) * GUILD_MEMBER_PAGE_SIZE < (count?.count ?? 0)
+	};
+}
+
+async function get_guild_type(guild_id: number): Promise<GuildType | null> {
+	const guild = await db_get_single('SELECT `type` FROM `guilds` WHERE `id` = ? LIMIT 1', [guild_id]) as {
+		type: GuildType;
+	} | null;
+	return guild?.type ?? null;
 }
 
 async function get_guild_applicants(client_id: number) {
@@ -2225,6 +2384,8 @@ session_get_route('/api/guilds/council', async (req, url, client_id) => {
 	) as db_row.guild_memberships;
 	if (membership === null)
 		return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
+	if (await get_guild_type(membership.guild_id) === FREE_FELLOWSHIP_TYPE)
+		return { error_lang: 'MOD_MP_GUILD_COUNCIL_UNAVAILABLE' };
 
 	const raw_page = url.searchParams.get('page');
 	const resolved_page = raw_page === null ? 0 : Number(raw_page);
@@ -2259,11 +2420,13 @@ session_post_route('/api/guilds/petitions/raise', async (req, url, client_id, js
 		if (membership === null)
 			return { status: 'forbidden' as const };
 
-		const guild = db.query('SELECT `name` FROM `guilds` WHERE `id` = ? LIMIT 1').get(
+		const guild = db.query('SELECT `type`, `name` FROM `guilds` WHERE `id` = ? LIMIT 1').get(
 			membership.guild_id
-		) as { name: string } | null;
+		) as { type: GuildType; name: string } | null;
 		if (guild === null)
 			return { status: 'forbidden' as const };
+		if (guild.type === FREE_FELLOWSHIP_TYPE)
+			return { status: 'unavailable' as const };
 
 		let target_membership_id: number | null = null;
 		if (json.type === 'banishment') {
@@ -2314,6 +2477,8 @@ session_post_route('/api/guilds/petitions/raise', async (req, url, client_id, js
 		return { error_lang: 'MOD_MP_COUNCIL_TARGET_MISSING' };
 	if (result.status === 'conflict')
 		return { error_lang: 'MOD_MP_COUNCIL_CONFLICT' };
+	if (result.status === 'unavailable')
+		return { error_lang: 'MOD_MP_GUILD_COUNCIL_UNAVAILABLE' };
 	return { success: true, petition_id: result.petition_id };
 });
 
@@ -2330,6 +2495,11 @@ session_post_route('/api/guilds/petitions/vote', async (req, url, client_id, jso
 		) as db_row.guild_petitions;
 		if (petition === null)
 			return { status: 'missing' as const };
+		const guild = db.query('SELECT `type` FROM `guilds` WHERE `id` = ? LIMIT 1').get(
+			petition.guild_id
+		) as { type: GuildType } | null;
+		if (guild?.type === FREE_FELLOWSHIP_TYPE)
+			return { status: 'unavailable' as const };
 		if (petition.lifecycle === 'active' && petition.expires_at <= now) {
 			db.query(
 				"UPDATE `guild_petitions` SET `lifecycle` = 'lapsed', `resolved_at` = `expires_at`, " +
@@ -2387,6 +2557,8 @@ session_post_route('/api/guilds/petitions/vote', async (req, url, client_id, jso
 		return { error_lang: 'MOD_MP_COUNCIL_PETITION_MISSING' };
 	if (result.status === 'final')
 		return { error_lang: 'MOD_MP_COUNCIL_PETITION_FINAL' };
+	if (result.status === 'unavailable')
+		return { error_lang: 'MOD_MP_GUILD_COUNCIL_UNAVAILABLE' };
 	if (result.status === 'forbidden')
 		return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
 	if (result.status === 'ineligible')
@@ -2410,6 +2582,11 @@ session_post_route('/api/guilds/petitions/withdraw', async (req, url, client_id,
 		) as db_row.guild_petitions;
 		if (petition === null)
 			return 'missing';
+		const guild = db.query('SELECT `type` FROM `guilds` WHERE `id` = ? LIMIT 1').get(
+			petition.guild_id
+		) as { type: GuildType } | null;
+		if (guild?.type === FREE_FELLOWSHIP_TYPE)
+			return 'unavailable';
 		if (petition.lifecycle === 'active' && petition.expires_at <= now) {
 			db.query(
 				"UPDATE `guild_petitions` SET `lifecycle` = 'lapsed', `resolved_at` = `expires_at`, " +
@@ -2438,6 +2615,8 @@ session_post_route('/api/guilds/petitions/withdraw', async (req, url, client_id,
 		return { error_lang: 'MOD_MP_COUNCIL_PETITION_MISSING' };
 	if (result === 'final')
 		return { error_lang: 'MOD_MP_COUNCIL_PETITION_FINAL' };
+	if (result === 'unavailable')
+		return { error_lang: 'MOD_MP_GUILD_COUNCIL_UNAVAILABLE' };
 	if (result === 'forbidden')
 		return { error_lang: 'MOD_MP_COUNCIL_WITHDRAW_FORBIDDEN' };
 	return { success: true };
@@ -2452,23 +2631,45 @@ session_get_route('/api/guilds/list', async (req, url, client_id) => {
 	if (guild_id !== null || application !== null)
 		return { error_lang: 'MOD_MP_GUILD_AFFILIATION_EXISTS' };
 
-	return {
-		guilds: await db_get_all(
-			'SELECT g.`id` AS `guild_id`, g.`name`, g.`icon_id`, COUNT(m.`client_id`) AS `member_count` ' +
-			'FROM `guilds` AS g LEFT JOIN `guild_memberships` AS m ON m.`guild_id` = g.`id` ' +
-			'GROUP BY g.`id` ORDER BY g.`name` COLLATE NOCASE, g.`id`'
-		)
-	};
+	const guilds = await db_get_all(
+		'SELECT g.`id` AS `guild_id`, g.`type`, g.`name`, g.`icon_id`, COUNT(m.`client_id`) AS `member_count` ' +
+		'FROM `guilds` AS g LEFT JOIN `guild_memberships` AS m ON m.`guild_id` = g.`id` ' +
+		"GROUP BY g.`id` ORDER BY CASE WHEN g.`type` = 'free_fellowship' THEN 0 ELSE 1 END, " +
+		'g.`name` COLLATE NOCASE, g.`id`'
+	) as Array<GuildSummary & { type: GuildType }>;
+	return { guilds: guilds.map(guild_summary_from_row) };
+});
+
+session_get_route('/api/guilds/members', async (req, url, client_id) => {
+	const guild_id = await get_client_guild_id(client_id);
+	if (guild_id === null)
+		return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
+
+	const raw_page = url.searchParams.get('page');
+	const page = raw_page === null ? 0 : Number(raw_page);
+	const search = url.searchParams.get('search') ?? '';
+	if (!Number.isSafeInteger(page) || page < 0 || search.length > 64)
+		return 400; // Bad Request
+
+	return await get_guild_member_directory(guild_id, page, search);
 });
 
 session_get_route('/api/guilds/state', async (req, url, client_id) => {
 	const guild_id = await get_client_guild_id(client_id);
 	if (guild_id !== null) {
+		const guild = await get_guild_summary(guild_id);
+		if (guild === null)
+			return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
+		const guild_type = guild.is_free_fellowship === true ? FREE_FELLOWSHIP_TYPE : 'private';
+		const member_directory = guild_type === FREE_FELLOWSHIP_TYPE
+			? await get_guild_member_directory(guild_id, 0, '')
+			: null;
 		return {
 			affiliation: 'member',
 			current_client_id: client_id,
-			guild: await get_guild_summary(guild_id),
-			members: await get_guild_members(guild_id),
+			guild: { ...guild, capabilities: get_guild_capabilities(guild_type) },
+			members: member_directory?.members ?? await get_guild_members(guild_id),
+			...(member_directory === null ? {} : { member_directory }),
 			applicants: await get_guild_applicants(client_id)
 		};
 	}
@@ -2530,9 +2731,13 @@ session_post_route('/api/guilds/apply', async (req, url, client_id, json) => {
 		if (affiliation !== null)
 			return 'affiliated';
 
-		const guild = db.query('SELECT 1 FROM `guilds` WHERE `id` = ? LIMIT 1').get(guild_id);
+		const guild = db.query('SELECT `type` FROM `guilds` WHERE `id` = ? LIMIT 1').get(guild_id) as {
+			type: GuildType;
+		} | null;
 		if (guild === null)
 			return 'missing';
+		if (guild.type === FREE_FELLOWSHIP_TYPE)
+			return 'free_fellowship';
 
 		db.query(
 			'INSERT INTO `guild_applications` (`client_id`, `guild_id`) VALUES(?, ?)'
@@ -2545,8 +2750,41 @@ session_post_route('/api/guilds/apply', async (req, url, client_id, json) => {
 		return { error_lang: 'MOD_MP_GUILD_AFFILIATION_EXISTS' };
 	if (result === 'missing')
 		return { error_lang: 'MOD_MP_GUILD_NOT_FOUND' };
+	if (result === 'free_fellowship')
+		return { error_lang: 'MOD_MP_GUILD_APPLICATION_FORBIDDEN' };
 
 	return { success: true };
+});
+
+session_post_route('/api/guilds/join-free', async (req, url, client_id) => {
+	const join_fellowship = db.transaction(() => {
+		const affiliation = db.query(
+			' SELECT 1 FROM `guild_memberships` WHERE `client_id` = ? ' +
+			'UNION ALL SELECT 1 FROM `guild_applications` WHERE `client_id` = ? LIMIT 1'
+		).get(client_id, client_id);
+		if (affiliation !== null)
+			return { status: 'affiliated' as const };
+
+		const fellowship = db.query(
+			"SELECT `id` FROM `guilds` WHERE `type` = 'free_fellowship' LIMIT 1"
+		).get() as { id: number } | null;
+		if (fellowship === null)
+			return { status: 'missing' as const };
+
+		db.query(
+			'INSERT INTO `guild_memberships` (`client_id`, `guild_id`) VALUES(?, ?)'
+		).run(client_id, fellowship.id);
+		return { status: 'joined' as const, guild_id: fellowship.id };
+	});
+
+	const result = join_fellowship.immediate();
+	if (result.status === 'affiliated')
+		return { error_lang: 'MOD_MP_GUILD_AFFILIATION_EXISTS' };
+	if (result.status === 'missing')
+		return { error_lang: 'MOD_MP_GUILD_NOT_FOUND' };
+
+	await ensure_guild_campaign(result.guild_id);
+	return { success: true, guild: await get_guild_summary(result.guild_id) };
 });
 
 session_post_route('/api/guilds/withdraw', async (req, url, client_id) => {
@@ -2563,7 +2801,8 @@ session_post_route('/api/guilds/application/decide', async (req, url, client_id,
 
 	const decide_application = db.transaction(() => {
 		const membership = db.query(
-			'SELECT `guild_id` FROM `guild_memberships` WHERE `client_id` = ? LIMIT 1'
+			'SELECT m.`guild_id`, g.`type` FROM `guild_memberships` AS m ' +
+			'JOIN `guilds` AS g ON g.`id` = m.`guild_id` WHERE m.`client_id` = ? LIMIT 1'
 		).get(client_id) as db_row.guild_memberships;
 		if (membership === null)
 			return 'forbidden';
@@ -2608,8 +2847,9 @@ session_post_route('/api/guilds/leave', async (req, url, client_id) => {
 
 	const leave_guild = db.transaction(() => {
 		const membership = db.query(
-			'SELECT `guild_id` FROM `guild_memberships` WHERE `client_id` = ? LIMIT 1'
-		).get(client_id) as db_row.guild_memberships;
+			'SELECT m.`guild_id`, g.`type` FROM `guild_memberships` AS m ' +
+			'JOIN `guilds` AS g ON g.`id` = m.`guild_id` WHERE m.`client_id` = ? LIMIT 1'
+		).get(client_id) as (db_row.guild_memberships & { type: GuildType }) | null;
 		if (membership === null)
 			return 'missing';
 
@@ -2627,10 +2867,10 @@ session_post_route('/api/guilds/leave', async (req, url, client_id) => {
 		const remaining = db.query(
 			'SELECT COUNT(*) AS `count` FROM `guild_memberships` WHERE `guild_id` = ?'
 		).get(membership.guild_id) as { count: number };
-		if (remaining.count === 0)
+		if (remaining.count === 0 && membership.type !== FREE_FELLOWSHIP_TYPE)
 			db.query('DELETE FROM `guilds` WHERE `id` = ?').run(membership.guild_id);
 
-		return remaining.count === 0 ? 'dissolved' : 'left';
+		return remaining.count === 0 && membership.type !== FREE_FELLOWSHIP_TYPE ? 'dissolved' : 'left';
 	});
 
 	const result = leave_guild.immediate();
@@ -2645,6 +2885,80 @@ session_post_route('/api/guilds/leave', async (req, url, client_id) => {
 		await resize_unprogressed_campaign(current_guild_id);
 
 	return { success: true, dissolved: result === 'dissolved' };
+});
+// #endregion
+
+// #region ROUTES EQUIPMENT
+session_post_route('/api/client/equipment/sync', async (req, url, client_id, json) => {
+	const slots = parse_equipment_snapshot(json.slots);
+	if (slots === null)
+		return 400; // Bad Request
+
+	const save_snapshot = db.transaction(() => {
+		const client = db.query(
+			'SELECT `equipment_visible` FROM `clients` WHERE `id` = ? LIMIT 1'
+		).get(client_id) as Pick<db_row.clients, 'equipment_visible'>;
+		if (client.equipment_visible !== 1)
+			return false;
+
+		db.query('INSERT INTO `equipment_snapshots` (`client_id`) VALUES(?) ON CONFLICT DO NOTHING').run(client_id);
+		db.query('DELETE FROM `equipment_snapshot_items` WHERE `client_id` = ?').run(client_id);
+		const insert = db.query(
+			'INSERT INTO `equipment_snapshot_items` (`client_id`, `slot_id`, `item_id`) VALUES(?, ?, ?)'
+		);
+		for (const slot of slots)
+			insert.run(client_id, slot.slot_id, slot.item_id);
+		return true;
+	});
+
+	if (!save_snapshot.immediate())
+		return { error_lang: 'MOD_MP_EQUIPMENT_SHARING_DISABLED' };
+	return { success: true };
+});
+
+session_post_route('/api/client/equipment/visibility', async (req, url, client_id, json) => {
+	if (typeof json.visible !== 'boolean')
+		return 400; // Bad Request
+
+	const set_visibility = db.transaction(() => {
+		db.query('UPDATE `clients` SET `equipment_visible` = ? WHERE `id` = ?').run(
+			json.visible ? 1 : 0,
+			client_id
+		);
+		if (!json.visible)
+			db.query('DELETE FROM `equipment_snapshots` WHERE `client_id` = ?').run(client_id);
+	});
+	set_visibility.immediate();
+
+	return { success: true, visible: json.visible };
+});
+
+session_get_route('/api/guilds/equipment', async (req, url, client_id) => {
+	const subject_id = Number(url.searchParams.get('client_id'));
+	if (!Number.isSafeInteger(subject_id) || subject_id < 1)
+		return 400; // Bad Request
+
+	if (!await guild_membership_exists(client_id, subject_id))
+		return { error_lang: 'MOD_MP_GUILD_MEMBERSHIP_MISSING' };
+
+	const subject = await db_get_single(
+		'SELECT c.`equipment_visible`, EXISTS(' +
+			'SELECT 1 FROM `equipment_snapshots` AS es WHERE es.`client_id` = c.`id`' +
+		') AS `equipment_available` FROM `clients` AS c WHERE c.`id` = ? LIMIT 1',
+		[subject_id]
+	);
+	if (subject?.equipment_visible !== 1)
+		return { error_lang: 'MOD_MP_EQUIPMENT_SHARING_DISABLED' };
+	if (subject.equipment_available !== 1)
+		return { error_lang: 'MOD_MP_EQUIPMENT_NOT_AVAILABLE' };
+
+	return {
+		client_id: subject_id,
+		slots: await db_get_all(
+			'SELECT `slot_id`, `item_id` FROM `equipment_snapshot_items` WHERE `client_id` = ? ORDER BY `slot_id`',
+			[subject_id]
+		)
+	};
 });
 // #endregion
 
@@ -2785,7 +3099,7 @@ session_post_route('/api/client/set_display_name', async (req, url, client_id, j
 // #endregion
 
 // #region ROUTES AUTH
-server.route('/health', require_source_capacity(() => ({ status: 'ok' })));
+server.route('/health', require_source_capacity(() => ({ status: 'ok', backend_version: BACKEND_VERSION })));
 
 server.route('/api/authenticate', allow_browser_access(require_source_capacity(require_service_available(validate_json_request(async (req, url, json) => {
 	await Bun.sleep(1000);
@@ -2800,7 +3114,7 @@ server.route('/api/authenticate', allow_browser_access(require_source_capacity(r
 		return 400; // Bad Request
 
 	const client_row = await db_get_single(
-		'SELECT `id`, `client_key`, `friend_code`, `display_name`, `icon_id`, `disabled` ' +
+		'SELECT `id`, `client_key`, `friend_code`, `display_name`, `icon_id`, `disabled`, `equipment_visible` ' +
 		'FROM `clients` WHERE `client_identifier` = ? LIMIT 1',
 		[client_identifier]
 	) as db_row.clients;
@@ -2813,7 +3127,8 @@ server.route('/api/authenticate', allow_browser_access(require_source_capacity(r
 	const session_token = await generate_session_token(client_row.id);
 	log('client', 'authorized client session for identity {%d}', client_row.id);
 
-	return { session_token, friend_code: client_row.friend_code, display_name: client_row.display_name, icon_id: client_row.icon_id };
+	return { session_token, friend_code: client_row.friend_code, display_name: client_row.display_name,
+		icon_id: client_row.icon_id, equipment_visible: client_row.equipment_visible === 1 };
 })))), ['POST', 'OPTIONS']);
 
 server.route('/api/register', allow_browser_access(require_source_capacity(require_registration_capacity(require_service_available(validate_json_request(async (req, url, json) => {
@@ -2844,7 +3159,8 @@ server.route('/api/register', allow_browser_access(require_source_capacity(requi
 	log('client', 'registered new identity {%d}', client_id);
 
 	const session_token = await generate_session_token(client_id);
-	return { session_token, client_identifier, friend_code, display_name, icon_id: DEFAULT_USER_ICON_ID };
+	return { session_token, client_identifier, friend_code, display_name, icon_id: DEFAULT_USER_ICON_ID,
+		equipment_visible: true };
 }))))), ['POST', 'OPTIONS']);
 // #endregion
 

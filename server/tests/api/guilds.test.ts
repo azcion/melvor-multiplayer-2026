@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { make_guildmates } from '../support/fixtures';
 import { get_json_with_session, post, post_json, register_client } from '../support/http';
+import { db_count } from '../support/persistence';
 
 type GuildSummary = {
 	guild_id: number;
@@ -258,5 +259,97 @@ describe('guild API', () => {
 			expect(result.json.error_lang).toBe('MOD_MP_GUILD_REQUIRED');
 		for (const result of [gift, trade])
 			expect(result.json.error_lang).toBe('MOD_MP_GUILD_MEMBERSHIP_MISSING');
+	});
+
+	test('seeds one permanent Free Fellowship with direct membership and a searchable directory', async () => {
+		const [first, second, browser] = await Promise.all([
+			register_client('Fellowship First'),
+			register_client('Fellowship Second'),
+			register_client('Fellowship Browser')
+		]);
+		const listing = await get_json_with_session<{ guilds: Array<GuildSummary & {
+			is_free_fellowship?: boolean;
+		}> }>('/api/guilds/list', browser.session_token);
+		const fellowship = listing.json.guilds[0];
+
+		expect(fellowship).toMatchObject({
+			name: 'Free Fellowship',
+			icon_id: 'multiplayer',
+			member_count: 0,
+			is_free_fellowship: true
+		});
+		expect(await db_count(
+			"SELECT COUNT(*) AS `count` FROM `guilds` WHERE `type` = 'free_fellowship'"
+		)).toBe(1);
+		expect(await db_count(
+			'SELECT COUNT(*) AS `count` FROM `campaign_state` WHERE `guild_id` = ?',
+			[fellowship.guild_id]
+		)).toBe(0);
+
+		const joined = await post_json<{ success: boolean; guild: GuildSummary }>(
+			'/api/guilds/join-free', {}, first.session_token
+		);
+		const second_application = await post_json<{ error_lang: string }>(
+			'/api/guilds/apply', { guild_id: fellowship.guild_id }, second.session_token
+		);
+		const second_joined = await post_json<{ success: boolean }>(
+			'/api/guilds/join-free', {}, second.session_token
+		);
+		const state = await get_guild_state(first.session_token);
+		const searched = await get_json_with_session<{
+			members: Array<{ display_name: string }>;
+			total: number;
+		}>('/api/guilds/members?search=second', first.session_token);
+
+		expect(joined.json.success).toBe(true);
+		expect(second_application.json.error_lang).toBe('MOD_MP_GUILD_APPLICATION_FORBIDDEN');
+		expect(second_joined.json.success).toBe(true);
+		expect(state.guild).toMatchObject({
+			name: 'Free Fellowship',
+			icon_id: 'multiplayer',
+			capabilities: {
+				roster: true,
+				marketplace: true,
+				council: false,
+				member_search: true
+			}
+		});
+		expect(await db_count(
+			' SELECT COUNT(*) AS `count` FROM `campaign_state` WHERE `guild_id` = ?',
+			[fellowship.guild_id]
+		)).toBe(1);
+		expect(searched.json).toEqual({
+			members: [expect.objectContaining({ display_name: 'Fellowship Second' })],
+			page: 0,
+			page_size: 50,
+			search: 'second',
+			total: 1,
+			has_more: false
+		});
+
+		const no_council = await get_json_with_session<{ error_lang: string }>(
+			'/api/guilds/council', first.session_token
+		);
+		const no_petition = await post_json<{ error_lang: string }>('/api/guilds/petitions/raise', {
+			type: 'appellation',
+			name: 'Not Allowed'
+		}, first.session_token);
+		expect(no_council.json.error_lang).toBe('MOD_MP_GUILD_COUNCIL_UNAVAILABLE');
+		expect(no_petition.json.error_lang).toBe('MOD_MP_GUILD_COUNCIL_UNAVAILABLE');
+
+		await post_json('/api/guilds/leave', {}, first.session_token);
+		await post_json('/api/guilds/leave', {}, second.session_token);
+		const after_empty = await get_json_with_session<{ guilds: GuildSummary[] }>(
+			'/api/guilds/list', browser.session_token
+		);
+		const persisted = after_empty.json.guilds.find(guild => guild.guild_id === fellowship.guild_id);
+		expect(persisted).toMatchObject({ name: 'Free Fellowship', member_count: 0 });
+		expect(await db_count(
+			"SELECT COUNT(*) AS `count` FROM `guilds` WHERE `type` = 'free_fellowship'"
+		)).toBe(1);
+		expect(await db_count(
+			'SELECT COUNT(*) AS `count` FROM `campaign_state` WHERE `guild_id` = ?',
+			[fellowship.guild_id]
+		)).toBe(1);
 	});
 });

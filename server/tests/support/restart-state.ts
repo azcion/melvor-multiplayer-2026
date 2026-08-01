@@ -13,6 +13,7 @@ export type RestartState = {
 	market_lot_id: number;
 	charity_item_id: string;
 	campaign_contribution: number;
+	equipment_slots: Array<{ slot_id: string; item_id: string }>;
 	active_petition_id: number;
 	retry_petition_id: number;
 	banished: RegisteredClient;

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { request } from '../support/http';
+import { BACKEND_VERSION } from '../../version';
 
 describe('test harness', () => {
 	test('reaches the live server', async () => {
@@ -13,7 +14,7 @@ describe('test harness', () => {
 		const response = await request('/health');
 
 		expect(response.status).toBe(200);
-		expect(await response.json()).toEqual({ status: 'ok' });
+		expect(await response.json()).toEqual({ status: 'ok', backend_version: BACKEND_VERSION });
 	});
 
 	test('exercises authenticated routes through HTTP', async () => {

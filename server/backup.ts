@@ -12,9 +12,9 @@ function backup_path(filename: string | undefined): string {
 	if (
 		filename === undefined ||
 		basename(filename) !== filename ||
-		!/^(daily|pre-deploy)-\d{8}T\d{6}Z\.sqlite$/.test(filename)
+		!/^(daily|pre-deploy|pre-change)-\d{8}T\d{6}Z\.sqlite$/.test(filename)
 	)
-		throw new Error('Backup filename must be a generated daily or pre-deploy SQLite filename');
+		throw new Error('Backup filename must be a generated daily, pre-deploy, or pre-change SQLite filename');
 	return join(backup_directory, filename);
 }
 

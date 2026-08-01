@@ -47,6 +47,11 @@ test('creates representative state before a server restart', async () => {
 	await post_json('/api/campaign/contribute', {
 		item_amount: campaign_contribution
 	}, pair.first.session_token);
+	const equipment_slots = [
+		{ slot_id: 'melvorD:Helmet', item_id: 'melvorD:Restart_Helmet' },
+		{ slot_id: 'melvorD:Weapon', item_id: 'melvorD:Restart_Weapon' }
+	];
+	await post_json('/api/client/equipment/sync', { slots: equipment_slots }, pair.first.session_token);
 
 	const active_petition = await post_json<{ petition_id: number }>('/api/guilds/petitions/raise', {
 		type: 'appellation',
@@ -91,6 +96,7 @@ test('creates representative state before a server restart', async () => {
 		market_lot_id,
 		charity_item_id,
 		campaign_contribution,
+		equipment_slots,
 		active_petition_id: active_petition.json.petition_id,
 		retry_petition_id: retry_petition.json.petition_id,
 		banished,

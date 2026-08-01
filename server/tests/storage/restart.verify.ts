@@ -38,6 +38,10 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 		active: boolean;
 		contribution: number;
 	}>('/api/campaign/info', state.first.session_token);
+	const equipment = await get_json_with_session<{
+		client_id: number;
+		slots: Array<{ slot_id: string; item_id: string }>;
+	}>(`/api/guilds/equipment?client_id=${state.first_id}`, state.second.session_token);
 	const council = await get_json_with_session<{
 		petitions: Array<{
 			petition_id: number;
@@ -90,6 +94,7 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	});
 	expect(campaign.json.active).toBe(true);
 	expect(campaign.json.contribution).toBe(state.campaign_contribution);
+	expect(equipment.json).toEqual({ client_id: state.first_id, slots: state.equipment_slots });
 	expect(council.json.petitions).toContainEqual(expect.objectContaining({
 		petition_id: state.active_petition_id,
 		lifecycle: 'active'

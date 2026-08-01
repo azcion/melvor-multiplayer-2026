@@ -31,7 +31,18 @@ export type clients = {
 	icon_id: string,
 	last_charity: number,
 	last_bonus_charity: number,
-	disabled: number
+	disabled: number,
+	equipment_visible: number
+};
+
+export type equipment_snapshots = {
+	client_id: number;
+};
+
+export type equipment_snapshot_items = {
+	client_id: number;
+	slot_id: string;
+	item_id: string;
 };
 
 export type service_settings = {
@@ -66,6 +77,7 @@ export type gifts = {
 
 export type guilds = {
 	id: number;
+	type: 'private' | 'free_fellowship';
 	name: string;
 	icon_id: string;
 };

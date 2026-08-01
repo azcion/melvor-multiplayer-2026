@@ -26,6 +26,7 @@ const CHARITY_CHECK_TIMEOUT = 10 * 1000; // 10 seconds
 
 const MARKET_ITEMS_PER_PAGE = 30;
 const CLIENT_EVENT_POLL_INTERVAL = 20 * 1000; // 20 seconds
+const EQUIPMENT_SYNC_DELAY = 150;
 // #endregion
 
 // #region GLOBALS
@@ -45,6 +46,12 @@ let open_transfer_page = null;
 let remove_sold_out_market_result = null;
 let apply_banishment_claim = null;
 let is_reconciling_banishment_returns = false;
+let equipment_sync_timer = null;
+let equipment_sync_in_flight = false;
+let equipment_sync_pending = false;
+let last_synced_equipment = null;
+let equipment_view_action_armed = false;
+let equipment_view_action_timer = null;
 
 let last_charity_check = 0;
 
@@ -68,6 +75,11 @@ const state = ui.createStore({
 	friend_code: '',
 	display_name_input: '',
 	profile_display_name: '',
+	equipment_visible: true,
+	equipment_visibility_pending: false,
+	selected_guild_member: null,
+	viewed_equipment: [],
+	member_actions_error: '',
 	icon_search: '',
 	picked_icon: '',
 	profile_icon: 'melvorD:Plant',
@@ -132,6 +144,11 @@ const state = ui.createStore({
 	guild_state: { affiliation: 'none' },
 	guilds: [],
 	guild_members: [],
+	guild_member_search: '',
+	guild_member_directory_page: 0,
+	guild_member_directory_has_more: false,
+	guild_member_directory_loading: false,
+	selected_free_fellowship: null,
 	guild_applicants: [],
 	guild_client_id: null,
 	guild_list_search: '',
@@ -225,8 +242,20 @@ const state = ui.createStore({
 		return this.guild_state.affiliation === 'member';
 	},
 
+	get is_free_fellowship() {
+		return this.guild_state.guild?.is_free_fellowship === true;
+	},
+
+	get guild_member_count() {
+		return this.guild_state.guild?.member_count ?? this.guild_members.length;
+	},
+
 	get guild_recipients() {
 		return this.guild_members.filter(member => member.client_id !== this.guild_client_id);
+	},
+
+	get viewed_equipment_grid() {
+		return build_equipment_grid(this.viewed_equipment);
 	},
 
 	get has_transfer_access() {
@@ -375,8 +404,14 @@ const state = ui.createStore({
 	},
 
 	get_guild_icon(id) {
+		if (id === 'multiplayer')
+			return this.get_svg('multiplayer');
 		const area = game.combatAreas.getObjectByID(id);
 		return area?.media ?? 'assets/media/main/question.png';
+	},
+
+	get_free_fellowship_search_placeholder() {
+		return getLangString('MOD_MP_FREE_FELLOWSHIP_SEARCH');
 	},
 
 	get_pet_icon(id) {
@@ -1072,6 +1107,97 @@ const state = ui.createStore({
 		changePage(game.pages.getObjectByID('multiplayer:Guild'));
 	},
 
+	show_options_modal() {
+		this.hide_online_dropdown();
+		const member = this.guild_members.find(entry => entry.client_id === this.guild_client_id) ?? {
+			client_id: this.guild_client_id,
+			display_name: this.profile_display_name,
+			icon_id: this.profile_icon,
+			equipment_visible: this.equipment_visible,
+			equipment_available: false
+		};
+		this.show_member_actions(member);
+	},
+
+	show_member_actions(member) {
+		this.selected_guild_member = member;
+		this.member_actions_error = '';
+		queue_modal(member.display_name, 'member-actions-modal', this.get_avatar_icon(member.icon_id), {
+			showConfirmButton: false
+		}, false, false);
+	},
+
+	open_display_name_from_options() {
+		this.close_modal();
+		setTimeout(() => this.show_display_name_modal(), 0);
+	},
+
+	open_icon_from_options() {
+		this.close_modal();
+		setTimeout(() => this.show_icon_modal(), 0);
+	},
+
+	leave_guild_from_options() {
+		this.close_modal();
+		setTimeout(() => this.confirm_leave_guild(), 0);
+	},
+
+	async set_equipment_visibility(event) {
+		if (this.equipment_visibility_pending)
+			return;
+		event.preventDefault();
+		const desired = !this.equipment_visible;
+		this.equipment_visibility_pending = true;
+		this.member_actions_error = '';
+		let res = null;
+		try {
+			res = await api_post('/api/client/equipment/visibility', { visible: desired });
+		} catch (e) {
+			log('equipment visibility update failed (%s)', e);
+		}
+		if (res?.success) {
+			this.equipment_visible = res.visible;
+			if (this.selected_guild_member?.client_id === this.guild_client_id)
+				this.selected_guild_member.equipment_visible = res.visible;
+			if (res.visible) {
+				last_synced_equipment = null;
+				schedule_equipment_sync(0);
+			} else {
+				last_synced_equipment = null;
+			}
+		} else {
+			this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+		}
+		this.equipment_visibility_pending = false;
+	},
+
+	async view_member_equipment(event) {
+		const member = this.selected_guild_member;
+		const $button = event.currentTarget;
+		if (!member || is_button_spinning($button))
+			return;
+		this.member_actions_error = '';
+		show_button_spinner($button);
+		let res = null;
+		try {
+			res = await api_get('/api/guilds/equipment?client_id=' + member.client_id);
+		} catch (e) {
+			log('equipment snapshot fetch failed (%s)', e);
+		}
+		hide_button_spinner($button);
+		if (!Array.isArray(res?.slots)) {
+			this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+			return;
+		}
+
+		this.viewed_equipment = res.slots;
+		this.close_modal();
+		setTimeout(() => queue_modal(member.display_name, 'equipment-modal', this.get_avatar_icon(member.icon_id), {
+			showConfirmButton: false,
+			didClose: () => { this.viewed_equipment = []; }
+		}, false, false), 0);
+	},
+
 	async add_gp_to_transfer() {
 		add_gp_to_transfer(state.add_gp_value);
 		this.close_modal();
@@ -1173,6 +1299,37 @@ const state = ui.createStore({
 	pick_guild_icon(icon) {
 		this.picked_guild_icon = icon.id;
 		this.guild_page_error = '';
+	},
+
+	join_free_fellowship(event, guild) {
+		this.selected_free_fellowship = guild;
+		queue_modal('MOD_MP_FREE_FELLOWSHIP_CONFIRM_TITLE', 'free-fellowship-confirm-modal', this.get_guild_icon(guild.icon_id), {
+			showConfirmButton: false
+		}, true, false);
+	},
+
+	async confirm_join_free_fellowship(event) {
+		const $button = event.currentTarget;
+		if (is_button_spinning($button))
+			return;
+		show_button_spinner($button);
+		const res = await api_post('/api/guilds/join-free', {});
+		hide_button_spinner($button);
+		if (!res?.success)
+			return show_modal_error(getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR'));
+
+		this.close_modal();
+		this.selected_free_fellowship = null;
+		await refresh_guild_page();
+		notify('MOD_MP_FREE_FELLOWSHIP_JOINED', 'success');
+	},
+
+	search_guild_members() {
+		return refresh_guild_members(0, this.guild_member_search);
+	},
+
+	load_more_guild_members() {
+		return refresh_guild_members(this.guild_member_directory_page + 1, this.guild_member_search, true);
 	},
 
 	async create_guild(event) {
@@ -1623,6 +1780,126 @@ function modal_component(template_id) {
 
 function make_template(id, parent = null) {
 	return ui.create({ $template: '#template-mp-' + id, state }, parent ?? document.body);
+}
+
+function capture_equipment_snapshot() {
+	const equipped = game.combat?.player?.equipment?.equippedArray ?? [];
+	return equipped
+		.filter(entry => entry.providesStats && entry.slot?.id && entry.item?.id &&
+			entry.item.id !== 'melvorD:Empty_Equipment')
+		.map(entry => ({ slot_id: entry.slot.id, item_id: entry.item.id }))
+		.sort((a, b) => a.slot_id.localeCompare(b.slot_id));
+}
+
+function schedule_equipment_sync(delay = EQUIPMENT_SYNC_DELAY) {
+	if (!state.is_connected || !state.equipment_visible)
+		return;
+	clearTimeout(equipment_sync_timer);
+	equipment_sync_timer = setTimeout(flush_equipment_sync, delay);
+}
+
+async function flush_equipment_sync() {
+	equipment_sync_timer = null;
+	if (!state.is_connected || !state.equipment_visible)
+		return;
+	if (equipment_sync_in_flight) {
+		equipment_sync_pending = true;
+		return;
+	}
+
+	const slots = capture_equipment_snapshot();
+	const serialized = JSON.stringify(slots);
+	if (serialized === last_synced_equipment)
+		return;
+
+	equipment_sync_in_flight = true;
+	let res = null;
+	try {
+		res = await api_post('/api/client/equipment/sync', { slots });
+	} catch (e) {
+		log('equipment snapshot synchronization failed (%s)', e);
+	}
+	equipment_sync_in_flight = false;
+	if (res?.success)
+		last_synced_equipment = serialized;
+	else
+		log('equipment snapshot synchronization deferred');
+
+	if (equipment_sync_pending) {
+		equipment_sync_pending = false;
+		schedule_equipment_sync(0);
+	}
+}
+
+function watch_equipment_view_actions() {
+	document.addEventListener('click', event => {
+		if (!(event.target instanceof Element) || event.target.closest('[id^="mp-"], [class*="mp-equipment"]'))
+			return;
+		const equipment_view = event.target.closest(
+			'[id*="equipment"], [id*="equip-set"], [class*="equipment"], [class*="equip-set"]'
+		);
+		if (equipment_view !== null) {
+			equipment_view_action_armed = true;
+			clearTimeout(equipment_view_action_timer);
+			equipment_view_action_timer = setTimeout(() => { equipment_view_action_armed = false; }, 30000);
+			schedule_equipment_sync();
+		} else if (equipment_view_action_armed) {
+			equipment_view_action_armed = false;
+			clearTimeout(equipment_view_action_timer);
+			schedule_equipment_sync();
+		}
+	});
+}
+
+function build_equipment_grid(snapshot) {
+	const items_by_slot = new Map(snapshot.map(entry => [entry.slot_id, entry.item_id]));
+	const registered_slots = [...game.equipmentSlots.registeredObjects].map(entry => entry[1]);
+	const registered_ids = new Set(registered_slots.map(slot => slot.id));
+	const blocked_slots = new Set();
+
+	for (const { item_id } of snapshot) {
+		const item = game.items.getObjectByID(item_id);
+		for (const slot of item?.occupiesSlots ?? [])
+			blocked_slots.add(typeof slot === 'string' ? slot : slot.id);
+	}
+
+	const positions = registered_slots.map(slot => slot.gridPosition).filter(Boolean);
+	const min_col = positions.length === 0 ? 0 : Math.min(...positions.map(position => position.col));
+	const min_row = positions.length === 0 ? 0 : Math.min(...positions.map(position => position.row));
+	const slots = registered_slots.map(slot => {
+		const item_id = items_by_slot.get(slot.id) ?? null;
+		const item = item_id === null ? null : game.items.getObjectByID(item_id);
+		return {
+			slot_id: slot.id,
+			slot_name: slot.localID,
+			item_id,
+			item,
+			media: item?.media ?? (item_id === null ? slot.emptyMedia : null) ?? 'assets/media/main/question.png',
+			unknown: item_id !== null && item === undefined,
+			blocked: item_id === null && blocked_slots.has(slot.id),
+			col: (slot.gridPosition?.col ?? 0) - min_col + 1,
+			row: (slot.gridPosition?.row ?? 0) - min_row + 1
+		};
+	});
+
+	let extra_row = Math.max(...slots.map(slot => slot.row), 0) + 1;
+	for (const [slot_id, item_id] of items_by_slot) {
+		if (registered_ids.has(slot_id))
+			continue;
+		slots.push({
+			slot_id,
+			slot_name: slot_id,
+			item_id,
+			item: null,
+			media: 'assets/media/main/question.png',
+			unknown: true,
+			blocked: false,
+			col: 1,
+			row: extra_row++
+		});
+	}
+
+	return slots;
 }
 
 function $(id) {
@@ -2190,6 +2467,7 @@ async function api_post(endpoint, payload) {
 function set_session_token(token) {
 	session_token = token;
 	state.is_connected = true;
+	last_synced_equipment = null;
 	log('client session authenticated');
 }
 
@@ -2206,6 +2484,9 @@ async function refresh_guild_state() {
 
 	state.guild_state = res;
 	state.guild_members = res.members ?? [];
+	state.guild_member_search = res.member_directory?.search ?? '';
+	state.guild_member_directory_page = res.member_directory?.page ?? 0;
+	state.guild_member_directory_has_more = res.member_directory?.has_more === true;
 	state.guild_applicants = res.applicants ?? [];
 	state.guild_client_id = res.current_client_id ?? null;
 	state.events.guild_applicants = state.guild_applicants;
@@ -2227,6 +2508,25 @@ async function refresh_guild_state() {
 	return res;
 }
 
+async function refresh_guild_members(page = 0, search = state.guild_member_search, append = false) {
+	if (!state.is_guild_member || !state.is_free_fellowship || state.guild_member_directory_loading)
+		return;
+	state.guild_member_directory_loading = true;
+	const res = await api_get('/api/guilds/members?page=' + page + '&search=' + encodeURIComponent(search));
+	if (res !== null) {
+		const members = res.members ?? [];
+		state.guild_members = append
+			? [...state.guild_members, ...members.filter(member =>
+				!state.guild_members.some(existing => existing.client_id === member.client_id))]
+			: members;
+		state.guild_member_search = res.search ?? search;
+		state.guild_member_directory_page = res.page ?? page;
+		state.guild_member_directory_has_more = res.has_more === true;
+		state.guild_state.member_directory = res;
+	}
+	state.guild_member_directory_loading = false;
+}
+
 async function refresh_guild_list() {
 	const res = await api_get('/api/guilds/list');
 	state.guilds = res?.guilds ?? [];
@@ -2243,7 +2543,7 @@ async function refresh_guild_page() {
 }
 
 async function refresh_council(page = 0, append = false) {
-	if (!state.is_guild_member || state.council_loading)
+	if (!state.is_guild_member || state.is_free_fellowship || state.council_loading)
 		return;
 	state.council_loading = true;
 	const res = await api_get('/api/guilds/council?page=' + page);
@@ -2406,6 +2706,7 @@ export async function setup(ctx) {
 
 		patch_bank();
 		patch_bank_market();
+		watch_equipment_view_actions();
 		show_pending_banishment_notice();
 		
 		on_page_toggle('mp-guild-page', refresh_guild_page, true);
@@ -2661,9 +2962,11 @@ async function start_multiplayer_session() {
 			set_session_token(auth_res.session_token);
 			state.profile_display_name = auth_res.display_name;
 			state.profile_icon = auth_res.icon_id;
+			state.equipment_visible = auth_res.equipment_visible !== false;
 
 			start_client_event_polling();
 			refresh_guild_state();
+			schedule_equipment_sync(0);
 		} else {
 			notify_error('MOD_MP_MULTIPLAYER_CONNECTION_ERR');
 			error('failed to authenticate client, multiplayer features not available');
@@ -2684,10 +2987,12 @@ async function start_multiplayer_session() {
 
 			state.profile_display_name = register_res.display_name;
 			state.profile_icon = register_res.icon_id;
+			state.equipment_visible = register_res.equipment_visible !== false;
 
 			set_session_token(register_res.session_token);
 			start_client_event_polling();
 			refresh_guild_state();
+			schedule_equipment_sync(0);
 		} else {
 			notify_error('MOD_MP_MULTIPLAYER_CONNECTION_ERR');
 			error('failed to register client, multiplayer features not available');
@@ -2812,6 +3117,27 @@ class MPItemIcon extends HTMLElement {
 	}
 }
 
+class MPEquipmentItem extends HTMLElement {
+	connectedCallback() {
+		const item = game.items.getObjectByID(this.getAttribute('data-item-id'));
+		if (item === undefined)
+			return;
+		this.tooltip = tippy(this, {
+			content: '',
+			placement: 'top',
+			allowHTML: true,
+			interactive: false,
+			animation: false,
+			touch: 'hold',
+			onShow: instance => instance.setContent(createItemInformationTooltip(item))
+		});
+	}
+
+	disconnectedCallback() {
+		this.tooltip?.destroy();
+	}
+}
+
 class MPGPSlider extends HTMLElement {
 	constructor() {
 		super();
@@ -2909,6 +3235,7 @@ class MPItemSlider extends HTMLElement {
 window.customElements.define('lang-string-f', LangStringFormattedElement);
 window.customElements.define('mp-modal-component', MPModalComponent);
 window.customElements.define('mp-item-icon', MPItemIcon);
+window.customElements.define('mp-equipment-item', MPEquipmentItem);
 window.customElements.define('mp-gp-slider', MPGPSlider);
 window.customElements.define('mp-item-slider', MPItemSlider);
 // #endregion
