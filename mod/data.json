@@ -3,6 +3,21 @@
 	"data": {
 		"pages": [
 			{
+				"id": "Chat",
+				"customName": "Chat",
+				"media": "https://cdn2-main.melvor.net/assets/media/bank/message_in_a_bottle.png",
+				"containerID": "mp-chat-page",
+				"headerBgClass": "mp-chat-bg",
+				"hasGameGuide": false,
+				"canBeDefault": false,
+				"sidebarItem": {
+					"categoryID": "Multiplayer",
+					"icon": "https://cdn2-main.melvor.net/assets/media/bank/message_in_a_bottle.png",
+					"asideClass": "mp-chat-nav",
+					"aside": ""
+				}
+			},
+			{
 				"id": "Guild",
 				"customName": "Guild",
 				"media": "assets/multiplayer.svg",

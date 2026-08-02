@@ -19,6 +19,13 @@
 				<lang-string lang-id="MOD_MP_MENU_OPTIONS"></lang-string>
 			</a>
 			<h5 class="dropdown-header text-warning">
+				<lang-string lang-id="MOD_MP_MENU_HEADER_CHAT"></lang-string>
+			</h5>
+			<a class="dropdown-item pointer-enabled" @click.stop="state.open_chat_page()">
+				<lang-string lang-id="MOD_MP_MENU_VIEW_CHAT"></lang-string>
+				<span class="mp-menu-notification-number" v-if="state.chat_unread > 0">{{ state.chat_unread }}</span>
+			</a>
+			<h5 class="dropdown-header text-warning">
 				<lang-string lang-id="MOD_MP_MENU_HEADER_GUILD"></lang-string>
 			</h5>
 			<a class="dropdown-item pointer-enabled" @click.stop="state.open_guild_page()">
@@ -66,6 +73,16 @@
 				<span><lang-string lang-id="MOD_MP_EQUIPMENT_VISIBILITY"></lang-string></span>
 				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.equipment_visibility_pending"></span>
 			</label>
+			<label class="mp-status-visibility">
+				<input type="checkbox" :checked="state.status_visible" :disabled="state.status_visibility_pending" @click="state.set_status_visibility($event)">
+				<span><lang-string lang-id="MOD_MP_STATUS_VISIBILITY"></lang-string></span>
+				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.status_visibility_pending"></span>
+			</label>
+			<label class="mp-chat-visibility">
+				<input type="checkbox" :checked="state.messaging_enabled" :disabled="state.chat_privacy_pending" @click="state.set_messaging_enabled($event)">
+				<span><lang-string lang-id="MOD_MP_CHAT_PRIVACY_ENABLE"></lang-string></span>
+				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.chat_privacy_pending"></span>
+			</label>
 			<template v-if="state.is_guild_member">
 				<hr class="mp-member-actions-rule">
 				<div class="font-size-sm font-w600 text-danger text-uppercase"><lang-string lang-id="MOD_MP_GUILD_DANGER_ZONE"></lang-string></div>
@@ -73,23 +90,189 @@
 			</template>
 		</template>
 		<template v-else>
-			<button type="button" class="btn btn-primary" :disabled="!state.selected_guild_member.equipment_visible || !state.selected_guild_member.equipment_available" @click="state.view_member_equipment($event)">
+			<button type="button" class="btn btn-primary" @click="state.start_member_chat($event)">
 				<span class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></span>
-				<lang-string lang-id="MOD_MP_EQUIPMENT_VIEW"></lang-string>
+				<lang-string lang-id="MOD_MP_CHAT_START"></lang-string>
+			</button>
+			<button type="button" class="btn btn-primary" :disabled="!state.member_profile_available" @click="state.view_member_profile($event)">
+				<span class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></span>
+				<lang-string lang-id="MOD_MP_PROFILE_VIEW"></lang-string>
 			</button>
 			<div class="font-size-sm text-muted" v-if="!state.selected_guild_member.equipment_visible"><lang-string lang-id="MOD_MP_EQUIPMENT_NOT_SHARED"></lang-string></div>
 			<div class="font-size-sm text-muted" v-else-if="!state.selected_guild_member.equipment_available"><lang-string lang-id="MOD_MP_EQUIPMENT_NOT_AVAILABLE_HINT"></lang-string></div>
+			<div class="font-size-sm text-muted" v-if="!state.selected_guild_member.status_visible"><lang-string lang-id="MOD_MP_STATUS_NOT_SHARED"></lang-string></div>
+			<div class="font-size-sm text-muted" v-else-if="!state.selected_guild_member.status_available"><lang-string lang-id="MOD_MP_STATUS_NOT_AVAILABLE_HINT"></lang-string></div>
 		</template>
 		<div class="text-danger" v-if="state.member_actions_error">{{ state.member_actions_error }}</div>
 	</div>
 </template>
-<template id="template-mp-equipment-modal">
-	<div class="mp-equipment-grid" role="list" aria-label="Shared equipment">
-		<div class="mp-equipment-slot" :class="{ 'mp-equipment-slot-unknown': slot.unknown, 'mp-equipment-slot-blocked': slot.blocked }" :style="{ gridColumn: slot.col, gridRow: slot.row }" role="listitem" v-for="slot in state.viewed_equipment_grid" :key="slot.slot_id">
-			<mp-equipment-item v-if="slot.item" :data-item-id="slot.item_id"><img :src="slot.media" :alt="slot.item.name"></mp-equipment-item>
-			<img v-else :src="slot.media" :alt="slot.unknown ? 'Unknown or unavailable item' : slot.slot_name">
-			<span class="sr-only" v-if="slot.unknown"><lang-string lang-id="MOD_MP_EQUIPMENT_UNKNOWN_ITEM"></lang-string></span>
+<template id="template-mp-chat-page">
+	<div class="content d-none" id="mp-chat-page">
+		<div class="mp-chat-layout">
+			<div class="block block-rounded" v-if="!state.selected_chat_conversation">
+				<div class="block-header block-header-default">
+					<div>
+						<h3 class="block-title"><lang-string lang-id="MOD_MP_CHAT_INBOX"></lang-string></h3>
+						<div class="font-size-sm text-muted"><lang-string lang-id="MOD_MP_CHAT_INBOX_INFO"></lang-string></div>
+					</div>
+					<span class="badge badge-info" v-if="state.chat_unread > 0">{{ state.chat_unread }}</span>
+				</div>
+				<div class="block-content text-center" v-if="state.chat_loading && state.chat_conversations.length === 0">
+					<span class="spinner-border spinner-border-sm text-primary mr-2" role="status"></span>
+					<lang-string lang-id="MOD_MP_CHAT_LOADING"></lang-string>
+				</div>
+				<div class="mp-chat-conversations" v-else-if="state.chat_conversations.length > 0">
+					<button type="button" class="mp-chat-conversation" v-for="conversation in state.chat_conversations" :key="conversation.conversation_id" @click="state.open_chat_conversation(conversation)">
+						<img class="skill-icon-sm" :src="state.get_avatar_icon(conversation.participant.icon_id)">
+						<div class="mp-chat-conversation-copy">
+							<div class="font-w600">{{ conversation.participant.display_name }}</div>
+							<div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ conversation.latest_message.content }}</div>
+							<div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div>
+						</div>
+						<span class="badge badge-danger" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
+					</button>
+				</div>
+				<div class="block-content text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_EMPTY"></lang-string></div>
+			</div>
+
+			<div class="block block-rounded mp-chat-conversation-view" v-else>
+				<div class="block-header block-header-default mp-chat-header">
+					<button type="button" class="btn btn-sm btn-secondary" @click="state.close_chat_conversation()"><i class="fa fa-chevron-left mr-1"></i><lang-string lang-id="MOD_MP_CHAT_BACK"></lang-string></button>
+					<button type="button" class="mp-chat-participant" @click="state.show_chat_actions_modal()" aria-haspopup="dialog">
+						<img class="skill-icon-xs" :src="state.get_avatar_icon(state.selected_chat_conversation.participant.icon_id)">
+						<span class="font-w600">{{ state.selected_chat_conversation.participant.display_name }}</span>
+					</button>
+				</div>
+				<div class="block-content text-center" v-if="state.chat_has_more">
+					<button type="button" class="btn btn-sm btn-secondary" :disabled="state.chat_messages_loading" @click="state.load_older_chat_messages()"><lang-string lang-id="MOD_MP_CHAT_LOAD_OLDER"></lang-string></button>
+				</div>
+				<div class="mp-chat-messages" role="log" aria-live="polite">
+					<div class="text-center text-muted" v-if="state.chat_messages_loading && state.chat_messages.length === 0"><lang-string lang-id="MOD_MP_CHAT_LOADING"></lang-string></div>
+					<div class="text-center text-muted" v-else-if="state.chat_messages.length === 0"><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div>
+					<div class="mp-chat-message" :class="{ 'mp-chat-message-own': message.sender_id === state.chat_client_id }" v-for="message in state.chat_messages" :key="message.message_id">
+						<div class="mp-chat-message-meta"><span class="font-w600">{{ message.sender.display_name }}</span><button type="button" class="mp-chat-message-timestamp" @click="state.show_chat_message_actions(message)"><time :datetime="state.format_chat_datetime(message.created_at)">{{ state.format_chat_time(message.created_at) }}</time></button></div>
+						<div class="mp-chat-message-content">{{ message.content }}</div>
+					</div>
+				</div>
+				<div class="block-content mp-chat-compose">
+					<form @submit="state.send_chat_message($event)">
+						<textarea class="mp-input-text" maxlength="1000" rows="3" v-model="state.chat_draft" @keydown="state.handle_chat_keydown($event)" :disabled="!state.messaging_enabled" :placeholder="state.get_chat_compose_placeholder()"></textarea>
+						<div class="mp-chat-compose-actions">
+							<button type="button" class="mp-chat-budget" @click="state.show_chat_budget_modal()" aria-haspopup="dialog" aria-label="Learn how Message capacity works">
+								<lang-string-f lang-id="MOD_MP_CHAT_BUDGET" :lang-arg-1="state.chat_budget.credits" :lang-arg-2="state.chat_budget.maximum"></lang-string-f>
+								<img class="skill-icon-xxs" :src="state.get_item_icon('melvorD:Message_In_A_Bottle')" alt="">
+								<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.chat_budget.credits < state.chat_budget.maximum"></span>
+							</button>
+							<button type="submit" class="btn btn-primary" :disabled="!state.chat_can_send"><span class="spinner-border spinner-border-sm text-light mr-2" role="status" v-if="state.chat_sending"></span><lang-string lang-id="MOD_MP_CHAT_SEND"></lang-string></button>
+						</div>
+					</form>
+					<div class="text-danger mt-2" v-if="state.chat_error">{{ state.chat_error }}</div>
+				</div>
+			</div>
 		</div>
+	</div>
+</template>
+<template id="template-mp-chat-budget-info-modal">
+	<div class="mp-modal-text mp-chat-budget-info">
+		<div><lang-string lang-id="MOD_MP_CHAT_BUDGET_INFO"></lang-string></div>
+		<div class="mp-chat-budget-info-heading"><lang-string lang-id="MOD_MP_CHAT_BUDGET_LEVELS"></lang-string></div>
+		<div class="mp-chat-budget-info-effect"><span class="font-w600"><lang-string lang-id="MOD_MP_CHAT_BUDGET_LEVEL_99_LABEL"></lang-string></span><span><lang-string lang-id="MOD_MP_CHAT_BUDGET_LEVEL_99"></lang-string></span></div>
+		<div class="mp-chat-budget-info-effect"><span class="font-w600"><lang-string lang-id="MOD_MP_CHAT_BUDGET_LEVEL_120_LABEL"></lang-string></span><span><lang-string lang-id="MOD_MP_CHAT_BUDGET_LEVEL_120"></lang-string></span></div>
+	</div>
+	<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
+</template>
+<template id="template-mp-chat-message-actions-modal">
+	<div class="mp-chat-modal-actions">
+		<button type="button" class="btn btn-primary" @click="state.copy_chat_message()"><lang-string lang-id="MOD_MP_CHAT_COPY"></lang-string></button>
+		<button type="button" class="btn btn-outline-danger" @click="state.show_chat_message_delete_confirmation()"><lang-string lang-id="MOD_MP_CHAT_DELETE_MESSAGE"></lang-string></button>
+	</div>
+	<div id="mp-modal-error" class="d-none text-danger mt-2"></div>
+	<button type="button" class="btn btn-secondary mt-3" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
+</template>
+<template id="template-mp-chat-message-delete-confirm-modal">
+	<div class="mp-modal-text">
+		<div class="font-w600"><lang-string lang-id="MOD_MP_CHAT_DELETE_MESSAGE_CONFIRM_TITLE"></lang-string></div>
+		<div><lang-string lang-id="MOD_MP_CHAT_DELETE_MESSAGE_CONFIRM_INFO"></lang-string></div>
+		<span id="mp-modal-error" class="d-none text-danger"></span>
+	</div>
+	<button type="button" class="btn btn-danger" @click="state.delete_chat_message($event)">
+		<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+		<lang-string lang-id="MOD_MP_CHAT_DELETE_MESSAGE"></lang-string>
+	</button>
+	<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
+</template>
+<template id="template-mp-chat-actions-modal">
+	<div class="mp-chat-modal-actions">
+		<button type="button" class="btn btn-secondary" @click="state.show_chat_block_confirmation()">
+			{{ state.get_chat_block_label() }}
+		</button>
+		<button type="button" class="btn btn-outline-danger" @click="state.show_chat_delete_confirmation()">
+			<lang-string lang-id="MOD_MP_CHAT_DELETE_CONVERSATION"></lang-string>
+		</button>
+	</div>
+	<button type="button" class="btn btn-secondary mt-3" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
+</template>
+<template id="template-mp-chat-block-confirm-modal">
+	<div class="mp-modal-text">
+		<div class="font-w600">{{ state.get_chat_block_label() }}?</div>
+		<div>{{ state.get_chat_block_confirmation_info() }}</div>
+		<span id="mp-modal-error" class="d-none text-danger"></span>
+	</div>
+	<button type="button" class="btn btn-danger" @click="state.toggle_chat_block($event)">
+		<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+		{{ state.get_chat_block_label() }}
+	</button>
+	<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
+</template>
+<template id="template-mp-chat-delete-confirm-modal">
+	<div class="mp-modal-text">
+		<div class="font-w600"><lang-string lang-id="MOD_MP_CHAT_DELETE_CONFIRM_TITLE"></lang-string></div>
+		<div><lang-string lang-id="MOD_MP_CHAT_DELETE_CONFIRM_INFO"></lang-string></div>
+		<span id="mp-modal-error" class="d-none text-danger"></span>
+	</div>
+	<button type="button" class="btn btn-danger" @click="state.delete_chat_conversation($event)">
+		<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+		<lang-string lang-id="MOD_MP_CHAT_DELETE_CONVERSATION"></lang-string>
+	</button>
+	<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
+</template>
+<template id="template-mp-profile-modal">
+	<div class="mp-profile-tabs" role="tablist">
+		<button type="button" class="mp-profile-tab" :class="{ 'mp-profile-tab-active': state.profile_active_tab === 'skills' }" role="tab" :aria-selected="state.profile_active_tab === 'skills'" @click="state.profile_active_tab = 'skills'">
+			<lang-string lang-id="MOD_MP_PROFILE_SKILLS"></lang-string>
+		</button>
+		<button type="button" class="mp-profile-tab" :class="{ 'mp-profile-tab-active': state.profile_active_tab === 'equipment' }" role="tab" :aria-selected="state.profile_active_tab === 'equipment'" @click="state.profile_active_tab = 'equipment'">
+			<lang-string lang-id="MOD_MP_PROFILE_EQUIPMENT"></lang-string>
+		</button>
+	</div>
+	<div class="mp-profile-layout">
+		<section class="mp-profile-panel mp-profile-equipment-panel" :class="{ 'mp-profile-panel-active': state.profile_active_tab === 'equipment' }" role="tabpanel">
+			<h5 class="mp-profile-panel-title"><lang-string lang-id="MOD_MP_PROFILE_EQUIPMENT"></lang-string></h5>
+			<div class="mp-equipment-grid" role="list" aria-label="Shared equipment" v-if="state.viewed_equipment !== null">
+				<div class="mp-equipment-slot" :class="{ 'mp-equipment-slot-unknown': slot.unknown, 'mp-equipment-slot-blocked': slot.blocked }" :style="{ gridColumn: slot.col, gridRow: slot.row }" role="listitem" v-for="slot in state.viewed_equipment_grid" :key="slot.slot_id">
+					<mp-equipment-item v-if="slot.item" :data-item-id="slot.item_id"><img :src="slot.media" :alt="slot.item.name"></mp-equipment-item>
+					<img v-else :src="slot.media" :alt="slot.unknown ? 'Unknown or unavailable item' : slot.slot_name">
+					<span class="sr-only" v-if="slot.unknown"><lang-string lang-id="MOD_MP_EQUIPMENT_UNKNOWN_ITEM"></lang-string></span>
+				</div>
+			</div>
+			<div class="mp-profile-unavailable text-muted" v-else>{{ state.get_profile_equipment_message() }}</div>
+		</section>
+		<section class="mp-profile-panel mp-profile-skills-panel" :class="{ 'mp-profile-panel-active': state.profile_active_tab === 'skills' }" role="tabpanel">
+			<h5 class="mp-profile-panel-title"><lang-string lang-id="MOD_MP_PROFILE_SKILLS"></lang-string></h5>
+			<template v-if="state.viewed_status">
+				<div class="mp-status-activity">
+					<img class="skill-icon-sm" :src="state.viewed_status_activity_icon">
+					<span>{{ state.viewed_status_activity_name }}</span>
+				</div>
+				<div class="mp-status-skills">
+					<div class="mp-status-skill" v-for="skill in state.viewed_status_skills" :key="skill.skill_id" :title="state.get_skill_name(skill.skill_id)" :aria-label="state.get_skill_name(skill.skill_id)">
+						<img class="skill-icon-sm" :src="state.get_skill_icon(skill.skill_id)" :alt="state.get_skill_name(skill.skill_id)">
+						<span class="badge badge-secondary mp-status-skill-level">{{ skill.level }} / {{ state.get_skill_level_cap(skill.skill_id) }}</span>
+					</div>
+				</div>
+			</template>
+			<div class="mp-profile-unavailable text-muted" v-else>{{ state.get_profile_status_message() }}</div>
+		</section>
 	</div>
 	<button type="button" class="btn btn-secondary mt-3" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
 </template>
@@ -184,7 +367,6 @@
 						<div class="block-header block-header-default">
 							<div>
 								<h3 class="block-title"><lang-string lang-id="MOD_MP_GUILD_MEMBERS"></lang-string></h3>
-								<span class="badge badge-secondary">{{ state.guild_member_count }}</span>
 							</div>
 							<span class="font-size-sm text-muted" v-if="state.is_free_fellowship && state.guild_member_directory_loading">Loading...</span>
 						</div>
@@ -195,8 +377,11 @@
 							<button type="button" class="mp-guild-person mp-guild-member-button" v-for="member in state.guild_members" @click="state.show_member_actions(member)">
 								<img class="skill-icon-xs" :src="state.get_avatar_icon(member.icon_id)">
 								<span class="font-w600">{{ member.display_name }}</span>
-								<span class="badge badge-info ml-auto" v-if="member.client_id === state.guild_client_id">
-									<lang-string lang-id="MOD_MP_GUILD_YOU"></lang-string>
+								<span class="mp-guild-member-meta">
+									<span class="badge badge-info" v-if="member.client_id === state.guild_client_id">
+										<lang-string lang-id="MOD_MP_GUILD_YOU"></lang-string>
+									</span>
+									<img class="skill-icon-xs" v-if="member.status_activity" :src="state.get_status_activity_icon(member.status_activity)" :alt="state.get_status_activity_name(member.status_activity)">
 								</span>
 							</button>
 						</div>

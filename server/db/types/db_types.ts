@@ -32,7 +32,52 @@ export type clients = {
 	last_charity: number,
 	last_bonus_charity: number,
 	disabled: number,
-	equipment_visible: number
+	equipment_visible: number,
+	status_visible: number
+	messaging_enabled: number,
+	messaging_credits: number,
+	messaging_refill_at: number
+};
+
+export type chat_conversations = {
+	id: number;
+	participant_low_id: number;
+	participant_high_id: number;
+	created_at: number;
+};
+
+export type chat_participants = {
+	conversation_id: number;
+	client_id: number;
+	conversation_hidden: number;
+	hidden_through_message_id: number;
+};
+
+export type chat_messages = {
+	id: number;
+	conversation_id: number;
+	sender_id: number;
+	idempotency_key: string;
+	content: string;
+	created_at: number;
+};
+
+export type chat_message_deletions = {
+	message_id: number;
+	client_id: number;
+	deleted_at: number;
+};
+
+export type chat_message_reads = {
+	message_id: number;
+	client_id: number;
+	read_at: number;
+};
+
+export type chat_blocks = {
+	blocker_id: number;
+	blocked_id: number;
+	created_at: number;
 };
 
 export type equipment_snapshots = {
@@ -43,6 +88,20 @@ export type equipment_snapshot_items = {
 	client_id: number;
 	slot_id: string;
 	item_id: string;
+};
+
+export type status_snapshots = {
+	client_id: number;
+	activity_type: 'idle' | 'skill' | 'combat';
+	activity_skill_id: string | null;
+	activity_action_id: string | null;
+	activity_area_id: string | null;
+};
+
+export type status_snapshot_skills = {
+	client_id: number;
+	skill_id: string;
+	level: number;
 };
 
 export type service_settings = {

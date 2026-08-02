@@ -30,6 +30,7 @@ export type Events = {
 	};
 	market_completed: number[];
 	banishment_return_pending: boolean;
+	chat_unread: number;
 };
 
 export type FriendPair = {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { make_guild_group, register_guild_client } from '../support/fixtures';
+import { make_guild_group, make_guildmates, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post_json, register_client } from '../support/http';
 import { db_all, db_count } from '../support/persistence';
 import { wait_for } from '../support/wait';
@@ -11,6 +11,31 @@ type OperationResult = {
 };
 
 describe('concurrent persistence invariants', () => {
+	test('creates and charges one Message for concurrent idempotent sends', async () => {
+		const pair = await make_guildmates('Concurrent Chat Sender', 'Concurrent Chat Recipient');
+		const started = await post_json<{
+			conversation: { conversation_id: number };
+		}>('/api/chat/conversations/start', { client_id: pair.second_id }, pair.first.session_token);
+		const idempotency_key = crypto.randomUUID();
+		const results = await Promise.all(Array.from({ length: 20 }, () => post_json<{
+			success?: boolean;
+			message?: { message_id: number };
+			budget?: { credits: number };
+		}>('/api/chat/messages/send', {
+			conversation_id: started.json.conversation.conversation_id,
+			idempotency_key,
+			content: 'Only once'
+		}, pair.first.session_token)));
+
+		expect(results.every(result => result.json.success)).toBe(true);
+		expect(new Set(results.map(result => result.json.message?.message_id)).size).toBe(1);
+		expect(results.at(-1)?.json.budget?.credits).toBe(4);
+		expect(await db_count(
+			'SELECT COUNT(*) AS count FROM `chat_messages` WHERE `sender_id` = ? AND `idempotency_key` = ?',
+			[pair.first_id, idempotency_key]
+		)).toBe(1);
+	});
+
 	test('creates only one pending request for concurrent duplicate friend requests', async () => {
 		const [sender, recipient] = await Promise.all([
 			register_client('Concurrent Friend Sender'),

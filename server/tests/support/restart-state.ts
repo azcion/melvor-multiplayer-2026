@@ -14,6 +14,10 @@ export type RestartState = {
 	charity_item_id: string;
 	campaign_contribution: number;
 	equipment_slots: Array<{ slot_id: string; item_id: string }>;
+	status_skills: Array<{ skill_id: string; level: number }>;
+	status_activity: { type: 'skill'; skill_id: string; action_id: string };
+	chat_conversation_id: number;
+	chat_message_id: number;
 	active_petition_id: number;
 	retry_petition_id: number;
 	banished: RegisteredClient;

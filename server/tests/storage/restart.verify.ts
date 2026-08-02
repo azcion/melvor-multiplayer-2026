@@ -42,6 +42,24 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 		client_id: number;
 		slots: Array<{ slot_id: string; item_id: string }>;
 	}>(`/api/guilds/equipment?client_id=${state.first_id}`, state.second.session_token);
+	const status = await get_json_with_session<{
+		client_id: number;
+		skills: Array<{ skill_id: string; level: number }>;
+		activity: { type: 'skill'; skill_id: string; action_id: string };
+	}>(`/api/guilds/status?client_id=${state.first_id}`, state.second.session_token);
+	const chat = await get_json_with_session<{
+		conversations: Array<{
+			conversation_id: number;
+			blocked: boolean;
+		}>;
+	}>('/api/chat/conversations', state.second.session_token);
+	const chat_messages = await get_json_with_session<{
+		messages: Array<{ message_id: number; content: string }>;
+	}>(`/api/chat/messages?conversation_id=${state.chat_conversation_id}`, state.second.session_token);
+	const chat_state = await get_json_with_session<{
+		messaging_enabled: boolean;
+		budget: { credits: number };
+	}>('/api/chat/state', state.first.session_token);
 	const council = await get_json_with_session<{
 		petitions: Array<{
 			petition_id: number;
@@ -95,6 +113,21 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	expect(campaign.json.active).toBe(true);
 	expect(campaign.json.contribution).toBe(state.campaign_contribution);
 	expect(equipment.json).toEqual({ client_id: state.first_id, slots: state.equipment_slots });
+	expect(status.json).toEqual({
+		client_id: state.first_id,
+		skills: state.status_skills,
+		activity: state.status_activity
+	});
+	expect(chat.json.conversations).toContainEqual(expect.objectContaining({
+		conversation_id: state.chat_conversation_id,
+		blocked: true
+	}));
+	expect(chat_messages.json.messages).toContainEqual(expect.objectContaining({
+		message_id: state.chat_message_id,
+		content: 'Restart-safe private Message'
+	}));
+	expect(chat_state.json.messaging_enabled).toBe(false);
+	expect(chat_state.json.budget.credits).toBe(4);
 	expect(council.json.petitions).toContainEqual(expect.objectContaining({
 		petition_id: state.active_petition_id,
 		lifecycle: 'active'

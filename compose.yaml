@@ -52,25 +52,6 @@ services:
       - test-state:/test-state
     command: ["bun", "run", "test"]
 
-  console:
-    profiles: ["console"]
-    build:
-      context: .
-    environment:
-      CONSOLE_PORT: "3001"
-      CONSOLE_ORIGIN: http://127.0.0.1:${MELVOR_CONSOLE_ORIGIN_PORT:-${MELVOR_CONSOLE_PORT:-3210}}
-      CONSOLE_RUNTIME_DIR: /app/console-runtime
-      CONSOLE_AUDIT_DIR: /app/console-logs
-      DB_PATH: /app/data/melvor-multiplayer.sqlite
-    ports:
-      - "127.0.0.1:${MELVOR_CONSOLE_PORT:-3210}:3001"
-    volumes:
-      - database-data:/app/data
-      - ${MELVOR_BACKUP_DIR:-./backups}:/app/backups
-      - ${MELVOR_CONSOLE_RUNTIME_DIR:-./console-runtime}:/app/console-runtime
-      - ${MELVOR_CONSOLE_AUDIT_DIR:-./console-logs}:/app/console-logs
-    command: ["bun", "run", "service-console/server.ts"]
-
 volumes:
   database-data:
   test-state:

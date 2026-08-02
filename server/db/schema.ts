@@ -423,4 +423,112 @@ export const migrations: Migration[] = [{
 			SELECT 'free_fellowship', 'Free Fellowship', 'multiplayer'
 			WHERE NOT EXISTS (SELECT 1 FROM guilds WHERE type = 'free_fellowship');
 		`
+	}, {
+		version: 11,
+		sql: `
+			ALTER TABLE clients ADD COLUMN status_visible INTEGER NOT NULL DEFAULT 1
+				CHECK (status_visible IN (0, 1));
+
+			CREATE TABLE status_snapshots (
+				client_id INTEGER PRIMARY KEY,
+				activity_type TEXT NOT NULL CHECK (activity_type IN ('idle', 'skill', 'combat')),
+				activity_skill_id TEXT,
+				activity_action_id TEXT,
+				activity_area_id TEXT,
+				CHECK (
+					(activity_type = 'idle' AND activity_skill_id IS NULL AND activity_action_id IS NULL
+						AND activity_area_id IS NULL) OR
+					(activity_type = 'skill' AND activity_skill_id IS NOT NULL AND activity_action_id IS NOT NULL
+						AND activity_area_id IS NULL) OR
+					(activity_type = 'combat' AND activity_skill_id IS NULL AND activity_action_id IS NULL)
+				),
+				FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
+			);
+
+			CREATE TABLE status_snapshot_skills (
+				client_id INTEGER NOT NULL,
+				skill_id TEXT NOT NULL,
+				level INTEGER NOT NULL CHECK (level >= 0),
+				PRIMARY KEY (client_id, skill_id),
+				FOREIGN KEY (client_id) REFERENCES status_snapshots (client_id) ON DELETE CASCADE
+			);
+		`
+	}, {
+		version: 12,
+		sql: `
+			ALTER TABLE clients ADD COLUMN messaging_enabled INTEGER NOT NULL DEFAULT 1
+				CHECK (messaging_enabled IN (0, 1));
+			ALTER TABLE clients ADD COLUMN messaging_credits INTEGER NOT NULL DEFAULT 5
+				CHECK (messaging_credits >= 0);
+			ALTER TABLE clients ADD COLUMN messaging_refill_at INTEGER NOT NULL DEFAULT 0
+				CHECK (messaging_refill_at >= 0);
+
+			CREATE TABLE chat_conversations (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				participant_low_id INTEGER NOT NULL,
+				participant_high_id INTEGER NOT NULL,
+				created_at INTEGER NOT NULL CHECK (created_at >= 0),
+				CHECK (participant_low_id < participant_high_id),
+				UNIQUE (participant_low_id, participant_high_id),
+				FOREIGN KEY (participant_low_id) REFERENCES clients (id) ON DELETE CASCADE,
+				FOREIGN KEY (participant_high_id) REFERENCES clients (id) ON DELETE CASCADE
+			);
+			CREATE INDEX idx_chat_conversations_high ON chat_conversations (participant_high_id, id);
+
+			CREATE TABLE chat_participants (
+				conversation_id INTEGER NOT NULL,
+				client_id INTEGER NOT NULL,
+				conversation_hidden INTEGER NOT NULL DEFAULT 0 CHECK (conversation_hidden IN (0, 1)),
+				hidden_through_message_id INTEGER NOT NULL DEFAULT 0 CHECK (hidden_through_message_id >= 0),
+				PRIMARY KEY (conversation_id, client_id),
+				FOREIGN KEY (conversation_id) REFERENCES chat_conversations (id) ON DELETE CASCADE,
+				FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
+			);
+			CREATE INDEX idx_chat_participants_client ON chat_participants (client_id, conversation_id);
+
+			CREATE TABLE chat_messages (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				conversation_id INTEGER NOT NULL,
+				sender_id INTEGER NOT NULL,
+				idempotency_key TEXT NOT NULL,
+				content TEXT NOT NULL CHECK (length(content) BETWEEN 1 AND 1000),
+				created_at INTEGER NOT NULL CHECK (created_at >= 0),
+				UNIQUE (sender_id, idempotency_key),
+				FOREIGN KEY (conversation_id) REFERENCES chat_conversations (id) ON DELETE CASCADE,
+				FOREIGN KEY (sender_id) REFERENCES clients (id) ON DELETE CASCADE
+			);
+			CREATE INDEX idx_chat_messages_conversation ON chat_messages (conversation_id, id);
+			CREATE INDEX idx_chat_messages_sender ON chat_messages (sender_id, id);
+
+			CREATE TABLE chat_message_reads (
+				message_id INTEGER NOT NULL,
+				client_id INTEGER NOT NULL,
+				read_at INTEGER NOT NULL CHECK (read_at >= 0),
+				PRIMARY KEY (message_id, client_id),
+				FOREIGN KEY (message_id) REFERENCES chat_messages (id) ON DELETE CASCADE,
+				FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
+			);
+			CREATE INDEX idx_chat_message_reads_client ON chat_message_reads (client_id, message_id);
+
+			CREATE TABLE chat_message_deletions (
+				message_id INTEGER NOT NULL,
+				client_id INTEGER NOT NULL,
+				deleted_at INTEGER NOT NULL CHECK (deleted_at >= 0),
+				PRIMARY KEY (message_id, client_id),
+				FOREIGN KEY (message_id) REFERENCES chat_messages (id) ON DELETE CASCADE,
+				FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
+			);
+			CREATE INDEX idx_chat_message_deletions_client ON chat_message_deletions (client_id, message_id);
+
+			CREATE TABLE chat_blocks (
+				blocker_id INTEGER NOT NULL,
+				blocked_id INTEGER NOT NULL,
+				created_at INTEGER NOT NULL CHECK (created_at >= 0),
+				CHECK (blocker_id != blocked_id),
+				PRIMARY KEY (blocker_id, blocked_id),
+				FOREIGN KEY (blocker_id) REFERENCES clients (id) ON DELETE CASCADE,
+				FOREIGN KEY (blocked_id) REFERENCES clients (id) ON DELETE CASCADE
+			);
+			CREATE INDEX idx_chat_blocks_blocked ON chat_blocks (blocked_id, blocker_id);
+		`
 	}];

@@ -3,7 +3,7 @@
 # Melvor Multiplayer 2026 - Public Test
 
 Melvor Multiplayer 2026 is a self-hosted Melvor Idle multiplayer mod and server rebuilt around Guild-isolated play.
-This repository contains the public source for public-test version `0.1.0-public-test.10`, targeting Melvor Idle
+This repository contains the public source for public-test version `0.1.0-public-test.12`, targeting Melvor Idle
 v1.3.1 on Desktop and Browser.
 
 This is an unofficial, community-maintained fork of
@@ -23,6 +23,9 @@ it.
 - Guild marketplaces, Charitree inventories, and Campaigns are isolated from every other Guild.
 - Campaign goals scale with Guild size and require member participation to complete.
 - Guild members govern shared changes and banishment through Council petitions and ballots.
+- Current Guildmates can share their equipment and minimal Player Status on an opt-out basis.
+- Current Guildmates can begin identity-owned Private conversations that persist through later Guild changes, with
+  unread state, privacy controls, participant-only deletion, and time-replenishing Messaging credits.
 - Each character keeps a separate multiplayer identity for every normalized server origin.
 - The mod can connect to the bundled server origin or a trusted custom HTTPS server selected in Mod Settings.
 

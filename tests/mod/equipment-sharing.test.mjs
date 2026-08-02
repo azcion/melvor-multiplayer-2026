@@ -35,7 +35,7 @@ test('keeps remote equipment read-only, quantity-free, and memory-only', async (
 		readFile(new URL('mod/main.mjs', root), 'utf8')
 	]);
 	const equipment_modal = templates.slice(
-		templates.indexOf('<template id="template-mp-equipment-modal">'),
+		templates.indexOf('<template id="template-mp-profile-modal">'),
 		templates.indexOf('<template id="template-mp-leave-guild-modal">')
 	);
 
@@ -43,22 +43,25 @@ test('keeps remote equipment read-only, quantity-free, and memory-only', async (
 	assert.match(equipment_modal, /mp-equipment-item/);
 	assert.match(equipment_modal, /MOD_MP_EQUIPMENT_UNKNOWN_ITEM/);
 	assert.doesNotMatch(equipment_modal, /qty|quantity|equipItem|unequipItem/);
-	assert.match(main, /didClose: \(\) => \{ this\.viewed_equipment = \[\]; \}/);
+	assert.match(equipment_modal, /MOD_MP_PROFILE_SKILLS/);
+	assert.match(equipment_modal, /MOD_MP_PROFILE_EQUIPMENT/);
+	assert.match(main, /didClose: \(\) => \{[\s\S]*this\.viewed_equipment = null;/);
 	assert.match(main, /touch: 'hold'/);
 });
 
 test('keeps the member equipment spinner cleanup target across the request', async () => {
 	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
-	const view_member_equipment = main.slice(
-		main.indexOf('async view_member_equipment'),
+	const view_member_profile = main.slice(
+		main.indexOf('async view_member_profile'),
 		main.indexOf('async add_gp_to_transfer')
 	);
 
-	assert.match(view_member_equipment, /const \$button = event\.currentTarget;/);
-	assert.match(view_member_equipment, /is_button_spinning\(\$button\)/);
-	assert.match(view_member_equipment, /show_button_spinner\(\$button\)/);
-	assert.match(view_member_equipment, /hide_button_spinner\(\$button\)/);
-	assert.doesNotMatch(view_member_equipment, /(?:show|hide|is_button_spinning)\(event\.currentTarget\)/);
+	assert.match(view_member_profile, /const \$button = event\.currentTarget;/);
+	assert.match(view_member_profile, /is_button_spinning\(\$button\)/);
+	assert.match(view_member_profile, /show_button_spinner\(\$button\)/);
+	assert.match(view_member_profile, /hide_button_spinner\(\$button\)/);
+	assert.match(view_member_profile, /Promise\.all\(/);
+	assert.doesNotMatch(view_member_profile, /(?:show|hide|is_button_spinning)\(event\.currentTarget\)/);
 });
 
 test('coalesces best-effort active-set snapshots and ignores quantities', async () => {

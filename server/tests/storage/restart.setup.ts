@@ -52,6 +52,30 @@ test('creates representative state before a server restart', async () => {
 		{ slot_id: 'melvorD:Weapon', item_id: 'melvorD:Restart_Weapon' }
 	];
 	await post_json('/api/client/equipment/sync', { slots: equipment_slots }, pair.first.session_token);
+	const status_skills = [
+		{ skill_id: 'melvorD:Attack', level: 77 },
+		{ skill_id: 'melvorD:Woodcutting', level: 33 }
+	];
+	const status_activity = { type: 'skill' as const, skill_id: 'melvorD:Woodcutting', action_id: 'melvorD:Restart_Oak' };
+	await post_json('/api/client/status/sync', {
+		skills: status_skills,
+		activity: status_activity
+	}, pair.first.session_token);
+	const chat = await post_json<{
+		conversation: { conversation_id: number };
+	}>('/api/chat/conversations/start', { client_id: pair.second_id }, pair.first.session_token);
+	const chat_message = await post_json<{
+		message: { message_id: number };
+	}>('/api/chat/messages/send', {
+		conversation_id: chat.json.conversation.conversation_id,
+		idempotency_key: crypto.randomUUID(),
+		content: 'Restart-safe private Message'
+	}, pair.first.session_token);
+	await post_json('/api/chat/block', {
+		client_id: pair.first_id,
+		blocked: true
+	}, pair.second.session_token);
+	await post_json('/api/chat/privacy', { messaging_enabled: false }, pair.first.session_token);
 
 	const active_petition = await post_json<{ petition_id: number }>('/api/guilds/petitions/raise', {
 		type: 'appellation',
@@ -97,6 +121,10 @@ test('creates representative state before a server restart', async () => {
 		charity_item_id,
 		campaign_contribution,
 		equipment_slots,
+		status_skills,
+		status_activity,
+		chat_conversation_id: chat.json.conversation.conversation_id,
+		chat_message_id: chat_message.json.message.message_id,
 		active_petition_id: active_petition.json.petition_id,
 		retry_petition_id: retry_petition.json.petition_id,
 		banished,
@@ -110,5 +138,6 @@ test('creates representative state before a server restart', async () => {
 	expect(market_lot_id).toBeNumber();
 	expect(active_petition.json.petition_id).toBeNumber();
 	expect(retry_petition.json.petition_id).toBeNumber();
+	expect(chat_message.json.message.message_id).toBeNumber();
 	expect(banishment.json.petition_id).toBeNumber();
 });

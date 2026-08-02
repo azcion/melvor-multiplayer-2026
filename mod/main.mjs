@@ -27,6 +27,9 @@ const CHARITY_CHECK_TIMEOUT = 10 * 1000; // 10 seconds
 const MARKET_ITEMS_PER_PAGE = 30;
 const CLIENT_EVENT_POLL_INTERVAL = 20 * 1000; // 20 seconds
 const EQUIPMENT_SYNC_DELAY = 150;
+const STATUS_SYNC_DELAY = 150;
+const STATUS_OBSERVER_INTERVAL = 1000;
+const CHAT_POLL_INTERVAL = 5 * 1000;
 // #endregion
 
 // #region GLOBALS
@@ -52,6 +55,15 @@ let equipment_sync_pending = false;
 let last_synced_equipment = null;
 let equipment_view_action_armed = false;
 let equipment_view_action_timer = null;
+let status_sync_timer = null;
+let status_sync_in_flight = false;
+let status_sync_pending = false;
+let last_synced_status = null;
+let status_observer_timer = null;
+let last_observed_status = null;
+let chat_poll_id = 0;
+let chat_view_generation = 0;
+let chat_page_visible = false;
 
 let last_charity_check = 0;
 
@@ -77,8 +89,14 @@ const state = ui.createStore({
 	profile_display_name: '',
 	equipment_visible: true,
 	equipment_visibility_pending: false,
+	status_visible: true,
+	status_visibility_pending: false,
+	messaging_enabled: true,
+	chat_privacy_pending: false,
 	selected_guild_member: null,
-	viewed_equipment: [],
+	viewed_equipment: null,
+	viewed_status: null,
+	profile_active_tab: 'skills',
 	member_actions_error: '',
 	icon_search: '',
 	picked_icon: '',
@@ -169,6 +187,21 @@ const state = ui.createStore({
 	council_target_client_id: null,
 	council_error: '',
 	pending_banishment_guild_name: '',
+	chat_conversations: [],
+	selected_chat_conversation: null,
+	chat_messages: [],
+	chat_loading: false,
+	chat_messages_loading: false,
+	chat_sending: false,
+	chat_has_more: false,
+	chat_before_cursor: null,
+	chat_error: '',
+	chat_draft: '',
+	chat_unread: 0,
+	chat_client_id: null,
+	chat_budget: { credits: 5, maximum: 5, refill_interval: 60000, next_refill_at: 0 },
+	chat_pending_send: null,
+	selected_chat_message: null,
 	// #endregion
 
 	// #region COMPUTED PROPS
@@ -255,7 +288,32 @@ const state = ui.createStore({
 	},
 
 	get viewed_equipment_grid() {
-		return build_equipment_grid(this.viewed_equipment);
+		return this.viewed_equipment === null ? [] : build_equipment_grid(this.viewed_equipment);
+	},
+
+	get member_profile_available() {
+		const member = this.selected_guild_member;
+		return member !== null && ((member.status_visible === true && member.status_available === true) ||
+			(member.equipment_visible === true && member.equipment_available === true));
+	},
+
+	get viewed_status_skills() {
+		const skills = this.viewed_status?.skills ?? [];
+		const skill_order = new Map(get_registered_game_objects(game.skills)
+			.map((skill, index) => [get_game_object_id(skill), index]));
+		return [...skills].sort((a, b) => {
+			const a_order = skill_order.get(a.skill_id) ?? Number.MAX_SAFE_INTEGER;
+			const b_order = skill_order.get(b.skill_id) ?? Number.MAX_SAFE_INTEGER;
+			return a_order - b_order || a.skill_id.localeCompare(b.skill_id);
+		});
+	},
+
+	get viewed_status_activity_icon() {
+		return this.get_status_activity_icon(this.viewed_status?.activity);
+	},
+
+	get viewed_status_activity_name() {
+		return this.get_status_activity_name(this.viewed_status?.activity);
 	},
 
 	get has_transfer_access() {
@@ -264,7 +322,16 @@ const state = ui.createStore({
 	},
 
 	get num_notifications() {
-		return this.num_guild_applicants + this.num_transfer_offers + this.num_market_sold_items;
+		return this.num_guild_applicants + this.num_transfer_offers + this.num_market_sold_items + this.chat_unread;
+	},
+
+	get chat_latest_message_id() {
+		return this.chat_messages.reduce((latest, message) => Math.max(latest, message.message_id), 0);
+	},
+
+	get chat_can_send() {
+		return this.messaging_enabled && this.chat_budget.credits > 0 && this.chat_draft.trim().length > 0 &&
+			!this.chat_sending;
 	},
 
 	get num_market_sold_items() {
@@ -410,8 +477,72 @@ const state = ui.createStore({
 		return area?.media ?? 'assets/media/main/question.png';
 	},
 
+	get_skill_icon(id) {
+		const skill = game.skills?.getObjectByID(id);
+		return skill?.media ?? 'assets/media/main/question.png';
+	},
+
+	get_skill_name(id) {
+		const skill = game.skills?.getObjectByID(id);
+		return skill?.name ?? id;
+	},
+
+	get_skill_level_cap(id) {
+		const skill = game.skills?.getObjectByID(id);
+		const level_cap = Number(skill?.levelCap ?? skill?.maxLevel);
+		return Number.isSafeInteger(level_cap) && level_cap > 0 ? level_cap : 120;
+	},
+
+	get_profile_equipment_message() {
+		return getLangString(this.selected_guild_member?.equipment_visible === false
+			? 'MOD_MP_EQUIPMENT_NOT_SHARED' : 'MOD_MP_EQUIPMENT_NOT_AVAILABLE');
+	},
+
+	get_profile_status_message() {
+		return getLangString(this.selected_guild_member?.status_visible === false
+			? 'MOD_MP_STATUS_NOT_SHARED' : 'MOD_MP_STATUS_NOT_AVAILABLE');
+	},
+
+	get_status_activity_name(activity) {
+		if (activity?.type === 'skill')
+			return this.get_skill_name(activity.skill_id);
+		if (activity?.type === 'combat')
+			return activity.area_id === null ? getLangString('MOD_MP_STATUS_ACTIVITY_COMBAT') :
+				game.combatAreas?.getObjectByID(activity.area_id)?.name ?? getLangString('MOD_MP_STATUS_ACTIVITY_COMBAT');
+		return getLangString('MOD_MP_STATUS_ACTIVITY_IDLE');
+	},
+
+	get_status_activity_icon(activity) {
+		if (activity?.type === 'skill')
+			return this.get_skill_icon(activity.skill_id);
+		if (activity?.type === 'combat')
+			return this.get_guild_icon(activity.area_id ?? 'multiplayer');
+		return this.get_svg('single_user');
+	},
+
 	get_free_fellowship_search_placeholder() {
 		return getLangString('MOD_MP_FREE_FELLOWSHIP_SEARCH');
+	},
+
+	format_chat_time(timestamp) {
+		return new Date(timestamp).toLocaleString();
+	},
+
+	format_chat_datetime(timestamp) {
+		return new Date(timestamp).toISOString();
+	},
+
+	get_chat_compose_placeholder() {
+		return getLangString(this.messaging_enabled ? 'MOD_MP_CHAT_COMPOSE_PLACEHOLDER' : 'MOD_MP_CHAT_DISABLED');
+	},
+
+	get_chat_block_label() {
+		return getLangString(this.selected_chat_conversation?.blocked ? 'MOD_MP_CHAT_UNBLOCK' : 'MOD_MP_CHAT_BLOCK');
+	},
+
+	get_chat_block_confirmation_info() {
+		return getLangString(this.selected_chat_conversation?.blocked
+			? 'MOD_MP_CHAT_UNBLOCK_CONFIRM_INFO' : 'MOD_MP_CHAT_BLOCK_CONFIRM_INFO');
 	},
 
 	get_pet_icon(id) {
@@ -435,6 +566,266 @@ const state = ui.createStore({
 	reconnect() {
 		state.hide_online_dropdown();
 		start_multiplayer_session();
+	},
+	// #endregion
+
+	// #region CHAT ACTIONS
+	open_chat_page() {
+		this.hide_online_dropdown();
+		changePage(game.pages.getObjectByID('multiplayer:Chat'));
+	},
+
+	async start_member_chat(event) {
+		const member = this.selected_guild_member;
+		const $button = event.currentTarget;
+		if (!member || member.client_id === this.guild_client_id || is_button_spinning($button))
+			return;
+		this.member_actions_error = '';
+		show_button_spinner($button);
+		let res = null;
+		try {
+			res = await api_post('/api/chat/conversations/start', { client_id: member.client_id });
+		} catch (e) {
+			log('Chat start failed (%s)', e);
+		}
+		hide_button_spinner($button);
+		if (!res?.success) {
+			this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+			return;
+		}
+		this.selected_chat_conversation = { ...res.conversation, blocked: false };
+		this.chat_messages = [];
+		this.selected_chat_message = null;
+		this.chat_has_more = false;
+		this.close_modal();
+		this.open_chat_page();
+	},
+
+	async open_chat_conversation(conversation) {
+		const view_generation = ++chat_view_generation;
+		this.selected_chat_conversation = conversation;
+		this.chat_messages = [];
+		this.selected_chat_message = null;
+		this.chat_has_more = false;
+		this.chat_before_cursor = null;
+		this.chat_error = '';
+		this.chat_messages_loading = false;
+		this.chat_loading = false;
+		await refresh_chat_messages('', false, false, view_generation);
+		if (view_generation !== chat_view_generation ||
+			this.selected_chat_conversation?.conversation_id !== conversation.conversation_id)
+			return;
+		start_chat_polling();
+	},
+
+	close_chat_conversation() {
+		chat_view_generation++;
+		this.selected_chat_conversation = null;
+		this.chat_messages = [];
+		this.selected_chat_message = null;
+		this.chat_has_more = false;
+		this.chat_before_cursor = null;
+		this.chat_error = '';
+		this.chat_messages_loading = false;
+		stop_chat_polling();
+	},
+
+	show_chat_budget_modal() {
+		queue_modal('MOD_MP_CHAT_BUDGET_INFO_TITLE', 'chat-budget-info-modal', this.get_item_icon('melvorD:Message_In_A_Bottle'), {
+			showConfirmButton: false
+		}, true, false);
+	},
+
+	show_chat_actions_modal() {
+		const conversation = this.selected_chat_conversation;
+		if (!conversation)
+			return;
+		queue_modal(conversation.participant.display_name, 'chat-actions-modal', this.get_avatar_icon(conversation.participant.icon_id), {
+			showConfirmButton: false
+		}, false, false);
+	},
+
+	show_chat_block_confirmation() {
+		const conversation = this.selected_chat_conversation;
+		if (!conversation)
+			return;
+		this.close_modal();
+		setTimeout(() => queue_modal(this.get_chat_block_label(), 'chat-block-confirm-modal', this.get_avatar_icon(conversation.participant.icon_id), {
+			showConfirmButton: false
+		}, false, false), 0);
+	},
+
+	show_chat_delete_confirmation() {
+		const conversation = this.selected_chat_conversation;
+		if (!conversation)
+			return;
+		this.close_modal();
+		setTimeout(() => queue_modal('MOD_MP_CHAT_DELETE_CONVERSATION', 'chat-delete-confirm-modal', this.get_avatar_icon(conversation.participant.icon_id), {
+			showConfirmButton: false
+		}, true, false), 0);
+	},
+
+	show_chat_message_actions(message) {
+		if (!message)
+			return;
+		this.selected_chat_message = message;
+		queue_modal('MOD_MP_CHAT_MESSAGE_ACTIONS', 'chat-message-actions-modal', this.get_avatar_icon(this.selected_chat_conversation?.participant.icon_id), {
+			showConfirmButton: false
+		}, true, false);
+	},
+
+	show_chat_message_delete_confirmation() {
+		if (!this.selected_chat_message)
+			return;
+		this.close_modal();
+		setTimeout(() => queue_modal('MOD_MP_CHAT_DELETE_MESSAGE_CONFIRM_TITLE', 'chat-message-delete-confirm-modal', this.get_avatar_icon(this.selected_chat_conversation?.participant.icon_id), {
+			showConfirmButton: false
+		}, true, false), 0);
+	},
+
+	async copy_chat_message() {
+		const message = this.selected_chat_message;
+		if (!message)
+			return;
+		const clipboard = globalThis.navigator?.clipboard;
+		if (!clipboard?.writeText)
+			return show_modal_error(getLangString('MOD_MP_CHAT_COPY_FAILED'));
+		try {
+			await clipboard.writeText(message.content);
+		} catch (e) {
+			log('Chat message copy failed (%s)', e);
+			return show_modal_error(getLangString('MOD_MP_CHAT_COPY_FAILED'));
+		}
+		this.selected_chat_message = null;
+		this.close_modal();
+		notify('MOD_MP_CHAT_COPIED', 'success');
+	},
+
+	async load_older_chat_messages() {
+		if (this.chat_before_cursor === null)
+			return;
+		await refresh_chat_messages('&before=' + this.chat_before_cursor, true);
+	},
+
+	handle_chat_keydown(event) {
+		if (event.key !== 'Enter' || event.isComposing || event.shiftKey ||
+			(typeof nativeManager !== 'undefined' && nativeManager.isMobile))
+			return;
+		event.preventDefault();
+		void this.send_chat_message(event);
+	},
+
+	async send_chat_message(event) {
+		event?.preventDefault();
+		const conversation = this.selected_chat_conversation;
+		const content = this.chat_draft.trim();
+		if (!conversation || content.length === 0 || content.length > 1000 || this.chat_sending)
+			return;
+		this.chat_sending = true;
+		this.chat_error = '';
+		const pending = this.chat_pending_send;
+		const idempotency_key = pending?.conversation_id === conversation.conversation_id && pending.content === content
+			? pending.idempotency_key
+			: crypto.randomUUID();
+		this.chat_pending_send = { conversation_id: conversation.conversation_id, content, idempotency_key };
+		let res = null;
+		try {
+			res = await api_post('/api/chat/messages/send', {
+				conversation_id: conversation.conversation_id,
+				idempotency_key,
+				content
+			});
+		} catch (e) {
+			log('Chat send failed (%s)', e);
+		}
+		if (res !== null)
+			this.chat_pending_send = null;
+		if (res?.success) {
+			if (!this.chat_messages.some(message => message.message_id === res.message.message_id))
+				this.chat_messages.push(res.message);
+			this.chat_budget = res.budget;
+			this.chat_draft = '';
+			await refresh_chat_conversations();
+		} else {
+			this.chat_error = getLangString(res?.error_lang ?? 'MOD_MP_CHAT_SEND_FAILED');
+		}
+		this.chat_sending = false;
+	},
+
+	async delete_chat_message(event) {
+		const message = this.selected_chat_message;
+		if (!message)
+			return;
+		const $button = event.currentTarget;
+		if (is_button_spinning($button))
+			return;
+		show_button_spinner($button);
+		const res = await api_post('/api/chat/messages/delete', { message_id: message.message_id });
+		if (!res?.success) {
+			hide_button_spinner($button);
+			return show_modal_error(getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR'));
+		}
+		this.chat_messages = this.chat_messages.filter(entry => entry.message_id !== message.message_id);
+		this.selected_chat_message = null;
+		this.close_modal();
+		await refresh_chat_conversations();
+	},
+
+	async delete_chat_conversation(event) {
+		const conversation = this.selected_chat_conversation;
+		if (!conversation)
+			return;
+		const $button = event.currentTarget;
+		if (is_button_spinning($button))
+			return;
+		show_button_spinner($button);
+		const res = await api_post('/api/chat/conversations/delete', {
+			conversation_id: conversation.conversation_id
+		});
+		if (!res?.success) {
+			hide_button_spinner($button);
+			return show_modal_error(getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR'));
+		}
+		this.close_chat_conversation();
+		this.close_modal();
+		await refresh_chat_conversations();
+	},
+
+	async toggle_chat_block(event) {
+		const conversation = this.selected_chat_conversation;
+		if (!conversation)
+			return;
+		const $button = event.currentTarget;
+		if (is_button_spinning($button))
+			return;
+		show_button_spinner($button);
+		const desired = !conversation.blocked;
+		const res = await api_post('/api/chat/block', {
+			client_id: conversation.participant.client_id,
+			blocked: desired
+		});
+		if (!res?.success) {
+			hide_button_spinner($button);
+			return show_modal_error(getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR'));
+		}
+		conversation.blocked = res.blocked;
+		this.close_modal();
+		await refresh_chat_conversations();
+	},
+
+	async set_messaging_enabled(event) {
+		if (this.chat_privacy_pending)
+			return;
+		event.preventDefault();
+		this.chat_privacy_pending = true;
+		this.member_actions_error = '';
+		const desired = !this.messaging_enabled;
+		const res = await api_post('/api/chat/privacy', { messaging_enabled: desired });
+		if (res?.success)
+			this.messaging_enabled = res.messaging_enabled;
+		else
+			this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+		this.chat_privacy_pending = false;
 	},
 	// #endregion
 
@@ -1114,7 +1505,9 @@ const state = ui.createStore({
 			display_name: this.profile_display_name,
 			icon_id: this.profile_icon,
 			equipment_visible: this.equipment_visible,
-			equipment_available: false
+			equipment_available: false,
+			status_visible: this.status_visible,
+			status_available: false
 		};
 		this.show_member_actions(member);
 	},
@@ -1171,30 +1564,73 @@ const state = ui.createStore({
 		this.equipment_visibility_pending = false;
 	},
 
-	async view_member_equipment(event) {
+	async set_status_visibility(event) {
+		if (this.status_visibility_pending)
+			return;
+		event.preventDefault();
+		const desired = !this.status_visible;
+		this.status_visibility_pending = true;
+		this.member_actions_error = '';
+		let res = null;
+		try {
+			res = await api_post('/api/client/status/visibility', { visible: desired });
+		} catch (e) {
+			log('player status visibility update failed (%s)', e);
+		}
+		if (res?.success) {
+			this.status_visible = res.visible;
+			if (this.selected_guild_member?.client_id === this.guild_client_id)
+				this.selected_guild_member.status_visible = res.visible;
+			last_synced_status = null;
+			if (res.visible) {
+				start_status_observer();
+				schedule_status_sync(0);
+			} else {
+				stop_status_observer();
+			}
+		} else {
+			this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+		}
+		this.status_visibility_pending = false;
+	},
+
+	async view_member_profile(event) {
 		const member = this.selected_guild_member;
 		const $button = event.currentTarget;
 		if (!member || is_button_spinning($button))
 			return;
 		this.member_actions_error = '';
 		show_button_spinner($button);
-		let res = null;
+		let equipment_res = null;
+		let status_res = null;
 		try {
-			res = await api_get('/api/guilds/equipment?client_id=' + member.client_id);
+			[equipment_res, status_res] = await Promise.all([
+				api_get('/api/guilds/equipment?client_id=' + member.client_id),
+				api_get('/api/guilds/status?client_id=' + member.client_id)
+			]);
 		} catch (e) {
-			log('equipment snapshot fetch failed (%s)', e);
+			log('player profile fetch failed (%s)', e);
 		}
 		hide_button_spinner($button);
-		if (!Array.isArray(res?.slots)) {
-			this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+		const equipment = Array.isArray(equipment_res?.slots) ? equipment_res.slots : null;
+		const status = Array.isArray(status_res?.skills) && status_res.activity?.type !== undefined ? status_res : null;
+		if (equipment === null && status === null) {
+			this.member_actions_error = getLangString(equipment_res?.error_lang ?? status_res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 			return;
 		}
 
-		this.viewed_equipment = res.slots;
+		this.viewed_equipment = equipment;
+		this.viewed_status = status;
+		this.profile_active_tab = 'skills';
 		this.close_modal();
-		setTimeout(() => queue_modal(member.display_name, 'equipment-modal', this.get_avatar_icon(member.icon_id), {
+		setTimeout(() => queue_modal(member.display_name, 'profile-modal', this.get_avatar_icon(member.icon_id), {
 			showConfirmButton: false,
-			didClose: () => { this.viewed_equipment = []; }
+			width: 'min(95vw, 760px)',
+			customClass: { popup: 'mp-profile-modal-popup' },
+			didClose: () => {
+				this.viewed_equipment = null;
+				this.viewed_status = null;
+			}
 		}, false, false), 0);
 	},
 
@@ -1828,6 +2264,157 @@ async function flush_equipment_sync() {
 	if (equipment_sync_pending) {
 		equipment_sync_pending = false;
 		schedule_equipment_sync(0);
+	}
+}
+
+function get_registered_game_objects(collection) {
+	return [...collection?.registeredObjects ?? []]
+		.map(entry => Array.isArray(entry) ? entry[1] : entry)
+		.filter(Boolean);
+}
+
+function get_game_object_id(value) {
+	return typeof value === 'string' ? value : value?.id ?? value?.localID ?? null;
+}
+
+function get_first_game_object(value) {
+	if (value instanceof Set || Array.isArray(value))
+		return value.values().next().value ?? null;
+	return value ?? null;
+}
+
+function capture_status_skills() {
+	return get_registered_game_objects(game.skills)
+		.map(skill => ({
+			skill_id: get_game_object_id(skill),
+			level: Number(skill.level ?? skill.currentLevel)
+		}))
+		.filter(entry => typeof entry.skill_id === 'string' && Number.isSafeInteger(entry.level) && entry.level >= 0)
+		.sort((a, b) => a.skill_id.localeCompare(b.skill_id));
+}
+
+function capture_status_activity() {
+	const active_action = game.activeAction;
+	if (active_action === game.combat || active_action?.isCombat === true) {
+		const area_id = get_game_object_id(active_action.selectedArea ?? active_action.combatArea ?? active_action.area);
+		return { type: 'combat', area_id };
+	}
+
+	if (active_action?.isActive === true) {
+		const skill_id = get_game_object_id(active_action);
+		let action = null;
+		try {
+			action = active_action.masteryAction;
+		} catch (e) {
+			// Some skills throw while their current selection is incomplete.
+		}
+		if (action === null || action === undefined) {
+			for (const property of [
+				'activeTree', 'activeTrees', 'activeRecipe', 'activeFish', 'currentNPC',
+				'selectedRock', 'selectedRecipe', 'studiedConstellation', 'activeObstacle'
+			]) {
+				let candidate = null;
+				try {
+					candidate = active_action[property];
+					action = get_first_game_object(candidate);
+				} catch (e) {
+					action = null;
+				}
+				if (action !== null && action !== undefined)
+					break;
+			}
+		}
+		const action_id = get_game_object_id(action);
+		if (skill_id !== null && action_id !== null)
+			return { type: 'skill', skill_id, action_id };
+	}
+
+	return { type: 'idle' };
+}
+
+function capture_status_snapshot() {
+	return {
+		skills: capture_status_skills(),
+		activity: capture_status_activity()
+	};
+}
+
+function schedule_status_sync(delay = STATUS_SYNC_DELAY) {
+	if (!state.is_connected || !state.status_visible)
+		return;
+	clearTimeout(status_sync_timer);
+	status_sync_timer = setTimeout(flush_status_sync, delay);
+}
+
+async function flush_status_sync() {
+	status_sync_timer = null;
+	if (!state.is_connected || !state.status_visible)
+		return;
+	if (status_sync_in_flight) {
+		status_sync_pending = true;
+		return;
+	}
+
+	const snapshot = capture_status_snapshot();
+	const serialized = JSON.stringify(snapshot);
+	if (serialized === last_synced_status)
+		return;
+
+	status_sync_in_flight = true;
+	let res = null;
+	try {
+		res = await api_post('/api/client/status/sync', snapshot);
+	} catch (e) {
+		log('player status synchronization failed (%s)', e);
+	}
+	status_sync_in_flight = false;
+	if (res?.success)
+		last_synced_status = serialized;
+	else
+		log('player status synchronization deferred');
+
+	if (status_sync_pending) {
+		status_sync_pending = false;
+		schedule_status_sync(0);
+	}
+}
+
+function observe_status_changes() {
+	if (!state.is_connected || !state.status_visible)
+		return;
+
+	const serialized = JSON.stringify(capture_status_snapshot());
+	if (serialized === last_observed_status)
+		return;
+
+	last_observed_status = serialized;
+	schedule_status_sync();
+}
+
+function start_status_observer() {
+	if (status_observer_timer !== null || !state.status_visible)
+		return;
+
+	observe_status_changes();
+	status_observer_timer = setInterval(observe_status_changes, STATUS_OBSERVER_INTERVAL);
+}
+
+function stop_status_observer() {
+	if (status_observer_timer !== null)
+		clearInterval(status_observer_timer);
+	status_observer_timer = null;
+	last_observed_status = null;
+}
+
+function watch_status_changes() {
+	for (const skill of get_registered_game_objects(game.skills)) {
+		if (typeof skill.on !== 'function')
+			continue;
+		try {
+			skill.on('levelChanged', () => schedule_status_sync());
+		} catch (e) {
+			log('player status level hook unavailable for %s (%s)', skill.id, e);
+		}
 	}
 }
 
@@ -2468,7 +3055,110 @@ function set_session_token(token) {
 	session_token = token;
 	state.is_connected = true;
 	last_synced_equipment = null;
+	last_synced_status = null;
+	last_observed_status = null;
 	log('client session authenticated');
+}
+
+async function refresh_chat_state() {
+	const res = await api_get('/api/chat/state');
+	if (res === null)
+		return;
+	state.messaging_enabled = res.messaging_enabled !== false;
+	state.chat_client_id = res.client_id;
+	state.chat_budget = res.budget;
+}
+
+async function refresh_chat_conversations() {
+	const res = await api_get('/api/chat/conversations');
+	if (!Array.isArray(res?.conversations))
+		return;
+	state.chat_conversations = res.conversations;
+	state.chat_unread = res.conversations.reduce((total, conversation) => total + conversation.unread_count, 0);
+	update_chat_nav();
+	if (state.selected_chat_conversation) {
+		const current = res.conversations.find(conversation =>
+			conversation.conversation_id === state.selected_chat_conversation.conversation_id
+		);
+		if (current)
+			state.selected_chat_conversation = current;
+	}
+}
+
+function update_chat_nav() {
+	const aside = document.querySelector('.mp-chat-nav');
+	if (aside !== null)
+		aside.textContent = state.chat_unread > 0 ? String(state.chat_unread) : '';
+}
+
+async function refresh_chat_messages(cursor = '', prepend = false, quiet = false, view_generation = chat_view_generation) {
+	const conversation = state.selected_chat_conversation;
+	if (!conversation || (state.chat_messages_loading && !quiet))
+		return;
+	const conversation_id = conversation.conversation_id;
+	if (!quiet)
+		state.chat_messages_loading = true;
+	state.chat_error = '';
+	let res = null;
+	try {
+		res = await api_get('/api/chat/messages?conversation_id=' + conversation.conversation_id + cursor);
+	} catch (e) {
+		log('Chat message refresh failed (%s)', e);
+	}
+	if (view_generation !== chat_view_generation ||
+		state.selected_chat_conversation?.conversation_id !== conversation_id)
+		return;
+	if (Array.isArray(res?.messages)) {
+		const known = new Set(state.chat_messages.map(message => message.message_id));
+		const additions = res.messages.filter(message => !known.has(message.message_id));
+		if (res.messages.length > 0 && (prepend || (cursor === '' && state.chat_before_cursor === null)))
+			state.chat_before_cursor = res.messages[0].message_id;
+		state.chat_messages = prepend
+			? [...additions, ...state.chat_messages]
+			: [...state.chat_messages, ...additions].sort((a, b) => a.message_id - b.message_id);
+		if (prepend || cursor === '')
+			state.chat_has_more = res.has_more === true;
+		await refresh_chat_conversations();
+	} else if (!quiet) {
+		state.chat_error = getLangString(res?.error_lang ?? 'MOD_MP_CHAT_LOAD_FAILED');
+	}
+	if (!quiet)
+		state.chat_messages_loading = false;
+}
+
+async function refresh_chat_page() {
+	const view_generation = ++chat_view_generation;
+	state.chat_loading = true;
+	await Promise.all([refresh_chat_state(), refresh_chat_conversations()]);
+	if (state.selected_chat_conversation)
+		await refresh_chat_messages('', false, false, view_generation);
+	if (view_generation !== chat_view_generation)
+		return;
+	state.chat_loading = false;
+	start_chat_polling();
+}
+
+function stop_chat_polling() {
+	chat_poll_id++;
+}
+
+function start_chat_polling() {
+	stop_chat_polling();
+	if (!chat_page_visible)
+		return;
+	const poll_id = chat_poll_id;
+	setTimeout(() => poll_chat_messages(poll_id), CHAT_POLL_INTERVAL);
+}
+
+async function poll_chat_messages(poll_id) {
+	if (poll_id !== chat_poll_id || !chat_page_visible)
+		return;
+	const view_generation = chat_view_generation;
+	await refresh_chat_state();
+	if (view_generation === chat_view_generation && state.selected_chat_conversation)
+		await refresh_chat_messages('&after=' + state.chat_latest_message_id, false, true, view_generation);
+	if (poll_id === chat_poll_id && chat_page_visible)
+		setTimeout(() => poll_chat_messages(poll_id), CHAT_POLL_INTERVAL);
 }
 
 async function get_friends() {
@@ -2483,7 +3173,7 @@ async function refresh_guild_state() {
 		return null;
 
 	state.guild_state = res;
-	state.guild_members = res.members ?? [];
+	state.guild_members = (res.members ?? []).map(member => ({ ...member, status_activity: member.status_activity ?? null }));
 	state.guild_member_search = res.member_directory?.search ?? '';
 	state.guild_member_directory_page = res.member_directory?.page ?? 0;
 	state.guild_member_directory_has_more = res.member_directory?.has_more === true;
@@ -2514,7 +3204,7 @@ async function refresh_guild_members(page = 0, search = state.guild_member_searc
 	state.guild_member_directory_loading = true;
 	const res = await api_get('/api/guilds/members?page=' + page + '&search=' + encodeURIComponent(search));
 	if (res !== null) {
-		const members = res.members ?? [];
+		const members = (res.members ?? []).map(member => ({ ...member, status_activity: member.status_activity ?? null }));
 		state.guild_members = append
 			? [...state.guild_members, ...members.filter(member =>
 				!state.guild_members.some(existing => existing.client_id === member.client_id))]
@@ -2566,6 +3256,8 @@ async function get_client_events() {
 		state.events.friend_requests = res.friend_requests;
 		state.events.guild_applicants = res.guild_applicants ?? [];
 		state.market_completed = res.market_completed;
+		state.chat_unread = res.chat_unread ?? 0;
+		update_chat_nav();
 
 		for (const trade of res.trades) {
 			// .trade_id, .attending, .state
@@ -2701,15 +3393,26 @@ export async function setup(ctx) {
 		state.$dropdown_menu = $('mp-online-dropdown');
 
 		const $main_container = $('main-container');
-		for (const page of ['guild', 'transfer', 'charity', 'campaign', 'market'])
+		for (const page of ['guild', 'chat', 'transfer', 'charity', 'campaign', 'market'])
 			make_template(page + '-page', $main_container);
 
 		patch_bank();
 		patch_bank_market();
 		watch_equipment_view_actions();
+		watch_status_changes(ctx);
 		show_pending_banishment_notice();
 		
 		on_page_toggle('mp-guild-page', refresh_guild_page, true);
+		on_page_toggle('mp-chat-page', is_visible => {
+			chat_page_visible = is_visible;
+			if (is_visible)
+				void refresh_chat_page();
+			else {
+				chat_view_generation++;
+				state.chat_loading = false;
+				stop_chat_polling();
+			}
+		});
 		on_page_toggle('mp-charity-page', async () => {
 			await refresh_guild_state();
 			await request_charity_tree_contents(true);
@@ -2963,10 +3666,17 @@ async function start_multiplayer_session() {
 			state.profile_display_name = auth_res.display_name;
 			state.profile_icon = auth_res.icon_id;
 			state.equipment_visible = auth_res.equipment_visible !== false;
+			state.status_visible = auth_res.status_visible !== false;
+			state.messaging_enabled = auth_res.chat?.messaging_enabled !== false;
+			state.chat_client_id = auth_res.chat?.client_id ?? null;
+			if (auth_res.chat?.budget)
+				state.chat_budget = auth_res.chat.budget;
 
+			start_status_observer();
 			start_client_event_polling();
 			refresh_guild_state();
 			schedule_equipment_sync(0);
+			schedule_status_sync(0);
 		} else {
 			notify_error('MOD_MP_MULTIPLAYER_CONNECTION_ERR');
 			error('failed to authenticate client, multiplayer features not available');
@@ -2988,11 +3698,18 @@ async function start_multiplayer_session() {
 			state.profile_display_name = register_res.display_name;
 			state.profile_icon = register_res.icon_id;
 			state.equipment_visible = register_res.equipment_visible !== false;
+			state.status_visible = register_res.status_visible !== false;
+			state.messaging_enabled = register_res.chat?.messaging_enabled !== false;
+			state.chat_client_id = register_res.chat?.client_id ?? null;
+			if (register_res.chat?.budget)
+				state.chat_budget = register_res.chat.budget;
 
 			set_session_token(register_res.session_token);
+			start_status_observer();
 			start_client_event_polling();
 			refresh_guild_state();
 			schedule_equipment_sync(0);
+			schedule_status_sync(0);
 		} else {
 			notify_error('MOD_MP_MULTIPLAYER_CONNECTION_ERR');
 			error('failed to register client, multiplayer features not available');

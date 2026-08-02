@@ -44,6 +44,20 @@ import { AVAILABLE_CAMPAIGNS } from './campaign_data';
 import type { CampaignData, CampaignItemData } from './campaign_data';
 import type * as db_row from './db/types/db_types';
 import { BACKEND_VERSION } from './version';
+import {
+	CHAT_BUDGET_ERROR,
+	CHAT_PRIVACY_ERROR,
+	delete_conversation,
+	delete_message,
+	get_chat_state,
+	get_unread_chat_count,
+	list_conversations,
+	list_messages,
+	send_message,
+	set_block,
+	set_messaging_enabled,
+	start_conversation
+} from './chat';
 // #endregion
 
 // #region TYPES
@@ -80,6 +94,30 @@ type EquipmentSnapshotSlot = {
 	item_id: string;
 }
 
+type PlayerStatusSkill = {
+	skill_id: string;
+	level: number;
+}
+
+type PlayerStatusActivity =
+	| { type: 'idle' }
+	| { type: 'skill'; skill_id: string; action_id: string }
+	| { type: 'combat'; area_id: string | null };
+
+type GuildMemberRow = {
+	client_id: number;
+	display_name: string;
+	icon_id: string;
+	equipment_visible: number;
+	equipment_available: number;
+	status_visible: number;
+	status_available: number;
+	status_activity_type: 'idle' | 'skill' | 'combat' | null;
+	status_activity_skill_id: string | null;
+	status_activity_action_id: string | null;
+	status_activity_area_id: string | null;
+};
+
 type GuildSummary = {
 	guild_id: number;
 	name: string;
@@ -93,6 +131,7 @@ type GuildType = 'private' | 'free_fellowship';
 type GuildCapabilities = {
 	roster: boolean;
 	equipment_snapshots: boolean;
+	status_snapshots: boolean;
 	gifts: boolean;
 	trades: boolean;
 	marketplace: boolean;
@@ -109,6 +148,7 @@ const GUILD_CAPABILITIES: Record<GuildType, GuildCapabilities> = {
 	private: {
 		roster: true,
 		equipment_snapshots: true,
+		status_snapshots: true,
 		gifts: true,
 		trades: true,
 		marketplace: true,
@@ -120,6 +160,7 @@ const GUILD_CAPABILITIES: Record<GuildType, GuildCapabilities> = {
 	free_fellowship: {
 		roster: true,
 		equipment_snapshots: true,
+		status_snapshots: true,
 		gifts: true,
 		trades: true,
 		marketplace: true,
@@ -172,6 +213,8 @@ const DEFAULT_USER_DISPLAY_NAME = 'Unknown Idler';
 const MAX_TRANSFER_ITEM_COUNT = 32;
 const MAX_EQUIPMENT_SLOT_COUNT = 32;
 const MAX_EQUIPMENT_ID_LENGTH = 256;
+const MAX_STATUS_SKILL_COUNT = 64;
+const MAX_STATUS_ID_LENGTH = 256;
 
 // maximum cache life is X * 2, minimum is X.
 const CACHE_SESSION_LIFETIME = 1000 * 60 * 60; // 1 hour
@@ -364,6 +407,57 @@ function parse_equipment_snapshot(slots: unknown): EquipmentSnapshotSlot[] | nul
 			return null;
 		seen_slots.add(slot_id);
 		parsed.push({ slot_id, item_id });
+	}
+
+	return parsed;
+}
+
+function is_valid_status_id(id: unknown): id is string {
+	return typeof id === 'string' && id.length > 0 && id.length <= MAX_STATUS_ID_LENGTH &&
+		/^[A-Za-z0-9_-]+:[A-Za-z0-9_-]+$/.test(id);
+}
+
+function is_valid_status_action_id(id: unknown): id is string {
+	return typeof id === 'string' && id.length > 0 && id.length <= MAX_STATUS_ID_LENGTH &&
+		/^[A-Za-z0-9_.:-]+$/.test(id);
+}
+
+function parse_player_status_activity(activity: unknown): PlayerStatusActivity | null {
+	if (typeof activity !== 'object' || activity === null || Array.isArray(activity))
+		return null;
+
+	const value = activity as Record<string, unknown>;
+	if (value.type === 'idle')
+		return { type: 'idle' };
+	if (value.type === 'skill') {
+		const action_id = value.action_id ?? value.task_id;
+		if (!is_valid_status_id(value.skill_id) || !is_valid_status_action_id(action_id))
+			return null;
+		return { type: 'skill', skill_id: value.skill_id, action_id };
+	}
+	if (value.type === 'combat') {
+		if (value.area_id !== null && value.area_id !== undefined && !is_valid_status_id(value.area_id))
+			return null;
+		return { type: 'combat', area_id: value.area_id ?? null };
+	}
+	return null;
+}
+
+function parse_player_status_skills(skills: unknown): PlayerStatusSkill[] | null {
+	if (!Array.isArray(skills) || skills.length > MAX_STATUS_SKILL_COUNT)
+		return null;
+
+	const parsed: PlayerStatusSkill[] = [];
+	const seen_skills = new Set<string>();
+	for (const skill of skills) {
+		if (typeof skill !== 'object' || skill === null || Array.isArray(skill))
+			return null;
+		const { skill_id, level } = skill as Record<string, unknown>;
+		if (!is_valid_status_id(skill_id) || !Number.isSafeInteger(level) || (level as number) < 0 ||
+			seen_skills.has(skill_id))
+			return null;
+		seen_skills.add(skill_id);
+		parsed.push({ skill_id, level: level as number });
 	}
 
 	return parsed;
@@ -1080,31 +1174,70 @@ async function get_guild_summary(guild_id: number): Promise<GuildSummary | null>
 	return guild === null ? null : guild_summary_from_row(guild);
 }
 
+function get_guild_member_status_activity(member: GuildMemberRow): PlayerStatusActivity | null {
+	if (member.status_visible !== 1 || member.status_available !== 1)
+		return null;
+
+	if (member.status_activity_type === 'idle')
+		return { type: 'idle' };
+	if (member.status_activity_type === 'skill' && member.status_activity_skill_id !== null &&
+		member.status_activity_action_id !== null)
+		return {
+			type: 'skill',
+			skill_id: member.status_activity_skill_id,
+			action_id: member.status_activity_action_id
+		};
+	if (member.status_activity_type === 'combat')
+		return { type: 'combat', area_id: member.status_activity_area_id };
+
+	return null;
+}
+
+function guild_member_from_row(member: GuildMemberRow) {
+	return {
+		client_id: member.client_id,
+		display_name: member.display_name,
+		icon_id: member.icon_id,
+		equipment_visible: member.equipment_visible === 1,
+		equipment_available: member.equipment_available === 1,
+		status_visible: member.status_visible === 1,
+		status_available: member.status_available === 1,
+		status_activity: get_guild_member_status_activity(member)
+	};
+}
+
 async function get_guild_members(guild_id: number) {
 	const members = await db_get_all(
 		'SELECT c.`id` AS `client_id`, c.`display_name`, c.`icon_id`, ' +
 		'c.`equipment_visible`, ' +
-		'EXISTS(SELECT 1 FROM `equipment_snapshots` AS es WHERE es.`client_id` = c.`id`) AS `equipment_available` ' +
+		'EXISTS(SELECT 1 FROM `equipment_snapshots` AS es WHERE es.`client_id` = c.`id`) AS `equipment_available`, ' +
+		'c.`status_visible`, ' +
+		'EXISTS(SELECT 1 FROM `status_snapshots` AS available_ss WHERE available_ss.`client_id` = c.`id`) AS `status_available`, ' +
+		'ss.`activity_type` AS `status_activity_type`, ss.`activity_skill_id` AS `status_activity_skill_id`, ' +
+		'ss.`activity_action_id` AS `status_activity_action_id`, ss.`activity_area_id` AS `status_activity_area_id` ' +
 		'FROM `guild_memberships` AS m ' +
-		'JOIN `clients` AS c ON c.`id` = m.`client_id` WHERE m.`guild_id` = ? ORDER BY c.`display_name`, c.`id`',
+		'JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
+		'LEFT JOIN `status_snapshots` AS ss ON ss.`client_id` = c.`id` ' +
+		'WHERE m.`guild_id` = ? ORDER BY c.`display_name`, c.`id`',
 		[guild_id]
-	);
-	return members.map(member => ({
-		...member,
-		equipment_visible: member.equipment_visible === 1,
-		equipment_available: member.equipment_available === 1
-	}));
+	) as GuildMemberRow[];
+	return members.map(guild_member_from_row);
 }
 
 async function get_guild_member_directory(guild_id: number, page: number, search: string) {
 	const escaped_search = search.replace(/[\\%_]/g, '\\$&');
 	const search_pattern = `%${escaped_search}%`;
 	const [members, count] = await Promise.all([
-		db_get_all(
-			'SELECT c.`id` AS `client_id`, c.`display_name`, c.`icon_id`, ' +
-			'c.`equipment_visible`, ' +
-			'EXISTS(SELECT 1 FROM `equipment_snapshots` AS es WHERE es.`client_id` = c.`id`) AS `equipment_available` ' +
+			db_get_all(
+				'SELECT c.`id` AS `client_id`, c.`display_name`, c.`icon_id`, ' +
+				'c.`equipment_visible`, ' +
+				'EXISTS(SELECT 1 FROM `equipment_snapshots` AS es WHERE es.`client_id` = c.`id`) AS `equipment_available`, ' +
+				'c.`status_visible`, ' +
+				'EXISTS(SELECT 1 FROM `status_snapshots` AS available_ss WHERE available_ss.`client_id` = c.`id`) AS `status_available`, ' +
+				'ss.`activity_type` AS `status_activity_type`, ss.`activity_skill_id` AS `status_activity_skill_id`, ' +
+				'ss.`activity_action_id` AS `status_activity_action_id`, ss.`activity_area_id` AS `status_activity_area_id` ' +
 			'FROM `guild_memberships` AS m JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
+			'LEFT JOIN `status_snapshots` AS ss ON ss.`client_id` = c.`id` ' +
 			'WHERE m.`guild_id` = ? AND LOWER(c.`display_name`) LIKE LOWER(?) ESCAPE \'\\\' ' +
 			'ORDER BY c.`display_name` COLLATE NOCASE, c.`id` LIMIT ? OFFSET ?',
 			[guild_id, search_pattern, GUILD_MEMBER_PAGE_SIZE, page * GUILD_MEMBER_PAGE_SIZE]
@@ -1118,11 +1251,7 @@ async function get_guild_member_directory(guild_id: number, page: number, search
 	]);
 
 	return {
-		members: members.map(member => ({
-			...member,
-			equipment_visible: member.equipment_visible === 1,
-			equipment_available: member.equipment_available === 1
-		})),
+		members: (members as GuildMemberRow[]).map(guild_member_from_row),
 		page,
 		page_size: GUILD_MEMBER_PAGE_SIZE,
 		search,
@@ -2962,6 +3091,182 @@ session_get_route('/api/guilds/equipment', async (req, url, client_id) => {
 });
 // #endregion
 
+// #region ROUTES PLAYER STATUS
+session_post_route('/api/client/status/sync', async (req, url, client_id, json) => {
+	const skills = parse_player_status_skills(json.skills);
+	const activity = parse_player_status_activity(json.activity);
+	if (skills === null || activity === null)
+		return 400; // Bad Request
+
+	const save_snapshot = db.transaction(() => {
+		const client = db.query(
+			'SELECT `status_visible` FROM `clients` WHERE `id` = ? LIMIT 1'
+		).get(client_id) as Pick<db_row.clients, 'status_visible'>;
+		if (client.status_visible !== 1)
+			return false;
+
+		db.query(
+			'INSERT INTO `status_snapshots` ' +
+			'(`client_id`, `activity_type`, `activity_skill_id`, `activity_action_id`, `activity_area_id`) ' +
+			'VALUES(?, ?, ?, ?, ?) ' +
+			'ON CONFLICT(`client_id`) DO UPDATE SET `activity_type` = excluded.`activity_type`, ' +
+			'`activity_skill_id` = excluded.`activity_skill_id`, `activity_action_id` = excluded.`activity_action_id`, ' +
+			'`activity_area_id` = excluded.`activity_area_id`'
+		).run(
+			client_id,
+			activity.type,
+			activity.type === 'skill' ? activity.skill_id : null,
+			activity.type === 'skill' ? activity.action_id : null,
+			activity.type === 'combat' ? activity.area_id : null
+		);
+		db.query('DELETE FROM `status_snapshot_skills` WHERE `client_id` = ?').run(client_id);
+		const insert = db.query(
+			'INSERT INTO `status_snapshot_skills` (`client_id`, `skill_id`, `level`) VALUES(?, ?, ?)'
+		);
+		for (const skill of skills)
+			insert.run(client_id, skill.skill_id, skill.level);
+		return true;
+	});
+
+	if (!save_snapshot.immediate())
+		return { error_lang: 'MOD_MP_STATUS_SHARING_DISABLED' };
+	return { success: true };
+});
+
+session_post_route('/api/client/status/visibility', async (req, url, client_id, json) => {
+	if (typeof json.visible !== 'boolean')
+		return 400; // Bad Request
+
+	const set_visibility = db.transaction(() => {
+		db.query('UPDATE `clients` SET `status_visible` = ? WHERE `id` = ?').run(
+			json.visible ? 1 : 0,
+			client_id
+		);
+		if (!json.visible)
+			db.query('DELETE FROM `status_snapshots` WHERE `client_id` = ?').run(client_id);
+	});
+	set_visibility.immediate();
+
+	return { success: true, visible: json.visible };
+});
+
+session_get_route('/api/guilds/status', async (req, url, client_id) => {
+	const subject_id = Number(url.searchParams.get('client_id'));
+	if (!Number.isSafeInteger(subject_id) || subject_id < 1)
+		return 400; // Bad Request
+
+	if (!await guild_membership_exists(client_id, subject_id))
+		return { error_lang: 'MOD_MP_GUILD_MEMBERSHIP_MISSING' };
+
+	const subject = await db_get_single(
+		'SELECT c.`status_visible`, EXISTS(' +
+			'SELECT 1 FROM `status_snapshots` AS ss WHERE ss.`client_id` = c.`id`' +
+		') AS `status_available` FROM `clients` AS c WHERE c.`id` = ? LIMIT 1',
+		[subject_id]
+	);
+	if (subject === null || subject.status_visible !== 1)
+		return { error_lang: 'MOD_MP_STATUS_SHARING_DISABLED' };
+	if (subject.status_available !== 1)
+		return { error_lang: 'MOD_MP_STATUS_NOT_AVAILABLE' };
+
+	const snapshot = await db_get_single(
+		'SELECT `activity_type`, `activity_skill_id`, `activity_action_id`, `activity_area_id` ' +
+		'FROM `status_snapshots` WHERE `client_id` = ? LIMIT 1',
+		[subject_id]
+	) as db_row.status_snapshots;
+	if (snapshot === null)
+		return { error_lang: 'MOD_MP_STATUS_NOT_AVAILABLE' };
+
+	const activity: PlayerStatusActivity = snapshot.activity_type === 'idle'
+		? { type: 'idle' }
+		: snapshot.activity_type === 'skill'
+			? { type: 'skill', skill_id: snapshot.activity_skill_id as string,
+				action_id: snapshot.activity_action_id as string }
+			: { type: 'combat', area_id: snapshot.activity_area_id };
+
+	return {
+		client_id: subject_id,
+		skills: await db_get_all(
+			'SELECT `skill_id`, `level` FROM `status_snapshot_skills` WHERE `client_id` = ? ORDER BY `skill_id`',
+			[subject_id]
+		),
+		activity
+	};
+});
+// #endregion
+
+// #region ROUTES CHAT
+function chat_error(status: 'bad_request' | 'missing' | 'privacy' | 'budget') {
+	if (status === 'privacy')
+		return { error_lang: CHAT_PRIVACY_ERROR };
+	if (status === 'budget')
+		return { error_lang: CHAT_BUDGET_ERROR };
+	if (status === 'missing')
+		return { error_lang: 'MOD_MP_CHAT_CONVERSATION_MISSING' };
+	return 400;
+}
+
+session_get_route('/api/chat/state', async (req, url, client_id) => get_chat_state(client_id));
+
+session_get_route('/api/chat/conversations', async (req, url, client_id) => ({
+	conversations: list_conversations(client_id)
+}));
+
+session_post_route('/api/chat/conversations/start', async (req, url, client_id, json) => {
+	const target_id = json.client_id;
+	if (typeof target_id !== 'number')
+		return 400;
+	const result = start_conversation(client_id, target_id);
+	return result.status === 'ok' ? { success: true, conversation: result.value } : chat_error(result.status);
+});
+
+session_get_route('/api/chat/messages', async (req, url, client_id) => {
+	const conversation_id = Number(url.searchParams.get('conversation_id'));
+	const before_parameter = url.searchParams.get('before');
+	const after_parameter = url.searchParams.get('after');
+	const before = before_parameter === null ? null : Number(before_parameter);
+	const after = after_parameter === null ? null : Number(after_parameter);
+	const result = list_messages(client_id, conversation_id, before, after);
+	return result.status === 'ok' ? result.value : chat_error(result.status);
+});
+
+session_post_route('/api/chat/messages/send', async (req, url, client_id, json) => {
+	if (typeof json.conversation_id !== 'number' || typeof json.idempotency_key !== 'string' ||
+		typeof json.content !== 'string')
+		return 400;
+	const result = send_message(client_id, json.conversation_id, json.idempotency_key, json.content);
+	return result.status === 'ok' ? { success: true, ...result.value } : chat_error(result.status);
+});
+
+session_post_route('/api/chat/messages/delete', async (req, url, client_id, json) => {
+	if (typeof json.message_id !== 'number')
+		return 400;
+	const result = delete_message(client_id, json.message_id);
+	return result.status === 'ok' ? { success: true, ...result.value } : chat_error(result.status);
+});
+
+session_post_route('/api/chat/conversations/delete', async (req, url, client_id, json) => {
+	if (typeof json.conversation_id !== 'number')
+		return 400;
+	const result = delete_conversation(client_id, json.conversation_id);
+	return result.status === 'ok' ? { success: true, ...result.value } : chat_error(result.status);
+});
+
+session_post_route('/api/chat/block', async (req, url, client_id, json) => {
+	if (typeof json.client_id !== 'number' || typeof json.blocked !== 'boolean')
+		return 400;
+	const result = set_block(client_id, json.client_id, json.blocked);
+	return result.status === 'ok' ? { success: true, ...result.value } : chat_error(result.status);
+});
+
+session_post_route('/api/chat/privacy', async (req, url, client_id, json) => {
+	if (typeof json.messaging_enabled !== 'boolean')
+		return 400;
+	const result = set_messaging_enabled(client_id, json.messaging_enabled);
+	return result.status === 'ok' ? { success: true, ...result.value } : chat_error(result.status);
+});
+// #endregion
+
 // #region ROUTES FRIENDS
 session_post_route('/api/friends/remove', async (req, url, client_id, json) => {
 	const friend_id = json.friend_id;
@@ -3068,7 +3373,8 @@ session_get_route('/api/events', async (req, url, client_id) => {
 		banishment_return_pending: await db_exists(
 			'SELECT 1 FROM `banishment_returns` WHERE `client_id` = ? AND `completed_at` IS NULL LIMIT 1',
 			[client_id]
-		)
+		),
+		chat_unread: get_unread_chat_count(client_id)
 	};
 });
 
@@ -3114,7 +3420,8 @@ server.route('/api/authenticate', allow_browser_access(require_source_capacity(r
 		return 400; // Bad Request
 
 	const client_row = await db_get_single(
-		'SELECT `id`, `client_key`, `friend_code`, `display_name`, `icon_id`, `disabled`, `equipment_visible` ' +
+		'SELECT `id`, `client_key`, `friend_code`, `display_name`, `icon_id`, `disabled`, `equipment_visible`, `status_visible`, ' +
+		'`messaging_enabled` ' +
 		'FROM `clients` WHERE `client_identifier` = ? LIMIT 1',
 		[client_identifier]
 	) as db_row.clients;
@@ -3128,7 +3435,8 @@ server.route('/api/authenticate', allow_browser_access(require_source_capacity(r
 	log('client', 'authorized client session for identity {%d}', client_row.id);
 
 	return { session_token, friend_code: client_row.friend_code, display_name: client_row.display_name,
-		icon_id: client_row.icon_id, equipment_visible: client_row.equipment_visible === 1 };
+		icon_id: client_row.icon_id, equipment_visible: client_row.equipment_visible === 1,
+		status_visible: client_row.status_visible === 1, chat: get_chat_state(client_row.id) };
 })))), ['POST', 'OPTIONS']);
 
 server.route('/api/register', allow_browser_access(require_source_capacity(require_registration_capacity(require_service_available(validate_json_request(async (req, url, json) => {
@@ -3160,7 +3468,7 @@ server.route('/api/register', allow_browser_access(require_source_capacity(requi
 
 	const session_token = await generate_session_token(client_id);
 	return { session_token, client_identifier, friend_code, display_name, icon_id: DEFAULT_USER_ICON_ID,
-		equipment_visible: true };
+		equipment_visible: true, status_visible: true, chat: get_chat_state(client_id) };
 }))))), ['POST', 'OPTIONS']);
 // #endregion
 

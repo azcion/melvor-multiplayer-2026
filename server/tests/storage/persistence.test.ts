@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { get_events, make_guildmates } from '../support/fixtures';
 import { post_json } from '../support/http';
-import { db_all, db_count } from '../support/persistence';
+import { db_all, db_count, db_run } from '../support/persistence';
 
 describe('SQLite persistence probe', () => {
 	test('initializes every application table', async () => {
@@ -18,10 +18,16 @@ describe('SQLite persistence probe', () => {
 			'campaign_contributions',
 			'campaign_state',
 			'charity_items',
+			'chat_blocks',
+			'chat_conversations',
+			'chat_message_deletions',
+			'chat_message_reads',
+			'chat_messages',
+			'chat_participants',
 			'client_sessions',
-			'clients',
-			'equipment_snapshot_items',
-			'equipment_snapshots',
+				'clients',
+				'equipment_snapshot_items',
+				'equipment_snapshots',
 			'friend_requests',
 			'friends',
 			'gift_items',
@@ -34,10 +40,53 @@ describe('SQLite persistence probe', () => {
 			'guilds',
 			'market_items',
 			'resolved_trade_offers',
-			'service_settings',
-			'trade_items',
+				'service_settings',
+				'status_snapshot_skills',
+				'status_snapshots',
+				'trade_items',
 			'trade_offers'
 		]);
+	});
+
+	test('enforces canonical conversations, idempotency, and participant-owned visibility state', async () => {
+		const pair = await make_guildmates('Chat Storage First', 'Chat Storage Second');
+		await db_run(
+			'INSERT INTO `chat_conversations` (`participant_low_id`, `participant_high_id`, `created_at`) VALUES(?, ?, ?)',
+			[Math.min(pair.first_id, pair.second_id), Math.max(pair.first_id, pair.second_id), 1]
+		);
+		const conversation = (await db_all<{ id: number }>(
+			' SELECT `id` FROM `chat_conversations` WHERE `participant_low_id` = ? AND `participant_high_id` = ?',
+			[Math.min(pair.first_id, pair.second_id), Math.max(pair.first_id, pair.second_id)]
+		))[0];
+		for (const client_id of [pair.first_id, pair.second_id])
+			await db_run(
+				'INSERT INTO `chat_participants` (`conversation_id`, `client_id`) VALUES(?, ?)',
+				[conversation.id, client_id]
+			);
+		await db_run(
+			'INSERT INTO `chat_messages` (`conversation_id`, `sender_id`, `idempotency_key`, `content`, `created_at`) ' +
+			'VALUES(?, ?, ?, ?, ?)',
+			[conversation.id, pair.first_id, 'storage-message', 'Hello', 2]
+		);
+		const message = (await db_all<{ id: number }>(
+			'SELECT `id` FROM `chat_messages` WHERE `idempotency_key` = ?',
+			['storage-message']
+		))[0];
+		await db_run(
+			'INSERT INTO `chat_message_deletions` (`message_id`, `client_id`, `deleted_at`) VALUES(?, ?, ?)',
+			[message.id, pair.first_id, 3]
+		);
+
+		expect(await db_count('SELECT COUNT(*) AS count FROM `chat_conversations` WHERE `id` = ?', [conversation.id]))
+			.toBe(1);
+		expect(await db_count(
+			'SELECT COUNT(*) AS count FROM `chat_message_deletions` WHERE `message_id` = ? AND `client_id` = ?',
+			[message.id, pair.first_id]
+		)).toBe(1);
+		expect(await db_count(
+			'SELECT COUNT(*) AS count FROM `chat_message_deletions` WHERE `message_id` = ? AND `client_id` = ?',
+			[message.id, pair.second_id]
+		)).toBe(0);
 	});
 
 	test('removes accepted gifts and all item rows', async () => {
