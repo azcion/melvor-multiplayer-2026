@@ -58,6 +58,21 @@ import {
 	set_messaging_enabled,
 	start_conversation
 } from './chat';
+import {
+	acknowledge_deletion_return_claim,
+	associate_client_with_melvor_account,
+	cancel_deletion_on_authentication,
+	cancel_scheduled_client_deletion,
+	CLIENT_DELETION_MAINTENANCE_INTERVAL,
+	create_deletion_return_claim,
+	get_deletion_claim_view,
+	has_deletion_returns,
+	list_sibling_identities,
+	parse_melvor_account,
+	process_due_client_deletions,
+	recover_deleted_client,
+	schedule_client_deletion
+} from './identity';
 // #endregion
 
 // #region TYPES
@@ -211,6 +226,9 @@ type GuildCampaign = {
 const DEFAULT_USER_ICON_ID = 'melvorD:Plant';
 const DEFAULT_USER_DISPLAY_NAME = 'Unknown Idler';
 const MAX_TRANSFER_ITEM_COUNT = 32;
+const MAX_MARKET_ITEM_NAMESPACE_COUNT = 64;
+const MAX_MARKET_ITEM_NAMESPACE_LENGTH = 64;
+const MAX_ITEM_ID_LENGTH = 256;
 const MAX_EQUIPMENT_SLOT_COUNT = 32;
 const MAX_EQUIPMENT_ID_LENGTH = 256;
 const MAX_STATUS_SKILL_COUNT = 64;
@@ -348,7 +366,7 @@ function remove_player_cache_entry(cache: Map<number, number[]>, client_id: numb
 		cache.set(client_id, cached_entries.filter(e => e !== item_id));
 }
 
-function validate_item_array(items: unknown, allow_modded = true) {
+function validate_item_array(items: unknown) {
 	if (!Array.isArray(items))
 		return false;
 
@@ -357,7 +375,7 @@ function validate_item_array(items: unknown, allow_modded = true) {
 			return false;
 
 		// @ts-ignore
-		if (typeof item.id !== 'string' || typeof item.qty !== 'number')
+		if (!is_valid_item_id(item.id) || typeof item.qty !== 'number')
 			return false;
 
 		if (item.qty <= 0 || !Number.isSafeInteger(Math.trunc(item.qty)))
@@ -365,8 +383,6 @@ function validate_item_array(items: unknown, allow_modded = true) {
 
 		item.qty = Math.trunc(item.qty);
 
-		if (!allow_modded && !item.id.startsWith('melvor'))
-			return false;
 	}
 
 	return true;
@@ -390,6 +406,11 @@ function is_valid_icon_id(icon_id: unknown): icon_id is string {
 
 function is_valid_equipment_id(id: unknown): id is string {
 	return typeof id === 'string' && id.length > 0 && id.length <= MAX_EQUIPMENT_ID_LENGTH &&
+		/^[A-Za-z0-9_-]+:[A-Za-z0-9_-]+$/.test(id);
+}
+
+function is_valid_item_id(id: unknown): id is string {
+	return typeof id === 'string' && id.length > 0 && id.length <= MAX_ITEM_ID_LENGTH &&
 		/^[A-Za-z0-9_-]+:[A-Za-z0-9_-]+$/.test(id);
 }
 
@@ -466,6 +487,11 @@ function parse_player_status_skills(skills: unknown): PlayerStatusSkill[] | null
 
 // #region MAINTENANCE
 function sweep_data_caches() {
+	clear_data_caches();
+	setTimeout(sweep_data_caches, CACHE_RESET_INTERVAL);
+}
+
+function clear_data_caches() {
 	friend_request_cache.clear();
 	gift_cache.clear();
 	display_name_cache.clear();
@@ -475,8 +501,12 @@ function sweep_data_caches() {
 	trade_cache.clear();
 	trade_player_cache.clear();
 	resolved_trade_cache.clear();
+}
 
-	setTimeout(sweep_data_caches, CACHE_RESET_INTERVAL);
+function invalidate_client_sessions(client_id: number) {
+	for (const [token, session] of client_session_cache)
+		if (session.client_id === client_id)
+			client_session_cache.delete(token);
 }
 
 function sweep_client_session_cache() {
@@ -697,9 +727,36 @@ function maintain_council() {
 	setTimeout(maintain_council, COUNCIL_MAINTENANCE_INTERVAL);
 }
 
+function execute_due_client_deletions(now = Date.now()) {
+	const executions = process_due_client_deletions(now);
+	if (executions.length === 0)
+		return executions;
+	clear_data_caches();
+	for (const execution of executions) {
+		invalidate_client_sessions(execution.target_client_id);
+		if (execution.guild_id === null)
+			continue;
+		if (execution.dissolved)
+			forget_guild_campaign(execution.guild_id);
+		else
+			void resize_unprogressed_campaign(execution.guild_id);
+	}
+	return executions;
+}
+
+function maintain_client_deletions() {
+	try {
+		execute_due_client_deletions();
+	} catch (error) {
+		report_error('Client deletion maintenance failed', error);
+	}
+	setTimeout(maintain_client_deletions, CLIENT_DELETION_MAINTENANCE_INTERVAL);
+}
+
 setTimeout(sweep_client_session_cache, CACHE_SESSION_LIFETIME);
 setTimeout(sweep_data_caches, CACHE_RESET_INTERVAL);
 maintain_council();
+maintain_client_deletions();
 // #endregion
 
 // #region MARKET
@@ -1683,7 +1740,10 @@ async function get_session_client_id(session_token: unknown): Promise<number> {
 
 	const cached_session = client_session_cache.get(session_token);
 	if (cached_session !== undefined) {
-		if (!await db_exists('SELECT 1 FROM `clients` WHERE `id` = ? AND `disabled` = 0', [cached_session.client_id])) {
+		if (!await db_exists(
+			'SELECT 1 FROM `clients` WHERE `id` = ? AND `disabled` = 0 AND `deleted_at` IS NULL',
+			[cached_session.client_id]
+		)) {
 			client_session_cache.delete(session_token);
 			return -1;
 		}
@@ -1695,7 +1755,7 @@ async function get_session_client_id(session_token: unknown): Promise<number> {
 	const session_row = await db_get_single(
 		'SELECT session.`client_id` FROM `client_sessions` AS session ' +
 		'JOIN `clients` AS client ON client.`id` = session.`client_id` ' +
-		'WHERE session.`session_token` = ? AND client.`disabled` = 0',
+		'WHERE session.`session_token` = ? AND client.`disabled` = 0 AND client.`deleted_at` IS NULL',
 		[session_token]
 	) as db_row.client_sessions;
 	const client_id = session_row?.client_id ?? -1;
@@ -1772,11 +1832,8 @@ session_post_route('/api/market/sell', async (req, url, client_id, json) => {
 		return { error_lang: 'MOD_MP_MARKET_CANNOT_SELL_FREE' };
 
 	const item_id = json.item_id;
-	if (typeof item_id !== 'string')
+	if (!is_valid_item_id(item_id))
 		return 400; // Bad Request
-
-	if (!item_id.startsWith('melvor'))
-		return { error_lang: 'MOD_MP_MARKET_CANNOT_SELL_MODDED' };
 
 	await market_list_item(guild_id, client_id, item_id, Math.trunc(item_qty), item_sell_price);
 
@@ -1918,6 +1975,35 @@ session_post_route('/api/market/cancel', async (req, url, client_id, json) => {
 	};
 });
 
+session_post_route('/api/market/destroy', async (req, url, client_id, json) => {
+	const guild_id = await get_client_guild_id(client_id);
+	if (guild_id === null)
+		return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
+
+	const lot_id = json.id;
+	if (typeof lot_id !== 'number')
+		return 400; // Bad Request
+
+	const lot = await db_get_single(
+		'DELETE FROM `market_items` WHERE `id` = ? AND `guild_id` = ? AND `client_id` = ? RETURNING *',
+		[lot_id, guild_id, client_id]
+	) as db_row.market_items;
+	if (!lot)
+		return 400; // Bad Request
+
+	const lot_profit = (lot.qty - lot.available) * lot.price;
+	const payout_available = lot_profit - lot.payout;
+
+	remove_player_cache_entry(market_completed_cached, client_id, lot.id);
+
+	return {
+		success: true,
+		item_id: lot.item_id,
+		item_qty: lot.available,
+		payout: payout_available
+	};
+});
+
 session_post_route('/api/market/search', async (req, url, client_id, json) => {
 	const guild_id = await get_client_guild_id(client_id);
 	if (guild_id === null)
@@ -1926,15 +2012,43 @@ session_post_route('/api/market/search', async (req, url, client_id, json) => {
 	const query_parameters: Array<unknown> = [guild_id, client_id];
 
 	let item_filter = '';
+	if (json.item_id !== undefined && !is_valid_item_id(json.item_id))
+		return 400; // Bad Request
 	if (typeof json.item_id === 'string') {
 		item_filter = ' AND `item_id` = ?'
 		query_parameters.push(json.item_id);
 	}
+	let has_namespace_filter = false;
+	if (json.item_namespaces !== undefined) {
+		const item_namespaces = json.item_namespaces;
+		if (!Array.isArray(item_namespaces) || item_namespaces.length > MAX_MARKET_ITEM_NAMESPACE_COUNT)
+			return 400; // Bad Request
+
+		const namespace_parameters: string[] = [];
+		for (const namespace of item_namespaces) {
+			if (typeof namespace !== 'string' || namespace.length === 0 ||
+				namespace.length > MAX_MARKET_ITEM_NAMESPACE_LENGTH || !/^[A-Za-z0-9_-]+$/.test(namespace))
+				return 400; // Bad Request
+			namespace_parameters.push(namespace.replaceAll('_', '\\_') + ':%');
+		}
+
+		if (namespace_parameters.length === 0)
+			item_filter += ' AND 0';
+		else {
+			has_namespace_filter = true;
+			item_filter += ' AND (' + namespace_parameters.map(() => '`item_id` LIKE ? ESCAPE \'\\\'').join(' OR ') + ')';
+			query_parameters.push(...namespace_parameters);
+		}
+	}
 
 	const sort = json.sort === 0 ? 'DESC' : 'ASC';
-	const page_offset = typeof json.page === 'number' ? ' OFFSET ' + (Math.max(json.page - 1, 0) * MARKET_ITEMS_PER_PAGE) : '';
+	const page_clause = has_namespace_filter
+		? ''
+		: typeof json.page === 'number'
+			? ' LIMIT ' + MARKET_ITEMS_PER_PAGE + ' OFFSET ' + (Math.max(json.page - 1, 0) * MARKET_ITEMS_PER_PAGE)
+			: '';
 	const result = await db_get_all(
-		'SELECT *, COUNT(*) OVER() as `total_items` FROM `market_items` WHERE `guild_id` = ? AND `client_id` != ? AND `available` > 0' + item_filter + ' ORDER BY `price` ' + sort + ' LIMIT ' + MARKET_ITEMS_PER_PAGE + page_offset,
+		'SELECT *, COUNT(*) OVER() as `total_items` FROM `market_items` WHERE `guild_id` = ? AND `client_id` != ? AND `available` > 0' + item_filter + ' ORDER BY `price` ' + sort + page_clause,
 		query_parameters
 	);
 
@@ -2098,7 +2212,7 @@ session_post_route('/api/charity/take', async (req, url, client_id, json) => {
 		return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
 
 	const item_id = json.item_id;
-	if (typeof item_id !== 'string')
+	if (!is_valid_item_id(item_id))
 		return 400; // Bad Request
 
 	const current_time = Date.now();
@@ -2141,7 +2255,7 @@ session_post_route('/api/charity/donate', async (req, url, client_id, json) => {
 		return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
 
 	const items = json.items as TransferItem[];
-	if (!validate_item_array(items, false))
+	if (!validate_item_array(items))
 		return 400; // Bad Request
 
 	for (const item of items)
@@ -2170,8 +2284,11 @@ session_post_route('/api/banishment/returns/claim', async (req, url, client_id, 
 		available_slots < 0 || available_slots > MAX_TRANSFER_ITEM_COUNT)
 		return 400; // Bad Request
 
-	const claim_id = create_banishment_claim(client_id, existing_item_ids as string[], available_slots);
-	return { claim: claim_id === null ? null : get_banishment_claim_view(claim_id, client_id) };
+	const banishment_claim_id = create_banishment_claim(client_id, existing_item_ids as string[], available_slots);
+	if (banishment_claim_id !== null)
+		return { claim: get_banishment_claim_view(banishment_claim_id, client_id) };
+	const deletion_claim_id = create_deletion_return_claim(client_id, existing_item_ids as string[], available_slots);
+	return { claim: deletion_claim_id === null ? null : get_deletion_claim_view(deletion_claim_id, client_id) };
 });
 
 session_post_route('/api/banishment/returns/acknowledge', async (req, url, client_id, json) => {
@@ -2204,7 +2321,9 @@ session_post_route('/api/banishment/returns/acknowledge', async (req, url, clien
 		return 'acknowledged';
 	});
 
-	return acknowledge.immediate() === 'missing'
+	if (acknowledge.immediate() !== 'missing')
+		return { success: true };
+	return acknowledge_deletion_return_claim(client_id, claim_id) === null
 		? { error_lang: 'MOD_MP_BANISHMENT_CLAIM_MISSING' }
 		: { success: true };
 });
@@ -3345,6 +3464,39 @@ session_post_route('/api/friends/add', async (req, url, client_id, json) => {
 });
 // #endregion
 
+// #region ROUTES IDENTITIES
+session_get_route('/api/identities', async (req, url, client_id) => {
+	execute_due_client_deletions();
+	return { identities: list_sibling_identities(client_id) };
+});
+
+session_post_route('/api/identities/delete', async (req, url, client_id, json) => {
+	const target_client_id = json.client_id;
+	if (typeof target_client_id !== 'number')
+		return 400; // Bad Request
+	const result = schedule_client_deletion(client_id, target_client_id);
+	if (result === 'bad_request')
+		return 400; // Bad Request
+	if (result === 'missing')
+		return 404; // Not Found
+	if (result === 'pending')
+		return Response.json({ identity_status: 'deletion_pending' }, { status: 409 });
+	return { success: true, deletion: result };
+});
+
+session_post_route('/api/identities/delete/cancel', async (req, url, client_id, json) => {
+	const target_client_id = json.client_id;
+	if (typeof target_client_id !== 'number')
+		return 400; // Bad Request
+	const result = cancel_scheduled_client_deletion(client_id, target_client_id);
+	if (result === 'bad_request')
+		return 400; // Bad Request
+	if (result === 'missing')
+		return 404; // Not Found
+	return { success: true };
+});
+// #endregion
+
 // #region ROUTES GENERAL
 session_get_route('/api/events', async (req, url, client_id) => {
 	const trade_ids = await get_client_trades(client_id);
@@ -3373,7 +3525,7 @@ session_get_route('/api/events', async (req, url, client_id) => {
 		banishment_return_pending: await db_exists(
 			'SELECT 1 FROM `banishment_returns` WHERE `client_id` = ? AND `completed_at` IS NULL LIMIT 1',
 			[client_id]
-		),
+		) || has_deletion_returns(client_id),
 		chat_unread: get_unread_chat_count(client_id)
 	};
 });
@@ -3409,6 +3561,7 @@ server.route('/health', require_source_capacity(() => ({ status: 'ok', backend_v
 
 server.route('/api/authenticate', allow_browser_access(require_source_capacity(require_service_available(validate_json_request(async (req, url, json) => {
 	await Bun.sleep(1000);
+	execute_due_client_deletions();
 
 	const client_identifier = json.client_identifier;
 	const client_key = json.client_key;
@@ -3418,10 +3571,13 @@ server.route('/api/authenticate', allow_browser_access(require_source_capacity(r
 
 	if (!is_valid_uuid(client_identifier) || !is_valid_uuid(client_key))
 		return 400; // Bad Request
+	const melvor_account = parse_melvor_account(json);
+	if (melvor_account === undefined)
+		return 400; // Bad Request
 
 	const client_row = await db_get_single(
 		'SELECT `id`, `client_key`, `friend_code`, `display_name`, `icon_id`, `disabled`, `equipment_visible`, `status_visible`, ' +
-		'`messaging_enabled` ' +
+		'`messaging_enabled`, `melvor_account_id`, `deleted_at` ' +
 		'FROM `clients` WHERE `client_identifier` = ? LIMIT 1',
 		[client_identifier]
 	) as db_row.clients;
@@ -3429,6 +3585,17 @@ server.route('/api/authenticate', allow_browser_access(require_source_capacity(r
 		return 401; // Unauthorized
 	if (client_row.disabled === 1)
 		return 403; // Forbidden
+	const association = associate_client_with_melvor_account(
+		client_row.id,
+		client_row.melvor_account_id,
+		melvor_account
+	);
+	if (association === 'mismatch')
+		return Response.json({ identity_status: 'melvor_account_mismatch' }, { status: 409 });
+	if (association === 'required')
+		return Response.json({ identity_status: 'melvor_account_required' }, { status: 409 });
+	const deletion_cancelled = cancel_deletion_on_authentication(client_row.id);
+	const identity_recovered = recover_deleted_client(client_row.id);
 
 	identify_request(req, client_row.id);
 	const session_token = await generate_session_token(client_row.id);
@@ -3436,7 +3603,8 @@ server.route('/api/authenticate', allow_browser_access(require_source_capacity(r
 
 	return { session_token, friend_code: client_row.friend_code, display_name: client_row.display_name,
 		icon_id: client_row.icon_id, equipment_visible: client_row.equipment_visible === 1,
-		status_visible: client_row.status_visible === 1, chat: get_chat_state(client_row.id) };
+		status_visible: client_row.status_visible === 1, chat: get_chat_state(client_row.id),
+		deletion_cancelled, identity_recovered };
 })))), ['POST', 'OPTIONS']);
 
 server.route('/api/register', allow_browser_access(require_source_capacity(require_registration_capacity(require_service_available(validate_json_request(async (req, url, json) => {
@@ -3446,7 +3614,9 @@ server.route('/api/register', allow_browser_access(require_source_capacity(requi
 
 	if (typeof client_key !== 'string' || !is_valid_uuid(client_key))
 		return 400; // Bad Request
-
+	const melvor_account = parse_melvor_account(json);
+	if (melvor_account === undefined)
+		return 400; // Bad Request
 	const friend_code = await generate_friend_code();
 	const display_name = validate_display_name(json.display_name);
 
@@ -3456,7 +3626,8 @@ server.route('/api/register', allow_browser_access(require_source_capacity(requi
 		client_key,
 		friend_code,
 		display_name,
-		DEFAULT_USER_ICON_ID
+		DEFAULT_USER_ICON_ID,
+		melvor_account
 	);
 
 	if (registration.status !== 'created')

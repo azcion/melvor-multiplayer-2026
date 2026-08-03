@@ -149,7 +149,7 @@ test('keeps Chat identity state independent from current Guild membership', asyn
 	const { main, templates } = await sources();
 
 	assert.match(main, /state\.chat_client_id = res\.client_id/);
-	assert.match(main, /state\.chat_client_id = auth_res\.chat\?\.client_id/);
+	assert.match(main, /state\.chat_client_id = response\.chat\?\.client_id/);
 	assert.match(templates, /message\.sender_id === state\.chat_client_id/);
 	assert.doesNotMatch(
 		main.slice(main.indexOf('async function refresh_chat_page'), main.indexOf('function stop_chat_polling')),

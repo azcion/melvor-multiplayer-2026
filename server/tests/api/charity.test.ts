@@ -21,17 +21,24 @@ async function get_charity_contents(session_token: string): Promise<CharityConte
 }
 
 describe('charity API', () => {
-	test('rejects invalid and modded donations', async () => {
+	test('rejects invalid donations and accepts modded donations', async () => {
 		const client = await register_guild_client('Charity Validation');
 		const invalid_quantity = await post('/api/charity/donate', {
 			items: [{ id: 'melvorD:Coal_Ore', qty: 0 }]
 		}, client.session_token);
-		const modded = await post('/api/charity/donate', {
+		const malformed_id = await post('/api/charity/donate', {
+			items: [{ id: 'exampleMod', qty: 1 }]
+		}, client.session_token);
+		const modded = await post_json<{ success: boolean }>('/api/charity/donate', {
 			items: [{ id: 'exampleMod:Coal_Ore', qty: 1 }]
 		}, client.session_token);
 
 		expect(invalid_quantity.status).toBe(400);
-		expect(modded.status).toBe(400);
+		expect(malformed_id.status).toBe(400);
+		expect(modded.json.success).toBe(true);
+		expect(await get_charity_contents(client.session_token)).toEqual({
+			items: [{ id: 'exampleMod:Coal_Ore', qty: 1 }]
+		});
 	});
 
 	test('merges donations and exposes their truncated quantities', async () => {

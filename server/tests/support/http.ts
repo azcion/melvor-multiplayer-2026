@@ -9,12 +9,18 @@ export type JsonResponse<T> = {
 };
 
 export type RegisteredClient = {
+	client_id: number;
 	client_identifier: string;
 	client_key: string;
 	friend_code: string;
 	display_name: string;
 	icon_id: string;
 	session_token: string;
+};
+
+export type MelvorAccountFixture = {
+	cloud_username: string;
+	playfab_id: string;
 };
 
 export async function request(path: string, init: RequestInit = {}): Promise<Response> {
@@ -74,15 +80,21 @@ export async function get_json_with_session<T>(path: string, session_token: stri
 	return { response, json };
 }
 
-export async function register_client(display_name = 'Test Idler'): Promise<RegisteredClient> {
+export async function register_client(
+	display_name = 'Test Idler',
+	melvor_account?: MelvorAccountFixture
+): Promise<RegisteredClient> {
 	const client_key = crypto.randomUUID();
-	const { response, json } = await post_json<Omit<RegisteredClient, 'client_key'>>('/api/register', {
+	const { response, json } = await post_json<Omit<RegisteredClient, 'client_key' | 'client_id'> & {
+		chat: { client_id: number };
+	}>('/api/register', {
 		client_key,
-		display_name
+		display_name,
+		...melvor_account
 	});
 
 	if (!response.ok)
 		throw new Error(`Client registration failed with ${response.status}: ${JSON.stringify(json)}`);
 
-	return { ...json, client_key };
+	return { ...json, client_id: json.chat.client_id, client_key };
 }

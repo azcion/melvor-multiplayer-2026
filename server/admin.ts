@@ -5,8 +5,7 @@ function usage(): never {
   bun run admin.ts status
   bun run admin.ts registrations open|close
   bun run admin.ts maintenance on|off
-  bun run admin.ts identity enable|disable CLIENT_ID
-  bun run admin.ts capacity MAX_IDENTITIES`);
+  bun run admin.ts identity enable|disable CLIENT_ID`);
 	process.exit(2);
 }
 
@@ -37,7 +36,7 @@ switch (command) {
 
 		console.log(`registrations=${get_service_setting('registrations_open') === '1' ? 'open' : 'closed'}`);
 		console.log(`maintenance=${get_service_setting('maintenance') === '1' ? 'on' : 'off'}`);
-		console.log(`identities=${identity_count}/${get_service_setting('max_identities')}`);
+		console.log(`identities=${identity_count}`);
 		console.log(`disabled_identities=${disabled_count}`);
 		break;
 	}
@@ -74,12 +73,6 @@ switch (command) {
 		console.log(`Multiplayer identity ${client_id} ${action}d.`);
 		break;
 	}
-	case 'capacity':
-		if (argument !== undefined)
-			usage();
-		set_setting('max_identities', String(parse_positive_integer(action)));
-		console.log(`Identity capacity set to ${action}.`);
-		break;
 	default:
 		usage();
 }

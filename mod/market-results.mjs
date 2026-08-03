@@ -10,3 +10,16 @@ export function remove_sold_out_market_result(state, listing_id, items_per_page)
 	state.market_current_page = Math.min(state.market_current_page, last_page);
 	return true;
 }
+
+export function paginate_market_results(items, page, items_per_page) {
+	const total_items = items.length;
+	const page_count = Math.max(Math.ceil(total_items / items_per_page), 1);
+	const current_page = Math.min(Math.max(Math.trunc(page), 1), page_count);
+	const start = (current_page - 1) * items_per_page;
+
+	return {
+		current_page,
+		total_items,
+		items: items.slice(start, start + items_per_page)
+	};
+}

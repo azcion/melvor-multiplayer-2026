@@ -138,6 +138,21 @@ body.superDark {
 	margin: 4px 0;
 }
 
+.mp-identity-list,
+.mp-identity-actions {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.mp-identity-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	text-align: left;
+}
+
 .mp-chat-conversations {
 	display: flex;
 	flex-direction: column;

@@ -10,10 +10,14 @@ export type DatabaseRunResult = {
 	lastInsertRowid: number;
 };
 
+export type MelvorAccountInput = {
+	cloud_username: string;
+	playfab_id: string;
+};
+
 export type ClientRegistration =
 	| { status: 'created'; client_id: number }
-	| { status: 'closed' }
-	| { status: 'full' };
+	| { status: 'closed' };
 
 const database_path = process.env.DB_PATH ?? './data/melvor-multiplayer.sqlite';
 mkdirSync(dirname(database_path), { recursive: true });
@@ -106,26 +110,33 @@ export function get_service_setting(key: string): string | null {
 	return row?.value ?? null;
 }
 
+export function get_or_create_melvor_account(account: MelvorAccountInput, now = Date.now()): number {
+	const row = db.query<{ id: number }, [string, string, number]>(
+		'INSERT INTO `melvor_accounts` (`cloud_username`, `playfab_id`, `created_at`) VALUES(?, ?, ?) ' +
+		'ON CONFLICT (`cloud_username`, `playfab_id`) DO UPDATE SET `cloud_username` = excluded.`cloud_username` ' +
+		'RETURNING `id`'
+	).get(account.cloud_username, account.playfab_id, now) as { id: number };
+	return row.id;
+}
+
 export function register_client(
 	client_identifier: string,
 	client_key: string,
 	friend_code: string,
 	display_name: string,
-	icon_id: string
+	icon_id: string,
+	melvor_account: MelvorAccountInput | null = null
 ): ClientRegistration {
 	const transaction = db.transaction((): ClientRegistration => {
 		if (get_service_setting('registrations_open') !== '1')
 			return { status: 'closed' };
 
-		const maximum = Number(get_service_setting('max_identities'));
-		const count = db.query<{ count: number }, []>('SELECT COUNT(*) AS `count` FROM `clients`').get()?.count ?? 0;
-		if (!Number.isSafeInteger(maximum) || maximum < 1 || count >= maximum)
-			return { status: 'full' };
+		const melvor_account_id = melvor_account === null ? null : get_or_create_melvor_account(melvor_account);
 
 		const result = db.query(
-			'INSERT INTO `clients` (`client_identifier`, `client_key`, `friend_code`, `display_name`, `icon_id`) ' +
-			'VALUES(?, ?, ?, ?, ?)'
-		).run(client_identifier, client_key, friend_code, display_name, icon_id);
+			'INSERT INTO `clients` (`client_identifier`, `client_key`, `friend_code`, `display_name`, `icon_id`, ' +
+			'`melvor_account_id`) VALUES(?, ?, ?, ?, ?, ?)'
+		).run(client_identifier, client_key, friend_code, display_name, icon_id, melvor_account_id);
 
 		return {
 			status: 'created',

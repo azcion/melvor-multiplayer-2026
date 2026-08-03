@@ -531,4 +531,91 @@ export const migrations: Migration[] = [{
 			);
 			CREATE INDEX idx_chat_blocks_blocked ON chat_blocks (blocked_id, blocker_id);
 		`
+	}, {
+		version: 13,
+		sql: `
+			CREATE TABLE melvor_accounts (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				cloud_username TEXT NOT NULL,
+				playfab_id TEXT NOT NULL,
+				created_at INTEGER NOT NULL CHECK (created_at >= 0),
+				UNIQUE (cloud_username, playfab_id)
+			);
+
+			ALTER TABLE clients ADD COLUMN melvor_account_id INTEGER
+				REFERENCES melvor_accounts (id);
+			ALTER TABLE clients ADD COLUMN deleted_at INTEGER
+				CHECK (deleted_at IS NULL OR deleted_at >= 0);
+			CREATE INDEX idx_clients_melvor_account
+				ON clients (melvor_account_id, deleted_at, id);
+
+			CREATE TABLE client_deletion_requests (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				target_client_id INTEGER NOT NULL,
+				requester_client_id INTEGER NOT NULL,
+				requested_at INTEGER NOT NULL CHECK (requested_at >= 0),
+				execute_at INTEGER NOT NULL CHECK (execute_at >= requested_at),
+				cancelled_at INTEGER CHECK (cancelled_at IS NULL OR cancelled_at >= requested_at),
+				executed_at INTEGER CHECK (executed_at IS NULL OR executed_at >= requested_at),
+				CHECK (target_client_id != requester_client_id),
+				CHECK (cancelled_at IS NULL OR executed_at IS NULL),
+				FOREIGN KEY (target_client_id) REFERENCES clients (id) ON DELETE CASCADE,
+				FOREIGN KEY (requester_client_id) REFERENCES clients (id) ON DELETE CASCADE
+			);
+			CREATE UNIQUE INDEX idx_client_deletion_requests_pending
+				ON client_deletion_requests (target_client_id)
+				WHERE cancelled_at IS NULL AND executed_at IS NULL;
+			CREATE INDEX idx_client_deletion_requests_due
+				ON client_deletion_requests (execute_at, id)
+				WHERE cancelled_at IS NULL AND executed_at IS NULL;
+
+			CREATE TABLE client_deletion_returns (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				request_id INTEGER NOT NULL,
+				client_id INTEGER NOT NULL,
+				source_display_name TEXT NOT NULL,
+				gp INTEGER NOT NULL DEFAULT 0 CHECK (gp >= 0),
+				created_at INTEGER NOT NULL CHECK (created_at >= 0),
+				completed_at INTEGER CHECK (completed_at IS NULL OR completed_at >= created_at),
+				UNIQUE (request_id, client_id),
+				FOREIGN KEY (request_id) REFERENCES client_deletion_requests (id),
+				FOREIGN KEY (client_id) REFERENCES clients (id)
+			);
+			CREATE INDEX idx_client_deletion_returns_client
+				ON client_deletion_returns (client_id, completed_at, id);
+
+			CREATE TABLE client_deletion_return_items (
+				return_id INTEGER NOT NULL,
+				item_id TEXT NOT NULL,
+				qty INTEGER NOT NULL CHECK (qty > 0),
+				PRIMARY KEY (return_id, item_id),
+				FOREIGN KEY (return_id) REFERENCES client_deletion_returns (id) ON DELETE CASCADE
+			);
+
+			CREATE TABLE client_deletion_return_claims (
+				id TEXT PRIMARY KEY,
+				return_id INTEGER NOT NULL,
+				client_id INTEGER NOT NULL,
+				gp INTEGER NOT NULL DEFAULT 0 CHECK (gp >= 0),
+				created_at INTEGER NOT NULL CHECK (created_at >= 0),
+				acknowledged_at INTEGER CHECK (acknowledged_at IS NULL OR acknowledged_at >= created_at),
+				FOREIGN KEY (return_id) REFERENCES client_deletion_returns (id),
+				FOREIGN KEY (client_id) REFERENCES clients (id)
+			);
+			CREATE UNIQUE INDEX idx_client_deletion_return_claims_outstanding
+				ON client_deletion_return_claims (client_id) WHERE acknowledged_at IS NULL;
+
+			CREATE TABLE client_deletion_return_claim_items (
+				claim_id TEXT NOT NULL,
+				item_id TEXT NOT NULL,
+				qty INTEGER NOT NULL CHECK (qty > 0),
+				PRIMARY KEY (claim_id, item_id),
+				FOREIGN KEY (claim_id) REFERENCES client_deletion_return_claims (id) ON DELETE CASCADE
+			);
+		`
+	}, {
+		version: 14,
+		sql: `
+			DELETE FROM service_settings WHERE key = 'max_identities';
+		`
 	}];

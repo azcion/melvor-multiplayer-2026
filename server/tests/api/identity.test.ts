@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { get_with_session, post, post_json, register_client } from '../support/http';
-import { db_count, db_run } from '../support/persistence';
+import { db_run } from '../support/persistence';
 
 const default_icon = 'melvorD:Plant';
 
@@ -176,22 +176,20 @@ describe('identity API', () => {
 		}
 	});
 
-	test('stops registration at the configured identity capacity', async () => {
-		const identity_count = await db_count('SELECT COUNT(*) AS `count` FROM `clients`');
+	test('does not enforce a fixed identity capacity', async () => {
 		await db_run(
-			"UPDATE `service_settings` SET `value` = ? WHERE `key` = 'max_identities'",
-			[String(identity_count)]
+			"INSERT INTO `service_settings` (`key`, `value`) VALUES ('max_identities', '1') " +
+			'ON CONFLICT (`key`) DO UPDATE SET `value` = excluded.`value`'
 		);
 		try {
 			const response = await post('/api/register', {
 				client_key: crypto.randomUUID(),
-				display_name: 'Capacity Rejection'
+				display_name: 'Uncapped Registration'
 			});
 
-			expect(response.status).toBe(503);
-			expect(response.headers.get('Retry-After')).toBe('300');
+			expect(response.status).toBe(200);
 		} finally {
-			await db_run("UPDATE `service_settings` SET `value` = '256' WHERE `key` = 'max_identities'");
+			await db_run("DELETE FROM `service_settings` WHERE `key` = 'max_identities'");
 		}
 	});
 

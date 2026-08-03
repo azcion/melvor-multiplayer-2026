@@ -133,7 +133,8 @@ function other_participant(conversation: ConversationRow, client_id: number): nu
 function privacy_allows(client_id: number, other_id: number): boolean {
 	const row = db.query<{ allowed: number }, number[]>(
 		'SELECT NOT EXISTS(' +
-			'SELECT 1 FROM `clients` WHERE `id` IN (?, ?) AND `messaging_enabled` = 0' +
+			'SELECT 1 FROM `clients` WHERE `id` IN (?, ?) ' +
+			'AND (`messaging_enabled` = 0 OR `deleted_at` IS NOT NULL)' +
 		') AND NOT EXISTS(' +
 			'SELECT 1 FROM `chat_blocks` WHERE (`blocker_id` = ? AND `blocked_id` = ?) ' +
 			'OR (`blocker_id` = ? AND `blocked_id` = ?)' +
@@ -207,8 +208,10 @@ export function list_conversations(client_id: number) {
 		if (conversation.conversation_hidden === 1 && latest === null)
 			continue;
 		const other = db.query<{ display_name: string; icon_id: string }, [number]>(
-			'SELECT `display_name`, `icon_id` FROM `clients` WHERE `id` = ? LIMIT 1'
-		).get(other_id) as { display_name: string; icon_id: string };
+			'SELECT `display_name`, `icon_id` FROM `clients` WHERE `id` = ? AND `deleted_at` IS NULL LIMIT 1'
+		).get(other_id);
+		if (other === null)
+			continue;
 		const unread = db.query<{ count: number }, number[]>(
 			'SELECT COUNT(*) AS `count` FROM `chat_messages` AS m WHERE m.`conversation_id` = ? ' +
 			'AND m.`sender_id` != ? AND m.`id` > ? ' +
@@ -251,7 +254,9 @@ export function start_conversation(client_id: number, target_id: number): ChatRe
 		).get(low_id, high_id);
 		if (existing !== null)
 			return { status: 'ok', value: existing };
-		const target = db.query<{ id: number }, [number]>('SELECT `id` FROM `clients` WHERE `id` = ? LIMIT 1').get(target_id);
+		const target = db.query<{ id: number }, [number]>(
+			'SELECT `id` FROM `clients` WHERE `id` = ? AND `deleted_at` IS NULL LIMIT 1'
+		).get(target_id);
 		if (target === null)
 			return { status: 'missing' };
 		const guildmates = db.query<{ shared: number }, [number, number]>(

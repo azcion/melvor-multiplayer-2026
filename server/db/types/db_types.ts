@@ -33,10 +33,54 @@ export type clients = {
 	last_bonus_charity: number,
 	disabled: number,
 	equipment_visible: number,
-	status_visible: number
+	status_visible: number,
 	messaging_enabled: number,
 	messaging_credits: number,
-	messaging_refill_at: number
+	messaging_refill_at: number,
+	melvor_account_id: number | null,
+	deleted_at: number | null
+};
+
+export type melvor_accounts = {
+	id: number;
+	cloud_username: string;
+	playfab_id: string;
+	created_at: number;
+};
+
+export type client_deletion_requests = {
+	id: number;
+	target_client_id: number;
+	requester_client_id: number;
+	requested_at: number;
+	execute_at: number;
+	cancelled_at: number | null;
+	executed_at: number | null;
+};
+
+export type client_deletion_returns = {
+	id: number;
+	request_id: number;
+	client_id: number;
+	source_display_name: string;
+	gp: number;
+	created_at: number;
+	completed_at: number | null;
+};
+
+export type client_deletion_return_items = {
+	return_id: number;
+	item_id: string;
+	qty: number;
+};
+
+export type client_deletion_return_claims = {
+	id: string;
+	return_id: number;
+	client_id: number;
+	gp: number;
+	created_at: number;
+	acknowledged_at: number | null;
 };
 
 export type chat_conversations = {

@@ -61,7 +61,7 @@ async function wait_for_listing(
 }
 
 describe('market API', () => {
-	test('validates listings, truncates quantities, and merges matching lots', async () => {
+	test('validates listings, allows modded items, truncates quantities, and merges matching lots', async () => {
 		const seller = await register_guild_client('Market Validation Seller');
 		const nothing = await post_json<{ error_lang: string }>('/api/market/sell', {
 			item_id: 'melvorD:Coal_Ore',
@@ -73,15 +73,35 @@ describe('market API', () => {
 			item_qty: 1,
 			item_sell_price: 0
 		}, seller.session_token);
-		const modded = await post_json<{ error_lang: string }>('/api/market/sell', {
+		const modded = await post_json<{ success: boolean }>('/api/market/sell', {
 			item_id: 'exampleMod:Coal_Ore',
+			item_qty: 1,
+			item_sell_price: 5
+		}, seller.session_token);
+		const empty_id = await post('/api/market/sell', {
+			item_id: '',
+			item_qty: 1,
+			item_sell_price: 5
+		}, seller.session_token);
+		const malformed_id = await post('/api/market/sell', {
+			item_id: 'not-namespaced',
+			item_qty: 1,
+			item_sell_price: 5
+		}, seller.session_token);
+		const too_long_id = await post('/api/market/sell', {
+			item_id: 'exampleMod:' + 'x'.repeat(246),
 			item_qty: 1,
 			item_sell_price: 5
 		}, seller.session_token);
 
 		expect(nothing.json.error_lang).toBe('MOD_MP_MARKET_CANNOT_SELL_NOTHING');
 		expect(free.json.error_lang).toBe('MOD_MP_MARKET_CANNOT_SELL_FREE');
-		expect(modded.json.error_lang).toBe('MOD_MP_MARKET_CANNOT_SELL_MODDED');
+		expect(modded.json.success).toBe(true);
+		expect(empty_id.status).toBe(400);
+		expect(malformed_id.status).toBe(400);
+		expect(too_long_id.status).toBe(400);
+		const modded_listing = await wait_for_listing(seller, 'exampleMod:Coal_Ore');
+		await post_json('/api/market/cancel', { id: modded_listing.id }, seller.session_token);
 
 		await post_json('/api/market/sell', {
 			item_id: 'melvorD:Validation_Ore',
@@ -284,6 +304,83 @@ describe('market API', () => {
 		expect(filtered.json.total_items).toBe(1);
 		expect(filtered.json.items).toHaveLength(1);
 		expect(filtered.json.items[0].item_id).toBe('melvorD:Pagination_Item_16');
+	});
+
+	test('destroys an owner listing into a non-bank return and pays accrued profit', async () => {
+		const pair = await make_guildmates('Destroy Listing Seller', 'Destroy Listing Buyer');
+		await post_json('/api/market/sell', {
+			item_id: 'missingMod:Destroy_Item',
+			item_qty: 5,
+			item_sell_price: 7
+		}, pair.first.session_token);
+		const listing = await wait_for_listing(pair.first, 'missingMod:Destroy_Item');
+		await post_json('/api/market/buy', { id: listing.id, qty: 2 }, pair.second.session_token);
+
+		const unauthorized = await post('/api/market/destroy', { id: listing.id }, pair.second.session_token);
+		const destroyed = await post_json<{
+			success: boolean;
+			item_id: string;
+			item_qty: number;
+			payout: number;
+		}>('/api/market/destroy', { id: listing.id }, pair.first.session_token);
+
+		expect(unauthorized.status).toBe(400);
+		expect(destroyed.json).toEqual({
+			success: true,
+			item_id: 'missingMod:Destroy_Item',
+			item_qty: 3,
+			payout: 14
+		});
+		expect((await get_listings(pair.first)).items).toEqual([]);
+	});
+
+	test('filters market searches by the viewer item namespaces', async () => {
+		const pair = await make_guildmates('Compatible Market Seller', 'Compatible Market Buyer');
+		await post_json('/api/market/sell', {
+			item_id: 'melvorD:Compatible_Base_Item',
+			item_qty: 1,
+			item_sell_price: 5
+		}, pair.first.session_token);
+		await post_json('/api/market/sell', {
+			item_id: 'exampleMod:Compatible_Modded_Item',
+			item_qty: 1,
+			item_sell_price: 6
+		}, pair.first.session_token);
+		await post_json('/api/market/sell', {
+			item_id: 'some_mod:Compatible_Underscore_Item',
+			item_qty: 1,
+			item_sell_price: 7
+		}, pair.first.session_token);
+		await post_json('/api/market/sell', {
+			item_id: 'someXmod:Wildcard_Match_Item',
+			item_qty: 1,
+			item_sell_price: 8
+		}, pair.first.session_token);
+
+		const base_only = await post_json<MarketSearch>('/api/market/search', {
+			item_namespaces: ['melvorD'],
+			sort: 1,
+			page: 1
+		}, pair.second.session_token);
+		const compatible = await post_json<MarketSearch>('/api/market/search', {
+			item_namespaces: ['melvorD', 'exampleMod'],
+			sort: 1,
+			page: 1
+		}, pair.second.session_token);
+		const escaped_namespace = await post_json<MarketSearch>('/api/market/search', {
+			item_namespaces: ['some_mod'],
+			sort: 1,
+			page: 1
+		}, pair.second.session_token);
+
+		expect(base_only.json.items.map(item => item.item_id)).toEqual(['melvorD:Compatible_Base_Item']);
+		expect(compatible.json.items.map(item => item.item_id)).toEqual([
+			'melvorD:Compatible_Base_Item',
+			'exampleMod:Compatible_Modded_Item'
+		]);
+		expect(escaped_namespace.json.items.map(item => item.item_id)).toEqual([
+			'some_mod:Compatible_Underscore_Item'
+		]);
 	});
 
 	test('hides and rejects lots outside the buyer guild', async () => {

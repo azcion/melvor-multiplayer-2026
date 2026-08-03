@@ -47,7 +47,10 @@ let custom_server_max_length = null;
 let modal_queue_guard = null;
 let open_transfer_page = null;
 let remove_sold_out_market_result = null;
+let paginate_market_results = null;
 let apply_banishment_claim = null;
+let item_visibility = null;
+let identity_bindings = null;
 let is_reconciling_banishment_returns = false;
 let equipment_sync_timer = null;
 let equipment_sync_in_flight = false;
@@ -64,6 +67,8 @@ let last_observed_status = null;
 let chat_poll_id = 0;
 let chat_view_generation = 0;
 let chat_page_visible = false;
+let interface_ready = false;
+const pending_identity_notices = [];
 
 let last_charity_check = 0;
 
@@ -202,6 +207,12 @@ const state = ui.createStore({
 	chat_budget: { credits: 5, maximum: 5, refill_interval: 60000, next_refill_at: 0 },
 	chat_pending_send: null,
 	selected_chat_message: null,
+	identities: [],
+	identities_loading: false,
+	identities_error: '',
+	selected_identity: null,
+	identity_notice_requester: '',
+	identity_notice_time: '',
 	// #endregion
 
 	// #region COMPUTED PROPS
@@ -319,6 +330,14 @@ const state = ui.createStore({
 	get has_transfer_access() {
 		return this.is_guild_member || this.transfer_inventory.length > 0 || this.gifts.length > 0 ||
 			this.resolved_trades.length > 0;
+	},
+
+	get has_destroyable_transfer_items() {
+		return this.transfer_inventory.some(item => item.destroyable === true);
+	},
+
+	get selected_transfer_item_is_destroyable() {
+		return this.transfer_inventory.find(item => item.id === this.selected_transfer_item_id)?.destroyable === true;
 	},
 
 	get num_notifications() {
@@ -958,25 +977,35 @@ const state = ui.createStore({
 		update_market_listings();
 	},
 
-	async resolve_market_listing(event, item, cancel) {
+	async resolve_market_listing(event, item, action) {
 		const $button = event.currentTarget;
 
 		if ($button.classList.contains('disabled') || is_button_spinning($button))
 			return;
+		if (item.unresolved && action !== 'destroy')
+			return;
+		if (action === 'destroy' && state.transfer_inventory.length >= TRANSFER_INVENTORY_MAX_LIMIT && item.available > 0)
+			return notify_error('MOD_MP_TRANSFER_INVENTORY_FULL');
+		if (action === 'destroy' && state.transfer_inventory.some(entry =>
+			entry.id === item.item_id && entry.destroyable !== true
+		))
+			return notify_error('MOD_MP_TRANSFER_DESTROY_ITEM_FIRST');
 
 		show_button_spinner($button);
 
-		const res = await api_post('/api/market/' + (cancel ? 'cancel' : 'payout'), { id: item.id });
+		const res = await api_post('/api/market/' + action, { id: item.id });
 		if (res?.success) {
-			if (cancel && res.item_qty > 0)
+			if (action === 'cancel' && res.item_qty > 0)
 				add_bank_item(res.item_id, res.item_qty);
+			else if (action === 'destroy' && res.item_qty > 0)
+				add_destroyable_item_to_transfer_inventory(res.item_id, res.item_qty);
 
 			if (res.payout > 0) {
 				game.gp.add(res.payout);
 				item.payout += res.payout;
 			}
 
-			if (cancel || res.ended) {
+			if (action === 'cancel' || action === 'destroy' || res.ended) {
 				state.market_listings = state.market_listings.filter(listing => listing.id !== item.id);
 				state.market_completed = state.market_completed.filter(listing => listing !== item.id);
 			}
@@ -1093,6 +1122,8 @@ const state = ui.createStore({
 		const item = this.charity_tree_inventory.find(e => e.id === state.selected_charity_item_id);
 		if (!item)
 			return notify_error('MOD_MP_CHARITY_INVALID_ITEM');
+		if (!is_local_item_resolved(item.id))
+			return notify_error('MOD_MP_CHARITY_UNKNOWN_ITEM');
 
 		const $button = event.currentTarget;
 		if (is_button_spinning($button))
@@ -1125,16 +1156,16 @@ const state = ui.createStore({
 	},
 
 	async donate_items(event) {
+		if (this.has_destroyable_transfer_items)
+			return notify_error('MOD_MP_TRANSFER_DESTROY_ITEM_FIRST');
+
 		const items = state.transfer_inventory;
 
 		if (items.length === 0)
 			return notify_error('MOD_MP_CHARITY_NO_SELECTION');
 
-		for (const item_entry of items) {
-			const item = game.items.getObjectByID(item_entry.id);
-			if (item.isModded)
-				return notify_error('MOD_MP_CHARITY_MODDED_ITEM');
-		}
+		if (has_local_unresolved_item(items, item => item.id))
+			return notify_error('MOD_MP_CHARITY_UNKNOWN_ITEM');
 
 		const $button = event.currentTarget;
 		if (is_button_spinning($button))
@@ -1165,6 +1196,9 @@ const state = ui.createStore({
 
 	// #region TRADE ACTIONS
 	async create_trade() {
+		if (this.has_destroyable_transfer_items)
+			return notify_error('MOD_MP_TRANSFER_DESTROY_ITEM_FIRST');
+
 		if (state.transfer_inventory.length > 0) {
 			await refresh_guild_state();
 			queue_modal('MOD_MP_TITLE_SEND_TRADE_OFFER', 'create-trade-modal', 'assets/transfer_bag.svg', {
@@ -1402,6 +1436,9 @@ const state = ui.createStore({
 	},
 
 	async gift_friend() {
+		if (this.has_destroyable_transfer_items)
+			return notify_error('MOD_MP_TRANSFER_DESTROY_ITEM_FIRST');
+
 		if (state.transfer_inventory.length > 0) {
 			await refresh_guild_state();
 			queue_modal('MOD_MP_TITLE_SEND_GIFT', 'gift-friend-modal', 'assets/media/bank/present.png', {
@@ -1479,7 +1516,7 @@ const state = ui.createStore({
 	async open_transfer_data_page() {
 		state.hide_online_dropdown();
 		await open_transfer_page({
-			refresh_events: get_client_events,
+			refresh_events: () => get_client_events(false),
 			refresh_guild: refresh_guild_state,
 			update_contents: update_transfer_contents,
 			navigate: () => changePage(game.pages.getObjectByID('multiplayer:Transfer_Items'))
@@ -1498,8 +1535,9 @@ const state = ui.createStore({
 		changePage(game.pages.getObjectByID('multiplayer:Guild'));
 	},
 
-	show_options_modal() {
+	async show_options_modal() {
 		this.hide_online_dropdown();
+		await refresh_identities();
 		const member = this.guild_members.find(entry => entry.client_id === this.guild_client_id) ?? {
 			client_id: this.guild_client_id,
 			display_name: this.profile_display_name,
@@ -1510,6 +1548,78 @@ const state = ui.createStore({
 			status_available: false
 		};
 		this.show_member_actions(member);
+	},
+
+	open_identities_from_options() {
+		this.close_modal();
+		setTimeout(() => this.show_identities_modal(), 0);
+	},
+
+	show_identities_modal() {
+		this.selected_identity = null;
+		queue_modal('MOD_MP_IDENTITIES_TITLE', 'identities-modal', 'assets/multiplayer.svg', {
+			showConfirmButton: false
+		});
+	},
+
+	show_identity_actions(identity) {
+		this.selected_identity = identity;
+		this.close_modal();
+		setTimeout(() => queue_modal(identity.display_name, 'identity-actions-modal',
+			this.get_avatar_icon(identity.icon_id), { showConfirmButton: false }, false, false), 0);
+	},
+
+	back_to_identities() {
+		this.close_modal();
+		setTimeout(() => this.show_identities_modal(), 0);
+	},
+
+	show_identity_deletion_confirmation() {
+		this.close_modal();
+		setTimeout(() => queue_modal('MOD_MP_IDENTITY_DELETE_CONFIRM_TITLE', 'identity-delete-confirm-modal',
+			'assets/multiplayer.svg', { showConfirmButton: false }), 0);
+	},
+
+	format_identity_time(timestamp) {
+		return new Date(timestamp).toLocaleString();
+	},
+
+	async schedule_identity_deletion(event) {
+		if (!this.selected_identity || is_button_spinning(event.currentTarget))
+			return;
+		show_button_spinner(event.currentTarget);
+		let res = null;
+		try {
+			res = await api_post('/api/identities/delete', { client_id: this.selected_identity.client_id });
+		} catch (e) {
+			error('failed to schedule identity deletion (%s)', e);
+		}
+		if (!res?.success) {
+			hide_button_spinner(event.currentTarget);
+			return show_modal_error(getLangString('MOD_MP_GENERIC_ERR'));
+		}
+		await refresh_identities();
+		this.close_modal();
+		setTimeout(() => this.show_identities_modal(), 0);
+	},
+
+	async cancel_identity_deletion(event) {
+		if (!this.selected_identity || is_button_spinning(event.currentTarget))
+			return;
+		show_button_spinner(event.currentTarget);
+		let res = null;
+		try {
+			res = await api_post('/api/identities/delete/cancel', { client_id: this.selected_identity.client_id });
+		} catch (e) {
+			error('failed to cancel identity deletion (%s)', e);
+		}
+		if (!res?.success) {
+			hide_button_spinner(event.currentTarget);
+			return show_modal_error(getLangString('MOD_MP_GENERIC_ERR'));
+		}
+		await refresh_identities();
+		this.close_modal();
+		setTimeout(() => this.show_identities_modal(), 0);
 	},
 
 	show_member_actions(member) {
@@ -1651,6 +1761,10 @@ const state = ui.createStore({
 
 	transfer_return_all() {
 		return_all_transfer_inventory();
+	},
+
+	transfer_destroy_selected() {
+		destroy_selected_transfer_inventory();
 	},
 	// #endregion
 
@@ -2513,6 +2627,22 @@ function error(message, ...params) {
 	console.error(LOG_PREFIX + message, ...params);
 }
 
+function is_local_item_resolved(item_id) {
+	return item_visibility.is_item_resolved(item_id, id => game.items.getObjectByID(id));
+}
+
+function filter_local_resolved_items(items, get_item_id) {
+	return item_visibility.filter_resolved_items(items, get_item_id, is_local_item_resolved);
+}
+
+function has_local_unresolved_item(items, get_item_id) {
+	return item_visibility.has_unresolved_item(items, get_item_id, is_local_item_resolved);
+}
+
+function get_local_item_namespaces() {
+	return item_visibility.get_resolved_item_namespaces([...game.items.registeredObjects]);
+}
+
 function add_bank_item(item_id, amount) {
 	if (item_id === 'melvorD:GP')
 		game.gp.add(amount);
@@ -2632,9 +2762,6 @@ async function market_create_listing(item, item_qty, item_sell_price) {
 	if (game.bank.getQty(item) < item_qty)
 		return notify_error('MOD_MP_MARKET_NOT_ENOUGH_ITEM');
 
-	if (item.isModded)
-		return notify_error('MOD_MP_MARKET_CANNOT_SELL_MODDED');
-
 	const res = await api_post('/api/market/sell', {
 		item_id: item.id,
 		item_qty,
@@ -2659,7 +2786,10 @@ async function update_market_listings() {
 	state.market_listings_loading = true;
 
 	const res = await api_get('/api/market/listings');
-	state.market_listings = res?.items ?? [];
+	state.market_listings = (res?.items ?? []).map(item => ({
+		...item,
+		unresolved: !is_local_item_resolved(item.item_id)
+	}));
 	state.market_listings_loading = false;
 }
 
@@ -2671,7 +2801,8 @@ async function update_market_search() {
 
 	const data = {
 		page: state.market_current_page,
-		sort: state.market_sort_direction
+		sort: state.market_sort_direction,
+		item_namespaces: get_local_item_namespaces()
 	};
 
 	if (state.market_filter_item !== null)
@@ -2679,8 +2810,11 @@ async function update_market_search() {
 
 	const res = await api_post('/api/market/search', data);
 	if (res?.success) {
-		state.market_total_items = res.total_items;
-		state.market_results = res.items;
+		const visible_items = filter_local_resolved_items(res.items, item => item.item_id);
+		const page = paginate_market_results(visible_items, state.market_current_page, MARKET_ITEMS_PER_PAGE);
+		state.market_current_page = page.current_page;
+		state.market_total_items = page.total_items;
+		state.market_results = page.items;
 	} else {
 		state.market_results = [];
 		state.market_total_items = 0;
@@ -2692,9 +2826,6 @@ async function update_market_search() {
 function load_market_filter_items() {
 	state.market_filter_items = [...game.items.registeredObjects].map(e => e[1]).filter(item => {
 		if (item.category === '')
-			return false;
-
-		if (item.isModded)
 			return false;
 
 		return true;
@@ -2820,13 +2951,53 @@ async function request_charity_tree_contents(force_reload = false) {
 
 	const res = await api_get('/api/charity/contents');
 	if (Array.isArray(res?.items))
-		state.charity_tree_inventory = res.items;
+		state.charity_tree_inventory = filter_local_resolved_items(res.items, item => item.id);
 
 	state.charity_tree_loading = false;
 }
 // #endregion
 
 // #region TRANSFER FUNCTIONS
+async function apply_gift_contents(gift, gift_data) {
+	if (has_local_unresolved_item(gift_data.items, item => item.item_id)) {
+		gift.data = null;
+
+		if ((gift_data.flags & GIFT_FLAG_RETURNED) === 0) {
+			const returned = await api_post('/api/gift/decline', { gift_id: gift.id });
+			return returned?.success === true;
+		}
+
+		return false;
+	}
+
+	gift.data = gift_data;
+	return false;
+}
+
+async function reconcile_pending_gifts() {
+	const pending_gifts = state.gifts.filter(gift => gift.data === null);
+	if (pending_gifts.length === 0)
+		return;
+
+	const res = await api_post('/api/transfers/get_contents', {
+		gift_ids: pending_gifts.map(gift => gift.id),
+		trade_ids: [],
+		resolved_trade_ids: []
+	});
+	if (res === null)
+		return;
+
+	const returned_gift_ids = [];
+	for (const gift of pending_gifts) {
+		const gift_data = res.gifts[gift.id];
+		if (gift_data && await apply_gift_contents(gift, gift_data))
+			returned_gift_ids.push(gift.id);
+	}
+
+	if (returned_gift_ids.length > 0)
+		state.gifts = state.gifts.filter(gift => !returned_gift_ids.includes(gift.id));
+}
+
 async function update_transfer_contents() {
 	if (state.is_updating_transfer_contents)
 		return;
@@ -2845,11 +3016,14 @@ async function update_transfer_contents() {
 		});
 
 		if (res !== null) {
+			const returned_gift_ids = [];
 			for (const gift of state.gifts) {
 				const gift_data = res.gifts[gift.id];
-				if (gift_data)
-					gift.data = gift_data;
+				if (gift_data && await apply_gift_contents(gift, gift_data))
+					returned_gift_ids.push(gift.id);
 			}
+			if (returned_gift_ids.length > 0)
+				state.gifts = state.gifts.filter(gift => !returned_gift_ids.includes(gift.id));
 
 			for (const trade of state.trades) {
 				const trade_data = res.trades[trade.trade_id];
@@ -2869,10 +3043,13 @@ async function update_transfer_contents() {
 }
 
 function return_all_transfer_inventory() {
-	for (const entry of state.transfer_inventory)
+	const returnable = state.transfer_inventory.filter(entry => entry.destroyable !== true);
+	for (const entry of returnable)
 		add_bank_item(entry.id, entry.qty);
 
-	clear_transfer_inventory();
+	state.transfer_inventory = state.transfer_inventory.filter(entry => entry.destroyable === true);
+	state.selected_transfer_item_id = '';
+	persist_transfer_inventory();
 	update_transfer_inventory_nav();
 }
 
@@ -2881,14 +3058,31 @@ function return_selected_transfer_inventory() {
 	if (selected_id.length > 0) {
 		const entry = state.transfer_inventory.find(e => e.id === selected_id);
 		if (entry) {
+			if (entry.destroyable === true)
+				return notify_error('MOD_MP_TRANSFER_DESTROY_ITEM_ONLY');
+
 			add_bank_item(selected_id, entry.qty);
 			state.transfer_inventory = state.transfer_inventory.filter(e => e.id !== selected_id);
+			state.selected_transfer_item_id = '';
 
 			update_transfer_inventory_nav();
 		}
 	} else {
 		notify_error('MOD_MP_TRANSFER_NO_ITEM_SELECTED');
 	}
+}
+
+function destroy_selected_transfer_inventory() {
+	const selected_id = state.selected_transfer_item_id;
+	const entry = state.transfer_inventory.find(item => item.id === selected_id);
+	if (!entry || entry.destroyable !== true)
+		return notify_error('MOD_MP_TRANSFER_DESTROY_ITEM_ONLY');
+
+	state.transfer_inventory = state.transfer_inventory.filter(item => item.id !== selected_id);
+	state.selected_transfer_item_id = '';
+	persist_transfer_inventory();
+	update_transfer_inventory_nav();
+	notify('MOD_MP_TRANSFER_ITEM_DESTROYED');
 }
 
 function update_transfer_inventory_nav() {
@@ -2900,6 +3094,8 @@ function update_transfer_inventory_nav() {
 function add_gp_to_transfer(amount) {
 	if (!state.is_guild_member)
 		return notify_error('MOD_MP_GUILD_REQUIRED');
+	if (state.has_destroyable_transfer_items)
+		return notify_error('MOD_MP_TRANSFER_DESTROY_ITEM_FIRST');
 
 	if (game.gp.amount < amount)
 		return notify_error('MOD_MP_INSUFFICIENT_GP_ERR');
@@ -2922,11 +3118,37 @@ function add_gp_to_transfer(amount) {
 	persist_transfer_inventory();
 }
 
+function add_destroyable_item_to_transfer_inventory(item_id, qty) {
+	const existing_entry = state.transfer_inventory.find(entry => entry.id === item_id);
+	if (existing_entry) {
+		if (existing_entry.destroyable !== true)
+			return false;
+		existing_entry.qty += qty;
+		existing_entry.destroyable = true;
+	} else {
+		if (state.transfer_inventory.length >= TRANSFER_INVENTORY_MAX_LIMIT)
+			return false;
+
+		state.transfer_inventory.push({
+			id: item_id,
+			qty,
+			destroyable: true
+		});
+	}
+
+	state.selected_transfer_item_id = item_id;
+	persist_transfer_inventory();
+	update_transfer_inventory_nav();
+	return true;
+}
+
 function add_item_to_transfer_inventory(item, qty) {
 	if (!state.is_guild_member)
 		return notify_error('MOD_MP_GUILD_REQUIRED');
 
 	const existing_entry = state.transfer_inventory.find(e => e.id === item.id);
+	if (existing_entry?.destroyable)
+		return notify_error('MOD_MP_TRANSFER_DESTROY_ITEM_FIRST');
 	if (existing_entry) {
 		existing_entry.qty += qty;
 	} else {
@@ -3035,7 +3257,7 @@ async function api_get(endpoint) {
 	return null;
 }
 
-async function api_post(endpoint, payload) {
+async function api_post_response(endpoint, payload) {
 	const res = await fetch(server_host + endpoint, {
 		method: 'POST',
 		body: JSON.stringify(payload),
@@ -3044,11 +3266,62 @@ async function api_post(endpoint, payload) {
 			'X-Session-Token': session_token ?? undefined
 		}
 	});
+	let json = null;
+	if (res.headers.get('Content-Type')?.includes('application/json')) {
+		try {
+			json = await res.json();
+		} catch (e) {
+			error('failed to parse API response for %s (%s)', endpoint, e);
+		}
+	}
+	return { response: res, json };
+}
 
-	if (res.status === 200)
-		return res.json();
+async function api_post(endpoint, payload) {
+	const result = await api_post_response(endpoint, payload);
+	if (result.response.status === 200)
+		return result.json;
 
 	return null;
+}
+
+async function refresh_identities() {
+	if (!state.is_connected)
+		return;
+	state.identities_loading = true;
+	state.identities_error = '';
+	try {
+		const res = await api_get('/api/identities');
+		if (res === null)
+			throw new Error('identity list unavailable');
+		state.identities = Array.isArray(res.identities) ? res.identities : [];
+	} catch (e) {
+		error('failed to refresh linked identities (%s)', e);
+		state.identities_error = getLangString('MOD_MP_IDENTITIES_LOAD_FAILED');
+	} finally {
+		state.identities_loading = false;
+	}
+}
+
+function queue_identity_notice(type, data = {}) {
+	pending_identity_notices.push({ type, data });
+	show_pending_identity_notices();
+}
+
+function show_pending_identity_notices() {
+	if (!interface_ready)
+		return;
+	for (const notice of pending_identity_notices.splice(0)) {
+		if (notice.type === 'account_changed') {
+			queue_modal('MOD_MP_IDENTITY_ACCOUNT_CHANGED_TITLE', 'identity-account-changed-modal');
+		} else if (notice.type === 'deletion_cancelled') {
+			state.identity_notice_requester = notice.data.requester_display_name;
+			state.identity_notice_time = new Date(notice.data.requested_at).toLocaleString();
+			queue_modal('MOD_MP_IDENTITY_DELETION_CANCELLED_TITLE', 'identity-deletion-cancelled-modal');
+		} else if (notice.type === 'recovered') {
+			queue_modal('MOD_MP_IDENTITY_RECOVERED_TITLE', 'identity-recovered-modal');
+		}
+	}
 }
 
 function set_session_token(token) {
@@ -3250,7 +3523,7 @@ async function refresh_council(page = 0, append = false) {
 	state.council_loading = false;
 }
 
-async function get_client_events() {
+async function get_client_events(reconcile_gifts = true) {
 	const res = await api_get('/api/events');
 	if (res !== null) {
 		state.events.friend_requests = res.friend_requests;
@@ -3314,6 +3587,8 @@ async function get_client_events() {
 
 		if (state.is_transfer_page_visible)
 			setTimeout(() => update_transfer_contents(), 1);
+		else if (reconcile_gifts)
+			void reconcile_pending_gifts();
 		if (res.banishment_return_pending) {
 			await reconcile_banishment_returns();
 			await refresh_guild_state();
@@ -3340,11 +3615,14 @@ export async function setup(ctx) {
 	const market_results = await ctx.loadModule('market-results.mjs');
 	const banishment_returns = await ctx.loadModule('banishment-returns.mjs');
 	const server_config = await ctx.loadModule('server-config.mjs');
+	identity_bindings = await ctx.loadModule('identity-bindings.mjs');
+	item_visibility = await ctx.loadModule('item-visibility.mjs');
 	modal_queue_guard = new ModalQueueGuard(template_id =>
 		document.querySelector(`mp-modal-component[data-template-id="${template_id}"]`) !== null
 	);
 	open_transfer_page = transfer_page.open_transfer_page;
 	remove_sold_out_market_result = market_results.remove_sold_out_market_result;
+	paginate_market_results = market_results.paginate_market_results;
 	apply_banishment_claim = banishment_returns.apply_banishment_claim;
 	resolve_server_config = server_config.resolve_server_config;
 	get_custom_server_validation_error = server_config.get_custom_server_validation_error;
@@ -3385,6 +3663,7 @@ export async function setup(ctx) {
 	sidebar.category('Multiplayer', { before: 'Combat' });
 	
 	ctx.onInterfaceReady(() => {
+		interface_ready = true;
 		const $button_tray = document.getElementById('header-theme').querySelector('.align-items-right');
 
 		make_template('online-button', $button_tray);
@@ -3401,6 +3680,7 @@ export async function setup(ctx) {
 		watch_equipment_view_actions();
 		watch_status_changes(ctx);
 		show_pending_banishment_notice();
+		show_pending_identity_notices();
 		
 		on_page_toggle('mp-guild-page', refresh_guild_page, true);
 		on_page_toggle('mp-chat-page', is_visible => {
@@ -3649,74 +3929,122 @@ async function start_multiplayer_session() {
 		return;
 
 	is_connecting = true;
+	try {
+		const melvor_cloud_manager = typeof cloudManager === 'undefined' ? globalThis.cloudManager : cloudManager;
+		const account = identity_bindings.read_melvor_account(melvor_cloud_manager, globalThis.localStorage);
+		const stored_bindings = get_instance_storage_item('identity_bindings');
+		const normalized_bindings = identity_bindings.normalize_identity_bindings(stored_bindings);
+		if (account === null && normalized_bindings.entries.length > 0) {
+			notify_error('MOD_MP_MULTIPLAYER_CONNECTION_ERR');
+			error('Melvor account context is unavailable; refusing to use an ambiguous legacy identity');
+			return;
+		}
+		const binding = identity_bindings.find_identity_binding(stored_bindings, account);
+		const legacy_identifier = get_instance_storage_item('client_identifier');
+		const legacy_key = get_instance_storage_item('client_key');
+		const legacy_credentials = typeof legacy_identifier === 'string' && typeof legacy_key === 'string'
+			? { client_identifier: legacy_identifier, client_key: legacy_key }
+			: null;
+		const credentials = binding ?? legacy_credentials;
+		const using_legacy_credentials = binding === null && legacy_credentials !== null;
 
-	const client_identifier = get_instance_storage_item('client_identifier');
-	const client_key = get_instance_storage_item('client_key');
-	const display_name = game.characterName;
+		if (credentials === null) {
+			await register_multiplayer_identity(account, account !== null && normalized_bindings.entries.length > 0);
+			return;
+		}
 
-	if (client_identifier !== undefined && client_key !== undefined) {
 		log('existing client identity found, authenticating session...');
-		const auth_res = await api_post('/api/authenticate', {
-			client_identifier,
-			client_key
+		const auth = await api_post_response('/api/authenticate', {
+			client_identifier: credentials.client_identifier,
+			client_key: credentials.client_key,
+			...account
 		});
-
-		if (auth_res !== null) {
-			set_session_token(auth_res.session_token);
-			state.profile_display_name = auth_res.display_name;
-			state.profile_icon = auth_res.icon_id;
-			state.equipment_visible = auth_res.equipment_visible !== false;
-			state.status_visible = auth_res.status_visible !== false;
-			state.messaging_enabled = auth_res.chat?.messaging_enabled !== false;
-			state.chat_client_id = auth_res.chat?.client_id ?? null;
-			if (auth_res.chat?.budget)
-				state.chat_budget = auth_res.chat.budget;
-
-			start_status_observer();
-			start_client_event_polling();
-			refresh_guild_state();
-			schedule_equipment_sync(0);
-			schedule_status_sync(0);
-		} else {
-			notify_error('MOD_MP_MULTIPLAYER_CONNECTION_ERR');
-			error('failed to authenticate client, multiplayer features not available');
+		if (auth.response.status === 200 && auth.json !== null) {
+			if (account !== null)
+				store_account_identity_binding(account, { ...credentials, friend_code: auth.json.friend_code });
+			activate_multiplayer_identity(auth.json);
+			if (auth.json.deletion_cancelled)
+				queue_identity_notice('deletion_cancelled', auth.json.deletion_cancelled);
+			if (auth.json.identity_recovered)
+				queue_identity_notice('recovered');
+			return;
 		}
-	} else {
-		log('missing client identity, registering new identity...');
-		const client_key = crypto.randomUUID();
 
-		const register_res = await api_post('/api/register', {
-			client_key,
-			display_name
-		});
-
-		if (register_res !== null) {
-			set_instance_storage_item('client_key', client_key);
-			set_instance_storage_item('client_identifier', register_res.client_identifier);
-			set_instance_storage_item('friend_code', register_res.friend_code);
-
-			state.profile_display_name = register_res.display_name;
-			state.profile_icon = register_res.icon_id;
-			state.equipment_visible = register_res.equipment_visible !== false;
-			state.status_visible = register_res.status_visible !== false;
-			state.messaging_enabled = register_res.chat?.messaging_enabled !== false;
-			state.chat_client_id = register_res.chat?.client_id ?? null;
-			if (register_res.chat?.budget)
-				state.chat_budget = register_res.chat.budget;
-
-			set_session_token(register_res.session_token);
-			start_status_observer();
-			start_client_event_polling();
-			refresh_guild_state();
-			schedule_equipment_sync(0);
-			schedule_status_sync(0);
-		} else {
-			notify_error('MOD_MP_MULTIPLAYER_CONNECTION_ERR');
-			error('failed to register client, multiplayer features not available');
+		if (auth.response.status === 409 && auth.json?.identity_status === 'melvor_account_mismatch' &&
+			account !== null && using_legacy_credentials) {
+			await register_multiplayer_identity(account, true);
+			return;
 		}
+
+		notify_error('MOD_MP_MULTIPLAYER_CONNECTION_ERR');
+		error('failed to authenticate client (%d), multiplayer features not available', auth.response.status);
+	} catch (e) {
+		notify_error('MOD_MP_MULTIPLAYER_CONNECTION_ERR');
+		error('failed to start multiplayer session (%s)', e);
+	} finally {
+		is_connecting = false;
+	}
+}
+
+function store_account_identity_binding(account, credentials) {
+	const bindings = identity_bindings.upsert_identity_binding(
+		get_instance_storage_item('identity_bindings'),
+		account,
+		credentials
+	);
+	set_instance_storage_item('identity_bindings', bindings);
+	if (typeof credentials.friend_code === 'string')
+		set_instance_storage_item('friend_code', credentials.friend_code);
+}
+
+async function register_multiplayer_identity(account, account_changed) {
+	log('missing identity for current Melvor account, registering new identity...');
+	const client_key = crypto.randomUUID();
+	const registration = await api_post_response('/api/register', {
+		client_key,
+		display_name: game.characterName,
+		...account
+	});
+	if (registration.response.status !== 200 || registration.json === null) {
+		notify_error('MOD_MP_MULTIPLAYER_CONNECTION_ERR');
+		error('failed to register client (%d), multiplayer features not available', registration.response.status);
+		return false;
 	}
 
-	is_connecting = false;
+	const credentials = {
+		client_identifier: registration.json.client_identifier,
+		client_key,
+		friend_code: registration.json.friend_code
+	};
+	if (account === null) {
+		set_instance_storage_item('client_key', client_key);
+		set_instance_storage_item('client_identifier', registration.json.client_identifier);
+		set_instance_storage_item('friend_code', registration.json.friend_code);
+	} else {
+		store_account_identity_binding(account, credentials);
+	}
+	activate_multiplayer_identity(registration.json);
+	if (account_changed)
+		queue_identity_notice('account_changed');
+	return true;
+}
+
+function activate_multiplayer_identity(response) {
+	set_session_token(response.session_token);
+	state.profile_display_name = response.display_name;
+	state.profile_icon = response.icon_id;
+	state.equipment_visible = response.equipment_visible !== false;
+	state.status_visible = response.status_visible !== false;
+	state.messaging_enabled = response.chat?.messaging_enabled !== false;
+	state.chat_client_id = response.chat?.client_id ?? null;
+	if (response.chat?.budget)
+		state.chat_budget = response.chat.budget;
+	start_status_observer();
+	start_client_event_polling();
+	void refresh_guild_state();
+	void refresh_identities();
+	schedule_equipment_sync(0);
+	schedule_status_sync(0);
 }
 // #endregion
 

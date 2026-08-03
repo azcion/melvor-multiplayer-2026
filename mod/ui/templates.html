@@ -68,6 +68,9 @@
 			<button type="button" class="btn btn-primary" @click="state.open_icon_from_options()">
 				<lang-string lang-id="MOD_MP_MENU_CHANGE_ICON"></lang-string>
 			</button>
+			<button type="button" class="btn btn-primary" v-if="state.identities.length > 0" @click="state.open_identities_from_options()">
+				<lang-string lang-id="MOD_MP_IDENTITIES_TITLE"></lang-string>
+			</button>
 			<label class="mp-equipment-visibility">
 				<input type="checkbox" :checked="state.equipment_visible" :disabled="state.equipment_visibility_pending" @click="state.set_equipment_visibility($event)">
 				<span><lang-string lang-id="MOD_MP_EQUIPMENT_VISIBILITY"></lang-string></span>
@@ -106,6 +109,66 @@
 		<div class="text-danger" v-if="state.member_actions_error">{{ state.member_actions_error }}</div>
 	</div>
 </template>
+<template id="template-mp-identities-modal">
+	<div class="mp-modal-text"><lang-string lang-id="MOD_MP_IDENTITIES_INFO"></lang-string></div>
+	<div class="mp-identity-list">
+		<button type="button" class="btn btn-outline-primary mp-identity-row" v-for="identity in state.identities" @click="state.show_identity_actions(identity)">
+			<img class="skill-icon-xs" :src="state.get_avatar_icon(identity.icon_id)">
+			<span>{{ identity.display_name }}</span>
+			<span class="badge badge-warning ml-auto" v-if="identity.deletion"><lang-string lang-id="MOD_MP_IDENTITY_DELETION_PENDING"></lang-string></span>
+		</button>
+	</div>
+	<div class="text-danger mt-2" v-if="state.identities_error">{{ state.identities_error }}</div>
+	<div class="mp-button-tray">
+		<button type="button" class="btn btn-danger" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
+	</div>
+</template>
+<template id="template-mp-identity-actions-modal">
+	<div v-if="state.selected_identity">
+		<div class="mp-modal-text" v-if="state.selected_identity?.deletion">
+			<lang-string lang-id="MOD_MP_IDENTITY_DELETION_SCHEDULED"></lang-string>
+			<span>{{ state.format_identity_time(state.selected_identity?.deletion?.execute_at) }}</span>
+		</div>
+		<div class="mp-identity-actions">
+			<button type="button" class="btn btn-danger" v-if="!state.selected_identity?.deletion" @click="state.show_identity_deletion_confirmation()">
+				<lang-string lang-id="MOD_MP_IDENTITY_DELETE_ACTION"></lang-string>
+			</button>
+			<button type="button" class="btn btn-warning" v-else-if="state.selected_identity?.deletion?.can_cancel" @click="state.cancel_identity_deletion($event)">
+				<span class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></span>
+				<lang-string lang-id="MOD_MP_IDENTITY_CANCEL_DELETION"></lang-string>
+			</button>
+			<div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_IDENTITY_DELETION_OTHER_REQUESTER"></lang-string></div>
+			<button type="button" class="btn btn-secondary" @click="state.back_to_identities()"><lang-string lang-id="MOD_MP_BUTTON_BACK"></lang-string></button>
+		</div>
+		<div id="mp-modal-error" class="d-none text-danger mt-2"></div>
+	</div>
+</template>
+<template id="template-mp-identity-delete-confirm-modal">
+	<div class="mp-modal-text" v-if="state.selected_identity">
+		<lang-string-f lang-id="MOD_MP_IDENTITY_DELETE_CONFIRM_INFO" :lang-arg-1="state.selected_identity?.display_name"></lang-string-f>
+		<lang-string lang-id="MOD_MP_IDENTITY_DELETE_CONFIRM_EFFECTS"></lang-string>
+		<lang-string lang-id="MOD_MP_IDENTITY_DELETE_CONFIRM_CANCEL"></lang-string>
+		<div id="mp-modal-error" class="d-none text-danger"></div>
+	</div>
+	<div class="mp-button-tray">
+		<button type="button" class="btn btn-danger" @click="state.schedule_identity_deletion($event)">
+			<span class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></span>
+			<lang-string lang-id="MOD_MP_IDENTITY_DELETE_ACTION"></lang-string>
+		</button>
+		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
+	</div>
+</template>
+<template id="template-mp-identity-account-changed-modal">
+	<div class="mp-modal-text"><lang-string lang-id="MOD_MP_IDENTITY_ACCOUNT_CHANGED_INFO"></lang-string></div>
+</template>
+<template id="template-mp-identity-deletion-cancelled-modal">
+	<div class="mp-modal-text">
+		<lang-string-f lang-id="MOD_MP_IDENTITY_DELETION_CANCELLED_INFO" :lang-arg-1="state.identity_notice_requester" :lang-arg-2="state.identity_notice_time"></lang-string-f>
+	</div>
+</template>
+<template id="template-mp-identity-recovered-modal">
+	<div class="mp-modal-text"><lang-string lang-id="MOD_MP_IDENTITY_RECOVERED_INFO"></lang-string></div>
+</template>
 <template id="template-mp-chat-page">
 	<div class="content d-none" id="mp-chat-page">
 		<div class="mp-chat-layout">
@@ -139,8 +202,8 @@
 				<div class="block-header block-header-default mp-chat-header">
 					<button type="button" class="btn btn-sm btn-secondary" @click="state.close_chat_conversation()"><i class="fa fa-chevron-left mr-1"></i><lang-string lang-id="MOD_MP_CHAT_BACK"></lang-string></button>
 					<button type="button" class="mp-chat-participant" @click="state.show_chat_actions_modal()" aria-haspopup="dialog">
-						<img class="skill-icon-xs" :src="state.get_avatar_icon(state.selected_chat_conversation.participant.icon_id)">
-						<span class="font-w600">{{ state.selected_chat_conversation.participant.display_name }}</span>
+						<img class="skill-icon-xs" :src="state.get_avatar_icon(state.selected_chat_conversation?.participant?.icon_id)">
+						<span class="font-w600">{{ state.selected_chat_conversation?.participant?.display_name }}</span>
 					</button>
 				</div>
 				<div class="block-content text-center" v-if="state.chat_has_more">
@@ -940,7 +1003,11 @@
 				<div class="mp-market-search-result mp-market-listing-result" v-for="item in state.market_listings">
 					<div class="mp-market-item-col">
 						<img class="mp-market-item-icon mr-3" :src="state.get_item_icon(item.item_id)">
-						<span>{{ state.get_item_name(item.item_id) }}</span>
+						<span v-if="!item.unresolved">{{ state.get_item_name(item.item_id) }}</span>
+						<span v-else>
+							<lang-string lang-id="MOD_MP_MARKET_UNKNOWN_ITEM"></lang-string>
+							<small class="d-block">{{ item.item_id }}</small>
+						</span>
 					</div>
 					<div class="mp-market-item-col">
 						<div class="mp-market-item-bar">
@@ -959,14 +1026,22 @@
 						<img class="skill-icon-xxs ml-2" src="assets/media/main/coins.svg">
 					</div>
 					<div class="mp-market-item-col">
-						<button type="button" class="btn btn-success m-1" @click="state.resolve_market_listing($event, item, false)" :class="{ disabled: ((item.price * (item.qty - item.available)) - item.payout) == 0 }" :key="item.id">
-							<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-							<lang-string lang-id="MOD_MP_BUTTON_MARKET_CLAIM_PAYOUT"></lang-string>
-						</button>
-						<button type="button" class="btn btn-danger m-1" @click="state.resolve_market_listing($event, item, true)" :key="item.id">
-							<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-							<lang-string lang-id="MOD_MP_BUTTON_MARKET_CANCEL"></lang-string>
-						</button>
+						<template v-if="item.unresolved">
+							<button type="button" class="btn btn-danger m-1" @click="state.resolve_market_listing($event, item, 'destroy')" :key="item.id">
+								<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+								<lang-string lang-id="MOD_MP_BUTTON_MARKET_DESTROY"></lang-string>
+							</button>
+						</template>
+						<template v-else>
+							<button type="button" class="btn btn-success m-1" @click="state.resolve_market_listing($event, item, 'payout')" :class="{ disabled: ((item.price * (item.qty - item.available)) - item.payout) == 0 }" :key="item.id">
+								<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+								<lang-string lang-id="MOD_MP_BUTTON_MARKET_CLAIM_PAYOUT"></lang-string>
+							</button>
+							<button type="button" class="btn btn-danger m-1" @click="state.resolve_market_listing($event, item, 'cancel')" :key="item.id">
+								<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+								<lang-string lang-id="MOD_MP_BUTTON_MARKET_CANCEL"></lang-string>
+							</button>
+						</template>
 					</div>
 				</div>
 			</div>
@@ -1229,24 +1304,30 @@
 							</mp-item-icon>
 						</div>
 					</div>
+					<div class="p-3 text-warning" v-if="state.has_destroyable_transfer_items">
+						<lang-string lang-id="MOD_MP_TRANSFER_DESTROY_ONLY"></lang-string>
+					</div>
 					<div class="p-3 mp-transfer-buttons">
-						<button type="button" class="btn btn-success m-1" v-if="state.is_guild_member" @click="state.show_add_gp_modal()">
+						<button type="button" class="btn btn-success m-1" v-if="state.is_guild_member && !state.has_destroyable_transfer_items" @click="state.show_add_gp_modal()">
 							<lang-string lang-id="MOD_MP_BUTTON_ADD_GP"></lang-string>
 						</button>
-						<button type="button" class="btn btn-success m-1" v-if="state.is_guild_member" @click="state.create_trade()">
+						<button type="button" class="btn btn-success m-1" v-if="state.is_guild_member && !state.has_destroyable_transfer_items" @click="state.create_trade()">
 							<lang-string-f lang-id="MOD_MP_BUTTON_CREATE_TRADE" :lang-arg-1="state.transfer_inventory.length"></lang-string-f>
 						</button>
-						<button type="button" class="btn btn-success m-1" v-if="state.is_guild_member" @click="state.gift_friend()">
+						<button type="button" class="btn btn-success m-1" v-if="state.is_guild_member && !state.has_destroyable_transfer_items" @click="state.gift_friend()">
 							<lang-string-f lang-id="MOD_MP_BUTTON_GIFT_ITEMS" :lang-arg-1="state.transfer_inventory.length"></lang-string-f>
 						</button>
-						<button type="button" class="btn btn-success m-1" v-if="state.is_guild_member" @click="state.donate_items($event)">
+						<button type="button" class="btn btn-success m-1" v-if="state.is_guild_member && !state.has_destroyable_transfer_items" @click="state.donate_items($event)">
 							<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 							<lang-string-f lang-id="MOD_MP_BUTTON_DONATE_ITEMS" :lang-arg-1="state.transfer_inventory.length"></lang-string-f>
 						</button>
-						<button type="button" class="btn btn-danger m-1" @click="state.transfer_return_selected()">
+						<button type="button" class="btn btn-warning m-1" v-if="state.selected_transfer_item_is_destroyable" @click="state.transfer_destroy_selected()">
+							<lang-string lang-id="MOD_MP_BUTTON_DESTROY_ITEM"></lang-string>
+						</button>
+						<button type="button" class="btn btn-danger m-1" v-if="!state.selected_transfer_item_is_destroyable" @click="state.transfer_return_selected()">
 							<lang-string lang-id="MOD_MP_BUTTON_RETURN_SELECTED"></lang-string>
 						</button>
-						<button type="button" class="btn btn-danger m-1" @click="state.transfer_return_all()">
+						<button type="button" class="btn btn-danger m-1" v-if="!state.has_destroyable_transfer_items" @click="state.transfer_return_all()">
 							<lang-string lang-id="MOD_MP_BUTTON_RETURN_ALL"></lang-string>
 						</button>
 					</div>
