@@ -11,6 +11,51 @@ type OperationResult = {
 };
 
 describe('concurrent persistence invariants', () => {
+	test('reserves one Assault and credits one settlement under concurrent retries', async () => {
+		const member = await register_guild_client('Concurrent Raider', 'Concurrent Raid');
+		await post_json('/api/raids/activate', {}, member.session_token);
+		const reservation_requests = await Promise.all(Array.from({ length: 10 }, () => post_json<{
+			assault_id?: string;
+			settlement_key?: string;
+			combat_deadline?: number;
+		}>('/api/raids/assaults/reserve', {
+			tier: 2,
+			loaded_session_id: crypto.randomUUID()
+		}, member.session_token)));
+		const reservations = reservation_requests.map(result => result.json).filter(result => result.assault_id !== undefined);
+		expect(reservations).toHaveLength(1);
+		const assault = reservations[0];
+		const occurred_at = Math.min(Date.now(), assault.combat_deadline as number);
+		const settlements = await Promise.all(Array.from({ length: 10 }, () => post_json<{
+			success?: boolean;
+			credited_progress?: number;
+		}>('/api/raids/assaults/settle', {
+			assault_id: assault.assault_id,
+			settlement_key: assault.settlement_key,
+			outcome: 'success',
+			occurred_at
+		}, member.session_token)));
+		expect(settlements.every(result => result.json.success)).toBe(true);
+		const state = await get_json_with_session<{
+			raid: {
+				member: {
+					eligible: boolean;
+					contribution: number;
+					highest_tier: number;
+					successful_assaults: number;
+					assaults: number;
+				};
+			};
+		}>('/api/raids/state', member.session_token);
+		expect(state.json.raid.member).toEqual({
+			eligible: true,
+			contribution: 1_800,
+			highest_tier: 2,
+			successful_assaults: 1,
+			assaults: 2
+		});
+	});
+
 	test('creates and charges one Message for concurrent idempotent sends', async () => {
 		const pair = await make_guildmates('Concurrent Chat Sender', 'Concurrent Chat Recipient');
 		const started = await post_json<{

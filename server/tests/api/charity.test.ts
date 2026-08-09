@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 import { make_guild_group, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post, post_json } from '../support/http';
+import { db_count, db_run } from '../support/persistence';
 
 type CharityContents = {
 	items: Array<{
 		id: string;
 		qty: number;
+		expires_at: number;
 	}>;
 };
 
@@ -36,9 +38,10 @@ describe('charity API', () => {
 		expect(invalid_quantity.status).toBe(400);
 		expect(malformed_id.status).toBe(400);
 		expect(modded.json.success).toBe(true);
-		expect(await get_charity_contents(client.session_token)).toEqual({
-			items: [{ id: 'exampleMod:Coal_Ore', qty: 1 }]
-		});
+		const contents = await get_charity_contents(client.session_token);
+		expect(contents.items).toHaveLength(1);
+		expect(contents.items[0]).toMatchObject({ id: 'exampleMod:Coal_Ore', qty: 1 });
+		expect(contents.items[0].expires_at).toBeGreaterThan(Date.now() + 3 * 24 * 60 * 60 * 1000);
 	});
 
 	test('merges donations and exposes their truncated quantities', async () => {
@@ -55,9 +58,38 @@ describe('charity API', () => {
 		const contents = await get_charity_contents(client.session_token);
 
 		expect(contents.items).toEqual(expect.arrayContaining([
-			{ id: 'melvorD:Charity_Test_A', qty: 12 },
-			{ id: 'melvorD:Charity_Test_B', qty: 5 }
+			expect.objectContaining({ id: 'melvorD:Charity_Test_A', qty: 12 }),
+			expect.objectContaining({ id: 'melvorD:Charity_Test_B', qty: 5 })
 		]));
+	});
+
+	test('resets a merged stack expiry and removes expired stacks during reads', async () => {
+		const client = await register_guild_client('Charity Expiry Donor');
+		await post_json('/api/charity/donate', {
+			items: [{ id: 'melvorD:Charity_Expiry_A', qty: 3 }]
+		}, client.session_token);
+		await db_run(
+			'UPDATE `charity_items` SET `expires_at` = ? WHERE `guild_id` = ? AND `item_id` = ?',
+			[Date.now() + 1000, client.guild_id, 'melvorD:Charity_Expiry_A']
+		);
+
+		await post_json('/api/charity/donate', {
+			items: [{ id: 'melvorD:Charity_Expiry_A', qty: 2 }]
+		}, client.session_token);
+		let contents = await get_charity_contents(client.session_token);
+		expect(contents.items[0]).toMatchObject({ id: 'melvorD:Charity_Expiry_A', qty: 5 });
+		expect(contents.items[0].expires_at).toBeGreaterThan(Date.now() + 3 * 24 * 60 * 60 * 1000);
+
+		await db_run(
+			'UPDATE `charity_items` SET `expires_at` = ? WHERE `guild_id` = ? AND `item_id` = ?',
+			[Date.now() - 1, client.guild_id, 'melvorD:Charity_Expiry_A']
+		);
+		contents = await get_charity_contents(client.session_token);
+		expect(contents.items).toEqual([]);
+		expect(await db_count(
+			'SELECT COUNT(*) AS `count` FROM `charity_items` WHERE `guild_id` = ?',
+			[client.guild_id]
+		)).toBe(0);
 	});
 
 	test('uses normal and bonus cooldown slots before rejecting another take', async () => {
@@ -121,10 +153,10 @@ describe('charity API', () => {
 		expect(contents.items).not.toContainEqual(expect.objectContaining({
 			id: 'melvorD:Charity_Cooldown_B'
 		}));
-		expect(contents.items).toContainEqual({
+		expect(contents.items).toContainEqual(expect.objectContaining({
 			id: 'melvorD:Charity_Cooldown_C',
 			qty: 13
-		});
+		}));
 	});
 
 	test('isolates donated inventory between guilds', async () => {
@@ -134,10 +166,10 @@ describe('charity API', () => {
 			items: [{ id: 'melvorD:Isolated_Charity_Item', qty: 17 }]
 		}, first.session_token);
 
-		expect((await get_charity_contents(first.session_token)).items).toContainEqual({
+		expect((await get_charity_contents(first.session_token)).items).toContainEqual(expect.objectContaining({
 			id: 'melvorD:Isolated_Charity_Item',
 			qty: 17
-		});
+		}));
 		expect((await get_charity_contents(second.session_token)).items).toEqual([]);
 	});
 });

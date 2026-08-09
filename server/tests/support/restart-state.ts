@@ -16,6 +16,7 @@ export type RestartState = {
 	equipment_slots: Array<{ slot_id: string; item_id: string }>;
 	status_skills: Array<{ skill_id: string; level: number }>;
 	status_activity: { type: 'skill'; skill_id: string; action_id: string };
+	gp_amount: number;
 	chat_conversation_id: number;
 	chat_message_id: number;
 	active_petition_id: number;
@@ -23,6 +24,8 @@ export type RestartState = {
 	banished: RegisteredClient;
 	banishment_petition_id: number;
 	banishment_item_id: string;
+	raid_id: number;
+	raid_assault_id: string;
 };
 
 export async function read_restart_state(): Promise<RestartState> {

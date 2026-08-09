@@ -6,27 +6,55 @@ const root = new URL('../../', import.meta.url);
 
 test('routes profile controls through one Options member-actions modal', async () => {
 	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
-	const dropdown = templates.slice(
-		templates.indexOf('<template id="template-mp-dropdown">'),
+	const account_options = templates.slice(
+		templates.indexOf('<template id="template-mp-account-options">'),
 		templates.indexOf('<template id="template-mp-member-actions-modal">')
 	);
 
-	assert.match(dropdown, /state\.show_options_modal\(\)/);
-	assert.doesNotMatch(dropdown, /state\.show_display_name_modal\(\)/);
-	assert.doesNotMatch(dropdown, /state\.show_icon_modal\(\)/);
+	assert.match(account_options, /MOD_MP_MENU_HEADER/);
+	assert.match(account_options, /state\.show_options_modal\(\)/);
+	assert.doesNotMatch(account_options, /state\.show_display_name_modal\(\)/);
+	assert.doesNotMatch(account_options, /state\.show_icon_modal\(\)/);
+	assert.doesNotMatch(templates, /template-mp-online-button|template-mp-dropdown|mp-online-dropdown/);
 	assert.match(templates, /template-mp-member-actions-modal/);
 	assert.match(templates, /MOD_MP_EQUIPMENT_VISIBILITY/);
-	assert.match(templates, /v-if="state\.is_guild_member"[\s\S]*MOD_MP_GUILD_DANGER_ZONE/);
+	assert.match(templates, /v-show="state\.is_guild_member"[\s\S]*MOD_MP_GUILD_DANGER_ZONE/);
+});
+
+test('moves the multiplayer entry point into the vanilla account menu', async () => {
+	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const style = await readFile(new URL('mod/ui/style.css', root), 'utf8');
+
+	assert.match(main, /setup_account_menu\(\);/);
+	assert.match(main, /getElementById\('page-header-user-dropdown'\)/);
+	assert.match(main, /querySelectorAll\('#header-account-icon'\)/);
+	assert.match(main, /ctx\.getResourceUrl\('assets\/multiplayer\.svg'\)/);
+	assert.match(main, /getElementById\('header-user-options-dropdown'\)/);
+	assert.match(main, /insertBefore\(\$account_options, \$save_management_header\)/);
+	assert.doesNotMatch(main, /make_template\('online-button'/);
+	assert.doesNotMatch(main, /make_template\('dropdown'/);
+	assert.doesNotMatch(style, /mp-online-dropdown|mp-online-button-container|mp-notification-circle/);
 });
 
 test('makes Guild members selectable and keeps departure out of the Guild page', async () => {
 	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
 	const guild_page = templates.slice(templates.indexOf('<template id="template-mp-guild-page">'));
-	const member_view = guild_page.slice(0, guild_page.indexOf('<template v-else-if="state.guild_state.affiliation'));
+	const member_view = guild_page.slice(0, guild_page.indexOf('<div v-show="state.guild_page_view === \'applicant\'">'));
 
 	assert.match(guild_page, /mp-guild-member-button[\s\S]*state\.show_member_actions\(member\)/);
 	assert.doesNotMatch(member_view, /mp-guild-danger-zone/);
 	assert.doesNotMatch(member_view, /state\.confirm_leave_guild\(\)/);
+});
+
+test('keeps the detached member-actions Guild control mounted during departure', async () => {
+	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
+	const member_actions = templates.slice(
+		templates.indexOf('<template id="template-mp-member-actions-modal">'),
+		templates.indexOf('<template id="template-mp-identities-modal">')
+	);
+
+	assert.match(member_actions, /<div v-show="state\.is_guild_member">[\s\S]*state\.leave_guild_from_options\(\)/);
+	assert.doesNotMatch(member_actions, /<template v-if="state\.is_guild_member">/);
 });
 
 test('keeps remote equipment read-only, quantity-free, and memory-only', async () => {

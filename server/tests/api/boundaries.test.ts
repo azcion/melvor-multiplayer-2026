@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
 import { get_with_session, post, post_json, register_client, request } from '../support/http';
-import { db_run } from '../support/persistence';
+import { db_all, db_run } from '../support/persistence';
 import type { RegisteredClient } from '../support/http';
 
 const allowed_origins = [
@@ -33,7 +33,10 @@ describe('browser and request boundaries', () => {
 			expect(response.status).toBe(204);
 			expect(response.headers.get('Access-Control-Allow-Origin')).toBe(origin);
 			expect(response.headers.get('Access-Control-Allow-Methods')).toBe('GET, POST, OPTIONS');
-			expect(response.headers.get('Access-Control-Allow-Headers')).toBe('Content-Type, X-Session-Token');
+			expect(response.headers.get('Access-Control-Allow-Headers')).toBe(
+				'Content-Type, X-Session-Token, Cache-Control, Pragma'
+			);
+			expect(response.headers.get('Access-Control-Max-Age')).toBe('600');
 			expect(response.headers.get('Vary')).toContain('Origin');
 		}
 	});
@@ -66,6 +69,24 @@ describe('browser and request boundaries', () => {
 		expect(missing.status).toBe(401);
 		expect(malformed.status).toBe(401);
 		expect(unknown.status).toBe(401);
+	});
+
+	test('rejects malformed event revisions', async () => {
+		for (const revision of ['-1', '1.5', 'nope'])
+			expect((await get_with_session(`/api/events?revision=${revision}`, client.session_token)).status).toBe(400);
+	});
+
+	test('coalesces authenticated activity writes across frequent polling', async () => {
+		const poller = await register_client('Activity Write Poller');
+		await get_with_session('/api/events', poller.session_token);
+		await db_run('UPDATE `clients` SET `last_multiplayer_active_at` = 123 WHERE `id` = ?', [poller.client_id]);
+		await get_with_session('/api/events', poller.session_token);
+		const rows = await db_all<{ last_multiplayer_active_at: number }>(
+			'SELECT `last_multiplayer_active_at` FROM `clients` WHERE `id` = ?',
+			[poller.client_id]
+		);
+
+		expect(rows[0]?.last_multiplayer_active_at).toBe(123);
 	});
 
 	test('requires JSON content on authenticated POST routes', async () => {
@@ -147,6 +168,24 @@ describe('browser and request boundaries', () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get('Access-Control-Allow-Origin')).toBe(allowed_origin);
+		expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+		expect(response.headers.get('Vary')).toContain('X-Session-Token');
+	});
+
+	test('allows cache-bypass headers added to non-cached browser GETs', async () => {
+		const response = await request('/api/guilds/state', {
+			method: 'OPTIONS',
+			headers: {
+				'Origin': allowed_origin,
+				'Access-Control-Request-Method': 'GET',
+				'Access-Control-Request-Headers': 'cache-control, pragma, x-session-token'
+			}
+		});
+
+		expect(response.status).toBe(204);
+		expect(response.headers.get('Access-Control-Allow-Headers')).toBe(
+			'Content-Type, X-Session-Token, Cache-Control, Pragma'
+		);
 	});
 
 	test('adds browser headers to numeric error responses', async () => {

@@ -41,7 +41,102 @@ test('wires Free Fellowship direct joining and its no-Council presentation', asy
 	assert.match(main, /is_free_fellowship/);
 	assert.match(templates, /free-fellowship-confirm-modal/);
 	assert.match(templates, /v-if="guild\.is_free_fellowship"/);
-	assert.match(templates, /!state\.is_free_fellowship && state\.guild_state\.guild\.capabilities\.council/);
+	assert.match(templates, /!state\.is_free_fellowship && state\.guild_state\.guild\?\.capabilities\?\.council/);
+});
+
+test('does not render member-only Guild bindings during an incomplete state refresh', async () => {
+	const [templates, main] = await Promise.all([
+		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
+		readFile(new URL('mod/main.mjs', root), 'utf8')
+	]);
+	const guild_page = templates.slice(templates.indexOf('<template id="template-mp-guild-page">'));
+	const member_view = guild_page.slice(0, guild_page.indexOf('<div v-show="state.guild_page_view === \'applicant\'">'));
+	const is_member_getter = main.slice(main.indexOf('get is_guild_member()'), main.indexOf('get is_free_fellowship()'));
+
+	assert.match(is_member_getter, /this\.guild_state\.guild != null/);
+	assert.match(member_view, /<div v-show="state\.guild_page_view === 'member'">/);
+	assert.match(member_view, /state\.guild_state\.guild\?\.icon_id/);
+	assert.match(member_view, /state\.guild_state\.guild\?\.name/);
+	assert.match(member_view, /state\.guild_state\.guild\?\.capabilities\?\.council/);
+});
+
+test('keeps top-level Guild views mounted when affiliation changes', async () => {
+	const [templates, main] = await Promise.all([
+		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
+		readFile(new URL('mod/main.mjs', root), 'utf8')
+	]);
+	const guild_page = templates.slice(
+		templates.indexOf('<template id="template-mp-guild-page">'),
+		templates.indexOf('<template id="template-mp-free-fellowship-confirm-modal">')
+	);
+	const page_view_getter = main.slice(main.indexOf('get guild_page_view()'), main.indexOf('get is_charitree_enabled()'));
+
+	assert.match(page_view_getter, /return 'member'/);
+	assert.match(page_view_getter, /return 'applicant'/);
+	assert.match(page_view_getter, /return 'error'/);
+	assert.match(page_view_getter, /return 'loading'/);
+	assert.match(page_view_getter, /return this\.guild_state\.affiliation === 'none' \? 'onboarding' : 'loading'/);
+	for (const view of ['member', 'applicant', 'error', 'loading', 'onboarding'])
+		assert.match(guild_page, new RegExp(`v-show="state\\.guild_page_view === '${view}'"`));
+	assert.doesNotMatch(guild_page, /v-(?:if|else-if)="state\.guild_page_view/);
+	assert.match(guild_page, /state\.guild_state\.application\?\.icon_id/);
+	assert.match(guild_page, /state\.guild_state\.application\?\.member_count \?\? 0/);
+	assert.match(guild_page, /mp-council" v-show="!state\.is_free_fellowship/);
+	assert.match(guild_page, /block-content" v-show="state\.is_free_fellowship/);
+});
+
+test('cache-busts authenticated GETs without using the Android-sensitive Fetch cache mode', async () => {
+	const [lang, templates, main] = await Promise.all([
+		readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse),
+		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
+		readFile(new URL('mod/main.mjs', root), 'utf8')
+	]);
+	const cache_buster_start = main.indexOf('function cache_bust_api_endpoint');
+	const cache_buster_source = main.slice(cache_buster_start, main.indexOf('\nasync function api_get', cache_buster_start));
+	const cache_bust_api_endpoint = new Function(`
+		let API_GET_CACHE_NONCE = 'runtime-nonce';
+		let api_get_request_sequence = 0;
+		${cache_buster_source}
+		return cache_bust_api_endpoint;
+	`)();
+	const api_get = main.slice(main.indexOf('async function api_get'), main.indexOf('async function api_post_response'));
+	const guild_page = templates.slice(templates.indexOf('<template id="template-mp-guild-page">'));
+	const loading = guild_page.indexOf("v-show=\"state.guild_page_view === 'loading'\"");
+	const failure = guild_page.indexOf("v-show=\"state.guild_page_view === 'error'\"");
+	const onboarding = guild_page.indexOf("v-show=\"state.guild_page_view === 'onboarding'\"");
+
+	assert.match(main, /const API_GET_CACHE_NONCE = crypto\.randomUUID\(\);/);
+	assert.equal(cache_bust_api_endpoint('/api/guilds/state'), '/api/guilds/state?_mp_cache=runtime-nonce-1');
+	assert.equal(
+		cache_bust_api_endpoint('/api/events?after=42'),
+		'/api/events?after=42&_mp_cache=runtime-nonce-2'
+	);
+	assert.match(api_get, /fetch\(server_host \+ cache_bust_api_endpoint\(endpoint\)/);
+	assert.doesNotMatch(api_get, /cache\s*:/);
+	assert.equal(lang.MOD_MP_GUILD_LOADING, 'Loading Guild...');
+	assert.equal(typeof lang.MOD_MP_GUILD_LOAD_FAILED, 'string');
+	assert.notEqual(loading, -1);
+	assert.notEqual(failure, -1);
+	assert.notEqual(onboarding, -1);
+});
+
+test('tears down the leave confirmation modal before refreshing Guild state', async () => {
+	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const leave_action_start = main.indexOf('\tasync leave_guild(event)');
+	const leave_action = main.slice(leave_action_start, main.indexOf('\n\t// #endregion', leave_action_start));
+
+	assert.match(leave_action, /await this\.close_modal_and_wait\('leave-guild-modal'\);[\s\S]*await refresh_guild_page\(\);/);
+	assert.doesNotMatch(leave_action, /await refresh_guild_page\(\);[\s\S]*close_modal/);
+});
+
+test('does not structurally detach UI branches when Guild membership changes', async () => {
+	const [templates, main] = await Promise.all([
+		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
+		readFile(new URL('mod/main.mjs', root), 'utf8')
+	]);
+
+	assert.doesNotMatch(templates, /v-if="[^"]*state\.(?:is_guild_member|is_free_fellowship|is_charitree_enabled)/);
+	assert.match(main, /get is_charitree_enabled\(\) \{[\s\S]*return this\.is_guild_member/);
 });
 
 test('keeps Free Fellowship confirmation titles localized and guild results responsive', async () => {
@@ -75,11 +170,11 @@ test('renders each loaded member activity as a right-aligned icon', async () => 
 	const guild_page = templates.slice(templates.indexOf('<template id="template-mp-guild-page">'));
 	const members_header = guild_page.slice(
 		guild_page.indexOf('<h3 class="block-title"><lang-string lang-id="MOD_MP_GUILD_MEMBERS">'),
-		guild_page.indexOf('<div class="block-content" v-if="state.is_free_fellowship">')
+		guild_page.indexOf('<div class="block-content" v-show="state.is_free_fellowship">')
 	);
 	const member_list = guild_page.slice(
 		guild_page.indexOf('<div class="block-content p-0">'),
-		guild_page.indexOf('<div class="block-content text-center" v-if="state.is_free_fellowship')
+		guild_page.indexOf('<div class="block-content text-center" v-show="state.is_free_fellowship')
 	);
 
 	assert.doesNotMatch(members_header, /badge badge-secondary/);
@@ -88,6 +183,8 @@ test('renders each loaded member activity as a right-aligned icon', async () => 
 	assert.doesNotMatch(roster_refresh, /api_get\('\/api\/guilds\/status\?client_id=' \+ member\.client_id\)/);
 	assert.match(member_list, /member\.status_activity/);
 	assert.match(member_list, /MOD_MP_GUILD_YOU[\s\S]*get_status_activity_icon\(member\.status_activity\)/);
+	assert.match(member_list, /state\.format_shared_gp\(member\.gp\)/);
+	assert.match(member_list, /member\.last_seen_at/);
 	assert.match(style, /\.mp-guild-member-meta \{[\s\S]*margin-left: auto;/);
 	assert.match(style, /\.mp-member-actions > label \{[\s\S]*justify-content: flex-start;/);
 });

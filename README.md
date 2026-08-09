@@ -3,7 +3,7 @@
 # Melvor Multiplayer 2026 - Public Test
 
 Melvor Multiplayer 2026 is a self-hosted Melvor Idle multiplayer mod and server rebuilt around Guild-isolated play.
-This repository contains the public source for public-test version `0.1.0-public-test.14`, targeting Melvor Idle
+This repository contains the public source for public-test version `0.1.0-public-test.21`, targeting Melvor Idle
 v1.3.1 on Desktop and Browser.
 
 This is an unofficial, community-maintained fork of
@@ -14,7 +14,7 @@ with or endorsement by the original author, Games by Malcs, or Jagex is claimed.
 
 This is a test release, not a finished version. Expect bugs, balance changes, downtime, and incomplete behavior. Back
 up Melvor saves before participating and avoid valuable items or GP where practical. Multiplayer identities and
-server-owned Guild, transfer, marketplace, Charitree, Campaign, and Council data may be reset when recovery requires
+server-owned Guild, transfer, marketplace, Charitree, Campaign, Council, and Raid data may be reset when recovery requires
 it.
 
 ## Current multiplayer model
@@ -23,12 +23,18 @@ it.
 - Guild marketplaces, Charitree inventories, and Campaigns are isolated from every other Guild.
 - Campaign goals scale with Guild size and require member participation to complete.
 - Guild members govern shared changes and banishment through Council petitions and ballots.
-- Current Guildmates can share their equipment and minimal Player Status on an opt-out basis.
+- Private Guilds and the Free Fellowship can activate 72-hour Raids, spend bounded Assaults against four placeholder Monster tiers in normal
+  Melvor combat, earn tier loot and standings, and receive equal Victory Caches after securing shared health.
+- The server keeps one rolling timestamp of each identity's latest authenticated multiplayer activity. It scales newly
+  activated Raids from members active during the previous 14 days and appears to current Guildmates as coarse last-seen
+  time.
+- Current Guildmates can share their equipment, minimal Player Status, and current GP on an opt-out basis. GP is stored
+  as a raw amount and formatted using the viewing player's Melvor Number Format setting.
 - Current Guildmates can begin identity-owned Private conversations that persist through later Guild changes, with
   unread state, privacy controls, participant-only deletion, and time-replenishing Messaging credits.
-- Each character keeps account-specific multiplayer identity bindings for every normalized server origin. Saves under
-  the same Melvor Cloud username and PlayFab ID can discover sibling identities and schedule reversible deletion from
-  the in-game Options menu.
+- Each character keeps account-specific multiplayer identity bindings for every normalized server origin. Saves using
+  the same PlayFab ID can discover sibling identities and schedule reversible deletion from the in-game Options menu;
+  the first observed Melvor Cloud username is retained as a human-readable account label.
 - The mod can connect to the bundled server origin or a trusted custom HTTPS server selected in Mod Settings.
 
 ## Run a self-hosted server

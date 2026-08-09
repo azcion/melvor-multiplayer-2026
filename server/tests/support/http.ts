@@ -23,6 +23,8 @@ export type MelvorAccountFixture = {
 	playfab_id: string;
 };
 
+type RequestHeaders = NonNullable<RequestInit['headers']>;
+
 export async function request(path: string, init: RequestInit = {}): Promise<Response> {
 	return fetch(new URL(path, server_url), init);
 }
@@ -38,7 +40,7 @@ export async function post(
 	path: string,
 	body: unknown,
 	session_token?: string,
-	headers: HeadersInit = {}
+	headers: RequestHeaders = {}
 ): Promise<Response> {
 	const request_headers = new Headers(headers);
 	request_headers.set('Content-Type', 'application/json');
@@ -57,7 +59,7 @@ export async function post_json<T>(
 	path: string,
 	body: unknown,
 	session_token?: string,
-	headers: HeadersInit = {}
+	headers: RequestHeaders = {}
 ): Promise<JsonResponse<T>> {
 	const response = await post(path, body, session_token, headers);
 	const json = await response.json() as T;

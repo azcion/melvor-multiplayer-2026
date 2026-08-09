@@ -298,7 +298,11 @@ describe('guild API', () => {
 		const state = await get_guild_state(first.session_token);
 		const searched = await get_json_with_session<{
 			members: Array<{ display_name: string }>;
+			page: number;
+			page_size: number;
+			search: string;
 			total: number;
+			has_more: boolean;
 		}>('/api/guilds/members?search=second', first.session_token);
 
 		expect(joined.json.success).toBe(true);

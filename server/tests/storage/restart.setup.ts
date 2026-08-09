@@ -57,9 +57,11 @@ test('creates representative state before a server restart', async () => {
 		{ skill_id: 'melvorD:Woodcutting', level: 33 }
 	];
 	const status_activity = { type: 'skill' as const, skill_id: 'melvorD:Woodcutting', action_id: 'melvorD:Restart_Oak' };
+	const gp_amount = 142_609;
 	await post_json('/api/client/status/sync', {
 		skills: status_skills,
-		activity: status_activity
+		activity: status_activity,
+		gp: gp_amount
 	}, pair.first.session_token);
 	const chat = await post_json<{
 		conversation: { conversation_id: number };
@@ -76,6 +78,23 @@ test('creates representative state before a server restart', async () => {
 		blocked: true
 	}, pair.second.session_token);
 	await post_json('/api/chat/privacy', { messaging_enabled: false }, pair.first.session_token);
+	const raid_activation = await post_json<{ raid: { raid_id: number } }>(
+		'/api/raids/activate', {}, pair.first.session_token
+	);
+	const raid_assault = await post_json<{
+		assault_id: string;
+		settlement_key: string;
+		combat_deadline: number;
+	}>('/api/raids/assaults/reserve', {
+		tier: 1,
+		loaded_session_id: crypto.randomUUID()
+	}, pair.first.session_token);
+	await post_json('/api/raids/assaults/settle', {
+		assault_id: raid_assault.json.assault_id,
+		settlement_key: raid_assault.json.settlement_key,
+		outcome: 'success',
+		occurred_at: Math.min(Date.now(), raid_assault.json.combat_deadline)
+	}, pair.first.session_token);
 
 	const active_petition = await post_json<{ petition_id: number }>('/api/guilds/petitions/raise', {
 		type: 'appellation',
@@ -123,13 +142,16 @@ test('creates representative state before a server restart', async () => {
 		equipment_slots,
 		status_skills,
 		status_activity,
+		gp_amount,
 		chat_conversation_id: chat.json.conversation.conversation_id,
 		chat_message_id: chat_message.json.message.message_id,
 		active_petition_id: active_petition.json.petition_id,
 		retry_petition_id: retry_petition.json.petition_id,
 		banished,
 		banishment_petition_id: banishment.json.petition_id,
-		banishment_item_id
+		banishment_item_id,
+		raid_id: raid_activation.json.raid.raid_id,
+		raid_assault_id: raid_assault.json.assault_id
 	};
 	await Bun.write(restart_state_path, JSON.stringify(state));
 
@@ -140,4 +162,5 @@ test('creates representative state before a server restart', async () => {
 	expect(retry_petition.json.petition_id).toBeNumber();
 	expect(chat_message.json.message.message_id).toBeNumber();
 	expect(banishment.json.petition_id).toBeNumber();
+	expect(raid_assault.json.assault_id).toBeString();
 });

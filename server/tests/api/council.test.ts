@@ -5,7 +5,8 @@ import { db_count, db_run } from '../support/persistence';
 
 type PetitionView = {
 	petition_id: number;
-	type: 'appellation' | 'heraldry' | 'banishment';
+	type: 'appellation' | 'heraldry' | 'banishment' | 'charitree_ingratitude' |
+		'charitree_sacrilege' | 'charitree_beneficence';
 	proposal: Record<string, unknown>;
 	lifecycle: 'active' | 'granted' | 'denied' | 'lapsed';
 	execution_state: 'not_applicable' | 'pending' | 'running' | 'succeeded' | 'failed';
@@ -20,6 +21,7 @@ type PetitionView = {
 async function get_council(session_token: string, page = 0) {
 	const result = await get_json_with_session<{
 		petitions: PetitionView[];
+		available_petition_types: PetitionView['type'][];
 		resolved_page: number;
 		has_more: boolean;
 	}>(`/api/guilds/council?page=${page}`, session_token);
@@ -143,13 +145,146 @@ describe('Council API', () => {
 			[heraldry.json.petition_id]
 		);
 		await get_council(member.session_token);
-		guild = await get_json_with_session<{ guild: { icon_id: string } }>('/api/guilds/state', member.session_token);
+		guild = await get_json_with_session<{ guild: { name: string; icon_id: string } }>('/api/guilds/state', member.session_token);
 		expect(guild.json.guild.icon_id).toBe('melvorF:Penumbra');
 		expect(await db_count(
 			"SELECT COUNT(*) AS `count` FROM `guild_petitions` WHERE `id` = ? AND `execution_state` = 'succeeded' " +
 			'AND `execution_attempts` = 2 AND `subject_locked` = 0',
 			[heraldry.json.petition_id]
 		)).toBe(1);
+	});
+
+	test('renames Ingratitude and preserves donations made after its snapshot', async () => {
+		const member = await register_guild_client('Charitree Councillor', 'Charitree Council');
+		await post_json('/api/charity/donate', {
+			items: [
+				{ id: 'melvorD:Old_Charitree_Item', qty: 10 },
+				{ id: 'melvorD:Refreshed_Charitree_Item', qty: 20 }
+			]
+		}, member.session_token);
+		const raised = await post_json<{ success: boolean; petition_id: number }>(
+			'/api/guilds/petitions/raise',
+			{ type: 'charitree_ingratitude' },
+			member.session_token
+		);
+		expect(raised.json.success).toBe(true);
+		expect((await get_council(member.session_token)).petitions[0]).toMatchObject({
+			petition_id: raised.json.petition_id,
+			type: 'charitree_ingratitude',
+			proposal: {}
+		});
+
+		await post_json('/api/charity/donate', {
+			items: [
+				{ id: 'melvorD:Refreshed_Charitree_Item', qty: 1 },
+				{ id: 'melvorD:New_Charitree_Item', qty: 30 }
+			]
+		}, member.session_token);
+		const vote = await post_json<{ success: boolean; lifecycle: string }>(
+			'/api/guilds/petitions/vote',
+			{ petition_id: raised.json.petition_id, choice: 'aye' },
+			member.session_token
+		);
+		expect(vote.json.lifecycle).toBe('granted');
+
+		const contents = await get_json_with_session<{
+			items: Array<{ id: string; qty: number }>;
+		}>('/api/charity/contents', member.session_token);
+		expect(contents.json.items).not.toContainEqual(expect.objectContaining({ id: 'melvorD:Old_Charitree_Item' }));
+		expect(contents.json.items).toEqual(expect.arrayContaining([
+			expect.objectContaining({ id: 'melvorD:Refreshed_Charitree_Item', qty: 21 }),
+			expect.objectContaining({ id: 'melvorD:New_Charitree_Item', qty: 30 })
+		]));
+		expect(await db_count(
+			"SELECT COUNT(*) AS `count` FROM `guild_petitions` WHERE `id` = ? " +
+			"AND `execution_state` = 'succeeded' AND `execution_effect` = 'cleared'",
+			[raised.json.petition_id]
+		)).toBe(1);
+	});
+
+	test('offers only fitting Charitree Petitions and toggles the feature through the Council', async () => {
+		const member = await register_guild_client('Charitree Steward', 'Petition Grove');
+		let council = await get_council(member.session_token);
+		expect(council.available_petition_types).toContain('charitree_sacrilege');
+		expect(council.available_petition_types).not.toContain('charitree_ingratitude');
+		expect(council.available_petition_types).not.toContain('charitree_beneficence');
+
+		const unavailable = await post_json<{ error_lang: string }>(
+			'/api/guilds/petitions/raise',
+			{ type: 'charitree_ingratitude' },
+			member.session_token
+		);
+		expect(unavailable.json.error_lang).toBe('MOD_MP_COUNCIL_CHARITREE_UNAVAILABLE');
+
+		await post_json('/api/charity/donate', {
+			items: [{ id: 'melvorD:Sacrilege_Offering', qty: 7 }]
+		}, member.session_token);
+		council = await get_council(member.session_token);
+		expect(council.available_petition_types).toContain('charitree_ingratitude');
+		const ingratitude = await post_json<{ petition_id: number }>(
+			'/api/guilds/petitions/raise',
+			{ type: 'charitree_ingratitude' },
+			member.session_token
+		);
+		await post_json('/api/charity/take', {
+			item_id: 'melvorD:Sacrilege_Offering'
+		}, member.session_token);
+		const emptied_vote = await post_json<{ lifecycle: string }>('/api/guilds/petitions/vote', {
+			petition_id: ingratitude.json.petition_id,
+			choice: 'aye'
+		}, member.session_token);
+		expect(emptied_vote.json.lifecycle).toBe('granted');
+		expect(await db_count(
+			"SELECT COUNT(*) AS `count` FROM `guild_petitions` WHERE `id` = ? " +
+			"AND `execution_state` = 'succeeded' AND `execution_effect` = 'already_empty'",
+			[ingratitude.json.petition_id]
+		)).toBe(1);
+
+		await post_json('/api/charity/donate', {
+			items: [{ id: 'melvorD:Sacrilege_Offering', qty: 7 }]
+		}, member.session_token);
+
+		const sacrilege = await post_json<{ petition_id: number }>(
+			'/api/guilds/petitions/raise',
+			{ type: 'charitree_sacrilege' },
+			member.session_token
+		);
+		await post_json('/api/guilds/petitions/vote', {
+			petition_id: sacrilege.json.petition_id,
+			choice: 'aye'
+		}, member.session_token);
+
+		const disabled = await get_json_with_session<{ enabled: boolean; items: unknown[] }>(
+			'/api/charity/contents', member.session_token
+		);
+		expect(disabled.json).toEqual({ enabled: false, items: [] });
+		expect(await db_count(
+			'SELECT COUNT(*) AS `count` FROM `charity_items` WHERE `guild_id` = ?',
+			[member.guild_id]
+		)).toBe(0);
+		const rejected_donation = await post_json<{ error_lang: string }>('/api/charity/donate', {
+			items: [{ id: 'melvorD:Rejected_Offering', qty: 1 }]
+		}, member.session_token);
+		expect(rejected_donation.json.error_lang).toBe('MOD_MP_CHARITY_DISABLED');
+
+		council = await get_council(member.session_token);
+		expect(council.available_petition_types).toContain('charitree_beneficence');
+		expect(council.available_petition_types).not.toContain('charitree_sacrilege');
+		expect(council.available_petition_types).not.toContain('charitree_ingratitude');
+
+		const beneficence = await post_json<{ petition_id: number }>(
+			'/api/guilds/petitions/raise',
+			{ type: 'charitree_beneficence' },
+			member.session_token
+		);
+		await post_json('/api/guilds/petitions/vote', {
+			petition_id: beneficence.json.petition_id,
+			choice: 'aye'
+		}, member.session_token);
+		const enabled = await get_json_with_session<{ enabled: boolean; items: unknown[] }>(
+			'/api/charity/contents', member.session_token
+		);
+		expect(enabled.json).toEqual({ enabled: true, items: [] });
 	});
 
 	test('keeps post-snapshot members ineligible and conceals the active tally', async () => {

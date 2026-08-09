@@ -47,7 +47,7 @@ async function claim_return(client: RegisteredClient, existing_item_ids: string[
 }
 
 describe('Melvor account identity lifecycle', () => {
-	test('silently groups matching account pairs and never reassigns an associated Client', async () => {
+	test('silently groups matching PlayFab accounts and never reassigns an associated Client', async () => {
 		const jared = account('Grouping Jared', 'A1B2C3D4E5F60708');
 		const mary_account = account('Grouping Mary', '1020304050607080');
 		const bob = await register_client('Bob', jared);
@@ -68,6 +68,28 @@ describe('Melvor account identity lifecycle', () => {
 		expect(mismatch.json.identity_status).toBe('melvor_account_mismatch');
 		expect(await db_count('SELECT COUNT(*) AS `count` FROM `melvor_accounts`')).toBe(2);
 		expect((await identities(bob)).json.identities.map(identity => identity.client_id)).toEqual([cob.client_id]);
+	});
+
+	test('uses PlayFab ID as the account key and preserves the first Cloud username label', async () => {
+		const first = account('Case Keeper', 'CASE1234567890');
+		const later = account('case keeper', first.playfab_id);
+		const renamed = account('Completely Renamed', first.playfab_id);
+		const bob = await register_client('Case Bob', first);
+		const cob = await register_client('Case Cob', later);
+
+		expect((await identities(bob)).json.identities).toEqual([
+			expect.objectContaining({ client_id: cob.client_id, display_name: 'Case Cob' })
+		]);
+		expect(await db_all<{ cloud_username: string }>(
+			'SELECT `cloud_username` FROM `melvor_accounts` WHERE `playfab_id` = ?',
+			[first.playfab_id]
+		)).toEqual([{ cloud_username: first.cloud_username }]);
+
+		const matching = await authenticate(bob, renamed);
+		expect(matching.response.status).toBe(200);
+		const mismatch = await authenticate(bob, account(first.cloud_username, 'DIFFERENT123456'));
+		expect(mismatch.response.status).toBe(409);
+		expect(mismatch.json.identity_status).toBe('melvor_account_mismatch');
 	});
 
 	test('binds a legacy Client once and requires its stable Melvor account afterward', async () => {

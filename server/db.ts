@@ -40,9 +40,21 @@ function initialize_schema(): void {
 
 		const apply_migration = db.transaction(() => {
 			db.run(migration.sql);
+			if (migration.foreign_keys_disabled) {
+				const violations = db.query<Record<string, unknown>, []>('PRAGMA foreign_key_check').all();
+				if (violations.length > 0)
+					throw new Error(`Migration ${migration.version} introduced foreign-key violations`);
+			}
 			db.run(`PRAGMA user_version = ${migration.version}`);
 		});
-		apply_migration.immediate();
+		if (migration.foreign_keys_disabled)
+			db.run('PRAGMA foreign_keys = OFF');
+		try {
+			apply_migration.immediate();
+		} finally {
+			if (migration.foreign_keys_disabled)
+				db.run('PRAGMA foreign_keys = ON');
+		}
 	}
 }
 
@@ -50,8 +62,9 @@ initialize_schema();
 
 export async function db_run(sql: string, values: SQLQueryBindings[] = []): Promise<DatabaseRunResult> {
 	const result = db.query(sql).run(...values);
+	const direct_changes = db.query<{ changes: number }, []>('SELECT changes() AS `changes`').get()?.changes ?? 0;
 	return {
-		changes: result.changes,
+		changes: direct_changes,
 		lastInsertRowid: Number(result.lastInsertRowid)
 	};
 }
@@ -113,7 +126,7 @@ export function get_service_setting(key: string): string | null {
 export function get_or_create_melvor_account(account: MelvorAccountInput, now = Date.now()): number {
 	const row = db.query<{ id: number }, [string, string, number]>(
 		'INSERT INTO `melvor_accounts` (`cloud_username`, `playfab_id`, `created_at`) VALUES(?, ?, ?) ' +
-		'ON CONFLICT (`cloud_username`, `playfab_id`) DO UPDATE SET `cloud_username` = excluded.`cloud_username` ' +
+		'ON CONFLICT (`playfab_id`) DO UPDATE SET `playfab_id` = excluded.`playfab_id` ' +
 		'RETURNING `id`'
 	).get(account.cloud_username, account.playfab_id, now) as { id: number };
 	return row.id;

@@ -48,6 +48,30 @@ describe('friends API', () => {
 		expect((await get_events(recipient)).friend_requests).toHaveLength(1);
 	});
 
+	test('returns a cheap unchanged event response until relevant state changes', async () => {
+		const [sender, recipient] = await Promise.all([
+			register_client('Revision Sender'),
+			register_client('Revision Recipient')
+		]);
+		const initial = await get_json_with_session<{ revision: number; unchanged?: boolean }>(
+			'/api/events?revision=0', recipient.session_token
+		);
+		const unchanged = await get_json_with_session<{ revision: number; unchanged?: boolean }>(
+			`/api/events?revision=${initial.json.revision}`, recipient.session_token
+		);
+		await post_json('/api/friends/add', { friend_code: recipient.friend_code }, sender.session_token);
+		const changed = await get_json_with_session<{
+			revision: number;
+			unchanged?: boolean;
+			friend_requests: Friend[];
+		}>(`/api/events?revision=${initial.json.revision}`, recipient.session_token);
+
+		expect(unchanged.json).toEqual({ revision: initial.json.revision, unchanged: true });
+		expect(changed.json.revision).toBeGreaterThan(initial.json.revision);
+		expect(changed.json.unchanged).not.toBe(true);
+		expect(changed.json.friend_requests).toHaveLength(1);
+	});
+
 	test('refreshes cached friend requests after a display name change', async () => {
 		const [sender, recipient] = await Promise.all([
 			register_client('Original Sender'),

@@ -20,8 +20,8 @@ export const AVAILABLE_CAMPAIGNS = [
 			{ id: 'melvorD:Diamond', estimated_12h_output: 700 },
 			{ id: 'melvorD:Silver_Bar', estimated_12h_output: 25920 },
 			{ id: 'melvorD:Gold_Bar', estimated_12h_output: 25920 },
-			{ id: 'melvorD:Small_Urn', estimated_12h_output: 21600 },
-			{ id: 'melvorD:Medium_Urn', estimated_12h_output: 17280 }
+			{ id: 'melvorF:Small_Urn', estimated_12h_output: 21600 },
+			{ id: 'melvorF:Medium_Urn', estimated_12h_output: 17280 }
 		]
 	},
 	{

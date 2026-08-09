@@ -5,9 +5,11 @@
 	"scripts": {
 		"admin": "bun run admin.ts",
 		"backup": "bun run backup.ts",
-		"test": "bun test --timeout 15000 tests"
+		"test": "bun test --timeout 15000 tests",
+		"typecheck": "tsc --noEmit"
 	},
 	"devDependencies": {
-		"bun-types": "1.3.14"
+		"bun-types": "1.3.14",
+		"typescript": "5.9.3"
 	}
 }

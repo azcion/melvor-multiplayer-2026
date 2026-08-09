@@ -12,7 +12,7 @@ interface ToJson {
 }
 
 export type JsonSerializable = JsonPrimitive | JsonObject | JsonArray | ToJson;
-type HandlerResult = string | number | Response | JsonSerializable;
+export type HandlerResult = string | number | Response | JsonSerializable;
 export type HandlerReturnType = HandlerResult | Promise<HandlerResult>;
 export type RequestHandler = (req: Request, url: URL) => HandlerReturnType;
 type JsonReadResult = { json: JsonObject } | { response: Response };
@@ -189,6 +189,13 @@ export function create_http_server(port: number) {
 			});
 
 			write_log('info', `type=server event=started port=${runtime_server.port}`);
+		},
+
+		async stop(close_active_connections = false): Promise<void> {
+			if (runtime_server === undefined)
+				return;
+			await runtime_server.stop(close_active_connections);
+			runtime_server = undefined;
 		}
 	};
 }

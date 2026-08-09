@@ -4,6 +4,79 @@ import test from 'node:test';
 
 const root = new URL('../../', import.meta.url);
 
+async function load_page_toggle(initially_hidden) {
+	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const function_start = main.indexOf('function on_page_toggle');
+	const function_source = main.slice(function_start, main.indexOf('\n// #endregion', function_start));
+	const element = {
+		classList: {
+			contains: class_name => class_name === 'd-none' && initially_hidden.value
+		}
+	};
+	let mutation_callback;
+	let observed_element;
+	let observed_options;
+	class FakeMutationObserver {
+		constructor(callback) {
+			mutation_callback = callback;
+		}
+
+		observe(target, options) {
+			observed_element = target;
+			observed_options = options;
+		}
+	}
+	const on_page_toggle = new Function('$', 'MutationObserver', `
+		${function_source}
+		return on_page_toggle;
+	`)(() => element, FakeMutationObserver);
+
+	return {
+		on_page_toggle,
+		trigger_mutation: () => mutation_callback(),
+		observation: () => ({ element: observed_element, options: observed_options }),
+		element
+	};
+}
+
+test('runs a two-way page callback once per actual visibility transition', async () => {
+	const initially_hidden = { value: true };
+	const harness = await load_page_toggle(initially_hidden);
+	const visibility_changes = [];
+	harness.on_page_toggle('page', is_visible => visibility_changes.push(is_visible), false);
+
+	harness.trigger_mutation();
+	initially_hidden.value = false;
+	harness.trigger_mutation();
+	harness.trigger_mutation();
+	initially_hidden.value = true;
+	harness.trigger_mutation();
+	harness.trigger_mutation();
+
+	assert.deepEqual(visibility_changes, [true, false]);
+	assert.equal(harness.observation().element, harness.element);
+	assert.deepEqual(harness.observation().options, {
+		attributes: true,
+		attributeFilter: ['class']
+	});
+});
+
+test('runs a visible-only page callback once when the page opens', async () => {
+	const initially_hidden = { value: true };
+	const harness = await load_page_toggle(initially_hidden);
+	const visibility_changes = [];
+	harness.on_page_toggle('page', is_visible => visibility_changes.push(is_visible), true);
+
+	initially_hidden.value = false;
+	harness.trigger_mutation();
+	harness.trigger_mutation();
+	initially_hidden.value = true;
+	harness.trigger_mutation();
+	harness.trigger_mutation();
+
+	assert.deepEqual(visibility_changes, [true]);
+});
+
 test('keeps reactive Guild state off Melvor page visibility containers', async () => {
 	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
 
@@ -17,6 +90,18 @@ test('keeps reactive Guild state off Melvor page visibility containers', async (
 	}
 });
 
+test('mounts each Multiplayer page in one isolated Petite Vue scope', async () => {
+	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const scoped_mount = main.slice(main.indexOf('function make_scoped_template'), main.indexOf('function mount_modal_template'));
+	const interface_setup = main.slice(main.indexOf('ctx.onInterfaceReady'), main.indexOf("on_page_toggle('mp-guild-page'"));
+
+	assert.match(scoped_mount, /document\.createElement\('div'\)/);
+	assert.match(scoped_mount, /data-mp-template-scope/);
+	assert.match(scoped_mount, /make_template\(id, host\)/);
+	assert.match(interface_setup, /make_scoped_template\(page \+ '-page', \$main_container\)/);
+	assert.doesNotMatch(interface_setup, /make_template\(page \+ '-page', \$main_container\)/);
+});
+
 test('keeps returned assets accessible from Transfer while Guildless', async () => {
 	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
 	const transfer_page = templates.slice(
@@ -26,7 +111,7 @@ test('keeps returned assets accessible from Transfer while Guildless', async () 
 	assert.match(transfer_page, /id="mp-transfer-page">\s*<div>/);
 	assert.doesNotMatch(transfer_page, /mp-guild-locked/);
 	assert.match(transfer_page, /MOD_MP_TRANSFER_GUILDLESS_INFO/);
-	assert.match(transfer_page, /v-if="state\.is_guild_member && !state\.has_destroyable_transfer_items" @click="state\.create_trade\(\)"/);
+	assert.match(transfer_page, /v-show="state\.is_guild_member && !state\.has_destroyable_transfer_items" @click="state\.create_trade\(\)"/);
 	assert.match(transfer_page, /@click="state\.transfer_return_selected\(\)"/);
 	assert.match(transfer_page, /@click="state\.transfer_return_all\(\)"/);
 });

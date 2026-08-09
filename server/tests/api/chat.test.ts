@@ -28,7 +28,7 @@ async function start_chat(session_token: string, client_id: number) {
 	);
 }
 
-async function send_chat(session_token: string, conversation_id: number, content: string, key = crypto.randomUUID()) {
+async function send_chat(session_token: string, conversation_id: number, content: string, key: string = crypto.randomUUID()) {
 	return post_json<{
 		success?: boolean;
 		message?: Message;

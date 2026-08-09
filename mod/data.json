@@ -1,7 +1,262 @@
 {
 	"$schema": "https://melvoridle.com/assets/schema/gameData.json",
 	"data": {
+		"attacks": [
+			{
+				"id": "Raid_Tier_1_Assault", "defaultChance": 100, "damage": [], "prehitEffects": [],
+				"onhitEffects": [
+					{
+						"effectID": "multiplayer:Raid_Tier_1_FullDamage", "chance": 100,
+						"condition": { "type": "Hitpoints", "character": "Enemy", "operator": "==", "value": 100 }
+					},
+					{
+						"effectID": "multiplayer:Raid_Tier_1_ReducedDamage", "chance": 100,
+						"condition": { "type": "Hitpoints", "character": "Enemy", "operator": "<", "value": 100 }
+					},
+					{ "effectID": "melvorD:Fear", "chance": 100 },
+					{ "effectID": "melvorD:Poison", "chance": 100 }
+				],
+				"cantMiss": true, "attackCount": 1, "attackInterval": 50, "lifesteal": 0,
+				"name": "Toxic Dread",
+				"description": "Deals fixed damage equal to 50% of your maximum Hitpoints while you are at full Hitpoints, or 15% otherwise. Applies Fear and Poison."
+			},
+			{
+				"id": "Raid_Tier_2_Assault", "defaultChance": 100, "damage": [], "prehitEffects": [],
+				"onhitEffects": [
+					{
+						"effectID": "multiplayer:Raid_Tier_2_FullDamage", "chance": 100,
+						"condition": { "type": "Hitpoints", "character": "Enemy", "operator": "==", "value": 100 }
+					},
+					{
+						"effectID": "multiplayer:Raid_Tier_2_ReducedDamage", "chance": 100,
+						"condition": { "type": "Hitpoints", "character": "Enemy", "operator": "<", "value": 100 }
+					},
+					{ "effectID": "melvorD:Fear", "chance": 100 },
+					{ "effectID": "melvorD:DeadlyPoison", "chance": 100 }
+				],
+				"cantMiss": true, "attackCount": 1, "attackInterval": 50, "lifesteal": 0,
+				"name": "Toxic Dread",
+				"description": "Deals fixed damage equal to 50% of your maximum Hitpoints while you are at full Hitpoints, or 25% otherwise. Applies Fear and Deadly Poison."
+			},
+			{
+				"id": "Raid_Tier_3_Assault", "defaultChance": 100, "damage": [], "prehitEffects": [],
+				"onhitEffects": [
+					{
+						"effectID": "multiplayer:Raid_Tier_3_FullDamage", "chance": 100,
+						"condition": { "type": "Hitpoints", "character": "Enemy", "operator": "==", "value": 100 }
+					},
+					{
+						"effectID": "multiplayer:Raid_Tier_3_ReducedDamage", "chance": 100,
+						"condition": { "type": "Hitpoints", "character": "Enemy", "operator": "<", "value": 100 }
+					},
+					{ "effectID": "melvorD:Fear", "chance": 100 },
+					{ "effectID": "melvorD:DeadlyPoison", "chance": 100 }
+				],
+				"cantMiss": true, "attackCount": 1, "attackInterval": 50, "lifesteal": 0,
+				"name": "Toxic Dread",
+				"description": "Deals fixed damage equal to 50% of your maximum Hitpoints while you are at full Hitpoints, or 33% otherwise. Applies Fear and Deadly Poison. Into the Abyss also adds Laceration."
+			},
+			{
+				"id": "Raid_Tier_4_Assault", "defaultChance": 100, "damage": [], "prehitEffects": [],
+				"onhitEffects": [
+					{
+						"effectID": "multiplayer:Raid_Tier_4_FullDamage", "chance": 100,
+						"condition": { "type": "Hitpoints", "character": "Enemy", "operator": "==", "value": 100 }
+					},
+					{
+						"effectID": "multiplayer:Raid_Tier_4_ReducedDamage", "chance": 100,
+						"condition": { "type": "Hitpoints", "character": "Enemy", "operator": "<", "value": 100 }
+					},
+					{ "effectID": "melvorD:Fear", "chance": 100 },
+					{ "effectID": "melvorD:DeadlyPoison", "chance": 100 }
+				],
+				"cantMiss": true, "attackCount": 1, "attackInterval": 50, "lifesteal": 0,
+				"name": "Toxic Dread",
+				"description": "Deals fixed damage equal to 50% of your maximum Hitpoints while you are at full Hitpoints, or 40% otherwise. Applies Fear and Deadly Poison. Into the Abyss also adds Laceration and Eldritch Curse."
+			}
+		],
+		"combatEffects": [
+			{
+				"id": "Raid_Tier_1_FullDamage", "templateID": "melvorD:DOT",
+				"name": "Tier 1 Full-Health Strike", "media": "assets/raid_tier_1.svg",
+				"parameters": [{ "name": "procs", "initialValue": 1 }, { "name": "interval", "initialValue": 50 }],
+				"damageGroups": [{
+					"name": "total",
+					"damage": [{ "character": "Target", "roll": false, "maxRoll": "MaxHP", "maxPercent": 50 }],
+					"applyDamageModifiers": false, "applyResistance": false
+				}],
+				"behaviours": [{ "type": "DamageCharacter", "value": "p.damagePerProc", "triggersOn": [{ "type": "TimerFired", "timerName": "proc" }] }]
+			},
+			{
+				"id": "Raid_Tier_1_ReducedDamage", "templateID": "melvorD:DOT",
+				"name": "Tier 1 Follow-up Strike", "media": "assets/raid_tier_1.svg",
+				"parameters": [{ "name": "procs", "initialValue": 1 }, { "name": "interval", "initialValue": 50 }],
+				"damageGroups": [{
+					"name": "total",
+					"damage": [{ "character": "Target", "roll": false, "maxRoll": "MaxHP", "maxPercent": 15 }],
+					"applyDamageModifiers": false, "applyResistance": false
+				}],
+				"behaviours": [{ "type": "DamageCharacter", "value": "p.damagePerProc", "triggersOn": [{ "type": "TimerFired", "timerName": "proc" }] }]
+			},
+			{
+				"id": "Raid_Tier_2_FullDamage", "templateID": "melvorD:DOT",
+				"name": "Tier 2 Full-Health Strike", "media": "assets/raid_tier_1.svg",
+				"parameters": [{ "name": "procs", "initialValue": 1 }, { "name": "interval", "initialValue": 50 }],
+				"damageGroups": [{
+					"name": "total",
+					"damage": [{ "character": "Target", "roll": false, "maxRoll": "MaxHP", "maxPercent": 50 }],
+					"applyDamageModifiers": false, "applyResistance": false
+				}],
+				"behaviours": [{ "type": "DamageCharacter", "value": "p.damagePerProc", "triggersOn": [{ "type": "TimerFired", "timerName": "proc" }] }]
+			},
+			{
+				"id": "Raid_Tier_2_ReducedDamage", "templateID": "melvorD:DOT",
+				"name": "Tier 2 Follow-up Strike", "media": "assets/raid_tier_1.svg",
+				"parameters": [{ "name": "procs", "initialValue": 1 }, { "name": "interval", "initialValue": 50 }],
+				"damageGroups": [{
+					"name": "total",
+					"damage": [{ "character": "Target", "roll": false, "maxRoll": "MaxHP", "maxPercent": 25 }],
+					"applyDamageModifiers": false, "applyResistance": false
+				}],
+				"behaviours": [{ "type": "DamageCharacter", "value": "p.damagePerProc", "triggersOn": [{ "type": "TimerFired", "timerName": "proc" }] }]
+			},
+			{
+				"id": "Raid_Tier_3_FullDamage", "templateID": "melvorD:DOT",
+				"name": "Tier 3 Full-Health Strike", "media": "assets/raid_tier_1.svg",
+				"parameters": [{ "name": "procs", "initialValue": 1 }, { "name": "interval", "initialValue": 50 }],
+				"damageGroups": [{
+					"name": "total",
+					"damage": [{ "character": "Target", "roll": false, "maxRoll": "MaxHP", "maxPercent": 50 }],
+					"applyDamageModifiers": false, "applyResistance": false
+				}],
+				"behaviours": [{ "type": "DamageCharacter", "value": "p.damagePerProc", "triggersOn": [{ "type": "TimerFired", "timerName": "proc" }] }]
+			},
+			{
+				"id": "Raid_Tier_3_ReducedDamage", "templateID": "melvorD:DOT",
+				"name": "Tier 3 Follow-up Strike", "media": "assets/raid_tier_1.svg",
+				"parameters": [{ "name": "procs", "initialValue": 1 }, { "name": "interval", "initialValue": 50 }],
+				"damageGroups": [{
+					"name": "total",
+					"damage": [{ "character": "Target", "roll": false, "maxRoll": "MaxHP", "maxPercent": 33 }],
+					"applyDamageModifiers": false, "applyResistance": false
+				}],
+				"behaviours": [{ "type": "DamageCharacter", "value": "p.damagePerProc", "triggersOn": [{ "type": "TimerFired", "timerName": "proc" }] }]
+			},
+			{
+				"id": "Raid_Tier_4_FullDamage", "templateID": "melvorD:DOT",
+				"name": "Tier 4 Full-Health Strike", "media": "assets/raid_tier_1.svg",
+				"parameters": [{ "name": "procs", "initialValue": 1 }, { "name": "interval", "initialValue": 50 }],
+				"damageGroups": [{
+					"name": "total",
+					"damage": [{ "character": "Target", "roll": false, "maxRoll": "MaxHP", "maxPercent": 50 }],
+					"applyDamageModifiers": false, "applyResistance": false
+				}],
+				"behaviours": [{ "type": "DamageCharacter", "value": "p.damagePerProc", "triggersOn": [{ "type": "TimerFired", "timerName": "proc" }] }]
+			},
+			{
+				"id": "Raid_Tier_4_ReducedDamage", "templateID": "melvorD:DOT",
+				"name": "Tier 4 Follow-up Strike", "media": "assets/raid_tier_1.svg",
+				"parameters": [{ "name": "procs", "initialValue": 1 }, { "name": "interval", "initialValue": 50 }],
+				"damageGroups": [{
+					"name": "total",
+					"damage": [{ "character": "Target", "roll": false, "maxRoll": "MaxHP", "maxPercent": 40 }],
+					"applyDamageModifiers": false, "applyResistance": false
+				}],
+				"behaviours": [{ "type": "DamageCharacter", "value": "p.damagePerProc", "triggersOn": [{ "type": "TimerFired", "timerName": "proc" }] }]
+			},
+			{
+				"id": "Raid_Boss_Fortified", "templateID": "melvorD:EndOfFightRemoval",
+				"name": "Raid Boss Fortification", "media": "assets/raid_tier_1.svg", "target": "Self",
+				"statGroups": [{
+					"name": "fortification",
+					"modifiers": { "flatResistance": [{ "damageTypeID": "melvorD:Normal", "value": 99 }] }
+				}],
+				"behaviours": [{
+					"type": "ModifyStats", "statGroupName": "fortification", "newValue": 1,
+					"triggersOn": [{ "type": "EffectApplied" }]
+				}],
+				"effectGroups": ["melvorD:Buff"]
+			},
+			{
+				"id": "Raid_Boss_Vulnerable", "templateID": "melvorD:EndOfFightRemoval",
+				"name": "Raid Boss Vulnerability", "media": "assets/raid_tier_1.svg", "target": "Self",
+				"timers": [{ "name": "vulnerability" }],
+				"statGroups": [{
+					"name": "vulnerability",
+					"modifiers": { "flatResistance": [{ "damageTypeID": "melvorD:Normal", "value": -66 }] }
+				}],
+				"behaviours": [
+					{
+						"type": "ModifyStats", "statGroupName": "vulnerability", "newValue": 1,
+						"triggersOn": [{ "type": "EffectApplied" }]
+					},
+					{
+						"type": "StartTimer", "timerName": "vulnerability", "value": 6000,
+						"triggersOn": [{ "type": "EffectApplied" }, { "type": "EffectReapplied" }]
+					},
+					{
+						"type": "RemoveEffect",
+						"triggersOn": [{ "type": "TimerFired", "timerName": "vulnerability" }]
+					}
+				],
+				"effectGroups": ["melvorD:Debuff"]
+			}
+		],
+		"monsters": [
+			{
+				"id": "Raid_Tier_1", "name": "Raid Monster I (Placeholder)", "media": "assets/raid_plant_t1.png",
+				"levels": { "Hitpoints": 50, "Attack": 25, "Strength": 25, "Defence": 25, "Ranged": 1, "Magic": 1 },
+				"equipmentStats": [{ "key": "attackSpeed", "value": 8000 }], "ignoreCompletion": true,
+				"attackType": "melee", "specialAttacks": ["multiplayer:Raid_Tier_1_Assault"], "overrideSpecialChances": [100], "passives": [], "combatEffects": [{ "effectID": "multiplayer:Raid_Boss_Fortified", "appliesWhen": "StartOfFight" }, { "effectID": "multiplayer:Raid_Boss_Vulnerable", "appliesWhen": "PostAttack" }], "lootChance": 100,
+				"lootTable": [{ "itemID": "melvorF:Summoning_Familiar_Wolf", "minQuantity": 10, "maxQuantity": 15, "weight": 3 }, { "itemID": "melvorF:Eyeball", "minQuantity": 2, "maxQuantity": 4, "weight": 1 }],
+				"canSlayer": false, "isBoss": true, "selectedSpell": "melvorD:WindStrike"
+			},
+			{
+				"id": "Raid_Tier_2", "name": "Raid Monster II (Placeholder)", "media": "assets/raid_plant_t1.png",
+				"levels": { "Hitpoints": 150, "Attack": 65, "Strength": 65, "Defence": 65, "Ranged": 1, "Magic": 1 },
+				"equipmentStats": [{ "key": "attackSpeed", "value": 8000 }, { "key": "meleeStrengthBonus", "value": 25 }], "ignoreCompletion": true,
+				"attackType": "melee", "specialAttacks": ["multiplayer:Raid_Tier_2_Assault"], "overrideSpecialChances": [100], "passives": [], "combatEffects": [{ "effectID": "multiplayer:Raid_Boss_Fortified", "appliesWhen": "StartOfFight" }, { "effectID": "multiplayer:Raid_Boss_Vulnerable", "appliesWhen": "PostAttack" }], "lootChance": 100,
+				"lootTable": [{ "itemID": "melvorF:Summoning_Familiar_Minotaur", "minQuantity": 15, "maxQuantity": 25, "weight": 3 }, { "itemID": "melvorF:Large_Horn", "minQuantity": 3, "maxQuantity": 6, "weight": 1 }],
+				"canSlayer": false, "isBoss": true, "selectedSpell": "melvorD:WindStrike"
+			},
+			{
+				"id": "Raid_Tier_3", "name": "Raid Monster III (Placeholder)", "media": "assets/raid_plant_t1.png",
+				"levels": { "Hitpoints": 900, "Attack": 100, "Strength": 100, "Defence": 100, "Ranged": 1, "Magic": 1 },
+				"equipmentStats": [{ "key": "attackSpeed", "value": 8000 }, { "key": "meleeStrengthBonus", "value": 80 }], "ignoreCompletion": true,
+				"attackType": "melee", "specialAttacks": ["multiplayer:Raid_Tier_3_Assault"], "overrideSpecialChances": [100], "passives": [], "combatEffects": [{ "effectID": "multiplayer:Raid_Boss_Fortified", "appliesWhen": "StartOfFight" }, { "effectID": "multiplayer:Raid_Boss_Vulnerable", "appliesWhen": "PostAttack" }], "lootChance": 100,
+				"lootTable": [{ "itemID": "melvorF:Summoning_Familiar_Yak", "minQuantity": 25, "maxQuantity": 40, "weight": 3 }, { "itemID": "melvorD:Diamond", "minQuantity": 2, "maxQuantity": 4, "weight": 1 }],
+				"canSlayer": false, "isBoss": true, "selectedSpell": "melvorD:WindStrike"
+			},
+			{
+				"id": "Raid_Tier_4", "name": "Raid Monster IV (Placeholder)", "media": "assets/raid_plant_t1.png",
+				"levels": { "Hitpoints": 1500, "Attack": 125, "Strength": 125, "Defence": 125, "Ranged": 1, "Magic": 1 },
+				"equipmentStats": [{ "key": "attackSpeed", "value": 8000 }, { "key": "meleeStrengthBonus", "value": 140 }], "ignoreCompletion": true,
+				"attackType": "melee", "specialAttacks": ["multiplayer:Raid_Tier_4_Assault"], "overrideSpecialChances": [100], "passives": [], "combatEffects": [{ "effectID": "multiplayer:Raid_Boss_Fortified", "appliesWhen": "StartOfFight" }, { "effectID": "multiplayer:Raid_Boss_Vulnerable", "appliesWhen": "PostAttack" }], "lootChance": 100,
+				"lootTable": [{ "itemID": "melvorF:Summoning_Familiar_Dragon", "minQuantity": 35, "maxQuantity": 55, "weight": 3 }, { "itemID": "melvorD:Dragon_Bones", "minQuantity": 4, "maxQuantity": 8, "weight": 1 }],
+				"canSlayer": false, "isBoss": true, "selectedSpell": "melvorD:WindStrike"
+			}
+		],
+		"combatAreas": [{
+			"id": "Guild_Raid", "name": "Guild Raid", "media": "assets/raid_plant_t1.png",
+			"monsterIDs": ["multiplayer:Raid_Tier_1", "multiplayer:Raid_Tier_2", "multiplayer:Raid_Tier_3", "multiplayer:Raid_Tier_4"],
+			"difficulty": [1, 4], "entryRequirements": []
+		}],
 		"pages": [
+			{
+				"id": "Guild_Raid",
+				"customName": "Raid",
+				"media": "assets/raid_plant_t1.png",
+				"containerID": "mp-raid-page",
+				"headerBgClass": "mp-raid-bg",
+				"hasGameGuide": false,
+				"canBeDefault": false,
+				"sidebarItem": {
+					"categoryID": "Multiplayer",
+					"icon": "assets/raid_plant_t1.png",
+					"asideClass": "mp-raid-nav",
+					"aside": "preview"
+				}
+			},
 			{
 				"id": "Chat",
 				"customName": "Chat",
@@ -87,5 +342,79 @@
 				}
 			}
 		]
-	}
+	},
+	"dependentData": [{
+		"namespace": "melvorTotH",
+		"modifications": {
+			"monsters": [
+				{ "id": "multiplayer:Raid_Tier_1", "lootTable": { "add": [{ "itemID": "melvorTotH:Ectoplasm", "minQuantity": 2, "maxQuantity": 4, "weight": 1 }] } },
+				{ "id": "multiplayer:Raid_Tier_2", "lootTable": { "add": [{ "itemID": "melvorTotH:Raw_Ghost_Fish", "minQuantity": 2, "maxQuantity": 4, "weight": 1 }] } },
+				{ "id": "multiplayer:Raid_Tier_3", "lootTable": { "add": [{ "itemID": "melvorTotH:Zephyte", "minQuantity": 1, "maxQuantity": 2, "weight": 1 }] } },
+				{ "id": "multiplayer:Raid_Tier_4", "lootTable": { "add": [{ "itemID": "melvorTotH:Ectoplasm", "minQuantity": 6, "maxQuantity": 10, "weight": 1 }, { "itemID": "melvorTotH:Zephyte", "minQuantity": 2, "maxQuantity": 3, "weight": 1 }] } }
+			]
+		}
+	}, {
+		"namespace": "melvorItA",
+		"data": {
+			"attacks": [
+				{
+					"id": "Raid_Tier_3_Assault_ItA", "defaultChance": 100, "damage": [], "prehitEffects": [],
+					"onhitEffects": [
+						{
+							"effectID": "multiplayer:Raid_Tier_3_FullDamage", "chance": 100,
+							"condition": { "type": "Hitpoints", "character": "Enemy", "operator": "==", "value": 100 }
+						},
+						{
+							"effectID": "multiplayer:Raid_Tier_3_ReducedDamage", "chance": 100,
+							"condition": { "type": "Hitpoints", "character": "Enemy", "operator": "<", "value": 100 }
+						},
+						{ "effectID": "melvorD:Fear", "chance": 100 },
+						{ "effectID": "melvorD:DeadlyPoison", "chance": 100 },
+						{ "effectID": "melvorItA:Laceration", "chance": 100 }
+					],
+					"cantMiss": true, "attackCount": 1, "attackInterval": 50, "lifesteal": 0,
+					"name": "Toxic Dread",
+					"description": "Deals fixed damage equal to 50% of your maximum Hitpoints while you are at full Hitpoints, or 33% otherwise. Applies Fear, Deadly Poison, and Laceration."
+				},
+				{
+					"id": "Raid_Tier_4_Assault_ItA", "defaultChance": 100, "damage": [], "prehitEffects": [],
+					"onhitEffects": [
+						{
+							"effectID": "multiplayer:Raid_Tier_4_FullDamage", "chance": 100,
+							"condition": { "type": "Hitpoints", "character": "Enemy", "operator": "==", "value": 100 }
+						},
+						{
+							"effectID": "multiplayer:Raid_Tier_4_ReducedDamage", "chance": 100,
+							"condition": { "type": "Hitpoints", "character": "Enemy", "operator": "<", "value": 100 }
+						},
+						{ "effectID": "melvorD:Fear", "chance": 100 },
+						{ "effectID": "melvorD:DeadlyPoison", "chance": 100 },
+						{ "effectID": "melvorItA:Laceration", "chance": 100 },
+						{ "effectID": "melvorItA:EldritchCurse", "chance": 100 }
+					],
+					"cantMiss": true, "attackCount": 1, "attackInterval": 50, "lifesteal": 0,
+					"name": "Toxic Dread",
+					"description": "Deals fixed damage equal to 50% of your maximum Hitpoints while you are at full Hitpoints, or 40% otherwise. Applies Fear, Deadly Poison, Laceration, and Eldritch Curse."
+				}
+			]
+		},
+		"modifications": {
+			"monsters": [
+				{
+					"id": "multiplayer:Raid_Tier_3",
+					"specialAttacks": {
+						"remove": ["multiplayer:Raid_Tier_3_Assault"],
+						"add": [{ "attackID": "multiplayer:Raid_Tier_3_Assault_ItA", "chance": 100 }]
+					}
+				},
+				{
+					"id": "multiplayer:Raid_Tier_4",
+					"specialAttacks": {
+						"remove": ["multiplayer:Raid_Tier_4_Assault"],
+						"add": [{ "attackID": "multiplayer:Raid_Tier_4_Assault_ItA", "chance": 100 }]
+					}
+				}
+			]
+		}
+	}]
 }

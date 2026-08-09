@@ -10,15 +10,6 @@ body.superDark {
 	--mp-element-bg: black !important;
 }
 
-#mp-online-dropdown {
-	right: 0;
-	left: unset;
-}
-
-#mp-online-button-container {
-	position: relative;
-}
-
 .mp-input-text {
 	background: rgba(0, 0, 0, 0.161);
 	border: 1px solid white;
@@ -56,26 +47,29 @@ body.superDark {
 	padding: 5px;
 }
 
-.mp-menu-notification-number {
-	background-color: #ff4545;
-	padding: 2px 8px;
-	border-radius: 10px;
-	margin-left: 4px;
-}
-
-.mp-notification-circle {
-	position: absolute;
-	top: 4px;
-	right: 4px;
-	width: 15px;
-	height: 12px;
-	border-radius: 10px;
-	background-color: #ff4545;
-	color: white;
-	font-size: 8px;
-	display: flex;
+.mp-chat-nav,
+.mp-raid-nav {
+	color: white !important;
+	display: inline-flex;
 	align-items: center;
 	justify-content: center;
+	margin-left: auto;
+	padding: 2px 8px;
+	border-radius: 999px;
+	font-size: 0.75rem;
+	line-height: 1.2;
+}
+
+.mp-chat-nav {
+	background-color: #ff4545;
+}
+
+.mp-chat-nav:empty {
+	display: none;
+}
+
+.mp-raid-nav {
+	background-color: #5b4aa1;
 }
 
 .mp-icon-selector {
@@ -363,7 +357,7 @@ body.superDark {
 	min-height: 60px;
 	padding: 10px 16px;
 	text-align: left;
-	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	border: 0;
 }
 
 .mp-guild-person:last-child {
@@ -384,10 +378,42 @@ body.superDark {
 
 .mp-guild-member-meta {
 	display: flex;
-	align-items: center;
-	justify-content: flex-end;
+	flex-direction: column;
+	align-items: flex-end;
+	justify-content: center;
 	gap: 8px;
 	margin-left: auto;
+	white-space: nowrap;
+}
+
+.mp-guild-member-details,
+.mp-guild-member-indicators {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.mp-guild-member-details {
+	flex-direction: column;
+	align-items: flex-start;
+	min-width: 0;
+}
+
+.mp-guild-member-gp {
+	display: flex;
+	align-items: center;
+	gap: 3px;
+	font-size: .875rem;
+}
+
+.mp-guild-member-gp img {
+	width: 20px;
+	height: 20px;
+}
+
+.mp-guild-member-rule {
+	width: calc(100% - 32px);
+	margin: 0 auto;
 }
 
 .mp-guild-person-actions {
@@ -432,6 +458,14 @@ body.superDark {
 }
 
 .mp-status-visibility {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	margin: 4px 0;
+}
+
+.mp-gp-visibility {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -813,6 +847,14 @@ mp-item-slider .noUi-target * {
 
 .mp-charity-border {
 	border-color: #2B9546 !important;
+}
+
+div.mp-charitree-timer {
+	all: unset;
+	position: absolute;
+	top: 0;
+	left: 2px;
+	font-size: 9px;
 }
 
 .mp-campaign-bg {
@@ -1233,6 +1275,81 @@ mp-item-slider .noUi-target * {
 	display: none;
 }
 
+.mp-raid-bg {
+	background: linear-gradient(135deg, #31243a, #68425f) !important;
+}
+
+.mp-raid-activation {
+	display: grid;
+	grid-template-columns: 128px minmax(0, 1fr);
+	gap: 24px;
+	align-items: center;
+}
+
+.mp-raid-hero {
+	width: 128px;
+	height: 128px;
+	border-radius: 16px;
+}
+
+.mp-raid-health-copy {
+	display: flex;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.mp-raid-health {
+	height: 22px;
+	margin: 8px 0 18px;
+}
+
+.mp-raid-stats {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 10px;
+}
+
+.mp-raid-stats > div {
+	display: flex;
+	flex-direction: column;
+	padding: 12px;
+	background: rgba(0, 0, 0, .12);
+	border-radius: 6px;
+}
+
+.mp-raid-tiers {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 14px;
+}
+
+.mp-raid-tier {
+	text-align: center;
+	padding: 14px;
+	border: 1px solid rgba(128, 128, 128, .35);
+	border-radius: 8px;
+}
+
+.mp-raid-tier > img {
+	width: 96px;
+	height: 96px;
+	border-radius: 12px;
+	margin-bottom: 10px;
+}
+
+.mp-raid-tier .btn {
+	margin-top: 12px;
+}
+
+.mp-raid-leaderboard-row {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto auto;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 16px;
+	border-bottom: 1px solid rgba(128, 128, 128, .2);
+}
+
 .mp-guild-locked > :not(.mp-guild-required) {
 	display: none !important;
 }
@@ -1242,6 +1359,20 @@ mp-item-slider .noUi-target * {
 }
 
 @media (max-width: 767.98px) {
+	.mp-raid-activation {
+		grid-template-columns: 1fr;
+		text-align: center;
+	}
+
+	.mp-raid-hero {
+		margin: 0 auto;
+	}
+
+	.mp-raid-stats,
+	.mp-raid-tiers {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
 	.mp-profile-modal-popup .swal2-image {
 		margin: .5rem auto;
 	}

@@ -1,5 +1,6 @@
 import { get_json_with_session, post_json, register_client } from './http';
 import type { RegisteredClient } from './http';
+import { db_all, db_run } from './persistence';
 
 export type ClientDisplay = {
 	display_name: string;
@@ -16,6 +17,7 @@ export type Friend = ClientDisplay & {
 };
 
 export type Events = {
+	revision: number;
 	friend_requests: FriendRequest[];
 	gifts: number[];
 	trades: Array<{
@@ -177,6 +179,25 @@ export async function register_guild_client(
 		client_id: state.json.members[0].client_id,
 		guild_id: created.json.guild.guild_id
 	};
+}
+
+export async function attach_to_free_fellowship(
+	client: RegisteredClient
+): Promise<RegisteredGuildClient> {
+	const fellowship = (await db_all<{ guild_id: number }>(
+		"SELECT `id` AS `guild_id` FROM `guilds` WHERE `type` = 'free_fellowship' LIMIT 1"
+	))[0];
+	if (fellowship === undefined)
+		throw new Error('Free Fellowship fixture is missing');
+
+	const inserted = await db_run(
+		'INSERT INTO `guild_memberships` (`client_id`, `guild_id`) VALUES (?, ?)',
+		[client.client_id, fellowship.guild_id]
+	);
+	if (inserted !== 1)
+		throw new Error(`Free Fellowship fixture membership failed for client ${client.client_id}`);
+
+	return { ...client, guild_id: fellowship.guild_id };
 }
 
 export async function make_guild_group(

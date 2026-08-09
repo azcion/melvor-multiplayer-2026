@@ -1,4 +1,5 @@
-import { appendFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, readdirSync, rmSync } from 'node:fs';
+import { appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const LOG_DIRECTORY = process.env.FILE_OPERATIONAL_LOGS === '1'
@@ -6,6 +7,45 @@ const LOG_DIRECTORY = process.env.FILE_OPERATIONAL_LOGS === '1'
 	: undefined;
 const RETENTION_DAYS = 7;
 let current_day = '';
+const pending_lines = new Map<string, string[]>();
+let flush_timer: ReturnType<typeof setTimeout> | null = null;
+let flush_in_flight: Promise<void> | null = null;
+
+async function flush_pending_logs(): Promise<void> {
+	flush_timer = null;
+	const batches = [...pending_lines.entries()];
+	pending_lines.clear();
+	for (const [path, lines] of batches) {
+		try {
+			await appendFile(path, lines.join(''), { encoding: 'utf8', mode: 0o600 });
+		} catch (error) {
+			console.error('Failed to write the operational log', error);
+		}
+	}
+}
+
+function schedule_log_flush(): void {
+	if (flush_timer !== null || flush_in_flight !== null)
+		return;
+	flush_timer = setTimeout(() => {
+		flush_in_flight = flush_pending_logs().finally(() => {
+			flush_in_flight = null;
+			if (pending_lines.size > 0)
+				schedule_log_flush();
+		});
+	}, 100);
+}
+
+export async function flush_logs(): Promise<void> {
+	if (flush_timer !== null) {
+		clearTimeout(flush_timer);
+		flush_timer = null;
+	}
+	if (flush_in_flight !== null)
+		await flush_in_flight;
+	if (pending_lines.size > 0)
+		await flush_pending_logs();
+}
 
 function prune_logs(today: string): void {
 	if (LOG_DIRECTORY === undefined)
@@ -35,16 +75,17 @@ export function write_log(level: 'info' | 'error', message: string): void {
 	}
 
 	try {
-		mkdirSync(LOG_DIRECTORY, { recursive: true, mode: 0o700 });
 		const day = timestamp.slice(0, 10);
 		if (day !== current_day) {
+			mkdirSync(LOG_DIRECTORY, { recursive: true, mode: 0o700 });
 			prune_logs(day);
 			current_day = day;
 		}
-		appendFileSync(join(LOG_DIRECTORY, `server-${day}.log`), `${line}\n`, {
-			encoding: 'utf8',
-			mode: 0o600
-		});
+		const path = join(LOG_DIRECTORY, `server-${day}.log`);
+		const lines = pending_lines.get(path) ?? [];
+		lines.push(`${line}\n`);
+		pending_lines.set(path, lines);
+		schedule_log_flush();
 	} catch (error) {
 		console.error('Failed to write the operational log', error);
 	}

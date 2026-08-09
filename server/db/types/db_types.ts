@@ -15,6 +15,7 @@ export type charity_items = {
 	guild_id: number;
 	item_id: string;
 	qty: number;
+	expires_at: number;
 };
 
 export type client_sessions = {
@@ -34,11 +35,37 @@ export type clients = {
 	disabled: number,
 	equipment_visible: number,
 	status_visible: number,
+	gp_visible: number,
 	messaging_enabled: number,
 	messaging_credits: number,
 	messaging_refill_at: number,
 	melvor_account_id: number | null,
-	deleted_at: number | null
+	manual_melvor_account_link: number,
+	deleted_at: number | null,
+	last_multiplayer_active_at: number,
+	event_revision: number
+};
+
+export type guild_raids = {
+	id: number;
+	guild_id: number;
+	started_at: number;
+	expires_at: number;
+	active_member_count: number;
+	required_contributors: number;
+	max_health: number;
+	remaining_health: number;
+	secured_at: number | null;
+};
+
+export type guild_raid_roster = {
+	raid_id: number;
+	membership_id: number;
+	client_id: number;
+	contribution: number;
+	highest_tier: number;
+	successful_assaults: number;
+	manual_assaults_remaining: number | null;
 };
 
 export type melvor_accounts = {
@@ -148,6 +175,11 @@ export type status_snapshot_skills = {
 	level: number;
 };
 
+export type gp_snapshots = {
+	client_id: number;
+	amount: number;
+};
+
 export type service_settings = {
 	key: string;
 	value: string;
@@ -183,6 +215,7 @@ export type guilds = {
 	type: 'private' | 'free_fellowship';
 	name: string;
 	icon_id: string;
+	charitree_enabled: number;
 };
 
 export type guild_memberships = {
@@ -195,7 +228,8 @@ export type guild_petitions = {
 	id: number;
 	guild_id: number;
 	guild_name: string;
-	type: 'appellation' | 'heraldry' | 'banishment';
+	type: 'appellation' | 'heraldry' | 'banishment' | 'charitree_ingratitude' |
+		'charitree_sacrilege' | 'charitree_beneficence';
 	conflict_subject: string;
 	subject_locked: number;
 	petitioner_id: number;
@@ -203,6 +237,7 @@ export type guild_petitions = {
 	proposed_icon_id: string | null;
 	target_client_id: number | null;
 	target_membership_id: number | null;
+	charitree_expires_before: number | null;
 	created_at: number;
 	expires_at: number;
 	resolved_at: number | null;

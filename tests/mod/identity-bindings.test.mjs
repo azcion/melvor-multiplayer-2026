@@ -17,7 +17,7 @@ test('reads the authenticated Melvor Cloud username and PlayFab ID as one pair',
 	assert.equal(read_melvor_account({ cloudUsername: 'Jared' }, { getItem: () => null }), null);
 });
 
-test('keeps independent credentials for each account pair on one save', () => {
+test('keeps independent credentials for each PlayFab account on one save', () => {
 	let bindings = normalize_identity_bindings(undefined);
 	bindings = upsert_identity_binding(bindings, jared, {
 		client_identifier: 'bob-id',
@@ -33,19 +33,26 @@ test('keeps independent credentials for each account pair on one save', () => {
 	assert.equal(find_identity_binding(bindings, mary).client_identifier, 'mary-bob-id');
 	assert.equal(bindings.entries.length, 2);
 
-	bindings = upsert_identity_binding(bindings, jared, {
+	bindings = upsert_identity_binding(bindings, { ...jared, cloud_username: 'jared' }, {
 		client_identifier: 'bob-id',
 		client_key: 'rotated-key'
 	});
-	assert.equal(find_identity_binding(bindings, jared).client_key, 'rotated-key');
+	const updated = find_identity_binding(bindings, { ...jared, cloud_username: 'Renamed Jared' });
+	assert.equal(updated.client_key, 'rotated-key');
+	assert.equal(updated.cloud_username, 'Jared');
 	assert.equal(bindings.entries.length, 2);
 });
 
 test('discards malformed persisted entries without disturbing valid bindings', () => {
 	const bindings = normalize_identity_bindings({
 		version: 1,
-		entries: [{ ...jared, client_identifier: 'bob-id', client_key: 'bob-key' }, { cloud_username: 'broken' }]
+		entries: [
+			{ ...jared, client_identifier: 'bob-id', client_key: 'bob-key' },
+			{ ...jared, cloud_username: 'jared', client_identifier: 'duplicate-id', client_key: 'duplicate-key' },
+			{ cloud_username: 'broken' }
+		]
 	});
 	assert.equal(bindings.entries.length, 1);
 	assert.equal(find_identity_binding(bindings, jared).client_key, 'bob-key');
+	assert.equal(bindings.entries[0].cloud_username, 'Jared');
 });

@@ -13,7 +13,7 @@ test('wires Council petition controls, resolved-history toggle, and action descr
 	]);
 	const language = JSON.parse(language_text);
 
-	for (const modal of ['raise', 'appellation', 'heraldry', 'banishment'])
+	for (const modal of ['raise', 'appellation', 'heraldry', 'banishment', 'charitree'])
 		assert.match(templates, new RegExp(`template-mp-council-${modal}-modal`));
 
 	assert.match(templates, /v-if="petition\.tally_visible"/);
@@ -26,6 +26,13 @@ test('wires Council petition controls, resolved-history toggle, and action descr
 	assert.match(templates, /MOD_MP_COUNCIL_APPELLATION_DESCRIPTION/);
 	assert.match(templates, /MOD_MP_COUNCIL_HERALDRY_DESCRIPTION/);
 	assert.match(templates, /MOD_MP_COUNCIL_BANISHMENT_DESCRIPTION/);
+	assert.match(templates, /can_raise_council_petition\('charitree_ingratitude'\)/);
+	assert.match(templates, /can_raise_council_petition\('charitree_sacrilege'\)/);
+	assert.match(templates, /can_raise_council_petition\('charitree_beneficence'\)/);
+	assert.match(templates, /MOD_MP_COUNCIL_INGRATITUDE_DESCRIPTION/);
+	assert.match(templates, /MOD_MP_COUNCIL_SACRILEGE_DESCRIPTION/);
+	assert.match(templates, /MOD_MP_COUNCIL_BENEFICENCE_DESCRIPTION/);
+	assert.match(templates, /submit_council_petition\(\$event, state\.council_type\)/);
 	assert.match(style, /\.mp-council-threshold[\s\S]*left: 50%/);
 	assert.match(style, /\.mp-council-petition-description[\s\S]*text-align: center/);
 	assert.match(style, /\.mp-council-target-list \.mp-guild-person:last-child[\s\S]*border-bottom: 1px solid currentColor/);
@@ -34,8 +41,41 @@ test('wires Council petition controls, resolved-history toggle, and action descr
 	assert.match(main, /api_post\('\/api\/guilds\/petitions\/raise'/);
 	assert.match(main, /api_post\('\/api\/guilds\/petitions\/vote'/);
 	assert.match(main, /api_post\('\/api\/guilds\/petitions\/withdraw'/);
-	assert.match(main, /if \(guild_state\?\.affiliation === 'member'\)\s*await refresh_council\(\)/);
+	assert.match(main, /async function refresh_guild_page\(\)[\s\S]*?if \(state\.is_guild_member\)[\s\S]*?await refresh_council\(\)/);
+	assert.match(main, /async show_raise_petition_modal\(\)[\s\S]*?await refresh_council\(\)/);
 	assert.match(main, /petition\.lifecycle === 'active'/);
+	assert.match(main, /state\.council_available_petition_types = res\.available_petition_types \?\? \[\]/);
 	assert.equal(language.MOD_MP_COUNCIL_TYPE_BANISHMENT, 'Petition for Banishment');
+	assert.equal(language.MOD_MP_COUNCIL_TYPE_CHARITREE_INGRATITUDE, 'Petition of Ingratitude');
+	assert.equal(language.MOD_MP_COUNCIL_TYPE_CHARITREE_SACRILEGE, 'Petition of Sacrilege');
+	assert.equal(language.MOD_MP_COUNCIL_TYPE_CHARITREE_BENEFICENCE, 'Petition of Beneficence');
 	assert.equal(language.MOD_MP_COUNCIL_BANISHMENT_DESCRIPTION, 'Propose removing a member from the Guild. It is not a permanent ban; they may apply to rejoin.');
+});
+
+test('hides the felled Charitree and its donation action until restored', async () => {
+	const [templates, main, style, language_text] = await Promise.all([
+		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
+		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		readFile(new URL('mod/ui/style.css', root), 'utf8'),
+		readFile(new URL('mod/data/lang/en.json', root), 'utf8')
+	]);
+	const language = JSON.parse(language_text);
+	const charitree_page = templates.slice(
+		templates.indexOf('<template id="template-mp-charity-page">'),
+		templates.indexOf('<template id="template-mp-transfer-page">')
+	);
+
+	assert.match(main, /get is_charitree_enabled\(\)/);
+	assert.match(main, /sidebar\.category\('Multiplayer'\)\.item\('multiplayer:Charity_Tree'\)/);
+	assert.match(main, /nav_item\.rootEl\?\.classList\.toggle\('d-none', state\.is_guild_member && !state\.is_charitree_enabled\)/);
+	assert.doesNotMatch(main, /nav_item\.(hide|show)\(\)/);
+	assert.match(main, /state\.events\.guild_applicants = state\.guild_applicants;\s*update_charitree_nav\(\);/);
+	assert.match(charitree_page, /v-show="state\.is_guild_member && !state\.is_charitree_enabled"/);
+	assert.match(charitree_page, /MOD_MP_CHARITY_DISABLED_INFO/);
+	assert.match(charitree_page, /v-show="state\.is_charitree_enabled"/);
+	assert.match(charitree_page, /<div class="mp-charitree-timer"><mp-lang-string-f lang-id="MOD_MP_CHARITY_EXPIRES_IN" :lang-arg-1="state\.format_charity_expiry\(item\.expires_at\)"><\/mp-lang-string-f><\/div>/);
+	assert.match(style, /div\.mp-charitree-timer\s*\{\s*all: unset;\s*position: absolute;\s*top: 0;\s*left: 2px;\s*font-size: 9px;\s*\}/);
+	assert.equal(language.MOD_MP_CHARITY_EXPIRES_IN, '%s');
+	assert.match(templates, /state\.is_guild_member && state\.is_charitree_enabled && !state\.has_destroyable_transfer_items/);
+	assert.equal(language.MOD_MP_CHARITY_DISABLED, 'This Guild has forsaken the Charitree.');
 });

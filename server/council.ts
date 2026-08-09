@@ -4,7 +4,14 @@ export const COUNCIL_MAINTENANCE_INTERVAL = 1000 * 30;
 export const PETITION_RUNNING_STALE_AFTER = 1000 * 60 * 5;
 export const PETITION_FAILED_RETRY_AFTER = 1000 * 30;
 
-export const PETITION_TYPES = ['appellation', 'heraldry', 'banishment'] as const;
+export const PETITION_TYPES = [
+	'appellation',
+	'heraldry',
+	'banishment',
+	'charitree_ingratitude',
+	'charitree_sacrilege',
+	'charitree_beneficence'
+] as const;
 export const PETITION_CHOICES = ['aye', 'nay'] as const;
 
 export type PetitionType = typeof PETITION_TYPES[number];
@@ -43,6 +50,8 @@ export function get_petition_conflict_subject(type: PetitionType, target_members
 		return 'guild:name';
 	if (type === 'heraldry')
 		return 'guild:icon';
+	if (type.startsWith('charitree_'))
+		return 'guild:charitree';
 	if (!Number.isSafeInteger(target_membership_id) || (target_membership_id as number) < 1)
 		throw new RangeError('target_membership_id must be a positive safe integer');
 	return `membership:${target_membership_id}`;

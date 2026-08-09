@@ -27,9 +27,17 @@ export function normalize_identity_bindings(value) {
 	if (value === null || typeof value !== 'object' || value.version !== BINDINGS_VERSION ||
 		!Array.isArray(value.entries))
 		return { version: BINDINGS_VERSION, entries: [] };
+	const playfab_ids = new Set();
+	const entries = [];
+	for (const binding of value.entries) {
+		if (!valid_binding(binding) || playfab_ids.has(binding.playfab_id))
+			continue;
+		playfab_ids.add(binding.playfab_id);
+		entries.push({ ...binding });
+	}
 	return {
 		version: BINDINGS_VERSION,
-		entries: value.entries.filter(valid_binding).map(binding => ({ ...binding }))
+		entries
 	};
 }
 
@@ -37,7 +45,7 @@ export function find_identity_binding(value, account) {
 	if (!valid_account(account))
 		return null;
 	return normalize_identity_bindings(value).entries.find(binding =>
-		binding.cloud_username === account.cloud_username && binding.playfab_id === account.playfab_id
+		binding.playfab_id === account.playfab_id
 	) ?? null;
 }
 
@@ -53,11 +61,15 @@ export function upsert_identity_binding(value, account, credentials) {
 		...(typeof credentials.friend_code === 'string' ? { friend_code: credentials.friend_code } : {})
 	};
 	const index = bindings.entries.findIndex(entry =>
-		entry.cloud_username === account.cloud_username && entry.playfab_id === account.playfab_id
+		entry.playfab_id === account.playfab_id
 	);
 	if (index === -1)
 		bindings.entries.push(binding);
-	else
-		bindings.entries[index] = binding;
+	else {
+		bindings.entries[index] = {
+			...binding,
+			cloud_username: bindings.entries[index].cloud_username
+		};
+	}
 	return bindings;
 }

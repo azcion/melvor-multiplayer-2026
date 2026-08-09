@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { make_guildmates } from '../support/fixtures';
 import { get_json_with_session, post, post_json, register_client } from '../support/http';
+import { db_run } from '../support/persistence';
 
 type StatusSkill = { skill_id: string; level: number };
 type StatusActivity =
@@ -61,6 +62,87 @@ describe('player status API', () => {
 			status_available: true,
 			status_activity: activity
 		});
+	});
+
+	test('accepts partial updates without replacing the omitted status portion', async () => {
+		const pair = await make_guildmates('Partial Status Owner', 'Partial Status Viewer');
+		const skills = [{ skill_id: 'melvorD:Attack', level: 42 }];
+		await sync_status(pair.first.session_token, skills, {
+			type: 'skill', skill_id: 'melvorD:Woodcutting', action_id: 'melvorD:Oak'
+		});
+		const activity_only = await post_json<{ success: boolean }>('/api/client/status/sync', {
+			activity: { type: 'combat', area_id: 'melvorD:Volcanic_Cave' }
+		}, pair.first.session_token);
+		const after_activity = await get_status(pair.second.session_token, pair.first_id);
+		const skills_only = await post_json<{ success: boolean }>('/api/client/status/sync', {
+			skills: [{ skill_id: 'melvorD:Attack', level: 43 }]
+		}, pair.first.session_token);
+		const after_skills = await get_status(pair.second.session_token, pair.first_id);
+		const empty = await post('/api/client/status/sync', {}, pair.first.session_token);
+
+		expect(activity_only.json.success).toBe(true);
+		expect(after_activity.json.skills).toEqual(skills);
+		expect(after_activity.json.activity).toEqual({ type: 'combat', area_id: 'melvorD:Volcanic_Cave' });
+		expect(skills_only.json.success).toBe(true);
+		expect(after_skills.json.skills).toEqual([{ skill_id: 'melvorD:Attack', level: 43 }]);
+		expect(after_skills.json.activity).toEqual({ type: 'combat', area_id: 'melvorD:Volcanic_Cave' });
+		expect(empty.status).toBe(400);
+	});
+
+	test('shares raw GP and authenticated last-seen activity with current Guild members', async () => {
+		const pair = await make_guildmates('GP Owner', 'GP Viewer');
+		const last_seen_at = 1_800_000_000_000;
+		await post_json('/api/client/status/sync', { gp: 142_609 }, pair.first.session_token);
+		await db_run('UPDATE `clients` SET `last_multiplayer_active_at` = ? WHERE `id` = ?', [
+			last_seen_at,
+			pair.first_id
+		]);
+
+		const state = await get_json_with_session<{
+			members: Array<{
+				client_id: number;
+				gp_visible: boolean;
+				gp: number | null;
+				last_seen_at: number | null;
+			}>;
+		}>('/api/guilds/state', pair.second.session_token);
+		const owner = state.json.members.find(member => member.client_id === pair.first_id);
+
+		expect(owner).toMatchObject({
+			gp_visible: true,
+			gp: 142_609,
+			last_seen_at
+		});
+	});
+
+	test('defaults GP sharing on and deletes the snapshot on opt-out', async () => {
+		const pair = await make_guildmates('GP Visibility Owner', 'GP Visibility Viewer');
+		await post_json('/api/client/status/sync', { gp: 50_000 }, pair.first.session_token);
+
+		const disabled = await post_json<{ success: boolean; visible: boolean }>(
+			'/api/client/gp/visibility',
+			{ visible: false },
+			pair.first.session_token
+		);
+		const hidden_state = await get_json_with_session<{
+			members: Array<{ client_id: number; gp_visible: boolean; gp: number | null }>;
+		}>('/api/guilds/state', pair.second.session_token);
+		const rejected = await post_json<{ error_lang: string }>(
+			'/api/client/status/sync',
+			{ gp: 60_000 },
+			pair.first.session_token
+		);
+		const enabled = await post_json<{ success: boolean; visible: boolean }>(
+			'/api/client/gp/visibility',
+			{ visible: true },
+			pair.first.session_token
+		);
+		const hidden_owner = hidden_state.json.members.find(member => member.client_id === pair.first_id);
+
+		expect(disabled.json).toEqual({ success: true, visible: false });
+		expect(hidden_owner).toMatchObject({ gp_visible: false, gp: null });
+		expect(rejected.json.error_lang).toBe('MOD_MP_GP_SHARING_DISABLED');
+		expect(enabled.json).toEqual({ success: true, visible: true });
 	});
 
 	test('includes only the minimal activity descriptor in the Free Fellowship directory', async () => {
@@ -152,10 +234,11 @@ describe('player status API', () => {
 			skills: [],
 			activity: { type: 'skill', skill_id: 'melvorD:Attack' }
 		}, owner.session_token);
+		const invalid_gp = await post('/api/client/status/sync', { gp: Number.MAX_SAFE_INTEGER + 1 }, owner.session_token);
 
 		expect(idle.json.success).toBe(true);
 		expect(combat.json.success).toBe(true);
-		for (const response of [duplicate, malformed, invalid_level, too_many, invalid_activity])
+		for (const response of [duplicate, malformed, invalid_level, too_many, invalid_activity, invalid_gp])
 			expect(response.status).toBe(400);
 	});
 });

@@ -1,5 +1,6 @@
 // #region IMPORTS
 import { format } from 'node:util';
+import type { SQLQueryBindings } from 'bun:sqlite';
 import {
 	db,
 	db_get_single,
@@ -30,6 +31,7 @@ import {
 	PETITION_LIFETIME,
 	PETITION_RUNNING_STALE_AFTER
 } from './council';
+import type { PetitionType } from './council';
 import {
 	create_http_server,
 	identify_request,
@@ -37,9 +39,10 @@ import {
 	status_response,
 	validate_json_request
 } from './http';
-import type { HandlerReturnType, JsonObject, JsonSerializable, RequestHandler } from './http';
-import { report_error, write_log } from './log';
+import type { HandlerResult, HandlerReturnType, JsonObject, JsonSerializable, RequestHandler } from './http';
+import { flush_logs, report_error, write_log } from './log';
 import { load_request_limit_configuration, RequestLimitPolicy } from './security';
+import { create_shutdown_handler } from './shutdown';
 import { AVAILABLE_CAMPAIGNS } from './campaign_data';
 import type { CampaignData, CampaignItemData } from './campaign_data';
 import type * as db_row from './db/types/db_types';
@@ -73,6 +76,16 @@ import {
 	recover_deleted_client,
 	schedule_client_deletion
 } from './identity';
+import {
+	acknowledge_victory_cache,
+	abandon_assault,
+	activate_raid,
+	get_raid_state,
+	get_victory_cache,
+	reserve_assault,
+	settle_assault,
+	type RaidOutcome
+} from './raid';
 // #endregion
 
 // #region TYPES
@@ -131,6 +144,9 @@ type GuildMemberRow = {
 	status_activity_skill_id: string | null;
 	status_activity_action_id: string | null;
 	status_activity_area_id: string | null;
+	gp_visible: number;
+	gp_amount: number | null;
+	last_multiplayer_active_at: number;
 };
 
 type GuildSummary = {
@@ -239,9 +255,12 @@ const CACHE_SESSION_LIFETIME = 1000 * 60 * 60; // 1 hour
 
 // time between data cache sweeps
 const CACHE_RESET_INTERVAL = 1000 * 60 * 60 * 24; // 24 hours
+const CLIENT_ACTIVITY_WRITE_INTERVAL = 1000 * 60 * 5; // 5 minutes
 
 // time between players taking charity items
 const CHARITY_TIMEOUT = 1000 * 60 * 60 * 24; // 24 hours
+const CHARITY_ITEM_LIFETIME = 1000 * 60 * 60 * 24 * 4; // 4 days
+const CHARITY_MAINTENANCE_INTERVAL = 1000 * 60 * 60; // 1 hour
 
 const CAMPAIGN_RESTART_TIMER = 1000 * 60 * 60 * 12; // 12 hours
 
@@ -260,6 +279,7 @@ const server = create_http_server(Number(process.env.SERVER_PORT));
 const request_limits = new RequestLimitPolicy(load_request_limit_configuration());
 
 const client_session_cache = new Map<string, CachedSession>();
+const client_activity_writes = new Map<number, number>();
 
 const friend_request_cache = new Map<number, FriendRequest[]>();
 const gift_cache = new Map<number, number[]>();
@@ -331,10 +351,14 @@ function browser_response(req: Request, result: unknown): Response {
 		return response;
 
 	const headers = new Headers(response.headers);
+	headers.set('Cache-Control', 'private, no-store');
 	headers.set('Access-Control-Allow-Origin', origin);
 	headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-	headers.set('Access-Control-Allow-Headers', 'Content-Type, X-Session-Token');
+	headers.set('Access-Control-Allow-Headers', 'Content-Type, X-Session-Token, Cache-Control, Pragma');
+	if (req.method === 'OPTIONS')
+		headers.set('Access-Control-Max-Age', '600');
 	headers.append('Vary', 'Origin');
+	headers.append('Vary', 'X-Session-Token');
 
 	return new Response(response.body, {
 		status: response.status,
@@ -366,26 +390,48 @@ function remove_player_cache_entry(cache: Map<number, number[]>, client_id: numb
 		cache.set(client_id, cached_entries.filter(e => e !== item_id));
 }
 
-function validate_item_array(items: unknown) {
+function parse_transfer_items(items: unknown): TransferItem[] | null {
 	if (!Array.isArray(items))
-		return false;
+		return null;
+
+	const parsed: TransferItem[] = [];
 
 	for (const item of items) {
 		if (typeof item !== 'object' || item === null || Array.isArray(item))
-			return false;
+			return null;
 
-		// @ts-ignore
-		if (!is_valid_item_id(item.id) || typeof item.qty !== 'number')
-			return false;
+		const value = item as Record<string, unknown>;
+		if (!is_valid_item_id(value.id) || typeof value.qty !== 'number')
+			return null;
 
-		if (item.qty <= 0 || !Number.isSafeInteger(Math.trunc(item.qty)))
-			return false;
+		if (value.qty <= 0 || !Number.isSafeInteger(Math.trunc(value.qty)))
+			return null;
 
-		item.qty = Math.trunc(item.qty);
-
+		parsed.push({ id: value.id, qty: Math.trunc(value.qty) });
 	}
 
-	return true;
+	return parsed;
+}
+
+function parse_number_array(value: unknown): number[] | null {
+	if (!Array.isArray(value))
+		return null;
+	for (const item of value)
+		if (typeof item !== 'number')
+			return null;
+	return value;
+}
+
+function parse_existing_item_ids(value: unknown): string[] | null {
+	if (!Array.isArray(value) || value.length > MAX_TRANSFER_ITEM_COUNT)
+		return null;
+	const item_ids: string[] = [];
+	for (const item_id of value) {
+		if (typeof item_id !== 'string' || item_id.length === 0)
+			return null;
+		item_ids.push(item_id);
+	}
+	return new Set(item_ids).size === item_ids.length ? item_ids : null;
 }
 
 function array_random(arr: Array<unknown>) {
@@ -492,6 +538,7 @@ function sweep_data_caches() {
 }
 
 function clear_data_caches() {
+	client_activity_writes.clear();
 	friend_request_cache.clear();
 	gift_cache.clear();
 	display_name_cache.clear();
@@ -526,11 +573,20 @@ function expire_petitions(now = Date.now()): number {
 	).run(now).changes;
 }
 
+function expire_charity_items(now = Date.now(), guild_id?: number): number {
+	if (guild_id === undefined)
+		return db.query('DELETE FROM `charity_items` WHERE `expires_at` <= ?').run(now).changes;
+	return db.query(
+		'DELETE FROM `charity_items` WHERE `guild_id` = ? AND `expires_at` <= ?'
+	).run(guild_id, now).changes;
+}
+
 function claim_council_action(now = Date.now()): db_row.guild_petitions | null {
 	const claim = db.transaction(() => {
 		const petition = db.query(
 			"SELECT * FROM `guild_petitions` WHERE `lifecycle` = 'granted' " +
-			"AND `type` IN ('appellation', 'heraldry', 'banishment') AND (" +
+			"AND `type` IN ('appellation', 'heraldry', 'banishment', 'charitree_ingratitude', " +
+			"'charitree_sacrilege', 'charitree_beneficence') AND (" +
 			"`execution_state` = 'pending' OR " +
 			"(`execution_state` = 'failed' AND `execution_last_attempt_at` <= ?) OR " +
 			"(`execution_state` = 'running' AND `execution_last_attempt_at` <= ?)) " +
@@ -602,7 +658,7 @@ function apply_banishment_action(petition: db_row.guild_petitions): string {
 			petition.guild_id
 		) as { id: number } | null;
 		if (membership === null)
-			return { effect: 'already_absent', dissolved: false, trade_ids: [] as number[] };
+			return { effect: 'already_absent' as const, dissolved: false, trade_ids: [] as number[] };
 
 		const target_client_id = petition.target_client_id as number;
 		const target_return_id = ensure_banishment_return(petition, target_client_id, true, now);
@@ -650,7 +706,7 @@ function apply_banishment_action(petition: db_row.guild_petitions): string {
 			db.query('DELETE FROM `guilds` WHERE `id` = ?').run(petition.guild_id);
 
 		return {
-			effect: 'banished',
+			effect: 'banished' as const,
 			dissolved: remaining.count === 0,
 			trade_ids: trades.map(trade => trade.trade_id),
 			trade_clients: trades.flatMap(trade => [trade.sender_id, trade.recipient_id])
@@ -660,7 +716,7 @@ function apply_banishment_action(petition: db_row.guild_petitions): string {
 	const result = banish.immediate();
 	for (const trade_id of result.trade_ids)
 		trade_cache.delete(trade_id);
-	if ('trade_clients' in result) {
+	if (result.effect === 'banished') {
 		for (const client_id of result.trade_clients)
 			trade_player_cache.delete(client_id);
 	}
@@ -686,6 +742,31 @@ function apply_council_guild_action(petition: db_row.guild_petitions): string {
 			petition.guild_id
 		);
 		return updated.changes === 1 ? 'updated' : 'guild_absent';
+	}
+	if (petition.type === 'charitree_ingratitude') {
+		const removed = db.query(
+			'DELETE FROM `charity_items` WHERE `guild_id` = ? AND `expires_at` <= ?'
+		).run(petition.guild_id, petition.charitree_expires_before);
+		return removed.changes > 0 ? 'cleared' : 'already_empty';
+	}
+	if (petition.type === 'charitree_sacrilege') {
+		const disable = db.transaction(() => {
+			const updated = db.query(
+				'UPDATE `guilds` SET `charitree_enabled` = 0 WHERE `id` = ? AND `charitree_enabled` = 1'
+			).run(petition.guild_id);
+			const removed = db.query('DELETE FROM `charity_items` WHERE `guild_id` = ?').run(petition.guild_id);
+			return { updated: updated.changes, removed: removed.changes };
+		});
+		const result = disable.immediate();
+		if (result.updated === 0)
+			return 'already_disabled';
+		return result.removed > 0 ? 'disabled_and_destroyed' : 'disabled_empty';
+	}
+	if (petition.type === 'charitree_beneficence') {
+		const updated = db.query(
+			'UPDATE `guilds` SET `charitree_enabled` = 1 WHERE `id` = ? AND `charitree_enabled` = 0'
+		).run(petition.guild_id);
+		return updated.changes === 1 ? 'enabled' : 'already_enabled';
 	}
 	return apply_banishment_action(petition);
 }
@@ -727,6 +808,15 @@ function maintain_council() {
 	setTimeout(maintain_council, COUNCIL_MAINTENANCE_INTERVAL);
 }
 
+function maintain_charity() {
+	try {
+		expire_charity_items();
+	} catch (error) {
+		report_error('Charity maintenance failed', error);
+	}
+	setTimeout(maintain_charity, CHARITY_MAINTENANCE_INTERVAL);
+}
+
 function execute_due_client_deletions(now = Date.now()) {
 	const executions = process_due_client_deletions(now);
 	if (executions.length === 0)
@@ -756,6 +846,7 @@ function maintain_client_deletions() {
 setTimeout(sweep_client_session_cache, CACHE_SESSION_LIFETIME);
 setTimeout(sweep_data_caches, CACHE_RESET_INTERVAL);
 maintain_council();
+maintain_charity();
 maintain_client_deletions();
 // #endregion
 
@@ -811,7 +902,7 @@ function empty_guild_campaign(guild_id: number): GuildCampaign {
 
 function forget_guild_campaign(guild_id: number) {
 	const campaign = guild_campaigns.get(guild_id);
-	if (campaign?.restart_timer !== null)
+	if (campaign !== undefined && campaign.restart_timer !== null)
 		clearTimeout(campaign.restart_timer);
 	guild_campaigns.delete(guild_id);
 }
@@ -1259,7 +1350,10 @@ function guild_member_from_row(member: GuildMemberRow) {
 		equipment_available: member.equipment_available === 1,
 		status_visible: member.status_visible === 1,
 		status_available: member.status_available === 1,
-		status_activity: get_guild_member_status_activity(member)
+		status_activity: get_guild_member_status_activity(member),
+		gp_visible: member.gp_visible === 1,
+		gp: member.gp_visible === 1 ? member.gp_amount : null,
+		last_seen_at: member.last_multiplayer_active_at > 0 ? member.last_multiplayer_active_at : null
 	};
 }
 
@@ -1271,10 +1365,12 @@ async function get_guild_members(guild_id: number) {
 		'c.`status_visible`, ' +
 		'EXISTS(SELECT 1 FROM `status_snapshots` AS available_ss WHERE available_ss.`client_id` = c.`id`) AS `status_available`, ' +
 		'ss.`activity_type` AS `status_activity_type`, ss.`activity_skill_id` AS `status_activity_skill_id`, ' +
-		'ss.`activity_action_id` AS `status_activity_action_id`, ss.`activity_area_id` AS `status_activity_area_id` ' +
+		'ss.`activity_action_id` AS `status_activity_action_id`, ss.`activity_area_id` AS `status_activity_area_id`, ' +
+		'c.`gp_visible`, gps.`amount` AS `gp_amount`, c.`last_multiplayer_active_at` ' +
 		'FROM `guild_memberships` AS m ' +
 		'JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
 		'LEFT JOIN `status_snapshots` AS ss ON ss.`client_id` = c.`id` ' +
+		'LEFT JOIN `gp_snapshots` AS gps ON gps.`client_id` = c.`id` ' +
 		'WHERE m.`guild_id` = ? ORDER BY c.`display_name`, c.`id`',
 		[guild_id]
 	) as GuildMemberRow[];
@@ -1292,9 +1388,11 @@ async function get_guild_member_directory(guild_id: number, page: number, search
 				'c.`status_visible`, ' +
 				'EXISTS(SELECT 1 FROM `status_snapshots` AS available_ss WHERE available_ss.`client_id` = c.`id`) AS `status_available`, ' +
 				'ss.`activity_type` AS `status_activity_type`, ss.`activity_skill_id` AS `status_activity_skill_id`, ' +
-				'ss.`activity_action_id` AS `status_activity_action_id`, ss.`activity_area_id` AS `status_activity_area_id` ' +
+				'ss.`activity_action_id` AS `status_activity_action_id`, ss.`activity_area_id` AS `status_activity_area_id`, ' +
+				'c.`gp_visible`, gps.`amount` AS `gp_amount`, c.`last_multiplayer_active_at` ' +
 			'FROM `guild_memberships` AS m JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
 			'LEFT JOIN `status_snapshots` AS ss ON ss.`client_id` = c.`id` ' +
+			'LEFT JOIN `gp_snapshots` AS gps ON gps.`client_id` = c.`id` ' +
 			'WHERE m.`guild_id` = ? AND LOWER(c.`display_name`) LIKE LOWER(?) ESCAPE \'\\\' ' +
 			'ORDER BY c.`display_name` COLLATE NOCASE, c.`id` LIMIT ? OFFSET ?',
 			[guild_id, search_pattern, GUILD_MEMBER_PAGE_SIZE, page * GUILD_MEMBER_PAGE_SIZE]
@@ -1357,7 +1455,7 @@ function petition_to_player_view(row: CouncilPetitionRow, client_id: number) {
 		proposal = { name: row.proposed_name as string };
 	else if (row.type === 'heraldry')
 		proposal = { icon_id: row.proposed_icon_id as string };
-	else
+	else if (row.type === 'banishment')
 		proposal = {
 			target: {
 				client_id: row.target_client_id as number,
@@ -1365,6 +1463,8 @@ function petition_to_player_view(row: CouncilPetitionRow, client_id: number) {
 				icon_id: row.target_icon_id as string
 			}
 		};
+	else
+		proposal = {};
 
 	return {
 		petition_id: row.id,
@@ -1416,10 +1516,25 @@ async function get_council_petitions(guild_id: number, client_id: number, resolv
 		]
 	) as CouncilPetitionRow[];
 
+	const charitree = await db_get_single(
+		'SELECT g.`charitree_enabled`, EXISTS(SELECT 1 FROM `charity_items` WHERE `guild_id` = g.`id`) ' +
+			'AS `has_items` FROM `guilds` AS g WHERE g.`id` = ? LIMIT 1',
+		[guild_id]
+	) as { charitree_enabled: number; has_items: number } | null;
+	const available_petition_types: PetitionType[] = ['appellation', 'heraldry', 'banishment'];
+	if (charitree?.charitree_enabled === 1) {
+		available_petition_types.push('charitree_sacrilege');
+		if (charitree.has_items === 1)
+			available_petition_types.push('charitree_ingratitude');
+	} else if (charitree?.charitree_enabled === 0) {
+		available_petition_types.push('charitree_beneficence');
+	}
+
 	return {
 		petitions: [...active, ...resolved.slice(0, COUNCIL_HISTORY_PAGE_SIZE)].map(row =>
 			petition_to_player_view(row, client_id)
 		),
+		available_petition_types,
 		resolved_page,
 		has_more: resolved.length > COUNCIL_HISTORY_PAGE_SIZE
 	};
@@ -1434,9 +1549,9 @@ function get_banishment_claim_view(claim_id: string, client_id: number) {
 	if (claim === null)
 		return null;
 
-	const items = db.query(
+	const items: JsonObject[] = db.query<{ id: string; qty: number }, [string]>(
 		'SELECT `item_id` AS `id`, `qty` FROM `banishment_return_claim_items` WHERE `claim_id` = ? ORDER BY `item_id`'
-	).all(claim_id);
+	).all(claim_id).map(item => ({ id: item.id, qty: item.qty }));
 	return {
 		claim_id: claim.id,
 		items,
@@ -1792,6 +1907,12 @@ function validate_session_request(handler: SessionRequestHandler, json_body: boo
 		if (limited !== null)
 			return limited;
 
+		const now = Date.now();
+		if (now - (client_activity_writes.get(client_id) ?? 0) >= CLIENT_ACTIVITY_WRITE_INTERVAL) {
+			db.query('UPDATE `clients` SET `last_multiplayer_active_at` = ? WHERE `id` = ?')
+				.run(now, client_id);
+			client_activity_writes.set(client_id, now);
+		}
 		return handler(req, url, client_id, json as JsonObject);
 	};
 }
@@ -1885,7 +2006,7 @@ session_post_route('/api/market/buy', async (req, url, client_id, json) => {
 	} as JsonSerializable;
 });
 
-session_get_route('/api/market/listings', async (req, url, client_id) => {
+session_get_route('/api/market/listings', async (req, url, client_id): Promise<HandlerResult> => {
 	const guild_id = await get_client_guild_id(client_id);
 	if (guild_id === null)
 		return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
@@ -1915,7 +2036,7 @@ session_get_route('/api/market/listings', async (req, url, client_id) => {
 	};
 });
 
-session_post_route('/api/market/payout', async (req, url, client_id, json) => {
+session_post_route('/api/market/payout', async (req, url, client_id, json): Promise<HandlerResult> => {
 	const guild_id = await get_client_guild_id(client_id);
 	if (guild_id === null)
 		return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
@@ -1946,7 +2067,7 @@ session_post_route('/api/market/payout', async (req, url, client_id, json) => {
 	return { success: true, payout: payout_available, ended };
 });
 
-session_post_route('/api/market/cancel', async (req, url, client_id, json) => {
+session_post_route('/api/market/cancel', async (req, url, client_id, json): Promise<HandlerResult> => {
 	const guild_id = await get_client_guild_id(client_id);
 	if (guild_id === null)
 		return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
@@ -1975,7 +2096,7 @@ session_post_route('/api/market/cancel', async (req, url, client_id, json) => {
 	};
 });
 
-session_post_route('/api/market/destroy', async (req, url, client_id, json) => {
+session_post_route('/api/market/destroy', async (req, url, client_id, json): Promise<HandlerResult> => {
 	const guild_id = await get_client_guild_id(client_id);
 	if (guild_id === null)
 		return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
@@ -2004,12 +2125,12 @@ session_post_route('/api/market/destroy', async (req, url, client_id, json) => {
 	};
 });
 
-session_post_route('/api/market/search', async (req, url, client_id, json) => {
+session_post_route('/api/market/search', async (req, url, client_id, json): Promise<HandlerResult> => {
 	const guild_id = await get_client_guild_id(client_id);
 	if (guild_id === null)
 		return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
 
-	const query_parameters: Array<unknown> = [guild_id, client_id];
+	const query_parameters: SQLQueryBindings[] = [guild_id, client_id];
 
 	let item_filter = '';
 	if (json.item_id !== undefined && !is_valid_item_id(json.item_id))
@@ -2076,7 +2197,7 @@ session_post_route('/api/market/search', async (req, url, client_id, json) => {
 // #endregion
 
 // #region ROUTES CAMPAIGN
-session_get_route('/api/campaign/info', async (req, url, client_id) => {
+session_get_route('/api/campaign/info', async (req, url, client_id): Promise<HandlerResult> => {
 	const guild_id = await get_client_guild_id(client_id);
 	if (guild_id === null)
 		return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
@@ -2112,7 +2233,7 @@ session_get_route('/api/campaign/info', async (req, url, client_id) => {
 	}
 });
 
-session_post_route('/api/campaign/claim', async (req, url, client_id, json) => {
+session_post_route('/api/campaign/claim', async (req, url, client_id, json): Promise<HandlerResult> => {
 	const guild_id = await get_client_guild_id(client_id);
 	if (guild_id === null)
 		return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
@@ -2139,7 +2260,7 @@ session_post_route('/api/campaign/claim', async (req, url, client_id, json) => {
 	return { success: true };
 });
 
-session_post_route('/api/campaign/contribute', async (req, url, client_id, json) => {
+session_post_route('/api/campaign/contribute', async (req, url, client_id, json): Promise<HandlerResult> => {
 	const guild_id = await get_client_guild_id(client_id);
 	if (guild_id === null)
 		return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
@@ -2193,14 +2314,22 @@ session_post_route('/api/campaign/contribute', async (req, url, client_id, json)
 // #endregion
 
 // #region ROUTES CHARITY
-session_get_route('/api/charity/contents', async (req, url, client_id) => {
+session_get_route('/api/charity/contents', async (req, url, client_id): Promise<HandlerResult> => {
 	const guild_id = await get_client_guild_id(client_id);
 	if (guild_id === null)
 		return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
+	expire_charity_items(Date.now(), guild_id);
+	const guild = await db_get_single('SELECT `charitree_enabled` FROM `guilds` WHERE `id` = ? LIMIT 1', [guild_id]) as {
+		charitree_enabled: number;
+	} | null;
+	if (guild?.charitree_enabled !== 1)
+		return { enabled: false, items: [] };
 
 	return {
+		enabled: true,
 		items: await db_get_all(
-			'SELECT `item_id` as `id`, `qty` FROM `charity_items` WHERE `guild_id` = ? LIMIT 156',
+			'SELECT `item_id` as `id`, `qty`, `expires_at` FROM `charity_items` ' +
+			'WHERE `guild_id` = ? ORDER BY `expires_at`, `item_id` LIMIT 156',
 			[guild_id]
 		)
 	};
@@ -2216,6 +2345,12 @@ session_post_route('/api/charity/take', async (req, url, client_id, json) => {
 		return 400; // Bad Request
 
 	const current_time = Date.now();
+	expire_charity_items(current_time, guild_id);
+	const guild = await db_get_single('SELECT `charitree_enabled` FROM `guilds` WHERE `id` = ? LIMIT 1', [guild_id]) as {
+		charitree_enabled: number;
+	} | null;
+	if (guild?.charitree_enabled !== 1)
+		return { error_lang: 'MOD_MP_CHARITY_DISABLED' };
 	const client_row = await db_get_single('SELECT `last_charity`, `last_bonus_charity` FROM `clients` WHERE `id` = ?', [client_id]) as db_row.clients;
 	if (client_row === null)
 		return 400; // Bad Request
@@ -2249,49 +2384,61 @@ session_post_route('/api/charity/take', async (req, url, client_id, json) => {
 	} as JsonSerializable;
 });
 
-session_post_route('/api/charity/donate', async (req, url, client_id, json) => {
+session_post_route('/api/charity/donate', async (req, url, client_id, json): Promise<HandlerResult> => {
 	const guild_id = await get_client_guild_id(client_id);
 	if (guild_id === null)
 		return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
 
-	const items = json.items as TransferItem[];
-	if (!validate_item_array(items))
+	const items = parse_transfer_items(json.items);
+	if (items === null)
 		return 400; // Bad Request
 
-	for (const item of items)
-		await db_execute(
-			'INSERT INTO `charity_items` (`guild_id`, `item_id`, `qty`) VALUES(?, ?, ?) ' +
-			'ON CONFLICT (`guild_id`, `item_id`) DO UPDATE SET `qty` = `qty` + excluded.`qty`',
-			[guild_id, item.id, item.qty]
-		);
+	const donate = db.transaction(() => {
+		const now = Date.now();
+		expire_charity_items(now, guild_id);
+		const guild = db.query('SELECT `charitree_enabled` FROM `guilds` WHERE `id` = ? LIMIT 1').get(
+			guild_id
+		) as { charitree_enabled: number } | null;
+		if (guild?.charitree_enabled !== 1)
+			return false;
+		const active_clearing = db.query(
+			'SELECT MAX(`charitree_expires_before`) AS `cutoff` FROM `guild_petitions` ' +
+			"WHERE `guild_id` = ? AND `type` = 'charitree_ingratitude' AND `subject_locked` = 1"
+		).get(guild_id) as { cutoff: number | null };
+		const expires_at = Math.max(now + CHARITY_ITEM_LIFETIME, (active_clearing.cutoff ?? -1) + 1);
+		for (const item of items)
+			db.query(
+				'INSERT INTO `charity_items` (`guild_id`, `item_id`, `qty`, `expires_at`) VALUES(?, ?, ?, ?) ' +
+				'ON CONFLICT (`guild_id`, `item_id`) DO UPDATE SET ' +
+				'`qty` = `qty` + excluded.`qty`, `expires_at` = excluded.`expires_at`'
+			).run(guild_id, item.id, item.qty, expires_at);
+		return true;
+	});
+	if (!donate.immediate())
+		return { error_lang: 'MOD_MP_CHARITY_DISABLED' };
 
 	return { success: true };
 });
 // #endregion
 
 // #region ROUTES BANISHMENT RETURNS
-session_post_route('/api/banishment/returns/claim', async (req, url, client_id, json) => {
-	if (!Array.isArray(json.existing_item_ids) || json.existing_item_ids.length > MAX_TRANSFER_ITEM_COUNT)
-		return 400; // Bad Request
-	const existing_item_ids = json.existing_item_ids;
-	for (const item_id of existing_item_ids)
-		if (typeof item_id !== 'string' || item_id.length === 0)
-			return 400; // Bad Request
-	if (new Set(existing_item_ids).size !== existing_item_ids.length)
+session_post_route('/api/banishment/returns/claim', async (req, url, client_id, json): Promise<HandlerResult> => {
+	const existing_item_ids = parse_existing_item_ids(json.existing_item_ids);
+	if (existing_item_ids === null)
 		return 400; // Bad Request
 	const available_slots = json.available_slots;
 	if (typeof available_slots !== 'number' || !Number.isSafeInteger(available_slots) ||
 		available_slots < 0 || available_slots > MAX_TRANSFER_ITEM_COUNT)
 		return 400; // Bad Request
 
-	const banishment_claim_id = create_banishment_claim(client_id, existing_item_ids as string[], available_slots);
+	const banishment_claim_id = create_banishment_claim(client_id, existing_item_ids, available_slots);
 	if (banishment_claim_id !== null)
 		return { claim: get_banishment_claim_view(banishment_claim_id, client_id) };
-	const deletion_claim_id = create_deletion_return_claim(client_id, existing_item_ids as string[], available_slots);
+	const deletion_claim_id = create_deletion_return_claim(client_id, existing_item_ids, available_slots);
 	return { claim: deletion_claim_id === null ? null : get_deletion_claim_view(deletion_claim_id, client_id) };
 });
 
-session_post_route('/api/banishment/returns/acknowledge', async (req, url, client_id, json) => {
+session_post_route('/api/banishment/returns/acknowledge', async (req, url, client_id, json): Promise<HandlerResult> => {
 	const claim_id = json.claim_id;
 	if (typeof claim_id !== 'string' || !is_valid_uuid(claim_id))
 		return 400; // Bad Request
@@ -2331,17 +2478,12 @@ session_post_route('/api/banishment/returns/acknowledge', async (req, url, clien
 
 // #region ROUTES TRANSFER
 session_post_route('/api/transfers/get_contents', async (req, url, client_id, json) => {
-	const gift_ids = json.gift_ids;
-	if (!Array.isArray(gift_ids))
-		return 400; // Bad Request
-
-	// check ids first, no point hitting db for an invalid request
-	for (const gift_id of gift_ids)
-		if (typeof gift_id !== 'number')
-			return 400; // Bad request
+	const gift_ids = parse_number_array(json.gift_ids);
+	if (gift_ids === null)
+		return 400; // Bad request
 
 	const gift_results = {} as Record<number, object>;
-	for (const gift_id of gift_ids as number[]) {
+	for (const gift_id of gift_ids) {
 		const gift = await get_gift(gift_id);
 		if (!gift || gift.client_id !== client_id)
 			continue;
@@ -2353,17 +2495,12 @@ session_post_route('/api/transfers/get_contents', async (req, url, client_id, js
 		};
 	}
 
-	const trade_ids = json.trade_ids;
-	if (!Array.isArray(trade_ids))
-		return 400; // Bad Request
-
-	// check ids first, no point hitting db for an invalid request
-	for (const trade_id of trade_ids)
-		if (typeof trade_id !== 'number')
-			return 400; // Bad request
+	const trade_ids = parse_number_array(json.trade_ids);
+	if (trade_ids === null)
+		return 400; // Bad request
 
 	const trade_results = {} as Record<number, object>;
-	for (const trade_id of trade_ids as number[]) {
+	for (const trade_id of trade_ids) {
 		const trade_offer = await get_trade_offer(trade_id);
 		if (!trade_offer || (trade_offer.sender_id !== client_id && trade_offer.recipient_id !== client_id))
 			continue;
@@ -2376,16 +2513,12 @@ session_post_route('/api/transfers/get_contents', async (req, url, client_id, js
 		};
 	}
 
-	const resolved_trade_ids = json.resolved_trade_ids;
-	if (!Array.isArray(resolved_trade_ids))
+	const resolved_trade_ids = parse_number_array(json.resolved_trade_ids);
+	if (resolved_trade_ids === null)
 		return 400; // Bad Request
 
-	for (const trade_id of resolved_trade_ids)
-		if (typeof trade_id !== 'number')
-			return 400; // Bad Request
-
 	const resolved_trade_results = {} as Record<number, object>;
-	for (const trade_id of resolved_trade_ids as number[]) {
+	for (const trade_id of resolved_trade_ids) {
 		const trade_offer = await get_resolved_trade_offer(trade_id);
 		if (!trade_offer || trade_offer.client_id !== client_id)
 			continue;
@@ -2432,8 +2565,8 @@ session_post_route('/api/trade/counter', async (req, url, client_id, json) => {
 	if (!trade || trade.recipient_id !== client_id)
 		return 400; // Bad Request
 
-	const items = json.items as TransferItem[];
-	if (!validate_item_array(items))
+	const items = parse_transfer_items(json.items);
+	if (items === null)
 		return 400; // Bad Request;
 
 	for (const item of items) {
@@ -2532,8 +2665,8 @@ session_post_route('/api/trade/offer', async (req, url, client_id, json) => {
 	if (typeof recipient_id !== 'number')
 		return 400; // Bad Request
 
-	const items = json.items as TransferItem[];
-	if (!validate_item_array(items))
+	const items = parse_transfer_items(json.items);
+	if (items === null)
 		return 400; // Bad Request
 
 	if (!(await guild_membership_exists(client_id, recipient_id)))
@@ -2602,8 +2735,8 @@ session_post_route('/api/gift/send', async (req, url, client_id, json) => {
 	if (typeof recipient_id !== 'number')
 		return 400; // Bad Request
 
-	const items = json.items as TransferItem[];
-	if (!validate_item_array(items))
+	const items = parse_transfer_items(json.items);
+	if (items === null)
 		return 400; // Bad Request
 
 	if (!(await guild_membership_exists(client_id, recipient_id)))
@@ -2643,20 +2776,22 @@ session_get_route('/api/guilds/council', async (req, url, client_id) => {
 	return await get_council_petitions(membership.guild_id, client_id, resolved_page);
 });
 
-session_post_route('/api/guilds/petitions/raise', async (req, url, client_id, json) => {
+session_post_route('/api/guilds/petitions/raise', async (req, url, client_id, json): Promise<HandlerResult> => {
 	if (!is_petition_type(json.type))
 		return 400; // Bad Request
 
-	const proposed_name = json.type === 'appellation' ? parse_guild_name(json.name) : null;
-	const proposed_icon_id = json.type === 'heraldry' && is_valid_icon_id(json.icon_id) ? json.icon_id : null;
-	const target_client_id = json.type === 'banishment' ? json.target_client_id : null;
-	if (json.type === 'appellation' && proposed_name === null)
+	const petition_type = json.type;
+	const proposed_name = petition_type === 'appellation' ? parse_guild_name(json.name) : null;
+	const proposed_icon_id = petition_type === 'heraldry' && is_valid_icon_id(json.icon_id) ? json.icon_id : null;
+	let target_client_id: number | null = null;
+	if (petition_type === 'banishment') {
+		if (typeof json.target_client_id !== 'number' || !Number.isSafeInteger(json.target_client_id) || json.target_client_id < 1)
+			return 400; // Bad Request
+		target_client_id = json.target_client_id;
+	}
+	if (petition_type === 'appellation' && proposed_name === null)
 		return 400; // Bad Request
-	if (json.type === 'heraldry' && proposed_icon_id === null)
-		return 400; // Bad Request
-	if (json.type === 'banishment' && (
-		typeof target_client_id !== 'number' || !Number.isSafeInteger(target_client_id) || target_client_id < 1
-	))
+	if (petition_type === 'heraldry' && proposed_icon_id === null)
 		return 400; // Bad Request
 
 	const now = Date.now();
@@ -2668,16 +2803,32 @@ session_post_route('/api/guilds/petitions/raise', async (req, url, client_id, js
 		if (membership === null)
 			return { status: 'forbidden' as const };
 
-		const guild = db.query('SELECT `type`, `name` FROM `guilds` WHERE `id` = ? LIMIT 1').get(
+		const guild = db.query(
+			'SELECT `type`, `name`, `charitree_enabled` FROM `guilds` WHERE `id` = ? LIMIT 1'
+		).get(
 			membership.guild_id
-		) as { type: GuildType; name: string } | null;
+		) as { type: GuildType; name: string; charitree_enabled: number } | null;
 		if (guild === null)
 			return { status: 'forbidden' as const };
 		if (guild.type === FREE_FELLOWSHIP_TYPE)
 			return { status: 'unavailable' as const };
+		expire_charity_items(now, membership.guild_id);
+		if (petition_type === 'charitree_ingratitude') {
+			const has_items = db.query(
+				'SELECT 1 FROM `charity_items` WHERE `guild_id` = ? LIMIT 1'
+			).get(membership.guild_id);
+			if (guild.charitree_enabled !== 1 || has_items === null)
+				return { status: 'charitree_unavailable' as const };
+		} else if (petition_type === 'charitree_sacrilege' && guild.charitree_enabled !== 1) {
+			return { status: 'charitree_unavailable' as const };
+		} else if (petition_type === 'charitree_beneficence' && guild.charitree_enabled !== 0) {
+			return { status: 'charitree_unavailable' as const };
+		}
 
 		let target_membership_id: number | null = null;
-		if (json.type === 'banishment') {
+		if (petition_type === 'banishment') {
+			if (target_client_id === null)
+				return { status: 'target_missing' as const };
 			const target_membership = db.query(
 				'SELECT `id` FROM `guild_memberships` WHERE `client_id` = ? AND `guild_id` = ? LIMIT 1'
 			).get(target_client_id, membership.guild_id) as { id: number } | null;
@@ -2686,28 +2837,35 @@ session_post_route('/api/guilds/petitions/raise', async (req, url, client_id, js
 			target_membership_id = target_membership.id;
 		}
 
-		const conflict_subject = get_petition_conflict_subject(json.type, target_membership_id ?? undefined);
+		const conflict_subject = get_petition_conflict_subject(petition_type, target_membership_id ?? undefined);
 		const conflict = db.query(
 			'SELECT 1 FROM `guild_petitions` WHERE `guild_id` = ? AND `conflict_subject` = ? ' +
 			'AND `subject_locked` = 1 LIMIT 1'
 		).get(membership.guild_id, conflict_subject);
 		if (conflict !== null)
 			return { status: 'conflict' as const };
+		const charitree_expires_before = petition_type === 'charitree_ingratitude'
+			? (db.query(
+				'SELECT MAX(`expires_at`) AS `expires_at` FROM `charity_items` WHERE `guild_id` = ?'
+			).get(membership.guild_id) as { expires_at: number | null }).expires_at ?? now
+			: null;
 
 		const petition = db.query(
 			'INSERT INTO `guild_petitions` (`guild_id`, `guild_name`, `type`, `conflict_subject`, ' +
 			'`petitioner_id`, `proposed_name`, `proposed_icon_id`, `target_client_id`, `target_membership_id`, ' +
-			'`created_at`, `expires_at`) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING `id`'
+			'`charitree_expires_before`, `created_at`, `expires_at`) ' +
+			'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING `id`'
 		).get(
 			membership.guild_id,
 			guild.name,
-			json.type,
+			petition_type,
 			conflict_subject,
 			client_id,
 			proposed_name,
 			proposed_icon_id,
 			target_client_id,
 			target_membership_id,
+			charitree_expires_before,
 			now,
 			now + PETITION_LIFETIME
 		) as { id: number };
@@ -2727,13 +2885,16 @@ session_post_route('/api/guilds/petitions/raise', async (req, url, client_id, js
 		return { error_lang: 'MOD_MP_COUNCIL_CONFLICT' };
 	if (result.status === 'unavailable')
 		return { error_lang: 'MOD_MP_GUILD_COUNCIL_UNAVAILABLE' };
+	if (result.status === 'charitree_unavailable')
+		return { error_lang: 'MOD_MP_COUNCIL_CHARITREE_UNAVAILABLE' };
 	return { success: true, petition_id: result.petition_id };
 });
 
-session_post_route('/api/guilds/petitions/vote', async (req, url, client_id, json) => {
+session_post_route('/api/guilds/petitions/vote', async (req, url, client_id, json): Promise<HandlerResult> => {
 	const petition_id = json.petition_id;
+	const choice = json.choice;
 	if (typeof petition_id !== 'number' || !Number.isSafeInteger(petition_id) || petition_id < 1 ||
-		!is_petition_choice(json.choice))
+		!is_petition_choice(choice))
 		return 400; // Bad Request
 
 	const now = Date.now();
@@ -2777,7 +2938,7 @@ session_post_route('/api/guilds/petitions/vote', async (req, url, client_id, jso
 		db.query(
 			'INSERT INTO `guild_petition_votes` (`petition_id`, `client_id`, `choice`, `submitted_at`) ' +
 			'VALUES(?, ?, ?, ?)'
-		).run(petition_id, client_id, json.choice, now);
+		).run(petition_id, client_id, choice, now);
 		const tally = db.query(
 			'SELECT (SELECT COUNT(*) FROM `guild_petition_voters` WHERE `petition_id` = ?) AS `eligible`, ' +
 			"SUM(CASE WHEN `choice` = 'aye' THEN 1 ELSE 0 END) AS `aye`, " +
@@ -2818,7 +2979,7 @@ session_post_route('/api/guilds/petitions/vote', async (req, url, client_id, jso
 	return { success: true, lifecycle: result.lifecycle };
 });
 
-session_post_route('/api/guilds/petitions/withdraw', async (req, url, client_id, json) => {
+session_post_route('/api/guilds/petitions/withdraw', async (req, url, client_id, json): Promise<HandlerResult> => {
 	const petition_id = json.petition_id;
 	if (typeof petition_id !== 'number' || !Number.isSafeInteger(petition_id) || petition_id < 1)
 		return 400; // Bad Request
@@ -2870,7 +3031,7 @@ session_post_route('/api/guilds/petitions/withdraw', async (req, url, client_id,
 	return { success: true };
 });
 
-session_get_route('/api/guilds/list', async (req, url, client_id) => {
+session_get_route('/api/guilds/list', async (req, url, client_id): Promise<HandlerResult> => {
 	const guild_id = await get_client_guild_id(client_id);
 	const application = await db_get_single(
 		'SELECT 1 FROM `guild_applications` WHERE `client_id` = ? LIMIT 1',
@@ -2902,7 +3063,7 @@ session_get_route('/api/guilds/members', async (req, url, client_id) => {
 	return await get_guild_member_directory(guild_id, page, search);
 });
 
-session_get_route('/api/guilds/state', async (req, url, client_id) => {
+session_get_route('/api/guilds/state', async (req, url, client_id): Promise<HandlerResult> => {
 	const guild_id = await get_client_guild_id(client_id);
 	if (guild_id !== null) {
 		const guild = await get_guild_summary(guild_id);
@@ -2912,10 +3073,18 @@ session_get_route('/api/guilds/state', async (req, url, client_id) => {
 		const member_directory = guild_type === FREE_FELLOWSHIP_TYPE
 			? await get_guild_member_directory(guild_id, 0, '')
 			: null;
+		const charitree = await db_get_single(
+			'SELECT `charitree_enabled` FROM `guilds` WHERE `id` = ? LIMIT 1',
+			[guild_id]
+		) as { charitree_enabled: number } | null;
 		return {
 			affiliation: 'member',
 			current_client_id: client_id,
-			guild: { ...guild, capabilities: get_guild_capabilities(guild_type) },
+			guild: {
+				...guild,
+				charitree_enabled: charitree?.charitree_enabled === 1,
+				capabilities: get_guild_capabilities(guild_type)
+			},
 			members: member_directory?.members ?? await get_guild_members(guild_id),
 			...(member_directory === null ? {} : { member_directory }),
 			applicants: await get_guild_applicants(client_id)
@@ -2936,9 +3105,10 @@ session_get_route('/api/guilds/state', async (req, url, client_id) => {
 		: { affiliation: 'applicant', application };
 });
 
-session_post_route('/api/guilds/create', async (req, url, client_id, json) => {
+session_post_route('/api/guilds/create', async (req, url, client_id, json): Promise<HandlerResult> => {
 	const guild_name = parse_guild_name(json.name);
-	if (guild_name === null || !is_valid_icon_id(json.icon_id))
+	const icon_id = json.icon_id;
+	if (guild_name === null || !is_valid_icon_id(icon_id))
 		return 400; // Bad Request
 
 	const create_guild = db.transaction(() => {
@@ -2951,7 +3121,7 @@ session_post_route('/api/guilds/create', async (req, url, client_id, json) => {
 
 		const guild = db.query(
 			'INSERT INTO `guilds` (`name`, `icon_id`) VALUES(?, ?) RETURNING `id`'
-		).get(guild_name, json.icon_id) as { id: number };
+		).get(guild_name, icon_id) as { id: number };
 		db.query(
 			'INSERT INTO `guild_memberships` (`client_id`, `guild_id`) VALUES(?, ?)'
 		).run(client_id, guild.id);
@@ -2966,7 +3136,7 @@ session_post_route('/api/guilds/create', async (req, url, client_id, json) => {
 	return { success: true, guild: await get_guild_summary(guild_id) };
 });
 
-session_post_route('/api/guilds/apply', async (req, url, client_id, json) => {
+session_post_route('/api/guilds/apply', async (req, url, client_id, json): Promise<HandlerResult> => {
 	const guild_id = json.guild_id;
 	if (typeof guild_id !== 'number' || !Number.isSafeInteger(guild_id))
 		return 400; // Bad Request
@@ -3004,7 +3174,7 @@ session_post_route('/api/guilds/apply', async (req, url, client_id, json) => {
 	return { success: true };
 });
 
-session_post_route('/api/guilds/join-free', async (req, url, client_id) => {
+session_post_route('/api/guilds/join-free', async (req, url, client_id): Promise<HandlerResult> => {
 	const join_fellowship = db.transaction(() => {
 		const affiliation = db.query(
 			' SELECT 1 FROM `guild_memberships` WHERE `client_id` = ? ' +
@@ -3035,16 +3205,17 @@ session_post_route('/api/guilds/join-free', async (req, url, client_id) => {
 	return { success: true, guild: await get_guild_summary(result.guild_id) };
 });
 
-session_post_route('/api/guilds/withdraw', async (req, url, client_id) => {
+session_post_route('/api/guilds/withdraw', async (req, url, client_id): Promise<HandlerResult> => {
 	const result = await db_run('DELETE FROM `guild_applications` WHERE `client_id` = ?', [client_id]);
 	return result.changes === 1
 		? { success: true }
 		: { error_lang: 'MOD_MP_GUILD_APPLICATION_MISSING' };
 });
 
-session_post_route('/api/guilds/application/decide', async (req, url, client_id, json) => {
+session_post_route('/api/guilds/application/decide', async (req, url, client_id, json): Promise<HandlerResult> => {
 	const application_id = json.application_id;
-	if (typeof application_id !== 'number' || !Number.isSafeInteger(application_id) || typeof json.approve !== 'boolean')
+	const approve = json.approve;
+	if (typeof application_id !== 'number' || !Number.isSafeInteger(application_id) || typeof approve !== 'boolean')
 		return 400; // Bad Request
 
 	const decide_application = db.transaction(() => {
@@ -3061,7 +3232,7 @@ session_post_route('/api/guilds/application/decide', async (req, url, client_id,
 		if (application === null)
 			return 'missing';
 
-		if (json.approve)
+		if (approve)
 			db.query(
 				'INSERT INTO `guild_memberships` (`client_id`, `guild_id`) VALUES(?, ?)'
 			).run(application.client_id, membership.guild_id);
@@ -3075,20 +3246,20 @@ session_post_route('/api/guilds/application/decide', async (req, url, client_id,
 	if (applicant_id === 'missing')
 		return { error_lang: 'MOD_MP_GUILD_APPLICATION_MISSING' };
 
-	if (json.approve) {
-		const guild_id = await get_client_guild_id(applicant_id as number);
+	if (approve) {
+		const guild_id = await get_client_guild_id(applicant_id);
 		if (guild_id !== null)
 			await resize_unprogressed_campaign(guild_id);
 	}
 
 	return {
 		success: true,
-		approved: json.approve,
-		applicant: await get_client_display(applicant_id as number)
+		approved: approve,
+		applicant: await get_client_display(applicant_id)
 	};
 });
 
-session_post_route('/api/guilds/leave', async (req, url, client_id) => {
+session_post_route('/api/guilds/leave', async (req, url, client_id): Promise<HandlerResult> => {
 	const current_guild_id = await get_client_guild_id(client_id);
 	if (await has_guild_departure_blocker(client_id))
 		return { error_lang: 'MOD_MP_GUILD_DEPARTURE_BLOCKED' };
@@ -3136,8 +3307,50 @@ session_post_route('/api/guilds/leave', async (req, url, client_id) => {
 });
 // #endregion
 
+// #region ROUTES RAIDS
+session_get_route('/api/raids/state', async (req, url, client_id) => get_raid_state(client_id) as HandlerResult);
+
+session_post_route('/api/raids/activate', async (req, url, client_id) => activate_raid(client_id) as HandlerResult);
+
+session_post_route('/api/raids/assaults/reserve', async (req, url, client_id, json) => {
+	const result = reserve_assault(client_id, Number(json.tier), json.loaded_session_id as string);
+	if (result === undefined)
+		return 500;
+	return ('status' in result ? result.status : result) as HandlerResult;
+});
+
+session_post_route('/api/raids/assaults/abandon', async (req, url, client_id) => {
+	const result = abandon_assault(client_id);
+	if ('error_lang' in result)
+		return { error_lang: result.error_lang } as HandlerResult;
+	return { success: true, abandoned: result.abandoned } as HandlerResult;
+});
+
+session_post_route('/api/raids/assaults/settle', async (req, url, client_id, json) => {
+	const result = settle_assault(
+		client_id,
+		json.assault_id as string,
+		json.settlement_key as string,
+		json.outcome as RaidOutcome,
+		Number(json.occurred_at)
+	);
+	if (result === undefined)
+		return 500;
+	return ('status' in result ? result.status : result) as HandlerResult;
+});
+
+session_get_route('/api/raids/cache', async (req, url, client_id) => get_victory_cache(client_id) as HandlerResult);
+
+session_post_route('/api/raids/cache/acknowledge', async (req, url, client_id, json) => {
+	const result = acknowledge_victory_cache(client_id, json.cache_id as string);
+	if (result === undefined)
+		return 500;
+	return ('status' in result ? result.status : result) as HandlerResult;
+});
+// #endregion
+
 // #region ROUTES EQUIPMENT
-session_post_route('/api/client/equipment/sync', async (req, url, client_id, json) => {
+session_post_route('/api/client/equipment/sync', async (req, url, client_id, json): Promise<HandlerResult> => {
 	const slots = parse_equipment_snapshot(json.slots);
 	if (slots === null)
 		return 400; // Bad Request
@@ -3181,7 +3394,7 @@ session_post_route('/api/client/equipment/visibility', async (req, url, client_i
 	return { success: true, visible: json.visible };
 });
 
-session_get_route('/api/guilds/equipment', async (req, url, client_id) => {
+session_get_route('/api/guilds/equipment', async (req, url, client_id): Promise<HandlerResult> => {
 	const subject_id = Number(url.searchParams.get('client_id'));
 	if (!Number.isSafeInteger(subject_id) || subject_id < 1)
 		return 400; // Bad Request
@@ -3211,44 +3424,67 @@ session_get_route('/api/guilds/equipment', async (req, url, client_id) => {
 // #endregion
 
 // #region ROUTES PLAYER STATUS
-session_post_route('/api/client/status/sync', async (req, url, client_id, json) => {
-	const skills = parse_player_status_skills(json.skills);
-	const activity = parse_player_status_activity(json.activity);
-	if (skills === null || activity === null)
+session_post_route('/api/client/status/sync', async (req, url, client_id, json): Promise<HandlerResult> => {
+	const has_skills = Object.hasOwn(json, 'skills');
+	const has_activity = Object.hasOwn(json, 'activity');
+	const has_gp = Object.hasOwn(json, 'gp');
+	const skills = has_skills ? parse_player_status_skills(json.skills) : null;
+	const activity = has_activity ? parse_player_status_activity(json.activity) : null;
+	const gp = has_gp && Number.isSafeInteger(json.gp) && (json.gp as number) >= 0 ? json.gp as number : null;
+	if ((!has_skills && !has_activity && !has_gp) || (has_skills && skills === null) ||
+		(has_activity && activity === null) || (has_gp && gp === null))
 		return 400; // Bad Request
 
 	const save_snapshot = db.transaction(() => {
 		const client = db.query(
-			'SELECT `status_visible` FROM `clients` WHERE `id` = ? LIMIT 1'
-		).get(client_id) as Pick<db_row.clients, 'status_visible'>;
-		if (client.status_visible !== 1)
-			return false;
+			'SELECT `status_visible`, `gp_visible` FROM `clients` WHERE `id` = ? LIMIT 1'
+		).get(client_id) as Pick<db_row.clients, 'status_visible' | 'gp_visible'>;
+		if ((has_skills || has_activity) && client.status_visible !== 1)
+			return 'status_disabled';
+		if (has_gp && client.gp_visible !== 1)
+			return 'gp_disabled';
 
-		db.query(
-			'INSERT INTO `status_snapshots` ' +
-			'(`client_id`, `activity_type`, `activity_skill_id`, `activity_action_id`, `activity_area_id`) ' +
-			'VALUES(?, ?, ?, ?, ?) ' +
-			'ON CONFLICT(`client_id`) DO UPDATE SET `activity_type` = excluded.`activity_type`, ' +
-			'`activity_skill_id` = excluded.`activity_skill_id`, `activity_action_id` = excluded.`activity_action_id`, ' +
-			'`activity_area_id` = excluded.`activity_area_id`'
-		).run(
-			client_id,
-			activity.type,
-			activity.type === 'skill' ? activity.skill_id : null,
-			activity.type === 'skill' ? activity.action_id : null,
-			activity.type === 'combat' ? activity.area_id : null
-		);
-		db.query('DELETE FROM `status_snapshot_skills` WHERE `client_id` = ?').run(client_id);
-		const insert = db.query(
-			'INSERT INTO `status_snapshot_skills` (`client_id`, `skill_id`, `level`) VALUES(?, ?, ?)'
-		);
-		for (const skill of skills)
-			insert.run(client_id, skill.skill_id, skill.level);
-		return true;
+		if (activity !== null) {
+			db.query(
+				'INSERT INTO `status_snapshots` ' +
+				'(`client_id`, `activity_type`, `activity_skill_id`, `activity_action_id`, `activity_area_id`) ' +
+				'VALUES(?, ?, ?, ?, ?) ' +
+				'ON CONFLICT(`client_id`) DO UPDATE SET `activity_type` = excluded.`activity_type`, ' +
+				'`activity_skill_id` = excluded.`activity_skill_id`, `activity_action_id` = excluded.`activity_action_id`, ' +
+				'`activity_area_id` = excluded.`activity_area_id`'
+			).run(
+				client_id,
+				activity.type,
+				activity.type === 'skill' ? activity.skill_id : null,
+				activity.type === 'skill' ? activity.action_id : null,
+				activity.type === 'combat' ? activity.area_id : null
+			);
+		}
+		if (skills !== null) {
+			db.query(
+				"INSERT INTO `status_snapshots` (`client_id`, `activity_type`) VALUES(?, 'idle') " +
+				'ON CONFLICT(`client_id`) DO NOTHING'
+			).run(client_id);
+			db.query('DELETE FROM `status_snapshot_skills` WHERE `client_id` = ?').run(client_id);
+			const insert = db.query(
+				'INSERT INTO `status_snapshot_skills` (`client_id`, `skill_id`, `level`) VALUES(?, ?, ?)'
+			);
+			for (const skill of skills)
+				insert.run(client_id, skill.skill_id, skill.level);
+		}
+		if (gp !== null)
+			db.query(
+				'INSERT INTO `gp_snapshots` (`client_id`, `amount`) VALUES(?, ?) ' +
+				'ON CONFLICT(`client_id`) DO UPDATE SET `amount` = excluded.`amount`'
+			).run(client_id, gp);
+		return 'saved';
 	});
 
-	if (!save_snapshot.immediate())
+	const result = save_snapshot.immediate();
+	if (result === 'status_disabled')
 		return { error_lang: 'MOD_MP_STATUS_SHARING_DISABLED' };
+	if (result === 'gp_disabled')
+		return { error_lang: 'MOD_MP_GP_SHARING_DISABLED' };
 	return { success: true };
 });
 
@@ -3269,7 +3505,21 @@ session_post_route('/api/client/status/visibility', async (req, url, client_id, 
 	return { success: true, visible: json.visible };
 });
 
-session_get_route('/api/guilds/status', async (req, url, client_id) => {
+session_post_route('/api/client/gp/visibility', async (req, url, client_id, json) => {
+	if (typeof json.visible !== 'boolean')
+		return 400; // Bad Request
+
+	const set_visibility = db.transaction(() => {
+		db.query('UPDATE `clients` SET `gp_visible` = ? WHERE `id` = ?').run(json.visible ? 1 : 0, client_id);
+		if (!json.visible)
+			db.query('DELETE FROM `gp_snapshots` WHERE `client_id` = ?').run(client_id);
+	});
+	set_visibility.immediate();
+
+	return { success: true, visible: json.visible };
+});
+
+session_get_route('/api/guilds/status', async (req, url, client_id): Promise<HandlerResult> => {
 	const subject_id = Number(url.searchParams.get('client_id'));
 	if (!Number.isSafeInteger(subject_id) || subject_id < 1)
 		return 400; // Bad Request
@@ -3498,7 +3748,15 @@ session_post_route('/api/identities/delete/cancel', async (req, url, client_id, 
 // #endregion
 
 // #region ROUTES GENERAL
-session_get_route('/api/events', async (req, url, client_id) => {
+session_get_route('/api/events', async (req, url, client_id): Promise<HandlerResult> => {
+	const known_revision_value = url.searchParams.get('revision');
+	const known_revision = known_revision_value === null ? null : Number(known_revision_value);
+	if (known_revision !== null && (!Number.isSafeInteger(known_revision) || known_revision < 0))
+		return 400;
+	const client = db.query('SELECT `event_revision` FROM `clients` WHERE `id` = ? LIMIT 1')
+		.get(client_id) as Pick<db_row.clients, 'event_revision'>;
+	if (known_revision === client.event_revision)
+		return { revision: client.event_revision, unchanged: true };
 	const trade_ids = await get_client_trades(client_id);
 	const trade_meta = [];
 
@@ -3515,6 +3773,7 @@ session_get_route('/api/events', async (req, url, client_id) => {
 	}
 
 	return {
+		revision: client.event_revision,
 		friend_requests: await get_friend_requests(client_id),
 		guild_applicants: await get_guild_applicants(client_id),
 		gifts: await get_client_gifts(client_id),
@@ -3576,7 +3835,7 @@ server.route('/api/authenticate', allow_browser_access(require_source_capacity(r
 		return 400; // Bad Request
 
 	const client_row = await db_get_single(
-		'SELECT `id`, `client_key`, `friend_code`, `display_name`, `icon_id`, `disabled`, `equipment_visible`, `status_visible`, ' +
+		'SELECT `id`, `client_key`, `friend_code`, `display_name`, `icon_id`, `disabled`, `equipment_visible`, `status_visible`, `gp_visible`, ' +
 		'`messaging_enabled`, `melvor_account_id`, `deleted_at` ' +
 		'FROM `clients` WHERE `client_identifier` = ? LIMIT 1',
 		[client_identifier]
@@ -3603,7 +3862,8 @@ server.route('/api/authenticate', allow_browser_access(require_source_capacity(r
 
 	return { session_token, friend_code: client_row.friend_code, display_name: client_row.display_name,
 		icon_id: client_row.icon_id, equipment_visible: client_row.equipment_visible === 1,
-		status_visible: client_row.status_visible === 1, chat: get_chat_state(client_row.id),
+		status_visible: client_row.status_visible === 1, gp_visible: client_row.gp_visible === 1,
+		chat: get_chat_state(client_row.id),
 		deletion_cancelled, identity_recovered };
 })))), ['POST', 'OPTIONS']);
 
@@ -3639,7 +3899,7 @@ server.route('/api/register', allow_browser_access(require_source_capacity(requi
 
 	const session_token = await generate_session_token(client_id);
 	return { session_token, client_identifier, friend_code, display_name, icon_id: DEFAULT_USER_ICON_ID,
-		equipment_visible: true, status_visible: true, chat: get_chat_state(client_id) };
+		equipment_visible: true, status_visible: true, gp_visible: true, chat: get_chat_state(client_id) };
 }))))), ['POST', 'OPTIONS']);
 // #endregion
 
@@ -3654,4 +3914,11 @@ server.error((err: Error) => {
 server.default((req, status_code) => default_handler(status_code));
 
 server.start();
+const shutdown = create_shutdown_handler(
+	() => server.stop(),
+	flush_logs,
+	() => process.exit(0)
+);
+process.once('SIGINT', () => void shutdown());
+process.once('SIGTERM', () => void shutdown());
 // #endregion

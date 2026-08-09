@@ -11,6 +11,7 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 		members: Array<{
 			client_id: number;
 			display_name: string;
+			gp: number | null;
 		}>;
 	}>('/api/guilds/state', state.first.session_token);
 	const transfers = await post_json<{
@@ -60,6 +61,13 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 		messaging_enabled: boolean;
 		budget: { credits: number };
 	}>('/api/chat/state', state.first.session_token);
+	const raid = await get_json_with_session<{
+		raid: {
+			raid_id: number;
+			remaining_health: number;
+			member: { contribution: number; successful_assaults: number; assaults: number };
+		};
+	}>('/api/raids/state', state.first.session_token);
 	const council = await get_json_with_session<{
 		petitions: Array<{
 			petition_id: number;
@@ -96,6 +104,10 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	}]);
 	expect(guild.json.members).toEqual(expect.arrayContaining([
 		expect.objectContaining({
+			client_id: state.first_id,
+			gp: state.gp_amount
+		}),
+		expect.objectContaining({
 			client_id: state.second_id,
 			display_name: 'Restart Second'
 		})
@@ -106,10 +118,10 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 		id: state.market_lot_id,
 		item_id: state.market_item_id
 	}));
-	expect(charity.json.items).toContainEqual({
+	expect(charity.json.items).toContainEqual(expect.objectContaining({
 		id: state.charity_item_id,
 		qty: 11
-	});
+	}));
 	expect(campaign.json.active).toBe(true);
 	expect(campaign.json.contribution).toBe(state.campaign_contribution);
 	expect(equipment.json).toEqual({ client_id: state.first_id, slots: state.equipment_slots });
@@ -128,6 +140,11 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	}));
 	expect(chat_state.json.messaging_enabled).toBe(false);
 	expect(chat_state.json.budget.credits).toBe(4);
+	expect(raid.json.raid).toMatchObject({
+		raid_id: state.raid_id,
+		remaining_health: 8_000,
+		member: { contribution: 1_000, successful_assaults: 1, assaults: 2 }
+	});
 	expect(council.json.petitions).toContainEqual(expect.objectContaining({
 		petition_id: state.active_petition_id,
 		lifecycle: 'active'

@@ -16,30 +16,34 @@ async function sources() {
 }
 
 test('adds a first-class Chat page, inbox, unread indicators, and Guild-roster initiation', async () => {
-	const { main, templates, data, language } = await sources();
+	const { main, templates, style, data, language } = await sources();
 	const chat_page = data.data.pages.find(page => page.id === 'Chat');
 
 	assert.equal(chat_page.containerID, 'mp-chat-page');
 	assert.equal(chat_page.sidebarItem.categoryID, 'Multiplayer');
 	assert.equal(chat_page.media, 'https://cdn2-main.melvor.net/assets/media/bank/message_in_a_bottle.png');
 	assert.equal(chat_page.sidebarItem.icon, 'https://cdn2-main.melvor.net/assets/media/bank/message_in_a_bottle.png');
+	assert.equal(chat_page.sidebarItem.asideClass, 'mp-chat-nav');
 	assert.match(templates, /template-mp-chat-page/);
 	assert.match(templates, /state\.chat_unread/);
 	assert.match(templates, /state\.open_chat_conversation\(conversation\)/);
 	assert.match(templates, /state\.start_member_chat\(\$event\)/);
 	assert.match(main, /api_post\('\/api\/chat\/conversations\/start'/);
 	assert.match(main, /changePage\(game\.pages\.getObjectByID\('multiplayer:Chat'\)\)/);
+	assert.match(main, /aside\.hidden = state\.chat_unread <= 0/);
+	assert.match(style, /\.mp-chat-nav[\s\S]*background-color: #ff4545/);
 	assert.equal(language.MOD_MP_MENU_VIEW_CHAT, 'Open Chat');
 });
 
-test('implements five-second visible-conversation polling and cursor-based history', async () => {
+test('implements jittered foreground conversation polling and cursor-based history', async () => {
 	const { main, templates } = await sources();
 
-	assert.match(main, /const CHAT_POLL_INTERVAL = 5 \* 1000/);
+	assert.match(main, /ctx\.loadModule\('polling\.mjs'\)/);
 	assert.match(main, /on_page_toggle\('mp-chat-page', is_visible =>/);
 	assert.match(main, /'&after=' \+ state\.chat_latest_message_id/);
 	assert.match(main, /'&before=' \+ this\.chat_before_cursor/);
-	assert.match(main, /if \(poll_id !== chat_poll_id \|\| !chat_page_visible\)/);
+	assert.match(main, /poll_id !== chat_poll_id \|\| !chat_page_visible \|\| !polling\.is_foreground\(document\)/);
+	assert.match(main, /polling\.chat_poll_delay\(\)/);
 	assert.match(main, /if \(view_generation === chat_view_generation && state\.selected_chat_conversation\)/);
 	assert.match(templates, /MOD_MP_CHAT_LOAD_OLDER/);
 	assert.match(templates, /role="log" aria-live="polite"/);
@@ -167,14 +171,19 @@ test('ignores stale conversation responses after a thread switch or close', asyn
 	assert.match(main, /chat_view_generation\+\+;\n\s*this\.selected_chat_conversation = null/);
 });
 
-test('refreshes the Messaging budget while the visible Chat inbox is open', async () => {
+test('does not poll an empty or background Chat inbox or refetch budget on each message poll', async () => {
 	const { main } = await sources();
 	const polling = main.slice(main.indexOf('async function poll_chat_messages'), main.indexOf('async function get_friends'));
 	const scheduler = main.slice(main.indexOf('function start_chat_polling'), main.indexOf('async function poll_chat_messages'));
+	const events = main.slice(main.indexOf('async function get_client_events_request'), main.indexOf('function start_client_event_polling'));
 
-	assert.match(scheduler, /if \(!chat_page_visible\)/);
-	assert.match(polling, /await refresh_chat_state\(\)/);
-	assert.match(polling, /if \(poll_id === chat_poll_id && chat_page_visible\)/);
+	assert.match(scheduler, /!state\.selected_chat_conversation/);
+	assert.match(scheduler, /!polling\.is_foreground\(document\)/);
+	assert.doesNotMatch(polling, /refresh_chat_state\(\)/);
+	assert.match(polling, /state\.selected_chat_conversation && polling\.is_foreground\(document\)/);
+	assert.match(events, /const previous_chat_unread = state\.chat_unread/);
+	assert.match(events, /chat_page_visible && state\.chat_unread !== previous_chat_unread/);
+	assert.match(events, /await refresh_chat_conversations\(\)/);
 });
 
 test('retains an older-history cursor after deleting the visible page', async () => {

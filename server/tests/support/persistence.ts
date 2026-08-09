@@ -31,7 +31,8 @@ export async function db_run(sql: string, values: SQLQueryBindings[] = []): Prom
 	});
 
 	try {
-		return database.query(sql).run(...values).changes;
+		database.query(sql).run(...values);
+		return database.query<{ changes: number }, []>('SELECT changes() AS `changes`').get()?.changes ?? 0;
 	} finally {
 		database.close();
 	}
