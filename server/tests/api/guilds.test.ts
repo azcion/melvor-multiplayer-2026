@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { make_guildmates } from '../support/fixtures';
 import { get_json_with_session, post, post_json, register_client } from '../support/http';
-import { db_count } from '../support/persistence';
+import { db_count, db_run } from '../support/persistence';
+import { SHADOWED_AFTER } from '../../shadowed';
 
 type GuildSummary = {
 	guild_id: number;
@@ -259,6 +260,77 @@ describe('guild API', () => {
 			expect(result.json.error_lang).toBe('MOD_MP_GUILD_REQUIRED');
 		for (const result of [gift, trade])
 			expect(result.json.error_lang).toBe('MOD_MP_GUILD_MEMBERSHIP_MISSING');
+	});
+
+	test('hides Shadowed members and Guilds until an authenticated return', async () => {
+		const pair = await make_guildmates('Visible Member', 'Shadowed Member', 'Shadowed Guild');
+		const browser = await register_client('Shadowed Guild Browser');
+		const stale_at = Date.now() - SHADOWED_AFTER - 1_000;
+		await db_run(
+			'UPDATE `clients` SET `last_multiplayer_active_at` = ? WHERE `id` IN (?, ?)',
+			[stale_at, pair.first_id, pair.second_id]
+		);
+
+		const hidden = await get_json_with_session<{ guilds: GuildSummary[] }>(
+			'/api/guilds/list', browser.session_token
+		);
+		expect(hidden.json.guilds.some(guild => guild.guild_id === pair.guild_id)).toBe(false);
+
+		await db_run(
+			'UPDATE `clients` SET `last_multiplayer_active_at` = ? WHERE `id` = ?',
+			[Date.now(), pair.first_id]
+		);
+		const returned_state = await get_guild_state(pair.first.session_token);
+		expect(returned_state.guild?.member_count).toBe(2);
+		expect(returned_state.members?.map(member => member.display_name)).toEqual(['Visible Member']);
+
+		const shadowed = await get_json_with_session<{
+			members: Array<{ client_id: number; display_name: string }>;
+			total: number;
+		}>('/api/guilds/members/shadowed?page=0&search=', pair.first.session_token);
+		expect(shadowed.json.total).toBe(1);
+		expect(shadowed.json.members).toEqual([
+			expect.objectContaining({ client_id: pair.second_id, display_name: 'Shadowed Member' })
+		]);
+
+		const visible = await get_json_with_session<{ guilds: GuildSummary[] }>(
+			'/api/guilds/list', browser.session_token
+		);
+		expect(visible.json.guilds).toEqual(expect.arrayContaining([
+			expect.objectContaining({ guild_id: pair.guild_id, member_count: 2 })
+		]));
+
+		await db_run(
+			'UPDATE `clients` SET `last_multiplayer_active_at` = ? WHERE `id` = ?',
+			[Date.now(), pair.second_id]
+		);
+		await get_guild_state(pair.second.session_token);
+		const restored = await get_guild_state(pair.first.session_token);
+		expect(restored.members?.map(member => member.display_name).sort()).toEqual([
+			'Shadowed Member',
+			'Visible Member'
+		]);
+	});
+
+	test('immediately restores a never-active Shadowed member on their first authenticated request', async () => {
+		const founder = await register_client('Return Founder');
+		const created = await post_json<{ guild: GuildSummary }>('/api/guilds/create', {
+			name: 'Return Guild',
+			icon_id: 'melvorD:Farmlands'
+		}, founder.session_token);
+		const returning = await register_client('Never Active Return');
+		await db_run(
+			'INSERT INTO `guild_memberships` (`client_id`, `guild_id`) VALUES(?, ?)',
+			[returning.client_id, created.json.guild.guild_id]
+		);
+
+		const before = await get_guild_state(founder.session_token);
+		expect(before.members?.map(member => member.display_name)).toEqual(['Return Founder']);
+		const returned = await get_guild_state(returning.session_token);
+		expect(returned.members?.map(member => member.display_name).sort()).toEqual([
+			'Never Active Return',
+			'Return Founder'
+		]);
 	});
 
 	test('seeds one permanent Free Fellowship with direct membership and a searchable directory', async () => {

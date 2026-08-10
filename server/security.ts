@@ -15,6 +15,14 @@ export type RequestLimitConfiguration = {
 	registrations_per_service_hour: number;
 };
 
+export function load_auth_response_delay(): number {
+	const raw = process.env.AUTH_RESPONSE_DELAY_MS ?? '1000';
+	const parsed = Number(raw);
+	if (!Number.isSafeInteger(parsed) || parsed < 0 || parsed > 10_000)
+		throw new Error('AUTH_RESPONSE_DELAY_MS must be an integer from 0 to 10000');
+	return parsed;
+}
+
 function positive_integer(name: string, fallback: number): number {
 	const raw = process.env[name];
 	if (raw === undefined)

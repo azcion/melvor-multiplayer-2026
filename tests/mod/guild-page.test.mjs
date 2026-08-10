@@ -44,6 +44,19 @@ test('wires Free Fellowship direct joining and its no-Council presentation', asy
 	assert.match(templates, /!state\.is_free_fellowship && state\.guild_state\.guild\?\.capabilities\?\.council/);
 });
 
+test('renders open ordinary Guilds with a direct Join action', async () => {
+	const [lang, templates, main] = await Promise.all([
+		readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse),
+		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
+		readFile(new URL('mod/main.mjs', root), 'utf8')
+	]);
+
+	assert.equal(lang.MOD_MP_BUTTON_JOIN, 'Join');
+	assert.match(lang.MOD_MP_PUBLIC_GUILD_LABEL, /join without an application/);
+	assert.match(templates, /v-else-if="guild\.is_public" @click="state\.join_guild\(\$event, guild\)"/);
+	assert.match(main, /api_post\('\/api\/guilds\/join', \{ guild_id: guild\.guild_id \}\)/);
+});
+
 test('does not render member-only Guild bindings during an incomplete state refresh', async () => {
 	const [templates, main] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
@@ -187,4 +200,25 @@ test('renders each loaded member activity as a right-aligned icon', async () => 
 	assert.match(member_list, /member\.last_seen_at/);
 	assert.match(style, /\.mp-guild-member-meta \{[\s\S]*margin-left: auto;/);
 	assert.match(style, /\.mp-member-actions > label \{[\s\S]*justify-content: flex-start;/);
+});
+
+test('tucks Shadowed members behind a normal-action modal at the bottom of the Guild page', async () => {
+	const [templates, main, language_text] = await Promise.all([
+		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
+		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		readFile(new URL('mod/data/lang/en.json', root), 'utf8')
+	]);
+	const language = JSON.parse(language_text);
+	const guild_page = templates.slice(templates.indexOf('<template id="template-mp-guild-page">'));
+	const member_view = guild_page.slice(0, guild_page.indexOf('<div v-show="state.guild_page_view === \'applicant\'">'));
+
+	assert.match(templates, /template-mp-shadowed-members-modal/);
+	assert.match(templates, /v-for="member in state\.shadowed_members"/);
+	assert.match(templates, /state\.open_shadowed_member_actions\(member\)/);
+	assert.match(main, /api_get\('\/api\/guilds\/members\/shadowed\?page='/);
+	assert.match(main, /open_shadowed_member_actions\(member\)[\s\S]*this\.show_member_actions\(member\)/);
+	assert.match(member_view, /mp-shadowed-members-entry[\s\S]*MOD_MP_GUILD_VIEW_SHADOWED_MEMBERS/);
+	assert.ok(member_view.lastIndexOf('mp-shadowed-members-entry') > member_view.lastIndexOf('mp-council'));
+	assert.equal(language.MOD_MP_GUILD_SHADOWED, 'Shadowed');
+	assert.equal(language.MOD_MP_GUILD_VIEW_SHADOWED_MEMBERS, 'View Shadowed Members');
 });

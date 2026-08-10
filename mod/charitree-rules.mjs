@@ -11,13 +11,21 @@ export function get_charitree_stack_gp_value(item, { get_item, get_sale_price, g
 }
 
 export function get_charitree_take_block(item, options) {
-	if (item.id !== 'melvorD:GP' && item.qty > 1 && !options.is_discovered(item.id))
-		return 'undiscovered_stack';
-
 	const value = get_charitree_stack_gp_value(item, options);
 	if (value > options.current_gp * CHARITREE_VALUE_LIMIT_RATIO)
 		return 'value_limit';
 	return null;
+}
+
+export function get_charitree_take_quantity(item, options) {
+	if (item.id !== 'melvorD:GP' && !options.is_discovered(item.id))
+		return 1;
+	return item.qty;
+}
+
+export function get_charitree_next_opportunity(last_take, last_bonus_take, bonus_unlocked, timeout) {
+	const next_opportunity = last_take + timeout;
+	return bonus_unlocked ? Math.min(next_opportunity, last_bonus_take + timeout) : next_opportunity;
 }
 
 export function format_charitree_remaining(expires_at, now) {

@@ -2,11 +2,12 @@ import { describe, expect, test } from 'bun:test';
 import { make_guild_group, make_guildmates, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post_json, register_client } from '../support/http';
 import { db_count, db_run } from '../support/persistence';
+import { SHADOWED_AFTER } from '../../shadowed';
 
 type PetitionView = {
 	petition_id: number;
-	type: 'appellation' | 'heraldry' | 'banishment' | 'charitree_ingratitude' |
-		'charitree_sacrilege' | 'charitree_beneficence';
+	type: 'appellation' | 'heraldry' | 'banishment' | 'winnowing' | 'charitree_ingratitude' |
+		'charitree_sacrilege' | 'charitree_beneficence' | 'fellowship' | 'enclosure';
 	proposal: Record<string, unknown>;
 	lifecycle: 'active' | 'granted' | 'denied' | 'lapsed';
 	execution_state: 'not_applicable' | 'pending' | 'running' | 'succeeded' | 'failed';
@@ -72,6 +73,116 @@ describe('Council API', () => {
 		const other_view = (await get_council(members[2].session_token)).petitions[0];
 		expect(other_view.tally_visible).toBe(false);
 		expect(other_view).not.toHaveProperty('tally');
+	});
+
+	test('excludes Shadowed members from the electorate even after they return', async () => {
+		const members = await make_guild_group([
+			'Electorate Active A',
+			'Electorate Active B',
+			'Electorate Shadowed'
+		], 'Shadow Electorate');
+		await db_run(
+			'UPDATE `clients` SET `last_multiplayer_active_at` = ? WHERE `id` = ?',
+			[Date.now() - SHADOWED_AFTER - 1_000, members[2].client_id]
+		);
+		const petition_id = (await raise_appellation(
+			members[0].session_token,
+			'Shadowed Electors'
+		)).json.petition_id as number;
+
+		await db_run(
+			'UPDATE `clients` SET `last_multiplayer_active_at` = ? WHERE `id` = ?',
+			[Date.now(), members[2].client_id]
+		);
+		const returned_view = (await get_council(members[2].session_token)).petitions[0];
+		expect(returned_view).toMatchObject({
+			petition_id,
+			eligible: false,
+			can_vote: false,
+			tally_visible: false
+		});
+		const ineligible = await post_json<{ error_lang: string }>('/api/guilds/petitions/vote', {
+			petition_id,
+			choice: 'aye'
+		}, members[2].session_token);
+		expect(ineligible.json.error_lang).toBe('MOD_MP_COUNCIL_INELIGIBLE');
+
+		const granted = await post_json<{ success: boolean; lifecycle: string }>(
+			'/api/guilds/petitions/vote',
+			{ petition_id, choice: 'aye' },
+			members[0].session_token
+		);
+		expect(granted.json.lifecycle).toBe('granted');
+		const resolved = (await get_council(members[1].session_token)).petitions[0];
+		expect(resolved.tally).toEqual({ eligible: 2, aye: 1, nay: 0, uncast: 1 });
+	});
+
+	test('Winnowing banishes only snapshotted members who remain Shadowed', async () => {
+		const [petitioner, remains_shadowed, returns, newly_shadowed] = await make_guild_group([
+			'Winnowing Petitioner',
+			'Winnowing Absent',
+			'Winnowing Returned',
+			'Winnowing Newly Shadowed',
+			'Winnowing Voter'
+		], 'Winnowing Guild');
+		const old_activity = Date.now() - SHADOWED_AFTER - 1_000;
+		await db_run(
+			'UPDATE `clients` SET `last_multiplayer_active_at` = ? WHERE `id` IN (?, ?)',
+			[old_activity, remains_shadowed.client_id, returns.client_id]
+		);
+		const raised = await post_json<{ success: boolean; petition_id: number }>(
+			'/api/guilds/petitions/raise',
+			{ type: 'winnowing' },
+			petitioner.session_token
+		);
+		expect(raised.json.success).toBe(true);
+		const active = (await get_council(petitioner.session_token)).petitions[0];
+		expect(active).toMatchObject({
+			type: 'winnowing',
+			proposal: { target_count: 2 },
+			eligible: true
+		});
+		expect(await db_count(
+			'SELECT COUNT(*) AS `count` FROM `guild_petition_winnowing_targets` WHERE `petition_id` = ?',
+			[raised.json.petition_id]
+		)).toBe(2);
+
+		await db_run('UPDATE `clients` SET `last_multiplayer_active_at` = ? WHERE `id` = ?', [
+			Date.now(), returns.client_id
+		]);
+		await db_run('UPDATE `clients` SET `last_multiplayer_active_at` = ? WHERE `id` = ?', [
+			old_activity, newly_shadowed.client_id
+		]);
+		const granted = await post_json<{ success: boolean; lifecycle: string }>(
+			'/api/guilds/petitions/vote',
+			{ petition_id: raised.json.petition_id, choice: 'aye' },
+			petitioner.session_token
+		);
+		expect(granted.json.lifecycle).toBe('active');
+		const second_vote = await post_json<{ success: boolean; lifecycle: string }>(
+			'/api/guilds/petitions/vote',
+			{ petition_id: raised.json.petition_id, choice: 'aye' },
+			newly_shadowed.session_token
+		);
+		expect(second_vote.json.lifecycle).toBe('granted');
+		expect(await db_count(
+			'SELECT COUNT(*) AS `count` FROM `guild_memberships` WHERE `client_id` = ?',
+			[remains_shadowed.client_id]
+		)).toBe(0);
+		expect(await db_count(
+			'SELECT COUNT(*) AS `count` FROM `guild_memberships` WHERE `client_id` IN (?, ?)',
+			[returns.client_id, newly_shadowed.client_id]
+		)).toBe(2);
+		const resolved = (await get_council(petitioner.session_token)).petitions[0];
+		expect(resolved).toMatchObject({
+			lifecycle: 'granted',
+			execution_state: 'succeeded'
+		});
+		expect(await db_count(
+			'SELECT COUNT(*) AS `count` FROM `guild_petition_winnowing_targets` ' +
+			'WHERE `petition_id` = ? AND `subject_locked` = 1',
+			[raised.json.petition_id]
+		)).toBe(0);
 	});
 
 	test('atomically grants at the threshold and rejects duplicate or final votes', async () => {
@@ -152,6 +263,87 @@ describe('Council API', () => {
 			'AND `execution_attempts` = 2 AND `subject_locked` = 0',
 			[heraldry.json.petition_id]
 		)).toBe(1);
+	});
+
+	test('opens and encloses Guild admission while locking direct-join Charitree pickings', async () => {
+		const owner = await register_guild_client('Gatekeeper', 'Open Gates');
+		await post_json('/api/charity/donate', {
+			items: [{ id: 'melvorD:Open_Gates_Offering', qty: 3 }]
+		}, owner.session_token);
+
+		let council = await get_council(owner.session_token);
+		expect(council.available_petition_types).toContain('fellowship');
+		expect(council.available_petition_types).not.toContain('enclosure');
+		const invalid_enclosure = await post_json<{ error_lang: string }>('/api/guilds/petitions/raise', {
+			type: 'enclosure'
+		}, owner.session_token);
+		expect(invalid_enclosure.json.error_lang).toBe('MOD_MP_COUNCIL_ADMISSION_UNAVAILABLE');
+
+		const fellowship = await post_json<{ petition_id: number }>('/api/guilds/petitions/raise', {
+			type: 'fellowship'
+		}, owner.session_token);
+		await post_json('/api/guilds/petitions/vote', {
+			petition_id: fellowship.json.petition_id,
+			choice: 'aye'
+		}, owner.session_token);
+
+		const newcomer = await register_client('Open Gate Newcomer');
+		const listing = await get_json_with_session<{
+			guilds: Array<{ guild_id: number; is_public?: boolean }>;
+		}>('/api/guilds/list', newcomer.session_token);
+		expect(listing.json.guilds.find(guild => guild.guild_id === owner.guild_id)?.is_public).toBe(true);
+		const joined = await post_json<{ success: boolean }>('/api/guilds/join', {
+			guild_id: owner.guild_id
+		}, newcomer.session_token);
+		expect(joined.json.success).toBe(true);
+
+		const locked_take = await post_json<{ error_lang: string; available_at: number }>('/api/charity/take', {
+			item_id: 'melvorD:Open_Gates_Offering',
+			qty: 1
+		}, newcomer.session_token);
+		expect(locked_take.json.error_lang).toBe('MOD_MP_CHARITY_JOIN_LOCK');
+		expect(locked_take.json.available_at).toBeGreaterThan(Date.now());
+		const donation = await post_json<{ success: boolean }>('/api/charity/donate', {
+			items: [{ id: 'melvorD:Newcomer_Offering', qty: 1 }]
+		}, newcomer.session_token);
+		expect(donation.json.success).toBe(true);
+
+		await db_run(
+			'UPDATE `guild_memberships` SET `charitree_take_available_at` = 0 WHERE `client_id` = ' +
+				'(SELECT `id` FROM `clients` WHERE `display_name` = ?)',
+			['Open Gate Newcomer']
+		);
+		const unlocked_take = await post_json<{ success: boolean }>('/api/charity/take', {
+			item_id: 'melvorD:Open_Gates_Offering',
+			qty: 1
+		}, newcomer.session_token);
+		expect(unlocked_take.json.success).toBe(true);
+
+		council = await get_council(owner.session_token);
+		expect(council.available_petition_types).toContain('enclosure');
+		expect(council.available_petition_types).not.toContain('fellowship');
+		const invalid_fellowship = await post_json<{ error_lang: string }>('/api/guilds/petitions/raise', {
+			type: 'fellowship'
+		}, owner.session_token);
+		expect(invalid_fellowship.json.error_lang).toBe('MOD_MP_COUNCIL_ADMISSION_UNAVAILABLE');
+
+		const enclosure = await post_json<{ petition_id: number }>('/api/guilds/petitions/raise', {
+			type: 'enclosure'
+		}, owner.session_token);
+		await post_json('/api/guilds/petitions/vote', {
+			petition_id: enclosure.json.petition_id,
+			choice: 'aye'
+		}, owner.session_token);
+
+		const outsider = await register_client('Closed Gate Outsider');
+		const refused = await post_json<{ error_lang: string }>('/api/guilds/join', {
+			guild_id: owner.guild_id
+		}, outsider.session_token);
+		expect(refused.json.error_lang).toBe('MOD_MP_GUILD_JOIN_FORBIDDEN');
+		const applied = await post_json<{ success: boolean }>('/api/guilds/apply', {
+			guild_id: owner.guild_id
+		}, outsider.session_token);
+		expect(applied.json.success).toBe(true);
 	});
 
 	test('renames Ingratitude and preserves donations made after its snapshot', async () => {
@@ -348,7 +540,7 @@ describe('Council API', () => {
 	test('lapses expired petitions during request-time catch-up without recording a vote', async () => {
 		const member = await register_guild_client('Expiry Member', 'Expiry Guild');
 		const petition_id = (await raise_appellation(member.session_token, 'Expired Name')).json.petition_id as number;
-		await db_run('UPDATE `guild_petitions` SET `expires_at` = ? WHERE `id` = ?', [Date.now() - 1, petition_id]);
+		await db_run('UPDATE `guild_petitions` SET `expires_at` = `created_at` WHERE `id` = ?', [petition_id]);
 
 		const vote = await post_json<{ error_lang: string }>('/api/guilds/petitions/vote', {
 			petition_id,

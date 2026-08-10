@@ -1,8 +1,8 @@
 import { db } from './db';
+import { shadowed_cutoff } from './shadowed';
 
 export const RAID_DURATION = 72 * 60 * 60 * 1000;
 export const RAID_COOLDOWN = 96 * 60 * 60 * 1000;
-export const RAID_ACTIVITY_WINDOW = 14 * 24 * 60 * 60 * 1000;
 export const ASSAULT_DURATION = 30 * 60 * 1000;
 export const ASSAULT_SETTLEMENT_GRACE = 24 * 60 * 60 * 1000;
 export const RAID_MAX_HEALTH = 9_000;
@@ -23,7 +23,7 @@ export const RAID_VICTORY_CACHE = Object.freeze([
 type Membership = {
 	membership_id: number;
 	guild_id: number;
-	guild_type: 'private' | 'free_fellowship';
+	guild_type: 'private' | 'public' | 'free_fellowship';
 };
 
 type RaidRow = {
@@ -192,7 +192,9 @@ export function activate_raid(client_id: number, now = Date.now()) {
 			'FROM `guild_memberships` AS membership JOIN `clients` AS client ON client.`id` = membership.`client_id` ' +
 			'WHERE membership.`guild_id` = ? ORDER BY membership.`id`'
 		).all(membership.guild_id) as Array<{ membership_id: number; client_id: number; last_multiplayer_active_at: number }>;
-		const active_member_count = members.filter(member => member.last_multiplayer_active_at >= now - RAID_ACTIVITY_WINDOW).length;
+		const active_member_count = members.filter(
+			member => member.last_multiplayer_active_at >= shadowed_cutoff(now)
+		).length;
 		const required_contributors = active_member_count <= 1
 			? 1
 			: Math.min(5, Math.max(2, Math.ceil(active_member_count * 0.4)));

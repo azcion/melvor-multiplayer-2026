@@ -159,6 +159,41 @@ describe('charity API', () => {
 		}));
 	});
 
+	test('takes one item from a stack and refreshes the remaining stack expiry', async () => {
+		const [donor, taker] = await make_guild_group([
+			'Charity Partial Donor',
+			'Charity Partial Taker'
+		]);
+		const item_id = 'melvorD:Charity_Partial_Take';
+		await post_json('/api/charity/donate', {
+			items: [{ id: item_id, qty: 3 }]
+		}, donor.session_token);
+		await db_run(
+			'UPDATE `charity_items` SET `expires_at` = ? WHERE `guild_id` = ? AND `item_id` = ?',
+			[Date.now() + 1000, donor.guild_id, item_id]
+		);
+		expect((await post('/api/charity/take', { item_id, qty: 0 }, taker.session_token)).status).toBe(400);
+
+		const taken = await post_json<{
+			success: boolean;
+			item_qty: number;
+			item_remaining_qty: number;
+			item_expires_at: number;
+		}>('/api/charity/take', { item_id, qty: 1 }, taker.session_token);
+
+		expect(taken.json).toMatchObject({
+			success: true,
+			item_qty: 1,
+			item_remaining_qty: 2
+		});
+		expect(taken.json.item_expires_at).toBeGreaterThan(Date.now() + 3 * 24 * 60 * 60 * 1000);
+		expect((await get_charity_contents(taker.session_token)).items).toContainEqual({
+			id: item_id,
+			qty: 2,
+			expires_at: taken.json.item_expires_at
+		});
+	});
+
 	test('isolates donated inventory between guilds', async () => {
 		const first = await register_guild_client('First Charity Donor', 'First Charity Guild');
 		const second = await register_guild_client('Second Charity Browser', 'Second Charity Guild');

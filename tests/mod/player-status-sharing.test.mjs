@@ -49,7 +49,8 @@ test('renders only local skill icons, levels, and a minimal activity indicator',
 	assert.match(main, /viewed_status_activity_name[\s\S]*this\.viewed_status\?\.activity/);
 	assert.match(main, /customClass: \{ popup: 'mp-profile-modal-popup' \}/);
 	assert.match(main, /get_registered_game_objects\(game\.skills\)[\s\S]*skill_order/);
-	assert.match(style, /\.mp-status-skills[\s\S]*grid-template-columns: repeat\(3/);
+	assert.match(style, /\.mp-status-skills \{[^}]*grid-template-columns: repeat\(3[^}]*overflow-y: scroll;[^}]*-webkit-overflow-scrolling: touch;[^}]*touch-action: pan-y;[^}]*overscroll-behavior-y: contain;[^}]*\}/s);
+	assert.match(style, /@media \(max-width: 767\.98px\) \{[^]*\.mp-profile-modal-popup \.mp-status-skills \{[^}]*height: min\(360px, 45vh\);[^}]*height: min\(360px, 45dvh\);[^}]*max-height: none;[^}]*\}/);
 	assert.match(style, /\.mp-profile-modal-popup \.mp-status-skill img[\s\S]*width: 24px;[\s\S]*height: 24px;[\s\S]*margin: 0;/);
 	assert.match(style, /\.mp-profile-modal-popup \.badge\.badge-secondary\.mp-status-skill-level[\s\S]*font-size: 60%;/);
 	assert.match(style, /\.mp-profile-modal-popup \.swal2-image[\s\S]*margin: \.5rem auto;/);
@@ -64,6 +65,8 @@ test('observes status changes without heartbeats and sends bounded partial snaps
 
 	assert.match(capture, /game\.skills/);
 	assert.match(capture, /game\.activeAction/);
+	assert.match(capture, /const is_alt_magic = active_action === game\.altMagic/);
+	assert.match(capture, /if \(!is_alt_magic && \(active_action === game\.combat \|\| active_action\?\.isCombat === true\)\)/);
 	assert.match(capture, /active_action\.masteryAction/);
 	assert.match(capture, /'activeMap'/);
 	assert.match(capture, /skill_id/);

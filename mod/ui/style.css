@@ -269,6 +269,7 @@ body.superDark {
 
 .mp-chat-compose {
 	border-top: 1px solid rgba(255, 255, 255, 0.08);
+	padding-bottom: 16px;
 }
 
 .mp-chat-compose textarea {
@@ -277,7 +278,7 @@ body.superDark {
 }
 
 .mp-chat-compose-actions {
-	justify-content: space-between;
+	justify-content: flex-end;
 	margin-top: 8px;
 }
 
@@ -285,6 +286,7 @@ body.superDark {
 	display: flex;
 	align-items: center;
 	gap: 6px;
+	margin-right: auto;
 	margin-bottom: 0;
 	padding: 0;
 	border: 0;
@@ -491,7 +493,10 @@ body.superDark {
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 6px;
 	max-height: 360px;
-	overflow-y: auto;
+	overflow-y: scroll;
+	-webkit-overflow-scrolling: touch;
+	touch-action: pan-y;
+	overscroll-behavior-y: contain;
 }
 
 .mp-status-skill {
@@ -596,6 +601,11 @@ body.superDark {
 .mp-equipment-slot mp-equipment-item {
 	display: block;
 	cursor: help;
+}
+
+.mp-equipment-slot mp-equipment-item img {
+	-webkit-user-drag: none;
+	user-select: none;
 }
 
 .mp-equipment-slot-unknown img {
@@ -857,6 +867,21 @@ div.mp-charitree-timer {
 	font-size: 9px;
 }
 
+div.mp-charitree-lock {
+	all: unset;
+	position: absolute;
+	top: 0;
+	right: 2px;
+	font-size: 10px;
+	color: #e56767;
+}
+
+mp-item-icon.mp-charitree-new-item {
+	border-radius: 5px;
+	outline: 2px solid rgb(45 210 75);
+	box-shadow: 0 0 8px 2px rgb(45 210 75 / 75%);
+}
+
 .mp-campaign-bg {
 	background-color: #265170 !important;
 }
@@ -1083,6 +1108,12 @@ div.mp-charitree-timer {
 	width: 45px;
 	height: 45px;
 	border-radius: 5px;
+}
+
+#mp-market-page mp-item-icon img,
+#mp-market-page .mp-market-item-icon {
+	-webkit-user-drag: none;
+	user-select: none;
 }
 
 .mp-market-item-col {
@@ -1399,6 +1430,12 @@ div.mp-charitree-timer {
 
 	.mp-profile-layout {
 		display: block;
+	}
+
+	.mp-profile-modal-popup .mp-status-skills {
+		height: min(360px, 45vh);
+		height: min(360px, 45dvh);
+		max-height: none;
 	}
 
 	.mp-chat-header {

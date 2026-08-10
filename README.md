@@ -3,7 +3,7 @@
 # Melvor Multiplayer 2026 - Public Test
 
 Melvor Multiplayer 2026 is a self-hosted Melvor Idle multiplayer mod and server rebuilt around Guild-isolated play.
-This repository contains the public source for public-test version `0.1.0-public-test.21`, targeting Melvor Idle
+This repository contains the public source for public-test version `0.1.0-public-test.25`, targeting Melvor Idle
 v1.3.1 on Desktop and Browser.
 
 This is an unofficial, community-maintained fork of

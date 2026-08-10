@@ -212,7 +212,7 @@ export type gifts = {
 
 export type guilds = {
 	id: number;
-	type: 'private' | 'free_fellowship';
+	type: 'private' | 'public' | 'free_fellowship';
 	name: string;
 	icon_id: string;
 	charitree_enabled: number;
@@ -222,14 +222,15 @@ export type guild_memberships = {
 	id: number;
 	client_id: number;
 	guild_id: number;
+	charitree_take_available_at: number;
 };
 
 export type guild_petitions = {
 	id: number;
 	guild_id: number;
 	guild_name: string;
-	type: 'appellation' | 'heraldry' | 'banishment' | 'charitree_ingratitude' |
-		'charitree_sacrilege' | 'charitree_beneficence';
+	type: 'appellation' | 'heraldry' | 'banishment' | 'winnowing' | 'charitree_ingratitude' |
+		'charitree_sacrilege' | 'charitree_beneficence' | 'fellowship' | 'enclosure';
 	conflict_subject: string;
 	subject_locked: number;
 	petitioner_id: number;
@@ -260,6 +261,13 @@ export type guild_petition_votes = {
 	client_id: number;
 	choice: 'aye' | 'nay';
 	submitted_at: number;
+};
+
+export type guild_petition_winnowing_targets = {
+	petition_id: number;
+	membership_id: number;
+	client_id: number;
+	subject_locked: number;
 };
 
 export type guild_applications = {

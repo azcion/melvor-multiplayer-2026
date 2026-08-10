@@ -13,7 +13,7 @@ test('wires Council petition controls, resolved-history toggle, and action descr
 	]);
 	const language = JSON.parse(language_text);
 
-	for (const modal of ['raise', 'appellation', 'heraldry', 'banishment', 'charitree'])
+	for (const modal of ['raise', 'appellation', 'heraldry', 'banishment', 'action'])
 		assert.match(templates, new RegExp(`template-mp-council-${modal}-modal`));
 
 	assert.match(templates, /v-if="petition\.tally_visible"/);
@@ -26,9 +26,14 @@ test('wires Council petition controls, resolved-history toggle, and action descr
 	assert.match(templates, /MOD_MP_COUNCIL_APPELLATION_DESCRIPTION/);
 	assert.match(templates, /MOD_MP_COUNCIL_HERALDRY_DESCRIPTION/);
 	assert.match(templates, /MOD_MP_COUNCIL_BANISHMENT_DESCRIPTION/);
+	assert.match(templates, /can_raise_council_petition\('winnowing'\)/);
+	assert.match(templates, /MOD_MP_COUNCIL_WINNOWING_DESCRIPTION/);
+	assert.match(templates, /petition\.type === 'winnowing'[\s\S]*petition\.proposal\.target_count/);
 	assert.match(templates, /can_raise_council_petition\('charitree_ingratitude'\)/);
 	assert.match(templates, /can_raise_council_petition\('charitree_sacrilege'\)/);
 	assert.match(templates, /can_raise_council_petition\('charitree_beneficence'\)/);
+	assert.match(templates, /can_raise_council_petition\('fellowship'\)/);
+	assert.match(templates, /can_raise_council_petition\('enclosure'\)/);
 	assert.match(templates, /MOD_MP_COUNCIL_INGRATITUDE_DESCRIPTION/);
 	assert.match(templates, /MOD_MP_COUNCIL_SACRILEGE_DESCRIPTION/);
 	assert.match(templates, /MOD_MP_COUNCIL_BENEFICENCE_DESCRIPTION/);
@@ -46,10 +51,23 @@ test('wires Council petition controls, resolved-history toggle, and action descr
 	assert.match(main, /petition\.lifecycle === 'active'/);
 	assert.match(main, /state\.council_available_petition_types = res\.available_petition_types \?\? \[\]/);
 	assert.equal(language.MOD_MP_COUNCIL_TYPE_BANISHMENT, 'Petition for Banishment');
+	assert.equal(language.MOD_MP_COUNCIL_TYPE_WINNOWING, 'Petition of Winnowing');
+	assert.match(language.MOD_MP_COUNCIL_WINNOWING_CONFIRM, /remains Shadowed/);
 	assert.equal(language.MOD_MP_COUNCIL_TYPE_CHARITREE_INGRATITUDE, 'Petition of Ingratitude');
 	assert.equal(language.MOD_MP_COUNCIL_TYPE_CHARITREE_SACRILEGE, 'Petition of Sacrilege');
 	assert.equal(language.MOD_MP_COUNCIL_TYPE_CHARITREE_BENEFICENCE, 'Petition of Beneficence');
-	assert.equal(language.MOD_MP_COUNCIL_BANISHMENT_DESCRIPTION, 'Propose removing a member from the Guild. It is not a permanent ban; they may apply to rejoin.');
+	assert.equal(language.MOD_MP_COUNCIL_TYPE_FELLOWSHIP, 'Petition of Fellowship');
+	assert.equal(language.MOD_MP_COUNCIL_TYPE_ENCLOSURE, 'Petition of Enclosure');
+	assert.match(language.MOD_MP_COUNCIL_FELLOWSHIP_CONFIRM, /wait 24 hours/);
+	assert.match(language.MOD_MP_COUNCIL_ENCLOSURE_DESCRIPTION, /close its gates/);
+	assert.equal(language.MOD_MP_COUNCIL_APPELLATION_DESCRIPTION, 'Call for the Guild to take a new name.');
+	assert.equal(language.MOD_MP_COUNCIL_HERALDRY_DESCRIPTION, 'Call for the Guild to bear a new emblem.');
+	assert.equal(language.MOD_MP_COUNCIL_BANISHMENT_DESCRIPTION, 'Call for a member to be cast out of the Guild. This is no permanent exile; they may apply to rejoin.');
+	assert.equal(language.MOD_MP_COUNCIL_PROPOSED_NAME, 'New Guild name');
+	assert.equal(language.MOD_MP_COUNCIL_PROPOSED_ICON, 'New Guild emblem');
+	assert.equal(language.MOD_MP_GUILD_ICON_REQUIRED, 'Choose an emblem for the Guild.');
+	assert.equal(language.MOD_MP_MODAL_DESC_CREATE_GUILD, 'Choose a name and an emblem.');
+	assert.match(templates, /placeholder="Search combat locations"/);
 });
 
 test('hides the felled Charitree and its donation action until restored', async () => {

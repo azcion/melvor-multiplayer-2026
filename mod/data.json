@@ -243,21 +243,6 @@
 		}],
 		"pages": [
 			{
-				"id": "Guild_Raid",
-				"customName": "Raid",
-				"media": "assets/raid_plant_t1.png",
-				"containerID": "mp-raid-page",
-				"headerBgClass": "mp-raid-bg",
-				"hasGameGuide": false,
-				"canBeDefault": false,
-				"sidebarItem": {
-					"categoryID": "Multiplayer",
-					"icon": "assets/raid_plant_t1.png",
-					"asideClass": "mp-raid-nav",
-					"aside": "preview"
-				}
-			},
-			{
 				"id": "Chat",
 				"customName": "Chat",
 				"media": "https://cdn2-main.melvor.net/assets/media/bank/message_in_a_bottle.png",
@@ -269,7 +254,7 @@
 					"categoryID": "Multiplayer",
 					"icon": "https://cdn2-main.melvor.net/assets/media/bank/message_in_a_bottle.png",
 					"asideClass": "mp-chat-nav",
-					"aside": ""
+					"aside": "0"
 				}
 			},
 			{
@@ -339,6 +324,21 @@
 					"icon": "assets/campaigns.svg",
 					"asideClass": "mp-campaign-nav",
 					"aside": "Inactive"
+				}
+			},
+			{
+				"id": "Guild_Raid",
+				"customName": "Raid",
+				"media": "assets/raid_plant_t1.png",
+				"containerID": "mp-raid-page",
+				"headerBgClass": "mp-raid-bg",
+				"hasGameGuide": false,
+				"canBeDefault": false,
+				"sidebarItem": {
+					"categoryID": "Multiplayer",
+					"icon": "assets/raid_plant_t1.png",
+					"asideClass": "mp-raid-nav",
+					"aside": "preview"
 				}
 			}
 		]

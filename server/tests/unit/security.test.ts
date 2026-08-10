@@ -1,5 +1,42 @@
 import { describe, expect, test } from 'bun:test';
-import { RequestLimitPolicy, TokenBucketLimiter } from '../../security';
+import { RequestLimitPolicy, TokenBucketLimiter, load_auth_response_delay } from '../../security';
+
+describe('authentication response delay', () => {
+	test('defaults to one second and accepts the isolated-test override', () => {
+		const original = process.env.AUTH_RESPONSE_DELAY_MS;
+
+		try {
+			delete process.env.AUTH_RESPONSE_DELAY_MS;
+			expect(load_auth_response_delay()).toBe(1000);
+
+			process.env.AUTH_RESPONSE_DELAY_MS = '0';
+			expect(load_auth_response_delay()).toBe(0);
+		} finally {
+			if (original === undefined)
+				delete process.env.AUTH_RESPONSE_DELAY_MS;
+			else
+				process.env.AUTH_RESPONSE_DELAY_MS = original;
+		}
+	});
+
+	test('rejects malformed or excessive overrides', () => {
+		const original = process.env.AUTH_RESPONSE_DELAY_MS;
+
+		try {
+			for (const value of ['-1', '1.5', '10001', 'invalid']) {
+				process.env.AUTH_RESPONSE_DELAY_MS = value;
+				expect(() => load_auth_response_delay()).toThrow(
+					'AUTH_RESPONSE_DELAY_MS must be an integer from 0 to 10000'
+				);
+			}
+		} finally {
+			if (original === undefined)
+				delete process.env.AUTH_RESPONSE_DELAY_MS;
+			else
+				process.env.AUTH_RESPONSE_DELAY_MS = original;
+		}
+	});
+});
 
 describe('request limits', () => {
 	test('allows the configured burst and refills at the configured rate', () => {

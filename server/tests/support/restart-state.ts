@@ -26,6 +26,9 @@ export type RestartState = {
 	banishment_item_id: string;
 	raid_id: number;
 	raid_assault_id: string;
+	support_player: RegisteredClient;
+	support_member: RegisteredClient;
+	support_conversation_id: number;
 };
 
 export async function read_restart_state(): Promise<RestartState> {

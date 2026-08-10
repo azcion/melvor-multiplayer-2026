@@ -24,6 +24,7 @@ test('adds a first-class Chat page, inbox, unread indicators, and Guild-roster i
 	assert.equal(chat_page.media, 'https://cdn2-main.melvor.net/assets/media/bank/message_in_a_bottle.png');
 	assert.equal(chat_page.sidebarItem.icon, 'https://cdn2-main.melvor.net/assets/media/bank/message_in_a_bottle.png');
 	assert.equal(chat_page.sidebarItem.asideClass, 'mp-chat-nav');
+	assert.equal(chat_page.sidebarItem.aside, '0');
 	assert.match(templates, /template-mp-chat-page/);
 	assert.match(templates, /state\.chat_unread/);
 	assert.match(templates, /state\.open_chat_conversation\(conversation\)/);
@@ -33,6 +34,8 @@ test('adds a first-class Chat page, inbox, unread indicators, and Guild-roster i
 	assert.match(main, /aside\.hidden = state\.chat_unread <= 0/);
 	assert.match(style, /\.mp-chat-nav[\s\S]*background-color: #ff4545/);
 	assert.equal(language.MOD_MP_MENU_VIEW_CHAT, 'Open Chat');
+	assert.equal(language.MOD_MP_CHAT_INBOX, 'Conversations');
+	assert.equal(language.MOD_MP_CHAT_INBOX_INFO, 'These stay with you across Guilds.');
 });
 
 test('implements jittered foreground conversation polling and cursor-based history', async () => {
@@ -96,7 +99,7 @@ test('opens message actions from timestamps with copy and confirmed deletion', a
 	assert.equal(language.MOD_MP_CHAT_DELETE_MESSAGE_CONFIRM_TITLE, 'Delete this Message?');
 });
 
-test('supports idempotent plain-text composition, budget, privacy, blocking, and participant deletion', async () => {
+test('disables Message capacity while preserving its dormant UI and rollback compatibility', async () => {
 	const { main, templates, style, language } = await sources();
 	const chat_template = templates.slice(
 		templates.indexOf('<template id="template-mp-chat-page">'),
@@ -104,6 +107,8 @@ test('supports idempotent plain-text composition, budget, privacy, blocking, and
 	);
 
 	assert.match(main, /chat_pending_send/);
+	assert.match(main, /client_id: conversation\.participant\.client_id/);
+	assert.match(main, /conversation\.conversation_id = res\.message\.conversation_id/);
 	assert.match(main, /crypto\.randomUUID\(\)/);
 	assert.match(main, /idempotency_key/);
 	assert.match(main, /api_post\('\/api\/chat\/privacy'/);
@@ -114,7 +119,14 @@ test('supports idempotent plain-text composition, budget, privacy, blocking, and
 	assert.match(chat_template, /\{\{ message\.content \}\}/);
 	assert.doesNotMatch(chat_template, /v-html|innerHTML/);
 	assert.doesNotMatch(chat_template, /chat_draft\.length/);
-	assert.match(chat_template, /class="mp-chat-budget"[^>]*@click="state\.show_chat_budget_modal\(\)"[^>]*aria-haspopup="dialog"/);
+	assert.match(main, /chat_budget_enabled: true/);
+	assert.match(main, /!this\.chat_budget_enabled \|\| this\.chat_budget\.credits > 0/);
+	assert.match(main, /state\.chat_budget_enabled = res\.budget_enabled !== false/);
+	assert.match(main, /state\.chat_budget_enabled = response\.chat\?\.budget_enabled !== false/);
+	assert.match(chat_template, /class="mp-chat-budget"[^>]*v-if="[^"]*state\.chat_budget_enabled"[^>]*@click="state\.show_chat_budget_modal\(\)"[^>]*aria-haspopup="dialog"/);
+	assert.match(style, /\.mp-chat-compose\s*\{[^}]*padding-bottom: 16px/);
+	assert.match(style, /\.mp-chat-compose-actions\s*\{[^}]*justify-content: flex-end/);
+	assert.match(style, /\.mp-chat-budget\s*\{[^}]*margin-right: auto/);
 	assert.match(chat_template, /class="mp-chat-budget"[\s\S]*MOD_MP_CHAT_BUDGET[\s\S]*get_item_icon\('melvorD:Message_In_A_Bottle'\)[\s\S]*state\.chat_budget\.credits < state\.chat_budget\.maximum/);
 	assert.match(templates, /template-mp-chat-budget-info-modal/);
 	assert.match(templates, /MOD_MP_CHAT_BUDGET_LEVEL_99/);
@@ -166,24 +178,43 @@ test('ignores stale conversation responses after a thread switch or close', asyn
 
 	assert.match(main, /let chat_view_generation = 0/);
 	assert.match(main, /const view_generation = \+\+chat_view_generation/);
-	assert.match(main, /if \(view_generation !== chat_view_generation \|\|[\s\S]*selected_chat_conversation\?\.conversation_id !== conversation\.conversation_id\)/);
+	assert.match(main, /if \(view_generation !== chat_view_generation \|\|[\s\S]*selected_chat_conversation\?\.conversation_id !== conversation\.conversation_id \|\|[\s\S]*selected_chat_conversation\?\.support_team_id !== conversation\.support_team_id\)/);
 	assert.match(main, /state\.selected_chat_conversation\?\.conversation_id !== conversation_id/);
 	assert.match(main, /chat_view_generation\+\+;\n\s*this\.selected_chat_conversation = null/);
 });
 
 test('does not poll an empty or background Chat inbox or refetch budget on each message poll', async () => {
 	const { main } = await sources();
+	const message_refresh = main.slice(main.indexOf('async function refresh_chat_messages'),
+		main.indexOf('async function refresh_chat_page'));
 	const polling = main.slice(main.indexOf('async function poll_chat_messages'), main.indexOf('async function get_friends'));
 	const scheduler = main.slice(main.indexOf('function start_chat_polling'), main.indexOf('async function poll_chat_messages'));
 	const events = main.slice(main.indexOf('async function get_client_events_request'), main.indexOf('function start_client_event_polling'));
 
-	assert.match(scheduler, /!state\.selected_chat_conversation/);
+	assert.match(scheduler, /!state\.selected_chat_conversation\?\.conversation_id/);
+	assert.match(message_refresh, /kind === 'private' && conversation\.conversation_id === null[\s\S]*return/);
+	assert.match(message_refresh, /conversation_kind=' \+ kind[\s\S]*support_team_id/);
 	assert.match(scheduler, /!polling\.is_foreground\(document\)/);
 	assert.doesNotMatch(polling, /refresh_chat_state\(\)/);
 	assert.match(polling, /state\.selected_chat_conversation && polling\.is_foreground\(document\)/);
 	assert.match(events, /const previous_chat_unread = state\.chat_unread/);
 	assert.match(events, /chat_page_visible && state\.chat_unread !== previous_chat_unread/);
 	assert.match(events, /await refresh_chat_conversations\(\)/);
+});
+
+test('renders Support Chat identity, alignment, virtual welcomes, and restricted actions', async () => {
+	const { main, templates } = await sources();
+	const chat = templates.slice(templates.indexOf('<template id="template-mp-chat-page">'),
+		templates.indexOf('<template id="template-mp-chat-budget-info-modal">'));
+	assert.match(main, /conversation_kind: conversation\.conversation_kind \?\? 'private'/);
+	assert.match(main, /support_team_id: conversation\.support_team_id/);
+	assert.match(main, /conversation_kind=' \+ kind/);
+	assert.match(main, /selected_chat_conversation\?\.conversation_kind === 'support'/);
+	assert.match(chat, /message\.sent_by_viewer === true/);
+	assert.match(chat, /conversation_kind !== 'support'/);
+	assert.match(chat, /state\.get_chat_participant_icon/);
+	assert.match(main, /selected_chat_conversation\?\.support_team_id !== conversation\.support_team_id/);
+	assert.match(chat, /support_team_id \|\| ''/);
 });
 
 test('retains an older-history cursor after deleting the visible page', async () => {

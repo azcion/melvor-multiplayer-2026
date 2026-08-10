@@ -1050,4 +1050,309 @@ export const migrations: Migration[] = [{
 				FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
 			);
 		`
+	}, {
+		version: 23,
+		sql: `
+			DELETE FROM chat_conversations
+			WHERE NOT EXISTS (
+				SELECT 1 FROM chat_messages
+				WHERE chat_messages.conversation_id = chat_conversations.id
+			);
+		`
+	}, {
+		version: 24,
+		sql: `
+			CREATE TABLE support_teams (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				system_key TEXT NOT NULL UNIQUE,
+				display_name TEXT NOT NULL,
+				inbox_label TEXT NOT NULL,
+				icon_id TEXT NOT NULL,
+				welcome_content TEXT NOT NULL CHECK (length(welcome_content) BETWEEN 1 AND 1000),
+				created_at INTEGER NOT NULL CHECK (created_at >= 0)
+			);
+			INSERT INTO support_teams (system_key, display_name, inbox_label, icon_id, welcome_content, created_at)
+			VALUES ('multiplayer_mod_team', 'Multiplayer Mod Team', 'mp', 'multiplayer',
+				'Welcome to Melvor Multiplayer!\n\nThis is an automated message. If you run into any problems or have a suggestion, just reply here. We''d love to hear from you!', 0);
+
+			CREATE TABLE support_team_memberships (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				team_id INTEGER NOT NULL,
+				melvor_account_id INTEGER NOT NULL,
+				active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+				created_at INTEGER NOT NULL CHECK (created_at >= 0),
+				UNIQUE (team_id, melvor_account_id),
+				FOREIGN KEY (team_id) REFERENCES support_teams (id),
+				FOREIGN KEY (melvor_account_id) REFERENCES melvor_accounts (id)
+			);
+			CREATE INDEX idx_support_memberships_account ON support_team_memberships (melvor_account_id, active, team_id);
+
+			CREATE TABLE support_virtual_welcomes (
+				team_id INTEGER NOT NULL,
+				client_id INTEGER NOT NULL,
+				presented_at INTEGER NOT NULL CHECK (presented_at >= 0),
+				read_at INTEGER CHECK (read_at IS NULL OR read_at >= presented_at),
+				PRIMARY KEY (team_id, client_id),
+				FOREIGN KEY (team_id) REFERENCES support_teams (id),
+				FOREIGN KEY (client_id) REFERENCES clients (id)
+			);
+
+			CREATE TABLE support_conversations (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				team_id INTEGER NOT NULL,
+				player_client_id INTEGER NOT NULL,
+				created_at INTEGER NOT NULL CHECK (created_at >= 0),
+				UNIQUE (team_id, player_client_id),
+				FOREIGN KEY (team_id) REFERENCES support_teams (id),
+				FOREIGN KEY (player_client_id) REFERENCES clients (id)
+			);
+			CREATE INDEX idx_support_conversations_team ON support_conversations (team_id, id DESC);
+
+			CREATE TABLE support_messages (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				conversation_id INTEGER NOT NULL,
+				author_kind TEXT NOT NULL CHECK (author_kind IN ('automated', 'player', 'member')),
+				membership_id INTEGER,
+				sending_client_id INTEGER,
+				idempotency_scope TEXT NOT NULL,
+				idempotency_key TEXT NOT NULL,
+				content TEXT NOT NULL CHECK (length(content) BETWEEN 1 AND 1000),
+				created_at INTEGER NOT NULL CHECK (created_at >= 0),
+				UNIQUE (idempotency_scope, idempotency_key),
+				CHECK ((author_kind = 'automated' AND membership_id IS NULL AND sending_client_id IS NULL) OR
+					(author_kind = 'player' AND membership_id IS NULL AND sending_client_id IS NOT NULL) OR
+					(author_kind = 'member' AND membership_id IS NOT NULL AND sending_client_id IS NOT NULL)),
+				FOREIGN KEY (conversation_id) REFERENCES support_conversations (id),
+				FOREIGN KEY (membership_id) REFERENCES support_team_memberships (id),
+				FOREIGN KEY (sending_client_id) REFERENCES clients (id)
+			);
+			CREATE INDEX idx_support_messages_conversation ON support_messages (conversation_id, id DESC);
+
+			CREATE TABLE support_player_message_reads (
+				message_id INTEGER NOT NULL,
+				client_id INTEGER NOT NULL,
+				read_at INTEGER NOT NULL CHECK (read_at >= 0),
+				PRIMARY KEY (message_id, client_id),
+				FOREIGN KEY (message_id) REFERENCES support_messages (id),
+				FOREIGN KEY (client_id) REFERENCES clients (id)
+			);
+
+			CREATE TABLE support_member_message_reads (
+				message_id INTEGER NOT NULL,
+				membership_id INTEGER NOT NULL,
+				read_at INTEGER NOT NULL CHECK (read_at >= 0),
+				PRIMARY KEY (message_id, membership_id),
+				FOREIGN KEY (message_id) REFERENCES support_messages (id),
+				FOREIGN KEY (membership_id) REFERENCES support_team_memberships (id)
+			);
+
+			CREATE TABLE support_message_moderation (
+				message_id INTEGER PRIMARY KEY,
+				deleted_at INTEGER NOT NULL CHECK (deleted_at >= 0),
+				FOREIGN KEY (message_id) REFERENCES support_messages (id)
+			);
+		`
+	}, {
+		version: 25,
+		foreign_keys_disabled: true,
+		sql: `
+			ALTER TABLE guild_memberships ADD COLUMN charitree_take_available_at INTEGER NOT NULL DEFAULT 0
+				CHECK (charitree_take_available_at >= 0);
+
+			CREATE TABLE guilds_new (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				name TEXT NOT NULL,
+				icon_id TEXT NOT NULL,
+				type TEXT NOT NULL DEFAULT 'private'
+					CHECK (type IN ('private', 'public', 'free_fellowship')),
+				charitree_enabled INTEGER NOT NULL DEFAULT 1
+					CHECK (charitree_enabled IN (0, 1))
+			);
+			INSERT INTO guilds_new (id, name, icon_id, type, charitree_enabled)
+				SELECT id, name, icon_id, type, charitree_enabled FROM guilds;
+			DROP TABLE guilds;
+			ALTER TABLE guilds_new RENAME TO guilds;
+			CREATE UNIQUE INDEX idx_guilds_free_fellowship
+				ON guilds (type) WHERE type = 'free_fellowship';
+
+			CREATE TABLE guild_petitions_new (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				guild_id INTEGER NOT NULL,
+				guild_name TEXT NOT NULL,
+				type TEXT NOT NULL CHECK (type IN (
+					'appellation', 'heraldry', 'banishment', 'charitree_ingratitude',
+					'charitree_sacrilege', 'charitree_beneficence', 'fellowship', 'enclosure'
+				)),
+				conflict_subject TEXT NOT NULL,
+				subject_locked INTEGER NOT NULL DEFAULT 1 CHECK (subject_locked IN (0, 1)),
+				petitioner_id INTEGER NOT NULL,
+				proposed_name TEXT,
+				proposed_icon_id TEXT,
+				target_client_id INTEGER,
+				target_membership_id INTEGER,
+				charitree_expires_before INTEGER CHECK (
+					charitree_expires_before IS NULL OR charitree_expires_before >= 0
+				),
+				created_at INTEGER NOT NULL CHECK (created_at >= 0),
+				expires_at INTEGER NOT NULL CHECK (expires_at >= created_at),
+				resolved_at INTEGER CHECK (resolved_at IS NULL OR resolved_at >= created_at),
+				lifecycle TEXT NOT NULL DEFAULT 'active'
+					CHECK (lifecycle IN ('active', 'granted', 'denied', 'lapsed', 'withdrawn')),
+				execution_state TEXT NOT NULL DEFAULT 'not_applicable'
+					CHECK (execution_state IN ('not_applicable', 'pending', 'running', 'succeeded', 'failed')),
+				execution_attempts INTEGER NOT NULL DEFAULT 0 CHECK (execution_attempts >= 0),
+				execution_last_attempt_at INTEGER CHECK (
+					execution_last_attempt_at IS NULL OR execution_last_attempt_at >= 0
+				),
+				execution_failure_category TEXT,
+				execution_failure_message TEXT,
+				execution_effect TEXT,
+				CHECK (
+					(type = 'appellation' AND proposed_name IS NOT NULL AND proposed_icon_id IS NULL
+						AND target_client_id IS NULL AND target_membership_id IS NULL
+						AND charitree_expires_before IS NULL) OR
+					(type = 'heraldry' AND proposed_name IS NULL AND proposed_icon_id IS NOT NULL
+						AND target_client_id IS NULL AND target_membership_id IS NULL
+						AND charitree_expires_before IS NULL) OR
+					(type = 'banishment' AND proposed_name IS NULL AND proposed_icon_id IS NULL
+						AND target_client_id IS NOT NULL AND target_membership_id IS NOT NULL
+						AND charitree_expires_before IS NULL) OR
+					(type = 'charitree_ingratitude' AND proposed_name IS NULL AND proposed_icon_id IS NULL
+						AND target_client_id IS NULL AND target_membership_id IS NULL
+						AND charitree_expires_before IS NOT NULL) OR
+					(type IN ('charitree_sacrilege', 'charitree_beneficence', 'fellowship', 'enclosure')
+						AND proposed_name IS NULL AND proposed_icon_id IS NULL
+						AND target_client_id IS NULL AND target_membership_id IS NULL
+						AND charitree_expires_before IS NULL)
+				),
+				FOREIGN KEY (petitioner_id) REFERENCES clients (id),
+				FOREIGN KEY (target_client_id) REFERENCES clients (id)
+			);
+			INSERT INTO guild_petitions_new (
+				id, guild_id, guild_name, type, conflict_subject, subject_locked, petitioner_id,
+				proposed_name, proposed_icon_id, target_client_id, target_membership_id,
+				charitree_expires_before, created_at, expires_at, resolved_at, lifecycle,
+				execution_state, execution_attempts, execution_last_attempt_at,
+				execution_failure_category, execution_failure_message, execution_effect
+			)
+			SELECT
+				id, guild_id, guild_name, type, conflict_subject, subject_locked, petitioner_id,
+				proposed_name, proposed_icon_id, target_client_id, target_membership_id,
+				charitree_expires_before, created_at, expires_at, resolved_at, lifecycle,
+				execution_state, execution_attempts, execution_last_attempt_at,
+				execution_failure_category, execution_failure_message, execution_effect
+			FROM guild_petitions;
+			DROP TABLE guild_petitions;
+			ALTER TABLE guild_petitions_new RENAME TO guild_petitions;
+			CREATE UNIQUE INDEX idx_guild_petitions_locked_subject
+				ON guild_petitions (guild_id, conflict_subject) WHERE subject_locked = 1;
+			CREATE INDEX idx_guild_petitions_history
+				ON guild_petitions (guild_id, lifecycle, resolved_at DESC, id DESC);
+			CREATE INDEX idx_guild_petitions_expiry
+				ON guild_petitions (expires_at) WHERE lifecycle = 'active';
+			CREATE INDEX idx_guild_petitions_petitioner
+				ON guild_petitions (petitioner_id, lifecycle);
+			CREATE INDEX idx_guild_petitions_execution
+				ON guild_petitions (execution_state, execution_last_attempt_at, id)
+				WHERE execution_state IN ('pending', 'running', 'failed');
+		`
+	}, {
+		version: 26,
+		foreign_keys_disabled: true,
+		sql: `
+			CREATE TABLE guild_petitions_new (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				guild_id INTEGER NOT NULL,
+				guild_name TEXT NOT NULL,
+				type TEXT NOT NULL CHECK (type IN (
+					'appellation', 'heraldry', 'banishment', 'winnowing', 'charitree_ingratitude',
+					'charitree_sacrilege', 'charitree_beneficence', 'fellowship', 'enclosure'
+				)),
+				conflict_subject TEXT NOT NULL,
+				subject_locked INTEGER NOT NULL DEFAULT 1 CHECK (subject_locked IN (0, 1)),
+				petitioner_id INTEGER NOT NULL,
+				proposed_name TEXT,
+				proposed_icon_id TEXT,
+				target_client_id INTEGER,
+				target_membership_id INTEGER,
+				charitree_expires_before INTEGER CHECK (
+					charitree_expires_before IS NULL OR charitree_expires_before >= 0
+				),
+				created_at INTEGER NOT NULL CHECK (created_at >= 0),
+				expires_at INTEGER NOT NULL CHECK (expires_at >= created_at),
+				resolved_at INTEGER CHECK (resolved_at IS NULL OR resolved_at >= created_at),
+				lifecycle TEXT NOT NULL DEFAULT 'active'
+					CHECK (lifecycle IN ('active', 'granted', 'denied', 'lapsed', 'withdrawn')),
+				execution_state TEXT NOT NULL DEFAULT 'not_applicable'
+					CHECK (execution_state IN ('not_applicable', 'pending', 'running', 'succeeded', 'failed')),
+				execution_attempts INTEGER NOT NULL DEFAULT 0 CHECK (execution_attempts >= 0),
+				execution_last_attempt_at INTEGER CHECK (
+					execution_last_attempt_at IS NULL OR execution_last_attempt_at >= 0
+				),
+				execution_failure_category TEXT,
+				execution_failure_message TEXT,
+				execution_effect TEXT,
+				CHECK (
+					(type = 'appellation' AND proposed_name IS NOT NULL AND proposed_icon_id IS NULL
+						AND target_client_id IS NULL AND target_membership_id IS NULL
+						AND charitree_expires_before IS NULL) OR
+					(type = 'heraldry' AND proposed_name IS NULL AND proposed_icon_id IS NOT NULL
+						AND target_client_id IS NULL AND target_membership_id IS NULL
+						AND charitree_expires_before IS NULL) OR
+					(type = 'banishment' AND proposed_name IS NULL AND proposed_icon_id IS NULL
+						AND target_client_id IS NOT NULL AND target_membership_id IS NOT NULL
+						AND charitree_expires_before IS NULL) OR
+					(type = 'charitree_ingratitude' AND proposed_name IS NULL AND proposed_icon_id IS NULL
+						AND target_client_id IS NULL AND target_membership_id IS NULL
+						AND charitree_expires_before IS NOT NULL) OR
+					(type IN ('winnowing', 'charitree_sacrilege', 'charitree_beneficence', 'fellowship', 'enclosure')
+						AND proposed_name IS NULL AND proposed_icon_id IS NULL
+						AND target_client_id IS NULL AND target_membership_id IS NULL
+						AND charitree_expires_before IS NULL)
+				),
+				FOREIGN KEY (petitioner_id) REFERENCES clients (id),
+				FOREIGN KEY (target_client_id) REFERENCES clients (id)
+			);
+			INSERT INTO guild_petitions_new (
+				id, guild_id, guild_name, type, conflict_subject, subject_locked, petitioner_id,
+				proposed_name, proposed_icon_id, target_client_id, target_membership_id,
+				charitree_expires_before, created_at, expires_at, resolved_at, lifecycle,
+				execution_state, execution_attempts, execution_last_attempt_at,
+				execution_failure_category, execution_failure_message, execution_effect
+			)
+			SELECT
+				id, guild_id, guild_name, type, conflict_subject, subject_locked, petitioner_id,
+				proposed_name, proposed_icon_id, target_client_id, target_membership_id,
+				charitree_expires_before, created_at, expires_at, resolved_at, lifecycle,
+				execution_state, execution_attempts, execution_last_attempt_at,
+				execution_failure_category, execution_failure_message, execution_effect
+			FROM guild_petitions;
+			DROP TABLE guild_petitions;
+			ALTER TABLE guild_petitions_new RENAME TO guild_petitions;
+			CREATE UNIQUE INDEX idx_guild_petitions_locked_subject
+				ON guild_petitions (guild_id, conflict_subject) WHERE subject_locked = 1;
+			CREATE INDEX idx_guild_petitions_history
+				ON guild_petitions (guild_id, lifecycle, resolved_at DESC, id DESC);
+			CREATE INDEX idx_guild_petitions_expiry
+				ON guild_petitions (expires_at) WHERE lifecycle = 'active';
+			CREATE INDEX idx_guild_petitions_petitioner
+				ON guild_petitions (petitioner_id, lifecycle);
+			CREATE INDEX idx_guild_petitions_execution
+				ON guild_petitions (execution_state, execution_last_attempt_at, id)
+				WHERE execution_state IN ('pending', 'running', 'failed');
+
+			CREATE TABLE guild_petition_winnowing_targets (
+				petition_id INTEGER NOT NULL,
+				membership_id INTEGER NOT NULL,
+				client_id INTEGER NOT NULL,
+				subject_locked INTEGER NOT NULL DEFAULT 1 CHECK (subject_locked IN (0, 1)),
+				PRIMARY KEY (petition_id, membership_id),
+				FOREIGN KEY (petition_id) REFERENCES guild_petitions (id) ON DELETE CASCADE,
+				FOREIGN KEY (client_id) REFERENCES clients (id)
+			);
+			CREATE UNIQUE INDEX idx_guild_petition_winnowing_targets_locked_membership
+				ON guild_petition_winnowing_targets (membership_id) WHERE subject_locked = 1;
+			CREATE INDEX idx_guild_petition_winnowing_targets_petition
+				ON guild_petition_winnowing_targets (petition_id, subject_locked);
+		`
 	}];

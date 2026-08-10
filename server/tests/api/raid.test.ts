@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { get_json_with_session, post, post_json, register_client } from '../support/http';
-import { attach_to_free_fellowship, make_guildmates, register_guild_client } from '../support/fixtures';
-import { db_run } from '../support/persistence';
+import { attach_to_free_fellowship, make_guild_group, make_guildmates, register_guild_client } from '../support/fixtures';
+import { db_count, db_run } from '../support/persistence';
+import { SHADOWED_AFTER } from '../../shadowed';
 
 type RaidState = {
 	affiliation: string;
@@ -11,6 +12,8 @@ type RaidState = {
 		raid_id: number;
 		secured: boolean;
 		remaining_health: number;
+		active_member_count: number;
+		required_contributors: number;
 		member: { assaults: number; contribution: number; successful_assaults: number } | null;
 	};
 };
@@ -165,6 +168,48 @@ describe('Guild Raids', () => {
 			loaded_session_id: crypto.randomUUID()
 		}, late_member.session_token);
 		expect(excluded.json.error_lang).toBe('MOD_MP_RAID_NOT_ELIGIBLE');
+	});
+
+	test('excludes Shadowed members from scaling while retaining their Raid roster tenures', async () => {
+		const members = await make_guild_group([
+			'Raid Active One',
+			'Raid Active Two',
+			'Raid Shadow Three',
+			'Raid Shadow Four',
+			'Raid Shadow Five',
+			'Raid Shadow Six'
+		], 'Raid Shadow Guild');
+		await db_run(
+			'UPDATE `clients` SET `last_multiplayer_active_at` = ? WHERE `id` IN (?, ?, ?, ?)',
+			[
+				Date.now() - SHADOWED_AFTER - 1_000,
+				members[2].client_id,
+				members[3].client_id,
+				members[4].client_id,
+				members[5].client_id
+			]
+		);
+
+		const activated = await post_json<{ success: boolean; raid: RaidState['raid'] }>(
+			'/api/raids/activate', {}, members[0].session_token
+		);
+		expect(activated.json.raid).toMatchObject({
+			active_member_count: 2,
+			required_contributors: 2
+		});
+		expect(await db_count(
+			'SELECT COUNT(*) AS `count` FROM `guild_raid_roster` WHERE `raid_id` = ?',
+			[activated.json.raid?.raid_id ?? -1]
+		)).toBe(6);
+
+		const returned = await get_json_with_session<RaidState>('/api/raids/state', members[2].session_token);
+		expect(returned.json.raid).toMatchObject({
+			active_member_count: 2,
+			required_contributors: 2,
+			member: { assaults: 3, contribution: 0 }
+		});
+		const reservation = await reserve(members[2].session_token, 1);
+		expect(reservation.assault_id).toBeString();
 	});
 
 	test('rejects malformed reservations and conflicting settlement replays', async () => {

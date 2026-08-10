@@ -56,25 +56,28 @@ describe('concurrent persistence invariants', () => {
 		});
 	});
 
-	test('creates and charges one Message for concurrent idempotent sends', async () => {
+	test('creates one Message for concurrent idempotent sends without charging disabled capacity', async () => {
 		const pair = await make_guildmates('Concurrent Chat Sender', 'Concurrent Chat Recipient');
 		const started = await post_json<{
-			conversation: { conversation_id: number };
+			conversation: { conversation_id: number | null };
 		}>('/api/chat/conversations/start', { client_id: pair.second_id }, pair.first.session_token);
 		const idempotency_key = crypto.randomUUID();
 		const results = await Promise.all(Array.from({ length: 20 }, () => post_json<{
 			success?: boolean;
 			message?: { message_id: number };
+			budget_enabled?: boolean;
 			budget?: { credits: number };
 		}>('/api/chat/messages/send', {
 			conversation_id: started.json.conversation.conversation_id,
+			client_id: pair.second_id,
 			idempotency_key,
 			content: 'Only once'
 		}, pair.first.session_token)));
 
 		expect(results.every(result => result.json.success)).toBe(true);
 		expect(new Set(results.map(result => result.json.message?.message_id)).size).toBe(1);
-		expect(results.at(-1)?.json.budget?.credits).toBe(4);
+		expect(results.at(-1)?.json.budget_enabled).toBe(false);
+		expect(results.at(-1)?.json.budget?.credits).toBe(5);
 		expect(await db_count(
 			'SELECT COUNT(*) AS count FROM `chat_messages` WHERE `sender_id` = ? AND `idempotency_key` = ?',
 			[pair.first_id, idempotency_key]

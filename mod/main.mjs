@@ -1,8 +1,18 @@
 // #region CONSTANTS
 const SERVER_HOST = 'http://127.0.0.1:3000';
 const SERVER_INSTANCE_STORAGE_PREFIX = 'instance:local-mac:';
+const SERVER_INSTANCE_STORAGE_LEGACY_PREFIXES = [];
 const LOCAL_MOD_CHARACTER_STORAGE_PREFIX = 'mp:local-character:';
 const LEGACY_LOCAL_MOD_CHARACTER_STORAGE_PREFIX = 'kru-melvor-multiplayer:local-character:';
+const SERVER_SCOPED_LEGACY_STORAGE_KEYS = [
+	'charity_timeout',
+	'charity_bonus_timeout',
+	'pending_banishment_guild_name',
+	'processed_banishment_claim_ids',
+	'processed_raid_cache_ids',
+	'raid_terminal_result',
+	'transfer_inventory'
+];
 const LOG_PREFIX = '[multiplayer] ';
 
 const IS_DEV_MODE = false;
@@ -49,6 +59,7 @@ let guild_state_refresh_request = null;
 let guild_state_refreshed_at = 0;
 let server_host = SERVER_HOST;
 let server_instance_storage_prefix = SERVER_INSTANCE_STORAGE_PREFIX;
+let server_instance_storage_legacy_prefixes = SERVER_INSTANCE_STORAGE_LEGACY_PREFIXES;
 let server_settings_section = null;
 let resolve_server_config = null;
 let get_custom_server_validation_error = null;
@@ -63,6 +74,7 @@ let apply_banishment_claim = null;
 let item_visibility = null;
 let charitree_rules = null;
 let identity_bindings = null;
+let instance_storage = null;
 let is_reconciling_banishment_returns = false;
 let equipment_sync_timer = null;
 let equipment_sync_in_flight = false;
@@ -197,6 +209,11 @@ const state = ui.createStore({
 	guild_member_directory_page: 0,
 	guild_member_directory_has_more: false,
 	guild_member_directory_loading: false,
+	shadowed_members: [],
+	shadowed_member_search: '',
+	shadowed_member_directory_page: 0,
+	shadowed_member_directory_has_more: false,
+	shadowed_member_directory_loading: false,
 	selected_free_fellowship: null,
 	guild_applicants: [],
 	guild_client_id: null,
@@ -231,6 +248,7 @@ const state = ui.createStore({
 	chat_draft: '',
 	chat_unread: 0,
 	chat_client_id: null,
+	chat_budget_enabled: true,
 	chat_budget: { credits: 5, maximum: 5, refill_interval: 60000, next_refill_at: 0 },
 	chat_pending_send: null,
 	selected_chat_message: null,
@@ -401,7 +419,9 @@ const state = ui.createStore({
 	},
 
 	get chat_can_send() {
-		return this.messaging_enabled && this.chat_budget.credits > 0 && this.chat_draft.trim().length > 0 &&
+		const support = this.selected_chat_conversation?.conversation_kind === 'support';
+		return (support || (this.messaging_enabled && (!this.chat_budget_enabled || this.chat_budget.credits > 0))) &&
+			this.chat_draft.trim().length > 0 &&
 			!this.chat_sending;
 	},
 
@@ -455,9 +475,33 @@ const state = ui.createStore({
 		return this.is_charity_ready || (this.charity_bonus_unlocked && this.is_charity_bonus_ready);
 	},
 
+	get charity_next_opportunity_at() {
+		return charitree_rules.get_charitree_next_opportunity(
+			this.charity_timeout,
+			this.charity_bonus_timeout,
+			this.charity_bonus_unlocked,
+			CHARITY_TIMEOUT
+		);
+	},
+
+	get charity_next_opportunity_formatted() {
+		return charitree_rules.format_charitree_remaining(
+			this.charity_next_opportunity_at,
+			this.charity_update_time
+		);
+	},
+
 	get selected_charity_take_block() {
 		const item = this.charity_tree_inventory.find(entry => entry.id === this.selected_charity_item_id);
 		return item === undefined ? null : this.get_charity_take_block(item);
+	},
+
+	get selected_charity_take_warning() {
+		const item = this.charity_tree_inventory.find(entry => entry.id === this.selected_charity_item_id);
+		if (item === undefined || item.qty <= 1 || this.get_charity_take_block(item) !== null ||
+			this.is_charity_item_discovered(item.id))
+			return null;
+		return getLangString('MOD_MP_CHARITY_UNDISCOVERED_STACK');
 	},
 
 	get campaign_item_current() {
@@ -631,6 +675,10 @@ const state = ui.createStore({
 		return getLangString('MOD_MP_FREE_FELLOWSHIP_SEARCH');
 	},
 
+	get_shadowed_member_search_placeholder() {
+		return getLangString('MOD_MP_GUILD_SEARCH_SHADOWED_MEMBERS');
+	},
+
 	format_chat_time(timestamp) {
 		return new Date(timestamp).toLocaleString();
 	},
@@ -640,7 +688,13 @@ const state = ui.createStore({
 	},
 
 	get_chat_compose_placeholder() {
-		return getLangString(this.messaging_enabled ? 'MOD_MP_CHAT_COMPOSE_PLACEHOLDER' : 'MOD_MP_CHAT_DISABLED');
+		return getLangString(this.selected_chat_conversation?.conversation_kind === 'support' || this.messaging_enabled
+			? 'MOD_MP_CHAT_COMPOSE_PLACEHOLDER' : 'MOD_MP_CHAT_DISABLED');
+	},
+
+	get_chat_participant_icon(conversation = this.selected_chat_conversation) {
+		return conversation?.participant?.icon_id === 'multiplayer'
+			? this.get_svg('multiplayer') : this.get_avatar_icon(conversation?.participant?.icon_id);
 	},
 
 	get_chat_block_label() {
@@ -715,7 +769,9 @@ const state = ui.createStore({
 		this.chat_loading = false;
 		await refresh_chat_messages('', false, false, view_generation);
 		if (view_generation !== chat_view_generation ||
-			this.selected_chat_conversation?.conversation_id !== conversation.conversation_id)
+			this.selected_chat_conversation?.conversation_kind !== conversation.conversation_kind ||
+			this.selected_chat_conversation?.conversation_id !== conversation.conversation_id ||
+			this.selected_chat_conversation?.support_team_id !== conversation.support_team_id)
 			return;
 		start_chat_polling();
 	},
@@ -826,14 +882,27 @@ const state = ui.createStore({
 		this.chat_sending = true;
 		this.chat_error = '';
 		const pending = this.chat_pending_send;
-		const idempotency_key = pending?.conversation_id === conversation.conversation_id && pending.content === content
+		const idempotency_key = pending?.conversation_kind === conversation.conversation_kind &&
+			pending?.conversation_id === conversation.conversation_id &&
+			pending.support_team_id === conversation.support_team_id &&
+			pending.client_id === conversation.participant.client_id && pending.content === content
 			? pending.idempotency_key
 			: crypto.randomUUID();
-		this.chat_pending_send = { conversation_id: conversation.conversation_id, content, idempotency_key };
+		this.chat_pending_send = {
+			conversation_kind: conversation.conversation_kind ?? 'private',
+			conversation_id: conversation.conversation_id,
+			support_team_id: conversation.support_team_id,
+			client_id: conversation.participant.client_id,
+			content,
+			idempotency_key
+		};
 		let res = null;
 		try {
 			res = await api_post('/api/chat/messages/send', {
+				conversation_kind: conversation.conversation_kind ?? 'private',
 				conversation_id: conversation.conversation_id,
+				support_team_id: conversation.support_team_id,
+				client_id: conversation.participant.client_id,
 				idempotency_key,
 				content
 			});
@@ -843,11 +912,15 @@ const state = ui.createStore({
 		if (res !== null)
 			this.chat_pending_send = null;
 		if (res?.success) {
+			conversation.conversation_id = res.message.conversation_id;
 			if (!this.chat_messages.some(message => message.message_id === res.message.message_id))
 				this.chat_messages.push(res.message);
-			this.chat_budget = res.budget;
+			if (res.budget)
+				this.chat_budget = res.budget;
+			this.chat_budget_enabled = res.budget_enabled !== false;
 			this.chat_draft = '';
 			await refresh_chat_conversations();
+			start_chat_polling();
 		} else {
 			this.chat_error = getLangString(res?.error_lang ?? 'MOD_MP_CHAT_SEND_FAILED');
 		}
@@ -877,6 +950,11 @@ const state = ui.createStore({
 		const conversation = this.selected_chat_conversation;
 		if (!conversation)
 			return;
+		if (conversation.conversation_id === null) {
+			this.close_chat_conversation();
+			this.close_modal();
+			return;
+		}
 		const $button = event.currentTarget;
 		if (is_button_spinning($button))
 			return;
@@ -1219,24 +1297,31 @@ const state = ui.createStore({
 		show_button_spinner($button);
 
 		const res = await api_post('/api/charity/take', {
-			item_id: state.selected_charity_item_id
+			item_id: state.selected_charity_item_id,
+			qty: this.get_charity_take_quantity(item)
 		});
 
 		if (res?.success) {
 			add_bank_item(item.id, res.item_qty, !was_discovered);
-			state.charity_tree_inventory = state.charity_tree_inventory.filter(e => e.id !== item.id);
+			if (res.item_remaining_qty > 0) {
+				state.charity_tree_inventory = state.charity_tree_inventory.map(entry => entry.id === item.id
+					? { ...entry, qty: res.item_remaining_qty, expires_at: res.item_expires_at }
+					: entry);
+			} else {
+				state.charity_tree_inventory = state.charity_tree_inventory.filter(e => e.id !== item.id);
+			}
 		} else {
 			notify_error(res?.error_lang ?? 'MOD_MP_CHARITY_TAKEN');
 		}
 
 		if (res?.timeout !== undefined) {
 			state.charity_timeout = res.timeout;
-			set_character_storage_item('charity_timeout', res.timeout);
+			set_instance_storage_item('charity_timeout', res.timeout);
 		}
 
 		if (res?.timeout_bonus !== undefined) {
 			state.charity_bonus_timeout = res.timeout_bonus;
-			set_character_storage_item('charity_bonus_timeout', res.timeout_bonus);
+			set_instance_storage_item('charity_bonus_timeout', res.timeout_bonus);
 		}
 
 		hide_button_spinner($button);
@@ -1260,13 +1345,17 @@ const state = ui.createStore({
 	},
 
 	get_charity_take_block_lang(block) {
-		return block === 'undiscovered_stack'
-			? 'MOD_MP_CHARITY_UNDISCOVERED_STACK'
-			: 'MOD_MP_CHARITY_VALUE_LIMIT';
+		return 'MOD_MP_CHARITY_VALUE_LIMIT';
 	},
 
 	get_charity_take_block_text(block) {
 		return getLangString(this.get_charity_take_block_lang(block));
+	},
+
+	get_charity_take_quantity(item) {
+		return charitree_rules.get_charitree_take_quantity(item, {
+			is_discovered: item_id => this.is_charity_item_discovered(item_id)
+		});
 	},
 
 	format_charity_expiry(expires_at) {
@@ -2100,12 +2189,52 @@ const state = ui.createStore({
 		notify('MOD_MP_FREE_FELLOWSHIP_JOINED', 'success');
 	},
 
+	async join_guild(event, guild) {
+		const $button = event.currentTarget;
+		if (is_button_spinning($button))
+			return;
+		show_button_spinner($button);
+		const res = await api_post('/api/guilds/join', { guild_id: guild.guild_id });
+		hide_button_spinner($button);
+		if (!res?.success)
+			return notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+
+		await refresh_guild_page();
+		notify('MOD_MP_GUILD_JOINED', 'success');
+	},
+
 	search_guild_members() {
 		return refresh_guild_members(0, this.guild_member_search);
 	},
 
 	load_more_guild_members() {
 		return refresh_guild_members(this.guild_member_directory_page + 1, this.guild_member_search, true);
+	},
+
+	async show_shadowed_members_modal() {
+		this.shadowed_member_search = '';
+		this.shadowed_members = [];
+		await refresh_shadowed_members();
+		queue_modal('MOD_MP_GUILD_SHADOWED_MEMBERS', 'shadowed-members-modal', 'assets/single_user.svg', {
+			showConfirmButton: false
+		});
+	},
+
+	search_shadowed_members() {
+		return refresh_shadowed_members(0, this.shadowed_member_search);
+	},
+
+	load_more_shadowed_members() {
+		return refresh_shadowed_members(
+			this.shadowed_member_directory_page + 1,
+			this.shadowed_member_search,
+			true
+		);
+	},
+
+	open_shadowed_member_actions(member) {
+		this.close_modal();
+		setTimeout(() => this.show_member_actions(member), 0);
 	},
 
 	async create_guild(event) {
@@ -2217,7 +2346,7 @@ const state = ui.createStore({
 				? 'council-heraldry-modal'
 				: type === 'banishment'
 					? 'council-banishment-modal'
-					: 'council-charitree-modal';
+					: 'council-action-modal';
 		queue_modal(getLangString('MOD_MP_COUNCIL_RAISE_PREFIX') + this.get_council_type_lang(type), template, 'assets/multiplayer.svg', {
 			showConfirmButton: false
 		}, false);
@@ -2300,12 +2429,16 @@ const state = ui.createStore({
 		return this.council_available_petition_types.includes(type);
 	},
 
-	get_council_charitree_confirm(type) {
-		return getLangString('MOD_MP_COUNCIL_' + type.replace('charitree_', '').toUpperCase() + '_CONFIRM');
+	get_council_action_key(type) {
+		return type.startsWith('charitree_') ? type.replace('charitree_', '').toUpperCase() : type.toUpperCase();
 	},
 
-	get_council_charitree_proposal(type) {
-		return getLangString('MOD_MP_COUNCIL_' + type.replace('charitree_', '').toUpperCase() + '_PROPOSAL');
+	get_council_action_confirm(type) {
+		return getLangString('MOD_MP_COUNCIL_' + this.get_council_action_key(type) + '_CONFIRM');
+	},
+
+	get_council_action_proposal(type) {
+		return getLangString('MOD_MP_COUNCIL_' + this.get_council_action_key(type) + '_PROPOSAL');
 	},
 
 	get_council_outcome_lang(lifecycle) {
@@ -2695,7 +2828,8 @@ function capture_status_skills() {
 
 function capture_status_activity() {
 	const active_action = game.activeAction;
-	if (active_action === game.combat || active_action?.isCombat === true) {
+	const is_alt_magic = active_action === game.altMagic;
+	if (!is_alt_magic && (active_action === game.combat || active_action?.isCombat === true)) {
 		const area_id = get_game_object_id(active_action.selectedArea ?? active_action.combatArea ?? active_action.area);
 		return { type: 'combat', area_id };
 	}
@@ -3039,11 +3173,21 @@ function get_local_character_storage_key(key, prefix = LOCAL_MOD_CHARACTER_STORA
 }
 
 function get_instance_storage_item(key) {
-	return get_character_storage_item(server_instance_storage_prefix + key);
+	return instance_storage.read_instance_storage_item(
+		get_character_storage_item,
+		set_character_storage_item,
+		server_instance_storage_prefix,
+		server_instance_storage_legacy_prefixes,
+		key
+	);
 }
 
 function set_instance_storage_item(key, value) {
 	set_character_storage_item(server_instance_storage_prefix + key, value);
+}
+
+function remove_instance_storage_item(key) {
+	remove_character_storage_item(server_instance_storage_prefix + key);
 }
 
 function on_page_toggle(id, callback, visible_only) {
@@ -3521,7 +3665,7 @@ function add_item_to_transfer_inventory(item, qty) {
 }
 
 function persist_transfer_inventory() {
-	set_character_storage_item('transfer_inventory', state.transfer_inventory);
+	set_instance_storage_item('transfer_inventory', state.transfer_inventory);
 }
 
 function clear_transfer_inventory() {
@@ -3531,20 +3675,20 @@ function clear_transfer_inventory() {
 }
 
 function load_transfer_inventory() {
-	const stored = get_character_storage_item('transfer_inventory');
+	const stored = get_instance_storage_item('transfer_inventory');
 	state.transfer_inventory = stored ?? [];
 	update_transfer_inventory_nav();
 }
 
 function show_pending_banishment_notice() {
-	const guild_name = get_character_storage_item('pending_banishment_guild_name');
+	const guild_name = get_instance_storage_item('pending_banishment_guild_name');
 	if (typeof guild_name !== 'string' || guild_name.length === 0)
 		return;
 	state.pending_banishment_guild_name = guild_name;
 	queue_modal('MOD_MP_COUNCIL_BANISHED_TITLE', 'banished-modal', 'assets/multiplayer.svg', {
 		showConfirmButton: false,
 		didOpen() {
-			set_character_storage_item('pending_banishment_guild_name', undefined);
+			remove_instance_storage_item('pending_banishment_guild_name');
 		}
 	});
 }
@@ -3564,7 +3708,7 @@ async function reconcile_banishment_returns() {
 			if (!claim)
 				break;
 
-			const stored_claim_ids = get_character_storage_item('processed_banishment_claim_ids');
+			const stored_claim_ids = get_instance_storage_item('processed_banishment_claim_ids');
 			const processed_claim_ids = Array.isArray(stored_claim_ids) ? stored_claim_ids : [];
 			if (apply_banishment_claim(
 				state.transfer_inventory,
@@ -3573,10 +3717,10 @@ async function reconcile_banishment_returns() {
 				TRANSFER_INVENTORY_MAX_LIMIT
 			)) {
 				persist_transfer_inventory();
-				set_character_storage_item('processed_banishment_claim_ids', processed_claim_ids);
+				set_instance_storage_item('processed_banishment_claim_ids', processed_claim_ids);
 			}
 			if (claim.banished?.guild_name) {
-				set_character_storage_item('pending_banishment_guild_name', claim.banished.guild_name);
+				set_instance_storage_item('pending_banishment_guild_name', claim.banished.guild_name);
 				state.pending_banishment_guild_name = claim.banished.guild_name;
 			}
 
@@ -3709,7 +3853,9 @@ async function refresh_chat_state() {
 		return;
 	state.messaging_enabled = res.messaging_enabled !== false;
 	state.chat_client_id = res.client_id;
-	state.chat_budget = res.budget;
+	state.chat_budget_enabled = res.budget_enabled !== false;
+	if (res.budget)
+		state.chat_budget = res.budget;
 }
 
 async function refresh_chat_conversations() {
@@ -3721,7 +3867,10 @@ async function refresh_chat_conversations() {
 	update_chat_nav();
 	if (state.selected_chat_conversation) {
 		const current = res.conversations.find(conversation =>
-			conversation.conversation_id === state.selected_chat_conversation.conversation_id
+			(conversation.conversation_kind ?? 'private') ===
+				(state.selected_chat_conversation.conversation_kind ?? 'private') &&
+			conversation.conversation_id === state.selected_chat_conversation.conversation_id &&
+			conversation.support_team_id === state.selected_chat_conversation.support_team_id
 		);
 		if (current)
 			state.selected_chat_conversation = current;
@@ -3740,18 +3889,26 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 	const conversation = state.selected_chat_conversation;
 	if (!conversation || (state.chat_messages_loading && !quiet))
 		return;
+	const kind = conversation.conversation_kind ?? 'private';
+	if (kind === 'private' && conversation.conversation_id === null)
+		return;
 	const conversation_id = conversation.conversation_id;
 	if (!quiet)
 		state.chat_messages_loading = true;
 	state.chat_error = '';
 	let res = null;
 	try {
-		res = await api_get('/api/chat/messages?conversation_id=' + conversation.conversation_id + cursor);
+		const conversation_parameter = conversation.conversation_id === null
+			? '' : '&conversation_id=' + conversation.conversation_id;
+		const team_parameter = conversation.support_team_id === undefined
+			? '' : '&support_team_id=' + conversation.support_team_id;
+		res = await api_get('/api/chat/messages?conversation_kind=' + kind + conversation_parameter + team_parameter + cursor);
 	} catch (e) {
 		log('Chat message refresh failed (%s)', e);
 	}
 	if (view_generation !== chat_view_generation ||
-		state.selected_chat_conversation?.conversation_id !== conversation_id)
+		state.selected_chat_conversation?.conversation_id !== conversation_id ||
+		state.selected_chat_conversation?.support_team_id !== conversation.support_team_id)
 		return;
 	if (Array.isArray(res?.messages)) {
 		const known = new Set(state.chat_messages.map(message => message.message_id));
@@ -3790,7 +3947,7 @@ function stop_chat_polling() {
 
 function start_chat_polling() {
 	stop_chat_polling();
-	if (!chat_page_visible || !state.selected_chat_conversation || !polling.is_foreground(document))
+	if (!chat_page_visible || !state.selected_chat_conversation?.conversation_id || !polling.is_foreground(document))
 		return;
 	const poll_id = chat_poll_id;
 	setTimeout(() => poll_chat_messages(poll_id), polling.chat_poll_delay());
@@ -3909,6 +4066,29 @@ async function refresh_guild_members(page = 0, search = state.guild_member_searc
 	state.guild_member_directory_loading = false;
 }
 
+async function refresh_shadowed_members(page = 0, search = state.shadowed_member_search, append = false) {
+	if (!state.is_guild_member || state.shadowed_member_directory_loading)
+		return;
+	state.shadowed_member_directory_loading = true;
+	const res = await api_get('/api/guilds/members/shadowed?page=' + page + '&search=' + encodeURIComponent(search));
+	if (res !== null) {
+		const members = (res.members ?? []).map(member => ({
+			...member,
+			status_activity: member.status_activity ?? null,
+			gp: Number.isSafeInteger(member.gp) && member.gp >= 0 ? member.gp : null,
+			last_seen_at: Number.isSafeInteger(member.last_seen_at) && member.last_seen_at > 0 ? member.last_seen_at : null
+		}));
+		state.shadowed_members = append
+			? [...state.shadowed_members, ...members.filter(member =>
+				!state.shadowed_members.some(existing => existing.client_id === member.client_id))]
+			: members;
+		state.shadowed_member_search = res.search ?? search;
+		state.shadowed_member_directory_page = res.page ?? page;
+		state.shadowed_member_directory_has_more = res.has_more === true;
+	}
+	state.shadowed_member_directory_loading = false;
+}
+
 async function refresh_guild_list() {
 	const res = await api_get('/api/guilds/list');
 	state.guilds = res?.guilds ?? [];
@@ -3947,7 +4127,7 @@ async function reconcile_raid_cache() {
 			const cache = res?.cache;
 			if (cache === null || cache === undefined)
 				break;
-			const processed = get_character_storage_item('processed_raid_cache_ids') ?? [];
+			const processed = get_instance_storage_item('processed_raid_cache_ids') ?? [];
 			if (!processed.includes(cache.id)) {
 				const new_ids = cache.items
 					.map(item => item.item_id)
@@ -3965,7 +4145,7 @@ async function reconcile_raid_cache() {
 				}
 				persist_transfer_inventory();
 				processed.push(cache.id);
-				set_character_storage_item('processed_raid_cache_ids', processed.slice(-64));
+				set_instance_storage_item('processed_raid_cache_ids', processed.slice(-64));
 			}
 			const acknowledged = await api_post('/api/raids/cache/acknowledge', { cache_id: cache.id });
 			if (!acknowledged?.success)
@@ -4134,6 +4314,7 @@ export async function setup(ctx) {
 	const server_config = await ctx.loadModule('server-config.mjs');
 	polling = await ctx.loadModule('polling.mjs');
 	identity_bindings = await ctx.loadModule('identity-bindings.mjs');
+	instance_storage = await ctx.loadModule('instance-storage.mjs');
 	item_visibility = await ctx.loadModule('item-visibility.mjs');
 	charitree_rules = await ctx.loadModule('charitree-rules.mjs');
 	modal_queue_guard = new ModalQueueGuard(template_id =>
@@ -4153,9 +4334,9 @@ export async function setup(ctx) {
 	custom_server_max_length = server_config.CUSTOM_SERVER_MAX_LENGTH;
 	const raid_controller = new raid_module.RaidCombatController({
 		storage: {
-			get: () => get_character_storage_item('raid_terminal_result') ?? null,
-			set: terminal => set_character_storage_item('raid_terminal_result', terminal),
-			remove: () => remove_character_storage_item('raid_terminal_result')
+			get: () => get_instance_storage_item('raid_terminal_result') ?? null,
+			set: terminal => set_instance_storage_item('raid_terminal_result', terminal),
+			remove: () => remove_instance_storage_item('raid_terminal_result')
 		},
 		settle: async terminal => {
 			const result = await api_post_response('/api/raids/assaults/settle', terminal);
@@ -4213,14 +4394,14 @@ export async function setup(ctx) {
 		start_multiplayer_session();
 		load_transfer_inventory();
 
-		state.charity_timeout = get_character_storage_item('charity_timeout') ?? 0;
-		state.charity_bonus_timeout = get_character_storage_item('charity_bonus_timeout') ?? 0;
+		state.charity_timeout = get_instance_storage_item('charity_timeout') ?? 0;
+		state.charity_bonus_timeout = get_instance_storage_item('charity_bonus_timeout') ?? 0;
 
 		state.charity_bonus_unlocked = has_pet_by_id('Multiplayer_Pet_Charity');
 	});
 	ctx.onCharacterSelectionLoaded(() => raid_combat?.abandon());
 
-	sidebar.category('Multiplayer', { before: 'Combat' });
+	sidebar.category('Multiplayer', { before: 'Combat', toggleable: true });
 	
 	ctx.onInterfaceReady(() => {
 		interface_ready = true;
@@ -4303,10 +4484,28 @@ function apply_server_configuration() {
 		);
 		server_host = config.host;
 		server_instance_storage_prefix = config.storage_prefix;
+		server_instance_storage_legacy_prefixes = config.is_custom
+			? []
+			: SERVER_INSTANCE_STORAGE_LEGACY_PREFIXES;
+		if (!config.is_custom) {
+			instance_storage.migrate_unscoped_server_storage(
+				get_character_storage_item,
+				set_character_storage_item,
+				server_instance_storage_prefix,
+				SERVER_SCOPED_LEGACY_STORAGE_KEYS
+			);
+		}
 		log('using %s multiplayer server', config.is_custom ? 'custom' : 'default');
 	} catch (e) {
 		server_host = SERVER_HOST;
 		server_instance_storage_prefix = SERVER_INSTANCE_STORAGE_PREFIX;
+		server_instance_storage_legacy_prefixes = SERVER_INSTANCE_STORAGE_LEGACY_PREFIXES;
+		instance_storage.migrate_unscoped_server_storage(
+			get_character_storage_item,
+			set_character_storage_item,
+			server_instance_storage_prefix,
+			SERVER_SCOPED_LEGACY_STORAGE_KEYS
+		);
 		error('invalid saved custom server setting; using default server (%s)', e);
 	}
 }
@@ -4630,6 +4829,7 @@ function activate_multiplayer_identity(response) {
 	state.gp_visible = response.gp_visible !== false;
 	state.messaging_enabled = response.chat?.messaging_enabled !== false;
 	state.chat_client_id = response.chat?.client_id ?? null;
+	state.chat_budget_enabled = response.chat?.budget_enabled !== false;
 	if (response.chat?.budget)
 		state.chat_budget = response.chat.budget;
 	start_status_observer();
@@ -4782,6 +4982,10 @@ class MPItemIcon extends HTMLElement {
 					instance.setContent(this.createUnsupportedItemTooltip());
 			}
 		});
+	}
+
+	disconnectedCallback() {
+		this.tooltip?.destroy();
 	}
 }
 

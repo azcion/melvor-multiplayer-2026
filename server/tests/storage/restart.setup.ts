@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { get_events, make_guildmates, register_guild_client } from '../support/fixtures';
-import { get_json_with_session, post_json } from '../support/http';
+import { get_json_with_session, post_json, register_client } from '../support/http';
 import { db_run } from '../support/persistence';
 import { restart_state_path } from '../support/restart-state';
 import type { RestartState } from '../support/restart-state';
@@ -64,12 +64,13 @@ test('creates representative state before a server restart', async () => {
 		gp: gp_amount
 	}, pair.first.session_token);
 	const chat = await post_json<{
-		conversation: { conversation_id: number };
+		conversation: { conversation_id: number | null };
 	}>('/api/chat/conversations/start', { client_id: pair.second_id }, pair.first.session_token);
 	const chat_message = await post_json<{
-		message: { message_id: number };
+		message: { message_id: number; conversation_id: number };
 	}>('/api/chat/messages/send', {
 		conversation_id: chat.json.conversation.conversation_id,
+		client_id: pair.second_id,
 		idempotency_key: crypto.randomUUID(),
 		content: 'Restart-safe private Message'
 	}, pair.first.session_token);
@@ -78,6 +79,23 @@ test('creates representative state before a server restart', async () => {
 		blocked: true
 	}, pair.second.session_token);
 	await post_json('/api/chat/privacy', { messaging_enabled: false }, pair.first.session_token);
+	const support_player = await register_client('Restart Support Player');
+	const support_profile = await post_json('/api/client/set_display_name', {
+		display_name: 'Restart Player'
+	}, support_player.session_token);
+	expect(support_profile.response.status).toBe(200);
+	const support_member = await register_client('Restart Support Member', {
+		cloud_username: 'RestartSupportCloud', playfab_id: 'RESTART-SUPPORT-ID'
+	});
+	const support_inbox = await get_json_with_session<{
+		conversations: Array<{ conversation_kind: string; support_team_id: number }>;
+	}>('/api/chat/conversations', support_player.session_token);
+	const support_team_id = support_inbox.json.conversations.find(entry =>
+		entry.conversation_kind === 'support')?.support_team_id as number;
+	const support_message = await post_json<{ message: { conversation_id: number } }>('/api/chat/messages/send', {
+		conversation_kind: 'support', conversation_id: null, support_team_id,
+		idempotency_key: crypto.randomUUID(), content: 'Restart-safe Support Message'
+	}, support_player.session_token);
 	const raid_activation = await post_json<{ raid: { raid_id: number } }>(
 		'/api/raids/activate', {}, pair.first.session_token
 	);
@@ -143,7 +161,7 @@ test('creates representative state before a server restart', async () => {
 		status_skills,
 		status_activity,
 		gp_amount,
-		chat_conversation_id: chat.json.conversation.conversation_id,
+		chat_conversation_id: chat_message.json.message.conversation_id,
 		chat_message_id: chat_message.json.message.message_id,
 		active_petition_id: active_petition.json.petition_id,
 		retry_petition_id: retry_petition.json.petition_id,
@@ -151,7 +169,10 @@ test('creates representative state before a server restart', async () => {
 		banishment_petition_id: banishment.json.petition_id,
 		banishment_item_id,
 		raid_id: raid_activation.json.raid.raid_id,
-		raid_assault_id: raid_assault.json.assault_id
+		raid_assault_id: raid_assault.json.assault_id,
+		support_player,
+		support_member,
+		support_conversation_id: support_message.json.message.conversation_id
 	};
 	await Bun.write(restart_state_path, JSON.stringify(state));
 

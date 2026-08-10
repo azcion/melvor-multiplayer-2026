@@ -36,6 +36,12 @@ test('moves the multiplayer entry point into the vanilla account menu', async ()
 	assert.doesNotMatch(style, /mp-online-dropdown|mp-online-button-container|mp-notification-circle/);
 });
 
+test('makes the Multiplayer sidebar category collapsible', async () => {
+	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+
+	assert.match(main, /sidebar\.category\('Multiplayer', \{ before: 'Combat', toggleable: true \}\);/);
+});
+
 test('makes Guild members selectable and keeps departure out of the Guild page', async () => {
 	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
 	const guild_page = templates.slice(templates.indexOf('<template id="template-mp-guild-page">'));
@@ -69,6 +75,7 @@ test('keeps remote equipment read-only, quantity-free, and memory-only', async (
 
 	assert.match(equipment_modal, /state\.viewed_equipment_grid/);
 	assert.match(equipment_modal, /mp-equipment-item/);
+	assert.match(equipment_modal, /mp-equipment-item[^>]*>[\s\S]*draggable="false"/);
 	assert.match(equipment_modal, /MOD_MP_EQUIPMENT_UNKNOWN_ITEM/);
 	assert.doesNotMatch(equipment_modal, /qty|quantity|equipItem|unequipItem/);
 	assert.match(equipment_modal, /MOD_MP_PROFILE_SKILLS/);

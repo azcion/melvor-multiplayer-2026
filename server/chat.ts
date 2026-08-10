@@ -4,6 +4,7 @@ export const CHAT_MESSAGE_PAGE_SIZE = 5;
 export const CHAT_MESSAGE_MAX_LENGTH = 1000;
 export const CHAT_PRIVACY_ERROR = 'MOD_MP_CHAT_RECIPIENT_UNAVAILABLE';
 export const CHAT_BUDGET_ERROR = 'MOD_MP_CHAT_BUDGET_EMPTY';
+export const CHAT_BUDGET_ENABLED = false;
 
 const BASE_CREDITS = 5;
 const BASE_REFILL_INTERVAL = 60_000;
@@ -65,6 +66,13 @@ type MessageRow = {
 	icon_id: string;
 };
 
+type ChatConversationView = {
+	conversation_kind: 'private';
+	conversation_id: number | null;
+	participant: { client_id: number; display_name: string; icon_id: string };
+	created_at: number;
+};
+
 type ChatResult<T> = { status: 'ok'; value: T } | { status: 'bad_request' | 'missing' | 'privacy' | 'budget' };
 
 function budget_configuration(client_id: number): { maximum: number; refill_interval: number } {
@@ -115,6 +123,13 @@ function refresh_budget(client_id: number, now: number): ChatBudget {
 		'UPDATE `clients` SET `messaging_credits` = ?, `messaging_refill_at` = ? WHERE `id` = ?'
 	).run(credits, next_refill_at, client_id);
 	return { credits, ...configuration, next_refill_at };
+}
+
+function current_budget(client_id: number, now: number): ChatBudget {
+	if (CHAT_BUDGET_ENABLED)
+		return refresh_budget(client_id, now);
+	const configuration = budget_configuration(client_id);
+	return { credits: configuration.maximum, ...configuration, next_refill_at: 0 };
 }
 
 function participant_conversation(conversation_id: number, client_id: number): ConversationRow | null {
@@ -168,7 +183,10 @@ export function get_chat_state(client_id: number, now = Date.now()) {
 	return {
 		client_id,
 		messaging_enabled: client.messaging_enabled === 1,
-		budget: db.transaction(() => refresh_budget(client_id, now)).immediate()
+		budget_enabled: CHAT_BUDGET_ENABLED,
+		budget: CHAT_BUDGET_ENABLED
+			? db.transaction(() => refresh_budget(client_id, now)).immediate()
+			: current_budget(client_id, now)
 	};
 }
 
@@ -228,6 +246,7 @@ export function list_conversations(client_id: number) {
 			'SELECT EXISTS(SELECT 1 FROM `chat_blocks` WHERE `blocker_id` = ? AND `blocked_id` = ?) AS `blocked`'
 		).get(client_id, other_id) as { blocked: number };
 		result.push({
+			conversation_kind: 'private',
 			conversation_id: conversation.id,
 			participant: { client_id: other_id, ...other },
 			created_at: conversation.created_at,
@@ -243,17 +262,17 @@ export function list_conversations(client_id: number) {
 	return result;
 }
 
-export function start_conversation(client_id: number, target_id: number): ChatResult<ReturnType<typeof conversation_view>> {
+export function start_conversation(client_id: number, target_id: number): ChatResult<ChatConversationView> {
 	if (!Number.isSafeInteger(target_id) || target_id < 1 || target_id === client_id)
 		return { status: 'bad_request' };
-	const create = db.transaction((): ChatResult<ConversationRow> => {
+	const start = db.transaction((): ChatResult<ChatConversationView> => {
 		const low_id = Math.min(client_id, target_id);
 		const high_id = Math.max(client_id, target_id);
 		const existing = db.query<ConversationRow, [number, number]>(
 			'SELECT * FROM `chat_conversations` WHERE `participant_low_id` = ? AND `participant_high_id` = ? LIMIT 1'
 		).get(low_id, high_id);
 		if (existing !== null)
-			return { status: 'ok', value: existing };
+			return { status: 'ok', value: conversation_view(existing, client_id) };
 		const target = db.query<{ id: number }, [number]>(
 			'SELECT `id` FROM `clients` WHERE `id` = ? AND `deleted_at` IS NULL LIMIT 1'
 		).get(target_id);
@@ -267,31 +286,29 @@ export function start_conversation(client_id: number, target_id: number): ChatRe
 			return { status: 'missing' };
 		if (!privacy_allows(client_id, target_id))
 			return { status: 'privacy' };
-		const created_at = Date.now();
-		const result = db.query(
-			'INSERT INTO `chat_conversations` (`participant_low_id`, `participant_high_id`, `created_at`) VALUES(?, ?, ?)'
-		).run(low_id, high_id, created_at);
-		const conversation_id = Number(result.lastInsertRowid);
-		const insert_participant = db.query(
-			'INSERT INTO `chat_participants` (`conversation_id`, `client_id`) VALUES(?, ?)'
-		);
-		insert_participant.run(conversation_id, low_id);
-		insert_participant.run(conversation_id, high_id);
-		return { status: 'ok', value: { id: conversation_id, participant_low_id: low_id,
-			participant_high_id: high_id, created_at } };
+		const participant = db.query<{ display_name: string; icon_id: string }, [number]>(
+			'SELECT `display_name`, `icon_id` FROM `clients` WHERE `id` = ? LIMIT 1'
+		).get(target_id) as { display_name: string; icon_id: string };
+		return {
+			status: 'ok',
+			value: {
+				conversation_kind: 'private',
+				conversation_id: null,
+				participant: { client_id: target_id, ...participant },
+				created_at: Date.now()
+			}
+		};
 	});
-	const result = create.immediate();
-	return result.status === 'ok'
-		? { status: 'ok', value: conversation_view(result.value, client_id) }
-		: result;
+	return start.immediate();
 }
 
-function conversation_view(conversation: ConversationRow, client_id: number) {
+function conversation_view(conversation: ConversationRow, client_id: number): ChatConversationView {
 	const other_id = other_participant(conversation, client_id);
 	const other = db.query<{ display_name: string; icon_id: string }, [number]>(
 		'SELECT `display_name`, `icon_id` FROM `clients` WHERE `id` = ? LIMIT 1'
 	).get(other_id) as { display_name: string; icon_id: string };
 	return {
+		conversation_kind: 'private',
 		conversation_id: conversation.id,
 		participant: { client_id: other_id, ...other },
 		created_at: conversation.created_at
@@ -352,13 +369,16 @@ export function list_messages(
 
 export function send_message(
 	client_id: number,
-	conversation_id: number,
+	conversation_id: number | null,
+	target_id: number | null,
 	idempotency_key: string,
 	content: string,
 	now = Date.now()
 ): ChatResult<{ message: ReturnType<typeof message_view>; budget: ChatBudget }> {
 	const trimmed = typeof content === 'string' ? content.trim() : '';
-	if (!Number.isSafeInteger(conversation_id) || conversation_id < 1 ||
+	if ((conversation_id !== null && (!Number.isSafeInteger(conversation_id) || conversation_id < 1)) ||
+		(conversation_id === null && (target_id === null || !Number.isSafeInteger(target_id) || target_id < 1 ||
+			target_id === client_id)) ||
 		typeof idempotency_key !== 'string' || idempotency_key.length < 1 || idempotency_key.length > 128 ||
 		trimmed.length < 1 || trimmed.length > CHAT_MESSAGE_MAX_LENGTH)
 		return { status: 'bad_request' };
@@ -367,28 +387,63 @@ export function send_message(
 			'SELECT `id`, `conversation_id`, `content` FROM `chat_messages` WHERE `sender_id` = ? AND `idempotency_key` = ?'
 		).get(client_id, idempotency_key);
 		if (duplicate !== null) {
-			if (duplicate.conversation_id !== conversation_id || duplicate.content !== trimmed)
+			const duplicate_conversation = participant_conversation(duplicate.conversation_id, client_id);
+			if (duplicate.content !== trimmed || duplicate_conversation === null ||
+				(conversation_id !== null && duplicate.conversation_id !== conversation_id) ||
+				(conversation_id === null && other_participant(duplicate_conversation, client_id) !== target_id))
 				return { status: 'bad_request' };
-			return { status: 'ok', value: { message_id: duplicate.id, budget: refresh_budget(client_id, now) } };
+			return { status: 'ok', value: { message_id: duplicate.id, budget: current_budget(client_id, now) } };
 		}
-		const conversation = participant_conversation(conversation_id, client_id);
-		if (conversation === null)
+		let conversation = conversation_id === null ? null : participant_conversation(conversation_id, client_id);
+		if (conversation_id !== null && conversation === null)
 			return { status: 'missing' };
-		const target_id = other_participant(conversation, client_id);
-		if (!privacy_allows(client_id, target_id))
+		if (conversation === null) {
+			const low_id = Math.min(client_id, target_id as number);
+			const high_id = Math.max(client_id, target_id as number);
+			conversation = db.query<ConversationRow, [number, number]>(
+				'SELECT * FROM `chat_conversations` WHERE `participant_low_id` = ? AND `participant_high_id` = ? LIMIT 1'
+			).get(low_id, high_id);
+			if (conversation === null) {
+				const target = db.query<{ id: number }, [number]>(
+					'SELECT `id` FROM `clients` WHERE `id` = ? AND `deleted_at` IS NULL LIMIT 1'
+				).get(target_id as number);
+				const guildmates = db.query<{ shared: number }, [number, number]>(
+					'SELECT EXISTS(SELECT 1 FROM `guild_memberships` AS a JOIN `guild_memberships` AS b ' +
+					'ON b.`guild_id` = a.`guild_id` WHERE a.`client_id` = ? AND b.`client_id` = ?) AS `shared`'
+				).get(client_id, target_id as number) as { shared: number };
+				if (target === null || guildmates.shared !== 1)
+					return { status: 'missing' };
+				conversation = { id: 0, participant_low_id: low_id, participant_high_id: high_id, created_at: now };
+			}
+		}
+		const recipient_id = other_participant(conversation, client_id);
+		if (!privacy_allows(client_id, recipient_id))
 			return { status: 'privacy' };
-		const budget = refresh_budget(client_id, now);
-		if (budget.credits < 1)
+		const budget = current_budget(client_id, now);
+		if (CHAT_BUDGET_ENABLED && budget.credits < 1)
 			return { status: 'budget' };
+		if (conversation.id === 0) {
+			const created = db.query(
+				'INSERT INTO `chat_conversations` (`participant_low_id`, `participant_high_id`, `created_at`) VALUES(?, ?, ?)'
+			).run(conversation.participant_low_id, conversation.participant_high_id, conversation.created_at);
+			conversation.id = Number(created.lastInsertRowid);
+			const insert_participant = db.query(
+				'INSERT INTO `chat_participants` (`conversation_id`, `client_id`) VALUES(?, ?)'
+			);
+			insert_participant.run(conversation.id, conversation.participant_low_id);
+			insert_participant.run(conversation.id, conversation.participant_high_id);
+		}
 		const result = db.query(
 			'INSERT INTO `chat_messages` (`conversation_id`, `sender_id`, `idempotency_key`, `content`, `created_at`) ' +
 			'VALUES(?, ?, ?, ?, ?)'
-		).run(conversation_id, client_id, idempotency_key, trimmed, now);
-		budget.credits--;
-		db.query('UPDATE `clients` SET `messaging_credits` = ? WHERE `id` = ?').run(budget.credits, client_id);
+		).run(conversation.id, client_id, idempotency_key, trimmed, now);
+		if (CHAT_BUDGET_ENABLED) {
+			budget.credits--;
+			db.query('UPDATE `clients` SET `messaging_credits` = ? WHERE `id` = ?').run(budget.credits, client_id);
+		}
 		db.query(
 			'UPDATE `chat_participants` SET `conversation_hidden` = 0 WHERE `conversation_id` = ?'
-		).run(conversation_id);
+		).run(conversation.id);
 		return { status: 'ok', value: { message_id: Number(result.lastInsertRowid), budget } };
 	});
 	const result = send.immediate();
@@ -438,8 +493,17 @@ export function set_block(client_id: number, target_id: number, blocked: boolean
 	const conversation = db.query<{ id: number }, [number, number]>(
 		'SELECT `id` FROM `chat_conversations` WHERE `participant_low_id` = ? AND `participant_high_id` = ? LIMIT 1'
 	).get(low_id, high_id);
-	if (conversation === null)
-		return { status: 'missing' };
+	if (conversation === null) {
+		const existing_block = db.query<{ blocked: number }, [number, number]>(
+			'SELECT EXISTS(SELECT 1 FROM `chat_blocks` WHERE `blocker_id` = ? AND `blocked_id` = ?) AS `blocked`'
+		).get(client_id, target_id) as { blocked: number };
+		const guildmates = db.query<{ shared: number }, [number, number]>(
+			'SELECT EXISTS(SELECT 1 FROM `guild_memberships` AS a JOIN `guild_memberships` AS b ' +
+			'ON b.`guild_id` = a.`guild_id` WHERE a.`client_id` = ? AND b.`client_id` = ?) AS `shared`'
+		).get(client_id, target_id) as { shared: number };
+		if ((blocked && guildmates.shared !== 1) || (!blocked && existing_block.blocked !== 1))
+			return { status: 'missing' };
+	}
 	if (blocked)
 		db.query(
 			'INSERT INTO `chat_blocks` (`blocker_id`, `blocked_id`, `created_at`) VALUES(?, ?, ?) ON CONFLICT DO NOTHING'

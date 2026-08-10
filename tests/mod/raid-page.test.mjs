@@ -64,6 +64,7 @@ test('registers and mounts the Guild Raid page as a first-class multiplayer view
 	assert.equal(page.containerID, 'mp-raid-page');
 	assert.equal(page.sidebarItem.asideClass, 'mp-raid-nav');
 	assert.equal(page.sidebarItem.aside, 'preview');
+	assert.equal(data.data.pages.at(-1), page);
 	assert.match(style, /\.mp-raid-nav[\s\S]*background-color: #5b4aa1/);
 	assert.match(templates, /template-mp-raid-page/);
 	assert.doesNotMatch(templates, /MOD_MP_RAID_GUILD_EVENT/);

@@ -58,7 +58,10 @@ describe('Melvor account identity lifecycle', () => {
 			expect.objectContaining({ client_id: cob.client_id, display_name: 'Cob', deletion: null })
 		]);
 		expect((await identities(mary)).json.identities).toEqual([]);
-		expect(await db_count('SELECT COUNT(*) AS `count` FROM `melvor_accounts`')).toBe(2);
+		expect(await db_count(
+			'SELECT COUNT(*) AS `count` FROM `melvor_accounts` WHERE `playfab_id` IN (?, ?)',
+			[jared.playfab_id, mary_account.playfab_id]
+		)).toBe(2);
 
 		const matching = await authenticate(bob, jared);
 		expect(matching.response.status).toBe(200);
@@ -66,7 +69,10 @@ describe('Melvor account identity lifecycle', () => {
 		const mismatch = await authenticate(bob, mary_account);
 		expect(mismatch.response.status).toBe(409);
 		expect(mismatch.json.identity_status).toBe('melvor_account_mismatch');
-		expect(await db_count('SELECT COUNT(*) AS `count` FROM `melvor_accounts`')).toBe(2);
+		expect(await db_count(
+			'SELECT COUNT(*) AS `count` FROM `melvor_accounts` WHERE `playfab_id` IN (?, ?)',
+			[jared.playfab_id, mary_account.playfab_id]
+		)).toBe(2);
 		expect((await identities(bob)).json.identities.map(identity => identity.client_id)).toEqual([cob.client_id]);
 	});
 
@@ -159,8 +165,8 @@ describe('Melvor account identity lifecycle', () => {
 		const cob = await register_client('Deadline Cob', jared);
 		await post_json('/api/identities/delete', { client_id: cob.client_id }, bob.session_token);
 		await db_run(
-			'UPDATE `client_deletion_requests` SET `execute_at` = ? WHERE `target_client_id` = ?',
-			[Date.now() - 1, cob.client_id]
+			'UPDATE `client_deletion_requests` SET `execute_at` = `requested_at` WHERE `target_client_id` = ?',
+			[cob.client_id]
 		);
 
 		const cancelled = await post('/api/identities/delete/cancel', { client_id: cob.client_id }, bob.session_token);
@@ -210,11 +216,12 @@ describe('Melvor account identity lifecycle', () => {
 			recipient_id: bob.client_id,
 			items: [{ id: 'melvorD:Cleanup_Gift', qty: 5 }]
 		}, cob.session_token);
-		const conversation = await post_json<{ conversation: { conversation_id: number } }>(
+		const conversation = await post_json<{ conversation: { conversation_id: number | null } }>(
 			'/api/chat/conversations/start', { client_id: cob.client_id }, bob.session_token
 		);
 		await post_json('/api/chat/messages/send', {
 			conversation_id: conversation.json.conversation.conversation_id,
+			client_id: cob.client_id,
 			idempotency_key: crypto.randomUUID(),
 			content: 'Before deletion'
 		}, bob.session_token);
@@ -243,7 +250,7 @@ describe('Melvor account identity lifecycle', () => {
 			.toBe(0);
 		expect((await get_json_with_session<{ conversations: unknown[] }>(
 			'/api/chat/conversations', bob.session_token
-		)).json.conversations).toEqual([]);
+		)).json.conversations.filter((conversation: any) => conversation.conversation_kind === 'private')).toEqual([]);
 		expect((await identities(bob)).json.identities).toEqual([]);
 
 		const recovered = await authenticate(cob, jared);
@@ -261,7 +268,7 @@ describe('Melvor account identity lifecycle', () => {
 		]));
 		expect((await get_json_with_session<{ conversations: unknown[] }>(
 			'/api/chat/conversations', cob.session_token
-		)).json.conversations).toEqual([]);
+		)).json.conversations.filter((conversation: any) => conversation.conversation_kind === 'private')).toEqual([]);
 
 		const trader_return = await claim_return(trader);
 		expect(trader_return.json.claim?.items).toEqual([

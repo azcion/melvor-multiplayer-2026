@@ -71,7 +71,7 @@ test('keeps identity and Chat modal branches safe while their previous view tear
 	assert.match(identity_actions, /state\.selected_identity\?\.deletion/);
 	assert.match(identity_actions, /state\.selected_identity\?\.deletion\?\.execute_at/);
 	assert.match(identity_actions, /state\.selected_identity\?\.display_name/);
-	assert.match(chat_view, /state\.selected_chat_conversation\?\.participant\?\.icon_id/);
+	assert.match(chat_view, /state\.get_chat_participant_icon\(\)/);
 	assert.match(chat_view, /state\.selected_chat_conversation\?\.participant\?\.display_name/);
 });
 

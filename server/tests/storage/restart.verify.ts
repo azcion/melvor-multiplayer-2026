@@ -59,8 +59,16 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	}>(`/api/chat/messages?conversation_id=${state.chat_conversation_id}`, state.second.session_token);
 	const chat_state = await get_json_with_session<{
 		messaging_enabled: boolean;
+		budget_enabled: boolean;
 		budget: { credits: number };
 	}>('/api/chat/state', state.first.session_token);
+	const support_inbox = await get_json_with_session<{
+		conversations: Array<{ conversation_kind: string; conversation_id: number; participant: { display_name: string } }>;
+	}>('/api/chat/conversations', state.support_member.session_token);
+	const support_messages = await get_json_with_session<{
+		messages: Array<{ content: string }>;
+	}>(`/api/chat/messages?conversation_kind=support&conversation_id=${state.support_conversation_id}`,
+		state.support_member.session_token);
 	const raid = await get_json_with_session<{
 		raid: {
 			raid_id: number;
@@ -139,7 +147,15 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 		content: 'Restart-safe private Message'
 	}));
 	expect(chat_state.json.messaging_enabled).toBe(false);
-	expect(chat_state.json.budget.credits).toBe(4);
+	expect(chat_state.json.budget_enabled).toBe(false);
+	expect(chat_state.json.budget.credits).toBe(5);
+	expect(support_inbox.json.conversations).toContainEqual(expect.objectContaining({
+		conversation_kind: 'support', conversation_id: state.support_conversation_id,
+		participant: expect.objectContaining({ display_name: 'Restart Player @mp' })
+	}));
+	expect(support_messages.json.messages).toContainEqual(expect.objectContaining({
+		content: 'Restart-safe Support Message'
+	}));
 	expect(raid.json.raid).toMatchObject({
 		raid_id: state.raid_id,
 		remaining_health: 8_000,

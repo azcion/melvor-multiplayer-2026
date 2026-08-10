@@ -130,3 +130,28 @@ test('keeps unresolved owned listings visible only as destroyable placeholders',
 	assert.match(templates, /state\.selected_transfer_item_is_destroyable/);
 	assert.match(templates, /state\.transfer_destroy_selected\(\)/);
 });
+
+test('adds non-draggable item tooltips to resolved Marketplace icons', async () => {
+	const [main, templates, style] = await Promise.all([
+		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
+		readFile(new URL('mod/ui/style.css', root), 'utf8')
+	]);
+	const market_page = templates.slice(
+		templates.indexOf('<template id="template-mp-market-page">'),
+		templates.indexOf('<template id="template-mp-charity-page">')
+	);
+	const item_tooltip = main.slice(
+		main.indexOf('class MPItemIcon'),
+		main.indexOf('class MPEquipmentItem')
+	);
+
+	assert.equal((market_page.match(/<mp-item-icon/g) ?? []).length, 4);
+	assert.equal((market_page.match(/draggable="false"/g) ?? []).length, 5);
+	assert.match(market_page, /mp-item-icon v-if="!item\.unresolved"/);
+	assert.match(market_page, /<img v-else class="mp-market-item-icon/);
+	assert.match(item_tooltip, /touch: 'hold'/);
+	assert.match(item_tooltip, /createItemInformationTooltip\(this\.item\)/);
+	assert.match(item_tooltip, /disconnectedCallback\(\) \{\s*this\.tooltip\?\.destroy\(\);/);
+	assert.match(style, /#mp-market-page mp-item-icon img,[\s\S]*-webkit-user-drag: none;[\s\S]*user-select: none;/);
+});

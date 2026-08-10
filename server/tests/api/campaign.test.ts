@@ -3,6 +3,8 @@ import { round_campaign_estimate } from '../../campaign';
 import { AVAILABLE_CAMPAIGNS } from '../../campaign_data';
 import { get_events, make_guild_group, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post, post_json, register_client } from '../support/http';
+import { db_run } from '../support/persistence';
+import { SHADOWED_AFTER } from '../../shadowed';
 
 type ActiveCampaign = {
 	active: true;
@@ -102,6 +104,51 @@ describe('campaign API', () => {
 			round_campaign_estimate(selected_item?.estimated_12h_output ?? 0) * 3
 		);
 		expect(campaign.max_contribution).toBe(campaign.item_total / 3);
+	});
+
+	test('excludes Shadowed members from sizing without resizing when they return', async () => {
+		const founder = await register_guild_client('Campaign Shadow Founder', 'Campaign Shadows');
+		const applicants = await Promise.all([
+			register_client('Campaign Active Two'),
+			register_client('Campaign Active Three'),
+			register_client('Campaign Active Four'),
+			register_client('Campaign Shadow Five'),
+			register_client('Campaign Shadow Six')
+		]);
+		await Promise.all(applicants.map(applicant => post_json('/api/guilds/apply', {
+			guild_id: founder.guild_id
+		}, applicant.session_token)));
+		await db_run(
+			'UPDATE `clients` SET `last_multiplayer_active_at` = ? WHERE `id` IN (?, ?)',
+			[Date.now() - SHADOWED_AFTER - 1_000, applicants[3].client_id, applicants[4].client_id]
+		);
+		const guild = await get_json_with_session<{
+			applicants: Array<{ application_id: number }>;
+		}>('/api/guilds/state', founder.session_token);
+		for (const application of guild.json.applicants) {
+			await post_json('/api/guilds/application/decide', {
+				application_id: application.application_id,
+				approve: true
+			}, founder.session_token);
+		}
+
+		const before_return = await get_campaign_info(founder.session_token);
+		const selected_item = AVAILABLE_CAMPAIGNS
+			.flatMap(entry => entry.items)
+			.find(item => item.id === before_return.item_id);
+		expect(before_return.item_total).toBe(
+			round_campaign_estimate(selected_item?.estimated_12h_output ?? 0) * 2
+		);
+		expect(before_return.max_contribution).toBe(before_return.item_total / 2);
+
+		await db_run(
+			'UPDATE `clients` SET `last_multiplayer_active_at` = ? WHERE `id` = ?',
+			[Date.now(), applicants[3].client_id]
+		);
+		await get_campaign_info(applicants[3].session_token);
+		const after_return = await get_campaign_info(founder.session_token);
+		expect(after_return.item_total).toBe(before_return.item_total);
+		expect(after_return.max_contribution).toBe(before_return.max_contribution);
 	});
 
 	test('rejects malformed and unavailable campaign claims', async () => {

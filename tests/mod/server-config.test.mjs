@@ -29,10 +29,10 @@ test('rejects insecure remote servers and values that are not origins', () => {
 
 test('uses the packaged server and namespace when the custom setting is empty', () => {
 	assert.deepEqual(
-		resolve_server_config('https://melvor.example.com', 'instance:public-test:', ''),
+		resolve_server_config('https://melvor.example.com', 'instance:release:', ''),
 		{
 			host: 'https://melvor.example.com',
-			storage_prefix: 'instance:public-test:',
+			storage_prefix: 'instance:release:',
 			is_custom: false
 		}
 	);
@@ -40,10 +40,10 @@ test('uses the packaged server and namespace when the custom setting is empty', 
 
 test('uses the packaged namespace when the custom setting resolves to the packaged server', () => {
 	assert.deepEqual(
-		resolve_server_config('https://melvor.example.com', 'instance:public-test:', ' HTTPS://MELVOR.EXAMPLE.COM/ '),
+		resolve_server_config('https://melvor.example.com', 'instance:release:', ' HTTPS://MELVOR.EXAMPLE.COM/ '),
 		{
 			host: 'https://melvor.example.com',
-			storage_prefix: 'instance:public-test:',
+			storage_prefix: 'instance:release:',
 			is_custom: false
 		}
 	);
@@ -52,17 +52,17 @@ test('uses the packaged namespace when the custom setting resolves to the packag
 test('isolates identities by normalized custom server origin', () => {
 	const first = resolve_server_config(
 		'https://melvor.example.com',
-		'instance:public-test:',
+		'instance:release:',
 		'https://custom.example.com/'
 	);
 	const same = resolve_server_config(
 		'https://melvor.example.com',
-		'instance:public-test:',
+		'instance:release:',
 		' HTTPS://CUSTOM.EXAMPLE.COM:443 '
 	);
 	const other = resolve_server_config(
 		'https://melvor.example.com',
-		'instance:public-test:',
+		'instance:release:',
 		'https://other.example.com'
 	);
 

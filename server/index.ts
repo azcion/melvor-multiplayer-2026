@@ -41,13 +41,15 @@ import {
 } from './http';
 import type { HandlerResult, HandlerReturnType, JsonObject, JsonSerializable, RequestHandler } from './http';
 import { flush_logs, report_error, write_log } from './log';
-import { load_request_limit_configuration, RequestLimitPolicy } from './security';
+import { load_auth_response_delay, load_request_limit_configuration, RequestLimitPolicy } from './security';
 import { create_shutdown_handler } from './shutdown';
+import { is_shadowed, shadowed_cutoff } from './shadowed';
 import { AVAILABLE_CAMPAIGNS } from './campaign_data';
 import type { CampaignData, CampaignItemData } from './campaign_data';
 import type * as db_row from './db/types/db_types';
 import { BACKEND_VERSION } from './version';
 import {
+	CHAT_BUDGET_ENABLED,
 	CHAT_BUDGET_ERROR,
 	CHAT_PRIVACY_ERROR,
 	delete_conversation,
@@ -61,6 +63,13 @@ import {
 	set_messaging_enabled,
 	start_conversation
 } from './chat';
+import {
+	get_support_unread_count,
+	list_support_conversations,
+	list_support_messages,
+	reconcile_support_memberships,
+	send_support_message
+} from './support_chat';
 import {
 	acknowledge_deletion_return_claim,
 	associate_client_with_melvor_account,
@@ -155,9 +164,10 @@ type GuildSummary = {
 	icon_id: string;
 	member_count: number;
 	is_free_fellowship?: boolean;
+	is_public?: boolean;
 }
 
-type GuildType = 'private' | 'free_fellowship';
+type GuildType = 'private' | 'public' | 'free_fellowship';
 
 type GuildCapabilities = {
 	roster: boolean;
@@ -173,10 +183,24 @@ type GuildCapabilities = {
 };
 
 const FREE_FELLOWSHIP_TYPE: GuildType = 'free_fellowship';
+const PUBLIC_GUILD_TYPE: GuildType = 'public';
 const GUILD_MEMBER_PAGE_SIZE = 50;
+const DIRECT_JOIN_CHARITREE_LOCK = 1000 * 60 * 60 * 24;
 
 const GUILD_CAPABILITIES: Record<GuildType, GuildCapabilities> = {
 	private: {
+		roster: true,
+		equipment_snapshots: true,
+		status_snapshots: true,
+		gifts: true,
+		trades: true,
+		marketplace: true,
+		charitree: true,
+		campaigns: true,
+		council: true,
+		member_search: true
+	},
+	public: {
 		roster: true,
 		equipment_snapshots: true,
 		status_snapshots: true,
@@ -210,7 +234,8 @@ function guild_summary_from_row(row: GuildSummary & { type: GuildType }): GuildS
 	return row.type === FREE_FELLOWSHIP_TYPE
 		? { guild_id: row.guild_id, name: row.name, icon_id: row.icon_id, member_count: row.member_count,
 			is_free_fellowship: true }
-		: { guild_id: row.guild_id, name: row.name, icon_id: row.icon_id, member_count: row.member_count };
+		: { guild_id: row.guild_id, name: row.name, icon_id: row.icon_id, member_count: row.member_count,
+			...(row.type === PUBLIC_GUILD_TYPE ? { is_public: true } : {}) };
 }
 
 type CouncilPetitionRow = db_row.guild_petitions & {
@@ -221,6 +246,7 @@ type CouncilPetitionRow = db_row.guild_petitions & {
 	is_eligible: number;
 	target_display_name: string | null;
 	target_icon_id: string | null;
+	winnowing_target_count: number;
 }
 
 type GuildCampaign = {
@@ -249,6 +275,12 @@ const MAX_EQUIPMENT_SLOT_COUNT = 32;
 const MAX_EQUIPMENT_ID_LENGTH = 256;
 const MAX_STATUS_SKILL_COUNT = 64;
 const MAX_STATUS_ID_LENGTH = 256;
+const AUTH_RESPONSE_DELAY_MS = load_auth_response_delay();
+reconcile_support_memberships(
+	process.env.SUPPORT_TEAM_PLAYFAB_IDS_CONFIGURED === '1'
+		? process.env.SUPPORT_TEAM_PLAYFAB_IDS ?? ''
+		: undefined
+);
 
 // maximum cache life is X * 2, minimum is X.
 const CACHE_SESSION_LIFETIME = 1000 * 60 * 60; // 1 hour
@@ -567,10 +599,23 @@ function sweep_client_session_cache() {
 }
 
 function expire_petitions(now = Date.now()): number {
-	return db.query(
-		"UPDATE `guild_petitions` SET `lifecycle` = 'lapsed', `resolved_at` = `expires_at`, " +
-		"`subject_locked` = 0 WHERE `lifecycle` = 'active' AND `expires_at` <= ?"
-	).run(now).changes;
+	const expire = db.transaction(() => {
+		db.query(
+			'UPDATE `guild_petition_winnowing_targets` SET `subject_locked` = 0 WHERE `petition_id` IN (' +
+			"SELECT `id` FROM `guild_petitions` WHERE `lifecycle` = 'active' AND `expires_at` <= ?)"
+		).run(now);
+		return db.query(
+			"UPDATE `guild_petitions` SET `lifecycle` = 'lapsed', `resolved_at` = `expires_at`, " +
+			"`subject_locked` = 0 WHERE `lifecycle` = 'active' AND `expires_at` <= ?"
+		).run(now).changes;
+	});
+	return expire.immediate();
+}
+
+function unlock_winnowing_targets(petition_id: number) {
+	db.query(
+		'UPDATE `guild_petition_winnowing_targets` SET `subject_locked` = 0 WHERE `petition_id` = ?'
+	).run(petition_id);
 }
 
 function expire_charity_items(now = Date.now(), guild_id?: number): number {
@@ -585,8 +630,8 @@ function claim_council_action(now = Date.now()): db_row.guild_petitions | null {
 	const claim = db.transaction(() => {
 		const petition = db.query(
 			"SELECT * FROM `guild_petitions` WHERE `lifecycle` = 'granted' " +
-			"AND `type` IN ('appellation', 'heraldry', 'banishment', 'charitree_ingratitude', " +
-			"'charitree_sacrilege', 'charitree_beneficence') AND (" +
+			"AND `type` IN ('appellation', 'heraldry', 'banishment', 'winnowing', 'charitree_ingratitude', " +
+			"'charitree_sacrilege', 'charitree_beneficence', 'fellowship', 'enclosure') AND (" +
 			"`execution_state` = 'pending' OR " +
 			"(`execution_state` = 'failed' AND `execution_last_attempt_at` <= ?) OR " +
 			"(`execution_state` = 'running' AND `execution_last_attempt_at` <= ?)) " +
@@ -647,20 +692,23 @@ function add_banishment_return_item(return_id: number, item_id: string, qty: num
 	).run(return_id, item_id, qty);
 }
 
-function apply_banishment_action(petition: db_row.guild_petitions): string {
+function apply_banishment_target(
+	petition: db_row.guild_petitions,
+	target_client_id: number,
+	target_membership_id: number
+): string {
 	const now = Date.now();
 	const banish = db.transaction(() => {
 		const membership = db.query(
 			'SELECT `id` FROM `guild_memberships` WHERE `id` = ? AND `client_id` = ? AND `guild_id` = ? LIMIT 1'
 		).get(
-			petition.target_membership_id,
-			petition.target_client_id,
+			target_membership_id,
+			target_client_id,
 			petition.guild_id
 		) as { id: number } | null;
 		if (membership === null)
 			return { effect: 'already_absent' as const, dissolved: false, trade_ids: [] as number[] };
 
-		const target_client_id = petition.target_client_id as number;
 		const target_return_id = ensure_banishment_return(petition, target_client_id, true, now);
 		const market_items = db.query(
 			'SELECT * FROM `market_items` WHERE `client_id` = ? AND `guild_id` = ?'
@@ -720,12 +768,51 @@ function apply_banishment_action(petition: db_row.guild_petitions): string {
 		for (const client_id of result.trade_clients)
 			trade_player_cache.delete(client_id);
 	}
-	market_completed_cached.delete(petition.target_client_id as number);
+	market_completed_cached.delete(target_client_id);
 	if (result.dissolved)
 		forget_guild_campaign(petition.guild_id);
 	else if (result.effect === 'banished')
 		void resize_unprogressed_campaign(petition.guild_id);
 	return result.effect;
+}
+
+function apply_banishment_action(petition: db_row.guild_petitions): string {
+	return apply_banishment_target(
+		petition,
+		petition.target_client_id as number,
+		petition.target_membership_id as number
+	);
+}
+
+function apply_winnowing_action(petition: db_row.guild_petitions): string {
+	const targets = db.query(
+		'SELECT target.`membership_id`, target.`client_id`, client.`last_multiplayer_active_at` ' +
+		'FROM `guild_petition_winnowing_targets` AS target ' +
+		'JOIN `clients` AS client ON client.`id` = target.`client_id` ' +
+		'WHERE target.`petition_id` = ? ORDER BY target.`membership_id`'
+	).all(petition.id) as Array<db_row.guild_petition_winnowing_targets & { last_multiplayer_active_at: number }>;
+	const now = Date.now();
+	let banished = 0;
+	let spared = 0;
+	let absent = 0;
+	for (const target of targets) {
+		const membership = db.query(
+			'SELECT 1 FROM `guild_memberships` WHERE `id` = ? AND `client_id` = ? AND `guild_id` = ? LIMIT 1'
+		).get(target.membership_id, target.client_id, petition.guild_id);
+		if (membership === null) {
+			absent++;
+			continue;
+		}
+		if (!is_shadowed(target.last_multiplayer_active_at, now)) {
+			spared++;
+			continue;
+		}
+		if (apply_banishment_target(petition, target.client_id, target.membership_id) === 'banished')
+			banished++;
+		else
+			absent++;
+	}
+	return `banished:${banished};spared:${spared};absent:${absent}`;
 }
 
 function apply_council_guild_action(petition: db_row.guild_petitions): string {
@@ -742,6 +829,18 @@ function apply_council_guild_action(petition: db_row.guild_petitions): string {
 			petition.guild_id
 		);
 		return updated.changes === 1 ? 'updated' : 'guild_absent';
+	}
+	if (petition.type === 'fellowship') {
+		const updated = db.query(
+			"UPDATE `guilds` SET `type` = 'public' WHERE `id` = ? AND `type` = 'private'"
+		).run(petition.guild_id);
+		return updated.changes === 1 ? 'opened' : 'already_open_or_absent';
+	}
+	if (petition.type === 'enclosure') {
+		const updated = db.query(
+			"UPDATE `guilds` SET `type` = 'private' WHERE `id` = ? AND `type` = 'public'"
+		).run(petition.guild_id);
+		return updated.changes === 1 ? 'enclosed' : 'already_enclosed_or_absent';
 	}
 	if (petition.type === 'charitree_ingratitude') {
 		const removed = db.query(
@@ -768,6 +867,8 @@ function apply_council_guild_action(petition: db_row.guild_petitions): string {
 		).run(petition.guild_id);
 		return updated.changes === 1 ? 'enabled' : 'already_enabled';
 	}
+	if (petition.type === 'winnowing')
+		return apply_winnowing_action(petition);
 	return apply_banishment_action(petition);
 }
 
@@ -780,10 +881,14 @@ function process_council_actions(max_actions = 20): number {
 
 		try {
 			const effect = apply_council_guild_action(petition);
-			db.query(
-				"UPDATE `guild_petitions` SET `execution_state` = 'succeeded', `execution_effect` = ?, " +
-				'`subject_locked` = 0 WHERE `id` = ? AND `execution_state` = \'running\''
-			).run(effect, petition.id);
+			const complete = db.transaction(() => {
+				db.query(
+					"UPDATE `guild_petitions` SET `execution_state` = 'succeeded', `execution_effect` = ?, " +
+					'`subject_locked` = 0 WHERE `id` = ? AND `execution_state` = \'running\''
+				).run(effect, petition.id);
+				unlock_winnowing_targets(petition.id);
+			});
+			complete.immediate();
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			db.query(
@@ -936,7 +1041,9 @@ async function start_new_campaign(guild_id: number): Promise<GuildCampaign | nul
 	campaign.campaign_id = campaign_data.id;
 	campaign.item_id = campaign_item.id;
 	campaign.next_active_timestamp = 0;
-	campaign.required_contributors = get_required_campaign_contributors(guild.member_count);
+	campaign.required_contributors = get_required_campaign_contributors(
+		await get_non_shadowed_member_count(guild_id)
+	);
 	campaign.item_total = get_campaign_item_total(
 		campaign_item.estimated_12h_output,
 		campaign.required_contributors
@@ -1044,7 +1151,9 @@ async function resize_unprogressed_campaign(guild_id: number) {
 	if (guild === null)
 		return;
 
-	const required_contributors = get_required_campaign_contributors(guild.member_count);
+	const required_contributors = get_required_campaign_contributors(
+		await get_non_shadowed_member_count(guild_id)
+	);
 	if (required_contributors === campaign.required_contributors)
 		return;
 
@@ -1357,7 +1466,11 @@ function guild_member_from_row(member: GuildMemberRow) {
 	};
 }
 
-async function get_guild_members(guild_id: number) {
+async function get_guild_members(guild_id: number, shadowed = false, now = Date.now()) {
+	const cutoff = shadowed_cutoff(now);
+	const activity_filter = shadowed
+		? ' AND (c.`last_multiplayer_active_at` = 0 OR c.`last_multiplayer_active_at` < ?)'
+		: ' AND c.`last_multiplayer_active_at` >= ?';
 	const members = await db_get_all(
 		'SELECT c.`id` AS `client_id`, c.`display_name`, c.`icon_id`, ' +
 		'c.`equipment_visible`, ' +
@@ -1371,15 +1484,25 @@ async function get_guild_members(guild_id: number) {
 		'JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
 		'LEFT JOIN `status_snapshots` AS ss ON ss.`client_id` = c.`id` ' +
 		'LEFT JOIN `gp_snapshots` AS gps ON gps.`client_id` = c.`id` ' +
-		'WHERE m.`guild_id` = ? ORDER BY c.`display_name`, c.`id`',
-		[guild_id]
+		'WHERE m.`guild_id` = ?' + activity_filter + ' ORDER BY c.`display_name`, c.`id`',
+		[guild_id, cutoff]
 	) as GuildMemberRow[];
 	return members.map(guild_member_from_row);
 }
 
-async function get_guild_member_directory(guild_id: number, page: number, search: string) {
+async function get_guild_member_directory(
+	guild_id: number,
+	page: number,
+	search: string,
+	shadowed = false,
+	now = Date.now()
+) {
 	const escaped_search = search.replace(/[\\%_]/g, '\\$&');
 	const search_pattern = `%${escaped_search}%`;
+	const cutoff = shadowed_cutoff(now);
+	const activity_filter = shadowed
+		? ' AND (c.`last_multiplayer_active_at` = 0 OR c.`last_multiplayer_active_at` < ?)'
+		: ' AND c.`last_multiplayer_active_at` >= ?';
 	const [members, count] = await Promise.all([
 			db_get_all(
 				'SELECT c.`id` AS `client_id`, c.`display_name`, c.`icon_id`, ' +
@@ -1393,15 +1516,15 @@ async function get_guild_member_directory(guild_id: number, page: number, search
 			'FROM `guild_memberships` AS m JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
 			'LEFT JOIN `status_snapshots` AS ss ON ss.`client_id` = c.`id` ' +
 			'LEFT JOIN `gp_snapshots` AS gps ON gps.`client_id` = c.`id` ' +
-			'WHERE m.`guild_id` = ? AND LOWER(c.`display_name`) LIKE LOWER(?) ESCAPE \'\\\' ' +
+			'WHERE m.`guild_id` = ? AND LOWER(c.`display_name`) LIKE LOWER(?) ESCAPE \'\\\'' + activity_filter + ' ' +
 			'ORDER BY c.`display_name` COLLATE NOCASE, c.`id` LIMIT ? OFFSET ?',
-			[guild_id, search_pattern, GUILD_MEMBER_PAGE_SIZE, page * GUILD_MEMBER_PAGE_SIZE]
+			[guild_id, search_pattern, cutoff, GUILD_MEMBER_PAGE_SIZE, page * GUILD_MEMBER_PAGE_SIZE]
 		),
 		db_get_single(
 			' SELECT COUNT(*) AS `count` FROM `guild_memberships` AS m ' +
 			'JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
-			'WHERE m.`guild_id` = ? AND LOWER(c.`display_name`) LIKE LOWER(?) ESCAPE \'\\\'',
-			[guild_id, search_pattern]
+			'WHERE m.`guild_id` = ? AND LOWER(c.`display_name`) LIKE LOWER(?) ESCAPE \'\\\'' + activity_filter,
+			[guild_id, search_pattern, cutoff]
 		)
 	]);
 
@@ -1413,6 +1536,16 @@ async function get_guild_member_directory(guild_id: number, page: number, search
 		total: count?.count ?? 0,
 		has_more: (page + 1) * GUILD_MEMBER_PAGE_SIZE < (count?.count ?? 0)
 	};
+}
+
+async function get_non_shadowed_member_count(guild_id: number, now = Date.now()): Promise<number> {
+	const row = await db_get_single(
+		'SELECT COUNT(*) AS `count` FROM `guild_memberships` AS m ' +
+		'JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
+		'WHERE m.`guild_id` = ? AND c.`last_multiplayer_active_at` >= ?',
+		[guild_id, shadowed_cutoff(now)]
+	);
+	return row?.count ?? 0;
 }
 
 async function get_guild_type(guild_id: number): Promise<GuildType | null> {
@@ -1463,6 +1596,8 @@ function petition_to_player_view(row: CouncilPetitionRow, client_id: number) {
 				icon_id: row.target_icon_id as string
 			}
 		};
+	else if (row.type === 'winnowing')
+		proposal = { target_count: row.winnowing_target_count };
 	else
 		proposal = {};
 
@@ -1494,6 +1629,7 @@ function petition_to_player_view(row: CouncilPetitionRow, client_id: number) {
 async function get_council_petitions(guild_id: number, client_id: number, resolved_page: number) {
 	const select =
 		'SELECT p.*, target.`display_name` AS `target_display_name`, target.`icon_id` AS `target_icon_id`, ' +
+		'(SELECT COUNT(*) FROM `guild_petition_winnowing_targets` WHERE `petition_id` = p.`id`) AS `winnowing_target_count`, ' +
 		'(SELECT COUNT(*) FROM `guild_petition_voters` WHERE `petition_id` = p.`id`) AS `eligible_count`, ' +
 		"(SELECT COUNT(*) FROM `guild_petition_votes` WHERE `petition_id` = p.`id` AND `choice` = 'aye') AS `aye_count`, " +
 		"(SELECT COUNT(*) FROM `guild_petition_votes` WHERE `petition_id` = p.`id` AND `choice` = 'nay') AS `nay_count`, " +
@@ -1516,17 +1652,26 @@ async function get_council_petitions(guild_id: number, client_id: number, resolv
 		]
 	) as CouncilPetitionRow[];
 
-	const charitree = await db_get_single(
-		'SELECT g.`charitree_enabled`, EXISTS(SELECT 1 FROM `charity_items` WHERE `guild_id` = g.`id`) ' +
-			'AS `has_items` FROM `guilds` AS g WHERE g.`id` = ? LIMIT 1',
-		[guild_id]
-	) as { charitree_enabled: number; has_items: number } | null;
+	const guild = await db_get_single(
+		'SELECT g.`type`, g.`charitree_enabled`, EXISTS(SELECT 1 FROM `charity_items` WHERE `guild_id` = g.`id`) ' +
+			'AS `has_items`, EXISTS(SELECT 1 FROM `guild_memberships` AS membership ' +
+			'JOIN `clients` AS client ON client.`id` = membership.`client_id` ' +
+			'WHERE membership.`guild_id` = g.`id` AND client.`last_multiplayer_active_at` < ?) AS `has_shadowed` ' +
+			'FROM `guilds` AS g WHERE g.`id` = ? LIMIT 1',
+		[shadowed_cutoff(), guild_id]
+	) as { type: GuildType; charitree_enabled: number; has_items: number; has_shadowed: number } | null;
 	const available_petition_types: PetitionType[] = ['appellation', 'heraldry', 'banishment'];
-	if (charitree?.charitree_enabled === 1) {
+	if (guild?.has_shadowed === 1)
+		available_petition_types.push('winnowing');
+	if (guild?.type === 'private')
+		available_petition_types.push('fellowship');
+	else if (guild?.type === PUBLIC_GUILD_TYPE)
+		available_petition_types.push('enclosure');
+	if (guild?.charitree_enabled === 1) {
 		available_petition_types.push('charitree_sacrilege');
-		if (charitree.has_items === 1)
+		if (guild.has_items === 1)
 			available_petition_types.push('charitree_ingratitude');
-	} else if (charitree?.charitree_enabled === 0) {
+	} else if (guild?.charitree_enabled === 0) {
 		available_petition_types.push('charitree_beneficence');
 	}
 
@@ -2336,15 +2481,28 @@ session_get_route('/api/charity/contents', async (req, url, client_id): Promise<
 });
 
 session_post_route('/api/charity/take', async (req, url, client_id, json) => {
-	const guild_id = await get_client_guild_id(client_id);
-	if (guild_id === null)
+	const membership = await db_get_single(
+		'SELECT `guild_id`, `charitree_take_available_at` FROM `guild_memberships` WHERE `client_id` = ? LIMIT 1',
+		[client_id]
+	) as Pick<db_row.guild_memberships, 'guild_id' | 'charitree_take_available_at'> | null;
+	if (membership === null)
 		return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
+	const guild_id = membership.guild_id;
 
 	const item_id = json.item_id;
 	if (!is_valid_item_id(item_id))
 		return 400; // Bad Request
+	const requested_qty = json.qty;
+	if (requested_qty !== undefined && (typeof requested_qty !== 'number' ||
+		!Number.isSafeInteger(requested_qty) || requested_qty <= 0))
+		return 400; // Bad Request
 
 	const current_time = Date.now();
+	if (membership.charitree_take_available_at > current_time)
+		return {
+			error_lang: 'MOD_MP_CHARITY_JOIN_LOCK',
+			available_at: membership.charitree_take_available_at
+		};
 	expire_charity_items(current_time, guild_id);
 	const guild = await db_get_single('SELECT `charitree_enabled` FROM `guilds` WHERE `id` = ? LIMIT 1', [guild_id]) as {
 		charitree_enabled: number;
@@ -2361,24 +2519,51 @@ session_post_route('/api/charity/take', async (req, url, client_id, json) => {
 	if (last_charity_cooling_down && last_charity_bonus_cooling_down)
 		return { error_lang: 'MOD_MP_CHARITY_TIMEOUT', timeout: client_row.last_charity, timeout_bonus: client_row.last_bonus_charity };
 
-	const item_entry = await db_get_single(
-		'DELETE FROM `charity_items` WHERE `guild_id` = ? AND `item_id` = ? RETURNING `qty`',
-		[guild_id, item_id]
-	) as db_row.charity_items;
+	const take = db.transaction(() => {
+		const item_entry = db.query(
+			'SELECT `qty` FROM `charity_items` WHERE `guild_id` = ? AND `item_id` = ? LIMIT 1'
+		).get(guild_id, item_id) as Pick<db_row.charity_items, 'qty'> | null;
+		if (item_entry === null || (requested_qty !== undefined && requested_qty > item_entry.qty))
+			return null;
+
+		const item_qty = requested_qty ?? item_entry.qty;
+		const item_remaining_qty = item_entry.qty - item_qty;
+		let item_expires_at = 0;
+		if (item_remaining_qty === 0) {
+			db.query('DELETE FROM `charity_items` WHERE `guild_id` = ? AND `item_id` = ?').run(guild_id, item_id);
+		} else {
+			const active_clearing = db.query(
+				'SELECT MAX(`charitree_expires_before`) AS `cutoff` FROM `guild_petitions` ' +
+				"WHERE `guild_id` = ? AND `type` = 'charitree_ingratitude' AND `subject_locked` = 1"
+			).get(guild_id) as { cutoff: number | null };
+			item_expires_at = Math.max(
+				current_time + CHARITY_ITEM_LIFETIME,
+				(active_clearing.cutoff ?? -1) + 1
+			);
+			db.query(
+				'UPDATE `charity_items` SET `qty` = ?, `expires_at` = ? WHERE `guild_id` = ? AND `item_id` = ?'
+			).run(item_remaining_qty, item_expires_at, guild_id, item_id);
+		}
+
+		if (last_charity_cooling_down) {
+			db.query('UPDATE `clients` SET `last_bonus_charity` = ? WHERE `id` = ?').run(current_time, client_id);
+			client_row.last_bonus_charity = current_time;
+		} else {
+			db.query('UPDATE `clients` SET `last_charity` = ? WHERE `id` = ?').run(current_time, client_id);
+			client_row.last_charity = current_time;
+		}
+
+		return { item_qty, item_remaining_qty, item_expires_at };
+	});
+	const item_entry = take.immediate();
 	if (item_entry === null)
 		return { error_lang: 'MOD_MP_CHARITY_TAKEN' };
 
-	if (last_charity_cooling_down) {
-		await db_execute('UPDATE `clients` SET `last_bonus_charity` = ? WHERE `id` = ?', [current_time, client_id]);
-		client_row.last_bonus_charity = current_time;
-	} else {
-		await db_execute('UPDATE `clients` SET `last_charity` = ? WHERE `id` = ?', [current_time, client_id]);
-		client_row.last_charity = current_time;
-	}
-
 	return {
 		success: true,
-		item_qty: item_entry.qty,
+		item_qty: item_entry.item_qty,
+		item_remaining_qty: item_entry.item_remaining_qty,
+		item_expires_at: item_entry.item_expires_at,
 		timeout: client_row.last_charity,
 		timeout_bonus: client_row.last_bonus_charity
 	} as JsonSerializable;
@@ -2812,6 +2997,9 @@ session_post_route('/api/guilds/petitions/raise', async (req, url, client_id, js
 			return { status: 'forbidden' as const };
 		if (guild.type === FREE_FELLOWSHIP_TYPE)
 			return { status: 'unavailable' as const };
+		if ((petition_type === 'fellowship' && guild.type !== 'private') ||
+			(petition_type === 'enclosure' && guild.type !== PUBLIC_GUILD_TYPE))
+			return { status: 'admission_unavailable' as const };
 		expire_charity_items(now, membership.guild_id);
 		if (petition_type === 'charitree_ingratitude') {
 			const has_items = db.query(
@@ -2826,6 +3014,7 @@ session_post_route('/api/guilds/petitions/raise', async (req, url, client_id, js
 		}
 
 		let target_membership_id: number | null = null;
+		let winnowing_targets: Array<{ id: number; client_id: number }> = [];
 		if (petition_type === 'banishment') {
 			if (target_client_id === null)
 				return { status: 'target_missing' as const };
@@ -2835,6 +3024,29 @@ session_post_route('/api/guilds/petitions/raise', async (req, url, client_id, js
 			if (target_membership === null)
 				return { status: 'target_missing' as const };
 			target_membership_id = target_membership.id;
+			const winnowing_conflict = db.query(
+				'SELECT 1 FROM `guild_petition_winnowing_targets` WHERE `membership_id` = ? ' +
+				'AND `subject_locked` = 1 LIMIT 1'
+			).get(target_membership_id);
+			if (winnowing_conflict !== null)
+				return { status: 'conflict' as const };
+		} else if (petition_type === 'winnowing') {
+			winnowing_targets = db.query(
+				'SELECT membership.`id`, membership.`client_id` FROM `guild_memberships` AS membership ' +
+				'JOIN `clients` AS client ON client.`id` = membership.`client_id` ' +
+				'WHERE membership.`guild_id` = ? AND client.`last_multiplayer_active_at` < ? ' +
+				'ORDER BY membership.`id`'
+			).all(membership.guild_id, shadowed_cutoff(now)) as Array<{ id: number; client_id: number }>;
+			if (winnowing_targets.length === 0)
+				return { status: 'winnowing_empty' as const };
+			const banishment_conflict = db.query(
+				'SELECT 1 FROM `guild_petitions` AS petition ' +
+				'WHERE petition.`guild_id` = ? AND petition.`type` = \'banishment\' ' +
+				'AND petition.`subject_locked` = 1 AND petition.`target_membership_id` IN (' +
+				winnowing_targets.map(() => '?').join(', ') + ') LIMIT 1'
+			).get(membership.guild_id, ...winnowing_targets.map(target => target.id));
+			if (banishment_conflict !== null)
+				return { status: 'conflict' as const };
 		}
 
 		const conflict_subject = get_petition_conflict_subject(petition_type, target_membership_id ?? undefined);
@@ -2869,10 +3081,20 @@ session_post_route('/api/guilds/petitions/raise', async (req, url, client_id, js
 			now,
 			now + PETITION_LIFETIME
 		) as { id: number };
+		if (petition_type === 'winnowing') {
+			const insert_target = db.query(
+				'INSERT INTO `guild_petition_winnowing_targets` ' +
+				'(`petition_id`, `membership_id`, `client_id`) VALUES(?, ?, ?)'
+			);
+			for (const target of winnowing_targets)
+				insert_target.run(petition.id, target.id, target.client_id);
+		}
 		db.query(
 			'INSERT INTO `guild_petition_voters` (`petition_id`, `client_id`) ' +
-			'SELECT ?, `client_id` FROM `guild_memberships` WHERE `guild_id` = ?'
-		).run(petition.id, membership.guild_id);
+			'SELECT ?, membership.`client_id` FROM `guild_memberships` AS membership ' +
+			'JOIN `clients` AS client ON client.`id` = membership.`client_id` ' +
+			'WHERE membership.`guild_id` = ? AND client.`last_multiplayer_active_at` >= ?'
+		).run(petition.id, membership.guild_id, shadowed_cutoff(now));
 		return { status: 'created' as const, petition_id: petition.id };
 	});
 
@@ -2881,12 +3103,16 @@ session_post_route('/api/guilds/petitions/raise', async (req, url, client_id, js
 		return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
 	if (result.status === 'target_missing')
 		return { error_lang: 'MOD_MP_COUNCIL_TARGET_MISSING' };
+	if (result.status === 'winnowing_empty')
+		return { error_lang: 'MOD_MP_COUNCIL_WINNOWING_EMPTY' };
 	if (result.status === 'conflict')
 		return { error_lang: 'MOD_MP_COUNCIL_CONFLICT' };
 	if (result.status === 'unavailable')
 		return { error_lang: 'MOD_MP_GUILD_COUNCIL_UNAVAILABLE' };
 	if (result.status === 'charitree_unavailable')
 		return { error_lang: 'MOD_MP_COUNCIL_CHARITREE_UNAVAILABLE' };
+	if (result.status === 'admission_unavailable')
+		return { error_lang: 'MOD_MP_COUNCIL_ADMISSION_UNAVAILABLE' };
 	return { success: true, petition_id: result.petition_id };
 });
 
@@ -2910,6 +3136,7 @@ session_post_route('/api/guilds/petitions/vote', async (req, url, client_id, jso
 		if (guild?.type === FREE_FELLOWSHIP_TYPE)
 			return { status: 'unavailable' as const };
 		if (petition.lifecycle === 'active' && petition.expires_at <= now) {
+			unlock_winnowing_targets(petition_id);
 			db.query(
 				"UPDATE `guild_petitions` SET `lifecycle` = 'lapsed', `resolved_at` = `expires_at`, " +
 				"`subject_locked` = 0 WHERE `id` = ? AND `lifecycle` = 'active'"
@@ -2957,6 +3184,8 @@ session_post_route('/api/guilds/petitions/vote', async (req, url, client_id, jso
 				lifecycle === 'granted' ? 1 : 0,
 				petition_id
 			);
+			if (lifecycle !== 'granted')
+				unlock_winnowing_targets(petition_id);
 		}
 		return { status: 'accepted' as const, lifecycle: lifecycle ?? 'active' };
 	});
@@ -2997,6 +3226,7 @@ session_post_route('/api/guilds/petitions/withdraw', async (req, url, client_id,
 		if (guild?.type === FREE_FELLOWSHIP_TYPE)
 			return 'unavailable';
 		if (petition.lifecycle === 'active' && petition.expires_at <= now) {
+			unlock_winnowing_targets(petition_id);
 			db.query(
 				"UPDATE `guild_petitions` SET `lifecycle` = 'lapsed', `resolved_at` = `expires_at`, " +
 				"`subject_locked` = 0 WHERE `id` = ? AND `lifecycle` = 'active'"
@@ -3012,6 +3242,7 @@ session_post_route('/api/guilds/petitions/withdraw', async (req, url, client_id,
 		).get(client_id, petition.guild_id);
 		if (membership === null)
 			return 'forbidden';
+		unlock_winnowing_targets(petition_id);
 		db.query(
 			"UPDATE `guild_petitions` SET `lifecycle` = 'withdrawn', `resolved_at` = ?, `subject_locked` = 0 " +
 			"WHERE `id` = ? AND `lifecycle` = 'active'"
@@ -3043,8 +3274,12 @@ session_get_route('/api/guilds/list', async (req, url, client_id): Promise<Handl
 	const guilds = await db_get_all(
 		'SELECT g.`id` AS `guild_id`, g.`type`, g.`name`, g.`icon_id`, COUNT(m.`client_id`) AS `member_count` ' +
 		'FROM `guilds` AS g LEFT JOIN `guild_memberships` AS m ON m.`guild_id` = g.`id` ' +
-		"GROUP BY g.`id` ORDER BY CASE WHEN g.`type` = 'free_fellowship' THEN 0 ELSE 1 END, " +
-		'g.`name` COLLATE NOCASE, g.`id`'
+		'LEFT JOIN `clients` AS c ON c.`id` = m.`client_id` GROUP BY g.`id` ' +
+		"HAVING g.`type` = 'free_fellowship' OR " +
+		'SUM(CASE WHEN c.`last_multiplayer_active_at` >= ? THEN 1 ELSE 0 END) > 0 ' +
+		"ORDER BY CASE WHEN g.`type` = 'free_fellowship' THEN 0 ELSE 1 END, " +
+		'g.`name` COLLATE NOCASE, g.`id`',
+		[shadowed_cutoff()]
 	) as Array<GuildSummary & { type: GuildType }>;
 	return { guilds: guilds.map(guild_summary_from_row) };
 });
@@ -3063,13 +3298,29 @@ session_get_route('/api/guilds/members', async (req, url, client_id) => {
 	return await get_guild_member_directory(guild_id, page, search);
 });
 
+session_get_route('/api/guilds/members/shadowed', async (req, url, client_id) => {
+	const guild_id = await get_client_guild_id(client_id);
+	if (guild_id === null)
+		return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
+
+	const raw_page = url.searchParams.get('page');
+	const page = raw_page === null ? 0 : Number(raw_page);
+	const search = url.searchParams.get('search') ?? '';
+	if (!Number.isSafeInteger(page) || page < 0 || search.length > 64)
+		return 400; // Bad Request
+
+	return await get_guild_member_directory(guild_id, page, search, true);
+});
+
 session_get_route('/api/guilds/state', async (req, url, client_id): Promise<HandlerResult> => {
 	const guild_id = await get_client_guild_id(client_id);
 	if (guild_id !== null) {
 		const guild = await get_guild_summary(guild_id);
 		if (guild === null)
 			return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
-		const guild_type = guild.is_free_fellowship === true ? FREE_FELLOWSHIP_TYPE : 'private';
+		const guild_type = guild.is_free_fellowship === true
+			? FREE_FELLOWSHIP_TYPE
+			: guild.is_public === true ? PUBLIC_GUILD_TYPE : 'private';
 		const member_directory = guild_type === FREE_FELLOWSHIP_TYPE
 			? await get_guild_member_directory(guild_id, 0, '')
 			: null;
@@ -3154,8 +3405,8 @@ session_post_route('/api/guilds/apply', async (req, url, client_id, json): Promi
 		} | null;
 		if (guild === null)
 			return 'missing';
-		if (guild.type === FREE_FELLOWSHIP_TYPE)
-			return 'free_fellowship';
+		if (guild.type !== 'private')
+			return 'direct_join';
 
 		db.query(
 			'INSERT INTO `guild_applications` (`client_id`, `guild_id`) VALUES(?, ?)'
@@ -3168,14 +3419,14 @@ session_post_route('/api/guilds/apply', async (req, url, client_id, json): Promi
 		return { error_lang: 'MOD_MP_GUILD_AFFILIATION_EXISTS' };
 	if (result === 'missing')
 		return { error_lang: 'MOD_MP_GUILD_NOT_FOUND' };
-	if (result === 'free_fellowship')
+	if (result === 'direct_join')
 		return { error_lang: 'MOD_MP_GUILD_APPLICATION_FORBIDDEN' };
 
 	return { success: true };
 });
 
-session_post_route('/api/guilds/join-free', async (req, url, client_id): Promise<HandlerResult> => {
-	const join_fellowship = db.transaction(() => {
+async function join_open_guild(client_id: number, requested_guild_id: number | null): Promise<HandlerResult> {
+	const join_guild = db.transaction(() => {
 		const affiliation = db.query(
 			' SELECT 1 FROM `guild_memberships` WHERE `client_id` = ? ' +
 			'UNION ALL SELECT 1 FROM `guild_applications` WHERE `client_id` = ? LIMIT 1'
@@ -3183,26 +3434,42 @@ session_post_route('/api/guilds/join-free', async (req, url, client_id): Promise
 		if (affiliation !== null)
 			return { status: 'affiliated' as const };
 
-		const fellowship = db.query(
-			"SELECT `id` FROM `guilds` WHERE `type` = 'free_fellowship' LIMIT 1"
-		).get() as { id: number } | null;
-		if (fellowship === null)
+		const guild = requested_guild_id === null
+			? db.query("SELECT `id`, `type` FROM `guilds` WHERE `type` = 'free_fellowship' LIMIT 1").get()
+			: db.query('SELECT `id`, `type` FROM `guilds` WHERE `id` = ? LIMIT 1').get(requested_guild_id);
+		if (guild === null)
 			return { status: 'missing' as const };
+		const open_guild = guild as { id: number; type: GuildType };
+		if (open_guild.type !== PUBLIC_GUILD_TYPE && open_guild.type !== FREE_FELLOWSHIP_TYPE)
+			return { status: 'private' as const };
 
 		db.query(
-			'INSERT INTO `guild_memberships` (`client_id`, `guild_id`) VALUES(?, ?)'
-		).run(client_id, fellowship.id);
-		return { status: 'joined' as const, guild_id: fellowship.id };
+			'INSERT INTO `guild_memberships` (`client_id`, `guild_id`, `charitree_take_available_at`) VALUES(?, ?, ?)'
+		).run(client_id, open_guild.id, Date.now() + DIRECT_JOIN_CHARITREE_LOCK);
+		return { status: 'joined' as const, guild_id: open_guild.id };
 	});
 
-	const result = join_fellowship.immediate();
+	const result = join_guild.immediate();
 	if (result.status === 'affiliated')
 		return { error_lang: 'MOD_MP_GUILD_AFFILIATION_EXISTS' };
 	if (result.status === 'missing')
 		return { error_lang: 'MOD_MP_GUILD_NOT_FOUND' };
+	if (result.status === 'private')
+		return { error_lang: 'MOD_MP_GUILD_JOIN_FORBIDDEN' };
 
 	await ensure_guild_campaign(result.guild_id);
 	return { success: true, guild: await get_guild_summary(result.guild_id) };
+}
+
+session_post_route('/api/guilds/join', async (req, url, client_id, json): Promise<HandlerResult> => {
+	const guild_id = json.guild_id;
+	if (typeof guild_id !== 'number' || !Number.isSafeInteger(guild_id) || guild_id < 1)
+		return 400; // Bad Request
+	return join_open_guild(client_id, guild_id);
+});
+
+session_post_route('/api/guilds/join-free', async (req, url, client_id): Promise<HandlerResult> => {
+	return join_open_guild(client_id, null);
 });
 
 session_post_route('/api/guilds/withdraw', async (req, url, client_id): Promise<HandlerResult> => {
@@ -3578,7 +3845,8 @@ function chat_error(status: 'bad_request' | 'missing' | 'privacy' | 'budget') {
 session_get_route('/api/chat/state', async (req, url, client_id) => get_chat_state(client_id));
 
 session_get_route('/api/chat/conversations', async (req, url, client_id) => ({
-	conversations: list_conversations(client_id)
+	conversations: [...list_conversations(client_id), ...list_support_conversations(client_id)].sort((a, b) =>
+		(b.latest_message?.created_at ?? b.created_at) - (a.latest_message?.created_at ?? a.created_at))
 }));
 
 session_post_route('/api/chat/conversations/start', async (req, url, client_id, json) => {
@@ -3590,21 +3858,50 @@ session_post_route('/api/chat/conversations/start', async (req, url, client_id, 
 });
 
 session_get_route('/api/chat/messages', async (req, url, client_id) => {
-	const conversation_id = Number(url.searchParams.get('conversation_id'));
+	const kind = url.searchParams.get('conversation_kind') ?? 'private';
+	const conversation_parameter = url.searchParams.get('conversation_id');
+	const conversation_id = conversation_parameter === null || conversation_parameter === ''
+		? null : Number(conversation_parameter);
+	const team_parameter = url.searchParams.get('support_team_id');
+	const team_id = team_parameter === null ? null : Number(team_parameter);
 	const before_parameter = url.searchParams.get('before');
 	const after_parameter = url.searchParams.get('after');
 	const before = before_parameter === null ? null : Number(before_parameter);
 	const after = after_parameter === null ? null : Number(after_parameter);
-	const result = list_messages(client_id, conversation_id, before, after);
+	if (kind !== 'private' && kind !== 'support')
+		return 400;
+	const result = kind === 'support'
+		? list_support_messages(client_id, conversation_id, team_id, before, after)
+		: conversation_id === null ? { status: 'bad_request' as const }
+			: list_messages(client_id, conversation_id, before, after);
 	return result.status === 'ok' ? result.value : chat_error(result.status);
 });
 
 session_post_route('/api/chat/messages/send', async (req, url, client_id, json) => {
-	if (typeof json.conversation_id !== 'number' || typeof json.idempotency_key !== 'string' ||
+	const kind = json.conversation_kind ?? 'private';
+	if (kind !== 'private' && kind !== 'support')
+		return 400;
+	if ((json.conversation_id !== null && typeof json.conversation_id !== 'number') ||
+		(json.conversation_id === null && kind === 'private' && typeof json.client_id !== 'number') ||
+		(kind === 'support' && typeof json.support_team_id !== 'number') ||
+		typeof json.idempotency_key !== 'string' ||
 		typeof json.content !== 'string')
 		return 400;
-	const result = send_message(client_id, json.conversation_id, json.idempotency_key, json.content);
-	return result.status === 'ok' ? { success: true, ...result.value } : chat_error(result.status);
+	const result = kind === 'support' ? send_support_message(
+		client_id,
+		json.conversation_id,
+		typeof json.support_team_id === 'number' ? json.support_team_id : null,
+		json.idempotency_key,
+		json.content
+	) : send_message(
+		client_id,
+		json.conversation_id,
+		typeof json.client_id === 'number' ? json.client_id : null,
+		json.idempotency_key,
+		json.content
+	);
+	return result.status === 'ok' ? { success: true, ...result.value, budget_enabled: CHAT_BUDGET_ENABLED,
+		...(kind === 'support' ? { budget: get_chat_state(client_id).budget } : {}) } : chat_error(result.status);
 });
 
 session_post_route('/api/chat/messages/delete', async (req, url, client_id, json) => {
@@ -3785,7 +4082,7 @@ session_get_route('/api/events', async (req, url, client_id): Promise<HandlerRes
 			'SELECT 1 FROM `banishment_returns` WHERE `client_id` = ? AND `completed_at` IS NULL LIMIT 1',
 			[client_id]
 		) || has_deletion_returns(client_id),
-		chat_unread: get_unread_chat_count(client_id)
+		chat_unread: get_unread_chat_count(client_id) + get_support_unread_count(client_id)
 	};
 });
 
@@ -3819,7 +4116,7 @@ session_post_route('/api/client/set_display_name', async (req, url, client_id, j
 server.route('/health', require_source_capacity(() => ({ status: 'ok', backend_version: BACKEND_VERSION })));
 
 server.route('/api/authenticate', allow_browser_access(require_source_capacity(require_service_available(validate_json_request(async (req, url, json) => {
-	await Bun.sleep(1000);
+	await Bun.sleep(AUTH_RESPONSE_DELAY_MS);
 	execute_due_client_deletions();
 
 	const client_identifier = json.client_identifier;
@@ -3868,7 +4165,7 @@ server.route('/api/authenticate', allow_browser_access(require_source_capacity(r
 })))), ['POST', 'OPTIONS']);
 
 server.route('/api/register', allow_browser_access(require_source_capacity(require_registration_capacity(require_service_available(validate_json_request(async (req, url, json) => {
-	await Bun.sleep(1000);
+	await Bun.sleep(AUTH_RESPONSE_DELAY_MS);
 
 	const client_key = json.client_key;
 
