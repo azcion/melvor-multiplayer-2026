@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.0
+
+- Fixed the Charitree's next-offering message appearing beside its description instead of below it on Desktop and mobile.
+
 ## 0.1.0-public-test.25
 
 - Added Shadowed membership for players inactive from multiplayer for more than seven days, keeping durable Guild access while excluding Shadowed members and Guilds from ordinary discovery and new shared calculations. Guild Councils can use the new Petition of Winnowing to banish members who remain Shadowed.

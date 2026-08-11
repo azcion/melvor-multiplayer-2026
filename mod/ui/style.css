@@ -859,6 +859,13 @@ mp-item-slider .noUi-target * {
 	border-color: #2B9546 !important;
 }
 
+.mp-charitree-window-copy {
+	display: flex;
+	flex: 1 1 0;
+	flex-direction: column;
+	min-width: 0;
+}
+
 div.mp-charitree-timer {
 	all: unset;
 	position: absolute;

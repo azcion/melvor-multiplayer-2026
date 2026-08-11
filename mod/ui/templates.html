@@ -1304,12 +1304,14 @@
 				<div class="row row-deck gutters-tiny">
 					<div class="p-3 mp-transfer-info">
 						<img class="skill-icon-xxs mr-1" :src="state.get_svg('charity_tree')">
-						<lang-string lang-id="MOD_MP_CHARITY_WINDOW_INFO"></lang-string>
-						<div class="mt-2 font-w600 text-success" v-show="state.can_take_charity">
-							<lang-string lang-id="MOD_MP_CHARITY_OPPORTUNITY_READY"></lang-string>
-						</div>
-						<div class="mt-2 font-w600 text-info" v-show="!state.can_take_charity" role="timer">
-							<mp-lang-string-f lang-id="MOD_MP_CHARITY_NEXT_OPPORTUNITY" :lang-arg-1="state.charity_next_opportunity_formatted"></mp-lang-string-f>
+						<div class="mp-charitree-window-copy">
+							<lang-string lang-id="MOD_MP_CHARITY_WINDOW_INFO"></lang-string>
+							<div class="mt-2 font-w600 text-success" v-show="state.can_take_charity">
+								<lang-string lang-id="MOD_MP_CHARITY_OPPORTUNITY_READY"></lang-string>
+							</div>
+							<div class="mt-2 font-w600 text-info" v-show="!state.can_take_charity" role="timer">
+								<mp-lang-string-f lang-id="MOD_MP_CHARITY_NEXT_OPPORTUNITY" :lang-arg-1="state.charity_next_opportunity_formatted"></mp-lang-string-f>
+							</div>
 						</div>
 					</div>
 				</div>

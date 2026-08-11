@@ -78,6 +78,7 @@ test('wires completion-log discovery, first-find receipt, and per-stack expiry i
 	assert.match(templates, /state\.format_charity_expiry\(item\.expires_at\)/);
 	assert.match(templates, /role="timer"/);
 	assert.match(templates, /state\.charity_next_opportunity_formatted/);
+	assert.match(templates, /class="mp-charitree-window-copy">[\s\S]*MOD_MP_CHARITY_WINDOW_INFO[\s\S]*MOD_MP_CHARITY_OPPORTUNITY_READY[\s\S]*MOD_MP_CHARITY_NEXT_OPPORTUNITY/);
 	assert.match(templates, /state\.selected_charity_take_block/);
 	assert.match(templates, /mp-charitree-new-item/);
 	assert.match(templates, /mp-charitree-lock/);
@@ -85,6 +86,7 @@ test('wires completion-log discovery, first-find receipt, and per-stack expiry i
 	assert.match(style, /mp-item-icon\.mp-charitree-new-item \{/);
 	assert.match(style, /outline: 2px solid rgb\(45 210 75\);/);
 	assert.match(style, /box-shadow: 0 0 8px 2px rgb\(45 210 75 \/ 75%\);/);
+	assert.match(style, /\.mp-charitree-window-copy \{[\s\S]*flex-direction: column;/);
 	assert.doesNotMatch(style, /mp-item-icon\.mp-charitree-new-item > a/);
 	assert.doesNotMatch(style, /mp-charitree-new-item-glow/);
 	assert.equal(language.MOD_MP_CHARITY_OPPORTUNITY_READY, 'You may seek an offering now.');

@@ -1,21 +1,19 @@
-![Melvor Multiplayer](/assets/melvor_multiplayer_logo.png)
+![Melvor Multiplayer Remastered](assets/melvor_multiplayer_remastered_logo.png)
 
-# Melvor Multiplayer 2026 - Public Test
+# Melvor Multiplayer Remastered
 
-Melvor Multiplayer 2026 is a self-hosted Melvor Idle multiplayer mod and server rebuilt around Guild-isolated play.
-This repository contains the public source for public-test version `0.1.0-public-test.25`, targeting Melvor Idle
-v1.3.1 on Desktop and Browser.
+Melvor Multiplayer Remastered is a self-hosted Melvor Idle multiplayer mod and server rebuilt around Guild-isolated
+play. This repository contains the public source for version `1.0.0`, targeting Melvor Idle v1.3.1.
 
 This is an unofficial, community-maintained fork of
 [Melvor Multiplayer](https://mod.io/g/melvoridle/m/melvor-multiplayer), originally created by Kruithne. No affiliation
 with or endorsement by the original author, Games by Malcs, or Jagex is claimed.
 
-## Public-test notice
+## Service notice
 
-This is a test release, not a finished version. Expect bugs, balance changes, downtime, and incomplete behavior. Back
-up Melvor saves before participating and avoid valuable items or GP where practical. Multiplayer identities and
-server-owned Guild, transfer, marketplace, Charitree, Campaign, Council, and Raid data may be reset when recovery requires
-it.
+The hosted service is best-effort. Back up Melvor saves before participating and avoid valuable items or GP where
+practical. Multiplayer identities and server-owned Guild, transfer, marketplace, Charitree, Campaign, Council, and
+Raid data may be reset when recovery requires it.
 
 ## Current multiplayer model
 
