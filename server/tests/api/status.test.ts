@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { make_guildmates } from '../support/fixtures';
 import { get_json_with_session, post, post_json, register_client } from '../support/http';
-import { db_run } from '../support/persistence';
+import { db_all, db_run } from '../support/persistence';
 
 type StatusSkill = { skill_id: string; level: number };
 type StatusActivity =
@@ -145,6 +145,130 @@ describe('player status API', () => {
 		expect(enabled.json).toEqual({ success: true, visible: true });
 	});
 
+	test('shares the latest game mode by default and preserves the runtime snapshot on opt-out', async () => {
+		const pair = await make_guildmates('Mode Visibility Owner', 'Mode Visibility Viewer');
+		await db_run(
+			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `game_mode_id`, `reported_at`) ' +
+			'VALUES(?, ?, ?, ?, ?)',
+			[pair.first_id, '1.3.0', '[]', 'melvorF:Adventure', Date.now()]
+		);
+
+		const shared_state = await get_json_with_session<{
+			members: Array<{ client_id: number; game_mode_visible: boolean; game_mode_id: string | null }>;
+		}>('/api/guilds/state', pair.second.session_token);
+		const disabled = await post_json<{ success: boolean; visible: boolean }>(
+			'/api/client/game-mode/visibility',
+			{ visible: false },
+			pair.first.session_token
+		);
+		const hidden_state = await get_json_with_session<{
+			members: Array<{ client_id: number; game_mode_visible: boolean; game_mode_id: string | null }>;
+		}>('/api/guilds/state', pair.second.session_token);
+		const malformed = await post('/api/client/game-mode/visibility', { visible: 'yes' }, pair.first.session_token);
+		const snapshots = await db_all<{ game_mode_id: string | null }>(
+			'SELECT `game_mode_id` FROM `client_runtime_snapshots` WHERE `client_id` = ?',
+			[pair.first_id]
+		);
+		const authenticated = await post_json<{ game_mode_visible: boolean }>('/api/authenticate', {
+			client_identifier: pair.first.client_identifier,
+			client_key: pair.first.client_key
+		});
+
+		expect(shared_state.json.members.find(member => member.client_id === pair.first_id)).toMatchObject({
+			game_mode_visible: true,
+			game_mode_id: 'melvorF:Adventure'
+		});
+		expect(disabled.json).toEqual({ success: true, visible: false });
+		expect(hidden_state.json.members.find(member => member.client_id === pair.first_id)).toMatchObject({
+			game_mode_visible: false,
+			game_mode_id: null
+		});
+		expect(malformed.status).toBe(400);
+		expect(snapshots).toEqual([{ game_mode_id: 'melvorF:Adventure' }]);
+		expect(authenticated.json.game_mode_visible).toBe(false);
+	});
+
+	test('shares active mods in reported order by default and preserves the runtime snapshot on opt-out', async () => {
+		const pair = await make_guildmates('Active Mods Owner', 'Active Mods Viewer');
+		const outsider = await register_client('Active Mods Outsider');
+		const active_mods = ['Multiplayer', 'Combat Indicators', 'Bank Tab Values'];
+		await db_run(
+			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `reported_at`) ' +
+			'VALUES(?, ?, ?, ?)',
+			[pair.first_id, '1.3.0', JSON.stringify(active_mods), Date.now()]
+		);
+
+		const shared_state = await get_json_with_session<{
+			members: Array<{ client_id: number; active_mods_visible: boolean; active_mods_available: boolean }>;
+		}>('/api/guilds/state', pair.second.session_token);
+		const shared = await get_json_with_session<{ client_id: number; active_mods: string[] }>(
+			`/api/guilds/active-mods?client_id=${pair.first_id}`,
+			pair.second.session_token
+		);
+		const outside = await get_json_with_session<{ error_lang: string }>(
+			`/api/guilds/active-mods?client_id=${pair.first_id}`,
+			outsider.session_token
+		);
+		const disabled = await post_json<{ success: boolean; visible: boolean }>(
+			'/api/client/active-mods/visibility',
+			{ visible: false },
+			pair.first.session_token
+		);
+		const hidden_state = await get_json_with_session<{
+			members: Array<{ client_id: number; active_mods_visible: boolean; active_mods_available: boolean }>;
+		}>('/api/guilds/state', pair.second.session_token);
+		const hidden = await get_json_with_session<{ error_lang: string }>(
+			`/api/guilds/active-mods?client_id=${pair.first_id}`,
+			pair.second.session_token
+		);
+		const snapshots = await db_all<{ active_mods: string }>(
+			'SELECT `active_mods` FROM `client_runtime_snapshots` WHERE `client_id` = ?',
+			[pair.first_id]
+		);
+		const authenticated = await post_json<{ active_mods_visible: boolean }>('/api/authenticate', {
+			client_identifier: pair.first.client_identifier,
+			client_key: pair.first.client_key
+		});
+
+		expect(shared_state.json.members.find(member => member.client_id === pair.first_id)).toMatchObject({
+			active_mods_visible: true,
+			active_mods_available: true
+		});
+		expect(shared.json).toEqual({ client_id: pair.first_id, active_mods });
+		expect(outside.json.error_lang).toBe('MOD_MP_GUILD_MEMBERSHIP_MISSING');
+		expect(disabled.json).toEqual({ success: true, visible: false });
+		expect(hidden_state.json.members.find(member => member.client_id === pair.first_id)).toMatchObject({
+			active_mods_visible: false,
+			active_mods_available: false
+		});
+		expect(hidden.json.error_lang).toBe('MOD_MP_ACTIVE_MODS_SHARING_DISABLED');
+		expect(snapshots).toEqual([{ active_mods: JSON.stringify(active_mods) }]);
+		expect(authenticated.json.active_mods_visible).toBe(false);
+	});
+
+	test('does not offer an active-mod list when no non-empty runtime snapshot exists', async () => {
+		const pair = await make_guildmates('Empty Active Mods Owner', 'Empty Active Mods Viewer');
+		await db_run(
+			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `reported_at`) ' +
+			'VALUES(?, ?, ?, ?)',
+			[pair.first_id, '1.3.0', '[]', Date.now()]
+		);
+
+		const state = await get_json_with_session<{
+			members: Array<{ client_id: number; active_mods_visible: boolean; active_mods_available: boolean }>;
+		}>('/api/guilds/state', pair.second.session_token);
+		const viewed = await get_json_with_session<{ error_lang: string }>(
+			`/api/guilds/active-mods?client_id=${pair.first_id}`,
+			pair.second.session_token
+		);
+
+		expect(state.json.members.find(member => member.client_id === pair.first_id)).toMatchObject({
+			active_mods_visible: true,
+			active_mods_available: false
+		});
+		expect(viewed.json.error_lang).toBe('MOD_MP_ACTIVE_MODS_NOT_AVAILABLE');
+	});
+
 	test('includes only the minimal activity descriptor in the Free Fellowship directory', async () => {
 		const [owner, viewer] = await Promise.all([
 			register_client('Directory Status Owner'),
@@ -156,9 +280,9 @@ describe('player status API', () => {
 		await sync_status(owner.session_token, [], activity);
 
 		const directory = await get_json_with_session<{
-			members: Array<{ display_name: string; status_activity: StatusActivity | null }>;
+			members: Array<{ client_id: number; display_name: string; status_activity: StatusActivity | null }>;
 		}>('/api/guilds/members?page=0&search=', viewer.session_token);
-		const member = directory.json.members.find(candidate => candidate.display_name === owner.display_name);
+		const member = directory.json.members.find(candidate => candidate.client_id === owner.client_id);
 
 		expect(directory.response.status).toBe(200);
 		expect(member).toMatchObject({ status_activity: activity });

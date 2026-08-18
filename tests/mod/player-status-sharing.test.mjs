@@ -21,7 +21,7 @@ test('adds player status visibility and combined profile viewing to member actio
 	assert.equal(language.MOD_MP_PROFILE_VIEW, 'View Status & Equipment');
 });
 
-test('renders only local skill icons, levels, and a minimal activity indicator', async () => {
+test('renders local skill icons and levels while keeping activity in the member modal', async () => {
 	const [templates, main, style] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
 		readFile(new URL('mod/main.mjs', root), 'utf8'),
@@ -31,6 +31,10 @@ test('renders only local skill icons, levels, and a minimal activity indicator',
 		templates.indexOf('<template id="template-mp-profile-modal">'),
 		templates.indexOf('<template id="template-mp-leave-guild-modal">')
 	);
+	const member_modal = templates.slice(
+		templates.indexOf('<template id="template-mp-member-actions-modal">'),
+		templates.indexOf('<template id="template-mp-identities-modal">')
+	);
 
 	assert.match(profile_modal, /state\.viewed_status_skills/);
 	assert.match(profile_modal, /state\.get_skill_icon\(skill\.skill_id\)/);
@@ -38,19 +42,23 @@ test('renders only local skill icons, levels, and a minimal activity indicator',
 	assert.match(profile_modal, /state\.get_skill_level_cap\(skill\.skill_id\)/);
 	assert.match(profile_modal, /state\.profile_active_tab = 'skills'/);
 	assert.match(profile_modal, /state\.profile_active_tab = 'equipment'/);
-	assert.match(profile_modal, /state\.viewed_status_activity_icon/);
-	assert.match(profile_modal, /state\.viewed_status_activity_name/);
+	assert.doesNotMatch(profile_modal, /mp-status-activity|viewed_status_activity/);
 	assert.doesNotMatch(profile_modal, /state\.viewed_status\.activity/);
+	assert.match(member_modal, /class="mp-member-activity" v-if="state\.selected_guild_member\.status_activity"/);
+	assert.match(member_modal, /state\.get_status_activity_icon\(state\.selected_guild_member\.status_activity\)/);
+	assert.match(member_modal, /state\.get_status_activity_name\(state\.selected_guild_member\.status_activity\)/);
 	assert.match(main, /activity\.area_id === null \? null : game\.combatAreas\?\.getObjectByID\(activity\.area_id\)/);
 	assert.match(main, /area\?\.media \?\? 'assets\/media\/skills\/combat\/combat\.png'/);
 	assert.doesNotMatch(profile_modal, /qty|quantity|rate|duration|inventory|history/i);
 	assert.match(main, /didClose: \(\) => \{[\s\S]*this\.viewed_status = null;/);
-	assert.match(main, /viewed_status_activity_icon[\s\S]*this\.viewed_status\?\.activity/);
-	assert.match(main, /viewed_status_activity_name[\s\S]*this\.viewed_status\?\.activity/);
+	assert.doesNotMatch(main, /viewed_status_activity_(?:icon|name)/);
 	assert.match(main, /customClass: \{ popup: 'mp-profile-modal-popup' \}/);
 	assert.match(main, /get_registered_game_objects\(game\.skills\)[\s\S]*skill_order/);
-	assert.match(style, /\.mp-status-skills \{[^}]*grid-template-columns: repeat\(3[^}]*overflow-y: scroll;[^}]*-webkit-overflow-scrolling: touch;[^}]*touch-action: pan-y;[^}]*overscroll-behavior-y: contain;[^}]*\}/s);
-	assert.match(style, /@media \(max-width: 767\.98px\) \{[^]*\.mp-profile-modal-popup \.mp-status-skills \{[^}]*height: min\(360px, 45vh\);[^}]*height: min\(360px, 45dvh\);[^}]*max-height: none;[^}]*\}/);
+	const skill_grid_rule = style.match(/\.mp-status-skills \{[^}]*\}/s)?.[0] ?? '';
+	assert.match(skill_grid_rule, /grid-template-columns: repeat\(3/);
+	assert.doesNotMatch(skill_grid_rule, /(?:max-)?height|overflow|touch-action|overscroll-behavior/);
+	assert.doesNotMatch(style, /\.mp-profile-modal-popup \.mp-status-skills/);
+	assert.match(style, /\.mp-member-activity img \{[^}]*width: 24px;[^}]*height: 24px;[^}]*object-fit: contain;[^}]*\}/s);
 	assert.match(style, /\.mp-profile-modal-popup \.mp-status-skill img[\s\S]*width: 24px;[\s\S]*height: 24px;[\s\S]*margin: 0;/);
 	assert.match(style, /\.mp-profile-modal-popup \.badge\.badge-secondary\.mp-status-skill-level[\s\S]*font-size: 60%;/);
 	assert.match(style, /\.mp-profile-modal-popup \.swal2-image[\s\S]*margin: \.5rem auto;/);

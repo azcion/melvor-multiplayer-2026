@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import {
-	paginate_market_results,
+	market_page_window,
 	remove_sold_out_market_result
 } from '../../mod/market-results.mjs';
 
@@ -32,26 +33,35 @@ test('leaves buyer results unchanged when the listing is not displayed', () => {
 	assert.equal(state.market_current_page, 1);
 });
 
-test('paginates after unresolved market results have been filtered locally', () => {
-	const page = paginate_market_results(
-		[{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }],
-		2,
-		3
-	);
-
-	assert.deepEqual(page, {
-		current_page: 2,
-		total_items: 4,
-		items: [{ id: 4 }]
-	});
+test('renders a bounded Marketplace page window around the current page', () => {
+	assert.deepEqual(market_page_window(1, 20), [1, 2, 3, 4, 5]);
+	assert.deepEqual(market_page_window(10, 20), [8, 9, 10, 11, 12]);
+	assert.deepEqual(market_page_window(20, 20), [16, 17, 18, 19, 20]);
 });
 
-test('clamps a page after filtering leaves fewer visible results', () => {
-	const page = paginate_market_results([{ id: 1 }], 3, 30);
+test('clamps a page window when no Marketplace results exist', () => {
+	assert.deepEqual(market_page_window(3, 0), [1]);
+});
 
-	assert.deepEqual(page, {
-		current_page: 1,
-		total_items: 1,
-		items: [{ id: 1 }]
-	});
+test('captures Marketplace queries and ignores stale generations', async () => {
+	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const search = main.slice(main.indexOf('async function update_market_search'),
+		main.indexOf('function load_market_filter_items'));
+
+	assert.match(search, /const generation = \+\+market_search_generation/);
+	assert.match(search, /const page = state\.market_current_page/);
+	assert.match(search, /const sort = state\.market_sort_direction/);
+	assert.match(search, /const item_id = state\.market_filter_item/);
+	assert.match(search, /api_post\('\/api\/market\/catalog'/);
+	assert.match(search, /unresolved_item_ids = \(catalog\.item_ids \?\? \[\]\)\.filter\(item_id => !is_local_item_resolved\(item_id\)\)/);
+	assert.equal((search.match(/generation !== market_search_generation/g) ?? []).length, 2);
+	assert.match(search, /if \(generation === market_search_generation\)\s*state\.market_search_loading = false/);
+});
+
+test('tears down the buy modal before changing its reactive slider maximum', async () => {
+	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const buy = main.slice(main.indexOf('\tasync buy_market_item'), main.indexOf('\n\tmarket_page('));
+
+	assert.match(buy, /hide_button_spinner\(\$button\);\s*await this\.close_modal_and_wait\('market-buy-modal'\);/);
+	assert.match(buy, /close_modal_and_wait\('market-buy-modal'\);[\s\S]*state\.market_buy_item\.available/);
 });

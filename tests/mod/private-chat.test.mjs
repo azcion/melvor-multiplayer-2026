@@ -26,7 +26,6 @@ test('adds a first-class Chat page, inbox, unread indicators, and Guild-roster i
 	assert.equal(chat_page.sidebarItem.asideClass, 'mp-chat-nav');
 	assert.equal(chat_page.sidebarItem.aside, '0');
 	assert.match(templates, /template-mp-chat-page/);
-	assert.match(templates, /state\.chat_unread/);
 	assert.match(templates, /state\.open_chat_conversation\(conversation\)/);
 	assert.match(templates, /state\.start_member_chat\(\$event\)/);
 	assert.match(main, /api_post\('\/api\/chat\/conversations\/start'/);
@@ -34,8 +33,8 @@ test('adds a first-class Chat page, inbox, unread indicators, and Guild-roster i
 	assert.match(main, /aside\.hidden = state\.chat_unread <= 0/);
 	assert.match(style, /\.mp-chat-nav[\s\S]*background-color: #ff4545/);
 	assert.equal(language.MOD_MP_MENU_VIEW_CHAT, 'Open Chat');
-	assert.equal(language.MOD_MP_CHAT_INBOX, 'Conversations');
-	assert.equal(language.MOD_MP_CHAT_INBOX_INFO, 'These stay with you across Guilds.');
+	assert.doesNotMatch(templates, /MOD_MP_CHAT_INBOX/);
+	assert.equal(language.MOD_MP_CHAT_CATEGORY_PERSONAL_INFO, 'These stay with you across Guilds.');
 });
 
 test('implements jittered foreground conversation polling and cursor-based history', async () => {
@@ -47,7 +46,8 @@ test('implements jittered foreground conversation polling and cursor-based histo
 	assert.match(main, /'&before=' \+ this\.chat_before_cursor/);
 	assert.match(main, /poll_id !== chat_poll_id \|\| !chat_page_visible \|\| !polling\.is_foreground\(document\)/);
 	assert.match(main, /polling\.chat_poll_delay\(\)/);
-	assert.match(main, /if \(view_generation === chat_view_generation && state\.selected_chat_conversation\)/);
+	assert.match(main, /finally \{[\s\S]*polling\.retry_poll_delay\(chat_poll_failures\)/);
+	assert.match(main, /state\.selected_chat_conversation\?\.conversation_id !== conversation_id/);
 	assert.match(templates, /MOD_MP_CHAT_LOAD_OLDER/);
 	assert.match(templates, /role="log" aria-live="polite"/);
 });
@@ -161,6 +161,25 @@ test('sends Chat on desktop Enter while preserving mobile and multiline input', 
 	assert.match(keydown_handler, /void this\.send_chat_message\(event\)/);
 });
 
+test('keeps drafts and send completion scoped to the originating conversation', async () => {
+	const { main } = await sources();
+	const send = main.slice(main.indexOf('async send_chat_message(event)'),
+		main.indexOf('async delete_chat_message(event)'));
+
+	assert.match(main, /function get_chat_conversation_key\(conversation\)/);
+	assert.match(main, /chat_drafts: \{\}/);
+	assert.match(main, /chat_pending_sends: \{\}/);
+	assert.match(main, /chat_sending_conversations: \{\}/);
+	assert.match(send, /const conversation_key = get_chat_conversation_key\(conversation\)/);
+	assert.match(send, /const view_generation = chat_view_generation/);
+	assert.match(send, /this\.chat_pending_sends\[conversation_key\]/);
+	assert.match(send, /view_generation === chat_view_generation/);
+	assert.match(send, /get_chat_conversation_key\(this\.selected_chat_conversation\) === conversation_key/);
+	assert.match(send, /if \(is_current_view\(\) && !this\.chat_messages\.some/);
+	assert.match(send, /this\.chat_drafts\[conversation_key\] = ''/);
+	assert.doesNotMatch(send, /this\.chat_draft = ''/);
+});
+
 test('keeps Chat identity state independent from current Guild membership', async () => {
 	const { main, templates } = await sources();
 
@@ -183,7 +202,7 @@ test('ignores stale conversation responses after a thread switch or close', asyn
 	assert.match(main, /chat_view_generation\+\+;\n\s*this\.selected_chat_conversation = null/);
 });
 
-test('does not poll an empty or background Chat inbox or refetch budget on each message poll', async () => {
+test('does not poll an empty or background Chat inbox and refreshes visible metadata only for changed events', async () => {
 	const { main } = await sources();
 	const message_refresh = main.slice(main.indexOf('async function refresh_chat_messages'),
 		main.indexOf('async function refresh_chat_page'));
@@ -197,21 +216,20 @@ test('does not poll an empty or background Chat inbox or refetch budget on each 
 	assert.match(scheduler, /!polling\.is_foreground\(document\)/);
 	assert.doesNotMatch(polling, /refresh_chat_state\(\)/);
 	assert.match(polling, /state\.selected_chat_conversation && polling\.is_foreground\(document\)/);
-	assert.match(events, /const previous_chat_unread = state\.chat_unread/);
-	assert.match(events, /chat_page_visible && state\.chat_unread !== previous_chat_unread/);
-	assert.match(events, /await refresh_chat_conversations\(\)/);
+	assert.match(events, /if \(res\.unchanged === true\)\s*return res;[\s\S]*if \(chat_page_visible\)\s*await refresh_chat_conversations\(\)/);
 });
 
 test('renders Support Chat identity, alignment, virtual welcomes, and restricted actions', async () => {
 	const { main, templates } = await sources();
 	const chat = templates.slice(templates.indexOf('<template id="template-mp-chat-page">'),
 		templates.indexOf('<template id="template-mp-chat-budget-info-modal">'));
-	assert.match(main, /conversation_kind: conversation\.conversation_kind \?\? 'private'/);
+	assert.match(main, /const conversation_kind = conversation\.conversation_kind \?\? 'private'/);
+	assert.match(main, /conversation_kind,/);
 	assert.match(main, /support_team_id: conversation\.support_team_id/);
 	assert.match(main, /conversation_kind=' \+ kind/);
-	assert.match(main, /selected_chat_conversation\?\.conversation_kind === 'support'/);
+	assert.match(main, /selected_chat_conversation\?\.conversation_kind \?\? 'private'\) !== 'private'/);
 	assert.match(chat, /message\.sent_by_viewer === true/);
-	assert.match(chat, /conversation_kind !== 'support'/);
+	assert.match(chat, /conversation_kind \|\| 'private'\) === 'private'/);
 	assert.match(chat, /state\.get_chat_participant_icon/);
 	assert.match(main, /selected_chat_conversation\?\.support_team_id !== conversation\.support_team_id/);
 	assert.match(chat, /support_team_id \|\| ''/);

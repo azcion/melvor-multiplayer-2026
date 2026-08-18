@@ -11,15 +11,10 @@ export function remove_sold_out_market_result(state, listing_id, items_per_page)
 	return true;
 }
 
-export function paginate_market_results(items, page, items_per_page) {
-	const total_items = items.length;
-	const page_count = Math.max(Math.ceil(total_items / items_per_page), 1);
-	const current_page = Math.min(Math.max(Math.trunc(page), 1), page_count);
-	const start = (current_page - 1) * items_per_page;
-
-	return {
-		current_page,
-		total_items,
-		items: items.slice(start, start + items_per_page)
-	};
+export function market_page_window(current_page, page_count, radius = 2) {
+	const count = Math.max(Math.trunc(page_count), 1);
+	const current = Math.min(Math.max(Math.trunc(current_page), 1), count);
+	const start = Math.max(Math.min(current - radius, count - radius * 2), 1);
+	const end = Math.min(start + radius * 2, count);
+	return Array.from({ length: end - start + 1 }, (_, index) => start + index);
 }

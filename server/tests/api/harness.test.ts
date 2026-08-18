@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { request } from '../support/http';
+import { should_log_request } from '../../http';
 import { BACKEND_VERSION } from '../../version';
 
 describe('test harness', () => {
@@ -15,6 +16,12 @@ describe('test harness', () => {
 
 		expect(response.status).toBe(200);
 		expect(await response.json()).toEqual({ status: 'ok', backend_version: BACKEND_VERSION });
+	});
+
+	test('suppresses only successful health request logs', () => {
+		expect(should_log_request('/health', 200)).toBe(false);
+		expect(should_log_request('/health', 500)).toBe(true);
+		expect(should_log_request('/api/events', 200)).toBe(true);
 	});
 
 	test('exercises authenticated routes through HTTP', async () => {

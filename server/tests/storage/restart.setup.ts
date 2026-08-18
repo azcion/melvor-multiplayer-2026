@@ -47,6 +47,18 @@ test('creates representative state before a server restart', async () => {
 	await post_json('/api/campaign/contribute', {
 		item_amount: campaign_contribution
 	}, pair.first.session_token);
+	const campaign_history_client = await register_guild_client('Restart Campaign', 'Restart History');
+	const campaign_to_complete = await get_json_with_session<{
+		campaign_id: string;
+		item_total: number;
+	}>('/api/campaign/info', campaign_history_client.session_token);
+	await post_json('/api/campaign/contribute', {
+		item_amount: campaign_to_complete.json.item_total
+	}, campaign_history_client.session_token);
+	const completed_campaign = await get_json_with_session<{
+		history: Array<{ id: number; campaign_id: string }>;
+	}>('/api/campaign/info', campaign_history_client.session_token);
+	const campaign_completion_id = completed_campaign.json.history[0].id;
 	const equipment_slots = [
 		{ slot_id: 'melvorD:Helmet', item_id: 'melvorD:Restart_Helmet' },
 		{ slot_id: 'melvorD:Weapon', item_id: 'melvorD:Restart_Weapon' }
@@ -79,6 +91,14 @@ test('creates representative state before a server restart', async () => {
 		blocked: true
 	}, pair.second.session_token);
 	await post_json('/api/chat/privacy', { messaging_enabled: false }, pair.first.session_token);
+	const guild_chat_message = await post_json<{ message: { message_id: number } }>('/api/chat/messages/send', {
+		conversation_kind: 'guild',
+		conversation_id: pair.guild_id,
+		client_id: null,
+		idempotency_key: crypto.randomUUID(),
+		content: 'Restart-safe Guild Message'
+	}, pair.first.session_token);
+	await post_json('/api/chat/guild-participation', { enabled: false }, pair.first.session_token);
 	const support_player = await register_client('Restart Support Player');
 	const support_profile = await post_json('/api/client/set_display_name', {
 		display_name: 'Restart Player'
@@ -87,6 +107,11 @@ test('creates representative state before a server restart', async () => {
 	const support_member = await register_client('Restart Support Member', {
 		cloud_username: 'RestartSupportCloud', playfab_id: 'RESTART-SUPPORT-ID'
 	});
+	await db_run('UPDATE `clients` SET `client_identifier` = ? WHERE `id` = ?', [
+		'RESTART-SUPPORT-CLIENT',
+		support_member.client_id
+	]);
+	support_member.client_identifier = 'RESTART-SUPPORT-CLIENT';
 	const support_inbox = await get_json_with_session<{
 		conversations: Array<{ conversation_kind: string; support_team_id: number }>;
 	}>('/api/chat/conversations', support_player.session_token);
@@ -157,12 +182,17 @@ test('creates representative state before a server restart', async () => {
 		market_lot_id,
 		charity_item_id,
 		campaign_contribution,
+		campaign_history_client,
+		campaign_completion_id,
+		campaign_completion_type: campaign_to_complete.json.campaign_id,
 		equipment_slots,
 		status_skills,
 		status_activity,
 		gp_amount,
 		chat_conversation_id: chat_message.json.message.conversation_id,
 		chat_message_id: chat_message.json.message.message_id,
+		guild_id: pair.guild_id,
+		guild_chat_message_id: guild_chat_message.json.message.message_id,
 		active_petition_id: active_petition.json.petition_id,
 		retry_petition_id: retry_petition.json.petition_id,
 		banished,
@@ -179,9 +209,11 @@ test('creates representative state before a server restart', async () => {
 	expect(gift_id).toBeNumber();
 	expect(offered.json.trade_id).toBeNumber();
 	expect(market_lot_id).toBeNumber();
+	expect(campaign_completion_id).toBeNumber();
 	expect(active_petition.json.petition_id).toBeNumber();
 	expect(retry_petition.json.petition_id).toBeNumber();
 	expect(chat_message.json.message.message_id).toBeNumber();
+	expect(guild_chat_message.json.message.message_id).toBeNumber();
 	expect(banishment.json.petition_id).toBeNumber();
 	expect(raid_assault.json.assault_id).toBeString();
 });

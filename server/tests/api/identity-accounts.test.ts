@@ -15,6 +15,7 @@ function account(cloud_username: string, playfab_id: string): MelvorAccountFixtu
 }
 
 type IdentityList = {
+	self_deletion: null | { requested_at: number; execute_at: number; can_cancel: boolean };
 	identities: Array<{
 		client_id: number;
 		display_name: string;
@@ -133,43 +134,47 @@ describe('Melvor account identity lifecycle', () => {
 		}
 	});
 
-	test('schedules for 72 hours, lets the requester cancel, and auto-cancels target login', async () => {
+	test('requires target-side scheduling, permits self-cancellation, and auto-cancels target login', async () => {
 		const jared = account('Deletion Jared', 'C1B2C3D4E5F60708');
 		const bob = await register_client('Deletion Bob', jared);
 		const cob = await register_client('Deletion Cob', jared);
+		const spoofed_sibling = await post('/api/identities/delete', { client_id: cob.client_id }, bob.session_token);
+		expect(spoofed_sibling.status).toBe(400);
+
 		const scheduled = await post_json<{ success: boolean; deletion: { requested_at: number; execute_at: number } }>(
-			'/api/identities/delete', { client_id: cob.client_id }, bob.session_token
+			'/api/identities/delete', { client_id: cob.client_id }, cob.session_token
 		);
 		expect(scheduled.json.success).toBe(true);
 		expect(scheduled.json.deletion.execute_at - scheduled.json.deletion.requested_at).toBe(72 * 60 * 60 * 1000);
-		expect((await identities(bob)).json.identities[0].deletion).toMatchObject({ can_cancel: true });
+		expect((await identities(bob)).json.identities[0].deletion).toMatchObject({ can_cancel: false });
+		expect((await identities(cob)).json.self_deletion).toMatchObject({ can_cancel: true });
 
 		const cancelled = await post_json<{ success: boolean }>(
-			'/api/identities/delete/cancel', { client_id: cob.client_id }, bob.session_token
+			'/api/identities/delete/cancel', { client_id: cob.client_id }, cob.session_token
 		);
 		expect(cancelled.json.success).toBe(true);
 		expect((await identities(bob)).json.identities[0].deletion).toBeNull();
 
-		await post_json('/api/identities/delete', { client_id: cob.client_id }, bob.session_token);
+		await post_json('/api/identities/delete', { client_id: cob.client_id }, cob.session_token);
 		const target_login = await authenticate(cob, jared);
 		expect(target_login.response.status).toBe(200);
 		expect(target_login.json.deletion_cancelled).toMatchObject({
-			requester_display_name: 'Deletion Bob'
+			requester_display_name: 'Deletion Cob'
 		});
 		expect((await identities(bob)).json.identities[0].deletion).toBeNull();
 	});
 
 	test('does not cancel a deletion after its deadline', async () => {
 		const jared = account('Deadline Jared', 'E1B2C3D4E5F60708');
-		const bob = await register_client('Deadline Bob', jared);
+		await register_client('Deadline Bob', jared);
 		const cob = await register_client('Deadline Cob', jared);
-		await post_json('/api/identities/delete', { client_id: cob.client_id }, bob.session_token);
+		await post_json('/api/identities/delete', { client_id: cob.client_id }, cob.session_token);
 		await db_run(
 			'UPDATE `client_deletion_requests` SET `execute_at` = `requested_at` WHERE `target_client_id` = ?',
 			[cob.client_id]
 		);
 
-		const cancelled = await post('/api/identities/delete/cancel', { client_id: cob.client_id }, bob.session_token);
+		const cancelled = await post('/api/identities/delete/cancel', { client_id: cob.client_id }, cob.session_token);
 		expect(cancelled.status).toBe(404);
 		const recovered = await authenticate(cob, jared);
 		expect(recovered.response.status).toBe(200);
@@ -225,9 +230,16 @@ describe('Melvor account identity lifecycle', () => {
 			idempotency_key: crypto.randomUUID(),
 			content: 'Before deletion'
 		}, bob.session_token);
+		const guild_message = await post_json<{ message: { message_id: number } }>('/api/chat/messages/send', {
+			conversation_kind: 'guild',
+			conversation_id: created.json.guild.guild_id,
+			client_id: null,
+			idempotency_key: crypto.randomUUID(),
+			content: 'Guild history survives identity deletion'
+		}, cob.session_token);
 
 		await get_with_session('/api/events', cob.session_token);
-		await post_json('/api/identities/delete', { client_id: cob.client_id }, bob.session_token);
+		await post_json('/api/identities/delete', { client_id: cob.client_id }, cob.session_token);
 		await db_run(
 			'UPDATE `client_deletion_requests` SET `requested_at` = 0, `execute_at` = 0 ' +
 			'WHERE `target_client_id` = ? AND `executed_at` IS NULL AND `cancelled_at` IS NULL',
@@ -251,6 +263,18 @@ describe('Melvor account identity lifecycle', () => {
 		expect((await get_json_with_session<{ conversations: unknown[] }>(
 			'/api/chat/conversations', bob.session_token
 		)).json.conversations.filter((conversation: any) => conversation.conversation_kind === 'private')).toEqual([]);
+		expect(await db_count(
+			'SELECT COUNT(*) AS `count` FROM `guild_chat_messages` WHERE `id` = ? AND `sender_id` = ?',
+			[guild_message.json.message.message_id, cob.client_id]
+		)).toBe(1);
+		const retained_guild_history = await get_json_with_session<{
+			messages: Array<{ message_id: number; content: string }>;
+		}>(`/api/chat/messages?conversation_kind=guild&conversation_id=${created.json.guild.guild_id}`,
+			bob.session_token);
+		expect(retained_guild_history.json.messages).toContainEqual(expect.objectContaining({
+			message_id: guild_message.json.message.message_id,
+			content: 'Guild history survives identity deletion'
+		}));
 		expect((await identities(bob)).json.identities).toEqual([]);
 
 		const recovered = await authenticate(cob, jared);

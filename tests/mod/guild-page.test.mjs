@@ -124,7 +124,8 @@ test('cache-busts authenticated GETs without using the Android-sensitive Fetch c
 		cache_bust_api_endpoint('/api/events?after=42'),
 		'/api/events?after=42&_mp_cache=runtime-nonce-2'
 	);
-	assert.match(api_get, /fetch\(server_host \+ cache_bust_api_endpoint\(endpoint\)/);
+	assert.match(api_get, /polling\.fetch_with_timeout\(fetch, server_host \+ cache_bust_api_endpoint\(endpoint\)/);
+	assert.match(api_get, /consume: async res => res\.status === 200 \? await res\.json\(\) : null/);
 	assert.doesNotMatch(api_get, /cache\s*:/);
 	assert.equal(lang.MOD_MP_GUILD_LOADING, 'Loading Guild...');
 	assert.equal(typeof lang.MOD_MP_GUILD_LOAD_FAILED, 'string');
@@ -216,8 +217,9 @@ test('tucks Shadowed members behind a normal-action modal at the bottom of the G
 	assert.match(templates, /v-for="member in state\.shadowed_members"/);
 	assert.match(templates, /state\.open_shadowed_member_actions\(member\)/);
 	assert.match(main, /api_get\('\/api\/guilds\/members\/shadowed\?page='/);
+	assert.match(main, /state\.shadowed_member_count = Number\.isSafeInteger\(res\.total\)/);
 	assert.match(main, /open_shadowed_member_actions\(member\)[\s\S]*this\.show_member_actions\(member\)/);
-	assert.match(member_view, /mp-shadowed-members-entry[\s\S]*MOD_MP_GUILD_VIEW_SHADOWED_MEMBERS/);
+	assert.match(member_view, /mp-shadowed-members-entry" v-show="state\.shadowed_member_count > 0"[\s\S]*MOD_MP_GUILD_VIEW_SHADOWED_MEMBERS/);
 	assert.ok(member_view.lastIndexOf('mp-shadowed-members-entry') > member_view.lastIndexOf('mp-council'));
 	assert.equal(language.MOD_MP_GUILD_SHADOWED, 'Shadowed');
 	assert.equal(language.MOD_MP_GUILD_VIEW_SHADOWED_MEMBERS, 'View Shadowed Members');

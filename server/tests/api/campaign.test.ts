@@ -3,12 +3,20 @@ import { round_campaign_estimate } from '../../campaign';
 import { AVAILABLE_CAMPAIGNS } from '../../campaign_data';
 import { get_events, make_guild_group, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post, post_json, register_client } from '../support/http';
-import { db_run } from '../support/persistence';
+import { db_count, db_run } from '../support/persistence';
 import { SHADOWED_AFTER } from '../../shadowed';
+
+type CampaignHistory = {
+	id: number;
+	campaign_id: string;
+	item_id: string;
+	item_amount: number;
+	taken: number;
+};
 
 type ActiveCampaign = {
 	active: true;
-	history: unknown[];
+	history: CampaignHistory[];
 	rankings: Record<string, number>;
 	campaign_id: string;
 	contribution: number;
@@ -56,6 +64,9 @@ describe('campaign API', () => {
 		const invalid = await post('/api/campaign/contribute', {
 			item_amount: 0
 		}, client.session_token);
+		const fractional = await post('/api/campaign/contribute', {
+			item_amount: 0.5
+		}, client.session_token);
 		const first = await post_json<{
 			success: boolean;
 			item_id: string;
@@ -75,6 +86,7 @@ describe('campaign API', () => {
 		const after = await get_campaign_info(client.session_token);
 
 		expect(invalid.status).toBe(400);
+		expect(fractional.status).toBe(400);
 		expect(first.json.success).toBe(true);
 		expect(first.json.item_id).toBe(before.item_id);
 		expect(before.max_contribution).toBe(before.item_total * 0.5);
@@ -185,5 +197,124 @@ describe('campaign API', () => {
 		expect(first_after.campaign.pct).toBeGreaterThan(0);
 		expect(second_after.campaign.pct).toBe(second_before.campaign.pct);
 		expect(unavailable.json.error_lang).toBe('MOD_MP_GUILD_REQUIRED');
+	});
+
+	test('keeps completed progress with its contributor across Guild switching and source Guild dissolution', async () => {
+		const pair = await make_guild_group(
+			['History Contributor', 'History Keeper'],
+			'History Source'
+		);
+		const contributor = pair[0];
+		const keeper = pair[1];
+		const campaign = await get_campaign_info(contributor.session_token);
+		await post_json('/api/campaign/contribute', {
+			item_amount: campaign.item_total
+		}, contributor.session_token);
+
+		const completed = await get_campaign_info(contributor.session_token);
+		expect(completed.history).toEqual([{
+			id: expect.any(Number),
+			campaign_id: campaign.campaign_id,
+			item_id: campaign.item_id,
+			item_amount: campaign.item_total,
+			taken: 0
+		}]);
+		expect(completed.rankings).toEqual({ [campaign.campaign_id]: 1 });
+		const completion_id = completed.history[0].id;
+
+		const newcomer = await register_client('History Newcomer');
+		await post_json('/api/guilds/apply', { guild_id: contributor.guild_id }, newcomer.session_token);
+		const source_state = await get_json_with_session<{
+			applicants: Array<{ application_id: number }>;
+		}>('/api/guilds/state', contributor.session_token);
+		await post_json('/api/guilds/application/decide', {
+			application_id: source_state.json.applicants[0].application_id,
+			approve: true
+		}, contributor.session_token);
+		const newcomer_campaign = await get_campaign_info(newcomer.session_token);
+		expect(newcomer_campaign.history).toEqual([]);
+		expect(newcomer_campaign.rankings).toEqual({});
+
+		await post_json('/api/guilds/leave', {}, contributor.session_token);
+		await post_json('/api/guilds/leave', {}, keeper.session_token);
+		const dissolved = await post_json<{ success: boolean; dissolved: boolean }>(
+			'/api/guilds/leave', {}, newcomer.session_token
+		);
+		expect(dissolved.json.dissolved).toBe(true);
+		expect(await db_count('SELECT COUNT(*) AS `count` FROM `campaign_state` WHERE `guild_id` = ?', [
+			contributor.guild_id
+		])).toBe(0);
+		expect(await db_count(
+			'SELECT COUNT(*) AS `count` FROM `campaign_completions` ' +
+			'WHERE `source_campaign_state_id` = ? AND `client_id` = ?',
+			[completion_id, contributor.client_id]
+		)).toBe(1);
+
+		await post_json('/api/guilds/create', {
+			name: 'History Destination',
+			icon_id: 'melvorD:Farmlands'
+		}, contributor.session_token);
+		const switched = await get_campaign_info(contributor.session_token);
+		expect(switched.contribution).toBe(0);
+		expect(switched.history).toEqual(completed.history);
+		expect(switched.rankings).toEqual(completed.rankings);
+
+		const legacy_claim = await post_json<{ success: boolean }>('/api/campaign/claim', {
+			campaign_id: completion_id,
+			value: 123
+		}, contributor.session_token);
+		expect(legacy_claim.json).toEqual({ success: true });
+		expect((await get_campaign_info(contributor.session_token)).history[0].taken).toBe(123);
+	});
+
+	test('does not carry an incomplete contribution into a different Guild', async () => {
+		const pair = await make_guild_group(
+			['Partial Contributor', 'Partial Keeper'],
+			'Partial Source'
+		);
+		const contributor = pair[0];
+		await post_json('/api/campaign/contribute', { item_amount: 1 }, contributor.session_token);
+		await post_json('/api/guilds/leave', {}, contributor.session_token);
+		await post_json('/api/guilds/create', {
+			name: 'Partial Destination',
+			icon_id: 'melvorD:Farmlands'
+		}, contributor.session_token);
+
+		const switched = await get_campaign_info(contributor.session_token);
+		expect(switched.contribution).toBe(0);
+		expect(switched.history).toEqual([]);
+		expect(switched.rankings).toEqual({});
+	});
+
+	test('delivers an identity-owned completed reward through one durable receipt', async () => {
+		const contributor = await register_guild_client('Receipt Contributor', 'Receipt Guild');
+		const campaign = await get_campaign_info(contributor.session_token);
+		await post_json('/api/campaign/contribute', {
+			item_amount: campaign.item_total
+		}, contributor.session_token);
+		const completion_id = (await get_campaign_info(contributor.session_token)).history[0].id;
+		const command_id = crypto.randomUUID();
+		const claim_body = { campaign_id: completion_id, value: 456, command_id };
+		const first = await post_json<{
+			success: boolean;
+			receipt: { id: string; kind: string; effects: Array<Record<string, unknown>> };
+		}>('/api/campaign/claim', claim_body, contributor.session_token);
+		const replay = await post_json<typeof first.json>('/api/campaign/claim', claim_body, contributor.session_token);
+
+		expect(replay.json).toEqual(first.json);
+		expect(first.json.receipt).toEqual({
+			id: command_id,
+			kind: 'campaign-claim',
+			effects: [{ storage: 'gp', qty: 456 }]
+		});
+		expect((await get_events(contributor)).economy_receipts).toContainEqual(first.json.receipt);
+		await post_json('/api/economy/receipts/acknowledge', {
+			receipt_id: command_id
+		}, contributor.session_token);
+		const acknowledged = await post_json<{ success: boolean; receipt: null }>(
+			'/api/campaign/claim', claim_body, contributor.session_token
+		);
+		expect(acknowledged.json).toEqual({ success: true, receipt: null });
+		expect((await get_campaign_info(contributor.session_token)).history[0].taken).toBe(456);
 	});
 });

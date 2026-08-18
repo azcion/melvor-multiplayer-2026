@@ -76,6 +76,18 @@ describe('browser and request boundaries', () => {
 			expect((await get_with_session(`/api/events?revision=${revision}`, client.session_token)).status).toBe(400);
 	});
 
+	test('bounds and validates transfer-content identifier collections', async () => {
+		const invalid_collections = [
+			[0], [-1], [1.5], [Number.MAX_SAFE_INTEGER + 1], [1, 1],
+			Array.from({ length: 129 }, (_, index) => index + 1)
+		];
+		for (const field of ['gift_ids', 'trade_ids', 'resolved_trade_ids'])
+			for (const collection of invalid_collections) {
+				const body = { gift_ids: [], trade_ids: [], resolved_trade_ids: [], [field]: collection };
+				expect((await post('/api/transfers/get_contents', body, client.session_token)).status).toBe(400);
+			}
+	});
+
 	test('coalesces authenticated activity writes across frequent polling', async () => {
 		const poller = await register_client('Activity Write Poller');
 		await get_with_session('/api/events', poller.session_token);

@@ -36,7 +36,7 @@ test('refuses ambiguous legacy credentials when the Melvor account context is un
 	assert.match(main, /refusing to use an ambiguous legacy identity/);
 });
 
-test('shows Identities only for discovered siblings and wires the nested deletion flow', async () => {
+test('keeps sibling identities informational and requires the loaded identity to request deletion', async () => {
 	const { main, templates, language } = await sources();
 	const options = templates.slice(
 		templates.indexOf('<template id="template-mp-member-actions-modal">'),
@@ -45,22 +45,23 @@ test('shows Identities only for discovered siblings and wires the nested deletio
 
 	assert.match(options, /v-if="state\.identities\.length > 0"[^>]*state\.open_identities_from_options\(\)/);
 	assert.match(options, /template-mp-identities-modal/);
-	assert.match(options, /state\.show_identity_actions\(identity\)/);
-	assert.match(options, /template-mp-identity-actions-modal/);
+	assert.doesNotMatch(options, /state\.show_identity_actions\(identity\)/);
 	assert.match(options, /MOD_MP_IDENTITY_DELETE_ACTION/);
 	assert.match(options, /MOD_MP_IDENTITY_CANCEL_DELETION/);
 	assert.match(options, /template-mp-identity-delete-confirm-modal/);
+	assert.match(options, /state\.self_deletion/);
+	assert.match(options, /state\.profile_display_name/);
 	assert.match(main, /api_get\('\/api\/identities'\)/);
-	assert.match(main, /api_post\('\/api\/identities\/delete'/);
-	assert.match(main, /api_post\('\/api\/identities\/delete\/cancel'/);
+	assert.match(main, /api_post\('\/api\/identities\/delete', \{ client_id: this\.chat_client_id \}\)/);
+	assert.match(main, /api_post\('\/api\/identities\/delete\/cancel', \{ client_id: this\.chat_client_id \}\)/);
 	assert.match(language.MOD_MP_IDENTITY_DELETE_CONFIRM_INFO, /72-hour delay/);
 	assert.match(language.MOD_MP_IDENTITY_DELETE_CONFIRM_EFFECTS, /Marketplace listings, Trades, and Gifts canceled/);
 });
 
 test('keeps identity and Chat modal branches safe while their previous view tears down', async () => {
 	const { templates } = await sources();
-	const identity_actions = templates.slice(
-		templates.indexOf('<template id="template-mp-identity-actions-modal">'),
+	const identity_confirmation = templates.slice(
+		templates.indexOf('<template id="template-mp-identity-delete-confirm-modal">'),
 		templates.indexOf('<template id="template-mp-identity-account-changed-modal">')
 	);
 	const chat_view = templates.slice(
@@ -68,9 +69,8 @@ test('keeps identity and Chat modal branches safe while their previous view tear
 		templates.indexOf('<template id="template-mp-profile-modal">')
 	);
 
-	assert.match(identity_actions, /state\.selected_identity\?\.deletion/);
-	assert.match(identity_actions, /state\.selected_identity\?\.deletion\?\.execute_at/);
-	assert.match(identity_actions, /state\.selected_identity\?\.display_name/);
+	assert.match(identity_confirmation, /state\.profile_display_name/);
+	assert.doesNotMatch(identity_confirmation, /state\.selected_identity/);
 	assert.match(chat_view, /state\.get_chat_participant_icon\(\)/);
 	assert.match(chat_view, /state\.selected_chat_conversation\?\.participant\?\.display_name/);
 });

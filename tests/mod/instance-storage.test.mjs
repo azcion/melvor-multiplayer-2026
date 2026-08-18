@@ -129,6 +129,7 @@ test('keeps every server-coupled character value behind instance storage', async
 		'charity_bonus_timeout',
 		'pending_banishment_guild_name',
 		'processed_banishment_claim_ids',
+		'transfer_delivery_state',
 		'processed_raid_cache_ids',
 		'raid_terminal_result',
 		'transfer_inventory'

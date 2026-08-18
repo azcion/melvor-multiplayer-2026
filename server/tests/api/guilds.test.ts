@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { make_guildmates } from '../support/fixtures';
+import { make_guild_group, make_guildmates } from '../support/fixtures';
 import { get_json_with_session, post, post_json, register_client } from '../support/http';
 import { db_count, db_run } from '../support/persistence';
 import { SHADOWED_AFTER } from '../../shadowed';
@@ -19,6 +19,7 @@ type GuildState = {
 		client_id: number;
 		display_name: string;
 		icon_id: string;
+		last_seen_at: number | null;
 	}>;
 	applicants?: Array<{
 		application_id: number;
@@ -309,6 +310,45 @@ describe('guild API', () => {
 		expect(restored.members?.map(member => member.display_name).sort()).toEqual([
 			'Shadowed Member',
 			'Visible Member'
+		]);
+	});
+
+	test('orders Guild members by latest multiplayer activity with unknown activity last', async () => {
+		const [newest, older, shadowed, unknown] = await make_guild_group([
+			'Zulu Newest',
+			'Alpha Older',
+			'Beta Shadowed',
+			'Aardvark Unknown'
+		], 'Activity Order Guild');
+		const now = Date.now();
+		const older_at = now - 60_000;
+		const shadowed_at = now - SHADOWED_AFTER - 60_000;
+		await db_run(
+			'UPDATE `clients` SET `last_multiplayer_active_at` = CASE `id` ' +
+			'WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN 0 END WHERE `id` IN (?, ?, ?)',
+			[
+				older.client_id, older_at,
+				shadowed.client_id, shadowed_at,
+				unknown.client_id,
+				older.client_id, shadowed.client_id, unknown.client_id
+			]
+		);
+
+		const state = await get_guild_state(newest.session_token);
+		expect(state.members?.map(member => member.display_name)).toEqual([
+			'Zulu Newest',
+			'Alpha Older'
+		]);
+
+		const shadowed_directory = await get_json_with_session<{
+			members: NonNullable<GuildState['members']>;
+		}>('/api/guilds/members/shadowed?page=0&search=', newest.session_token);
+		expect(shadowed_directory.json.members.map(member => ({
+			display_name: member.display_name,
+			last_seen_at: member.last_seen_at
+		}))).toEqual([
+			{ display_name: 'Beta Shadowed', last_seen_at: shadowed_at },
+			{ display_name: 'Aardvark Unknown', last_seen_at: null }
 		]);
 	});
 

@@ -28,6 +28,9 @@ describe('charity API', () => {
 		const invalid_quantity = await post('/api/charity/donate', {
 			items: [{ id: 'melvorD:Coal_Ore', qty: 0 }]
 		}, client.session_token);
+		const fractional_quantity = await post('/api/charity/donate', {
+			items: [{ id: 'melvorD:Coal_Ore', qty: 0.5 }]
+		}, client.session_token);
 		const malformed_id = await post('/api/charity/donate', {
 			items: [{ id: 'exampleMod', qty: 1 }]
 		}, client.session_token);
@@ -36,6 +39,7 @@ describe('charity API', () => {
 		}, client.session_token);
 
 		expect(invalid_quantity.status).toBe(400);
+		expect(fractional_quantity.status).toBe(400);
 		expect(malformed_id.status).toBe(400);
 		expect(modded.json.success).toBe(true);
 		const contents = await get_charity_contents(client.session_token);
@@ -44,11 +48,11 @@ describe('charity API', () => {
 		expect(contents.items[0].expires_at).toBeGreaterThan(Date.now() + 3 * 24 * 60 * 60 * 1000);
 	});
 
-	test('merges donations and exposes their truncated quantities', async () => {
+	test('merges positive integer donations', async () => {
 		const client = await register_guild_client('Charity Donor');
 		await post_json('/api/charity/donate', {
 			items: [
-				{ id: 'melvorD:Charity_Test_A', qty: 10.9 },
+				{ id: 'melvorD:Charity_Test_A', qty: 10 },
 				{ id: 'melvorD:Charity_Test_B', qty: 5 }
 			]
 		}, client.session_token);
@@ -61,6 +65,20 @@ describe('charity API', () => {
 			expect.objectContaining({ id: 'melvorD:Charity_Test_A', qty: 12 }),
 			expect.objectContaining({ id: 'melvorD:Charity_Test_B', qty: 5 })
 		]));
+	});
+
+	test('accepts at most 32 distinct donation entries', async () => {
+		const client = await register_guild_client('Charity Entry Limit');
+		const maximum = await post_json<{ success: boolean }>('/api/charity/donate', {
+			items: Array.from({ length: 32 }, (_, index) => ({ id: `melvorD:Charity_Limit_${index}`, qty: 1 }))
+		}, client.session_token);
+		const too_many = await post('/api/charity/donate', {
+			items: Array.from({ length: 33 }, (_, index) => ({ id: `melvorD:Charity_Extra_${index}`, qty: 1 }))
+		}, client.session_token);
+
+		expect(maximum.json.success).toBe(true);
+		expect(too_many.status).toBe(400);
+		expect((await get_charity_contents(client.session_token)).items).toHaveLength(32);
 	});
 
 	test('resets a merged stack expiry and removes expired stacks during reads', async () => {

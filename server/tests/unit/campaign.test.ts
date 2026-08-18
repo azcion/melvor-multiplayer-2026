@@ -76,6 +76,58 @@ describe('campaign balancing', () => {
 		database.close();
 	});
 
+	test('backfills only completed contributions into identity-owned history that survives Guild deletion', () => {
+		const database = new Database(':memory:', { strict: true });
+		database.run('PRAGMA foreign_keys = ON');
+		for (const migration of migrations.filter(entry => entry.version < 33)) {
+			if (migration.foreign_keys_disabled)
+				database.run('PRAGMA foreign_keys = OFF');
+			database.transaction(() => database.run(migration.sql)).immediate();
+			if (migration.foreign_keys_disabled)
+				database.run('PRAGMA foreign_keys = ON');
+		}
+		database.query(
+			'INSERT INTO `clients` (`id`, `client_identifier`, `client_key`, `friend_code`, `display_name`, `icon_id`) ' +
+			'VALUES(1, ?, ?, ?, ?, ?)'
+		).run('campaign-migration-client', 'key', 'friend', 'Campaign Migration', 'melvorD:Plant');
+		database.query(
+			'INSERT INTO `guilds` (`id`, `name`, `icon_id`) VALUES(2, ?, ?)'
+		).run('Campaign Migration Guild', 'melvorD:Farmlands');
+		database.query(
+			'INSERT INTO `campaign_state` ' +
+			'(`id`, `guild_id`, `campaign_id`, `item_id`, `item_amount`, `item_current`, `complete`, `campaign_next`) ' +
+			'VALUES(101, 2, ?, ?, 20, 20, 1, 1000), (102, 2, ?, ?, 30, 5, 0, 0)'
+		).run('campaign_jungle', 'melvorD:Logs', 'campaign_snow', 'melvorD:Coal_Ore');
+		database.query(
+			'INSERT INTO `campaign_contributions` (`campaign_id`, `client_id`, `item_amount`, `taken`) ' +
+			'VALUES(101, 1, 20, 321), (102, 1, 5, 0)'
+		).run();
+
+		const migration = migrations.find(entry => entry.version === 33);
+		expect(migration?.foreign_keys_disabled).not.toBe(true);
+		database.transaction(() => database.run(migration?.sql ?? '')).immediate();
+
+		expect(database.query(
+			'SELECT `source_campaign_state_id`, `source_guild_id`, `client_id`, `campaign_id`, `item_id`, ' +
+			'`item_amount`, `taken` FROM `campaign_completions`'
+		).all()).toEqual([{
+			source_campaign_state_id: 101,
+			source_guild_id: 2,
+			client_id: 1,
+			campaign_id: 'campaign_jungle',
+			item_id: 'melvorD:Logs',
+			item_amount: 20,
+			taken: 321
+		}]);
+
+		database.query('DELETE FROM `guilds` WHERE `id` = 2').run();
+		expect(database.query('SELECT COUNT(*) AS `count` FROM `campaign_state`').get()).toEqual({ count: 0 });
+		expect(database.query('SELECT COUNT(*) AS `count` FROM `campaign_contributions`').get()).toEqual({ count: 0 });
+		expect(database.query('SELECT COUNT(*) AS `count` FROM `campaign_completions`').get()).toEqual({ count: 1 });
+		expect(database.query('PRAGMA foreign_key_check').all()).toEqual([]);
+		database.close();
+	});
+
 	test('advances five to fifteen percent without exceeding the automatic allowance', () => {
 		expect(get_campaign_auto_advance(1000, 0, 0)).toBe(50);
 		expect(get_campaign_auto_advance(1000, 0, 0.5)).toBe(100);

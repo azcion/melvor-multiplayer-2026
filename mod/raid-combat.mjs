@@ -30,6 +30,7 @@ export class RaidCombatController {
 		this.on_terminal = on_terminal;
 		this.active = null;
 		this.expiry_timer = null;
+		this.flush_request = null;
 	}
 
 	begin(reservation) {
@@ -95,17 +96,27 @@ export class RaidCombatController {
 		return this.active !== null;
 	}
 
-	async flush() {
-		const terminal = this.storage.get();
-		if (terminal === null)
-			return true;
+	flush() {
+		if (this.flush_request !== null)
+			return this.flush_request;
+		this.flush_request = this.flush_pending().finally(() => this.flush_request = null);
+		return this.flush_request;
+	}
 
+	async flush_pending() {
 		try {
-			const result = await this.settle(terminal);
-			if (result?.success !== true)
-				return false;
-			this.storage.remove();
-			return true;
+			while (true) {
+				const terminal = this.storage.get();
+				if (terminal === null)
+					return true;
+				const result = await this.settle(terminal);
+				if (result?.success !== true)
+					return false;
+				const current = this.storage.get();
+				if (current?.assault_id === terminal.assault_id &&
+					current.settlement_key === terminal.settlement_key)
+					this.storage.remove();
+			}
 		} catch {
 			return false;
 		}

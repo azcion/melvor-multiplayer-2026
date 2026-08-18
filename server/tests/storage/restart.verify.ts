@@ -39,6 +39,10 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 		active: boolean;
 		contribution: number;
 	}>('/api/campaign/info', state.first.session_token);
+	const campaign_history = await get_json_with_session<{
+		history: Array<{ id: number; campaign_id: string; taken: number }>;
+		rankings: Record<string, number>;
+	}>('/api/campaign/info', state.campaign_history_client.session_token);
 	const equipment = await get_json_with_session<{
 		client_id: number;
 		slots: Array<{ slot_id: string; item_id: string }>;
@@ -59,9 +63,18 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	}>(`/api/chat/messages?conversation_id=${state.chat_conversation_id}`, state.second.session_token);
 	const chat_state = await get_json_with_session<{
 		messaging_enabled: boolean;
+		guild_chat_enabled: boolean;
 		budget_enabled: boolean;
 		budget: { credits: number };
 	}>('/api/chat/state', state.first.session_token);
+	const guild_inbox = await get_json_with_session<{
+		guild_chat: { affiliated: boolean; enabled: boolean };
+		conversations: Array<{ conversation_kind: string }>;
+	}>('/api/chat/conversations?capabilities=guild-chat-v1', state.first.session_token);
+	const guild_messages = await get_json_with_session<{
+		messages: Array<{ message_id: number; content: string }>;
+	}>(`/api/chat/messages?conversation_kind=guild&conversation_id=${state.guild_id}`,
+		state.second.session_token);
 	const support_inbox = await get_json_with_session<{
 		conversations: Array<{ conversation_kind: string; conversation_id: number; participant: { display_name: string } }>;
 	}>('/api/chat/conversations', state.support_member.session_token);
@@ -132,6 +145,12 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	}));
 	expect(campaign.json.active).toBe(true);
 	expect(campaign.json.contribution).toBe(state.campaign_contribution);
+	expect(campaign_history.json.history).toContainEqual(expect.objectContaining({
+		id: state.campaign_completion_id,
+		campaign_id: state.campaign_completion_type,
+		taken: 0
+	}));
+	expect(campaign_history.json.rankings[state.campaign_completion_type]).toBe(1);
 	expect(equipment.json).toEqual({ client_id: state.first_id, slots: state.equipment_slots });
 	expect(status.json).toEqual({
 		client_id: state.first_id,
@@ -147,8 +166,15 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 		content: 'Restart-safe private Message'
 	}));
 	expect(chat_state.json.messaging_enabled).toBe(false);
+	expect(chat_state.json.guild_chat_enabled).toBe(false);
 	expect(chat_state.json.budget_enabled).toBe(false);
 	expect(chat_state.json.budget.credits).toBe(5);
+	expect(guild_inbox.json.guild_chat).toEqual({ affiliated: true, enabled: false });
+	expect(guild_inbox.json.conversations.some(conversation => conversation.conversation_kind === 'guild')).toBe(false);
+	expect(guild_messages.json.messages).toContainEqual(expect.objectContaining({
+		message_id: state.guild_chat_message_id,
+		content: 'Restart-safe Guild Message'
+	}));
 	expect(support_inbox.json.conversations).toContainEqual(expect.objectContaining({
 		conversation_kind: 'support', conversation_id: state.support_conversation_id,
 		participant: expect.objectContaining({ display_name: 'Restart Player @mp' })

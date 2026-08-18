@@ -11,6 +11,16 @@ export type campaign_state = {
 	complete: number;
 };
 
+export type campaign_completions = {
+	source_campaign_state_id: number;
+	source_guild_id: number;
+	client_id: number;
+	campaign_id: string;
+	item_id: string;
+	item_amount: number;
+	taken: number;
+};
+
 export type charity_items = {
 	guild_id: number;
 	item_id: string;
@@ -20,7 +30,16 @@ export type charity_items = {
 
 export type client_sessions = {
 	session_token: string,
-	client_id: number
+	client_id: number,
+	mod_version: string | null
+};
+
+export type client_runtime_snapshots = {
+	client_id: number;
+	mod_version: string;
+	active_mods: string;
+	game_mode_id: string | null;
+	reported_at: number;
 };
 
 export type clients = {
@@ -36,9 +55,12 @@ export type clients = {
 	equipment_visible: number,
 	status_visible: number,
 	gp_visible: number,
+	game_mode_visible: number,
+	active_mods_visible: number,
 	messaging_enabled: number,
 	messaging_credits: number,
 	messaging_refill_at: number,
+	guild_chat_enabled: number,
 	melvor_account_id: number | null,
 	manual_melvor_account_link: number,
 	deleted_at: number | null,
@@ -223,6 +245,21 @@ export type guild_memberships = {
 	client_id: number;
 	guild_id: number;
 	charitree_take_available_at: number;
+};
+
+export type guild_chat_messages = {
+	id: number;
+	guild_id: number;
+	sender_id: number;
+	idempotency_key: string;
+	content: string;
+	created_at: number;
+};
+
+export type guild_chat_read_state = {
+	guild_id: number;
+	client_id: number;
+	last_read_message_id: number;
 };
 
 export type guild_petitions = {

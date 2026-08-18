@@ -152,6 +152,26 @@ body.superDark {
 	flex-direction: column;
 }
 
+.mp-chat-categories,
+.mp-chat-category {
+	display: flex;
+	flex-direction: column;
+}
+
+.mp-chat-category + .mp-chat-category {
+	border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.mp-chat-category-heading {
+	padding: 12px 16px 8px;
+	background: rgba(255, 255, 255, 0.03);
+}
+
+.mp-guild-chat-opted-out {
+	padding-top: 12px;
+	padding-bottom: 16px;
+}
+
 .mp-chat-conversation {
 	display: flex;
 	align-items: center;
@@ -389,10 +409,17 @@ body.superDark {
 }
 
 .mp-guild-member-details,
-.mp-guild-member-indicators {
+.mp-guild-member-indicators,
+.mp-guild-member-name {
 	display: flex;
 	align-items: center;
 	gap: 8px;
+}
+
+.mp-game-mode-icon {
+	width: 16px;
+	height: 16px;
+	object-fit: contain;
 }
 
 .mp-guild-member-details {
@@ -451,6 +478,20 @@ body.superDark {
 	border-color: rgba(255, 255, 255, 0.2);
 }
 
+.mp-member-danger-actions {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+	gap: 10px;
+}
+
+.mp-member-danger-actions > div {
+	display: flex;
+}
+
+.mp-member-danger-actions .btn {
+	width: 100%;
+}
+
 .mp-equipment-visibility {
 	display: flex;
 	align-items: center;
@@ -475,28 +516,57 @@ body.superDark {
 	margin: 4px 0;
 }
 
-.mp-member-actions > label {
-	justify-content: flex-start;
-}
-
-.mp-status-activity {
+.mp-game-mode-visibility,
+.mp-active-mods-visibility {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	gap: 8px;
-	margin-bottom: 12px;
+	margin: 4px 0;
+}
+
+.mp-active-mods-list {
+	margin: 0;
+	padding-left: 2.5em;
+	text-align: left;
+}
+
+.mp-active-mods-list li + li {
+	margin-top: 6px;
+}
+
+.mp-game-mode-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	margin-bottom: 4px;
 	font-weight: 600;
+}
+
+.mp-game-mode-label img,
+.mp-member-activity img {
+	width: 24px;
+	height: 24px;
+	object-fit: contain;
+}
+
+.mp-member-activity {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	font-weight: 600;
+}
+
+.mp-member-actions > label {
+	justify-content: flex-start;
 }
 
 .mp-status-skills {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 6px;
-	max-height: 360px;
-	overflow-y: scroll;
-	-webkit-overflow-scrolling: touch;
-	touch-action: pan-y;
-	overscroll-behavior-y: contain;
 }
 
 .mp-status-skill {
@@ -1437,12 +1507,6 @@ mp-item-icon.mp-charitree-new-item {
 
 	.mp-profile-layout {
 		display: block;
-	}
-
-	.mp-profile-modal-popup .mp-status-skills {
-		height: min(360px, 45vh);
-		height: min(360px, 45dvh);
-		max-height: none;
 	}
 
 	.mp-chat-header {

@@ -134,6 +134,43 @@ describe('friends API', () => {
 		expect(second_after.json.friends).toEqual([]);
 	});
 
+	test('collapses reciprocal requests into one friendship when both players accept', async () => {
+		const [first, second] = await Promise.all([
+			register_client('Reciprocal First'),
+			register_client('Reciprocal Second')
+		]);
+		await Promise.all([
+			post_json('/api/friends/add', { friend_code: second.friend_code }, first.session_token),
+			post_json('/api/friends/add', { friend_code: first.friend_code }, second.session_token)
+		]);
+		const [first_request, second_request] = await Promise.all([
+			get_events(first),
+			get_events(second)
+		]);
+		const accepted = await Promise.all([
+			post_json<{ success: boolean }>('/api/friends/accept', {
+				request_id: first_request.friend_requests[0].request_id
+			}, first.session_token),
+			post_json<{ success: boolean }>('/api/friends/accept', {
+				request_id: second_request.friend_requests[0].request_id
+			}, second.session_token)
+		]);
+		const [first_friends, second_friends, first_events, second_events] = await Promise.all([
+			get_json_with_session<{ friends: Friend[] }>('/api/friends/get', first.session_token),
+			get_json_with_session<{ friends: Friend[] }>('/api/friends/get', second.session_token),
+			get_events(first),
+			get_events(second)
+		]);
+
+		expect(accepted.filter(result => result.json.success)).toHaveLength(1);
+		expect(first_friends.json.friends).toHaveLength(1);
+		expect(first_friends.json.friends[0].display_name).toBe('Reciprocal Second');
+		expect(second_friends.json.friends).toHaveLength(1);
+		expect(second_friends.json.friends[0].display_name).toBe('Reciprocal First');
+		expect(first_events.friend_requests).toEqual([]);
+		expect(second_events.friend_requests).toEqual([]);
+	});
+
 	test('ignores and removes a pending request', async () => {
 		const [sender, recipient] = await Promise.all([
 			register_client('Ignored Sender'),

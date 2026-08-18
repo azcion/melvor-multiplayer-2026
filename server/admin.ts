@@ -15,6 +15,7 @@ function usage(output: AdminOutput): number {
   bun run admin.ts status
   bun run admin.ts registrations open|close
   bun run admin.ts maintenance on|off
+  bun run admin.ts release-version VERSION|clear
   bun run admin.ts identity inspect CLIENT_ID
   bun run admin.ts identity enable|disable CLIENT_ID`);
 	return 2;
@@ -27,6 +28,10 @@ function parse_positive_integer(value: string | undefined): number | null {
 
 function set_setting(key: string, value: string): void {
 	db.query('UPDATE `service_settings` SET `value` = ? WHERE `key` = ?').run(value, key);
+}
+
+function is_release_version(value: string | undefined): value is string {
+	return typeof value === 'string' && /^[0-9]+\.[0-9]+\.[0-9]+$/.test(value) && value.length <= 64;
 }
 
 export function run_admin(args: string[], output: AdminOutput = console_output): number {
@@ -46,6 +51,7 @@ export function run_admin(args: string[], output: AdminOutput = console_output):
 
 			output.log(`registrations=${get_service_setting('registrations_open') === '1' ? 'open' : 'closed'}`);
 			output.log(`maintenance=${get_service_setting('maintenance') === '1' ? 'on' : 'off'}`);
+			output.log(`released_mod_version=${get_service_setting('released_mod_version') || 'none'}`);
 			output.log(`identities=${identity_count}`);
 			output.log(`disabled_identities=${disabled_count}`);
 			return 0;
@@ -61,6 +67,14 @@ export function run_admin(args: string[], output: AdminOutput = console_output):
 				return usage(output);
 			set_setting('maintenance', action === 'on' ? '1' : '0');
 			output.log(`Maintenance mode ${action}.`);
+			return 0;
+		case 'release-version':
+			if (args.length !== 2 || (action !== 'clear' && !is_release_version(action)))
+				return usage(output);
+			set_setting('released_mod_version', action === 'clear' ? '' : action);
+			output.log(action === 'clear'
+				? 'Released mod version cleared.'
+				: `Released mod version set to ${action}.`);
 			return 0;
 		case 'identity': {
 			if (args.length !== 3 || !['inspect', 'enable', 'disable'].includes(action ?? ''))

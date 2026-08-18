@@ -138,6 +138,38 @@ test('records one immutable terminal result and retries it durably', async () =>
 	assert.ok(submitted.length >= 2);
 });
 
+test('serializes settlement and preserves a newer terminal result', async () => {
+	const storage = memory_storage();
+	const submitted = [];
+	const resolvers = [];
+	const controller = new RaidCombatController({
+		now: () => 2_000,
+		storage,
+		settle: terminal => {
+			submitted.push(terminal);
+			return new Promise(resolve => resolvers.push(resolve));
+		}
+	});
+
+	controller.begin(reservation());
+	controller.finish('success');
+	const flush = controller.flush();
+	controller.begin(reservation({ assault_id: 'assault-2', settlement_key: 'settlement-2' }));
+	const newer = controller.finish('death');
+	assert.deepEqual(storage.get(), newer);
+	assert.equal(submitted.length, 1);
+
+	resolvers.shift()({ success: true });
+	await Promise.resolve();
+	assert.deepEqual(storage.get(), newer);
+	assert.equal(submitted.length, 2);
+
+	resolvers.shift()({ success: true });
+	assert.equal(await flush, true);
+	assert.equal(storage.get(), null);
+	assert.deepEqual(submitted.map(terminal => terminal.assault_id), ['assault-1', 'assault-2']);
+});
+
 test('combat integration retains only the guarded selection patch', () => {
 	const { controller, patches } = combat_harness();
 	assert.deepEqual([...patches.keys()], ['selectMonster']);

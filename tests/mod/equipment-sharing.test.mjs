@@ -5,10 +5,19 @@ import test from 'node:test';
 const root = new URL('../../', import.meta.url);
 
 test('routes profile controls through one Options member-actions modal', async () => {
-	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
+	const [templates, main, language_text] = await Promise.all([
+		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
+		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		readFile(new URL('mod/data/lang/en.json', root), 'utf8')
+	]);
+	const language = JSON.parse(language_text);
 	const account_options = templates.slice(
 		templates.indexOf('<template id="template-mp-account-options">'),
 		templates.indexOf('<template id="template-mp-member-actions-modal">')
+	);
+	const member_actions = templates.slice(
+		templates.indexOf('<template id="template-mp-member-actions-modal">'),
+		templates.indexOf('<template id="template-mp-identities-modal">')
 	);
 
 	assert.match(account_options, /MOD_MP_MENU_HEADER/);
@@ -18,7 +27,13 @@ test('routes profile controls through one Options member-actions modal', async (
 	assert.doesNotMatch(templates, /template-mp-online-button|template-mp-dropdown|mp-online-dropdown/);
 	assert.match(templates, /template-mp-member-actions-modal/);
 	assert.match(templates, /MOD_MP_EQUIPMENT_VISIBILITY/);
-	assert.match(templates, /v-show="state\.is_guild_member"[\s\S]*MOD_MP_GUILD_DANGER_ZONE/);
+	assert.match(member_actions, /MOD_MP_GUILD_DANGER_ZONE[\s\S]*class="mp-member-danger-actions"[\s\S]*v-show="state\.is_guild_member"[\s\S]*MOD_MP_BUTTON_LEAVE_GUILD[\s\S]*MOD_MP_IDENTITY_DELETE_ACTION/);
+	assert.doesNotMatch(member_actions, /MOD_MP_IDENTITY_DANGER_ZONE/);
+	assert.match(member_actions, /state\.preview_self_from_options\(\)/);
+	assert.match(member_actions, /:disabled="state\.member_actions_preview"[\s\S]*MOD_MP_CHAT_START/);
+	assert.match(main, /async preview_self_from_options\(\)[\s\S]*await this\.close_modal_and_wait\('member-actions-modal'\);[\s\S]*this\.show_member_actions\(member, true\)/);
+	assert.match(main, /member_actions_preview[\s\S]*capture_equipment_snapshot\(\)[\s\S]*capture_status_snapshot\(\)/);
+	assert.equal(language.MOD_MP_PROFILE_PREVIEW, 'See How Others See You');
 });
 
 test('moves the multiplayer entry point into the vanilla account menu', async () => {
@@ -39,7 +54,7 @@ test('moves the multiplayer entry point into the vanilla account menu', async ()
 test('makes the Multiplayer sidebar category collapsible', async () => {
 	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
 
-	assert.match(main, /sidebar\.category\('Multiplayer', \{ before: 'Combat', toggleable: true \}\);/);
+	assert.match(main, /sidebar\.category\('Multiplayer', \{[\s\S]*before: 'Combat',[\s\S]*toggleable: true,[\s\S]*MOD_MP_MENU_HEADER/);
 });
 
 test('makes Guild members selectable and keeps departure out of the Guild page', async () => {
@@ -53,7 +68,10 @@ test('makes Guild members selectable and keeps departure out of the Guild page',
 });
 
 test('keeps the detached member-actions Guild control mounted during departure', async () => {
-	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
+	const [templates, style] = await Promise.all([
+		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
+		readFile(new URL('mod/ui/style.css', root), 'utf8')
+	]);
 	const member_actions = templates.slice(
 		templates.indexOf('<template id="template-mp-member-actions-modal">'),
 		templates.indexOf('<template id="template-mp-identities-modal">')
@@ -61,6 +79,8 @@ test('keeps the detached member-actions Guild control mounted during departure',
 
 	assert.match(member_actions, /<div v-show="state\.is_guild_member">[\s\S]*state\.leave_guild_from_options\(\)/);
 	assert.doesNotMatch(member_actions, /<template v-if="state\.is_guild_member">/);
+	assert.match(style, /\.mp-member-danger-actions \{[^}]*display: grid;[^}]*repeat\(auto-fit, minmax\(140px, 1fr\)\);/s);
+	assert.match(style, /\.mp-member-danger-actions \.btn \{[^}]*width: 100%;/s);
 });
 
 test('keeps remote equipment read-only, quantity-free, and memory-only', async () => {

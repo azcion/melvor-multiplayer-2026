@@ -1,5 +1,6 @@
 import { db, get_or_create_melvor_account, type MelvorAccountInput } from './db';
 import type * as db_row from './db/types/db_types';
+import { execute_client_deletion, type DeletionExecution } from './identity_deletion';
 
 export type { MelvorAccountInput } from './db';
 
@@ -9,11 +10,7 @@ export const CLIENT_DELETION_MAINTENANCE_INTERVAL = 60 * 1000;
 const MAX_CLOUD_USERNAME_LENGTH = 64;
 const MAX_PLAYFAB_ID_LENGTH = 128;
 
-export type DeletionExecution = {
-	target_client_id: number;
-	guild_id: number | null;
-	dissolved: boolean;
-};
+export type { DeletionExecution } from './identity_deletion';
 
 export function parse_melvor_account(value: Record<string, unknown>): MelvorAccountInput | null | undefined {
 	const cloud_username = value.cloud_username;
@@ -114,14 +111,25 @@ export function list_sibling_identities(client_id: number) {
 	}));
 }
 
+export function get_client_deletion_status(client_id: number) {
+	const request = db.query<{
+		requested_at: number;
+		execute_at: number;
+	}, [number, number]>(
+		'SELECT `requested_at`, `execute_at` FROM `client_deletion_requests` ' +
+		'WHERE `target_client_id` = ? AND `requester_client_id` = ? ' +
+		'AND `cancelled_at` IS NULL AND `executed_at` IS NULL LIMIT 1'
+	).get(client_id, client_id);
+	return request === null ? null : { ...request, can_cancel: true };
+}
+
 export function schedule_client_deletion(requester_client_id: number, target_client_id: number, now = Date.now()) {
-	if (!Number.isSafeInteger(target_client_id) || target_client_id < 1 || target_client_id === requester_client_id)
+	if (!Number.isSafeInteger(target_client_id) || target_client_id < 1 || target_client_id !== requester_client_id)
 		return 'bad_request' as const;
 	const schedule = db.transaction(() => {
 		const sibling = db.query<{ id: number }, [number, number]>(
-			'SELECT target.`id` FROM `clients` AS requester JOIN `clients` AS target ' +
-			'ON target.`melvor_account_id` = requester.`melvor_account_id` ' +
-			'WHERE requester.`id` = ? AND target.`id` = ? AND requester.`melvor_account_id` IS NOT NULL ' +
+			'SELECT target.`id` FROM `clients` AS requester JOIN `clients` AS target ON target.`id` = requester.`id` ' +
+			'WHERE requester.`id` = ? AND target.`id` = ? ' +
 			'AND requester.`deleted_at` IS NULL AND target.`deleted_at` IS NULL LIMIT 1'
 		).get(requester_client_id, target_client_id);
 		if (sibling === null)
@@ -147,7 +155,7 @@ export function cancel_scheduled_client_deletion(
 	target_client_id: number,
 	now = Date.now()
 ) {
-	if (!Number.isSafeInteger(target_client_id) || target_client_id < 1 || target_client_id === requester_client_id)
+	if (!Number.isSafeInteger(target_client_id) || target_client_id < 1 || target_client_id !== requester_client_id)
 		return 'bad_request' as const;
 	const updated = db.query(
 		'UPDATE `client_deletion_requests` SET `cancelled_at` = ? WHERE `target_client_id` = ? ' +
@@ -155,133 +163,6 @@ export function cancel_scheduled_client_deletion(
 		'AND `execute_at` > ?'
 	).run(now, target_client_id, requester_client_id, now);
 	return updated.changes === 1 ? 'cancelled' as const : 'missing' as const;
-}
-
-function ensure_deletion_return(
-	request_id: number,
-	client_id: number,
-	source_display_name: string,
-	now: number
-): number {
-	const row = db.query<{ id: number }, [number, number, string, number]>(
-		'INSERT INTO `client_deletion_returns` (`request_id`, `client_id`, `source_display_name`, `created_at`) ' +
-		'VALUES(?, ?, ?, ?) ON CONFLICT (`request_id`, `client_id`) DO UPDATE SET ' +
-		'`source_display_name` = excluded.`source_display_name` RETURNING `id`'
-	).get(request_id, client_id, source_display_name, now) as { id: number };
-	return row.id;
-}
-
-function add_deletion_return_item(return_id: number, item_id: string, qty: number) {
-	if (qty <= 0)
-		return;
-	db.query(
-		'INSERT INTO `client_deletion_return_items` (`return_id`, `item_id`, `qty`) VALUES(?, ?, ?) ' +
-		'ON CONFLICT (`return_id`, `item_id`) DO UPDATE SET `qty` = `qty` + excluded.`qty`'
-	).run(return_id, item_id, qty);
-}
-
-function hide_client_chat(client_id: number) {
-	const conversations = db.query<{ id: number; latest_message_id: number }, [number, number]>(
-		'SELECT conversation.`id`, COALESCE(MAX(message.`id`), 0) AS `latest_message_id` ' +
-		'FROM `chat_conversations` AS conversation ' +
-		'LEFT JOIN `chat_messages` AS message ON message.`conversation_id` = conversation.`id` ' +
-		'WHERE conversation.`participant_low_id` = ? OR conversation.`participant_high_id` = ? ' +
-		'GROUP BY conversation.`id`'
-	).all(client_id, client_id);
-	for (const conversation of conversations)
-		db.query(
-			'UPDATE `chat_participants` SET `conversation_hidden` = 1, ' +
-			'`hidden_through_message_id` = MAX(`hidden_through_message_id`, ?) WHERE `conversation_id` = ?'
-		).run(conversation.latest_message_id, conversation.id);
-}
-
-function execute_client_deletion(request: db_row.client_deletion_requests, now: number): DeletionExecution {
-	const target = db.query<{ display_name: string; deleted_at: number | null }, [number]>(
-		'SELECT `display_name`, `deleted_at` FROM `clients` WHERE `id` = ? LIMIT 1'
-	).get(request.target_client_id) as { display_name: string; deleted_at: number | null };
-	if (target.deleted_at !== null) {
-		db.query('UPDATE `client_deletion_requests` SET `executed_at` = ? WHERE `id` = ?').run(now, request.id);
-		return { target_client_id: request.target_client_id, guild_id: null, dissolved: false };
-	}
-
-	const membership = db.query<{ id: number; guild_id: number; guild_name: string; guild_type: string }, [number]>(
-		'SELECT membership.`id`, membership.`guild_id`, guild.`name` AS `guild_name`, guild.`type` AS `guild_type` ' +
-		'FROM `guild_memberships` AS membership JOIN `guilds` AS guild ON guild.`id` = membership.`guild_id` ' +
-		'WHERE membership.`client_id` = ? LIMIT 1'
-	).get(request.target_client_id);
-	const target_return_id = () => ensure_deletion_return(
-		request.id,
-		request.target_client_id,
-		target.display_name,
-		now
-	);
-
-	const market_items = db.query<db_row.market_items, [number]>(
-		'SELECT * FROM `market_items` WHERE `client_id` = ?'
-	).all(request.target_client_id);
-	let market_gp = 0;
-	for (const item of market_items) {
-		add_deletion_return_item(target_return_id(), item.item_id, item.available);
-		market_gp += Math.max((item.qty - item.available) * item.price - item.payout, 0);
-	}
-	if (market_gp > 0)
-		db.query('UPDATE `client_deletion_returns` SET `gp` = `gp` + ? WHERE `id` = ?')
-			.run(market_gp, target_return_id());
-	db.query('DELETE FROM `market_items` WHERE `client_id` = ?').run(request.target_client_id);
-
-	const trades = db.query<db_row.trade_offers, [number, number]>(
-		'SELECT * FROM `trade_offers` WHERE `sender_id` = ? OR `recipient_id` = ?'
-	).all(request.target_client_id, request.target_client_id);
-	for (const trade of trades) {
-		const items = db.query<db_row.trade_items, [number]>(
-			'SELECT * FROM `trade_items` WHERE `trade_id` = ?'
-		).all(trade.trade_id);
-		for (const item of items) {
-			const owner_id = item.counter === 0 ? trade.sender_id : trade.recipient_id;
-			const return_id = ensure_deletion_return(request.id, owner_id, target.display_name, now);
-			add_deletion_return_item(return_id, item.item_id, item.qty);
-		}
-		db.query('DELETE FROM `trade_items` WHERE `trade_id` = ?').run(trade.trade_id);
-		db.query('DELETE FROM `trade_offers` WHERE `trade_id` = ?').run(trade.trade_id);
-	}
-
-	const gifts = db.query<db_row.gifts, [number, number]>(
-		'SELECT * FROM `gifts` WHERE `client_id` = ? OR `sender_id` = ?'
-	).all(request.target_client_id, request.target_client_id);
-	for (const gift of gifts) {
-		const owner_id = (gift.flags & 1) === 1 ? gift.client_id : gift.sender_id;
-		const return_id = ensure_deletion_return(request.id, owner_id, target.display_name, now);
-		const items = db.query<db_row.gift_items, [number]>(
-			'SELECT * FROM `gift_items` WHERE `gift_id` = ?'
-		).all(gift.gift_id);
-		for (const item of items)
-			add_deletion_return_item(return_id, item.item_id, item.qty);
-		db.query('DELETE FROM `gift_items` WHERE `gift_id` = ?').run(gift.gift_id);
-		db.query('DELETE FROM `gifts` WHERE `gift_id` = ?').run(gift.gift_id);
-	}
-
-	db.query('DELETE FROM `guild_applications` WHERE `client_id` = ?').run(request.target_client_id);
-	let dissolved = false;
-	if (membership !== null) {
-		db.query('DELETE FROM `guild_memberships` WHERE `id` = ?').run(membership.id);
-		const remaining = db.query<{ count: number }, [number]>(
-			'SELECT COUNT(*) AS `count` FROM `guild_memberships` WHERE `guild_id` = ?'
-		).get(membership.guild_id) as { count: number };
-		if (remaining.count === 0 && membership.guild_type !== 'free_fellowship') {
-			db.query('DELETE FROM `guilds` WHERE `id` = ?').run(membership.guild_id);
-			dissolved = true;
-		}
-	}
-
-	hide_client_chat(request.target_client_id);
-	db.query('DELETE FROM `client_sessions` WHERE `client_id` = ?').run(request.target_client_id);
-	db.query('UPDATE `clients` SET `deleted_at` = ? WHERE `id` = ?').run(now, request.target_client_id);
-	db.query('UPDATE `client_deletion_requests` SET `executed_at` = ? WHERE `id` = ?').run(now, request.id);
-	return {
-		target_client_id: request.target_client_id,
-		guild_id: membership?.guild_id ?? null,
-		dissolved
-	};
 }
 
 export function process_due_client_deletions(now = Date.now(), maximum = 20): DeletionExecution[] {
@@ -292,7 +173,7 @@ export function process_due_client_deletions(now = Date.now(), maximum = 20): De
 				'SELECT * FROM `client_deletion_requests` WHERE `cancelled_at` IS NULL AND `executed_at` IS NULL ' +
 				'AND `execute_at` <= ? ORDER BY `execute_at`, `id` LIMIT 1'
 			).get(now);
-			return request === null ? null : execute_client_deletion(request, now);
+			return request === null ? null : execute_client_deletion(db, request, now);
 		});
 		const result = execute.immediate();
 		if (result === null)

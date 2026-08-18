@@ -114,3 +114,33 @@ test('passes cached modal elements to the modal queue instead of creating HTML s
 	assert.match(modal_component, /modal_component_registry\.get\(template_id\)/);
 	assert.doesNotMatch(modal_component, /<mp-modal-component/);
 });
+
+test('routes every modal title through SweetAlert text without permitting an HTML title override', async () => {
+	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const queue_modal = main.slice(main.indexOf('function queue_modal'), main.indexOf('function show_modal_error'));
+
+	assert.match(queue_modal, /Object\.assign\([\s\S]*titleText:/);
+	assert.match(queue_modal, /delete modal_options\.title/);
+	assert.doesNotMatch(queue_modal, /\n\s*title:/);
+});
+
+test('destroys modal range sliders when their custom elements disconnect', async () => {
+	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const gp_slider = main.slice(main.indexOf('class MPGPSlider'), main.indexOf('class MPItemSlider'));
+	const item_slider = main.slice(main.indexOf('class MPItemSlider'),
+		main.indexOf("window.customElements.define('mp-lang-string-f'"));
+
+	for (const slider of [gp_slider, item_slider]) {
+		assert.match(slider, /disconnectedCallback\(\)/);
+		assert.match(slider, /this\.slider\?\.sliderInstance\?\.destroy\(\)/);
+		assert.match(slider, /this\.slider = null/);
+	}
+});
+
+test('ignores late item-slider attribute updates after teardown', async () => {
+	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const item_slider = main.slice(main.indexOf('class MPItemSlider'),
+		main.indexOf("window.customElements.define('mp-lang-string-f'"));
+
+	assert.match(item_slider, /attributeChangedCallback\(name, oldValue, newValue\)\s*\{\s*if \(this\.slider === null\)\s*return;/);
+});

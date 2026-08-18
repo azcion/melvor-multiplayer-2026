@@ -65,10 +65,21 @@ describe('trade API', () => {
 			recipient_id: pair.second_id,
 			items: [{ id: 'melvorD:Iron_Ore', qty: 0 }]
 		}, pair.first.session_token);
-		const offered = await offer_trade(pair.first.session_token, pair.second_id);
+		const fractional = await post('/api/trade/offer', {
+			recipient_id: pair.second_id,
+			items: [{ id: 'melvorD:Iron_Ore', qty: 0.5 }]
+		}, pair.first.session_token);
+		const too_many = await post('/api/trade/offer', {
+			recipient_id: pair.second_id,
+			items: Array.from({ length: 33 }, (_, index) => ({ id: `melvorD:Trade_Item_${index}`, qty: 1 }))
+		}, pair.first.session_token);
+		const offered = await offer_trade(pair.first.session_token, pair.second_id,
+			Array.from({ length: 32 }, (_, index) => ({ id: `melvorD:Allowed_Trade_Item_${index}`, qty: 1 })));
 		const duplicate = await offer_trade(pair.first.session_token, pair.second_id);
 
 		expect(invalid.status).toBe(400);
+		expect(fractional.status).toBe(400);
+		expect(too_many.status).toBe(400);
 		expect(offered.json.success).toBe(true);
 		expect(duplicate.json.error_lang).toBe('MOD_MP_TRADE_EXISTS');
 
@@ -89,7 +100,7 @@ describe('trade API', () => {
 		const pair = await make_guildmates('Trade Sender', 'Trade Recipient');
 		const outsider = await register_client('Trade Outsider');
 		const offered = await offer_trade(pair.first.session_token, pair.second_id, [
-			{ id: 'melvorD:Iron_Ore', qty: 10.9 },
+			{ id: 'melvorD:Iron_Ore', qty: 10 },
 			{ id: 'exampleMod:Trade_Item', qty: 2 }
 		]);
 		const trade_id = offered.json.trade_id;
@@ -255,5 +266,14 @@ describe('trade API', () => {
 			items: [{ item_id: 'melvorD:Iron_Ore', qty: 10, counter: 0 }],
 			declined: true
 		});
+
+		const resolved = await post_json<{ success: boolean }>('/api/trade/resolve', {
+			trade_id: offered.json.trade_id
+		}, pair.first.session_token);
+
+		expect(resolved.json.success).toBe(true);
+		expect((await get_events(pair.first)).resolved_trades).toEqual([]);
+		expect((await get_trade_contents(pair.first.session_token, [], [offered.json.trade_id])).json.resolved_trades)
+			.toEqual({});
 	});
 });

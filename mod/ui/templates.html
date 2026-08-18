@@ -29,8 +29,8 @@
 					<div class="mp-raid-health-copy"><span class="font-w600"><lang-string lang-id="MOD_MP_RAID_SHARED_HEALTH"></lang-string></span><span>{{ state.raid.remaining_health }} / {{ state.raid.max_health }}</span></div>
 					<div class="progress mp-raid-health"><div class="progress-bar bg-success" :style="{ width: state.raid_progress_pct + '%' }"></div></div>
 					<div class="mp-raid-stats">
-						<div><span><lang-string lang-id="MOD_MP_RAID_STATUS"></lang-string></span><strong>{{ state.raid.secured ? 'Secured' : state.raid.active ? 'Active' : 'Failed' }}</strong></div>
-						<div><span><lang-string lang-id="MOD_MP_RAID_TIME"></lang-string></span><strong>{{ state.raid.active ? state.format_raid_time(state.raid.expires_at) : 'Ended' }}</strong></div>
+						<div><span><lang-string lang-id="MOD_MP_RAID_STATUS"></lang-string></span><strong>{{ getLangString(state.raid.secured ? 'MOD_MP_RAID_STATUS_SECURED' : state.raid.active ? 'MOD_MP_RAID_STATUS_ACTIVE' : 'MOD_MP_RAID_STATUS_FAILED') }}</strong></div>
+						<div><span><lang-string lang-id="MOD_MP_RAID_TIME"></lang-string></span><strong>{{ state.raid.active ? state.format_raid_time(state.raid.expires_at) : getLangString('MOD_MP_RAID_ENDED') }}</strong></div>
 						<div><span><lang-string lang-id="MOD_MP_RAID_ASSAULTS"></lang-string></span><strong>{{ state.raid.member?.assaults ?? 0 }}</strong></div>
 						<div><span><lang-string lang-id="MOD_MP_RAID_CONTRIBUTION"></lang-string></span><strong>{{ state.raid.member?.contribution ?? 0 }} / {{ state.raid.contribution_cap }}</strong></div>
 					</div>
@@ -47,7 +47,7 @@
 			<div class="block-content mp-raid-tiers">
 				<div class="mp-raid-tier" v-for="tier in [1, 2, 3, 4]" :key="tier">
 					<img :src="state.get_raid_monster_icon(tier)">
-					<h4>Tier {{ tier }}</h4>
+					<h4><mp-lang-string-f lang-id="MOD_MP_RAID_TIER" :lang-arg-1="tier"></mp-lang-string-f></h4>
 					<div class="font-size-sm text-muted"><mp-lang-string-f lang-id="MOD_MP_RAID_TIER_PROGRESS" :lang-arg-1="state.get_raid_tier_progress(tier)"></mp-lang-string-f></div>
 					<button type="button" class="btn btn-primary" :disabled="!state.raid_can_assault" @click="state.begin_raid_assault(tier)"><lang-string lang-id="MOD_MP_RAID_BEGIN_ASSAULT"></lang-string></button>
 				</div>
@@ -58,7 +58,7 @@
 		<div class="block block-rounded" v-if="state.raid">
 			<div class="block-header block-header-default"><h3 class="block-title"><lang-string lang-id="MOD_MP_RAID_PARTICIPANTS"></lang-string></h3></div>
 			<div class="block-content p-0 mp-raid-leaderboard">
-				<div class="mp-raid-leaderboard-row" v-for="member in state.raid.leaderboard" :key="member.client_id"><img class="skill-icon-xs" :src="state.get_avatar_icon(member.icon_id)"><span class="font-w600">{{ member.display_name }}</span><span>Tier {{ member.highest_tier || '—' }}</span><span>{{ member.contribution }}</span></div>
+				<div class="mp-raid-leaderboard-row" v-for="member in state.raid.leaderboard" :key="member.client_id"><img class="skill-icon-xs" :src="state.get_avatar_icon(member.icon_id)"><span class="font-w600">{{ member.display_name }}</span><span><mp-lang-string-f lang-id="MOD_MP_RAID_TIER" :lang-arg-1="member.highest_tier || '—'"></mp-lang-string-f></span><span>{{ member.contribution }}</span></div>
 			</div>
 		</div>
 	</div>
@@ -69,12 +69,15 @@
 </template>
 <template id="template-mp-member-actions-modal">
 	<div class="mp-member-actions" v-if="state.selected_guild_member">
-		<template v-if="state.selected_guild_member.client_id === state.guild_client_id || state.guild_client_id === null">
+		<template v-if="!state.member_actions_preview && (state.selected_guild_member.client_id === state.guild_client_id || state.guild_client_id === null)">
 			<button type="button" class="btn btn-primary" @click="state.open_display_name_from_options()">
 				<lang-string lang-id="MOD_MP_MENU_CHANGE_DISPLAY_NAME"></lang-string>
 			</button>
 			<button type="button" class="btn btn-primary" @click="state.open_icon_from_options()">
 				<lang-string lang-id="MOD_MP_MENU_CHANGE_ICON"></lang-string>
+			</button>
+			<button type="button" class="btn btn-primary" @click="state.preview_self_from_options()">
+				<lang-string lang-id="MOD_MP_PROFILE_PREVIEW"></lang-string>
 			</button>
 			<button type="button" class="btn btn-primary" v-if="state.identities.length > 0" @click="state.open_identities_from_options()">
 				<lang-string lang-id="MOD_MP_IDENTITIES_TITLE"></lang-string>
@@ -94,25 +97,67 @@
 				<span><lang-string lang-id="MOD_MP_GP_VISIBILITY"></lang-string></span>
 				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.gp_visibility_pending"></span>
 			</label>
+			<label class="mp-game-mode-visibility">
+				<input type="checkbox" :checked="state.game_mode_visible" :disabled="state.game_mode_visibility_pending" @click="state.set_game_mode_visibility($event)">
+				<span><lang-string lang-id="MOD_MP_GAME_MODE_VISIBILITY"></lang-string></span>
+				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.game_mode_visibility_pending"></span>
+			</label>
+			<label class="mp-active-mods-visibility">
+				<input type="checkbox" :checked="state.active_mods_visible" :disabled="state.active_mods_visibility_pending" @click="state.set_active_mods_visibility($event)">
+				<span><lang-string lang-id="MOD_MP_ACTIVE_MODS_VISIBILITY"></lang-string></span>
+				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.active_mods_visibility_pending"></span>
+			</label>
 			<label class="mp-chat-visibility">
 				<input type="checkbox" :checked="state.messaging_enabled" :disabled="state.chat_privacy_pending" @click="state.set_messaging_enabled($event)">
 				<span><lang-string lang-id="MOD_MP_CHAT_PRIVACY_ENABLE"></lang-string></span>
 				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.chat_privacy_pending"></span>
 			</label>
-			<div v-show="state.is_guild_member">
+			<label class="mp-chat-visibility">
+				<input type="checkbox" :checked="state.guild_chat_enabled" :disabled="state.guild_chat_participation_pending" @click="state.set_guild_chat_enabled($event)">
+				<span><lang-string lang-id="MOD_MP_GUILD_CHAT_ENABLE"></lang-string></span>
+				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.guild_chat_participation_pending"></span>
+			</label>
+			<div>
 				<hr class="mp-member-actions-rule">
 				<div class="font-size-sm font-w600 text-danger text-uppercase"><lang-string lang-id="MOD_MP_GUILD_DANGER_ZONE"></lang-string></div>
-				<button type="button" class="btn btn-danger" @click="state.leave_guild_from_options()"><lang-string lang-id="MOD_MP_BUTTON_LEAVE_GUILD"></lang-string></button>
+				<div class="mp-modal-text" v-if="state.self_deletion">
+					<lang-string lang-id="MOD_MP_IDENTITY_DELETION_SCHEDULED"></lang-string>
+					<span>{{ state.format_identity_time(state.self_deletion.execute_at) }}</span>
+				</div>
+				<div class="mp-member-danger-actions">
+					<div v-show="state.is_guild_member">
+						<button type="button" class="btn btn-danger" @click="state.leave_guild_from_options()"><lang-string lang-id="MOD_MP_BUTTON_LEAVE_GUILD"></lang-string></button>
+					</div>
+					<button type="button" class="btn btn-danger" v-if="!state.self_deletion" @click="state.show_identity_deletion_confirmation()">
+						<lang-string lang-id="MOD_MP_IDENTITY_DELETE_ACTION"></lang-string>
+					</button>
+					<button type="button" class="btn btn-warning" v-else @click="state.cancel_identity_deletion($event)">
+						<span class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></span>
+						<lang-string lang-id="MOD_MP_IDENTITY_CANCEL_DELETION"></lang-string>
+					</button>
+				</div>
 			</div>
 		</template>
 		<template v-else>
-			<button type="button" class="btn btn-primary" @click="state.start_member_chat($event)">
+			<div class="mp-game-mode-label" v-if="state.selected_guild_member.game_mode_visible && state.selected_guild_member.game_mode_id">
+				<img :src="state.get_shared_game_mode(state.selected_guild_member)?.media || 'assets/media/main/question.png'" :alt="state.get_shared_game_mode(state.selected_guild_member)?.name || ''">
+				<span>{{ state.get_shared_game_mode(state.selected_guild_member)?.name || '' }}</span>
+			</div>
+			<div class="mp-member-activity" v-if="state.selected_guild_member.status_activity">
+				<img :src="state.get_status_activity_icon(state.selected_guild_member.status_activity)" :alt="state.get_status_activity_name(state.selected_guild_member.status_activity)">
+				<span>{{ state.get_status_activity_name(state.selected_guild_member.status_activity) }}</span>
+			</div>
+			<button type="button" class="btn btn-primary" :disabled="state.member_actions_preview" @click="state.start_member_chat($event)">
 				<span class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></span>
 				<lang-string lang-id="MOD_MP_CHAT_START"></lang-string>
 			</button>
 			<button type="button" class="btn btn-primary" :disabled="!state.member_profile_available" @click="state.view_member_profile($event)">
 				<span class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></span>
 				<lang-string lang-id="MOD_MP_PROFILE_VIEW"></lang-string>
+			</button>
+			<button type="button" class="btn btn-primary" v-if="state.selected_guild_member.active_mods_visible && state.selected_guild_member.active_mods_available" @click="state.view_member_active_mods($event)">
+				<span class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></span>
+				<lang-string lang-id="MOD_MP_ACTIVE_MODS_SHOW"></lang-string>
 			</button>
 			<div class="font-size-sm text-muted" v-if="!state.selected_guild_member.equipment_visible"><lang-string lang-id="MOD_MP_EQUIPMENT_NOT_SHARED"></lang-string></div>
 			<div class="font-size-sm text-muted" v-else-if="!state.selected_guild_member.equipment_available"><lang-string lang-id="MOD_MP_EQUIPMENT_NOT_AVAILABLE_HINT"></lang-string></div>
@@ -122,43 +167,32 @@
 		<div class="text-danger" v-if="state.member_actions_error">{{ state.member_actions_error }}</div>
 	</div>
 </template>
+<template id="template-mp-active-mods-modal">
+	<div class="mp-active-mods-modal">
+		<h5><lang-string lang-id="MOD_MP_ACTIVE_MODS_TITLE"></lang-string></h5>
+		<ol class="mp-active-mods-list">
+			<li v-for="mod_name in state.viewed_active_mods" :key="mod_name">{{ mod_name }}</li>
+		</ol>
+		<button type="button" class="btn btn-secondary mt-3" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
+	</div>
+</template>
 <template id="template-mp-identities-modal">
 	<div class="mp-modal-text"><lang-string lang-id="MOD_MP_IDENTITIES_INFO"></lang-string></div>
 	<div class="mp-identity-list">
-		<button type="button" class="btn btn-outline-primary mp-identity-row" v-for="identity in state.identities" @click="state.show_identity_actions(identity)">
+		<div class="btn btn-outline-primary mp-identity-row" v-for="identity in state.identities">
 			<img class="skill-icon-xs" :src="state.get_avatar_icon(identity.icon_id)">
 			<span>{{ identity.display_name }}</span>
 			<span class="badge badge-warning ml-auto" v-if="identity.deletion"><lang-string lang-id="MOD_MP_IDENTITY_DELETION_PENDING"></lang-string></span>
-		</button>
+		</div>
 	</div>
 	<div class="text-danger mt-2" v-if="state.identities_error">{{ state.identities_error }}</div>
 	<div class="mp-button-tray">
 		<button type="button" class="btn btn-danger" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
 	</div>
 </template>
-<template id="template-mp-identity-actions-modal">
-	<div v-if="state.selected_identity">
-		<div class="mp-modal-text" v-if="state.selected_identity?.deletion">
-			<lang-string lang-id="MOD_MP_IDENTITY_DELETION_SCHEDULED"></lang-string>
-			<span>{{ state.format_identity_time(state.selected_identity?.deletion?.execute_at) }}</span>
-		</div>
-		<div class="mp-identity-actions">
-			<button type="button" class="btn btn-danger" v-if="!state.selected_identity?.deletion" @click="state.show_identity_deletion_confirmation()">
-				<lang-string lang-id="MOD_MP_IDENTITY_DELETE_ACTION"></lang-string>
-			</button>
-			<button type="button" class="btn btn-warning" v-else-if="state.selected_identity?.deletion?.can_cancel" @click="state.cancel_identity_deletion($event)">
-				<span class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></span>
-				<lang-string lang-id="MOD_MP_IDENTITY_CANCEL_DELETION"></lang-string>
-			</button>
-			<div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_IDENTITY_DELETION_OTHER_REQUESTER"></lang-string></div>
-			<button type="button" class="btn btn-secondary" @click="state.back_to_identities()"><lang-string lang-id="MOD_MP_BUTTON_BACK"></lang-string></button>
-		</div>
-		<div id="mp-modal-error" class="d-none text-danger mt-2"></div>
-	</div>
-</template>
 <template id="template-mp-identity-delete-confirm-modal">
-	<div class="mp-modal-text" v-if="state.selected_identity">
-		<mp-lang-string-f lang-id="MOD_MP_IDENTITY_DELETE_CONFIRM_INFO" :lang-arg-1="state.selected_identity?.display_name"></mp-lang-string-f>
+	<div class="mp-modal-text">
+		<mp-lang-string-f lang-id="MOD_MP_IDENTITY_DELETE_CONFIRM_INFO" :lang-arg-1="state.profile_display_name"></mp-lang-string-f>
 		<lang-string lang-id="MOD_MP_IDENTITY_DELETE_CONFIRM_EFFECTS"></lang-string>
 		<lang-string lang-id="MOD_MP_IDENTITY_DELETE_CONFIRM_CANCEL"></lang-string>
 		<div id="mp-modal-error" class="d-none text-danger"></div>
@@ -174,6 +208,19 @@
 <template id="template-mp-identity-account-changed-modal">
 	<div class="mp-modal-text"><lang-string lang-id="MOD_MP_IDENTITY_ACCOUNT_CHANGED_INFO"></lang-string></div>
 </template>
+<template id="template-mp-discard-returned-gift-modal">
+	<div class="mp-modal-text">
+		<lang-string lang-id="MOD_MP_DISCARD_RETURNED_GIFT_CONFIRM"></lang-string>
+		<div id="mp-modal-error" class="d-none text-danger"></div>
+	</div>
+	<div class="mp-button-tray">
+		<button type="button" class="btn btn-danger" @click="state.discard_returned_gift($event)">
+			<span class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></span>
+			<lang-string lang-id="MOD_MP_DISCARD_RETURNED_GIFT_ACTION"></lang-string>
+		</button>
+		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
+	</div>
+</template>
 <template id="template-mp-identity-deletion-cancelled-modal">
 	<div class="mp-modal-text">
 		<mp-lang-string-f lang-id="MOD_MP_IDENTITY_DELETION_CANCELLED_INFO" :lang-arg-1="state.identity_notice_requester" :lang-arg-2="state.identity_notice_time"></mp-lang-string-f>
@@ -182,39 +229,53 @@
 <template id="template-mp-identity-recovered-modal">
 	<div class="mp-modal-text"><lang-string lang-id="MOD_MP_IDENTITY_RECOVERED_INFO"></lang-string></div>
 </template>
+<template id="template-mp-outdated-version-modal">
+	<div class="mp-modal-text">
+		<mp-lang-string-f lang-id="MOD_MP_OUTDATED_VERSION_INFO" :lang-arg-1="state.current_mod_version" :lang-arg-2="state.released_mod_version"></mp-lang-string-f>
+	</div>
+</template>
 <template id="template-mp-chat-page">
 	<div class="content d-none" id="mp-chat-page">
 		<div class="mp-chat-layout">
 			<div class="block block-rounded" v-if="!state.selected_chat_conversation">
-				<div class="block-header block-header-default">
-					<div>
-						<h3 class="block-title"><lang-string lang-id="MOD_MP_CHAT_INBOX"></lang-string></h3>
-						<div class="font-size-sm text-muted"><lang-string lang-id="MOD_MP_CHAT_INBOX_INFO"></lang-string></div>
-					</div>
-					<span class="badge badge-info" v-if="state.chat_unread > 0">{{ state.chat_unread }}</span>
-				</div>
 				<div class="block-content text-center" v-if="state.chat_loading && state.chat_conversations.length === 0">
 					<span class="spinner-border spinner-border-sm text-primary mr-2" role="status"></span>
 					<lang-string lang-id="MOD_MP_CHAT_LOADING"></lang-string>
 				</div>
-				<div class="mp-chat-conversations" v-else-if="state.chat_conversations.length > 0">
-					<button type="button" class="mp-chat-conversation" v-for="conversation in state.chat_conversations" :key="(conversation.conversation_kind || 'private') + ':' + (conversation.support_team_id || '') + ':' + (conversation.conversation_id || 'virtual')" @click="state.open_chat_conversation(conversation)">
-						<img class="skill-icon-sm" :src="state.get_chat_participant_icon(conversation)">
-						<div class="mp-chat-conversation-copy">
-							<div class="font-w600">{{ conversation.participant.display_name }}</div>
-							<div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ conversation.latest_message.content }}</div>
-							<div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div>
+				<div class="mp-chat-categories" v-else>
+					<section class="mp-chat-category" v-if="state.show_guild_chat_category">
+						<div class="mp-chat-category-heading"><div class="font-w600"><lang-string lang-id="MOD_MP_CHAT_CATEGORY_GUILD"></lang-string></div></div>
+						<div class="block-content text-muted mp-guild-chat-opted-out" v-if="!state.guild_chat_enabled"><lang-string lang-id="MOD_MP_GUILD_CHAT_OPTED_OUT"></lang-string></div>
+						<div class="mp-chat-conversations" v-else>
+							<button type="button" class="mp-chat-conversation" v-for="conversation in state.guild_chat_conversations" :key="'guild:' + conversation.conversation_id" @click="state.open_chat_conversation(conversation)">
+								<img class="skill-icon-sm" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600">{{ conversation.participant.display_name }}</div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ conversation.latest_message.content }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge badge-danger" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
+							</button>
 						</div>
-						<span class="badge badge-danger" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
-					</button>
+					</section>
+					<section class="mp-chat-category" v-if="state.personal_chat_conversations.length > 0">
+						<div class="mp-chat-category-heading"><div class="font-w600"><lang-string lang-id="MOD_MP_CHAT_CATEGORY_PERSONAL"></lang-string></div><div class="font-size-sm text-muted"><lang-string lang-id="MOD_MP_CHAT_CATEGORY_PERSONAL_INFO"></lang-string></div></div>
+						<div class="mp-chat-conversations">
+							<button type="button" class="mp-chat-conversation" v-for="conversation in state.personal_chat_conversations" :key="'private:' + (conversation.conversation_id || 'virtual')" @click="state.open_chat_conversation(conversation)">
+								<img class="skill-icon-sm" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600">{{ conversation.participant.display_name }}</div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ conversation.latest_message.content }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge badge-danger" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
+							</button>
+						</div>
+					</section>
+					<section class="mp-chat-category" v-if="state.support_chat_conversations.length > 0">
+						<div class="mp-chat-category-heading"><div class="font-w600"><lang-string lang-id="MOD_MP_CHAT_CATEGORY_SUPPORT"></lang-string></div></div>
+						<div class="mp-chat-conversations">
+							<button type="button" class="mp-chat-conversation" v-for="conversation in state.support_chat_conversations" :key="'support:' + (conversation.support_team_id || '') + ':' + (conversation.conversation_id || 'virtual')" @click="state.open_chat_conversation(conversation)">
+								<img class="skill-icon-sm" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600">{{ conversation.participant.display_name }}</div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ conversation.latest_message.content }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge badge-danger" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
+							</button>
+						</div>
+					</section>
+					<div class="block-content text-muted" v-if="state.personal_chat_conversations.length === 0 && !state.show_guild_chat_category && state.support_chat_conversations.length === 0"><lang-string lang-id="MOD_MP_CHAT_EMPTY"></lang-string></div>
 				</div>
-				<div class="block-content text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_EMPTY"></lang-string></div>
 			</div>
 
 			<div class="block block-rounded mp-chat-conversation-view" v-else>
 				<div class="block-header block-header-default mp-chat-header">
 					<button type="button" class="btn btn-sm btn-secondary" @click="state.close_chat_conversation()"><i class="fa fa-chevron-left mr-1"></i><lang-string lang-id="MOD_MP_CHAT_BACK"></lang-string></button>
-					<button type="button" class="mp-chat-participant" v-if="state.selected_chat_conversation?.conversation_kind !== 'support'" @click="state.show_chat_actions_modal()" aria-haspopup="dialog">
+					<button type="button" class="mp-chat-participant" v-if="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private'" @click="state.show_chat_actions_modal()" aria-haspopup="dialog">
 						<img class="skill-icon-xs" :src="state.get_chat_participant_icon()">
 						<span class="font-w600">{{ state.selected_chat_conversation?.participant?.display_name }}</span>
 					</button>
@@ -236,9 +297,9 @@
 				</div>
 				<div class="block-content mp-chat-compose">
 					<form @submit="state.send_chat_message($event)">
-						<textarea class="mp-input-text" maxlength="1000" rows="3" v-model="state.chat_draft" @keydown="state.handle_chat_keydown($event)" :disabled="state.selected_chat_conversation?.conversation_kind !== 'support' && !state.messaging_enabled" :placeholder="state.get_chat_compose_placeholder()"></textarea>
+						<textarea class="mp-input-text" maxlength="1000" rows="3" v-model="state.chat_draft" @keydown="state.handle_chat_keydown($event)" :disabled="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && !state.messaging_enabled" :placeholder="state.get_chat_compose_placeholder()"></textarea>
 						<div class="mp-chat-compose-actions">
-							<button type="button" class="mp-chat-budget" v-if="state.selected_chat_conversation?.conversation_kind !== 'support' && state.chat_budget_enabled" @click="state.show_chat_budget_modal()" aria-haspopup="dialog" aria-label="Learn how Message capacity works">
+							<button type="button" class="mp-chat-budget" v-if="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && state.chat_budget_enabled" @click="state.show_chat_budget_modal()" aria-haspopup="dialog" :aria-label="getLangString('MOD_MP_CHAT_BUDGET_ARIA')">
 								<mp-lang-string-f lang-id="MOD_MP_CHAT_BUDGET" :lang-arg-1="state.chat_budget.credits" :lang-arg-2="state.chat_budget.maximum"></mp-lang-string-f>
 								<img class="skill-icon-xxs" :src="state.get_item_icon('melvorD:Message_In_A_Bottle')" alt="">
 								<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.chat_budget.credits < state.chat_budget.maximum"></span>
@@ -264,7 +325,7 @@
 <template id="template-mp-chat-message-actions-modal">
 	<div class="mp-chat-modal-actions">
 		<button type="button" class="btn btn-primary" @click="state.copy_chat_message()"><lang-string lang-id="MOD_MP_CHAT_COPY"></lang-string></button>
-		<button type="button" class="btn btn-outline-danger" v-if="state.selected_chat_conversation?.conversation_kind !== 'support'" @click="state.show_chat_message_delete_confirmation()"><lang-string lang-id="MOD_MP_CHAT_DELETE_MESSAGE"></lang-string></button>
+		<button type="button" class="btn btn-outline-danger" v-if="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private'" @click="state.show_chat_message_delete_confirmation()"><lang-string lang-id="MOD_MP_CHAT_DELETE_MESSAGE"></lang-string></button>
 	</div>
 	<div id="mp-modal-error" class="d-none text-danger mt-2"></div>
 	<button type="button" class="btn btn-secondary mt-3" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
@@ -328,10 +389,10 @@
 	<div class="mp-profile-layout">
 		<section class="mp-profile-panel mp-profile-equipment-panel" :class="{ 'mp-profile-panel-active': state.profile_active_tab === 'equipment' }" role="tabpanel">
 			<h5 class="mp-profile-panel-title"><lang-string lang-id="MOD_MP_PROFILE_EQUIPMENT"></lang-string></h5>
-			<div class="mp-equipment-grid" role="list" aria-label="Shared equipment" v-if="state.viewed_equipment !== null">
+			<div class="mp-equipment-grid" role="list" :aria-label="getLangString('MOD_MP_SHARED_EQUIPMENT_ARIA')" v-if="state.viewed_equipment !== null">
 				<div class="mp-equipment-slot" :class="{ 'mp-equipment-slot-unknown': slot.unknown, 'mp-equipment-slot-blocked': slot.blocked }" :style="{ gridColumn: slot.col, gridRow: slot.row }" role="listitem" v-for="slot in state.viewed_equipment_grid" :key="slot.slot_id">
 					<mp-equipment-item v-if="slot.item" :data-item-id="slot.item_id"><img :src="slot.media" :alt="slot.item.name" draggable="false"></mp-equipment-item>
-					<img v-else :src="slot.media" :alt="slot.unknown ? 'Unknown or unavailable item' : slot.slot_name">
+					<img v-else :src="slot.media" :alt="slot.unknown ? getLangString('MOD_MP_UNKNOWN_ITEM_ARIA') : slot.slot_name">
 					<span class="sr-only" v-if="slot.unknown"><lang-string lang-id="MOD_MP_EQUIPMENT_UNKNOWN_ITEM"></lang-string></span>
 				</div>
 			</div>
@@ -340,10 +401,6 @@
 		<section class="mp-profile-panel mp-profile-skills-panel" :class="{ 'mp-profile-panel-active': state.profile_active_tab === 'skills' }" role="tabpanel">
 			<h5 class="mp-profile-panel-title"><lang-string lang-id="MOD_MP_PROFILE_SKILLS"></lang-string></h5>
 			<template v-if="state.viewed_status">
-				<div class="mp-status-activity">
-					<img class="skill-icon-sm" :src="state.viewed_status_activity_icon">
-					<span>{{ state.viewed_status_activity_name }}</span>
-				</div>
 				<div class="mp-status-skills">
 					<div class="mp-status-skill" v-for="skill in state.viewed_status_skills" :key="skill.skill_id" :title="state.get_skill_name(skill.skill_id)" :aria-label="state.get_skill_name(skill.skill_id)">
 						<img class="skill-icon-sm" :src="state.get_skill_icon(skill.skill_id)" :alt="state.get_skill_name(skill.skill_id)">
@@ -447,7 +504,7 @@
 	<div class="mp-council-petition-description"><em><lang-string lang-id="MOD_MP_COUNCIL_HERALDRY_DESCRIPTION"></lang-string></em></div>
 	<hr class="mp-council-modal-rule">
 	<div class="font-w600 mb-1"><lang-string lang-id="MOD_MP_COUNCIL_PROPOSED_ICON"></lang-string></div>
-	<input class="mp-input-text w-100" type="search" v-model="state.council_icon_search" placeholder="Search combat locations">
+	<input class="mp-input-text w-100" type="search" v-model="state.council_icon_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_COMBAT_LOCATIONS')">
 	<div class="mp-guild-icon-selector mt-2">
 		<button type="button" class="bank-item no-bg btn-light pointer-enabled resize-48" :class="{ 'mp-icon-picked': icon.id === state.council_picked_icon }" v-for="icon in state.filtered_council_icons" @click="state.pick_council_icon(icon)"><img class="p-2 resize-48" :src="icon.media"></button>
 	</div>
@@ -498,7 +555,7 @@
 							<div>
 								<h3 class="block-title"><lang-string lang-id="MOD_MP_GUILD_MEMBERS"></lang-string></h3>
 							</div>
-							<span class="font-size-sm text-muted" v-show="state.is_free_fellowship && state.guild_member_directory_loading">Loading...</span>
+							<span class="font-size-sm text-muted" v-show="state.is_free_fellowship && state.guild_member_directory_loading"><lang-string lang-id="MOD_MP_LOADING"></lang-string></span>
 						</div>
 						<div class="block-content" v-show="state.is_free_fellowship">
 							<input class="mp-input-text w-100" type="search" v-model="state.guild_member_search" :placeholder="state.get_free_fellowship_search_placeholder()" @change="state.search_guild_members()">
@@ -508,7 +565,10 @@
 							<button type="button" class="mp-guild-person mp-guild-member-button" @click="state.show_member_actions(member)">
 								<img class="skill-icon-xs" :src="state.get_avatar_icon(member.icon_id)">
 								<span class="mp-guild-member-details">
-									<span class="font-w600">{{ member.display_name }}</span>
+									<span class="mp-guild-member-name">
+										<span class="font-w600">{{ member.display_name }}</span>
+										<img class="mp-game-mode-icon" v-if="state.get_roster_game_mode(member)" :src="state.get_roster_game_mode(member)?.media || 'assets/media/main/question.png'" :alt="state.get_roster_game_mode(member)?.name || ''">
+									</span>
 									<span class="mp-guild-member-gp" v-if="member.gp !== null">
 										<img src="assets/media/main/coins.png" alt="">{{ state.format_shared_gp(member.gp) }}
 									</span>
@@ -529,7 +589,7 @@
 							</template>
 						</div>
 						<div class="block-content text-center" v-show="state.is_free_fellowship && state.guild_member_directory_has_more">
-							<button type="button" class="btn btn-sm btn-secondary" @click="state.load_more_guild_members()" :disabled="state.guild_member_directory_loading">Load more</button>
+							<button type="button" class="btn btn-sm btn-secondary" @click="state.load_more_guild_members()" :disabled="state.guild_member_directory_loading"><lang-string lang-id="MOD_MP_BUTTON_LOAD_MORE"></lang-string></button>
 						</div>
 					</div>
 
@@ -587,7 +647,7 @@
 					</div>
 					<div class="block-content text-center" v-if="state.council_show_resolved && state.council_has_more"><button type="button" class="btn btn-sm btn-secondary" @click="state.load_more_council_petitions($event)"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_LOAD_MORE"></lang-string></button></div>
 				</div>
-				<div class="text-center mt-3 mp-shadowed-members-entry">
+				<div class="text-center mt-3 mp-shadowed-members-entry" v-show="state.shadowed_member_count > 0">
 					<button type="button" class="btn btn-sm btn-secondary" @click="state.show_shadowed_members_modal()"><lang-string lang-id="MOD_MP_GUILD_VIEW_SHADOWED_MEMBERS"></lang-string></button>
 				</div>
 
@@ -642,7 +702,7 @@
 						</div>
 					</div>
 					<div class="block-content">
-						<input class="mp-input-text w-100 mb-3" type="search" v-model="state.guild_list_search" placeholder="Search guilds by name">
+						<input class="mp-input-text w-100 mb-3" type="search" v-model="state.guild_list_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_GUILDS')">
 						<div class="mp-guild-list" v-if="state.filtered_guilds.length > 0">
 							<div class="mp-guild-result" v-for="guild in state.filtered_guilds">
 								<img class="skill-icon-xs" :src="state.get_guild_icon(guild.icon_id)">
@@ -689,7 +749,7 @@
 							<lang-string lang-id="MOD_MP_LABEL_GUILD_NAME"></lang-string>
 							<input class="mp-input-text w-100 mt-1" type="text" maxlength="20" v-model="state.guild_name_input">
 						</label>
-						<input class="mp-input-text w-100 mt-3" type="search" v-model="state.guild_icon_search" placeholder="Search combat locations">
+						<input class="mp-input-text w-100 mt-3" type="search" v-model="state.guild_icon_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_COMBAT_LOCATIONS')">
 						<div class="mp-guild-icon-selector mt-2" v-if="state.filtered_guild_icons.length > 0">
 							<button type="button" class="bank-item no-bg btn-light pointer-enabled resize-48" :class="{ 'mp-icon-picked': icon.id === state.picked_guild_icon }" v-for="icon in state.filtered_guild_icons" @click="state.pick_guild_icon(icon)">
 								<img class="p-2 resize-48" :src="icon.media">
@@ -853,7 +913,7 @@
 	</div>
 </template>
 <template id="template-mp-change-icon-modal">
-	<input class="form-control" type="text" v-model="state.icon_search" placeholder="Search for an icon..."/>
+	<input class="form-control" type="text" v-model="state.icon_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_ICON')"/>
 	<div class="mp-icon-selector" v-if="state.filtered_icons.length > 0">
 		<div class="bank-item no-bg btn-light pointer-enabled m-1 resize-48" :class="{ 'mp-icon-picked': icon.id == state.picked_icon }" v-for="icon in state.filtered_icons" @click="state.pick_icon(icon)">
 			<img class="p-2 resize-48" :src="icon.media">
@@ -889,12 +949,12 @@
 				<div class="mp-bank-market-fields">
 					<div>
 						<lang-string lang-id="MOD_MP_MARKET_BANK_QTY"></lang-string>
-						<input type="number" min="0" class="form-control m-1" id="mp-market-sell-amount" placeholder="Sell X">
+						<input type="number" min="0" class="form-control m-1" id="mp-market-sell-amount" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SELL_QUANTITY')">
 					</div>
 					<div>
 						<img class="skill-icon-xxs ml-1 mr-1" src="assets/media/main/coins.svg">
 						<lang-string lang-id="MOD_MP_MARKET_BANK_PPI"></lang-string>
-						<input type="number" min="0" class="form-control m-1" id="mp-market-sell-price" placeholder="Sell Price">
+						<input type="number" min="0" class="form-control m-1" id="mp-market-sell-price" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SELL_PRICE')">
 					</div>
 				</div>
 				<div class="col-12">
@@ -931,7 +991,7 @@
 			</div>
 			<div class="row no-gutters p-2">
 				<div class="col-12 col-xl-5">
-					<input type="number" min="0" class="form-control m-1" id="mp-transfer-amount" placeholder="Transfer X">
+					<input type="number" min="0" class="form-control m-1" id="mp-transfer-amount" :placeholder="getLangString('MOD_MP_PLACEHOLDER_TRANSFER_QUANTITY')">
 				</div>
 				<div class="col-12 col-xl-7 text-right">
 					<button role="button" class="btn btn-info m-1" id="mp-transfer-all-but-1">
@@ -954,7 +1014,7 @@
 		<div class="block-header block-header-default bg-dark-bank-block-header px-3 py-1 text-center">
 			<h5 class="font-w600 font-size-sm text-combat-smoke m-1 w-100">
 				<img class="skill-icon-xxs ml-1 mr-1" src="assets/media/main/coins.svg">
-				<span id="mp-transfer-value">140 GP</span>
+				<span id="mp-transfer-value"></span>
 			</h5>
 		</div>
 	</div>
@@ -1019,7 +1079,7 @@
 			</div>
 		</div>
 		<div v-if="state.market_active_tab == 'filter'">
-			<input type="text" id="mp-market-filter-input" v-model="state.market_filter_search" placeholder="Search for items..." class="border-top border-4x">
+			<input type="text" id="mp-market-filter-input" v-model="state.market_filter_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_ITEMS')" class="border-top border-4x">
 			<div id="mp-market-filter-items">
 				<div v-for="item in state.market_filter_items_filtered" @click="state.select_market_filter_item(item.id)">
 					<mp-item-icon :data-item-id="item.id"><img class="mp-market-item-icon mr-3" :src="item.media" draggable="false"></mp-item-icon>
@@ -1085,7 +1145,7 @@
 				<button type="button" class="btn btn-info m-1 mr-5" @click="state.market_page_prev()">
 					<lang-string lang-id="MOD_MP_BUTTON_PAGE_PREV"></lang-string>
 				</button>
-				<button type="button" class="btn btn-info m-1" v-for="page in state.market_page_count" @click="state.market_page(page)">
+				<button type="button" class="btn btn-info m-1" v-for="page in state.market_page_window" @click="state.market_page(page)">
 					{{ page }}
 				</button>
 				<button type="button" class="btn btn-info m-1 ml-5" @click="state.market_page_next()">
@@ -1387,7 +1447,7 @@
 						</div>
 						<div class="col-6 col-lg-3">
 							<span class="font-w400 font-size-sm mb-0">
-								<span class="font-w600">Space: </span><span>{{ state.transfer_inventory.length + ' / ' + state.TRANSFER_INVENTORY_MAX_LIMIT }}</span>
+								<span class="font-w600"><lang-string lang-id="MOD_MP_TRANSFER_SPACE"></lang-string> </span><span>{{ state.transfer_inventory.length + ' / ' + state.TRANSFER_INVENTORY_MAX_LIMIT }}</span>
 							</span>
 						</div>
 						<div class="col-6 col-lg-3">
@@ -1462,7 +1522,20 @@
 				<lang-string lang-id="MOD_MP_NO_EXCHANGES"></lang-string>
 			</div>
 			<template v-for="gift in state.gifts">
-				<div class="block tabbable w-100 mp-col" v-if="!!gift.data">
+				<div class="block tabbable w-100 mp-col" v-if="gift.unresolved">
+					<div class="p-4">
+						<div class="text-warning"><lang-string lang-id="MOD_MP_UNSUPPORTED_RETURNED_GIFT_INFO"></lang-string></div>
+						<div class="mt-2" v-for="item of gift.data.items" :key="item.item_id">
+							<small>{{ item.item_id }} × {{ formatNumber(item.qty) }}</small>
+						</div>
+					</div>
+					<div class="p-3 mp-transfer-buttons">
+						<button type="button" class="btn btn-danger m-1" @click="state.show_discard_returned_gift_confirmation(gift.id)">
+							<lang-string lang-id="MOD_MP_DISCARD_RETURNED_GIFT_ACTION"></lang-string>
+						</button>
+					</div>
+				</div>
+				<div class="block tabbable w-100 mp-col" v-else-if="!!gift.data">
 					<div class="pl-3 pt-1 pb-1 bg-dark-bank-info text-center">
 						<div class="row gutters-tiny">
 							<div class="col-6 col-lg-3">
@@ -1748,6 +1821,7 @@
 			<img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">
 			<span class="font-w400">{{ state.transfer_inventory_value }}</span>
 		</span>
+		<div id="mp-modal-error" class="d-none text-danger mt-2"></div>
 	</div>
 	<button type="button" class="btn btn-success" @click="state.confirm_gift($event)">
 		<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>

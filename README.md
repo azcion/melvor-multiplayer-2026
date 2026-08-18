@@ -3,7 +3,7 @@
 # Melvor Multiplayer Remastered
 
 Melvor Multiplayer Remastered is a self-hosted Melvor Idle multiplayer mod and server rebuilt around Guild-isolated
-play. This repository contains the public source for version `1.0.0`, targeting Melvor Idle v1.3.1.
+play. This repository contains the public source for version `1.3.2`, targeting Melvor Idle v1.3.1.
 
 This is an unofficial, community-maintained fork of
 [Melvor Multiplayer](https://mod.io/g/melvoridle/m/melvor-multiplayer), originally created by Kruithne. No affiliation
@@ -26,14 +26,20 @@ Raid data may be reset when recovery requires it.
 - The server keeps one rolling timestamp of each identity's latest authenticated multiplayer activity. It scales newly
   activated Raids from members active during the previous 14 days and appears to current Guildmates as coarse last-seen
   time.
-- Current Guildmates can share their equipment, minimal Player Status, and current GP on an opt-out basis. GP is stored
-  as a raw amount and formatted using the viewing player's Melvor Number Format setting.
+- Current Guildmates can share their equipment, minimal Player Status, current GP, game mode, and latest non-empty
+  active-mod list on an opt-out basis.
+  GP is stored as a raw amount and formatted using the viewing player's Melvor Number Format setting. Disabling
+  game-mode or active-mod sharing hides that value from other players without deleting the compatibility snapshot
+  described below.
 - Current Guildmates can begin identity-owned Private conversations that persist through later Guild changes, with
   unread state, privacy controls, participant-only deletion, and time-replenishing Messaging credits.
 - Each character keeps account-specific multiplayer identity bindings for every normalized server origin. Saves using
   the same PlayFab ID can discover sibling identities and schedule reversible deletion from the in-game Options menu;
   the first observed Melvor Cloud username is retained as a human-readable account label.
 - The mod can connect to the bundled server origin or a trusted custom HTTPS server selected in Mod Settings.
+- For compatibility diagnostics, the server keeps only the latest reported Multiplayer mod version, character
+  game-mode ID, successfully loaded mod names, and report time for each multiplayer identity. It does not collect
+  disabled mods, other mods' versions or settings, profile names, or snapshot history.
 
 ## Run a self-hosted server
 

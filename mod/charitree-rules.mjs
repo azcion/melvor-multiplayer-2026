@@ -1,4 +1,17 @@
 export const CHARITREE_VALUE_LIMIT_RATIO = 0.5;
+export const CHARITREE_PET_BASE_CHANCE = 0.001;
+export const CHARITREE_PET_INCREMENT_VALUE = 10_000_000;
+export const CHARITREE_PET_INCREMENT_CHANCE = 0.01;
+export const CHARITREE_PET_MAX_CHANCE = 0.1;
+
+export function get_charitree_pet_chance(donation_value) {
+	const value = Number.isSafeInteger(donation_value) && donation_value >= 0 ? donation_value : 0;
+	const increments = Math.floor(value / CHARITREE_PET_INCREMENT_VALUE);
+	return Math.min(
+		CHARITREE_PET_BASE_CHANCE + increments * CHARITREE_PET_INCREMENT_CHANCE,
+		CHARITREE_PET_MAX_CHANCE
+	);
+}
 
 export function get_charitree_stack_gp_value(item, { get_item, get_sale_price, gp_currency }) {
 	if (item.id === 'melvorD:GP')

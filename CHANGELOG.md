@@ -1,5 +1,57 @@
 # Changelog
 
+## 1.3.2
+
+- Fixed Multiplayer sidebar and page titles, settings, placeholders, Raid status text, item tooltips, and accessibility labels bypassing localization. Language changes now preserve both Melvor's base translations and the mod's translated text.
+- Fixed two-digit numbering being clipped on the left side of the Active Mods list at larger interface scales.
+- Fixed failed Gift sends not showing the pending Gift warning in the confirmation modal.
+- Fixed successful Marketplace purchases logging a slider teardown error after the purchase completed.
+
+## 1.3.1
+
+- Fixed Guild roster refreshes logging game-mode errors and requesting `/undefined` when a Guildmate hid their game mode or used a mode without a supported roster icon.
+
+## 1.3.0
+
+- Made completed Campaign history, medals, pet progress, and unclaimed rewards follow each multiplayer identity between Guilds. Unfinished contributions remain with their original Guild, and joining a Guild does not grant its past Campaign rewards.
+- Added compatibility diagnostics that report the current Multiplayer version, character game-mode ID, and successfully loaded mod names once per game load. The server retains only the latest snapshot for each multiplayer identity and does not collect disabled mods, other mods' versions or settings, profile names, or snapshot history.
+- Added default-on game-mode sharing for current Guildmates, with recognizable base-mode icons in the Guild roster and a labeled mode in the player modal. Custom modes use a question-mark icon in the modal, show their name when the viewer has that mode installed, and otherwise appear as Unknown Mode. Sharing can be disabled from Options without deleting the compatibility snapshot.
+- Added default-on active-mod sharing for current Guildmates. A Show Active Mods action appears only when the player allows sharing and has reported a non-empty list, preserves the reported order, and can be disabled from Options without deleting the compatibility snapshot.
+- Simplified Guildmate details by moving current activity into the first player modal, keeping the Status & Equipment skill grid uncapped so the modal scrolls naturally on mobile, and using compact game-mode icons in Guild rosters.
+- Added a privacy-aware self-preview to Options so players can inspect the same profile presentation others see, and consolidated Guild departure and identity deletion into one compact danger zone.
+- Added a non-blocking update notice when the multiplayer server reports that a newer released mod version is available.
+
+## 1.2.0
+
+- Fixed cancelling a new trade returning its escrowed items immediately and then returning the same items a second time through the durable Trade return.
+- Hardened linked identities and Support Team access: linked saves are now informational, identity deletion must be requested from the loaded save, and team access is limited to operator-selected authenticated multiplayer identities.
+- Prevented player display names from being interpreted as HTML in multiplayer popups and limited new names to letters, numbers, spaces, and simple punctuation.
+- Made Marketplace, Campaign, Charitree, Gift, and Trade item or GP changes recover safely after interrupted requests, preventing committed transfers from being lost, duplicated, or clearing items added while a request was in flight.
+- Fixed a returned Transfer Inventory item reappearing after a reload and allowing the same item to be returned again.
+- Fixed a full Transfer Inventory allowing part of a Banishment return to be applied repeatedly on every retry.
+- Fixed temporary or stalled network requests permanently stopping event, Chat, or page refreshes until the game was reloaded.
+- Fixed Support Chat messages and read state sometimes failing to refresh until another multiplayer event occurred.
+- Fixed reciprocal Friend Requests creating duplicate entries in both players' Friends lists.
+- Fixed Gifts and Trades resolved in another tab or session remaining visible until the game was reloaded.
+- Added a safe permanent-discard action for returned Gifts containing items from a mod that is no longer installed, so they no longer block leaving a Guild.
+- Fixed rapid Marketplace filter, sort, or page changes showing an older result, and kept searches responsive as the number of compatible listings grows.
+- Fixed sending a Chat Message and immediately switching conversations changing the newly opened conversation or its draft.
+- Fixed a completed Guild Raid settlement occasionally deleting a newer pending Raid result before it could be submitted.
+- Fixed the Charitree pet chance always being 10%; it now starts at 0.1%, increases with donation value, and caps at 10% as intended.
+- Fixed repeated item and GP slider modals retaining background input listeners after they were closed.
+- Fixed the Charitree continuing to run its one-second expiry clock after leaving the page.
+- Improved Personal and Support Chat inbox loading so it remains responsive as conversation history grows.
+- Fixed Gifts rejecting the 32nd distinct Transfer Inventory entry; Gifts, Trades, and Charitree donations now share the documented 32-entry limit.
+
+## 1.1.1
+
+- Reordered Chat so the current Guild conversation appears first, followed by Personal and Support conversations.
+- Ordered Guild member lists by most recent multiplayer activity, with inactive or unknown activity at the bottom, and hid the View Shadowed Members action when no members are Shadowed.
+
+## 1.1.0
+
+- Reorganized Chat into Personal, Guild, and Support sections with one shared unread count, and added a default-on group Chat owned by every Guild, including solo Guilds and the Free Fellowship. Guild Chat retains history for later joiners, follows the player's current Guild, hides when they leave or change Guilds, and can be left or rejoined at any time through the Add me to Guild Chat option without deleting existing Messages.
+
 ## 1.0.0
 
 - Fixed the Charitree's next-offering message appearing beside its description instead of below it on Desktop and mobile.

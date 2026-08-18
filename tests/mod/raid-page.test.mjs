@@ -60,7 +60,8 @@ function resolve_raid_attack(tier, player, { landed = true, barrier = false, imm
 
 test('registers and mounts the Guild Raid page as a first-class multiplayer view', () => {
 	const page = data.data.pages.find(entry => entry.id === 'Guild_Raid');
-	assert.equal(page.customName, 'Raid');
+	assert.equal(page.customName, 'MOD_MP_PAGE_RAID');
+	assert.equal(language.MOD_MP_PAGE_RAID, 'Raid');
 	assert.equal(page.containerID, 'mp-raid-page');
 	assert.equal(page.sidebarItem.asideClass, 'mp-raid-nav');
 	assert.equal(page.sidebarItem.aside, 'preview');

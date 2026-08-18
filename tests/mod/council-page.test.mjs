@@ -46,7 +46,7 @@ test('wires Council petition controls, resolved-history toggle, and action descr
 	assert.match(main, /api_post\('\/api\/guilds\/petitions\/raise'/);
 	assert.match(main, /api_post\('\/api\/guilds\/petitions\/vote'/);
 	assert.match(main, /api_post\('\/api\/guilds\/petitions\/withdraw'/);
-	assert.match(main, /async function refresh_guild_page\(\)[\s\S]*?if \(state\.is_guild_member\)[\s\S]*?await refresh_council\(\)/);
+	assert.match(main, /async function refresh_guild_page\(\)[\s\S]*?if \(state\.is_guild_member\)[\s\S]*?Promise\.all\(\[refresh_council\(\), refresh_shadowed_members\(\)\]\)/);
 	assert.match(main, /async show_raise_petition_modal\(\)[\s\S]*?await refresh_council\(\)/);
 	assert.match(main, /petition\.lifecycle === 'active'/);
 	assert.match(main, /state\.council_available_petition_types = res\.available_petition_types \?\? \[\]/);
@@ -67,7 +67,7 @@ test('wires Council petition controls, resolved-history toggle, and action descr
 	assert.equal(language.MOD_MP_COUNCIL_PROPOSED_ICON, 'New Guild emblem');
 	assert.equal(language.MOD_MP_GUILD_ICON_REQUIRED, 'Choose an emblem for the Guild.');
 	assert.equal(language.MOD_MP_MODAL_DESC_CREATE_GUILD, 'Choose a name and an emblem.');
-	assert.match(templates, /placeholder="Search combat locations"/);
+	assert.match(templates, /:placeholder="getLangString\('MOD_MP_PLACEHOLDER_SEARCH_COMBAT_LOCATIONS'\)"/);
 });
 
 test('hides the felled Charitree and its donation action until restored', async () => {

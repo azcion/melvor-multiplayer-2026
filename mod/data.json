@@ -244,7 +244,7 @@
 		"pages": [
 			{
 				"id": "Chat",
-				"customName": "Chat",
+				"customName": "MOD_MP_PAGE_CHAT",
 				"media": "https://cdn2-main.melvor.net/assets/media/bank/message_in_a_bottle.png",
 				"containerID": "mp-chat-page",
 				"headerBgClass": "mp-chat-bg",
@@ -259,7 +259,7 @@
 			},
 			{
 				"id": "Guild",
-				"customName": "Guild",
+				"customName": "MOD_MP_PAGE_GUILD",
 				"media": "assets/multiplayer.svg",
 				"containerID": "mp-guild-page",
 				"headerBgClass": "mp-guild-bg",
@@ -272,7 +272,7 @@
 			},
 			{
 				"id": "Transfer_Items",
-				"customName": "Trade / Gift",
+				"customName": "MOD_MP_PAGE_TRANSFER_ITEMS",
 				"media": "assets/transfer_bag.svg",
 				"containerID": "mp-transfer-page",
 				"headerBgClass": "mp-transfer-bg",
@@ -287,7 +287,7 @@
 			},
 			{
 				"id": "Multiplayer_Market",
-				"customName": "Marketplace",
+				"customName": "MOD_MP_PAGE_MARKET",
 				"media": "assets/market.svg",
 				"containerID": "mp-market-page",
 				"headerBgClass": "mp-market-bg",
@@ -300,7 +300,7 @@
 			},
 			{
 				"id": "Charity_Tree",
-				"customName": "The Charitree",
+				"customName": "MOD_MP_PAGE_CHARITREE",
 				"media": "assets/charity_tree.svg",
 				"containerID": "mp-charity-page",
 				"headerBgClass": "mp-charity-bg",
@@ -313,7 +313,7 @@
 			},
 			{
 				"id": "Campaign_Effort",
-				"customName": "Campaign",
+				"customName": "MOD_MP_PAGE_CAMPAIGN",
 				"media": "assets/campaigns.svg",
 				"containerID": "mp-campaign-page",
 				"headerBgClass": "mp-campaign-bg",
@@ -323,12 +323,13 @@
 					"categoryID": "Multiplayer",
 					"icon": "assets/campaigns.svg",
 					"asideClass": "mp-campaign-nav",
-					"aside": "Inactive"
+					"aside": "Inactive",
+					"asideLangID": "MOD_MP_SIDEBAR_CAMPAIGN_INACTIVE"
 				}
 			},
 			{
 				"id": "Guild_Raid",
-				"customName": "Raid",
+				"customName": "MOD_MP_PAGE_RAID",
 				"media": "assets/raid_plant_t1.png",
 				"containerID": "mp-raid-page",
 				"headerBgClass": "mp-raid-bg",
@@ -338,7 +339,8 @@
 					"categoryID": "Multiplayer",
 					"icon": "assets/raid_plant_t1.png",
 					"asideClass": "mp-raid-nav",
-					"aside": "preview"
+					"aside": "preview",
+					"asideLangID": "MOD_MP_SIDEBAR_RAID_PREVIEW"
 				}
 			}
 		]

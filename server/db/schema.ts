@@ -1355,4 +1355,350 @@ export const migrations: Migration[] = [{
 			CREATE INDEX idx_guild_petition_winnowing_targets_petition
 				ON guild_petition_winnowing_targets (petition_id, subject_locked);
 		`
+	}, {
+		version: 27,
+		sql: `
+			ALTER TABLE clients ADD COLUMN guild_chat_enabled INTEGER NOT NULL DEFAULT 1
+				CHECK (guild_chat_enabled IN (0, 1));
+
+			CREATE TABLE guild_chat_messages (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				guild_id INTEGER NOT NULL,
+				sender_id INTEGER NOT NULL,
+				idempotency_key TEXT NOT NULL,
+				content TEXT NOT NULL CHECK (length(content) BETWEEN 1 AND 1000),
+				created_at INTEGER NOT NULL CHECK (created_at >= 0),
+				UNIQUE (sender_id, idempotency_key),
+				FOREIGN KEY (guild_id) REFERENCES guilds (id) ON DELETE CASCADE,
+				FOREIGN KEY (sender_id) REFERENCES clients (id)
+			);
+			CREATE INDEX idx_guild_chat_messages_guild ON guild_chat_messages (guild_id, id);
+			CREATE INDEX idx_guild_chat_messages_sender ON guild_chat_messages (sender_id, id);
+
+			CREATE TABLE guild_chat_read_state (
+				guild_id INTEGER NOT NULL,
+				client_id INTEGER NOT NULL,
+				last_read_message_id INTEGER NOT NULL DEFAULT 0 CHECK (last_read_message_id >= 0),
+				PRIMARY KEY (guild_id, client_id),
+				FOREIGN KEY (guild_id) REFERENCES guilds (id) ON DELETE CASCADE,
+				FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
+			);
+
+			CREATE TABLE guild_chat_message_moderation (
+				message_id INTEGER PRIMARY KEY,
+				deleted_at INTEGER NOT NULL CHECK (deleted_at >= 0),
+				FOREIGN KEY (message_id) REFERENCES guild_chat_messages (id) ON DELETE CASCADE
+			);
+
+			INSERT INTO guild_chat_read_state (guild_id, client_id, last_read_message_id)
+				SELECT membership.guild_id, membership.client_id,
+					COALESCE((SELECT MAX(message.id) FROM guild_chat_messages AS message
+						WHERE message.guild_id = membership.guild_id), 0)
+				FROM guild_memberships AS membership;
+
+			CREATE TRIGGER guild_chat_membership_baseline AFTER INSERT ON guild_memberships BEGIN
+				INSERT INTO guild_chat_read_state (guild_id, client_id, last_read_message_id)
+				VALUES (NEW.guild_id, NEW.client_id,
+					COALESCE((SELECT MAX(id) FROM guild_chat_messages WHERE guild_id = NEW.guild_id), 0))
+				ON CONFLICT (guild_id, client_id) DO UPDATE SET
+					last_read_message_id = excluded.last_read_message_id;
+			END;
+
+			CREATE TRIGGER event_guild_chat_message_insert AFTER INSERT ON guild_chat_messages BEGIN
+				UPDATE clients SET event_revision = event_revision + 1
+				WHERE guild_chat_enabled = 1 AND id IN (
+					SELECT client_id FROM guild_memberships WHERE guild_id = NEW.guild_id
+				);
+			END;
+			CREATE TRIGGER event_guild_chat_read_insert AFTER INSERT ON guild_chat_read_state BEGIN
+				UPDATE clients SET event_revision = event_revision + 1 WHERE id = NEW.client_id;
+			END;
+			CREATE TRIGGER event_guild_chat_read_update AFTER UPDATE OF last_read_message_id ON guild_chat_read_state
+			WHEN NEW.last_read_message_id != OLD.last_read_message_id BEGIN
+				UPDATE clients SET event_revision = event_revision + 1 WHERE id = NEW.client_id;
+			END;
+			CREATE TRIGGER event_guild_chat_moderation_insert AFTER INSERT ON guild_chat_message_moderation BEGIN
+				UPDATE clients SET event_revision = event_revision + 1
+				WHERE guild_chat_enabled = 1 AND id IN (
+					SELECT membership.client_id FROM guild_memberships AS membership
+					JOIN guild_chat_messages AS message ON message.guild_id = membership.guild_id
+					WHERE message.id = NEW.message_id
+				);
+			END;
+			CREATE TRIGGER event_guild_chat_participation_update AFTER UPDATE OF guild_chat_enabled ON clients BEGIN
+				UPDATE clients SET event_revision = event_revision + 1 WHERE id = NEW.id;
+			END;
+		`
+	}, {
+		version: 28,
+		foreign_keys_disabled: true,
+		sql: `
+			CREATE TABLE support_team_memberships_new (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				team_id INTEGER NOT NULL,
+				client_id INTEGER,
+				member_display_name TEXT NOT NULL CHECK (length(member_display_name) BETWEEN 1 AND 64),
+				active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+				created_at INTEGER NOT NULL CHECK (created_at >= 0),
+				UNIQUE (team_id, client_id),
+				CHECK (client_id IS NOT NULL OR active = 0),
+				FOREIGN KEY (team_id) REFERENCES support_teams (id),
+				FOREIGN KEY (client_id) REFERENCES clients (id)
+			);
+			INSERT INTO support_team_memberships_new (
+				id, team_id, client_id, member_display_name, active, created_at
+			)
+			SELECT membership.id, membership.team_id, NULL, account.cloud_username, 0, membership.created_at
+			FROM support_team_memberships AS membership
+			JOIN melvor_accounts AS account ON account.id = membership.melvor_account_id;
+			DROP TABLE support_team_memberships;
+			ALTER TABLE support_team_memberships_new RENAME TO support_team_memberships;
+			CREATE INDEX idx_support_memberships_client
+				ON support_team_memberships (client_id, active, team_id);
+
+			CREATE TABLE client_deletion_requests_new (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				target_client_id INTEGER NOT NULL,
+				requester_client_id INTEGER NOT NULL,
+				requested_at INTEGER NOT NULL CHECK (requested_at >= 0),
+				execute_at INTEGER NOT NULL CHECK (execute_at >= requested_at),
+				cancelled_at INTEGER CHECK (cancelled_at IS NULL OR cancelled_at >= requested_at),
+				executed_at INTEGER CHECK (executed_at IS NULL OR executed_at >= requested_at),
+				CHECK (cancelled_at IS NULL OR executed_at IS NULL),
+				FOREIGN KEY (target_client_id) REFERENCES clients (id) ON DELETE CASCADE,
+				FOREIGN KEY (requester_client_id) REFERENCES clients (id) ON DELETE CASCADE
+			);
+			INSERT INTO client_deletion_requests_new (
+				id, target_client_id, requester_client_id, requested_at, execute_at, cancelled_at, executed_at
+			)
+			SELECT id, target_client_id, requester_client_id, requested_at, execute_at, cancelled_at, executed_at
+			FROM client_deletion_requests;
+			DROP TABLE client_deletion_requests;
+			ALTER TABLE client_deletion_requests_new RENAME TO client_deletion_requests;
+			CREATE UNIQUE INDEX idx_client_deletion_requests_pending
+				ON client_deletion_requests (target_client_id)
+				WHERE cancelled_at IS NULL AND executed_at IS NULL;
+			CREATE INDEX idx_client_deletion_requests_due
+				ON client_deletion_requests (execute_at, id)
+				WHERE cancelled_at IS NULL AND executed_at IS NULL;
+		`
+	}, {
+		version: 29,
+		sql: `
+			CREATE TABLE economy_receipts (
+				id TEXT PRIMARY KEY,
+				client_id INTEGER NOT NULL,
+				kind TEXT NOT NULL,
+				response_json TEXT NOT NULL,
+				created_at INTEGER NOT NULL CHECK (created_at >= 0),
+				acknowledged_at INTEGER CHECK (acknowledged_at IS NULL OR acknowledged_at >= created_at),
+				FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
+			);
+			CREATE INDEX idx_economy_receipts_pending
+				ON economy_receipts (client_id, acknowledged_at, created_at, id);
+		`
+	}, {
+		version: 30,
+		sql: `
+			CREATE TRIGGER event_support_conversation_insert AFTER INSERT ON support_conversations BEGIN
+				UPDATE clients SET event_revision = event_revision + 1
+				WHERE id = NEW.player_client_id OR id IN (
+					SELECT client_id FROM support_team_memberships
+					WHERE team_id = NEW.team_id AND active = 1 AND client_id IS NOT NULL
+				);
+			END;
+			CREATE TRIGGER event_support_conversation_delete AFTER DELETE ON support_conversations BEGIN
+				UPDATE clients SET event_revision = event_revision + 1
+				WHERE id = OLD.player_client_id OR id IN (
+					SELECT client_id FROM support_team_memberships
+					WHERE team_id = OLD.team_id AND active = 1 AND client_id IS NOT NULL
+				);
+			END;
+
+			CREATE TRIGGER event_support_message_insert AFTER INSERT ON support_messages BEGIN
+				UPDATE clients SET event_revision = event_revision + 1
+				WHERE id = (
+					SELECT player_client_id FROM support_conversations WHERE id = NEW.conversation_id
+				) OR id IN (
+					SELECT membership.client_id FROM support_team_memberships AS membership
+					JOIN support_conversations AS conversation ON conversation.team_id = membership.team_id
+					WHERE conversation.id = NEW.conversation_id AND membership.active = 1
+						AND membership.client_id IS NOT NULL
+				);
+			END;
+
+			CREATE TRIGGER event_support_player_read_insert AFTER INSERT ON support_player_message_reads BEGIN
+				UPDATE clients SET event_revision = event_revision + 1 WHERE id = NEW.client_id;
+			END;
+			CREATE TRIGGER event_support_member_read_insert AFTER INSERT ON support_member_message_reads BEGIN
+				UPDATE clients SET event_revision = event_revision + 1 WHERE id = (
+					SELECT client_id FROM support_team_memberships
+					WHERE id = NEW.membership_id AND active = 1
+				);
+			END;
+
+			CREATE TRIGGER event_support_moderation_insert AFTER INSERT ON support_message_moderation BEGIN
+				UPDATE clients SET event_revision = event_revision + 1
+				WHERE id = (
+					SELECT conversation.player_client_id FROM support_conversations AS conversation
+					JOIN support_messages AS message ON message.conversation_id = conversation.id
+					WHERE message.id = NEW.message_id
+				) OR id IN (
+					SELECT membership.client_id FROM support_team_memberships AS membership
+					JOIN support_conversations AS conversation ON conversation.team_id = membership.team_id
+					JOIN support_messages AS message ON message.conversation_id = conversation.id
+					WHERE message.id = NEW.message_id AND membership.active = 1
+						AND membership.client_id IS NOT NULL
+				);
+			END;
+		`
+	}, {
+		version: 31,
+		sql: `
+			CREATE TABLE gift_items_new (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				gift_id INTEGER NOT NULL,
+				item_id TEXT NOT NULL,
+				qty INTEGER NOT NULL CHECK (qty > 0),
+				FOREIGN KEY (gift_id) REFERENCES gifts (gift_id) ON DELETE CASCADE
+			);
+			INSERT INTO gift_items_new (id, gift_id, item_id, qty)
+				SELECT id, gift_id, item_id, qty FROM gift_items WHERE qty > 0;
+			DROP TABLE gift_items;
+			ALTER TABLE gift_items_new RENAME TO gift_items;
+			CREATE INDEX idx_gift_items_gift_id ON gift_items (gift_id);
+
+			CREATE TABLE trade_items_new (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				trade_id INTEGER NOT NULL,
+				item_id TEXT NOT NULL,
+				qty INTEGER NOT NULL CHECK (qty > 0),
+				counter INTEGER NOT NULL
+			);
+			INSERT INTO trade_items_new (id, trade_id, item_id, qty, counter)
+				SELECT id, trade_id, item_id, qty, counter FROM trade_items WHERE qty > 0;
+			DROP TABLE trade_items;
+			ALTER TABLE trade_items_new RENAME TO trade_items;
+			CREATE INDEX idx_trade_items_trade_id ON trade_items (trade_id);
+
+			CREATE TABLE market_items_new (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				guild_id INTEGER NOT NULL,
+				client_id INTEGER NOT NULL,
+				item_id TEXT NOT NULL,
+				qty INTEGER NOT NULL CHECK (qty > 0),
+				available INTEGER NOT NULL CHECK (available >= 0),
+				price INTEGER NOT NULL CHECK (price > 0),
+				payout INTEGER NOT NULL DEFAULT 0 CHECK (payout >= 0),
+				UNIQUE (guild_id, client_id, item_id, price),
+				FOREIGN KEY (guild_id) REFERENCES guilds (id) ON DELETE CASCADE,
+				FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
+			);
+			INSERT INTO market_items_new (id, guild_id, client_id, item_id, qty, available, price, payout)
+				SELECT id, guild_id, client_id, item_id, qty, available, price, payout
+				FROM market_items WHERE qty > 0 AND price > 0;
+			DROP TABLE market_items;
+			ALTER TABLE market_items_new RENAME TO market_items;
+			CREATE INDEX idx_market_items_guild_item ON market_items (guild_id, item_id);
+			CREATE INDEX idx_market_items_guild_price ON market_items (guild_id, price);
+			CREATE INDEX idx_market_items_guild_item_price ON market_items (guild_id, item_id, price);
+
+			CREATE TABLE charity_items_new (
+				guild_id INTEGER NOT NULL,
+				item_id TEXT NOT NULL,
+				qty INTEGER NOT NULL CHECK (qty > 0),
+				expires_at INTEGER NOT NULL CHECK (expires_at >= 0),
+				PRIMARY KEY (guild_id, item_id),
+				FOREIGN KEY (guild_id) REFERENCES guilds (id) ON DELETE CASCADE
+			);
+			INSERT INTO charity_items_new (guild_id, item_id, qty, expires_at)
+				SELECT guild_id, item_id, qty, expires_at FROM charity_items WHERE qty > 0;
+			DROP TABLE charity_items;
+			ALTER TABLE charity_items_new RENAME TO charity_items;
+			CREATE INDEX idx_charity_items_expiry ON charity_items (expires_at);
+		`
+	}, {
+		version: 32,
+		sql: `
+			CREATE TABLE friends_new (
+				client_id_a INTEGER NOT NULL,
+				client_id_b INTEGER NOT NULL,
+				PRIMARY KEY (client_id_a, client_id_b),
+				CHECK (client_id_a < client_id_b),
+				FOREIGN KEY (client_id_a) REFERENCES clients (id) ON DELETE CASCADE,
+				FOREIGN KEY (client_id_b) REFERENCES clients (id) ON DELETE CASCADE
+			);
+			INSERT INTO friends_new (client_id_a, client_id_b)
+				SELECT MIN(client_id_a, client_id_b), MAX(client_id_a, client_id_b)
+				FROM friends
+				WHERE client_id_a <> client_id_b
+				GROUP BY MIN(client_id_a, client_id_b), MAX(client_id_a, client_id_b);
+			DROP TABLE friends;
+			ALTER TABLE friends_new RENAME TO friends;
+			CREATE INDEX idx_friends_client_id_b ON friends (client_id_b);
+		`
+	}, {
+		version: 33,
+		sql: `
+			CREATE TABLE campaign_completions (
+				source_campaign_state_id INTEGER NOT NULL CHECK (source_campaign_state_id > 0),
+				source_guild_id INTEGER NOT NULL CHECK (source_guild_id > 0),
+				client_id INTEGER NOT NULL,
+				campaign_id TEXT NOT NULL,
+				item_id TEXT NOT NULL,
+				item_amount INTEGER NOT NULL CHECK (item_amount >= 0),
+				taken INTEGER NOT NULL DEFAULT 0 CHECK (taken >= 0),
+				PRIMARY KEY (source_campaign_state_id, client_id),
+				FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
+			);
+			CREATE INDEX idx_campaign_completions_client
+				ON campaign_completions (client_id, source_campaign_state_id DESC);
+
+			INSERT INTO campaign_completions (
+				source_campaign_state_id, source_guild_id, client_id, campaign_id, item_id, item_amount, taken
+			)
+			SELECT state.id, state.guild_id, contribution.client_id, state.campaign_id, state.item_id,
+				contribution.item_amount, contribution.taken
+			FROM campaign_contributions AS contribution
+			JOIN campaign_state AS state ON state.id = contribution.campaign_id
+			WHERE state.complete = 1
+			ORDER BY state.id, contribution.client_id;
+		`
+	}, {
+		version: 34,
+		sql: `
+			ALTER TABLE client_sessions ADD COLUMN mod_version TEXT
+				CHECK (mod_version IS NULL OR length(mod_version) BETWEEN 1 AND 64);
+
+			CREATE TABLE client_runtime_snapshots (
+				client_id INTEGER PRIMARY KEY,
+				mod_version TEXT NOT NULL CHECK (length(mod_version) BETWEEN 1 AND 64),
+				active_mods TEXT NOT NULL CHECK (length(active_mods) <= 65536),
+				reported_at INTEGER NOT NULL CHECK (reported_at >= 0),
+				FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
+			);
+		`
+	}, {
+		version: 35,
+		sql: `
+			INSERT INTO service_settings (key, value) VALUES ('released_mod_version', '');
+		`
+	}, {
+		version: 36,
+		sql: `
+			ALTER TABLE client_runtime_snapshots ADD COLUMN game_mode_id TEXT
+				CHECK (game_mode_id IS NULL OR length(game_mode_id) BETWEEN 1 AND 256);
+		`
+	}, {
+		version: 37,
+		sql: `
+			ALTER TABLE clients ADD COLUMN game_mode_visible INTEGER NOT NULL DEFAULT 1
+				CHECK (game_mode_visible IN (0, 1));
+		`
+	}, {
+		version: 38,
+		sql: `
+			ALTER TABLE clients ADD COLUMN active_mods_visible INTEGER NOT NULL DEFAULT 1
+				CHECK (active_mods_visible IN (0, 1));
+		`
 	}];

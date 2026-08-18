@@ -15,8 +15,8 @@ services:
       REGISTRATIONS_PER_SOURCE_HOUR: ${MELVOR_REGISTRATIONS_PER_SOURCE_HOUR:-4}
       REGISTRATIONS_PER_SERVICE_HOUR: ${MELVOR_REGISTRATIONS_PER_SERVICE_HOUR:-32}
       AUTH_RESPONSE_DELAY_MS: ${MELVOR_AUTH_RESPONSE_DELAY_MS:-1000}
-      SUPPORT_TEAM_PLAYFAB_IDS: ${MELVOR_SUPPORT_TEAM_PLAYFAB_IDS-}
-      SUPPORT_TEAM_PLAYFAB_IDS_CONFIGURED: ${MELVOR_SUPPORT_TEAM_PLAYFAB_IDS+1}
+      SUPPORT_TEAM_CLIENT_IDENTIFIERS: ${MELVOR_SUPPORT_TEAM_CLIENT_IDENTIFIERS-}
+      SUPPORT_TEAM_CLIENT_IDENTIFIERS_CONFIGURED: ${MELVOR_SUPPORT_TEAM_CLIENT_IDENTIFIERS+1}
       FILE_OPERATIONAL_LOGS: ${MELVOR_FILE_OPERATIONAL_LOGS:-0}
       LOG_DIR: /app/logs
       BACKUP_DIR: /app/backups
@@ -26,10 +26,11 @@ services:
         - bun
         - -e
         - "fetch('http://127.0.0.1:3000/health').then(response => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
-      interval: 2s
+      interval: 20s
       timeout: 5s
-      retries: 30
-      start_period: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 2s
     ports:
       - "127.0.0.1:${MELVOR_SERVER_PORT:-3000}:3000"
     volumes:

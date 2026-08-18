@@ -27,7 +27,12 @@ export function status_response(status_code: number): Response {
 	return new Response(STATUS_CODES[status_code] ?? '', { status: status_code });
 }
 
-const request_identities = new WeakMap<Request, number>();
+type RequestIdentity = {
+	client_id: number;
+	mod_version?: string;
+};
+
+const request_identities = new WeakMap<Request, RequestIdentity>();
 
 function positive_body_limit(): number {
 	const raw = process.env.MAX_JSON_BODY_BYTES ?? '32768';
@@ -39,8 +44,8 @@ function positive_body_limit(): number {
 
 const MAX_JSON_BODY_BYTES = positive_body_limit();
 
-export function identify_request(req: Request, client_id: number): void {
-	request_identities.set(req, client_id);
+export function identify_request(req: Request, client_id: number, mod_version?: string): void {
+	request_identities.set(req, { client_id, mod_version });
 }
 
 export async function read_json_request(req: Request): Promise<JsonReadResult> {
@@ -108,15 +113,24 @@ async function resolve_response(result: HandlerReturnType): Promise<Response> {
 	});
 }
 
+export function should_log_request(path: string, status: number): boolean {
+	return path !== '/health' || status >= 400;
+}
+
 function log_request(req: Request, response: Response, started_at: number): Response {
 	const url = new URL(req.url);
+	if (!should_log_request(url.pathname, response.status))
+		return response;
 	const elapsed_ms = Date.now() - started_at;
-	const client_id = request_identities.get(req);
-	const identity = client_id === undefined ? '' : ` identity=${client_id}`;
+	const request_identity = request_identities.get(req);
+	const identity = request_identity === undefined ? '' : ` identity=${request_identity.client_id}`;
+	const mod_version = request_identity?.mod_version === undefined
+		? ''
+		: ` mod_version=${JSON.stringify(request_identity.mod_version)}`;
 	write_log(
 		'info',
 		`type=http method=${req.method} path=${url.pathname} status=${response.status} ` +
-		`duration_ms=${elapsed_ms}${identity}`
+		`duration_ms=${elapsed_ms}${identity}${mod_version}`
 	);
 	return response;
 }

@@ -19,6 +19,12 @@ type TransferContents = {
 	resolved_trades: Record<string, unknown>;
 };
 
+type Receipt = {
+	id: string;
+	kind: string;
+	effects: Array<Record<string, unknown>>;
+};
+
 async function get_transfer_contents(
 	session_token: string,
 	gift_ids: number[]
@@ -37,12 +43,22 @@ describe('gift API', () => {
 			recipient_id: pair.second_id,
 			items: [{ id: 'melvorD:Coal_Ore', qty: 0 }]
 		}, pair.first.session_token);
-		const too_many = await post_json<{ error_lang: string }>('/api/gift/send', {
+		const fractional_items = await post('/api/gift/send', {
+			recipient_id: pair.second_id,
+			items: [{ id: 'melvorD:Coal_Ore', qty: 0.5 }]
+		}, pair.first.session_token);
+		const maximum = await post_json<{ success: boolean }>('/api/gift/send', {
 			recipient_id: pair.second_id,
 			items: Array.from({ length: 32 }, (_, index) => ({
 				id: `melvorD:Test_Item_${index}`,
 				qty: 1
 			}))
+		}, pair.first.session_token);
+		const maximum_gift_id = (await get_events(pair.second)).gifts[0];
+		await post_json('/api/gift/accept', { gift_id: maximum_gift_id }, pair.second.session_token);
+		const too_many = await post('/api/gift/send', {
+			recipient_id: pair.second_id,
+			items: Array.from({ length: 33 }, (_, index) => ({ id: `melvorD:Extra_Item_${index}`, qty: 1 }))
 		}, pair.first.session_token);
 		const first = await post_json<{ success: boolean }>('/api/gift/send', {
 			recipient_id: pair.second_id,
@@ -54,7 +70,9 @@ describe('gift API', () => {
 		}, pair.first.session_token);
 
 		expect(invalid_items.status).toBe(400);
-		expect(too_many.json.error_lang).toBe('MOD_MP_TOO_MANY_ITEMS');
+		expect(fractional_items.status).toBe(400);
+		expect(maximum.json.success).toBe(true);
+		expect(too_many.status).toBe(400);
 		expect(first.json.success).toBe(true);
 		expect(pending.json.error_lang).toBe('MOD_MP_PENDING_GIFT');
 
@@ -76,7 +94,7 @@ describe('gift API', () => {
 			recipient_id: pair.second_id,
 			items: [
 				{ id: 'melvorD:Coal_Ore', qty: 12 },
-				{ id: 'exampleMod:Allowed_Gift', qty: 3.8 }
+				{ id: 'exampleMod:Allowed_Gift', qty: 3 }
 			]
 		}, pair.first.session_token);
 		const gift_id = (await get_events(pair.second)).gifts[0];
@@ -153,5 +171,47 @@ describe('gift API', () => {
 		const contents = await get_transfer_contents(pair.first.session_token, [gift_id]);
 
 		expect(contents.json.gifts[String(gift_id)].sender.display_name).toBe('Gift Recipient');
+	});
+
+	test('discards only owned returned gifts through a replay-safe command', async () => {
+		const pair = await make_guildmates('Discarded Gift Sender', 'Discarded Gift Recipient');
+		await post_json('/api/gift/send', {
+			recipient_id: pair.second_id,
+			items: [{ id: 'removedMod:Unavailable_Item', qty: 7 }]
+		}, pair.first.session_token);
+		const gift_id = (await get_events(pair.second)).gifts[0];
+		await post_json('/api/gift/decline', { gift_id }, pair.second.session_token);
+		const command_id = crypto.randomUUID();
+		const wrong_owner = await post('/api/gift/discard', {
+			gift_id,
+			command_id: crypto.randomUUID()
+		}, pair.second.session_token);
+		const discarded = await post_json<{ success: boolean; receipt: Receipt }>('/api/gift/discard', {
+			gift_id,
+			command_id
+		}, pair.first.session_token);
+		const replay = await post_json<{ success: boolean; receipt: Receipt }>('/api/gift/discard', {
+			gift_id,
+			command_id
+		}, pair.first.session_token);
+
+		expect(wrong_owner.status).toBe(400);
+		expect(replay.json).toEqual(discarded.json);
+		expect(discarded.json.receipt).toEqual({ id: command_id, kind: 'gift-discard', effects: [] });
+		const pending = await get_events(pair.first);
+		expect(pending.gifts).toEqual([]);
+		expect(pending.economy_receipts).toContainEqual(discarded.json.receipt);
+		const left = await post_json<{ success: boolean }>('/api/guilds/leave', {}, pair.first.session_token);
+		expect(left.json.success).toBe(true);
+
+		const acknowledged = await post_json<{ success: boolean }>('/api/economy/receipts/acknowledge', {
+			receipt_id: command_id
+		}, pair.first.session_token);
+		expect(acknowledged.json.success).toBe(true);
+		const completed_replay = await post_json<{ success: boolean; receipt: null }>('/api/gift/discard', {
+			gift_id,
+			command_id
+		}, pair.first.session_token);
+		expect(completed_replay.json.receipt).toBeNull();
 	});
 });

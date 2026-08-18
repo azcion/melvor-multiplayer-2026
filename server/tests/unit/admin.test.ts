@@ -50,6 +50,24 @@ afterEach(() => {
 });
 
 describe('administration CLI', () => {
+	test('sets, reports, validates, and clears the released mod version', async () => {
+		const database_path = fixture_database();
+		const set = await run_admin(database_path, 'release-version', '1.3.0');
+		const status = await run_admin(database_path, 'status');
+		const invalid = await run_admin(database_path, 'release-version', 'backend-57');
+		const clear = await run_admin(database_path, 'release-version', 'clear');
+		const cleared_status = await run_admin(database_path, 'status');
+
+		expect(set.exit_code).toBe(0);
+		expect(set.stdout).toBe('Released mod version set to 1.3.0.\n');
+		expect(status.stdout).toContain('released_mod_version=1.3.0\n');
+		expect(invalid.exit_code).toBe(2);
+		expect(invalid.stderr).toContain('Usage:');
+		expect(clear.exit_code).toBe(0);
+		expect(clear.stdout).toBe('Released mod version cleared.\n');
+		expect(cleared_status.stdout).toContain('released_mod_version=none\n');
+	});
+
 	test('inspects one identity without exposing credentials', async () => {
 		const result = await run_admin(fixture_database(), 'identity', 'inspect', '1');
 

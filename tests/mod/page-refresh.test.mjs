@@ -77,6 +77,28 @@ test('runs a visible-only page callback once when the page opens', async () => {
 	assert.deepEqual(visibility_changes, [true]);
 });
 
+test('stops the Charitree clock when hidden and preserves unchanged inventory', async () => {
+	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const clock_start = main.indexOf('function update_charity_clock');
+	const clock_source = main.slice(clock_start, main.indexOf('function set_charity_page_visible', clock_start));
+	const inventory = [{ id: 'test:item', expires_at: 2_000 }];
+	const state = { charity_update_time: 0, charity_tree_inventory: inventory };
+	const update_charity_clock = new Function('state', 'Date', `
+		${clock_source}
+		return update_charity_clock;
+	`)(state, { now: () => 1_000 });
+
+	update_charity_clock();
+	assert.equal(state.charity_tree_inventory, inventory);
+	state.charity_tree_inventory.push({ id: 'test:expired', expires_at: 500 });
+	update_charity_clock();
+	assert.deepEqual(state.charity_tree_inventory, [inventory[0]]);
+
+	const interface_setup = main.slice(main.indexOf('ctx.onInterfaceReady'), main.indexOf('function setup_account_menu'));
+	assert.match(interface_setup, /on_page_toggle\('mp-charity-page',[\s\S]*?\}, false\)/);
+	assert.match(main, /ctx\.onCharacterSelectionLoaded\(\(\) => \{\s*set_charity_page_visible\(false\)/);
+});
+
 test('keeps reactive Guild state off Melvor page visibility containers', async () => {
 	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
 

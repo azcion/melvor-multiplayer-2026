@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
 	format_charitree_remaining,
 	get_charitree_next_opportunity,
+	get_charitree_pet_chance,
 	get_charitree_stack_gp_value,
 	get_charitree_take_block,
 	get_charitree_take_quantity
@@ -59,6 +60,16 @@ test('finds the next Charitree opportunity from the chances available to the pla
 	assert.equal(get_charitree_next_opportunity(10_000, 2_000, true, day), 2_000 + day);
 });
 
+test('scales the Charitree pet chance from 0.1 percent to a 10 percent cap', () => {
+	assert.equal(get_charitree_pet_chance(0), 0.001);
+	assert.equal(get_charitree_pet_chance(9_999_999), 0.001);
+	assert.equal(get_charitree_pet_chance(10_000_000), 0.011);
+	assert.equal(get_charitree_pet_chance(90_000_000), 0.091);
+	assert.equal(get_charitree_pet_chance(100_000_000), 0.1);
+	assert.equal(get_charitree_pet_chance(1_000_000_000), 0.1);
+	assert.equal(get_charitree_pet_chance(Number.POSITIVE_INFINITY), 0.001);
+});
+
 test('wires completion-log discovery, first-find receipt, and per-stack expiry into the Charitree page', async () => {
 	const [main, templates, style, language_source] = await Promise.all([
 		readFile(new URL('mod/main.mjs', root), 'utf8'),
@@ -69,12 +80,13 @@ test('wires completion-log discovery, first-find receipt, and per-stack expiry i
 	const language = JSON.parse(language_source);
 
 	assert.match(main, /game\.stats\.itemFindCount\(item\) > 0/);
-	assert.match(main, /add_bank_item\(item\.id, res\.item_qty, !was_discovered\)/);
+	assert.match(main, /receipt\.kind === 'charity-take' && !state\.is_charity_item_discovered\(item_id\)/);
 	assert.match(main, /qty: this\.get_charity_take_quantity\(item\)/);
 	assert.match(main, /item_remaining_qty/);
 	assert.match(main, /game\.bank\.addItemByID\(item_id, amount, false, found, true\)/);
 	assert.match(main, /setInterval\(update_charity_clock, 1000\)/);
 	assert.match(main, /get charity_next_opportunity_at\(\)/);
+	assert.match(main, /charitree_rules\.get_charitree_pet_chance\(donation_value\)/);
 	assert.match(templates, /state\.format_charity_expiry\(item\.expires_at\)/);
 	assert.match(templates, /role="timer"/);
 	assert.match(templates, /state\.charity_next_opportunity_formatted/);

@@ -45,6 +45,7 @@ type ChatBudget = {
 type ChatClientRow = {
 	id: number;
 	messaging_enabled: number;
+	guild_chat_enabled: number;
 	messaging_credits: number;
 	messaging_refill_at: number;
 };
@@ -177,12 +178,13 @@ function get_message(message_id: number): MessageRow | null {
 }
 
 export function get_chat_state(client_id: number, now = Date.now()) {
-	const client = db.query<Pick<ChatClientRow, 'messaging_enabled'>, [number]>(
-		'SELECT `messaging_enabled` FROM `clients` WHERE `id` = ? LIMIT 1'
-	).get(client_id) as Pick<ChatClientRow, 'messaging_enabled'>;
+	const client = db.query<Pick<ChatClientRow, 'messaging_enabled' | 'guild_chat_enabled'>, [number]>(
+		'SELECT `messaging_enabled`, `guild_chat_enabled` FROM `clients` WHERE `id` = ? LIMIT 1'
+	).get(client_id) as Pick<ChatClientRow, 'messaging_enabled' | 'guild_chat_enabled'>;
 	return {
 		client_id,
 		messaging_enabled: client.messaging_enabled === 1,
+		guild_chat_enabled: client.guild_chat_enabled === 1,
 		budget_enabled: CHAT_BUDGET_ENABLED,
 		budget: CHAT_BUDGET_ENABLED
 			? db.transaction(() => refresh_budget(client_id, now)).immediate()
@@ -205,61 +207,83 @@ export function get_unread_chat_count(client_id: number): number {
 }
 
 export function list_conversations(client_id: number) {
-	const conversations = db.query<ConversationRow & {
+	type ConversationSummaryRow = ConversationRow & {
 		conversation_hidden: number;
 		hidden_through_message_id: number;
-	}, [number]>(
-		'SELECT c.*, p.`conversation_hidden`, p.`hidden_through_message_id` ' +
-		'FROM `chat_conversations` AS c JOIN `chat_participants` AS p ON p.`conversation_id` = c.`id` ' +
-		'WHERE p.`client_id` = ? ORDER BY c.`id` DESC'
-	).all(client_id);
-	const result = [];
-	for (const conversation of conversations) {
-		const other_id = other_participant(conversation, client_id);
-		const latest = db.query<MessageRow, [number, number, number]>(
-			'SELECT m.*, sender.`display_name`, sender.`icon_id` FROM `chat_messages` AS m ' +
-			'JOIN `clients` AS sender ON sender.`id` = m.`sender_id` ' +
-			'WHERE m.`conversation_id` = ? AND m.`id` > ? ' +
-			'AND NOT EXISTS(SELECT 1 FROM `chat_message_deletions` AS d WHERE d.`message_id` = m.`id` AND d.`client_id` = ?) ' +
-			'ORDER BY m.`id` DESC LIMIT 1'
-		).get(conversation.id, conversation.hidden_through_message_id, client_id);
-		if (conversation.conversation_hidden === 1 && latest === null)
-			continue;
-		const other = db.query<{ display_name: string; icon_id: string }, [number]>(
-			'SELECT `display_name`, `icon_id` FROM `clients` WHERE `id` = ? AND `deleted_at` IS NULL LIMIT 1'
-		).get(other_id);
-		if (other === null)
-			continue;
-		const unread = db.query<{ count: number }, number[]>(
-			'SELECT COUNT(*) AS `count` FROM `chat_messages` AS m WHERE m.`conversation_id` = ? ' +
-			'AND m.`sender_id` != ? AND m.`id` > ? ' +
-			'AND NOT EXISTS(SELECT 1 FROM `chat_message_reads` AS r WHERE r.`message_id` = m.`id` AND r.`client_id` = ?) ' +
-			'AND NOT EXISTS(SELECT 1 FROM `chat_message_deletions` AS d WHERE d.`message_id` = m.`id` AND d.`client_id` = ?)'
-		).get(
-			conversation.id,
-			client_id,
-			conversation.hidden_through_message_id,
-			client_id,
-			client_id
-		) as { count: number };
-		const blocked = db.query<{ blocked: number }, [number, number]>(
-			'SELECT EXISTS(SELECT 1 FROM `chat_blocks` WHERE `blocker_id` = ? AND `blocked_id` = ?) AS `blocked`'
-		).get(client_id, other_id) as { blocked: number };
-		result.push({
+		other_id: number;
+		other_display_name: string;
+		other_icon_id: string;
+		latest_id: number | null;
+		latest_sender_id: number | null;
+		latest_content: string | null;
+		latest_created_at: number | null;
+		latest_display_name: string | null;
+		latest_icon_id: string | null;
+		unread_count: number;
+		blocked: number;
+	};
+	const conversations = db.query<ConversationSummaryRow, [number]>(`
+		WITH participant_conversations AS (
+			SELECT c.*, p.conversation_hidden, p.hidden_through_message_id,
+				CASE WHEN c.participant_low_id = ?1 THEN c.participant_high_id ELSE c.participant_low_id END AS other_id
+			FROM chat_conversations AS c
+			JOIN chat_participants AS p ON p.conversation_id = c.id
+			WHERE p.client_id = ?1
+		), visible_messages AS (
+			SELECT m.*, sender.display_name, sender.icon_id,
+				ROW_NUMBER() OVER (PARTITION BY m.conversation_id ORDER BY m.id DESC) AS message_rank
+			FROM chat_messages AS m
+			JOIN participant_conversations AS c ON c.id = m.conversation_id
+			JOIN clients AS sender ON sender.id = m.sender_id
+			WHERE m.id > c.hidden_through_message_id
+			AND NOT EXISTS(SELECT 1 FROM chat_message_deletions AS d
+				WHERE d.message_id = m.id AND d.client_id = ?1)
+		), unread AS (
+			SELECT m.conversation_id, COUNT(*) AS unread_count
+			FROM visible_messages AS m
+			WHERE m.sender_id != ?1
+			AND NOT EXISTS(SELECT 1 FROM chat_message_reads AS r
+				WHERE r.message_id = m.id AND r.client_id = ?1)
+			GROUP BY m.conversation_id
+		)
+		SELECT c.*, other.display_name AS other_display_name, other.icon_id AS other_icon_id,
+			latest.id AS latest_id, latest.sender_id AS latest_sender_id,
+			latest.content AS latest_content, latest.created_at AS latest_created_at,
+			latest.display_name AS latest_display_name, latest.icon_id AS latest_icon_id,
+			COALESCE(unread.unread_count, 0) AS unread_count,
+			(block.blocker_id IS NOT NULL) AS blocked
+		FROM participant_conversations AS c
+		JOIN clients AS other ON other.id = c.other_id AND other.deleted_at IS NULL
+		LEFT JOIN visible_messages AS latest ON latest.conversation_id = c.id AND latest.message_rank = 1
+		LEFT JOIN unread ON unread.conversation_id = c.id
+		LEFT JOIN chat_blocks AS block ON block.blocker_id = ?1 AND block.blocked_id = c.other_id
+		WHERE c.conversation_hidden = 0 OR latest.id IS NOT NULL
+		ORDER BY COALESCE(latest.id, 0) DESC, c.id DESC
+	`).all(client_id);
+	return conversations.map(conversation => {
+		const latest = conversation.latest_id === null ? null : message_view({
+			id: conversation.latest_id,
+			conversation_id: conversation.id,
+			sender_id: conversation.latest_sender_id as number,
+			content: conversation.latest_content as string,
+			created_at: conversation.latest_created_at as number,
+			display_name: conversation.latest_display_name as string,
+			icon_id: conversation.latest_icon_id as string
+		});
+		return {
 			conversation_kind: 'private',
 			conversation_id: conversation.id,
-			participant: { client_id: other_id, ...other },
+			participant: {
+				client_id: conversation.other_id,
+				display_name: conversation.other_display_name,
+				icon_id: conversation.other_icon_id
+			},
 			created_at: conversation.created_at,
-			latest_message: latest === null ? null : message_view(latest),
-			unread_count: unread.count,
-			blocked: blocked.blocked === 1
-		});
-	}
-	result.sort((a, b) =>
-		(b.latest_message?.message_id ?? 0) - (a.latest_message?.message_id ?? 0) ||
-		b.conversation_id - a.conversation_id
-	);
-	return result;
+			latest_message: latest,
+			unread_count: conversation.unread_count,
+			blocked: conversation.blocked === 1
+		};
+	});
 }
 
 export function start_conversation(client_id: number, target_id: number): ChatResult<ChatConversationView> {

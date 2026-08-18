@@ -26,6 +26,11 @@ export type Events = {
 		state: number;
 	}>;
 	resolved_trades: number[];
+	economy_receipts: Array<{
+		id: string;
+		kind: string;
+		effects: Array<Record<string, unknown>>;
+	}>;
 	campaign: {
 		active: boolean;
 		pct: number;
