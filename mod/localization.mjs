@@ -8,6 +8,12 @@ export const MULTIPLAYER_PAGE_LANG_IDS = Object.freeze({
 	Guild_Raid: 'MOD_MP_PAGE_RAID'
 });
 
+export const MULTIPLAYER_SUPPORTED_LANGUAGES = Object.freeze(['en', 'zh-CN']);
+
+export function resolve_multiplayer_language(lang) {
+	return MULTIPLAYER_SUPPORTED_LANGUAGES.includes(lang) ? lang : 'en';
+}
+
 export function localize_multiplayer_page_names({ game, sidebar, getLangString, createElement }) {
 	const multiplayer_category = sidebar.category('Multiplayer');
 	for (const [page_id, lang_id] of Object.entries(MULTIPLAYER_PAGE_LANG_IDS)) {

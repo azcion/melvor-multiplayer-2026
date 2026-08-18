@@ -5082,10 +5082,8 @@ function patch_bank() {
  * translations. This is a hackfix because I couldn't find a way for mods to load
  * their own translations via data. */
 async function patch_localization(ctx) {
-	const lang_supported = ['en'];
-
 	const fetch_mod_localization = async (lang, language = loadedLangJson) => {
-		const fetch_lang = lang_supported.includes(lang) ? lang : 'en';
+		const fetch_lang = localization.resolve_multiplayer_language(lang);
 
 		try {
 			const patch_lang = await ctx.loadData('data/lang/' + fetch_lang + '.json');

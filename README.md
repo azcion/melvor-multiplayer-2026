@@ -3,7 +3,7 @@
 # Melvor Multiplayer Remastered
 
 Melvor Multiplayer Remastered is a self-hosted Melvor Idle multiplayer mod and server rebuilt around Guild-isolated
-play. This repository contains the public source for version `1.3.2`, targeting Melvor Idle v1.3.1.
+play. This repository contains the public source for version `1.3.3`, targeting Melvor Idle v1.3.1.
 
 This is an unofficial, community-maintained fork of
 [Melvor Multiplayer](https://mod.io/g/melvoridle/m/melvor-multiplayer), originally created by Kruithne. No affiliation

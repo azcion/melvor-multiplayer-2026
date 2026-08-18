@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.3
+
+- Added Simplified Chinese localization contributed by `k348674808`. Melvor's `zh-CN` language now loads the translated Multiplayer interface while unsupported languages continue to use English.
+
 ## 1.3.2
 
 - Fixed Multiplayer sidebar and page titles, settings, placeholders, Raid status text, item tooltips, and accessibility labels bypassing localization. Language changes now preserve both Melvor's base translations and the mod's translated text.
