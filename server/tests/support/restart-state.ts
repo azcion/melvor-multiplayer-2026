@@ -19,6 +19,10 @@ export type RestartState = {
 	equipment_slots: Array<{ slot_id: string; item_id: string }>;
 	status_skills: Array<{ skill_id: string; level: number }>;
 	status_activity: { type: 'skill'; skill_id: string; action_id: string };
+	status_activities: Array<
+		| { type: 'skill'; skill_id: string; action_id: string }
+		| { type: 'combat'; area_id: string | null }
+	>;
 	gp_amount: number;
 	chat_conversation_id: number;
 	chat_message_id: number;

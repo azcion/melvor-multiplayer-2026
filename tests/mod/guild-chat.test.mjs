@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { read_client_source } from './source.mjs';
 
 const root = new URL('../../', import.meta.url);
 
 async function sources() {
 	const [main, templates, style, language_text] = await Promise.all([
-		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		read_client_source(root),
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
 		readFile(new URL('mod/ui/style.css', root), 'utf8'),
 		readFile(new URL('mod/data/lang/en.json', root), 'utf8')

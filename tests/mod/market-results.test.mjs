@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { read_client_source } from './source.mjs';
 
 import {
 	market_page_window,
@@ -44,7 +45,7 @@ test('clamps a page window when no Marketplace results exist', () => {
 });
 
 test('captures Marketplace queries and ignores stale generations', async () => {
-	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const main = await read_client_source();
 	const search = main.slice(main.indexOf('async function update_market_search'),
 		main.indexOf('function load_market_filter_items'));
 
@@ -59,7 +60,7 @@ test('captures Marketplace queries and ignores stale generations', async () => {
 });
 
 test('tears down the buy modal before changing its reactive slider maximum', async () => {
-	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const main = await read_client_source();
 	const buy = main.slice(main.indexOf('\tasync buy_market_item'), main.indexOf('\n\tmarket_page('));
 
 	assert.match(buy, /hide_button_spinner\(\$button\);\s*await this\.close_modal_and_wait\('market-buy-modal'\);/);

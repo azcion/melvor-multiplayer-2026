@@ -27,7 +27,8 @@ describe('identity API', () => {
 			client_runtime: {
 				mod_version: '1.3.0-beta.1',
 				active_mods: ['Multiplayer', 'QoL Mod', 'Multiplayer'],
-				game_mode_id: 'melvorF:Adventure'
+				game_mode_id: 'melvorF:Adventure',
+				language: 'x-debug-locale'
 			}
 		});
 		expect(registered.response.status).toBe(200);
@@ -36,15 +37,17 @@ describe('identity API', () => {
 			mod_version: string;
 			active_mods: string;
 			game_mode_id: string | null;
+			language: string | null;
 			reported_at: number;
 		}>(
-			'SELECT `mod_version`, `active_mods`, `game_mode_id`, `reported_at` FROM `client_runtime_snapshots` WHERE `client_id` = ?',
+			'SELECT `mod_version`, `active_mods`, `game_mode_id`, `language`, `reported_at` FROM `client_runtime_snapshots` WHERE `client_id` = ?',
 			[registered.json.chat.client_id]
 		);
 		expect(snapshots).toHaveLength(1);
 		expect(snapshots[0]?.mod_version).toBe('1.3.0-beta.1');
 		expect(JSON.parse(snapshots[0]?.active_mods ?? 'null')).toEqual(['Multiplayer', 'QoL Mod']);
 		expect(snapshots[0]?.game_mode_id).toBe('melvorF:Adventure');
+		expect(snapshots[0]?.language).toBe('x-debug-locale');
 		expect(snapshots[0]?.reported_at).toBeGreaterThan(0);
 
 		const sessions = await db_all<{ mod_version: string | null }>(
@@ -59,7 +62,8 @@ describe('identity API', () => {
 			client_runtime: {
 				mod_version: '1.3.0',
 				active_mods: ['Multiplayer', 'Compatibility Mod'],
-				game_mode_id: 'customMode:Iron_Idler'
+				game_mode_id: 'customMode:Iron_Idler',
+				language: 'zh-TW'
 			}
 		});
 		expect(authenticated.status).toBe(200);
@@ -67,14 +71,16 @@ describe('identity API', () => {
 			mod_version: string;
 			active_mods: string;
 			game_mode_id: string | null;
+			language: string | null;
 			reported_at: number;
 		}>(
-			'SELECT `mod_version`, `active_mods`, `game_mode_id`, `reported_at` FROM `client_runtime_snapshots` WHERE `client_id` = ?',
+			'SELECT `mod_version`, `active_mods`, `game_mode_id`, `language`, `reported_at` FROM `client_runtime_snapshots` WHERE `client_id` = ?',
 			[registered.json.chat.client_id]
 		);
 		expect(snapshots[0]?.mod_version).toBe('1.3.0');
 		expect(JSON.parse(snapshots[0]?.active_mods ?? 'null')).toEqual(['Multiplayer', 'Compatibility Mod']);
 		expect(snapshots[0]?.game_mode_id).toBe('customMode:Iron_Idler');
+		expect(snapshots[0]?.language).toBe('zh-TW');
 	});
 
 	test('keeps runtime reporting optional and rejects malformed snapshots', async () => {
@@ -93,7 +99,9 @@ describe('identity API', () => {
 			{ mod_version: '1.3.0', active_mods: Array.from({ length: 129 }, (_, index) => `Mod ${index}`) },
 			{ mod_version: '1.3.0', active_mods: [], game_mode_id: 'not namespaced' },
 			{ mod_version: '1.3.0', active_mods: [], game_mode_id: 'x:'.padEnd(258, 'y') },
-			{ mod_version: '1.3.0', active_mods: [], game_mode_id: 1 }
+			{ mod_version: '1.3.0', active_mods: [], game_mode_id: 1 },
+			{ mod_version: '1.3.0', active_mods: [], language: 1 },
+			{ mod_version: '1.3.0', active_mods: [], language: 'x'.repeat(65) }
 		]) {
 			const response = await post('/api/register', {
 				client_key: crypto.randomUUID(),
@@ -194,9 +202,13 @@ describe('identity API', () => {
 		const invalid = await post('/api/client/set_icon', {
 			icon_id: 'otherMod:Invalid'
 		}, client.session_token);
-		const valid = await post_json('/api/client/set_icon', {
-			icon_id: 'melvorD:Cow'
-		}, client.session_token);
+		const official_dlc_namespaces = ['melvorAoD', 'melvorTotH', 'melvorItA'];
+		for (const namespace of official_dlc_namespaces) {
+			const valid = await post_json('/api/client/set_icon', {
+				icon_id: `${namespace}:Icon_Test`
+			}, client.session_token);
+			expect(valid.response.status).toBe(200);
+		}
 		const authenticated = await post_json<{
 			session_token: string;
 			friend_code: string;
@@ -208,9 +220,8 @@ describe('identity API', () => {
 		});
 
 		expect(invalid.status).toBe(400);
-		expect(valid.response.status).toBe(200);
 		expect(authenticated.response.status).toBe(200);
-		expect(authenticated.json.icon_id).toBe('melvorD:Cow');
+		expect(authenticated.json.icon_id).toBe('melvorItA:Icon_Test');
 	});
 
 	test('validates, normalizes, and persists a custom display name', async () => {

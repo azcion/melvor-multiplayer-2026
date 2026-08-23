@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { read_client_source } from './source.mjs';
 
 import {
 	format_charitree_remaining,
@@ -72,7 +73,7 @@ test('scales the Charitree pet chance from 0.1 percent to a 10 percent cap', () 
 
 test('wires completion-log discovery, first-find receipt, and per-stack expiry into the Charitree page', async () => {
 	const [main, templates, style, language_source] = await Promise.all([
-		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		read_client_source(root),
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
 		readFile(new URL('mod/ui/style.css', root), 'utf8'),
 		readFile(new URL('mod/data/lang/en.json', root), 'utf8')

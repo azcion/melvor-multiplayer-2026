@@ -15,6 +15,7 @@ type RaidState = {
 		active_member_count: number;
 		required_contributors: number;
 		member: { assaults: number; contribution: number; successful_assaults: number } | null;
+		leaderboard: Array<{ client_id: number; highest_tier: number; contribution: number; successful_assaults: number }>;
 	};
 };
 
@@ -99,6 +100,25 @@ describe('Guild Raids', () => {
 		expect(acknowledged.json.success).toBe(true);
 		const no_cache = await get_json_with_session<{ cache: null }>('/api/raids/cache', member.session_token);
 		expect(no_cache.json.cache).toBeNull();
+	});
+
+	test('lists only members who have started an Assault, including an unresolved Assault at Tier 0', async () => {
+		const guild = await make_guildmates('Raid Participant One', 'Raid Participant Two', 'Raid Participants');
+		const activated = await post_json<{ success: boolean; raid: RaidState['raid'] }>(
+			'/api/raids/activate', {}, guild.first.session_token
+		);
+		expect(activated.json.raid?.leaderboard).toEqual([]);
+
+		const pending = await reserve(guild.second.session_token, 1);
+		expect(pending.assault_id).toBeString();
+		const state = await get_json_with_session<RaidState>('/api/raids/state', guild.first.session_token);
+		expect(state.json.raid?.leaderboard).toHaveLength(1);
+		expect(state.json.raid?.leaderboard).toMatchObject([{
+			client_id: guild.second.client_id,
+			contribution: 0,
+			highest_tier: 0,
+			successful_assaults: 0
+		}]);
 	});
 
 	test('consumes a manual Assault allowance beyond the automatic daily limit', async () => {

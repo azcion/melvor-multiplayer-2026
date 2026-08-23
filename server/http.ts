@@ -16,6 +16,7 @@ export type HandlerResult = string | number | Response | JsonSerializable;
 export type HandlerReturnType = HandlerResult | Promise<HandlerResult>;
 export type RequestHandler = (req: Request, url: URL) => HandlerReturnType;
 type JsonReadResult = { json: JsonObject } | { response: Response };
+type BinaryReadResult = { bytes: Uint8Array } | { response: Response };
 
 type HTTPMethod = Bun.Serve.HTTPMethod;
 type NativeHandler = (req: Request) => Response | Promise<Response>;
@@ -25,6 +26,13 @@ type DefaultHandler = (req: Request, status_code: number) => HandlerReturnType;
 
 export function status_response(status_code: number): Response {
 	return new Response(STATUS_CODES[status_code] ?? '', { status: status_code });
+}
+
+function body_too_large_response(): Response {
+	return new Response(STATUS_CODES[413] ?? '', {
+		status: 413,
+		headers: { Connection: 'close' }
+	});
 }
 
 type RequestIdentity = {
@@ -54,7 +62,7 @@ export async function read_json_request(req: Request): Promise<JsonReadResult> {
 
 	const declared_length = req.headers.get('Content-Length');
 	if (declared_length !== null && Number(declared_length) > MAX_JSON_BODY_BYTES)
-		return { response: status_response(413) };
+		return { response: body_too_large_response() };
 
 	try {
 		const reader = req.body?.getReader();
@@ -71,7 +79,7 @@ export async function read_json_request(req: Request): Promise<JsonReadResult> {
 			length += value.byteLength;
 			if (length > MAX_JSON_BODY_BYTES) {
 				await reader.cancel();
-				return { response: status_response(413) };
+				return { response: body_too_large_response() };
 			}
 			chunks.push(value);
 		}
@@ -88,6 +96,49 @@ export async function read_json_request(req: Request): Promise<JsonReadResult> {
 			return { response: status_response(400) };
 
 		return { json: json as JsonObject };
+	} catch {
+		return { response: status_response(400) };
+	}
+}
+
+export async function read_binary_request(req: Request, maximum_bytes: number): Promise<BinaryReadResult> {
+	const declared_length = req.headers.get('Content-Length');
+	if (declared_length !== null) {
+		const length = Number(declared_length);
+		if (!Number.isSafeInteger(length) || length < 0)
+			return { response: status_response(400) };
+		if (length > maximum_bytes)
+			return { response: body_too_large_response() };
+	}
+
+	try {
+		const reader = req.body?.getReader();
+		if (reader === undefined)
+			return { response: status_response(400) };
+
+		const chunks: Uint8Array[] = [];
+		let length = 0;
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done)
+				break;
+
+			length += value.byteLength;
+			if (length > maximum_bytes) {
+				await reader.cancel();
+				return { response: body_too_large_response() };
+			}
+			chunks.push(value);
+		}
+
+		const bytes = new Uint8Array(length);
+		let offset = 0;
+		for (const chunk of chunks) {
+			bytes.set(chunk, offset);
+			offset += chunk.byteLength;
+		}
+
+		return { bytes };
 	} catch {
 		return { response: status_response(400) };
 	}

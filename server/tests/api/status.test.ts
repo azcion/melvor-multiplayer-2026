@@ -8,15 +8,17 @@ type StatusActivity =
 	| { type: 'idle' }
 	| { type: 'skill'; skill_id: string; action_id: string }
 	| { type: 'combat'; area_id: string | null };
+type StatusActiveActivity = Exclude<StatusActivity, { type: 'idle' }>;
 
 async function sync_status(
 	session_token: string,
 	skills: StatusSkill[],
-	activity: StatusActivity
+	activity: StatusActivity,
+	activities?: StatusActiveActivity[]
 ) {
 	return post_json<{ success?: boolean; error_lang?: string }>(
 		'/api/client/status/sync',
-		{ skills, activity },
+		{ skills, activity, ...(activities === undefined ? {} : { activities }) },
 		session_token
 	);
 }
@@ -26,6 +28,7 @@ async function get_status(session_token: string, client_id: number) {
 		client_id?: number;
 		skills?: StatusSkill[];
 		activity?: StatusActivity;
+		activities?: StatusActiveActivity[];
 		error_lang?: string;
 	}>(`/api/guilds/status?client_id=${client_id}`, session_token);
 }
@@ -39,7 +42,11 @@ describe('player status API', () => {
 		];
 		const activity = { type: 'skill' as const, skill_id: 'melvorD:Woodcutting', action_id: 'melvorD:Oak' };
 
-		const saved = await sync_status(pair.first.session_token, skills, activity);
+		const activities: StatusActiveActivity[] = [
+			activity,
+			{ type: 'combat', area_id: 'melvorD:Volcanic_Cave' }
+		];
+		const saved = await sync_status(pair.first.session_token, skills, activity, activities);
 		const viewed = await get_status(pair.second.session_token, pair.first_id);
 		const state = await get_json_with_session<{
 			members: Array<{
@@ -47,6 +54,7 @@ describe('player status API', () => {
 				status_visible: boolean;
 				status_available: boolean;
 				status_activity: StatusActivity | null;
+				status_activities: StatusActiveActivity[];
 			}>;
 		}>('/api/guilds/state', pair.second.session_token);
 		const owner = state.json.members.find(member => member.client_id === pair.first_id);
@@ -55,12 +63,14 @@ describe('player status API', () => {
 		expect(viewed.json).toEqual({
 			client_id: pair.first_id,
 			skills: [skills[0], skills[1]],
-			activity
+			activity,
+			activities
 		});
 		expect(owner).toMatchObject({
 			status_visible: true,
 			status_available: true,
-			status_activity: activity
+			status_activity: activity,
+			status_activities: activities
 		});
 	});
 
@@ -74,6 +84,14 @@ describe('player status API', () => {
 			activity: { type: 'combat', area_id: 'melvorD:Volcanic_Cave' }
 		}, pair.first.session_token);
 		const after_activity = await get_status(pair.second.session_token, pair.first_id);
+		const activities: StatusActiveActivity[] = [
+			{ type: 'skill', skill_id: 'melvorD:Astrology', action_id: 'melvorD:Aries' },
+			{ type: 'combat', area_id: 'melvorD:Volcanic_Cave' }
+		];
+		const activities_only = await post_json<{ success: boolean }>('/api/client/status/sync', {
+			activities
+		}, pair.first.session_token);
+		const after_activities = await get_status(pair.second.session_token, pair.first_id);
 		const skills_only = await post_json<{ success: boolean }>('/api/client/status/sync', {
 			skills: [{ skill_id: 'melvorD:Attack', level: 43 }]
 		}, pair.first.session_token);
@@ -83,9 +101,14 @@ describe('player status API', () => {
 		expect(activity_only.json.success).toBe(true);
 		expect(after_activity.json.skills).toEqual(skills);
 		expect(after_activity.json.activity).toEqual({ type: 'combat', area_id: 'melvorD:Volcanic_Cave' });
+		expect(after_activity.json.activities).toEqual([{ type: 'combat', area_id: 'melvorD:Volcanic_Cave' }]);
+		expect(activities_only.json.success).toBe(true);
+		expect(after_activities.json.activity).toEqual({ type: 'combat', area_id: 'melvorD:Volcanic_Cave' });
+		expect(after_activities.json.activities).toEqual(activities);
 		expect(skills_only.json.success).toBe(true);
 		expect(after_skills.json.skills).toEqual([{ skill_id: 'melvorD:Attack', level: 43 }]);
 		expect(after_skills.json.activity).toEqual({ type: 'combat', area_id: 'melvorD:Volcanic_Cave' });
+		expect(after_skills.json.activities).toEqual(activities);
 		expect(empty.status).toBe(400);
 	});
 
@@ -112,6 +135,23 @@ describe('player status API', () => {
 			gp_visible: true,
 			gp: 142_609,
 			last_seen_at
+		});
+	});
+
+	test('shares the latest raw reported language with current Guild members', async () => {
+		const pair = await make_guildmates('Language Owner', 'Language Viewer');
+		await db_run(
+			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `language`, `reported_at`) ' +
+			'VALUES(?, ?, ?, ?, ?)',
+			[pair.first_id, '1.4.0', '[]', 'x-debug-locale', Date.now()]
+		);
+
+		const state = await get_json_with_session<{
+			members: Array<{ client_id: number; language: string | null }>;
+		}>('/api/guilds/state', pair.second.session_token);
+
+		expect(state.json.members.find(member => member.client_id === pair.first_id)).toMatchObject({
+			language: 'x-debug-locale'
 		});
 	});
 
@@ -280,12 +320,15 @@ describe('player status API', () => {
 		await sync_status(owner.session_token, [], activity);
 
 		const directory = await get_json_with_session<{
-			members: Array<{ client_id: number; display_name: string; status_activity: StatusActivity | null }>;
+			members: Array<{
+				client_id: number; display_name: string; status_activity: StatusActivity | null;
+				status_activities: StatusActiveActivity[];
+			}>;
 		}>('/api/guilds/members?page=0&search=', viewer.session_token);
 		const member = directory.json.members.find(candidate => candidate.client_id === owner.client_id);
 
 		expect(directory.response.status).toBe(200);
-		expect(member).toMatchObject({ status_activity: activity });
+		expect(member).toMatchObject({ status_activity: activity, status_activities: [activity] });
 	});
 
 	test('authorizes every read against current same-Guild membership', async () => {
@@ -358,11 +401,28 @@ describe('player status API', () => {
 			skills: [],
 			activity: { type: 'skill', skill_id: 'melvorD:Attack' }
 		}, owner.session_token);
+		const idle_in_activities = await post('/api/client/status/sync', {
+			activities: [{ type: 'idle' }]
+		}, owner.session_token);
+		const duplicate_activities = await post('/api/client/status/sync', {
+			activities: [
+				{ type: 'skill', skill_id: 'melvorD:Astrology', action_id: 'melvorD:Aries' },
+				{ type: 'skill', skill_id: 'melvorD:Astrology', action_id: 'melvorD:Aries' }
+			]
+		}, owner.session_token);
+		const too_many_activities = await post('/api/client/status/sync', {
+			activities: Array.from({ length: 17 }, (_, index) => ({
+				type: 'skill', skill_id: `test:Skill_${index}`, action_id: `test:Action_${index}`
+			}))
+		}, owner.session_token);
 		const invalid_gp = await post('/api/client/status/sync', { gp: Number.MAX_SAFE_INTEGER + 1 }, owner.session_token);
 
 		expect(idle.json.success).toBe(true);
 		expect(combat.json.success).toBe(true);
-		for (const response of [duplicate, malformed, invalid_level, too_many, invalid_activity, invalid_gp])
+		for (const response of [
+			duplicate, malformed, invalid_level, too_many, invalid_activity, idle_in_activities,
+			duplicate_activities, too_many_activities, invalid_gp
+		])
 			expect(response.status).toBe(400);
 	});
 });

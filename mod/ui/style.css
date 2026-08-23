@@ -48,7 +48,8 @@ body.superDark {
 }
 
 .mp-chat-nav,
-.mp-raid-nav {
+.mp-raid-nav,
+.mp-charity-nav {
 	color: white !important;
 	display: inline-flex;
 	align-items: center;
@@ -72,9 +73,25 @@ body.superDark {
 	background-color: #5b4aa1;
 }
 
+.mp-raid-nav.mp-raid-active {
+	background-color: #8f3030;
+}
+
+.mp-charity-nav {
+	background-color: #28a745;
+}
+
+.mp-charity-nav:empty {
+	display: none;
+}
+
 .mp-icon-selector {
 	display: flex;
 	flex-wrap: wrap;
+	max-height: 320px;
+	max-height: min(40dvh, 320px);
+	overflow-y: auto;
+	overscroll-behavior: contain;
 	margin-top: 10px;
 	margin-bottom: 20px;
 }
@@ -345,6 +362,10 @@ body.superDark {
 	min-height: calc(100vh - 235px);
 }
 
+#mp-guild-page {
+	padding-bottom: 3rem !important;
+}
+
 .mp-guild-summary,
 .mp-guild-application {
 	display: flex;
@@ -372,6 +393,37 @@ body.superDark {
 	gap: 12px;
 }
 
+.mp-guild-activity {
+	grid-column: 2;
+	grid-row: 1;
+}
+
+.mp-guild-applicants-block {
+	grid-column: 1 / -1;
+}
+
+.mp-guild-members-scroll,
+.mp-guild-activity-scroll {
+	max-height: 50rem;
+	overflow-y: auto;
+}
+
+.mp-guild-activity-event {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	padding: 4px 16px;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mp-guild-activity-event .font-size-sm.text-muted {
+	opacity: 0.75;
+}
+
+.mp-guild-activity-event:last-child {
+	border-bottom: 0;
+}
+
 .mp-guild-person {
 	display: flex;
 	align-items: center;
@@ -396,6 +448,10 @@ body.superDark {
 .mp-guild-member-button:hover,
 .mp-guild-member-button:focus-visible {
 	background: rgba(255, 255, 255, 0.06);
+}
+
+.mp-member-search-wrapper {
+	padding: 0 1.25rem 1px;
 }
 
 .mp-guild-member-meta {
@@ -438,6 +494,10 @@ body.superDark {
 .mp-guild-member-gp img {
 	width: 20px;
 	height: 20px;
+}
+
+.mp-guild-new-member-badge {
+	background-color: #269e70;
 }
 
 .mp-guild-member-rule {
@@ -557,6 +617,21 @@ body.superDark {
 	justify-content: center;
 	gap: 8px;
 	font-weight: 600;
+}
+
+.mp-member-activities {
+	display: grid;
+	gap: 4px;
+}
+
+.mp-guild-member-activities {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.mp-guild-member-activity-more {
+	line-height: 1;
 }
 
 .mp-member-actions > label {
@@ -1094,6 +1169,16 @@ mp-item-icon.mp-charitree-new-item {
 	.mp-guild-columns,
 	.mp-guild-onboarding {
 		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.mp-guild-activity {
+		grid-column: 1;
+		grid-row: auto;
+		order: -1;
+	}
+
+	.mp-guild-activity-scroll {
+		max-height: 8rem;
 	}
 
 	.mp-guild-summary,

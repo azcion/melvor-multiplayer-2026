@@ -254,7 +254,7 @@
 					"categoryID": "Multiplayer",
 					"icon": "https://cdn2-main.melvor.net/assets/media/bank/message_in_a_bottle.png",
 					"asideClass": "mp-chat-nav",
-					"aside": "0"
+					"aside": ""
 				}
 			},
 			{
@@ -308,7 +308,10 @@
 				"canBeDefault": false,
 				"sidebarItem": {
 					"categoryID": "Multiplayer",
-					"icon": "assets/charity_tree.svg"
+					"icon": "assets/charity_tree.svg",
+					"asideClass": "mp-charity-nav",
+					"aside": "ready",
+					"asideLangID": "MOD_MP_SIDEBAR_CHARITY_READY"
 				}
 			},
 			{

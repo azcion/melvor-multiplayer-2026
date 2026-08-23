@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { read_client_source } from './source.mjs';
 
 const root = new URL('../../', import.meta.url);
 
 async function load_page_toggle(initially_hidden) {
-	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const main = await read_client_source(root);
 	const function_start = main.indexOf('function on_page_toggle');
 	const function_source = main.slice(function_start, main.indexOf('\n// #endregion', function_start));
 	const element = {
@@ -78,7 +79,7 @@ test('runs a visible-only page callback once when the page opens', async () => {
 });
 
 test('stops the Charitree clock when hidden and preserves unchanged inventory', async () => {
-	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const main = await read_client_source(root);
 	const clock_start = main.indexOf('function update_charity_clock');
 	const clock_source = main.slice(clock_start, main.indexOf('function set_charity_page_visible', clock_start));
 	const inventory = [{ id: 'test:item', expires_at: 2_000 }];
@@ -113,7 +114,7 @@ test('keeps reactive Guild state off Melvor page visibility containers', async (
 });
 
 test('mounts each Multiplayer page in one isolated Petite Vue scope', async () => {
-	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const main = await read_client_source(root);
 	const scoped_mount = main.slice(main.indexOf('function make_scoped_template'), main.indexOf('function mount_modal_template'));
 	const interface_setup = main.slice(main.indexOf('ctx.onInterfaceReady'), main.indexOf("on_page_toggle('mp-guild-page'"));
 
@@ -139,7 +140,7 @@ test('keeps returned assets accessible from Transfer while Guildless', async () 
 });
 
 test('keeps unresolved owned listings visible only as destroyable placeholders', async () => {
-	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const main = await read_client_source(root);
 	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
 	const market_page = templates.slice(
 		templates.indexOf('<template id="template-mp-market-page">'),
@@ -155,7 +156,7 @@ test('keeps unresolved owned listings visible only as destroyable placeholders',
 
 test('adds non-draggable item tooltips to resolved Marketplace icons', async () => {
 	const [main, templates, style] = await Promise.all([
-		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		read_client_source(root),
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
 		readFile(new URL('mod/ui/style.css', root), 'utf8')
 	]);

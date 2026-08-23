@@ -34,7 +34,7 @@ describe('browser and request boundaries', () => {
 			expect(response.headers.get('Access-Control-Allow-Origin')).toBe(origin);
 			expect(response.headers.get('Access-Control-Allow-Methods')).toBe('GET, POST, OPTIONS');
 			expect(response.headers.get('Access-Control-Allow-Headers')).toBe(
-				'Content-Type, X-Session-Token, Cache-Control, Pragma'
+				'Content-Type, X-Session-Token, X-Icon-Catalog-Upload-Token, Cache-Control, Pragma'
 			);
 			expect(response.headers.get('Access-Control-Max-Age')).toBe('600');
 			expect(response.headers.get('Vary')).toContain('Origin');
@@ -196,7 +196,7 @@ describe('browser and request boundaries', () => {
 
 		expect(response.status).toBe(204);
 		expect(response.headers.get('Access-Control-Allow-Headers')).toBe(
-			'Content-Type, X-Session-Token, Cache-Control, Pragma'
+			'Content-Type, X-Session-Token, X-Icon-Catalog-Upload-Token, Cache-Control, Pragma'
 		);
 	});
 

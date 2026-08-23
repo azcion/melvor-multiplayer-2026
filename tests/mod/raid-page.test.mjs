@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { install_transfer_actions } from '../../mod/client-actions-transfer.mjs';
+import { read_client_source } from './source.mjs';
 
-const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+const main = await read_client_source();
 const templates = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
 const style = await readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8');
 const data = JSON.parse(await readFile(new URL('../../mod/data.json', import.meta.url), 'utf8'));
@@ -65,13 +67,17 @@ test('registers and mounts the Guild Raid page as a first-class multiplayer view
 	assert.equal(page.containerID, 'mp-raid-page');
 	assert.equal(page.sidebarItem.asideClass, 'mp-raid-nav');
 	assert.equal(page.sidebarItem.aside, 'preview');
+	assert.equal(page.sidebarItem.asideLangID, 'MOD_MP_SIDEBAR_RAID_PREVIEW');
 	assert.equal(data.data.pages.at(-1), page);
 	assert.match(style, /\.mp-raid-nav[\s\S]*background-color: #5b4aa1/);
+	assert.match(style, /\.mp-raid-nav\.mp-raid-active[\s\S]*background-color: #8f3030/);
+	assert.equal(language.MOD_MP_SIDEBAR_RAID_ACTIVE, 'active');
 	assert.match(templates, /template-mp-raid-page/);
 	assert.doesNotMatch(templates, /MOD_MP_RAID_GUILD_EVENT/);
 	assert.doesNotMatch(templates, /template-mp-dropdown|state\.open_raid_page\(\)/);
 	assert.doesNotMatch(templates, /MOD_MP_RAID_FELLOWSHIP_EXCLUDED/);
 	assert.match(main, /on_page_toggle\('mp-raid-page', refresh_raid_state, true\)/);
+	assert.match(main, /update_raid_nav\(\)/);
 });
 
 test('namespaces the formatted-language custom element', () => {
@@ -84,11 +90,11 @@ test('namespaces the formatted-language custom element', () => {
 test('wires reservation before combat and durable victory-cache reconciliation', () => {
 	assert.match(main, /api\/raids\/assaults\/reserve/);
 	assert.match(main, /api\/raids\/assaults\/abandon/);
-	assert.match(main, /!raid_combat\.has_full_hitpoints\(game\.combat\.player\)/);
+	assert.match(main, /!runtime\.raid_combat\.has_full_hitpoints\(game\.combat\.player\)/);
 	assert.doesNotMatch(main, /!raid_module\.has_full_hitpoints\(game\.combat\.player\)/);
 	assert.equal(language.MOD_MP_RAID_FULL_HP_REQUIRED, 'Restore to 100% Hitpoints before beginning a Raid Assault.');
-	assert.match(main, /raid_combat\.has_active\(\)/);
-	assert.match(main, /raid_combat\.start\(reservation\)/);
+	assert.match(main, /runtime\.raid_combat\.has_active\(\)/);
+	assert.match(main, /runtime\.raid_combat\.start\(reservation\)/);
 	assert.match(main, /processed_raid_cache_ids/);
 	assert.match(main, /api\/raids\/cache\/acknowledge/);
 });
@@ -98,6 +104,14 @@ test('renders all placeholder combat tiers and cooperative Raid state', () => {
 	assert.match(templates, /v-for="tier in \[1, 2, 3, 4\]"/);
 	assert.match(templates, /state\.raid\.remaining_health/);
 	assert.match(templates, /state\.raid\.leaderboard/);
+});
+
+test('resolves the packaged Raid monster icon through the mod context', () => {
+	const actions = install_transfer_actions({
+		ctx: { getResourceUrl: path => `mod-resource://${path}` }
+	});
+
+	assert.equal(actions.get_raid_monster_icon(1), 'mod-resource://assets/raid_plant_t1.png');
 });
 
 test('gives every Raid boss 99% opening resistance and a six-second post-attack vulnerability', () => {

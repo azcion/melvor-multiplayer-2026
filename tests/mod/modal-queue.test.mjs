@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { read_client_source } from './source.mjs';
 
 import { ModalComponentRegistry, ModalQueueGuard } from '../../mod/modal-queue.mjs';
 
@@ -64,7 +65,7 @@ test('reuses one mounted component for each modal template', () => {
 });
 
 test('owns the Petite Vue lifecycle while cached modal elements connect and disconnect', async () => {
-	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const main = await read_client_source(root);
 	const modal_component = main.slice(
 		main.indexOf('class MPModalComponent'),
 		main.indexOf('class LangStringFormattedElement')
@@ -88,14 +89,14 @@ test('owns the Petite Vue lifecycle while cached modal elements connect and disc
 });
 
 test('unmounts a connected modal before programmatic close', async () => {
-	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const main = await read_client_source(root);
 	const close_modal = main.slice(main.indexOf('\tclose_modal()'), main.indexOf('\tclose_account_dropdown()'));
 
 	assert.match(close_modal, /unmount_connected_modal_components\(\);[\s\S]*Swal\.close\(\)/);
 });
 
 test('waits for SweetAlert disconnection and queued Petite Vue updates before refreshing shared state', async () => {
-	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const main = await read_client_source(root);
 	const close_and_wait = main.slice(main.indexOf('async function close_modal_and_wait'), main.indexOf('function close_account_dropdown'));
 
 	assert.match(close_and_wait, /component\.unmountTemplate\(\)/);
@@ -105,7 +106,7 @@ test('waits for SweetAlert disconnection and queued Petite Vue updates before re
 });
 
 test('passes cached modal elements to the modal queue instead of creating HTML strings', async () => {
-	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const main = await read_client_source(root);
 	const modal_component = main.slice(
 		main.indexOf('function modal_component'),
 		main.indexOf('function make_template')
@@ -116,7 +117,7 @@ test('passes cached modal elements to the modal queue instead of creating HTML s
 });
 
 test('routes every modal title through SweetAlert text without permitting an HTML title override', async () => {
-	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const main = await read_client_source(root);
 	const queue_modal = main.slice(main.indexOf('function queue_modal'), main.indexOf('function show_modal_error'));
 
 	assert.match(queue_modal, /Object\.assign\([\s\S]*titleText:/);
@@ -125,7 +126,7 @@ test('routes every modal title through SweetAlert text without permitting an HTM
 });
 
 test('destroys modal range sliders when their custom elements disconnect', async () => {
-	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const main = await read_client_source();
 	const gp_slider = main.slice(main.indexOf('class MPGPSlider'), main.indexOf('class MPItemSlider'));
 	const item_slider = main.slice(main.indexOf('class MPItemSlider'),
 		main.indexOf("window.customElements.define('mp-lang-string-f'"));
@@ -138,7 +139,7 @@ test('destroys modal range sliders when their custom elements disconnect', async
 });
 
 test('ignores late item-slider attribute updates after teardown', async () => {
-	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const main = await read_client_source();
 	const item_slider = main.slice(main.indexOf('class MPItemSlider'),
 		main.indexOf("window.customElements.define('mp-lang-string-f'"));
 

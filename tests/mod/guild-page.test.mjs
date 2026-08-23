@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { read_client_source } from './source.mjs';
 
 const root = new URL('../../', import.meta.url);
 
@@ -8,7 +9,7 @@ test('registers Guild as a Multiplayer page instead of a modal', async () => {
 	const [data, templates, main] = await Promise.all([
 		readFile(new URL('mod/data.json', root), 'utf8').then(JSON.parse),
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/main.mjs', root), 'utf8')
+		read_client_source(root)
 	]);
 
 	const guild_page = data.data.pages.find(page => page.id === 'Guild');
@@ -28,11 +29,40 @@ test('keeps Guild styling on Melvor typography', async () => {
 	assert.doesNotMatch(style, /font-family|@font-face|fonts?\.google/i);
 });
 
+test('renders localized paginated Guild Activity responsively and refreshes it on page open', async () => {
+	const [english, chinese, templates, style, main] = await Promise.all([
+		readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse),
+		readFile(new URL('mod/data/lang/zh-CN.json', root), 'utf8').then(JSON.parse),
+		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
+		readFile(new URL('mod/ui/style.css', root), 'utf8'),
+		read_client_source(root)
+	]);
+
+	assert.equal(english.MOD_MP_GUILD_ACTIVITY, 'Activity');
+	assert.equal(typeof chinese.MOD_MP_GUILD_ACTIVITY, 'string');
+	assert.match(templates, /mp-guild-activity-scroll/);
+	assert.match(templates, /state\.get_guild_activity_lang_id\(event\)/);
+	assert.match(templates, /state\.load_more_guild_activity\(\)/);
+	assert.match(templates, /block-content mp-member-search-wrapper/);
+	assert.match(templates, /block-content p-0 mp-guild-members-scroll/);
+	assert.match(style, /#mp-guild-page\s*\{[\s\S]*padding-bottom: 3rem !important/);
+	assert.match(style, /\.mp-guild-members-scroll,[\s\S]*\.mp-guild-activity-scroll\s*\{[\s\S]*max-height: 50rem;[\s\S]*overflow-y: auto/);
+	assert.match(style, /\.mp-guild-activity-event\s*\{[\s\S]*padding: 4px 16px/);
+	assert.match(style, /\.mp-guild-activity-event \.font-size-sm\.text-muted\s*\{[\s\S]*opacity: 0\.75/);
+	assert.match(style, /\.mp-member-search-wrapper\s*\{[\s\S]*padding: 0 1\.25rem 1px/);
+	assert.match(style, /@media \(max-width: 767\.98px\)[\s\S]*\.mp-guild-activity[\s\S]*order: -1/);
+	assert.match(style, /@media \(max-width: 767\.98px\)[\s\S]*\.mp-guild-activity-scroll\s*\{[\s\S]*max-height: 8rem/);
+	assert.match(main, /api_get\(endpoint\)/);
+	assert.match(main, /refresh_shadowed_members\(\), refresh_guild_activity\(\)/);
+	const activity_state_actions = main.slice(main.indexOf('Object.assign('), main.indexOf('modal_queue_guard =', main.indexOf('Object.assign(')));
+	assert.match(activity_state_actions, /load_more_guild_activity,\s*get_guild_activity_lang_id,\s*get_guild_activity_arg_1,\s*get_guild_activity_arg_2,\s*format_guild_activity_time/);
+});
+
 test('wires Free Fellowship direct joining and its no-Council presentation', async () => {
 	const [lang, templates, main] = await Promise.all([
 		readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse),
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/main.mjs', root), 'utf8')
+		read_client_source(root)
 	]);
 
 	assert.equal(lang.MOD_MP_FREE_FELLOWSHIP_CONFIRM_PUBLIC.includes('application'), true);
@@ -48,7 +78,7 @@ test('renders open ordinary Guilds with a direct Join action', async () => {
 	const [lang, templates, main] = await Promise.all([
 		readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse),
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/main.mjs', root), 'utf8')
+		read_client_source(root)
 	]);
 
 	assert.equal(lang.MOD_MP_BUTTON_JOIN, 'Join');
@@ -60,7 +90,7 @@ test('renders open ordinary Guilds with a direct Join action', async () => {
 test('does not render member-only Guild bindings during an incomplete state refresh', async () => {
 	const [templates, main] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/main.mjs', root), 'utf8')
+		read_client_source(root)
 	]);
 	const guild_page = templates.slice(templates.indexOf('<template id="template-mp-guild-page">'));
 	const member_view = guild_page.slice(0, guild_page.indexOf('<div v-show="state.guild_page_view === \'applicant\'">'));
@@ -76,7 +106,7 @@ test('does not render member-only Guild bindings during an incomplete state refr
 test('keeps top-level Guild views mounted when affiliation changes', async () => {
 	const [templates, main] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/main.mjs', root), 'utf8')
+		read_client_source(root)
 	]);
 	const guild_page = templates.slice(
 		templates.indexOf('<template id="template-mp-guild-page">'),
@@ -95,14 +125,14 @@ test('keeps top-level Guild views mounted when affiliation changes', async () =>
 	assert.match(guild_page, /state\.guild_state\.application\?\.icon_id/);
 	assert.match(guild_page, /state\.guild_state\.application\?\.member_count \?\? 0/);
 	assert.match(guild_page, /mp-council" v-show="!state\.is_free_fellowship/);
-	assert.match(guild_page, /block-content" v-show="state\.is_free_fellowship/);
+	assert.match(guild_page, /block-content mp-member-search-wrapper" v-show="state\.is_free_fellowship/);
 });
 
 test('cache-busts authenticated GETs without using the Android-sensitive Fetch cache mode', async () => {
 	const [lang, templates, main] = await Promise.all([
 		readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse),
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/main.mjs', root), 'utf8')
+		read_client_source(root)
 	]);
 	const cache_buster_start = main.indexOf('function cache_bust_api_endpoint');
 	const cache_buster_source = main.slice(cache_buster_start, main.indexOf('\nasync function api_get', cache_buster_start));
@@ -135,18 +165,34 @@ test('cache-busts authenticated GETs without using the Android-sensitive Fetch c
 });
 
 test('tears down the leave confirmation modal before refreshing Guild state', async () => {
-	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const main = await read_client_source(root);
 	const leave_action_start = main.indexOf('\tasync leave_guild(event)');
-	const leave_action = main.slice(leave_action_start, main.indexOf('\n\t// #endregion', leave_action_start));
+	const leave_action = main.slice(leave_action_start, main.indexOf("notify('MOD_MP_GUILD_LEFT')", leave_action_start));
 
 	assert.match(leave_action, /await this\.close_modal_and_wait\('leave-guild-modal'\);[\s\S]*await refresh_guild_page\(\);/);
 	assert.doesNotMatch(leave_action, /await refresh_guild_page\(\);[\s\S]*close_modal/);
 });
 
+test('refreshes the open Guild roster after changing the current profile', async () => {
+	const main = await read_client_source(root);
+	const social_actions = main.slice(main.indexOf('async confirm_display_name(event)'), main.indexOf('pick_guild_icon(icon)'));
+	const display_name_action = social_actions.slice(
+		social_actions.indexOf('async confirm_display_name(event)'),
+		social_actions.indexOf('show_display_name_modal()')
+	);
+	const icon_action = social_actions.slice(
+		social_actions.indexOf('async confirm_icon_pick(event)'),
+		social_actions.indexOf('show_icon_modal()')
+	);
+
+	assert.match(display_name_action, /await this\.close_modal_and_wait\('change-display-name-modal'\);[\s\S]*await refresh_guild_state\(true\);/);
+	assert.match(icon_action, /await this\.close_modal_and_wait\('change-icon-modal'\);[\s\S]*await refresh_guild_state\(true\);/);
+});
+
 test('does not structurally detach UI branches when Guild membership changes', async () => {
 	const [templates, main] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/main.mjs', root), 'utf8')
+		read_client_source(root)
 	]);
 
 	assert.doesNotMatch(templates, /v-if="[^"]*state\.(?:is_guild_member|is_free_fellowship|is_charitree_enabled)/);
@@ -157,7 +203,7 @@ test('keeps Free Fellowship confirmation titles localized and guild results resp
 	const [lang, templates, main, style] = await Promise.all([
 		readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse),
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		read_client_source(root),
 		readFile(new URL('mod/ui/style.css', root), 'utf8')
 	]);
 
@@ -174,7 +220,7 @@ test('keeps Free Fellowship confirmation titles localized and guild results resp
 test('renders each loaded member activity as a right-aligned icon', async () => {
 	const [templates, main, style] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		read_client_source(root),
 		readFile(new URL('mod/ui/style.css', root), 'utf8')
 	]);
 	const roster_refresh = main.slice(
@@ -184,21 +230,27 @@ test('renders each loaded member activity as a right-aligned icon', async () => 
 	const guild_page = templates.slice(templates.indexOf('<template id="template-mp-guild-page">'));
 	const members_header = guild_page.slice(
 		guild_page.indexOf('<h3 class="block-title"><lang-string lang-id="MOD_MP_GUILD_MEMBERS">'),
-		guild_page.indexOf('<div class="block-content" v-show="state.is_free_fellowship">')
+		guild_page.indexOf('<div class="block-content mp-member-search-wrapper" v-show="state.is_free_fellowship">')
 	);
 	const member_list = guild_page.slice(
-		guild_page.indexOf('<div class="block-content p-0">'),
+		guild_page.indexOf('<div class="block-content p-0 mp-guild-members-scroll">'),
 		guild_page.indexOf('<div class="block-content text-center" v-show="state.is_free_fellowship')
 	);
 
 	assert.doesNotMatch(members_header, /badge badge-secondary/);
 	assert.match(main, /status_activity: member\.status_activity \?\? null/);
+	assert.match(main, /status_activities: Array\.isArray\(member\.status_activities\) \? member\.status_activities : \[\]/);
 	assert.doesNotMatch(main, /refresh_guild_member_statuses/);
 	assert.doesNotMatch(roster_refresh, /api_get\('\/api\/guilds\/status\?client_id=' \+ member\.client_id\)/);
-	assert.match(member_list, /member\.status_activity/);
-	assert.match(member_list, /MOD_MP_GUILD_YOU[\s\S]*get_status_activity_icon\(member\.status_activity\)/);
+	assert.match(member_list, /state\.get_status_activities\(member\)\.slice\(0, 3\)/);
+	assert.match(member_list, /state\.get_status_activities\(member\)\.length - 3/);
+	assert.match(member_list, /MOD_MP_GUILD_YOU[\s\S]*get_status_activity_icon\(activity\)/);
 	assert.match(member_list, /state\.format_shared_gp\(member\.gp\)/);
 	assert.match(member_list, /member\.last_seen_at/);
+	assert.match(member_list, /v-else-if="state\.is_new_guild_member\(member\.joined_at\)"/);
+	assert.match(member_list, /MOD_MP_GUILD_NEW_MEMBER/);
+	assert.match(main, /Math\.max\(0, Date\.now\(\) - timestamp\) <= 48 \* 60 \* 60 \* 1000/);
+	assert.match(style, /\.mp-guild-new-member-badge \{[\s\S]*background-color: #269e70;/);
 	assert.match(style, /\.mp-guild-member-meta \{[\s\S]*margin-left: auto;/);
 	assert.match(style, /\.mp-member-actions > label \{[\s\S]*justify-content: flex-start;/);
 });
@@ -206,7 +258,7 @@ test('renders each loaded member activity as a right-aligned icon', async () => 
 test('tucks Shadowed members behind a normal-action modal at the bottom of the Guild page', async () => {
 	const [templates, main, language_text] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		read_client_source(root),
 		readFile(new URL('mod/data/lang/en.json', root), 'utf8')
 	]);
 	const language = JSON.parse(language_text);

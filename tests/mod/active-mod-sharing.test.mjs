@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { read_client_source } from './source.mjs';
 
 const root = new URL('../../', import.meta.url);
 
 test('wires privacy-gated active-mod viewing into member actions and self preview', async () => {
 	const [templates, main, language, style] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		read_client_source(root),
 		readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse),
 		readFile(new URL('mod/ui/style.css', root), 'utf8')
 	]);
@@ -27,7 +28,8 @@ test('wires privacy-gated active-mod viewing into member actions and self previe
 	assert.match(active_mods_modal, /<ol class="mp-active-mods-list">/);
 	assert.match(main, /api_post\('\/api\/client\/active-mods\/visibility'/);
 	assert.match(main, /api_get\('\/api\/guilds\/active-mods\?client_id='/);
-	assert.match(main, /member_actions_preview[\s\S]*active_mod_names/);
+	assert.match(main, /get active_mod_names\(\) \{ return active_mod_names; \}/);
+	assert.match(main, /member_actions_preview[\s\S]*runtime\.active_mod_names/);
 	assert.match(main, /this\.viewed_active_mods = \[\.\.\.res\.active_mods\]/);
 	assert.match(style, /\.mp-active-mods-list \{[^}]*padding-left: 2\.5em;[^}]*text-align: left;/s);
 	assert.equal(language.MOD_MP_ACTIVE_MODS_VISIBILITY, 'Let others see your active mods');

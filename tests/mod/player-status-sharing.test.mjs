@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { read_client_source } from './source.mjs';
 
 const root = new URL('../../', import.meta.url);
 
 test('adds player status visibility and combined profile viewing to member actions', async () => {
 	const [templates, main, language_text] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		read_client_source(root),
 		readFile(new URL('mod/data/lang/en.json', root), 'utf8')
 	]);
 	const language = JSON.parse(language_text);
@@ -24,7 +25,7 @@ test('adds player status visibility and combined profile viewing to member actio
 test('renders local skill icons and levels while keeping activity in the member modal', async () => {
 	const [templates, main, style] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		read_client_source(root),
 		readFile(new URL('mod/ui/style.css', root), 'utf8')
 	]);
 	const profile_modal = templates.slice(
@@ -44,11 +45,15 @@ test('renders local skill icons and levels while keeping activity in the member 
 	assert.match(profile_modal, /state\.profile_active_tab = 'equipment'/);
 	assert.doesNotMatch(profile_modal, /mp-status-activity|viewed_status_activity/);
 	assert.doesNotMatch(profile_modal, /state\.viewed_status\.activity/);
-	assert.match(member_modal, /class="mp-member-activity" v-if="state\.selected_guild_member\.status_activity"/);
-	assert.match(member_modal, /state\.get_status_activity_icon\(state\.selected_guild_member\.status_activity\)/);
-	assert.match(member_modal, /state\.get_status_activity_name\(state\.selected_guild_member\.status_activity\)/);
+	assert.match(member_modal, /class="mp-member-activities" v-if="state\.get_status_activities\(state\.selected_guild_member\)\.length"/);
+	assert.match(member_modal, /state\.get_status_activities\(state\.selected_guild_member\)/);
+	assert.match(member_modal, /state\.get_status_activity_icon\(activity\)/);
+	assert.match(member_modal, /state\.get_status_activity_name\(activity\)/);
+	assert.match(member_modal, /state\.get_language_lang_id\(state\.selected_guild_member\.language\) !== null/);
+	assert.match(member_modal, /state\.get_language_name\(state\.selected_guild_member\.language\)/);
+	assert.match(member_modal, /MOD_MP_LANGUAGE/);
 	assert.match(main, /activity\.area_id === null \? null : game\.combatAreas\?\.getObjectByID\(activity\.area_id\)/);
-	assert.match(main, /area\?\.media \?\? 'assets\/media\/skills\/combat\/combat\.png'/);
+	assert.match(main, /is_official_game_id\(area\?\.id\) && area\.media/);
 	assert.doesNotMatch(profile_modal, /qty|quantity|rate|duration|inventory|history/i);
 	assert.match(main, /didClose: \(\) => \{[\s\S]*this\.viewed_status = null;/);
 	assert.doesNotMatch(main, /viewed_status_activity_(?:icon|name)/);
@@ -66,29 +71,49 @@ test('renders local skill icons and levels while keeping activity in the member 
 	assert.match(style, /\.mp-profile-modal-popup \.mp-profile-panel-title[\s\S]*display: none;/);
 });
 
+test('ships captured custom skill icons for every shared-status surface', async () => {
+	const [templates, main] = await Promise.all([
+		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
+		read_client_source(root)
+	]);
+	const bundled_icons = {
+		'kru_archaeology:Archaeology': ['skill_archaeology.svg', 1072],
+		'mythMusic:Music': ['skill_music.png', 4531],
+		'occultism:Occultism': ['skill_occultism.png', 29176],
+		'rielkConstruction:Construction': ['skill_construction.png', 6004],
+		'sailing:Sailing': ['skill_sailing.png', 11616]
+	};
+
+	for (const [skill_id, [asset, byte_length]] of Object.entries(bundled_icons)) {
+		assert.equal(main.includes(`'${skill_id}': '${asset}'`), true);
+		assert.equal((await readFile(new URL(`mod/assets/${asset}`, root))).byteLength, byte_length);
+	}
+	assert.match(main, /bundled_asset !== undefined[\s\S]*ctx\.getResourceUrl\('assets\/' \+ bundled_asset\)/);
+	assert.equal((templates.match(/state\.get_status_activity_icon\(activity\)/g) ?? []).length, 2);
+	assert.match(templates, /state\.get_skill_icon\(skill\.skill_id\)/);
+});
+
 test('observes status changes without heartbeats and sends bounded partial snapshots', async () => {
-	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const main = await read_client_source(root);
 	const capture = main.slice(main.indexOf('function capture_status_skills'), main.indexOf('function schedule_status_sync'));
 	const watcher = main.slice(main.indexOf('function observe_status_changes'), main.indexOf('function watch_equipment_view_actions'));
 
-	assert.match(capture, /game\.skills/);
-	assert.match(capture, /game\.activeAction/);
-	assert.match(capture, /const is_alt_magic = active_action === game\.altMagic/);
-	assert.match(capture, /if \(!is_alt_magic && \(active_action === game\.combat \|\| active_action\?\.isCombat === true\)\)/);
-	assert.match(capture, /active_action\.masteryAction/);
-	assert.match(capture, /'activeMap'/);
+	assert.match(capture, /status_activities\.capture_status_activities\(game\)/);
+	assert.match(capture, /status_activities\.capture_primary_status_activity\(game, activities\)/);
+	assert.match(capture, /activities,/);
+	assert.match(main, /function update_local_status_member\(snapshot\)/);
+	assert.match(main, /if \(res\?\.success\) \{[\s\S]*update_local_status_member\(snapshot\);/);
 	assert.match(capture, /skill_id/);
 	assert.match(capture, /level/);
-	assert.match(capture, /type: 'skill'/);
-	assert.match(capture, /type: 'combat'/);
 	assert.match(main, /serialized_skills !== last_synced_status_skills/);
 	assert.match(main, /serialized_activity !== last_synced_status_activity/);
+	assert.match(main, /serialized_activities !== last_synced_status_activities/);
 	assert.match(main, /STATUS_MIN_SYNC_INTERVAL/);
 	assert.match(main, /activity.type === 'skill'[^]*skill_id: activity.skill_id/);
 	assert.match(main, /status_sync_in_flight/);
 	assert.match(main, /watch_status_changes/);
 	assert.match(main, /skill\.on\('levelChanged'/);
-	assert.match(watcher, /serialized === last_observed_status_activity/);
+	assert.match(watcher, /serialized_activities === last_observed_status_activities/);
 	assert.match(watcher, /schedule_status_sync\(\)/);
 	assert.match(watcher, /setInterval\(observe_status_changes, STATUS_OBSERVER_INTERVAL\)/);
 	assert.match(watcher, /clearInterval\(status_observer_timer\)/);
@@ -103,7 +128,7 @@ test('observes status changes without heartbeats and sends bounded partial snaps
 test('collects changed raw GP in the status batch and keeps formatting viewer-local', async () => {
 	const [templates, main, language_text] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		read_client_source(root),
 		readFile(new URL('mod/data/lang/en.json', root), 'utf8')
 	]);
 	const language = JSON.parse(language_text);
@@ -127,7 +152,7 @@ test('collects changed raw GP in the status batch and keeps formatting viewer-lo
 test('renders compact roster separation and snapped last-seen labels', async () => {
 	const [templates, main, style] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		read_client_source(root),
 		readFile(new URL('mod/ui/style.css', root), 'utf8')
 	]);
 

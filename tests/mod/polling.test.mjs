@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { read_client_source } from './source.mjs';
 
 import {
 	CHAT_INTERVAL,
@@ -17,7 +18,7 @@ import {
 	retry_poll_delay
 } from '../../mod/polling.mjs';
 
-const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+const main = await read_client_source();
 
 test('bounds jitter around each polling interval', () => {
 	assert.equal(jittered_delay(1000, () => 0), 900);

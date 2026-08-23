@@ -57,6 +57,8 @@ test('routes Multiplayer sidebar page names and text badges through localization
 	}
 
 	assert.equal(language.MOD_MP_MENU_HEADER, 'Multiplayer');
+	assert.equal(pages.find(page => page.id === 'Charity_Tree').sidebarItem.asideLangID,
+		'MOD_MP_SIDEBAR_CHARITY_READY');
 	assert.equal(pages.find(page => page.id === 'Campaign_Effort').sidebarItem.asideLangID,
 		'MOD_MP_SIDEBAR_CAMPAIGN_INACTIVE');
 	assert.equal(pages.find(page => page.id === 'Guild_Raid').sidebarItem.asideLangID,

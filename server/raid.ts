@@ -1,5 +1,6 @@
 import { db } from './db';
 import { shadowed_cutoff } from './shadowed';
+import { record_guild_activity } from './guild-activity';
 
 export const RAID_DURATION = 72 * 60 * 60 * 1000;
 export const RAID_COOLDOWN = 96 * 60 * 60 * 1000;
@@ -132,6 +133,8 @@ function public_raid(raid: RaidRow, membership_id: number, now: number) {
 		'SELECT roster.`client_id`, client.`display_name`, client.`icon_id`, roster.`contribution`, ' +
 		'roster.`highest_tier`, roster.`successful_assaults` FROM `guild_raid_roster` AS roster ' +
 		'JOIN `clients` AS client ON client.`id` = roster.`client_id` WHERE roster.`raid_id` = ? ' +
+		'AND EXISTS (SELECT 1 FROM `guild_raid_assaults` AS assault WHERE assault.`raid_id` = roster.`raid_id` ' +
+		'AND assault.`membership_id` = roster.`membership_id` AND assault.`client_id` = roster.`client_id`) ' +
 		'ORDER BY roster.`highest_tier` DESC, roster.`contribution` DESC, client.`display_name`, roster.`client_id`'
 	).all(raid.id);
 	const contribution_cap = Math.floor(raid.max_health / raid.required_contributors);
@@ -210,6 +213,8 @@ export function activate_raid(client_id: number, now = Date.now()) {
 		);
 		for (const member of members)
 			insert_roster.run(inserted.id, member.membership_id, member.client_id);
+		record_guild_activity({ guild_id: membership.guild_id, event_type: 'raid_started', actor_client_id: client_id,
+			source_key: `raid:${inserted.id}:started`, created_at: now });
 		return { raid_id: inserted.id, membership_id: membership.membership_id } as const;
 	});
 
@@ -329,6 +334,9 @@ export function settle_assault(
 			'WHERE roster.`raid_id` = ? AND roster.`membership_id` = ? AND roster.`client_id` = ?'
 		).get(assault.raid_id, assault.membership_id, client_id) as RosterRow | null;
 		if (outcome === 'success' && raid !== null && roster !== null) {
+			record_guild_activity({ guild_id: raid.guild_id, event_type: 'raid_boss_defeated', actor_client_id: client_id,
+				source_key: `raid-assault:${assault.id}:defeated`, metadata: { tier: assault.tier },
+				created_at: now, throttled: true });
 			const cap = Math.floor(raid.max_health / raid.required_contributors);
 			credited_progress = Math.min(
 				RAID_TIER_PROGRESS[assault.tier],
@@ -346,8 +354,11 @@ export function settle_assault(
 					'UPDATE `guild_raids` SET `remaining_health` = ?, `secured_at` = CASE ' +
 					'WHEN ? = 0 AND `secured_at` IS NULL THEN ? ELSE `secured_at` END WHERE `id` = ?'
 				).run(remaining, remaining, now, raid.id);
-				if (remaining === 0 && raid.remaining_health > 0)
+				if (remaining === 0 && raid.remaining_health > 0) {
 					grant_secured_caches(raid.id, now);
+					record_guild_activity({ guild_id: raid.guild_id, event_type: 'raid_completed',
+						source_key: `raid:${raid.id}:completed`, created_at: now });
+				}
 			}
 			const secured = raid.remaining_health === 0 || raid.remaining_health - credited_progress === 0;
 			if (secured)

@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.4.0
+
+- Bundled icons for Archaeology, Music, Occultism, Construction, and Sailing so shared activities and skill levels render correctly even when the viewer does not have those skill mods installed.
+- Ordered Guild discovery with Free Fellowship first, followed by joinable and applyable Guilds sorted by recent member activity; Shadowed Guilds remain hidden.
+- Added a green New Member badge to Guild roster members who joined within the last 48 hours; each member continues to see the existing You badge for their own row.
+- Added sidebar status pills for Charitree pick availability and active Guild Raids.
+- Guild Raid participant lists now show only members who have started an Assault, including in-progress Assaults at Tier 0 until they win.
+- Added a localized Guild Activity feed showing recent membership, Charitree, Raid, Marketplace, Petition, and Campaign events, with bounded pagination and throttling for noisy player actions.
+- Added concurrent activity sharing to Player Status. Guild rosters now show up to three current skill or combat activities, with a count for additional activities, and member profiles show the complete shared set.
+- Expanded player avatar selection to include monsters and pickpocketing targets from the base game and all official DLCs. Avatar search uses their familiar in-game display names.
+- Expanded Guild icon selection to include combat locations from the base game and all official DLCs.
+- Added bounded collection of custom skill icons from shared Player Status to support future mod compatibility. Official, action, and combat icons are excluded, and collected data remains subject to host-controlled limits.
+- Added latest reported player-language collection. Recognized language labels appear at the bottom of a Guild member's actions modal; unknown or unavailable values remain hidden.
+- Fixed Guild rosters staying stale after changing the current player's display name or avatar while the Guild page was open.
+- Improved Guild page layout by containing long member and activity lists, reducing excess bottom spacing, and tightening activity and member-search spacing across desktop and mobile.
+
+## 1.3.4
+
+- Added an SAE Support Team channel for players using SUPER AWESOME EXPANSION. It appears alongside Multiplayer Support only while the expansion is active, uses its own SAE identity and icon, and retains conversation history if the expansion is later disabled and re-enabled.
+
 ## 1.3.3
 
 - Added Simplified Chinese localization contributed by `k348674808`. Melvor's `zh-CN` language now loads the translated Multiplayer interface while unsupported languages continue to use English.

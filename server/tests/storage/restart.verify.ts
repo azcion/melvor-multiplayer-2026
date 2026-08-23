@@ -51,6 +51,10 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 		client_id: number;
 		skills: Array<{ skill_id: string; level: number }>;
 		activity: { type: 'skill'; skill_id: string; action_id: string };
+		activities: Array<
+			| { type: 'skill'; skill_id: string; action_id: string }
+			| { type: 'combat'; area_id: string | null }
+		>;
 	}>(`/api/guilds/status?client_id=${state.first_id}`, state.second.session_token);
 	const chat = await get_json_with_session<{
 		conversations: Array<{
@@ -155,7 +159,8 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	expect(status.json).toEqual({
 		client_id: state.first_id,
 		skills: state.status_skills,
-		activity: state.status_activity
+		activity: state.status_activity,
+		activities: state.status_activities
 	});
 	expect(chat.json.conversations).toContainEqual(expect.objectContaining({
 		conversation_id: state.chat_conversation_id,

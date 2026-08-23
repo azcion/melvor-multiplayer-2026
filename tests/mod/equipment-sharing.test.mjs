@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { read_client_source } from './source.mjs';
 
 const root = new URL('../../', import.meta.url);
 
 test('routes profile controls through one Options member-actions modal', async () => {
 	const [templates, main, language_text] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		read_client_source(root),
 		readFile(new URL('mod/data/lang/en.json', root), 'utf8')
 	]);
 	const language = JSON.parse(language_text);
@@ -37,7 +38,7 @@ test('routes profile controls through one Options member-actions modal', async (
 });
 
 test('moves the multiplayer entry point into the vanilla account menu', async () => {
-	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const main = await read_client_source(root);
 	const style = await readFile(new URL('mod/ui/style.css', root), 'utf8');
 
 	assert.match(main, /setup_account_menu\(\);/);
@@ -52,7 +53,7 @@ test('moves the multiplayer entry point into the vanilla account menu', async ()
 });
 
 test('makes the Multiplayer sidebar category collapsible', async () => {
-	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const main = await read_client_source(root);
 
 	assert.match(main, /sidebar\.category\('Multiplayer', \{[\s\S]*before: 'Combat',[\s\S]*toggleable: true,[\s\S]*MOD_MP_MENU_HEADER/);
 });
@@ -86,7 +87,7 @@ test('keeps the detached member-actions Guild control mounted during departure',
 test('keeps remote equipment read-only, quantity-free, and memory-only', async () => {
 	const [templates, main] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/main.mjs', root), 'utf8')
+		read_client_source(root)
 	]);
 	const equipment_modal = templates.slice(
 		templates.indexOf('<template id="template-mp-profile-modal">'),
@@ -105,7 +106,7 @@ test('keeps remote equipment read-only, quantity-free, and memory-only', async (
 });
 
 test('keeps the member equipment spinner cleanup target across the request', async () => {
-	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const main = await read_client_source(root);
 	const view_member_profile = main.slice(
 		main.indexOf('async view_member_profile'),
 		main.indexOf('async add_gp_to_transfer')
@@ -120,7 +121,7 @@ test('keeps the member equipment spinner cleanup target across the request', asy
 });
 
 test('coalesces best-effort active-set snapshots and ignores quantities', async () => {
-	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const main = await read_client_source(root);
 
 	assert.match(main, /entry\.providesStats/);
 	assert.match(main, /slot_id: entry\.slot\.id, item_id: entry\.item\.id/);

@@ -1,6 +1,23 @@
 export const MAX_ACTIVE_MOD_COUNT = 128;
 export const MAX_ACTIVE_MOD_NAME_LENGTH = 128;
 export const MAX_GAME_MODE_ID_LENGTH = 256;
+export const MAX_LANGUAGE_LENGTH = 64;
+
+const LANGUAGE_LANG_IDS = Object.freeze({
+	en: 'MOD_MP_LANGUAGE_EN',
+	'zh-CN': 'MOD_MP_LANGUAGE_ZH_CN',
+	'zh-TW': 'MOD_MP_LANGUAGE_ZH_TW',
+	fr: 'MOD_MP_LANGUAGE_FR',
+	de: 'MOD_MP_LANGUAGE_DE',
+	pt: 'MOD_MP_LANGUAGE_PT',
+	'pt-BR': 'MOD_MP_LANGUAGE_PT_BR',
+	it: 'MOD_MP_LANGUAGE_IT',
+	ko: 'MOD_MP_LANGUAGE_KO',
+	ja: 'MOD_MP_LANGUAGE_JA',
+	es: 'MOD_MP_LANGUAGE_ES',
+	ru: 'MOD_MP_LANGUAGE_RU',
+	tr: 'MOD_MP_LANGUAGE_TR'
+});
 
 export function normalize_active_mod_names(loaded) {
 	if (!Array.isArray(loaded))
@@ -30,13 +47,25 @@ export function get_game_mode_id(gamemode) {
 		: null;
 }
 
-export function make_client_runtime_report(mod_version, active_mods, game_mode_id) {
+export function get_language_code(language) {
+	return typeof language === 'string' && language.length <= MAX_LANGUAGE_LENGTH ? language : null;
+}
+
+export function get_language_lang_id(language) {
+	return typeof language === 'string' && Object.hasOwn(LANGUAGE_LANG_IDS, language)
+		? LANGUAGE_LANG_IDS[language]
+		: null;
+}
+
+export function make_client_runtime_report(mod_version, active_mods, game_mode_id, language = null) {
 	const report = {
 		mod_version,
 		active_mods: [...active_mods]
 	};
 	if (game_mode_id !== null && game_mode_id !== undefined)
 		report.game_mode_id = game_mode_id;
+	if (language !== null && language !== undefined)
+		report.language = language;
 	return report;
 }
 

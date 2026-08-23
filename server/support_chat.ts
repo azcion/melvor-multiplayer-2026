@@ -5,7 +5,10 @@ import { CHAT_MESSAGE_MAX_LENGTH, CHAT_MESSAGE_PAGE_SIZE } from './chat';
 const MAX_INCREMENTAL_MESSAGES = 100;
 export type SupportResult<T> = { status: 'ok'; value: T } | { status: 'bad_request' | 'missing' };
 
-type Team = { id: number; display_name: string; inbox_label: string; icon_id: string; welcome_content: string };
+type Team = {
+	id: number; system_key: string; display_name: string; inbox_label: string; icon_id: string; welcome_content: string;
+	required_active_mod_name: string | null; minimum_client_version: string | null;
+};
 type Membership = { id: number; team_id: number; member_display_name: string };
 type Conversation = { id: number; team_id: number; player_client_id: number; created_at: number };
 type Message = {
@@ -23,20 +26,56 @@ function membership_for(client_id: number, team_id: number): Membership | null {
 
 function team(team_id: number): Team | null {
 	return db.query<Team, [number]>(
-		'SELECT `id`, `display_name`, `inbox_label`, `icon_id`, `welcome_content` FROM `support_teams` WHERE `id` = ?'
+		'SELECT `id`, `system_key`, `display_name`, `inbox_label`, `icon_id`, `welcome_content`, ' +
+		'`required_active_mod_name`, `minimum_client_version` FROM `support_teams` WHERE `id` = ?'
 	).get(team_id);
 }
 
+function version_at_least(actual: string, minimum: string): boolean {
+	const actual_parts = /^(\d+)\.(\d+)\.(\d+)$/.exec(actual)?.slice(1).map(Number);
+	const minimum_parts = /^(\d+)\.(\d+)\.(\d+)$/.exec(minimum)?.slice(1).map(Number);
+	if (actual_parts === undefined || minimum_parts === undefined)
+		return false;
+	for (let index = 0; index < minimum_parts.length; index++) {
+		if (actual_parts[index] !== minimum_parts[index])
+			return actual_parts[index] > minimum_parts[index];
+	}
+	return true;
+}
+
+function player_is_eligible_for_team(client_id: number, support_team: Team): boolean {
+	if (support_team.required_active_mod_name === null && support_team.minimum_client_version === null)
+		return true;
+	const runtime = db.query<{ mod_version: string; active_mods: string }, [number]>(
+		'SELECT `mod_version`, `active_mods` FROM `client_runtime_snapshots` WHERE `client_id` = ?'
+	).get(client_id);
+	if (runtime === null)
+		return false;
+	if (support_team.minimum_client_version !== null &&
+		!version_at_least(runtime.mod_version, support_team.minimum_client_version))
+		return false;
+	if (support_team.required_active_mod_name !== null) {
+		const active_mods = JSON.parse(runtime.active_mods) as unknown;
+		if (!Array.isArray(active_mods) || !active_mods.includes(support_team.required_active_mod_name))
+			return false;
+	}
+	return true;
+}
+
 function ensure_virtual_welcomes(client_id: number, now = Date.now()): void {
-	db.query(
+	const teams = db.query<Team, []>('SELECT * FROM `support_teams`').all();
+	const insert = db.query(
 		'INSERT INTO `support_virtual_welcomes` (`team_id`, `client_id`, `presented_at`) ' +
-		'SELECT team.`id`, ?, ? FROM `support_teams` AS team ' +
-		'WHERE NOT EXISTS (SELECT 1 FROM `support_conversations` AS conversation ' +
-			'WHERE conversation.`team_id` = team.`id` AND conversation.`player_client_id` = ?) ' +
+		'SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM `support_conversations` AS conversation ' +
+			'WHERE conversation.`team_id` = ? AND conversation.`player_client_id` = ?) ' +
 		'AND NOT EXISTS (SELECT 1 FROM `support_team_memberships` AS membership ' +
-			'WHERE membership.`client_id` = ? AND membership.`team_id` = team.`id` AND membership.`active` = 1) ' +
+			'WHERE membership.`client_id` = ? AND membership.`team_id` = ? AND membership.`active` = 1) ' +
 		'ON CONFLICT DO NOTHING'
-	).run(client_id, now, client_id, client_id);
+	);
+	for (const support_team of teams) {
+		if (player_is_eligible_for_team(client_id, support_team))
+			insert.run(support_team.id, client_id, now, support_team.id, client_id, client_id, support_team.id);
+	}
 }
 
 function message_sender(message: Message, conversation: Conversation, support_team: Team) {
@@ -74,8 +113,11 @@ function conversation_access(client_id: number, conversation_id: number) {
 	).get(conversation_id);
 	if (conversation === null)
 		return null;
-	if (conversation.player_client_id === client_id)
-		return { conversation, membership: null, viewer_side: 'player' as const };
+	if (conversation.player_client_id === client_id) {
+		const support_team = team(conversation.team_id);
+		return support_team !== null && player_is_eligible_for_team(client_id, support_team)
+			? { conversation, membership: null, viewer_side: 'player' as const } : null;
+	}
 	const membership = membership_for(client_id, conversation.team_id);
 	return membership === null ? null : { conversation, membership, viewer_side: 'team' as const };
 }
@@ -109,6 +151,56 @@ export function reconcile_support_memberships(raw: string | undefined, now = Dat
 					'ON CONFLICT (`team_id`, `client_id`) DO UPDATE SET ' +
 					'`member_display_name` = excluded.`member_display_name`, `active` = 1'
 				).run(support_team.id, client.id, client.display_name, now);
+		}
+	});
+	reconcile.immediate();
+}
+
+export function parse_support_team_memberships(raw: string | undefined): Record<string, string[]> | undefined {
+	if (raw === undefined)
+		return undefined;
+	let value: unknown;
+	try {
+		value = JSON.parse(raw);
+	} catch {
+		throw new Error('SUPPORT_TEAM_MEMBERSHIPS must be a JSON object of team keys to Client identifier arrays');
+	}
+	if (value === null || typeof value !== 'object' || Array.isArray(value))
+		throw new Error('SUPPORT_TEAM_MEMBERSHIPS must be a JSON object of team keys to Client identifier arrays');
+	const result: Record<string, string[]> = {};
+	for (const [system_key, identifiers] of Object.entries(value)) {
+		if (!/^[a-z0-9_]{1,64}$/.test(system_key) || !Array.isArray(identifiers) ||
+			identifiers.some(identifier => typeof identifier !== 'string' || identifier.length < 1 || identifier.length > 128))
+			throw new Error('SUPPORT_TEAM_MEMBERSHIPS contains an invalid team key or Client identifier array');
+		result[system_key] = [...new Set(identifiers as string[])];
+	}
+	return result;
+}
+
+export function reconcile_support_team_memberships(raw: string | undefined, now = Date.now(), database: Database = db): void {
+	const configured = parse_support_team_memberships(raw);
+	if (configured === undefined)
+		return;
+	const reconcile = database.transaction(() => {
+		for (const [system_key, identifiers] of Object.entries(configured)) {
+			const support_team = database.query<{ id: number }, [string]>(
+				'SELECT `id` FROM `support_teams` WHERE `system_key` = ?'
+			).get(system_key);
+			if (support_team === null)
+				throw new Error(`SUPPORT_TEAM_MEMBERSHIPS names an unknown Support Team: ${system_key}`);
+			database.query('UPDATE `support_team_memberships` SET `active` = 0 WHERE `team_id` = ?').run(support_team.id);
+			for (const client_identifier of identifiers) {
+				const client = database.query<{ id: number; display_name: string }, [string]>(
+					'SELECT `id`, `display_name` FROM `clients` WHERE `client_identifier` = ? AND `deleted_at` IS NULL'
+				).get(client_identifier);
+				if (client !== null)
+					database.query(
+						'INSERT INTO `support_team_memberships` ' +
+						'(`team_id`, `client_id`, `member_display_name`, `created_at`) VALUES(?, ?, ?, ?) ' +
+						'ON CONFLICT (`team_id`, `client_id`) DO UPDATE SET ' +
+						'`member_display_name` = excluded.`member_display_name`, `active` = 1'
+					).run(support_team.id, client.id, client.display_name, now);
+			}
 		}
 	});
 	reconcile.immediate();
@@ -180,7 +272,8 @@ export function list_support_conversations(client_id: number, now = Date.now()):
 		LEFT JOIN support_team_memberships AS author_membership ON author_membership.id = latest.membership_id
 		LEFT JOIN unread ON unread.conversation_id = conversation.id
 	`).all(client_id);
-	const result: any[] = summaries.map(conversation => {
+	const result: any[] = summaries.filter(conversation => conversation.viewer_side === 'team' ||
+		player_is_eligible_for_team(client_id, team(conversation.team_id) as Team)).map(conversation => {
 		const latest_author_side = conversation.latest_author_kind === 'player' ? 'player' : 'team';
 		let latest_sender: { display_name: string; icon_id: string } | null = null;
 		if (conversation.latest_author_kind === 'automated')
@@ -219,13 +312,16 @@ export function list_support_conversations(client_id: number, now = Date.now()):
 			WHERE membership.client_id = welcome.client_id AND membership.team_id = welcome.team_id
 			AND membership.active = 1)
 	`).all(client_id);
-	for (const welcome of virtuals)
+	for (const welcome of virtuals) {
+		if (!player_is_eligible_for_team(client_id, welcome))
+			continue;
 		result.push({ conversation_kind: 'support', conversation_id: null, support_team_id: welcome.id,
 			viewer_side: 'player', participant: { client_id: null, display_name: welcome.display_name, icon_id: welcome.icon_id },
 			created_at: welcome.presented_at, latest_message: { message_id: 0, conversation_id: null, sender_id: null,
 				sender: { display_name: welcome.display_name, icon_id: welcome.icon_id }, content: welcome.welcome_content,
 				created_at: welcome.presented_at, author_side: 'team', sent_by_viewer: false },
 			unread_count: welcome.read_at === null ? 1 : 0, blocked: false });
+	}
 	return result.sort((a, b) => Number((b.latest_message as { created_at: number } | null)?.created_at ?? 0) -
 		Number((a.latest_message as { created_at: number } | null)?.created_at ?? 0));
 }
@@ -249,7 +345,7 @@ export function list_support_messages(client_id: number, conversation_id: number
 			'SELECT `presented_at` FROM `support_virtual_welcomes` WHERE `team_id` = ? AND `client_id` = ?'
 		).get(team_id, client_id);
 		const support_team = team(team_id);
-		if (welcome === null || support_team === null)
+		if (welcome === null || support_team === null || !player_is_eligible_for_team(client_id, support_team))
 			return { status: 'missing' };
 		db.query('UPDATE `support_virtual_welcomes` SET `read_at` = COALESCE(`read_at`, ?) WHERE `team_id` = ? AND `client_id` = ?')
 			.run(Date.now(), team_id, client_id);
@@ -302,11 +398,18 @@ export function send_support_message(client_id: number, conversation_id: number 
 		let membership = conversation === null ? null : membership_for(client_id, conversation.team_id);
 		let viewer_side: 'player' | 'team';
 		if (conversation !== null) {
-			if (conversation.player_client_id === client_id) viewer_side = 'player';
+			if (conversation.player_client_id === client_id) {
+				const support_team = team(conversation.team_id);
+				if (support_team === null || !player_is_eligible_for_team(client_id, support_team))
+					return { status: 'missing' };
+				viewer_side = 'player';
+			}
 			else if (membership !== null) viewer_side = 'team';
 			else return { status: 'missing' };
 		} else {
-			if (team_id === null || membership_for(client_id, team_id) !== null || team(team_id) === null)
+			const requested_team = team_id === null ? null : team(team_id);
+			if (team_id === null || membership_for(client_id, team_id) !== null || requested_team === null ||
+				!player_is_eligible_for_team(client_id, requested_team))
 				return { status: 'missing' };
 			viewer_side = 'player';
 			conversation = db.query<Conversation, [number, number]>(

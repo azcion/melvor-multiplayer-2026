@@ -39,6 +39,7 @@ export type client_runtime_snapshots = {
 	mod_version: string;
 	active_mods: string;
 	game_mode_id: string | null;
+	language: string | null;
 	reported_at: number;
 };
 
@@ -78,6 +79,17 @@ export type guild_raids = {
 	max_health: number;
 	remaining_health: number;
 	secured_at: number | null;
+};
+
+export type guild_activity_events = {
+	id: number;
+	guild_id: number;
+	event_type: string;
+	actor_client_id: number | null;
+	actor_display_name: string | null;
+	metadata: string;
+	source_key: string;
+	created_at: number;
 };
 
 export type guild_raid_roster = {
@@ -189,6 +201,7 @@ export type status_snapshots = {
 	activity_skill_id: string | null;
 	activity_action_id: string | null;
 	activity_area_id: string | null;
+	activities: string;
 };
 
 export type status_snapshot_skills = {
@@ -205,6 +218,23 @@ export type gp_snapshots = {
 export type service_settings = {
 	key: string;
 	value: string;
+};
+
+export type icon_catalog_blobs = {
+	content_hash: string;
+	bytes: Uint8Array;
+	media_type: string;
+	byte_length: number;
+	first_seen_at: number;
+	last_seen_at: number;
+};
+
+export type icon_catalog_observations = {
+	kind: 'skill';
+	object_id: string;
+	content_hash: string;
+	first_seen_at: number;
+	last_seen_at: number;
 };
 
 export type friend_requests = {

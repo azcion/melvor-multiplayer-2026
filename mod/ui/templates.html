@@ -143,9 +143,11 @@
 				<img :src="state.get_shared_game_mode(state.selected_guild_member)?.media || 'assets/media/main/question.png'" :alt="state.get_shared_game_mode(state.selected_guild_member)?.name || ''">
 				<span>{{ state.get_shared_game_mode(state.selected_guild_member)?.name || '' }}</span>
 			</div>
-			<div class="mp-member-activity" v-if="state.selected_guild_member.status_activity">
-				<img :src="state.get_status_activity_icon(state.selected_guild_member.status_activity)" :alt="state.get_status_activity_name(state.selected_guild_member.status_activity)">
-				<span>{{ state.get_status_activity_name(state.selected_guild_member.status_activity) }}</span>
+			<div class="mp-member-activities" v-if="state.get_status_activities(state.selected_guild_member).length">
+				<div class="mp-member-activity" v-for="(activity, activity_index) in state.get_status_activities(state.selected_guild_member)" :key="activity_index">
+					<img :src="state.get_status_activity_icon(activity)" :alt="state.get_status_activity_name(activity)">
+					<span>{{ state.get_status_activity_name(activity) }}</span>
+				</div>
 			</div>
 			<button type="button" class="btn btn-primary" :disabled="state.member_actions_preview" @click="state.start_member_chat($event)">
 				<span class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></span>
@@ -163,6 +165,9 @@
 			<div class="font-size-sm text-muted" v-else-if="!state.selected_guild_member.equipment_available"><lang-string lang-id="MOD_MP_EQUIPMENT_NOT_AVAILABLE_HINT"></lang-string></div>
 			<div class="font-size-sm text-muted" v-if="!state.selected_guild_member.status_visible"><lang-string lang-id="MOD_MP_STATUS_NOT_SHARED"></lang-string></div>
 			<div class="font-size-sm text-muted" v-else-if="!state.selected_guild_member.status_available"><lang-string lang-id="MOD_MP_STATUS_NOT_AVAILABLE_HINT"></lang-string></div>
+			<div class="font-size-sm text-muted" v-if="state.get_language_lang_id(state.selected_guild_member.language) !== null">
+				<lang-string lang-id="MOD_MP_LANGUAGE"></lang-string>: {{ state.get_language_name(state.selected_guild_member.language) }}
+			</div>
 		</template>
 		<div class="text-danger" v-if="state.member_actions_error">{{ state.member_actions_error }}</div>
 	</div>
@@ -550,6 +555,23 @@
 				</div>
 
 				<div class="mp-guild-columns">
+					<div class="block block-rounded mp-guild-activity">
+						<div class="block-header block-header-default">
+							<h3 class="block-title"><lang-string lang-id="MOD_MP_GUILD_ACTIVITY"></lang-string></h3>
+							<span class="font-size-sm text-muted" v-show="state.guild_activity_loading"><lang-string lang-id="MOD_MP_LOADING"></lang-string></span>
+						</div>
+						<div class="block-content p-0 mp-guild-activity-scroll">
+							<div class="mp-guild-activity-event" v-for="event in state.guild_activity" :key="event.id">
+								<mp-lang-string-f :lang-id="state.get_guild_activity_lang_id(event)" :lang-arg-1="state.get_guild_activity_arg_1(event)" :lang-arg-2="state.get_guild_activity_arg_2(event)"></mp-lang-string-f>
+								<span class="font-size-sm text-muted">{{ state.format_guild_activity_time(event.created_at) }}</span>
+							</div>
+							<div class="p-3 text-muted" v-show="!state.guild_activity_loading && !state.guild_activity_error && state.guild_activity.length === 0"><lang-string lang-id="MOD_MP_GUILD_ACTIVITY_EMPTY"></lang-string></div>
+							<div class="p-3 text-danger" v-show="state.guild_activity_error"><lang-string lang-id="MOD_MP_GUILD_ACTIVITY_FAILED"></lang-string></div>
+						</div>
+						<div class="block-content text-center" v-show="state.guild_activity_cursor !== null">
+							<button type="button" class="btn btn-sm btn-secondary" @click="state.load_more_guild_activity()" :disabled="state.guild_activity_loading"><lang-string lang-id="MOD_MP_BUTTON_LOAD_MORE"></lang-string></button>
+						</div>
+					</div>
 					<div class="block block-rounded">
 						<div class="block-header block-header-default">
 							<div>
@@ -557,10 +579,10 @@
 							</div>
 							<span class="font-size-sm text-muted" v-show="state.is_free_fellowship && state.guild_member_directory_loading"><lang-string lang-id="MOD_MP_LOADING"></lang-string></span>
 						</div>
-						<div class="block-content" v-show="state.is_free_fellowship">
+						<div class="block-content mp-member-search-wrapper" v-show="state.is_free_fellowship">
 							<input class="mp-input-text w-100" type="search" v-model="state.guild_member_search" :placeholder="state.get_free_fellowship_search_placeholder()" @change="state.search_guild_members()">
 						</div>
-						<div class="block-content p-0">
+						<div class="block-content p-0 mp-guild-members-scroll">
 							<template v-for="(member, member_index) in state.guild_members">
 							<button type="button" class="mp-guild-person mp-guild-member-button" @click="state.show_member_actions(member)">
 								<img class="skill-icon-xs" :src="state.get_avatar_icon(member.icon_id)">
@@ -578,7 +600,15 @@
 										<span class="badge badge-info" v-if="member.client_id === state.guild_client_id">
 											<lang-string lang-id="MOD_MP_GUILD_YOU"></lang-string>
 										</span>
-										<img class="skill-icon-xs" v-if="member.status_activity" :src="state.get_status_activity_icon(member.status_activity)" :alt="state.get_status_activity_name(member.status_activity)">
+										<span class="badge mp-guild-new-member-badge" v-else-if="state.is_new_guild_member(member.joined_at)">
+											<lang-string lang-id="MOD_MP_GUILD_NEW_MEMBER"></lang-string>
+										</span>
+										<span class="mp-guild-member-activities" v-if="state.get_status_activities(member).length">
+											<template v-for="(activity, activity_index) in state.get_status_activities(member).slice(0, 3)">
+												<img class="skill-icon-xs" :key="activity_index" :src="state.get_status_activity_icon(activity)" :alt="state.get_status_activity_name(activity)">
+											</template>
+											<span class="badge badge-info mp-guild-member-activity-more" v-if="state.get_status_activities(member).length > 3">+{{ state.get_status_activities(member).length - 3 }}</span>
+										</span>
 									</span>
 									<span class="font-size-sm text-muted">
 										<mp-lang-string-f :lang-id="state.get_last_seen_lang_id(member.last_seen_at)" :lang-arg-1="state.get_last_seen_value(member.last_seen_at)"></mp-lang-string-f>
@@ -593,7 +623,7 @@
 						</div>
 					</div>
 
-					<div class="block block-rounded" v-show="!state.is_free_fellowship">
+					<div class="block block-rounded mp-guild-applicants-block" v-show="!state.is_free_fellowship">
 						<div class="block-header block-header-default">
 							<h3 class="block-title"><lang-string lang-id="MOD_MP_GUILD_APPLICANTS"></lang-string></h3>
 							<span class="badge badge-success">{{ state.guild_applicants.length }}</span>
@@ -916,7 +946,7 @@
 	<input class="form-control" type="text" v-model="state.icon_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_ICON')"/>
 	<div class="mp-icon-selector" v-if="state.filtered_icons.length > 0">
 		<div class="bank-item no-bg btn-light pointer-enabled m-1 resize-48" :class="{ 'mp-icon-picked': icon.id == state.picked_icon }" v-for="icon in state.filtered_icons" @click="state.pick_icon(icon)">
-			<img class="p-2 resize-48" :src="icon.media">
+			<img class="p-2 resize-48" :src="icon.media" loading="lazy">
 		</div>
 	</div>
 	<div class="mp-modal-text mt-3" v-else>

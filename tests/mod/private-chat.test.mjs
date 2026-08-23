@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { read_client_source } from './source.mjs';
 
 const root = new URL('../../', import.meta.url);
 
 async function sources() {
 	const [main, templates, style, data_text, language_text] = await Promise.all([
-		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		read_client_source(root),
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
 		readFile(new URL('mod/ui/style.css', root), 'utf8'),
 		readFile(new URL('mod/data.json', root), 'utf8'),
@@ -24,7 +25,7 @@ test('adds a first-class Chat page, inbox, unread indicators, and Guild-roster i
 	assert.equal(chat_page.media, 'https://cdn2-main.melvor.net/assets/media/bank/message_in_a_bottle.png');
 	assert.equal(chat_page.sidebarItem.icon, 'https://cdn2-main.melvor.net/assets/media/bank/message_in_a_bottle.png');
 	assert.equal(chat_page.sidebarItem.asideClass, 'mp-chat-nav');
-	assert.equal(chat_page.sidebarItem.aside, '0');
+	assert.equal(chat_page.sidebarItem.aside, '');
 	assert.match(templates, /template-mp-chat-page/);
 	assert.match(templates, /state\.open_chat_conversation\(conversation\)/);
 	assert.match(templates, /state\.start_member_chat\(\$event\)/);
@@ -171,9 +172,9 @@ test('keeps drafts and send completion scoped to the originating conversation', 
 	assert.match(main, /chat_pending_sends: \{\}/);
 	assert.match(main, /chat_sending_conversations: \{\}/);
 	assert.match(send, /const conversation_key = get_chat_conversation_key\(conversation\)/);
-	assert.match(send, /const view_generation = chat_view_generation/);
+	assert.match(send, /const view_generation = runtime\.chat_view_generation/);
 	assert.match(send, /this\.chat_pending_sends\[conversation_key\]/);
-	assert.match(send, /view_generation === chat_view_generation/);
+	assert.match(send, /view_generation === runtime\.chat_view_generation/);
 	assert.match(send, /get_chat_conversation_key\(this\.selected_chat_conversation\) === conversation_key/);
 	assert.match(send, /if \(is_current_view\(\) && !this\.chat_messages\.some/);
 	assert.match(send, /this\.chat_drafts\[conversation_key\] = ''/);
@@ -233,6 +234,10 @@ test('renders Support Chat identity, alignment, virtual welcomes, and restricted
 	assert.match(chat, /state\.get_chat_participant_icon/);
 	assert.match(main, /selected_chat_conversation\?\.support_team_id !== conversation\.support_team_id/);
 	assert.match(chat, /support_team_id \|\| ''/);
+	assert.match(main, /multiplayer: 'multiplayer\.svg'/);
+	assert.match(main, /sae_support: 'sae_support\.png'/);
+	assert.match(main, /conversation\?\.conversation_kind === 'support' && conversation\.viewer_side === 'player'/);
+	assert.match(main, /asset === undefined \? 'assets\/media\/main\/question\.png'/);
 });
 
 test('retains an older-history cursor after deleting the visible page', async () => {

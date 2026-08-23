@@ -7,11 +7,11 @@ pursue collective goals, face Guild Raids, and shape your community together.
 
 ## Features
 
-- Guild chat and private conversations.
-- Private Guilds, or the public Free Fellowship.
+- Group chat, private chat, in-app support chat.
+- Public and private Guilds, or the Free Fellowship.
 - Trading, gifting, the Marketplace, and Charitree.
 - Cooperative Campaigns and Guild Raids.
-- Shared profiles for equipment, skill levels, GP, and current activity.
+- Showing off profiles for equipment, skill levels, GP, and current activity.
 - Guild Council petitions, so members can shape their Guild together.
 
 ## Getting started
@@ -21,6 +21,8 @@ pursue collective goals, face Guild Raids, and shape your community together.
 3. Open a save and join or create a Guild.
 
 ## Run a self-hosted server
+
+If you'd like to connect the mod to your own private server, you can do so quite easily.
 
 Docker and Docker Compose are the only host prerequisites. Optionally copy `.env.example` to `.env`, then run:
 
@@ -35,9 +37,11 @@ docker compose down
 ```
 
 The SQLite database is stored in the `database-data` Docker volume. Add `--volumes` only when you want to remove that
-local data. The server does not import data from the original project's MySQL storage.
+local data.
 
 ## Build the local mod
+
+This isn't necessary to connect to your private server. Use only if you want to make modifications to the mod itself.
 
 Create a Creator Toolkit-ready ZIP from the checked-in loopback development client:
 
@@ -77,8 +81,8 @@ Run the fresh-stack smoke test:
 Supports Melvor Idle v1.3.1 on iOS, Android, Desktop, and Browser. The service may undergo maintenance without notice.
 
 The server stores the multiplayer data needed to provide these features, including Guild data, shared Player Status,
-and Messages. Deleted Messages and conversations are removed only from your view. Request logs are retained for seven
-days.
+the latest reported player language, and Messages. Deleted Messages and conversations are removed only from your view.
+Request logs are retained for seven days.
 
 ## Attribution
 

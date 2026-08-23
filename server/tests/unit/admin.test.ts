@@ -68,6 +68,37 @@ describe('administration CLI', () => {
 		expect(cleared_status.stdout).toContain('released_mod_version=none\n');
 	});
 
+	test('toggles and reports icon collection without accepting arbitrary values', async () => {
+		const database_path = fixture_database();
+		const disabled = await run_admin(database_path, 'icon-collection', 'off');
+		const status = await run_admin(database_path, 'status');
+		const invalid = await run_admin(database_path, 'icon-collection', 'maybe');
+		const enabled = await run_admin(database_path, 'icon-collection', 'on');
+
+		expect(disabled.exit_code).toBe(0);
+		expect(disabled.stdout).toBe('Icon collection off.\n');
+		expect(status.stdout).toContain('icon_collection=off\n');
+		expect(invalid.exit_code).toBe(2);
+		expect(invalid.stderr).toContain('Usage:');
+		expect(enabled.exit_code).toBe(0);
+		expect(enabled.stdout).toBe('Icon collection on.\n');
+	});
+
+	test('sets bounded icon collection limits and reports the effective settings', async () => {
+		const database_path = fixture_database();
+		const set = await run_admin(database_path, 'icon-collection-limit', 'catalog-bytes', '4096');
+		const status = await run_admin(database_path, 'status');
+		const too_large = await run_admin(database_path, 'icon-collection-limit', 'catalog-bytes', '999999999');
+		const invalid = await run_admin(database_path, 'icon-collection-limit', 'manifest-items', '0');
+
+		expect(set.exit_code).toBe(0);
+		expect(set.stdout).toBe('Icon collection catalog-bytes limit set to 4096.\n');
+		expect(status.stdout).toContain('icon_collection_max_catalog_bytes=4096\n');
+		expect(too_large.exit_code).toBe(2);
+		expect(too_large.stderr).toContain('Usage:');
+		expect(invalid.exit_code).toBe(2);
+	});
+
 	test('inspects one identity without exposing credentials', async () => {
 		const result = await run_admin(fixture_database(), 'identity', 'inspect', '1');
 

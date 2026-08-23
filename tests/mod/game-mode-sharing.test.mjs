@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { read_client_source } from './source.mjs';
 import { get_base_game_mode, resolve_game_mode } from '../../mod/game-mode-sharing.mjs';
 
 const root = new URL('../../', import.meta.url);
@@ -43,7 +44,7 @@ test('uses a question mark and a local name for custom modes when available', ()
 test('wires game modes into the roster, other-player modal, and Options sharing control', async () => {
 	const [templates, main, language, style] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		read_client_source(root),
 		readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse),
 		readFile(new URL('mod/ui/style.css', root), 'utf8')
 	]);

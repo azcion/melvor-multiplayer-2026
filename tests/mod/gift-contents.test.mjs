@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { read_client_source } from './source.mjs';
 
 import { apply_gift_content_state } from '../../mod/gift-contents.mjs';
 
@@ -25,7 +26,7 @@ test('represents unsupported returned Gifts without exposing unavailable items',
 
 test('wires unsupported returned Gifts to a confirmed replay-safe discard action', async () => {
 	const [main, templates] = await Promise.all([
-		readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8'),
+		read_client_source(),
 		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8')
 	]);
 	const action = main.slice(
@@ -43,7 +44,7 @@ test('wires unsupported returned Gifts to a confirmed replay-safe discard action
 
 test('renders failed Gift sends in the confirm modal', async () => {
 	const [main, templates] = await Promise.all([
-		readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8'),
+		read_client_source(),
 		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8')
 	]);
 	const confirm_action = main.slice(

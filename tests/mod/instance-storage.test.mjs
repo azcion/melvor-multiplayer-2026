@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { read_client_source } from './source.mjs';
 
 import { readFile } from 'node:fs/promises';
 
@@ -123,7 +124,7 @@ test('migrates unscoped server state into the packaged server namespace once', (
 });
 
 test('keeps every server-coupled character value behind instance storage', async () => {
-	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const main = await read_client_source(root);
 	const server_scoped_keys = [
 		'charity_timeout',
 		'charity_bonus_timeout',

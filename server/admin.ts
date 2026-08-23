@@ -1,4 +1,11 @@
 import { db, get_service_setting } from './db';
+import {
+	ICON_CATALOG_SETTING_KEYS,
+	MAX_ICON_CATALOG_BYTES,
+	MAX_ICON_CATALOG_ICON_BYTES,
+	MAX_ICON_CATALOG_MANIFEST_COUNT,
+	MAX_ICON_CATALOG_OBSERVATIONS
+} from './icon-catalog';
 
 type AdminOutput = {
 	log: (message: string) => void;
@@ -15,6 +22,8 @@ function usage(output: AdminOutput): number {
   bun run admin.ts status
   bun run admin.ts registrations open|close
   bun run admin.ts maintenance on|off
+  bun run admin.ts icon-collection on|off
+  bun run admin.ts icon-collection-limit icon-bytes|manifest-items|catalog-bytes|observations VALUE
   bun run admin.ts release-version VERSION|clear
   bun run admin.ts identity inspect CLIENT_ID
   bun run admin.ts identity enable|disable CLIENT_ID`);
@@ -24,6 +33,23 @@ function usage(output: AdminOutput): number {
 function parse_positive_integer(value: string | undefined): number | null {
 	const parsed = Number(value);
 	return Number.isSafeInteger(parsed) && parsed >= 1 ? parsed : null;
+}
+
+function parse_icon_collection_limit(kind: string | undefined, value: string | undefined): {
+	key: string;
+	value: number;
+} | null {
+	const maximums: Record<string, { key: string; maximum: number }> = {
+		'icon-bytes': { key: ICON_CATALOG_SETTING_KEYS.max_icon_bytes, maximum: MAX_ICON_CATALOG_ICON_BYTES },
+		'manifest-items': { key: ICON_CATALOG_SETTING_KEYS.max_manifest_items, maximum: MAX_ICON_CATALOG_MANIFEST_COUNT },
+		'catalog-bytes': { key: ICON_CATALOG_SETTING_KEYS.max_catalog_bytes, maximum: MAX_ICON_CATALOG_BYTES },
+		observations: { key: ICON_CATALOG_SETTING_KEYS.max_observations, maximum: MAX_ICON_CATALOG_OBSERVATIONS }
+	};
+	const definition = maximums[kind ?? ''];
+	const parsed = Number(value);
+	if (definition === undefined || !Number.isSafeInteger(parsed) || parsed < 1 || parsed > definition.maximum)
+		return null;
+	return { key: definition.key, value: parsed };
 }
 
 function set_setting(key: string, value: string): void {
@@ -51,6 +77,11 @@ export function run_admin(args: string[], output: AdminOutput = console_output):
 
 			output.log(`registrations=${get_service_setting('registrations_open') === '1' ? 'open' : 'closed'}`);
 			output.log(`maintenance=${get_service_setting('maintenance') === '1' ? 'on' : 'off'}`);
+			output.log(`icon_collection=${get_service_setting('icon_collection_enabled') === '1' ? 'on' : 'off'}`);
+			output.log(`icon_collection_max_icon_bytes=${get_service_setting(ICON_CATALOG_SETTING_KEYS.max_icon_bytes)}`);
+			output.log(`icon_collection_max_manifest_items=${get_service_setting(ICON_CATALOG_SETTING_KEYS.max_manifest_items)}`);
+			output.log(`icon_collection_max_catalog_bytes=${get_service_setting(ICON_CATALOG_SETTING_KEYS.max_catalog_bytes)}`);
+			output.log(`icon_collection_max_observations=${get_service_setting(ICON_CATALOG_SETTING_KEYS.max_observations)}`);
 			output.log(`released_mod_version=${get_service_setting('released_mod_version') || 'none'}`);
 			output.log(`identities=${identity_count}`);
 			output.log(`disabled_identities=${disabled_count}`);
@@ -68,6 +99,22 @@ export function run_admin(args: string[], output: AdminOutput = console_output):
 			set_setting('maintenance', action === 'on' ? '1' : '0');
 			output.log(`Maintenance mode ${action}.`);
 			return 0;
+		case 'icon-collection':
+			if (args.length !== 2 || (action !== 'on' && action !== 'off'))
+				return usage(output);
+			set_setting('icon_collection_enabled', action === 'on' ? '1' : '0');
+			output.log(`Icon collection ${action}.`);
+			return 0;
+		case 'icon-collection-limit': {
+			if (args.length !== 3)
+				return usage(output);
+			const limit = parse_icon_collection_limit(action, argument);
+			if (limit === null)
+				return usage(output);
+			set_setting(limit.key, String(limit.value));
+			output.log(`Icon collection ${action} limit set to ${limit.value}.`);
+			return 0;
+		}
 		case 'release-version':
 			if (args.length !== 2 || (action !== 'clear' && !is_release_version(action)))
 				return usage(output);

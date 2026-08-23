@@ -565,6 +565,63 @@ describe('Support Chat API', () => {
 		]);
 	});
 
+	test('gates data-owned Support Teams by client version and exact active mod while retaining history', async () => {
+		const player = await register_client('SAE Eligibility Player');
+		const set_runtime = (version: string, active_mods: string[]) => db_run(
+			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `reported_at`) ' +
+			'VALUES(?, ?, ?, ?) ON CONFLICT (`client_id`) DO UPDATE SET ' +
+			'`mod_version` = excluded.`mod_version`, `active_mods` = excluded.`active_mods`, ' +
+			'`reported_at` = excluded.`reported_at`',
+			[player.client_id, version, JSON.stringify(active_mods), Date.now()]
+		);
+		const support_entries = async () => (await conversations(player.session_token)).json.conversations.filter(entry =>
+			entry.conversation_kind === 'support'
+		) as Array<Conversation & { support_team_id: number }>;
+
+		expect((await support_entries()).map(entry => entry.participant.display_name)).toEqual(['Multiplayer Mod Team']);
+		await set_runtime('1.3.3', ['Multiplayer', 'SUPER AWESOME EXPANSION']);
+		expect((await support_entries()).map(entry => entry.participant.display_name)).toEqual(['Multiplayer Mod Team']);
+
+		await set_runtime('1.3.4', ['Multiplayer', 'SUPER AWESOME EXPANSION']);
+		const eligible = await support_entries();
+		expect(eligible.map(entry => entry.participant.display_name).sort()).toEqual([
+			'Multiplayer Mod Team', 'SAE Support Team'
+		]);
+		const sae = eligible.find(entry => entry.participant.display_name === 'SAE Support Team') as
+			Conversation & { support_team_id: number };
+		expect(sae.participant.icon_id).toBe('sae_support');
+		expect(sae.latest_message?.content).toBe(
+			'Welcome to SUPER AWESOME EXPANSION!\n\n' +
+			'This is an automated message from EdwinNarwhal, beep boop. Do you have a question, concern, or suggestion? ' +
+			'This is the place to voice it! Just reply to this message, here. I look forward to hearing from you!'
+		);
+		const sent = await post_json<{ success: boolean; message: Message }>('/api/chat/messages/send', {
+			conversation_kind: 'support', conversation_id: null, support_team_id: sae.support_team_id,
+			idempotency_key: crypto.randomUUID(), content: 'SAE question'
+		}, player.session_token);
+		expect(sent.json.success).toBe(true);
+
+		await set_runtime('1.3.4', ['Multiplayer']);
+		expect((await support_entries()).map(entry => entry.participant.display_name)).toEqual(['Multiplayer Mod Team']);
+		const hidden_history = await get_json_with_session<{ messages?: Message[]; error_lang?: string }>(
+			`/api/chat/messages?conversation_kind=support&conversation_id=${sent.json.message.conversation_id}`,
+			player.session_token
+		);
+		expect(hidden_history.json.messages).toBeUndefined();
+		expect(hidden_history.json.error_lang).toBe('MOD_MP_CHAT_CONVERSATION_MISSING');
+		const hidden_send = await post_json<{ success?: boolean; error_lang?: string }>('/api/chat/messages/send', {
+			conversation_kind: 'support', conversation_id: sent.json.message.conversation_id,
+			support_team_id: sae.support_team_id, idempotency_key: crypto.randomUUID(), content: 'Bypass attempt'
+		}, player.session_token);
+		expect(hidden_send.json.success).not.toBe(true);
+		expect(hidden_send.json.error_lang).toBe('MOD_MP_CHAT_CONVERSATION_MISSING');
+
+		await set_runtime('1.3.4', ['Multiplayer', 'SUPER AWESOME EXPANSION']);
+		const restored = (await support_entries()).find(entry => entry.participant.display_name === 'SAE Support Team');
+		expect(restored?.conversation_id).toBe(sent.json.message.conversation_id);
+		expect(restored?.latest_message?.content).toBe('SAE question');
+	});
+
 	test('grants team history only to the operator-selected Client while bypassing private Chat controls', async () => {
 		const player = await register_client('Support Lucy');
 		const team = await register_client('Team Character', { cloud_username: 'TeamCloud', playfab_id: 'TEAM-CHAT-ID' });

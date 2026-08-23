@@ -3,7 +3,9 @@ import { Database } from 'bun:sqlite';
 import { migrations } from '../../db/schema';
 import {
 	parse_support_membership_client_identifiers,
-	reconcile_support_memberships
+	parse_support_team_memberships,
+	reconcile_support_memberships,
+	reconcile_support_team_memberships
 } from '../../support_chat';
 
 function fixture_database(): Database {
@@ -62,5 +64,48 @@ test('atomically activates configured Clients and deactivates omitted membership
 	expect(database.query<{ active: number }, []>(
 		'SELECT SUM(`active`) AS `active` FROM `support_team_memberships`'
 	).get()?.active).toBe(0);
+	database.close();
+});
+
+test('validates and reconciles memberships for data-owned Support Team keys', () => {
+	expect(parse_support_team_memberships(undefined)).toBeUndefined();
+	expect(parse_support_team_memberships('{}')).toEqual({});
+	expect(parse_support_team_memberships(
+		'{"super_awesome_expansion":["CLIENT-FIRST","CLIENT-SECOND","CLIENT-FIRST"]}'
+	)).toEqual({ super_awesome_expansion: ['CLIENT-FIRST', 'CLIENT-SECOND'] });
+	expect(() => parse_support_team_memberships('[]')).toThrow('SUPPORT_TEAM_MEMBERSHIPS must be a JSON object');
+	expect(() => parse_support_team_memberships('{"Bad Team":[]}')).toThrow(
+		'SUPPORT_TEAM_MEMBERSHIPS contains an invalid team key'
+	);
+
+	const database = fixture_database();
+	reconcile_support_team_memberships(
+		'{"super_awesome_expansion":["CLIENT-FIRST","CLIENT-SECOND"]}', 40, database
+	);
+	expect(database.query(
+		'SELECT team.`system_key`, client.`client_identifier`, membership.`member_display_name`, membership.`active` ' +
+		'FROM `support_team_memberships` AS membership ' +
+		'JOIN `support_teams` AS team ON team.`id` = membership.`team_id` ' +
+		'JOIN `clients` AS client ON client.`id` = membership.`client_id` ' +
+		'WHERE team.`system_key` = \'super_awesome_expansion\' ORDER BY client.`client_identifier`'
+	).all()).toEqual([
+		{ system_key: 'super_awesome_expansion', client_identifier: 'CLIENT-FIRST',
+			member_display_name: 'First Character', active: 1 },
+		{ system_key: 'super_awesome_expansion', client_identifier: 'CLIENT-SECOND',
+			member_display_name: 'Second Character', active: 1 }
+	]);
+	reconcile_support_team_memberships('{"super_awesome_expansion":["CLIENT-SECOND"]}', 50, database);
+	expect(database.query(
+		'SELECT client.`client_identifier`, membership.`active` FROM `support_team_memberships` AS membership ' +
+		'JOIN `support_teams` AS team ON team.`id` = membership.`team_id` ' +
+		'JOIN `clients` AS client ON client.`id` = membership.`client_id` ' +
+		'WHERE team.`system_key` = \'super_awesome_expansion\' ORDER BY client.`client_identifier`'
+	).all()).toEqual([
+		{ client_identifier: 'CLIENT-FIRST', active: 0 },
+		{ client_identifier: 'CLIENT-SECOND', active: 1 }
+	]);
+	expect(() => reconcile_support_team_memberships('{"missing_team":[]}', 60, database)).toThrow(
+		'SUPPORT_TEAM_MEMBERSHIPS names an unknown Support Team'
+	);
 	database.close();
 });

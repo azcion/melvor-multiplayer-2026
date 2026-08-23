@@ -29,9 +29,30 @@ export async function request(path: string, init: RequestInit = {}): Promise<Res
 	return fetch(new URL(path, server_url), init);
 }
 
+async function read_json_response<T>(response: Response): Promise<T> {
+	const body = await response.text();
+	const content_type = response.headers.get('Content-Type') ?? '';
+	if (!content_type.toLowerCase().startsWith('application/json')) {
+		throw new Error(
+			`Expected JSON response, got HTTP ${response.status} ${response.statusText}; ` +
+			`Content-Type=${content_type || '<missing>'}; body=${body.slice(0, 512)}`
+		);
+	}
+
+	try {
+		return JSON.parse(body) as T;
+	} catch (error) {
+		throw new Error(
+			`Invalid JSON response from HTTP ${response.status} ${response.statusText}; ` +
+			`body=${body.slice(0, 512)}`,
+			{ cause: error }
+		);
+	}
+}
+
 export async function request_json<T>(path: string, init: RequestInit = {}): Promise<JsonResponse<T>> {
 	const response = await request(path, init);
-	const json = await response.json() as T;
+	const json = await read_json_response<T>(response);
 
 	return { response, json };
 }
@@ -62,9 +83,26 @@ export async function post_json<T>(
 	headers: RequestHeaders = {}
 ): Promise<JsonResponse<T>> {
 	const response = await post(path, body, session_token, headers);
-	const json = await response.json() as T;
+	const json = await read_json_response<T>(response);
 
 	return { response, json };
+}
+
+export async function post_binary(
+	path: string,
+	body: Uint8Array,
+	session_token?: string,
+	headers: RequestHeaders = {}
+): Promise<Response> {
+	const request_headers = new Headers(headers);
+	if (session_token)
+		request_headers.set('X-Session-Token', session_token);
+
+	return request(path, {
+		method: 'POST',
+		headers: request_headers,
+		body
+	});
 }
 
 export async function get_with_session(path: string, session_token: string): Promise<Response> {
@@ -77,7 +115,7 @@ export async function get_with_session(path: string, session_token: string): Pro
 
 export async function get_json_with_session<T>(path: string, session_token: string): Promise<JsonResponse<T>> {
 	const response = await get_with_session(path, session_token);
-	const json = await response.json() as T;
+	const json = await read_json_response<T>(response);
 
 	return { response, json };
 }

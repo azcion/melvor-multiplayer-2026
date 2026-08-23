@@ -69,10 +69,15 @@ test('creates representative state before a server restart', async () => {
 		{ skill_id: 'melvorD:Woodcutting', level: 33 }
 	];
 	const status_activity = { type: 'skill' as const, skill_id: 'melvorD:Woodcutting', action_id: 'melvorD:Restart_Oak' };
+	const status_activities = [
+		status_activity,
+		{ type: 'combat' as const, area_id: 'melvorD:Volcanic_Cave' }
+	];
 	const gp_amount = 142_609;
 	await post_json('/api/client/status/sync', {
 		skills: status_skills,
 		activity: status_activity,
+		activities: status_activities,
 		gp: gp_amount
 	}, pair.first.session_token);
 	const chat = await post_json<{
@@ -188,6 +193,7 @@ test('creates representative state before a server restart', async () => {
 		equipment_slots,
 		status_skills,
 		status_activity,
+		status_activities,
 		gp_amount,
 		chat_conversation_id: chat_message.json.message.conversation_id,
 		chat_message_id: chat_message.json.message.message_id,

@@ -56,6 +56,16 @@ export type RegisteredGuildClient = RegisteredClient & {
 	guild_id: number;
 };
 
+const MAX_GUILD_NAME_LENGTH = 20;
+
+function validate_fixture_guild_name(guild_name: string): void {
+	const trimmed = guild_name.trim();
+	if (trimmed.length === 0 || trimmed.length > MAX_GUILD_NAME_LENGTH)
+		throw new Error(
+			`Invalid test fixture Guild name: expected 1-${MAX_GUILD_NAME_LENGTH} characters after trimming, received ${trimmed.length}`
+		);
+}
+
 export async function get_events(client: RegisteredClient): Promise<Events> {
 	const { response, json } = await get_json_with_session<Events>('/api/events', client.session_token);
 
@@ -115,6 +125,7 @@ export async function make_guildmates(
 	second_name = 'Second Guildmate',
 	guild_name = 'Test Guild'
 ): Promise<GuildPair> {
+	validate_fixture_guild_name(guild_name);
 	const [first, second] = await Promise.all([
 		register_client(first_name),
 		register_client(second_name)
@@ -164,6 +175,7 @@ export async function register_guild_client(
 	display_name = 'Guild Test Idler',
 	guild_name = 'Test Guild'
 ): Promise<RegisteredGuildClient> {
+	validate_fixture_guild_name(guild_name);
 	const client = await register_client(display_name);
 	const created = await post_json<{
 		success: boolean;
@@ -211,6 +223,7 @@ export async function make_guild_group(
 ): Promise<RegisteredGuildClient[]> {
 	if (display_names.length === 0)
 		return [];
+	validate_fixture_guild_name(guild_name);
 
 	const clients = await Promise.all(display_names.map(display_name => register_client(display_name)));
 	const created = await post_json<{

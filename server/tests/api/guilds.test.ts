@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { make_guild_group, make_guildmates } from '../support/fixtures';
+import { make_guild_group, make_guildmates, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post, post_json, register_client } from '../support/http';
 import { db_count, db_run } from '../support/persistence';
 import { SHADOWED_AFTER } from '../../shadowed';
@@ -20,6 +20,7 @@ type GuildState = {
 		display_name: string;
 		icon_id: string;
 		last_seen_at: number | null;
+		joined_at: number | null;
 	}>;
 	applicants?: Array<{
 		application_id: number;
@@ -37,10 +38,11 @@ async function get_guild_state(session_token: string): Promise<GuildState> {
 
 describe('guild API', () => {
 	test('creates non-unique guilds and exposes only discovery summaries', async () => {
-		const [first, second, browser] = await Promise.all([
+		const [first, second, browser, dlc_client] = await Promise.all([
 			register_client('First Rat'),
 			register_client('Second Rat'),
-			register_client('Guild Browser')
+			register_client('Guild Browser'),
+			register_client('DLC Rat')
 		]);
 
 		const invalid_name = await post('/api/guilds/create', {
@@ -51,6 +53,10 @@ describe('guild API', () => {
 			name: 'Rats',
 			icon_id: 'exampleMod:Rat'
 		}, first.session_token);
+		const dlc_created = await post_json<{ guild: GuildSummary }>('/api/guilds/create', {
+			name: 'DLC Rats',
+			icon_id: 'melvorAoD:VolcanicCave'
+		}, dlc_client.session_token);
 		const first_created = await post_json<{ guild: GuildSummary }>('/api/guilds/create', {
 			name: '  Rats  ',
 			icon_id: 'melvorD:Farmlands'
@@ -66,6 +72,11 @@ describe('guild API', () => {
 
 		expect(invalid_name.status).toBe(400);
 		expect(invalid_icon.status).toBe(400);
+		expect(dlc_created.json.guild).toMatchObject({
+			name: 'DLC Rats',
+			icon_id: 'melvorAoD:VolcanicCave',
+			member_count: 1
+		});
 		expect(first_created.json.guild).toMatchObject({
 			name: 'Rats',
 			icon_id: 'melvorD:Farmlands',
@@ -89,6 +100,55 @@ describe('guild API', () => {
 			'member_count',
 			'name'
 		]);
+	});
+
+	test('orders Guild discovery by admission mode and latest activity', async () => {
+		const browser = await register_client('Guild Directory Browser');
+		const [joinable_newest, joinable_older, applyable_newest, applyable_older] = await Promise.all([
+			register_guild_client('Joinable Newest', 'Joinable Newest'),
+			register_guild_client('Joinable Older', 'Joinable Older'),
+			register_guild_client('Applyable Newest', 'Applyable Newest'),
+			register_guild_client('Applyable Older', 'Applyable Older')
+		]);
+		await db_run(
+			"UPDATE `guilds` SET `type` = 'public' WHERE `id` IN (?, ?)",
+			[joinable_newest.guild_id, joinable_older.guild_id]
+		);
+
+		const now = Date.now();
+		await db_run(
+			'UPDATE `clients` SET `last_multiplayer_active_at` = CASE `id` ' +
+			'WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? END ' +
+			'WHERE `id` IN (?, ?, ?, ?)',
+			[
+				joinable_newest.client_id, now - 1_000,
+				joinable_older.client_id, now - 2_000,
+				applyable_newest.client_id, now - 3_000,
+				applyable_older.client_id, now - 4_000,
+				joinable_newest.client_id, joinable_older.client_id,
+				applyable_newest.client_id, applyable_older.client_id
+			]
+		);
+
+		const listing = await get_json_with_session<{ guilds: Array<GuildSummary & {
+			is_free_fellowship?: boolean;
+			is_public?: boolean;
+		}> }>('/api/guilds/list', browser.session_token);
+
+		expect(listing.json.guilds[0]?.name).toBe('Free Fellowship');
+		expect(listing.json.guilds.filter(guild => [
+			'Joinable Newest',
+			'Joinable Older',
+			'Applyable Newest',
+			'Applyable Older'
+		].includes(guild.name)).map(guild => guild.name)).toEqual([
+			'Joinable Newest',
+			'Joinable Older',
+			'Applyable Newest',
+			'Applyable Older'
+		]);
+		expect(listing.json.guilds.slice(1, 3).every(guild => guild.is_public === true)).toBe(true);
+		expect(listing.json.guilds.slice(3).every(guild => guild.is_public !== true)).toBe(true);
 	});
 
 	test('enforces one pending application and supports withdrawal', async () => {
@@ -350,6 +410,15 @@ describe('guild API', () => {
 			{ display_name: 'Beta Shadowed', last_seen_at: shadowed_at },
 			{ display_name: 'Aardvark Unknown', last_seen_at: null }
 		]);
+	});
+
+	test('exposes the current membership join time for Guild roster badges', async () => {
+		const joined_before = Date.now();
+		const pair = await make_guildmates('Join Time Viewer', 'Join Time Newcomer', 'Join Time Guild');
+		const state = await get_guild_state(pair.first.session_token);
+		const joined_member = state.members?.find(member => member.client_id === pair.second_id);
+		expect(joined_member?.joined_at).toBeGreaterThanOrEqual(joined_before);
+		expect(joined_member?.joined_at).toBeLessThanOrEqual(Date.now());
 	});
 
 	test('immediately restores a never-active Shadowed member on their first authenticated request', async () => {

@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { read_client_source } from './source.mjs';
 
 const root = new URL('../../', import.meta.url);
 
 test('wires Council petition controls, resolved-history toggle, and action descriptions', async () => {
 	const [templates, main, style, language_text] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		read_client_source(root),
 		readFile(new URL('mod/ui/style.css', root), 'utf8'),
 		readFile(new URL('mod/data/lang/en.json', root), 'utf8')
 	]);
@@ -46,7 +47,7 @@ test('wires Council petition controls, resolved-history toggle, and action descr
 	assert.match(main, /api_post\('\/api\/guilds\/petitions\/raise'/);
 	assert.match(main, /api_post\('\/api\/guilds\/petitions\/vote'/);
 	assert.match(main, /api_post\('\/api\/guilds\/petitions\/withdraw'/);
-	assert.match(main, /async function refresh_guild_page\(\)[\s\S]*?if \(state\.is_guild_member\)[\s\S]*?Promise\.all\(\[refresh_council\(\), refresh_shadowed_members\(\)\]\)/);
+	assert.match(main, /async function refresh_guild_page\(\)[\s\S]*?if \(state\.is_guild_member\)[\s\S]*?Promise\.all\(\[refresh_council\(\), refresh_shadowed_members\(\), refresh_guild_activity\(\)\]\)/);
 	assert.match(main, /async show_raise_petition_modal\(\)[\s\S]*?await refresh_council\(\)/);
 	assert.match(main, /petition\.lifecycle === 'active'/);
 	assert.match(main, /state\.council_available_petition_types = res\.available_petition_types \?\? \[\]/);
@@ -73,7 +74,7 @@ test('wires Council petition controls, resolved-history toggle, and action descr
 test('hides the felled Charitree and its donation action until restored', async () => {
 	const [templates, main, style, language_text] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		read_client_source(root),
 		readFile(new URL('mod/ui/style.css', root), 'utf8'),
 		readFile(new URL('mod/data/lang/en.json', root), 'utf8')
 	]);
@@ -86,6 +87,8 @@ test('hides the felled Charitree and its donation action until restored', async 
 	assert.match(main, /get is_charitree_enabled\(\)/);
 	assert.match(main, /sidebar\.category\('Multiplayer'\)\.item\('multiplayer:Charity_Tree'\)/);
 	assert.match(main, /nav_item\.rootEl\?\.classList\.toggle\('d-none', state\.is_guild_member && !state\.is_charitree_enabled\)/);
+	assert.match(main, /document\.querySelector\('\.mp-charity-nav'\)/);
+	assert.match(main, /state\.is_charitree_enabled && state\.can_take_charity/);
 	assert.doesNotMatch(main, /nav_item\.(hide|show)\(\)/);
 	assert.match(main, /state\.events\.guild_applicants = state\.guild_applicants;\s*update_charitree_nav\(\);/);
 	assert.match(charitree_page, /v-show="state\.is_guild_member && !state\.is_charitree_enabled"/);
@@ -93,7 +96,9 @@ test('hides the felled Charitree and its donation action until restored', async 
 	assert.match(charitree_page, /v-show="state\.is_charitree_enabled"/);
 	assert.match(charitree_page, /<div class="mp-charitree-timer"><mp-lang-string-f lang-id="MOD_MP_CHARITY_EXPIRES_IN" :lang-arg-1="state\.format_charity_expiry\(item\.expires_at\)"><\/mp-lang-string-f><\/div>/);
 	assert.match(style, /div\.mp-charitree-timer\s*\{\s*all: unset;\s*position: absolute;\s*top: 0;\s*left: 2px;\s*font-size: 9px;\s*\}/);
+	assert.match(style, /\.mp-charity-nav[\s\S]*background-color: #28a745/);
 	assert.equal(language.MOD_MP_CHARITY_EXPIRES_IN, '%s');
+	assert.equal(language.MOD_MP_SIDEBAR_CHARITY_READY, 'ready');
 	assert.match(templates, /state\.is_guild_member && state\.is_charitree_enabled && !state\.has_destroyable_transfer_items/);
 	assert.equal(language.MOD_MP_CHARITY_DISABLED, 'This Guild has forsaken the Charitree.');
 });
