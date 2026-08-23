@@ -12,3 +12,6 @@ To the extent the maintainer owns copyright and related rights in modifications 
 those contributions are dedicated under
 [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/). This dedication does not apply to upstream or
 third-party material.
+
+The maintainer does not own the skill icons provided by this mod. Those icons were harvested from other mods, and the
+CC0 dedication does not cover them.
