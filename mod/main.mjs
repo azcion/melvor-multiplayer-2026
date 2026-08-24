@@ -37,6 +37,7 @@ const CHARITY_TIMEOUT = 1000 * 60 * 60 * 24; // 24 hours
 const CHARITY_CHECK_TIMEOUT = 10 * 1000; // 10 seconds
 
 const MARKET_ITEMS_PER_PAGE = 30;
+const MARKET_FILTER_ITEMS_LIMIT = 24;
 const EQUIPMENT_SYNC_DELAY = 150;
 const STATUS_SYNC_DELAY = 150;
 const STATUS_MIN_SYNC_INTERVAL = 10 * 1000;
@@ -242,9 +243,15 @@ const state = ui.createStore({
 	campaign_update_time: Date.now(),
 
 	market_active_tab: 'search',
+	market_direction: 'sell',
 	market_results: [],
 	market_listings: [],
 	market_buy_item: null,
+	market_fulfill_item: null,
+	market_create_item: null,
+	market_create_qty: 1,
+	market_create_price: 1,
+	market_listing_direction: 'buy',
 	market_filter_item: null,
 	market_filter_search: '',
 	market_filter_items: [],
@@ -667,15 +674,33 @@ const state = ui.createStore({
 		return '0 GP';
 	},
 
+	get market_fulfill_price_formatted() {
+		if (this.market_fulfill_item)
+			return formatNumber(this.market_fulfill_item.price * this.item_slider_value) + ' GP';
+
+		return '0 GP';
+	},
+
+	get market_create_total_formatted() {
+		const total = Number(this.market_create_qty) * Number(this.market_create_price);
+		return Number.isSafeInteger(total) && total > 0 ? formatNumber(total) + ' GP' : '0 GP';
+	},
+
+	get market_listings_filtered() {
+		return this.market_listings.filter(item => item.direction === this.market_listing_direction);
+	},
+
 	get market_filter_search_sanitized() {
 		return this.market_filter_search.trim().toLowerCase();
 	},
 
 	get market_filter_items_filtered() {
-		if (this.market_filter_search_sanitized.length === 0)
-			return this.market_filter_items;
+		const search = this.market_filter_search_sanitized;
+		const items = search.length === 0
+			? this.market_filter_items
+			: this.market_filter_items.filter(item => item.name_lower.includes(search));
 
-		return this.market_filter_items.filter(item => item.name_lower.includes(this.market_filter_search_sanitized));
+		return items.slice(0, MARKET_FILTER_ITEMS_LIMIT);
 	},
 
 	get market_page_count() {
@@ -1477,6 +1502,7 @@ async function update_market_listings() {
 		const res = await api_get('/api/market/listings');
 		state.market_listings = (res?.items ?? []).map(item => ({
 			...item,
+			direction: item.direction ?? 'sell',
 			unresolved: !is_local_item_resolved(item.item_id)
 		}));
 	} finally {
@@ -1488,6 +1514,7 @@ async function update_market_search() {
 	const generation = ++market_search_generation;
 	const page = state.market_current_page;
 	const sort = state.market_sort_direction;
+	const direction = state.market_direction;
 	const item_id = state.market_filter_item;
 	const item_namespaces = get_local_item_namespaces();
 	state.market_search_loading = true;
@@ -1496,7 +1523,10 @@ async function update_market_search() {
 		if (item_id !== null)
 			unresolved_item_ids = [];
 		else {
-			const catalog = await api_post('/api/market/catalog', { item_namespaces });
+			const catalog = await api_post('/api/market/catalog', {
+				item_namespaces,
+				direction
+			});
 			if (generation !== market_search_generation)
 				return;
 			if (!catalog?.success) {
@@ -1510,6 +1540,7 @@ async function update_market_search() {
 		const res = await api_post('/api/market/search', {
 			page,
 			sort,
+			direction,
 			...(item_id === null ? {} : { item_id }),
 			item_namespaces,
 			unresolved_item_ids
@@ -1519,7 +1550,11 @@ async function update_market_search() {
 		if (res?.success) {
 			state.market_current_page = res.page;
 			state.market_total_items = res.total_items;
-			state.market_results = res.items;
+			state.market_results = (res.items ?? []).map(item => ({
+				...item,
+				direction: item.direction ?? direction,
+				market_owner: item.buyer ?? item.seller ?? null
+			}));
 		} else {
 			state.market_results = [];
 			state.market_total_items = 0;
@@ -2910,6 +2945,7 @@ export async function setup(ctx) {
 	ctx.onInterfaceReady(() => {
 		interface_ready = true;
 		setup_account_menu();
+		update_chat_nav();
 
 		const $main_container = $('main-container');
 		for (const page of ['guild', 'raid', 'chat', 'transfer', 'charity', 'campaign', 'market'])

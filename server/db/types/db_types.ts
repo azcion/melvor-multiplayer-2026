@@ -377,11 +377,13 @@ export type market_items = {
 	id: number;
 	guild_id: number;
 	client_id: number;
+	direction: 'sell' | 'buy';
 	item_id: string;
 	qty: number;
 	available: number;
 	price: number;
 	payout: number;
+	escrow_gp: number;
 };
 
 export type banishment_returns = {

@@ -25,13 +25,15 @@ test('adds a first-class Chat page, inbox, unread indicators, and Guild-roster i
 	assert.equal(chat_page.media, 'https://cdn2-main.melvor.net/assets/media/bank/message_in_a_bottle.png');
 	assert.equal(chat_page.sidebarItem.icon, 'https://cdn2-main.melvor.net/assets/media/bank/message_in_a_bottle.png');
 	assert.equal(chat_page.sidebarItem.asideClass, 'mp-chat-nav');
-	assert.equal(chat_page.sidebarItem.aside, '');
+	assert.equal(chat_page.sidebarItem.aside, '0');
 	assert.match(templates, /template-mp-chat-page/);
 	assert.match(templates, /state\.open_chat_conversation\(conversation\)/);
 	assert.match(templates, /state\.start_member_chat\(\$event\)/);
 	assert.match(main, /api_post\('\/api\/chat\/conversations\/start'/);
 	assert.match(main, /changePage\(game\.pages\.getObjectByID\('multiplayer:Chat'\)\)/);
 	assert.match(main, /aside\.hidden = state\.chat_unread <= 0/);
+	const interface_ready = main.slice(main.indexOf('ctx.onInterfaceReady(() => {'), main.indexOf('\n\t});', main.indexOf('ctx.onInterfaceReady(() => {')));
+	assert.match(interface_ready, /update_chat_nav\(\);/);
 	assert.match(style, /\.mp-chat-nav[\s\S]*background-color: #ff4545/);
 	assert.equal(language.MOD_MP_MENU_VIEW_CHAT, 'Open Chat');
 	assert.doesNotMatch(templates, /MOD_MP_CHAT_INBOX/);

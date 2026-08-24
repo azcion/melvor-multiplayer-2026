@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.1
+
+- Added prepaid Guild Marketplace buy orders: players can request a specified item quantity at a fixed unit price, while other Guild members can fulfill orders partially or fully.
+- Added clear Marketplace buying and selling views, a dedicated buy-order form, direct Bank fulfillment, and My Orders controls for escrow and refunds.
+- Fixed Marketplace buy-order escrow and requested quantities being mishandled during identity deletion; prepaid GP now returns safely without creating free items.
+
 ## 1.4.0
 
 - Bundled icons for Archaeology, Music, Occultism, Construction, and Sailing so shared activities and skill levels render correctly even when the viewer does not have those skill mods installed.

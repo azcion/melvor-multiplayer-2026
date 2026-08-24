@@ -254,7 +254,7 @@
 					"categoryID": "Multiplayer",
 					"icon": "https://cdn2-main.melvor.net/assets/media/bank/message_in_a_bottle.png",
 					"asideClass": "mp-chat-nav",
-					"aside": ""
+					"aside": "0"
 				}
 			},
 			{

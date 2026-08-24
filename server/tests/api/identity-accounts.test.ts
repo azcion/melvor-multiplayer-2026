@@ -209,6 +209,12 @@ describe('Melvor account identity lifecycle', () => {
 			item_qty: 4,
 			item_sell_price: 10
 		}, cob.session_token);
+		await post_json('/api/market/buy-order', {
+			command_id: crypto.randomUUID(),
+			item_id: 'melvorD:Cleanup_Buy_Order',
+			item_qty: 6,
+			item_buy_price: 7
+		}, cob.session_token);
 		const trade = await post_json<{ trade_id: number }>('/api/trade/offer', {
 			recipient_id: trader.client_id,
 			items: [{ id: 'melvorD:Cleanup_Offer', qty: 2 }]
@@ -285,11 +291,13 @@ describe('Melvor account identity lifecycle', () => {
 			'/api/guilds/state', cob.session_token
 		)).json.affiliation).toBe('none');
 		const returned = await claim_return(cob);
+		expect(returned.json.claim?.gp).toBe(42);
 		expect(returned.json.claim?.items).toEqual(expect.arrayContaining([
 			{ id: 'melvorD:Cleanup_Gift', qty: 5 },
 			{ id: 'melvorD:Cleanup_Market', qty: 4 },
 			{ id: 'melvorD:Cleanup_Offer', qty: 2 }
 		]));
+		expect(returned.json.claim?.items).not.toContainEqual({ id: 'melvorD:Cleanup_Buy_Order', qty: 6 });
 		expect((await get_json_with_session<{ conversations: unknown[] }>(
 			'/api/chat/conversations', cob.session_token
 		)).json.conversations.filter((conversation: any) => conversation.conversation_kind === 'private')).toEqual([]);

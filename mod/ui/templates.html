@@ -923,6 +923,26 @@
 		</button>
 	</div>
 </template>
+<template id="template-mp-market-fulfill-modal">
+	<div class="form-group mp-gp-group">
+		<mp-item-slider :data-item-id="state.market_fulfill_item.item_id" :data-max="state.market_fulfill_item.available"></mp-item-slider>
+	</div>
+	<div class="mp-button-tray">
+		<button type="button" class="btn btn-success" @click="state.fulfill_market_order($event)">
+			<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+			<lang-string lang-id="MOD_MP_BUTTON_MARKET_FULFILL"></lang-string>
+			<img class="skill-icon-xxs ml-1 mr-1" src="assets/media/main/coins.svg">
+			<span>{{ state.market_fulfill_price_formatted }}</span>
+		</button>
+		<button type="button" class="btn btn-danger" @click="state.close_modal()">
+			<lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string>
+		</button>
+	</div>
+</template>
+<template id="template-mp-market-buy-order-created-modal">
+	<div class="mp-modal-text"><lang-string lang-id="MOD_MP_MARKET_BUY_ORDER_CREATED"></lang-string></div>
+	<button type="button" class="btn btn-primary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
+</template>
 <template id="template-mp-change-display-name-modal">
 	<div class="mp-modal-text">
 		<lang-string lang-id="MOD_MP_MODAL_DESC_DISPLAY_NAME"></lang-string>
@@ -1107,9 +1127,26 @@
 					</div>
 				</a>
 			</div>
+			<div>
+				<a class="block block-content block-rounded block-link-pop border-top border-4x pointer-enabled p-2 pr-5" :class="state.market_active_tab == 'create' || state.market_active_tab == 'create-filter' ? 'mp-market-border-tab-active' : 'border-combat'" @click="state.market_active_tab = 'create'">
+					<div class="media d-flex align-items-center push">
+						<div class="mr-2">
+							<img class="bank-img p-2" :src="state.get_svg('market_listing')">
+						</div>
+						<div class="media-body">
+							<div class="font-w600">
+								<lang-string lang-id="MOD_MP_MARKET_TAB_CREATE"></lang-string>
+							</div>
+							<div class="font-size-sm">
+								<lang-string lang-id="MOD_MP_MARKET_TAB_CREATE_SUB"></lang-string>
+							</div>
+						</div>
+					</div>
+				</a>
+			</div>
 		</div>
-		<div v-if="state.market_active_tab == 'filter'">
-			<input type="text" id="mp-market-filter-input" v-model="state.market_filter_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_ITEMS')" class="border-top border-4x">
+		<div v-if="state.market_active_tab == 'create-filter'">
+			<input type="text" id="mp-market-create-filter-input" v-model="state.market_filter_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_ITEMS')" class="mp-market-search-input border-top border-4x">
 			<div id="mp-market-filter-items">
 				<div v-for="item in state.market_filter_items_filtered" @click="state.select_market_filter_item(item.id)">
 					<mp-item-icon :data-item-id="item.id"><img class="mp-market-item-icon mr-3" :src="item.media" draggable="false"></mp-item-icon>
@@ -1117,7 +1154,54 @@
 				</div>
 			</div>
 		</div>
+		<div v-if="state.market_active_tab == 'filter'">
+			<input type="text" id="mp-market-filter-input" v-model="state.market_filter_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_ITEMS')" class="mp-market-search-input border-top border-4x">
+			<div id="mp-market-filter-items">
+				<div v-for="item in state.market_filter_items_filtered" @click="state.select_market_filter_item(item.id)">
+					<mp-item-icon :data-item-id="item.id"><img class="mp-market-item-icon mr-3" :src="item.media" draggable="false"></mp-item-icon>
+					<span>{{ item.name }}</span>
+				</div>
+			</div>
+		</div>
+		<div v-if="state.market_active_tab == 'create'" class="mp-market-buy-order-form">
+			<div class="mp-market-filter border-top border-4x pointer-enabled" @click="state.choose_market_create_item()">
+				<lang-string lang-id="MOD_MP_MARKET_CREATE_ITEM" class="mr-1"></lang-string>
+				<template v-if="state.market_create_item">
+					<mp-item-icon :data-item-id="state.market_create_item"><img class="skill-icon-xxs mr-2" :src="state.get_item_icon(state.market_create_item)" draggable="false"></mp-item-icon>
+					<span>{{ state.get_item_name(state.market_create_item) }}</span>
+				</template>
+			</div>
+			<div class="row no-gutters p-3">
+				<div class="col-md-6 p-1">
+					<label><lang-string lang-id="MOD_MP_MARKET_BUY_ORDER_QTY"></lang-string></label>
+					<input type="number" min="1" class="form-control" v-model.number="state.market_create_qty">
+				</div>
+				<div class="col-md-6 p-1">
+					<label><lang-string lang-id="MOD_MP_MARKET_BANK_PPI"></lang-string></label>
+					<input type="number" min="1" class="form-control" v-model.number="state.market_create_price">
+				</div>
+				<div class="col-12 text-center mt-2">
+					<lang-string lang-id="MOD_MP_MARKET_ESCROW_TOTAL"></lang-string>
+					<img class="skill-icon-xxs ml-1 mr-1" src="assets/media/main/coins.svg">
+					<span>{{ state.market_create_total_formatted }}</span>
+				</div>
+				<div class="col-12 text-center mt-3">
+					<button type="button" class="btn btn-success" @click="state.create_market_buy_order($event)">
+						<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+						<lang-string lang-id="MOD_MP_BUTTON_MARKET_CREATE_BUY_ORDER"></lang-string>
+					</button>
+				</div>
+			</div>
+		</div>
 		<div v-if="state.market_active_tab == 'search'">
+			<div class="btn-group m-2" role="group">
+				<button type="button" class="btn" :class="state.market_direction == 'sell' ? 'btn-success' : 'btn-secondary'" @click="state.switch_market_direction('sell')">
+					<lang-string lang-id="MOD_MP_MARKET_BUY_ITEMS"></lang-string>
+				</button>
+				<button type="button" class="btn" :class="state.market_direction == 'buy' ? 'btn-success' : 'btn-secondary'" @click="state.switch_market_direction('buy')">
+					<lang-string lang-id="MOD_MP_MARKET_SELL_ITEMS"></lang-string>
+				</button>
+			</div>
 			<template v-if="state.market_filter_item != null">
 				<div class="mp-market-filter border-top border-4x">
 					<lang-string lang-id="MOD_MP_MARKET_SEARCH_ACTIVE" class="mr-1"></lang-string>
@@ -1143,10 +1227,19 @@
 						<mp-item-icon :data-item-id="item.item_id"><img class="mp-market-item-icon mr-3" :src="state.get_item_icon(item.item_id)" draggable="false"></mp-item-icon>
 						<span>{{ state.get_item_name(item.item_id) }}</span>
 					</div>
-					<div class="mp-market-item-col">
+					<div class="mp-market-item-col" v-if="item.direction == 'sell'">
 						<lang-string lang-id="MOD_MP_MARKET_SOLD_BY" class="mr-2"></lang-string>
-						<img class="skill-icon-xs mr-2" :src="state.get_avatar_icon(item.seller.icon_id)"/>
-						<span>{{ item.seller.display_name }}</span>
+						<template v-if="item.market_owner">
+							<img class="skill-icon-xs mr-2" :src="state.get_avatar_icon(item.market_owner.icon_id)"/>
+							<span>{{ item.market_owner.display_name }}</span>
+						</template>
+					</div>
+					<div class="mp-market-item-col" v-else>
+						<lang-string lang-id="MOD_MP_MARKET_BOUGHT_BY" class="mr-2"></lang-string>
+						<template v-if="item.market_owner">
+							<img class="skill-icon-xs mr-2" :src="state.get_avatar_icon(item.market_owner.icon_id)"/>
+							<span>{{ item.market_owner.display_name }}</span>
+						</template>
 					</div>
 					<div class="mp-market-item-col">
 						<mp-lang-string-f lang-id="MOD_MP_MARKET_AVAILABLE" :lang-arg-1="numberWithCommas(item.available)"></mp-lang-string-f>
@@ -1156,8 +1249,11 @@
 						<img class="skill-icon-xxs ml-2" src="assets/media/main/coins.svg">
 					</div>
 					<div class="mp-market-item-col">
-						<button type="button" class="btn btn-success m-1" @click="state.show_market_buy_modal(item)">
+						<button v-if="state.market_direction == 'sell'" type="button" class="btn btn-success m-1" @click="state.show_market_buy_modal(item)">
 							<lang-string lang-id="MOD_MP_BUTTON_MARKET_BUY"></lang-string>
+						</button>
+						<button v-else type="button" class="btn btn-success m-1" @click="state.show_market_fulfill_modal(item)">
+							<lang-string lang-id="MOD_MP_BUTTON_MARKET_FULFILL"></lang-string>
 						</button>
 					</div>
 				</div>
@@ -1187,8 +1283,16 @@
 			</div>
 		</div>
 		<div v-if="state.market_active_tab == 'listing'">
-			<div id="mp-market-search-results" v-if="state.market_listings.length > 0 && !state.market_listings_loading">
-				<div class="mp-market-search-result mp-market-listing-result" v-for="item in state.market_listings">
+			<div class="mp-market-listing-tabs" role="tablist">
+				<button type="button" class="btn" :class="state.market_listing_direction == 'buy' ? 'btn-success' : 'btn-secondary'" role="tab" :aria-selected="state.market_listing_direction == 'buy'" @click="state.switch_market_listing_direction('buy')">
+					<lang-string lang-id="MOD_MP_MARKET_MY_BUY_ORDERS"></lang-string>
+				</button>
+				<button type="button" class="btn" :class="state.market_listing_direction == 'sell' ? 'btn-success' : 'btn-secondary'" role="tab" :aria-selected="state.market_listing_direction == 'sell'" @click="state.switch_market_listing_direction('sell')">
+					<lang-string lang-id="MOD_MP_MARKET_MY_SELL_LISTINGS"></lang-string>
+				</button>
+			</div>
+			<div id="mp-market-search-results" v-if="state.market_listings_filtered.length > 0 && !state.market_listings_loading">
+				<div class="mp-market-search-result mp-market-listing-result" v-for="item in state.market_listings_filtered">
 					<div class="mp-market-item-col">
 						<mp-item-icon v-if="!item.unresolved" :data-item-id="item.item_id"><img class="mp-market-item-icon mr-3" :src="state.get_item_icon(item.item_id)" draggable="false"></mp-item-icon>
 						<img v-else class="mp-market-item-icon mr-3" :src="state.get_item_icon(item.item_id)" draggable="false">
@@ -1198,47 +1302,74 @@
 							<small class="d-block">{{ item.item_id }}</small>
 						</span>
 					</div>
-					<div class="mp-market-item-col">
-						<div class="mp-market-item-bar">
-							<div class="mp-market-item-bar-fill" :style="{ width: (((item.qty - item.available) / item.qty) * 100) + '%'  }" :class="{ complete: item.available == 0 }"></div>
+					<template v-if="item.direction == 'buy'">
+						<div class="mp-market-item-col">
+							<div class="mp-market-item-bar">
+								<div class="mp-market-item-bar-fill" :style="{ width: (((item.qty - item.available) / item.qty) * 100) + '%'  }" :class="{ complete: item.available == 0 }"></div>
+							</div>
 						</div>
-					</div>
-					<div class="mp-market-item-col">
-						<mp-lang-string-f lang-id="MOD_MP_MARKET_SOLD" :lang-arg-1="numberWithCommas(item.qty - item.available)" :lang-arg-2="numberWithCommas(item.qty)"></mp-lang-string-f>
-					</div>
-					<div class="mp-market-item-col">
-						<mp-lang-string-f lang-id="MOD_MP_MARKET_PRICE" :lang-arg-1="numberWithCommas(item.price)"></mp-lang-string-f>
-						<img class="skill-icon-xxs ml-2" src="assets/media/main/coins.svg">
-					</div>
-					<div class="mp-market-item-col">
-						<mp-lang-string-f class="text-success" lang-id="MOD_MP_MARKET_PROFIT" :lang-arg-1="numberWithCommas((item.price * (item.qty - item.available)) - item.payout)"></mp-lang-string-f>
-						<img class="skill-icon-xxs ml-2" src="assets/media/main/coins.svg">
-					</div>
-					<div class="mp-market-item-col">
-						<template v-if="item.unresolved">
-							<button type="button" class="btn btn-danger m-1" @click="state.resolve_market_listing($event, item, 'destroy')" :key="item.id">
-								<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-								<lang-string lang-id="MOD_MP_BUTTON_MARKET_DESTROY"></lang-string>
-							</button>
-						</template>
-						<template v-else>
-							<button type="button" class="btn btn-success m-1" @click="state.resolve_market_listing($event, item, 'payout')" :class="{ disabled: ((item.price * (item.qty - item.available)) - item.payout) == 0 }" :key="item.id">
-								<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-								<lang-string lang-id="MOD_MP_BUTTON_MARKET_CLAIM_PAYOUT"></lang-string>
-							</button>
+						<div class="mp-market-item-col">
+							<mp-lang-string-f lang-id="MOD_MP_MARKET_WANTED" :lang-arg-1="numberWithCommas(item.available)" :lang-arg-2="numberWithCommas(item.qty)"></mp-lang-string-f>
+						</div>
+						<div class="mp-market-item-col">
+							<mp-lang-string-f lang-id="MOD_MP_MARKET_PRICE" :lang-arg-1="numberWithCommas(item.price)"></mp-lang-string-f>
+							<img class="skill-icon-xxs ml-2" src="assets/media/main/coins.svg">
+						</div>
+						<div class="mp-market-item-col">
+							<mp-lang-string-f class="text-success" lang-id="MOD_MP_MARKET_ESCROW" :lang-arg-1="numberWithCommas(item.escrow_gp)"></mp-lang-string-f>
+							<img class="skill-icon-xxs ml-2" src="assets/media/main/coins.svg">
+						</div>
+						<div class="mp-market-item-col">
 							<button type="button" class="btn btn-danger m-1" @click="state.resolve_market_listing($event, item, 'cancel')" :key="item.id">
 								<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 								<lang-string lang-id="MOD_MP_BUTTON_MARKET_CANCEL"></lang-string>
 							</button>
-						</template>
-					</div>
+						</div>
+					</template>
+					<template v-else>
+						<div class="mp-market-item-col">
+							<div class="mp-market-item-bar">
+								<div class="mp-market-item-bar-fill" :style="{ width: (((item.qty - item.available) / item.qty) * 100) + '%'  }" :class="{ complete: item.available == 0 }"></div>
+							</div>
+						</div>
+						<div class="mp-market-item-col">
+							<mp-lang-string-f lang-id="MOD_MP_MARKET_SOLD" :lang-arg-1="numberWithCommas(item.qty - item.available)" :lang-arg-2="numberWithCommas(item.qty)"></mp-lang-string-f>
+						</div>
+						<div class="mp-market-item-col">
+							<mp-lang-string-f lang-id="MOD_MP_MARKET_PRICE" :lang-arg-1="numberWithCommas(item.price)"></mp-lang-string-f>
+							<img class="skill-icon-xxs ml-2" src="assets/media/main/coins.svg">
+						</div>
+						<div class="mp-market-item-col">
+							<mp-lang-string-f class="text-success" lang-id="MOD_MP_MARKET_PROFIT" :lang-arg-1="numberWithCommas((item.price * (item.qty - item.available)) - item.payout)"></mp-lang-string-f>
+							<img class="skill-icon-xxs ml-2" src="assets/media/main/coins.svg">
+						</div>
+						<div class="mp-market-item-col">
+							<template v-if="item.unresolved">
+								<button type="button" class="btn btn-danger m-1" @click="state.resolve_market_listing($event, item, 'destroy')" :key="item.id">
+									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+									<lang-string lang-id="MOD_MP_BUTTON_MARKET_DESTROY"></lang-string>
+								</button>
+							</template>
+							<template v-else>
+								<button type="button" class="btn btn-success m-1" @click="state.resolve_market_listing($event, item, 'payout')" :class="{ disabled: ((item.price * (item.qty - item.available)) - item.payout) == 0 }" :key="item.id">
+									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+									<lang-string lang-id="MOD_MP_BUTTON_MARKET_CLAIM_PAYOUT"></lang-string>
+								</button>
+								<button type="button" class="btn btn-danger m-1" @click="state.resolve_market_listing($event, item, 'cancel')" :key="item.id">
+									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+									<lang-string lang-id="MOD_MP_BUTTON_MARKET_CANCEL"></lang-string>
+								</button>
+							</template>
+						</div>
+					</template>
 				</div>
 			</div>
 			<div class="p-4 block" v-else-if="state.market_listings_loading">
 				<lang-string lang-id="MOD_MP_MARKET_LOADING"></lang-string>
 			</div>
 			<div class="p-4 block" v-else>
-				<lang-string lang-id="MOD_MP_MARKET_NO_LISTINGS"></lang-string>
+				<lang-string lang-id="MOD_MP_MARKET_NO_BUY_ORDERS" v-if="state.market_listing_direction == 'buy'"></lang-string>
+				<lang-string lang-id="MOD_MP_MARKET_NO_SELL_LISTINGS" v-else></lang-string>
 			</div>
 		</div>
 		</div>

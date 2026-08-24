@@ -941,8 +941,12 @@ export function apply_banishment_target(
 		).all(target_client_id, petition.guild_id) as db_row.market_items[];
 		let gp = 0;
 		for (const item of market_items) {
-			add_banishment_return_item(target_return_id, item.item_id, item.available);
-			gp += Math.max((item.qty - item.available) * item.price - item.payout, 0);
+			if (item.direction === 'buy')
+				gp += item.escrow_gp;
+			else {
+				add_banishment_return_item(target_return_id, item.item_id, item.available);
+				gp += Math.max((item.qty - item.available) * item.price - item.payout, 0);
+			}
 		}
 		if (gp > 0)
 			db.query('UPDATE `banishment_returns` SET `gp` = `gp` + ? WHERE `id` = ?').run(gp, target_return_id);
@@ -1186,8 +1190,8 @@ maintain_client_deletions();
 // #region MARKET
 export async function market_list_item(guild_id: number, client_id: number, item_id: string, item_qty: number, item_sell_price: number) {
 	const lot = await db_get_single(
-		'INSERT INTO `market_items` (`guild_id`, `client_id`, `item_id`, `qty`, `price`, `available`) VALUES(?, ?, ?, ?, ?, ?) ' +
-		'ON CONFLICT (`guild_id`, `client_id`, `item_id`, `price`) DO UPDATE SET `qty` = `qty` + excluded.`qty`, ' +
+		'INSERT INTO `market_items` (`guild_id`, `client_id`, `direction`, `item_id`, `qty`, `price`, `available`) VALUES(?, ?, \'sell\', ?, ?, ?, ?) ' +
+		'ON CONFLICT (`guild_id`, `client_id`, `direction`, `item_id`, `price`) DO UPDATE SET `qty` = `qty` + excluded.`qty`, ' +
 		'`available` = `available` + excluded.`available` RETURNING `id`',
 		[guild_id, client_id, item_id, item_qty, item_sell_price, item_qty]
 	) as db_row.market_items;
@@ -1206,7 +1210,7 @@ export async function get_market_completed(client_id: number) {
 		return cached;
 
 	const results = await db_get_all(
-		'SELECT `id` FROM `market_items` WHERE `guild_id` = ? AND `client_id` = ? AND `available` = 0',
+		'SELECT `id` FROM `market_items` WHERE `guild_id` = ? AND `client_id` = ? AND `direction` = \'sell\' AND `available` = 0',
 		[guild_id, client_id]
 	) as db_row.market_items[];
 	const completed = results.map(row => row.id);

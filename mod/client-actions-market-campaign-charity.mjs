@@ -73,9 +73,45 @@ export function install_market_campaign_charity_actions(runtime) {
 		},
 
 		select_market_filter_item(item_id) {
+			if (state.market_active_tab === 'create-filter') {
+				const item = game.items.getObjectByID(item_id);
+				state.market_create_item = item_id;
+				state.market_create_price = item ? game.bank.getItemSalePrice(item) : 1;
+				state.market_active_tab = 'create';
+				return;
+			}
+
 			state.market_filter_item = item_id;
 			state.market_active_tab = 'search';
 			state.market_page_first(true);
+		},
+
+		choose_market_create_item() {
+			this.market_active_tab = 'create-filter';
+			this.market_filter_search = '';
+
+			if (!runtime.has_sorted_market_filter_items)
+				load_market_filter_items();
+
+			setTimeout(() => $('mp-market-create-filter-input').focus(), 1);
+		},
+
+		switch_market_direction(direction) {
+			if (direction !== 'sell' && direction !== 'buy')
+				return;
+
+			this.market_direction = direction;
+			this.market_sort_direction = direction === 'sell' ? 1 : 0;
+			this.market_results = [];
+			this.market_total_items = 0;
+			this.market_page_first(true);
+		},
+
+		switch_market_listing_direction(direction) {
+			if (direction !== 'sell' && direction !== 'buy')
+				return;
+
+			this.market_listing_direction = direction;
 		},
 
 		show_market_buy_modal(item) {
@@ -135,6 +171,97 @@ export function install_market_campaign_charity_actions(runtime) {
 			}
 		},
 
+		show_market_fulfill_modal(item) {
+			this.market_fulfill_item = item;
+
+			const item_name = this.get_item_name(item.item_id);
+			queue_modal(getLangString('MOD_MP_MARKET_FULFILL_MODAL_TITLE') + item_name, 'market-fulfill-modal', this.get_item_icon(item.item_id), {
+				showConfirmButton: false
+			}, false, false);
+		},
+
+		async fulfill_market_order(event) {
+			const $button = event.currentTarget;
+
+			if (is_button_spinning($button))
+				return;
+
+			if (!state.market_fulfill_item)
+				return notify_error('MOD_MP_GENERIC_ERR');
+
+			if (state.item_slider_value <= 0)
+				return notify_error('MOD_MP_MARKET_FULFILL_NOTHING');
+
+			const item = game.items.getObjectByID(state.market_fulfill_item.item_id);
+		if (!item)
+			return notify_error('MOD_MP_MARKET_BUY_ERROR_UNKNOWN');
+
+		if (game.bank.getQty(item) < state.item_slider_value)
+			return notify_error('MOD_MP_MARKET_NOT_ENOUGH_ITEM');
+
+		show_button_spinner($button);
+		const res = await api_post('/api/market/fulfill', {
+			id: state.market_fulfill_item.id,
+			qty: state.item_slider_value,
+			command_id: crypto.randomUUID()
+		});
+		const fulfillment_succeeded = res?.success && await reconcile_economy_receipts([res.receipt]);
+		if (fulfillment_succeeded) {
+			await this.close_modal_and_wait('market-fulfill-modal');
+			if (res.new_item_qty > 0)
+				state.market_fulfill_item.available = res.new_item_qty;
+			else
+				remove_sold_out_market_result(state, state.market_fulfill_item.id, MARKET_ITEMS_PER_PAGE);
+			await update_market_search();
+		} else {
+			notify_error(res?.error_lang ?? 'MOD_MP_MARKET_FULFILL_ERROR');
+			this.close_modal();
+		}
+		hide_button_spinner($button);
+		},
+
+		async create_market_buy_order(event) {
+			const $button = event.currentTarget;
+			if (is_button_spinning($button))
+				return;
+
+			const item = this.market_create_item && game.items.getObjectByID(this.market_create_item);
+		if (!item)
+			return notify_error('MOD_MP_MARKET_CREATE_ITEM_REQUIRED');
+
+			const item_qty = Number(this.market_create_qty);
+			const item_buy_price = Number(this.market_create_price);
+			const total = item_qty * item_buy_price;
+			if (!Number.isSafeInteger(item_qty) || item_qty <= 0)
+				return notify_error('MOD_MP_MARKET_CANNOT_BUY_NOTHING');
+			if (!Number.isSafeInteger(item_buy_price) || item_buy_price <= 0)
+				return notify_error('MOD_MP_MARKET_CANNOT_BUY_FREE');
+			if (!Number.isSafeInteger(total))
+				return notify_error('MOD_MP_MARKET_VALUE_TOO_LARGE');
+			if (game.gp.amount < total)
+				return notify_error('MOD_MP_MARKET_INSUFFICIENT_GP');
+
+			show_button_spinner($button);
+			const res = await api_post('/api/market/buy-order', {
+				item_id: item.id,
+				item_qty,
+				item_buy_price,
+				command_id: crypto.randomUUID()
+			});
+			if (res?.success && await reconcile_economy_receipts([res.receipt])) {
+				queue_modal('MOD_MP_MARKET_BUY_ORDER_CREATED_TITLE', 'market-buy-order-created-modal', 'assets/market.svg', {
+					showConfirmButton: false
+				});
+				this.market_create_qty = 1;
+				this.market_create_price = game.bank.getItemSalePrice(item);
+				if (this.market_active_tab === 'listing')
+					await update_market_listings();
+			} else {
+				notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+			}
+			hide_button_spinner($button);
+		},
+
 		market_page(page) {
 			const before = this.market_current_page;
 			this.market_current_page = page;
@@ -182,6 +309,7 @@ export function install_market_campaign_charity_actions(runtime) {
 
 		open_market_tab() {
 			this.market_active_tab = 'search';
+			update_market_search();
 		},
 
 		open_listing_tab() {

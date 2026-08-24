@@ -23,7 +23,7 @@ test('upgrades a representative migration-40 database through all icon catalog m
 		database.run(`PRAGMA user_version = ${migration.version}`);
 	}
 
-	expect(database.query<{ user_version: number }, []>('PRAGMA user_version').get()?.user_version).toBe(45);
+	expect(database.query<{ user_version: number }, []>('PRAGMA user_version').get()?.user_version).toBe(46);
 	expect(database.query<{ id: number }, []>('SELECT `id` FROM `clients`').all()).toEqual([{ id: 1 }]);
 	expect(database.query<{ client_id: number; skill_id: string; level: number }, []>(
 		'SELECT `client_id`, `skill_id`, `level` FROM `status_snapshot_skills`'

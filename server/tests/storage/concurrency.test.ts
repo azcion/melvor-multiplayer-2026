@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { make_guild_group, make_guildmates, register_guild_client } from '../support/fixtures';
+import { get_events, make_guild_group, make_guildmates, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post_json, register_client } from '../support/http';
 import { db_all, db_count } from '../support/persistence';
 import { wait_for } from '../support/wait';
@@ -160,6 +160,45 @@ describe('concurrent persistence invariants', () => {
 
 		expect(successful).toHaveLength(1);
 		expect(item_total).toBe(1);
+	});
+
+	test('allows only one fulfiller to claim the final prepaid buy-order quantity', async () => {
+		const group = await make_guild_group([
+			'Concurrent Buy-Order Buyer',
+			...Array.from({ length: 20 }, (_, index) => `Buy-Order Fulfiller ${index}`)
+		]);
+		const [buyer, ...sellers] = group;
+		const item_id = `melvorD:Concurrent_Buy_Order_${crypto.randomUUID()}`;
+		await post_json('/api/market/buy-order', {
+			command_id: crypto.randomUUID(), item_id, item_qty: 1, item_buy_price: 23
+		}, buyer.session_token);
+		const rows = await wait_for(
+			() => db_all<{ id: number }>('SELECT `id` FROM `market_items` WHERE `item_id` = ? AND `direction` = \'buy\'', [item_id]),
+			value => value.length === 1
+		);
+
+		const receipt_count_before = await db_count(
+			' SELECT COUNT(*) AS count FROM `economy_receipts` WHERE `kind` = \'market-fulfill\'', []
+		);
+		const results = await Promise.all(sellers.map(seller => post_json<OperationResult>(
+			'/api/market/fulfill',
+			{ command_id: crypto.randomUUID(), id: rows[0].id, qty: 1 },
+			seller.session_token
+		)));
+		const successful = results.filter(result => result.json.success);
+		const item_total = successful.reduce((total, result) => total + (result.json.item_qty ?? 0), 0);
+
+		expect(successful).toHaveLength(1);
+		expect(item_total).toBe(1);
+		const receipt_count_after = await db_count(
+			' SELECT COUNT(*) AS count FROM `economy_receipts` WHERE `kind` = \'market-fulfill\'', []
+		);
+		expect(receipt_count_after - receipt_count_before).toBe(2);
+		expect((await get_events(buyer)).economy_receipts.some(receipt => receipt.kind === 'market-fulfill')).toBe(true);
+		expect(await db_count(
+			' SELECT COUNT(*) AS count FROM `market_items` WHERE `id` = ?',
+			[rows[0].id]
+		)).toBe(0);
 	});
 
 	test('allows only one player to take a charity item', async () => {

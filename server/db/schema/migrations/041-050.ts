@@ -82,5 +82,48 @@ export const migrations_041_050: Migration[] = [
 			ALTER TABLE client_runtime_snapshots ADD COLUMN language TEXT
 				CHECK (language IS NULL OR length(language) <= 64);
 		`
+	}, {
+		version: 46,
+		sql: `
+			CREATE TABLE market_items_new (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				guild_id INTEGER NOT NULL,
+				client_id INTEGER NOT NULL,
+				direction TEXT NOT NULL DEFAULT 'sell' CHECK (direction IN ('sell', 'buy')),
+				item_id TEXT NOT NULL,
+				qty INTEGER NOT NULL CHECK (qty > 0),
+				available INTEGER NOT NULL CHECK (available >= 0),
+				price INTEGER NOT NULL CHECK (price > 0),
+				payout INTEGER NOT NULL DEFAULT 0 CHECK (payout >= 0),
+				escrow_gp INTEGER NOT NULL DEFAULT 0 CHECK (escrow_gp >= 0),
+				UNIQUE (guild_id, client_id, direction, item_id, price),
+				CHECK ((direction = 'sell' AND escrow_gp = 0) OR
+					(direction = 'buy' AND payout = 0)),
+				FOREIGN KEY (guild_id) REFERENCES guilds (id) ON DELETE CASCADE,
+				FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
+			);
+			INSERT INTO market_items_new
+				(id, guild_id, client_id, direction, item_id, qty, available, price, payout, escrow_gp)
+				SELECT id, guild_id, client_id, 'sell', item_id, qty, available, price, payout, 0
+				FROM market_items;
+			DROP TABLE market_items;
+			ALTER TABLE market_items_new RENAME TO market_items;
+			CREATE INDEX idx_market_items_guild_direction_item
+				ON market_items (guild_id, direction, item_id);
+			CREATE INDEX idx_market_items_guild_direction_price
+				ON market_items (guild_id, direction, price);
+			CREATE INDEX idx_market_items_guild_direction_item_price
+				ON market_items (guild_id, direction, item_id, price);
+
+			CREATE TRIGGER event_market_insert AFTER INSERT ON market_items BEGIN
+				UPDATE clients SET event_revision = event_revision + 1 WHERE id = NEW.client_id;
+			END;
+			CREATE TRIGGER event_market_update AFTER UPDATE ON market_items BEGIN
+				UPDATE clients SET event_revision = event_revision + 1 WHERE id IN (OLD.client_id, NEW.client_id);
+			END;
+			CREATE TRIGGER event_market_delete AFTER DELETE ON market_items BEGIN
+				UPDATE clients SET event_revision = event_revision + 1 WHERE id = OLD.client_id;
+			END;
+		`
 	}
 ];

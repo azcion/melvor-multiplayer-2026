@@ -6,11 +6,13 @@ import { wait_for } from '../support/wait';
 
 type MarketListing = {
 	id: number;
+	direction?: 'sell' | 'buy';
 	item_id: string;
 	available: number;
 	qty: number;
 	price: number;
-	payout: number;
+	payout?: number;
+	escrow_gp?: number;
 };
 
 type MarketListings = {
@@ -24,10 +26,15 @@ type MarketSearch = {
 	page: number;
 	items: Array<{
 		id: number;
+		direction?: 'sell' | 'buy';
 		item_id: string;
 		available: number;
 		price: number;
-		seller: {
+		seller?: {
+			display_name: string;
+			icon_id: string;
+		};
+		buyer?: {
 			display_name: string;
 			icon_id: string;
 		};
@@ -168,6 +175,7 @@ describe('market API', () => {
 			item_id: 'melvorD:Lifecycle_Ore',
 			available: 10,
 			price: 5,
+			direction: 'sell',
 			seller: {
 				display_name: 'Market Seller',
 				icon_id: seller.icon_id
@@ -276,6 +284,116 @@ describe('market API', () => {
 			payout: 8
 		});
 		expect((await get_listings(seller)).items).toEqual([]);
+	});
+
+	test('creates, merges, fulfills, and refunds prepaid buy orders', async () => {
+		const pair = await make_guildmates('Market Buy Order Buyer', 'Market Buy Order Seller');
+		const [buyer, seller] = [pair.first, pair.second];
+		const item_id = 'melvorD:Prepaid_Buy_Order_Item';
+		const create = await post_json<{
+			success: boolean;
+			receipt: { id: string; kind: string; effects: Array<Record<string, unknown>> };
+		}>('/api/market/buy-order', {
+			command_id: crypto.randomUUID(), item_id, item_qty: 10, item_buy_price: 5
+		}, buyer.session_token);
+		await post_json('/api/economy/receipts/acknowledge', {
+			receipt_id: create.json.receipt.id
+		}, buyer.session_token);
+		const merged = await post_json<{ receipt: { id: string } }>('/api/market/buy-order', {
+			command_id: crypto.randomUUID(), item_id, item_qty: 2, item_buy_price: 5
+		}, buyer.session_token);
+		await post_json('/api/economy/receipts/acknowledge', {
+			receipt_id: merged.json.receipt.id
+		}, buyer.session_token);
+
+		const order = await wait_for_listing(buyer, item_id, listing =>
+			listing.direction === 'buy' && listing.qty === 12 && listing.available === 12
+		);
+		expect(order).toMatchObject({
+			direction: 'buy',
+			item_id,
+			qty: 12,
+			available: 12,
+			price: 5,
+			escrow_gp: 60
+		});
+
+		const search = await post_json<MarketSearch>('/api/market/search', {
+			direction: 'buy', item_id, sort: 0, page: 1
+		}, seller.session_token);
+		expect(search.json.items).toEqual([{
+			id: order.id,
+			item_id,
+			available: 12,
+			price: 5,
+			direction: 'buy',
+			buyer: { display_name: buyer.display_name, icon_id: buyer.icon_id }
+		}]);
+
+		const self = await post_json<{ error_lang: string }>('/api/market/fulfill', {
+			command_id: crypto.randomUUID(), id: order.id, qty: 1
+		}, buyer.session_token);
+		expect(self.json.error_lang).toBe('MOD_MP_MARKET_FULFILL_ERROR_INVALID');
+
+		const fulfilled = await post_json<{
+			success: boolean;
+			item_qty: number;
+			new_item_qty: number;
+			gp_gain: number;
+			receipt: { effects: Array<Record<string, unknown>> };
+		}>('/api/market/fulfill', {
+			command_id: crypto.randomUUID(), id: order.id, qty: 5
+		}, seller.session_token);
+		expect(fulfilled.json).toMatchObject({
+			success: true, item_qty: 5, new_item_qty: 7, gp_gain: 25,
+			receipt: { effects: [
+				{ storage: 'bank', item_id, qty: -5 },
+				{ storage: 'gp', qty: 25 }
+			] }
+		});
+
+		const incoming = (await get_events(buyer)).economy_receipts.find(receipt => receipt.kind === 'market-fulfill');
+		expect(incoming).toMatchObject({ effects: [{ storage: 'bank', item_id, qty: 5 }] });
+		await post_json('/api/economy/receipts/acknowledge', { receipt_id: incoming?.id }, buyer.session_token);
+
+		const remaining = await wait_for_listing(buyer, item_id, listing =>
+			listing.direction === 'buy' && listing.available === 7 && listing.escrow_gp === 35
+		);
+		expect(remaining.escrow_gp).toBe(35);
+
+		const cancelled = await post_json<{
+			success: boolean;
+			gp_refund: number;
+			receipt: { id: string; effects: Array<Record<string, unknown>> };
+		}>('/api/market/cancel', { id: remaining.id, command_id: crypto.randomUUID() }, buyer.session_token);
+		expect(cancelled.json).toMatchObject({
+			success: true,
+			gp_refund: 35,
+			receipt: { effects: [{ storage: 'gp', qty: 35 }] }
+		});
+		await post_json('/api/economy/receipts/acknowledge', {
+			receipt_id: cancelled.json.receipt.id
+		}, buyer.session_token);
+		expect((await get_listings(buyer)).items).toEqual([]);
+	});
+
+	test('removes a fully fulfilled buy order and keeps the buyer delivery durable', async () => {
+		const pair = await make_guildmates('Complete Buy Order Buyer', 'Complete Buy Order Seller');
+		const [buyer, seller] = [pair.first, pair.second];
+		const item_id = 'melvorD:Complete_Buy_Order_Item';
+		const created = await post_json<{ receipt: { id: string } }>('/api/market/buy-order', {
+			command_id: crypto.randomUUID(), item_id, item_qty: 3, item_buy_price: 9
+		}, buyer.session_token);
+		await post_json('/api/economy/receipts/acknowledge', {
+			receipt_id: created.json.receipt.id
+		}, buyer.session_token);
+		const order = await wait_for_listing(buyer, item_id, listing => listing.direction === 'buy');
+		const fulfilled = await post_json<{ new_item_qty: number; receipt: { id: string } }>('/api/market/fulfill', {
+			command_id: crypto.randomUUID(), id: order.id, qty: 3
+		}, seller.session_token);
+		expect(fulfilled.json.new_item_qty).toBe(0);
+		expect((await get_listings(buyer)).items).toEqual([]);
+		expect((await get_events(buyer)).economy_receipts.some(receipt => receipt.kind === 'market-fulfill')).toBe(true);
 	});
 
 	test('sorts, filters, and paginates market searches', async () => {

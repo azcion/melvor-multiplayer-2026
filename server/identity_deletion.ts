@@ -77,8 +77,12 @@ export function execute_client_deletion(
 	).all(request.target_client_id);
 	let market_gp = 0;
 	for (const item of market_items) {
-		add_deletion_return_item(database, target_return_id(), item.item_id, item.available);
-		market_gp += Math.max((item.qty - item.available) * item.price - item.payout, 0);
+		if (item.direction === 'buy')
+			market_gp += item.escrow_gp;
+		else {
+			add_deletion_return_item(database, target_return_id(), item.item_id, item.available);
+			market_gp += Math.max((item.qty - item.available) * item.price - item.payout, 0);
+		}
 	}
 	if (market_gp > 0)
 		database.query('UPDATE `client_deletion_returns` SET `gp` = `gp` + ? WHERE `id` = ?')
