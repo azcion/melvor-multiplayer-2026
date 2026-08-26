@@ -114,7 +114,8 @@ export function install_social_actions(runtime) {
 			state.picked_icon = '';
 
 			queue_modal(game.characterName, 'change-icon-modal', this.get_avatar_icon(state.profile_icon), {
-				showConfirmButton: false
+				showConfirmButton: false,
+				customClass: { popup: 'mp-icon-picker-modal-popup' }
 			}, false, false);
 		},
 		// #endregion

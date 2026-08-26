@@ -449,6 +449,30 @@ describe('market API', () => {
 		expect(exact_second_page.json.items[0].price).toBe(1);
 	});
 
+	test('sorts recent listings by their original publish date', async () => {
+		const pair = await make_guildmates('Recent Market Seller', 'Recent Market Buyer');
+		const [seller, buyer] = [pair.first, pair.second];
+		await post_json('/api/market/sell', {
+			item_id: 'melvorD:Recent_Market_First', item_qty: 1, item_sell_price: 5
+		}, seller.session_token);
+		const first = await wait_for_listing(seller, 'melvorD:Recent_Market_First');
+		await new Promise(resolve => setTimeout(resolve, 5));
+		await post_json('/api/market/sell', {
+			item_id: 'melvorD:Recent_Market_Second', item_qty: 1, item_sell_price: 6
+		}, seller.session_token);
+		const second = await wait_for_listing(seller, 'melvorD:Recent_Market_Second');
+		await new Promise(resolve => setTimeout(resolve, 5));
+		await post_json('/api/market/sell', {
+			item_id: 'melvorD:Recent_Market_First', item_qty: 1, item_sell_price: 5
+		}, seller.session_token);
+
+		const recent = await post_json<MarketSearch>('/api/market/search', {
+			sort: 'recent', page: 1
+		}, buyer.session_token);
+
+		expect(recent.json.items.slice(0, 2).map(item => item.id)).toEqual([second.id, first.id]);
+	});
+
 	test('destroys an owner listing into a non-bank return and pays accrued profit', async () => {
 		const pair = await make_guildmates('Destroy Listing Seller', 'Destroy Listing Buyer');
 		await post_json('/api/market/sell', {

@@ -94,3 +94,32 @@ export function apply_economy_receipt(receipt, processed_ids, adapter) {
 	adapter.persist_processed_ids(processed_ids);
 	return 'applied';
 }
+
+export function summarize_market_fulfillment_receipts(receipts) {
+	const quantities = new Map();
+	const items = [];
+	let order_count = 0;
+
+	for (const receipt of receipts) {
+		if (receipt?.kind !== 'market-fulfill')
+			continue;
+
+		order_count++;
+		for (const effect of receipt.effects ?? []) {
+			if (effect?.storage !== 'bank' || typeof effect.item_id !== 'string' ||
+				!Number.isSafeInteger(effect.qty) || effect.qty <= 0)
+				continue;
+
+			const existing = quantities.get(effect.item_id);
+			if (existing === undefined) {
+				const item = { item_id: effect.item_id, qty: effect.qty };
+				quantities.set(effect.item_id, item);
+				items.push(item);
+			} else {
+				existing.qty += effect.qty;
+			}
+		}
+	}
+
+	return { order_count, items };
+}

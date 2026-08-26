@@ -77,11 +77,18 @@ test('ships captured custom skill icons for every shared-status surface', async 
 		read_client_source(root)
 	]);
 	const bundled_icons = {
+		'adventuring:Adventuring': ['skill_adventuring.svg', 1808],
+		'enchanting:Enchanting': ['skill_enchanting.png', 2595],
+		'invention:Invention': ['skill_invention.png', 903],
 		'kru_archaeology:Archaeology': ['skill_archaeology.svg', 1072],
-		'mythMusic:Music': ['skill_music.png', 4531],
-		'occultism:Occultism': ['skill_occultism.png', 29176],
-		'rielkConstruction:Construction': ['skill_construction.png', 6004],
-		'sailing:Sailing': ['skill_sailing.png', 11616]
+		'mythMusic:Music': ['skill_music.png', 2871],
+		'namespace_profile:Profile': ['skill_profile.svg', 4310],
+		'namespace_thuum:Thuum': ['skill_thuum.png', 14099],
+		'necromancy:Necromancy': ['skill_necromancy.png', 2485],
+		'occultism:Occultism': ['skill_occultism.png', 2437],
+		'rielkConstruction:Construction': ['skill_construction.png', 3915],
+		'sailing:Sailing': ['skill_sailing.png', 2736],
+		'shamanism:Shamanism': ['skill_shamanism.png', 11112]
 	};
 
 	for (const [skill_id, [asset, byte_length]] of Object.entries(bundled_icons)) {

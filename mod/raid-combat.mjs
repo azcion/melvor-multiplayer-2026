@@ -123,7 +123,7 @@ export class RaidCombatController {
 	}
 }
 
-export function install_raid_combat_hooks(ctx, controller, combat_manager_class, game) {
+export function install_raid_combat_hooks(ctx, controller, combat_manager_class, game, navigate_page = () => {}) {
 	let lethal_hit = false;
 
 	ctx.patch(combat_manager_class, 'selectMonster').replace(function(original, monster, area) {
@@ -180,7 +180,7 @@ export function install_raid_combat_hooks(ctx, controller, combat_manager_class,
 				throw new Error('Raid combat content is unavailable.');
 			}
 			game.combat.selectMonster(monster, area);
-			changePage(game.pages.getObjectByID('melvorD:Combat'));
+			navigate_page(game.pages.getObjectByID('melvorD:Combat'));
 		},
 		flush: () => controller.flush(),
 		has_active: () => controller.has_active(),

@@ -258,6 +258,10 @@ export function register_components(runtime) {
 			return parseInt(this.getAttribute('data-max') ?? game.bank.getQty(game.items.getObjectByID(item_id)));
 		}
 
+		set_max() {
+			this.slider?.setSliderPosition(Infinity);
+		}
+
 		attributeChangedCallback(name, oldValue, newValue) {
 			if (this.slider === null)
 				return;

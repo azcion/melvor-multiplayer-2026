@@ -5,6 +5,24 @@ import { read_client_source } from './source.mjs';
 
 const root = new URL('../../', import.meta.url);
 
+test('closes the native sidebar before programmatic page navigation', async () => {
+	const main = await read_client_source(root);
+	const navigation_start = main.indexOf('function close_sidebar');
+	const navigation_source = main.slice(navigation_start, main.indexOf('\nfunction capture_equipment_snapshot', navigation_start));
+	const calls = [];
+	const navigate_page = new Function('globalThis', 'changePage', `
+		${navigation_source}
+		return navigate_page;
+	`)({ One: { layout: action => calls.push(action) } }, page => calls.push(page));
+	const page = { id: 'multiplayer:Chat' };
+
+	navigate_page(page);
+
+	assert.deepEqual(calls, ['sidebar_close', page]);
+	assert.match(main, /changePage: navigate_page/);
+	assert.match(main, /install_raid_combat_hooks\([\s\S]*game,\s*navigate_page/);
+});
+
 async function load_page_toggle(initially_hidden) {
 	const main = await read_client_source(root);
 	const function_start = main.indexOf('function on_page_toggle');

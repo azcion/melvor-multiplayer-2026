@@ -65,7 +65,7 @@ test('registers and mounts the Guild Raid page as a first-class multiplayer view
 	assert.equal(page.customName, 'MOD_MP_PAGE_RAID');
 	assert.equal(language.MOD_MP_PAGE_RAID, 'Raid');
 	assert.equal(page.containerID, 'mp-raid-page');
-	assert.equal(page.sidebarItem.asideClass, 'mp-raid-nav');
+	assert.equal(page.sidebarItem.asideClass, 'badge mp-raid-nav');
 	assert.equal(page.sidebarItem.aside, 'preview');
 	assert.equal(page.sidebarItem.asideLangID, 'MOD_MP_SIDEBAR_RAID_PREVIEW');
 	assert.equal(data.data.pages.at(-1), page);

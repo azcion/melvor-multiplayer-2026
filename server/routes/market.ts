@@ -58,14 +58,15 @@ export function register_market_routes(): void {
 			return 400; // Bad Request
 
 		const result = run_economy_command(client_id, json.command_id, 'market-sell', () => {
+			const published_at = Date.now();
 			const existing = db.query(
 				' SELECT `id` FROM `market_items` WHERE `guild_id` = ? AND `client_id` = ? AND `direction` = \'sell\' AND `item_id` = ? AND `price` = ?'
 			).get(guild_id, client_id, item_id, item_sell_price);
-			const lot = db.query<{ id: number }, [number, number, string, number, number, number]>(
-				'INSERT INTO `market_items` (`guild_id`, `client_id`, `direction`, `item_id`, `qty`, `price`, `available`) ' +
-				'VALUES(?, ?, \'sell\', ?, ?, ?, ?) ON CONFLICT (`guild_id`, `client_id`, `direction`, `item_id`, `price`) DO UPDATE SET ' +
+			const lot = db.query<{ id: number }, [number, number, string, number, number, number, number]>(
+				'INSERT INTO `market_items` (`guild_id`, `client_id`, `direction`, `item_id`, `qty`, `price`, `available`, `published_at`) ' +
+				'VALUES(?, ?, \'sell\', ?, ?, ?, ?, ?) ON CONFLICT (`guild_id`, `client_id`, `direction`, `item_id`, `price`) DO UPDATE SET ' +
 				'`qty` = `qty` + excluded.`qty`, `available` = `available` + excluded.`available` RETURNING `id`'
-			).get(guild_id, client_id, item_id, item_qty, item_sell_price, item_qty) as { id: number };
+			).get(guild_id, client_id, item_id, item_qty, item_sell_price, item_qty, published_at) as { id: number };
 			remove_player_cache_entry(market_completed_cached, client_id, lot.id);
 			if (existing === null)
 				record_guild_activity({ guild_id, event_type: 'market_listing_created', actor_client_id: client_id,
@@ -101,6 +102,7 @@ export function register_market_routes(): void {
 			return 400; // Bad Request
 
 		const result = run_economy_command(client_id, json.command_id, 'market-buy-order', () => {
+			const published_at = Date.now();
 			const existing = db.query<Pick<db_row.market_items, 'id' | 'qty' | 'escrow_gp'>, [number, number, string, number]>(
 				' SELECT `id`, `qty`, `escrow_gp` FROM `market_items` WHERE `guild_id` = ? AND `client_id` = ? AND `direction` = \'buy\' AND `item_id` = ? AND `price` = ?'
 			).get(guild_id, client_id, item_id, item_buy_price);
@@ -108,12 +110,12 @@ export function register_market_routes(): void {
 				(safe_market_sum(existing.qty, item_qty) === null || safe_market_sum(existing.escrow_gp, escrow_gp) === null))
 				return { error_lang: 'MOD_MP_MARKET_VALUE_TOO_LARGE' };
 
-			const lot = db.query<{ id: number }, [number, number, string, number, number, number, number]>(
-				'INSERT INTO `market_items` (`guild_id`, `client_id`, `direction`, `item_id`, `qty`, `price`, `available`, `escrow_gp`) ' +
-				'VALUES(?, ?, \'buy\', ?, ?, ?, ?, ?) ON CONFLICT (`guild_id`, `client_id`, `direction`, `item_id`, `price`) DO UPDATE SET ' +
+			const lot = db.query<{ id: number }, [number, number, string, number, number, number, number, number]>(
+				'INSERT INTO `market_items` (`guild_id`, `client_id`, `direction`, `item_id`, `qty`, `price`, `available`, `escrow_gp`, `published_at`) ' +
+				'VALUES(?, ?, \'buy\', ?, ?, ?, ?, ?, ?) ON CONFLICT (`guild_id`, `client_id`, `direction`, `item_id`, `price`) DO UPDATE SET ' +
 				'`qty` = `qty` + excluded.`qty`, `available` = `available` + excluded.`available`, ' +
 				'`escrow_gp` = `escrow_gp` + excluded.`escrow_gp` RETURNING `id`'
-			).get(guild_id, client_id, item_id, item_qty, item_buy_price, item_qty, escrow_gp) as { id: number };
+			).get(guild_id, client_id, item_id, item_qty, item_buy_price, item_qty, escrow_gp, published_at) as { id: number };
 			if (existing === null)
 				record_guild_activity({ guild_id, event_type: 'market_listing_created', actor_client_id: client_id,
 					source_key: `market-listing:${lot.id}`, throttled: true, metadata: { direction: 'buy' } });
@@ -379,7 +381,10 @@ export function register_market_routes(): void {
 			}
 		}
 
-		const sort = json.sort === 0 ? 'DESC' : 'ASC';
+		const recent = json.sort === 'recent';
+		const price_sort = typeof json.sort === 'number'
+			? (json.sort === 0 ? 'DESC' : 'ASC')
+			: (direction === 'sell' ? 'ASC' : 'DESC');
 		const where = ' FROM `market_items` AS m JOIN `clients` AS owner ON owner.`id` = m.`client_id` ' +
 			'WHERE m.`guild_id` = ? AND m.`client_id` != ? AND m.`direction` = ? ' +
 			'AND m.`available` > 0' + item_filter;
@@ -396,7 +401,9 @@ export function register_market_routes(): void {
 			: '';
 		const result = await db_get_all(
 			'SELECT m.`id`, m.`item_id`, m.`available`, m.`price`, owner.`display_name`, owner.`icon_id`' +
-			where + ' ORDER BY m.`price` ' + sort + ', m.`id` ' + sort + page_clause,
+			where + ' ORDER BY ' + (recent
+				? 'm.`published_at` DESC, m.`id` DESC'
+				: 'm.`price` ' + price_sort + ', m.`id` ' + price_sort) + page_clause,
 			query_parameters
 		);
 		const items: JsonSerializable[] = result.map(row => direction === 'buy'

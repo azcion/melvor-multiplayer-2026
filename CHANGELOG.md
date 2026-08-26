@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.2
+
+- Added optimized fallback icons for Invention, Profile, Enchanting, Necromancy, Adventuring, Shamanism, and Thuum, and reduced the size of the existing custom skill PNGs for shared Player Status.
+- Added a mobile burger-menu badge that mirrors the shared unread Chat count while the side navigation is collapsed.
+- Fixed the mobile side navigation remaining open when Multiplayer automatically changes pages, including opening private Chat, entering Raid combat, and returning to the Raid page after battle.
+- Added first-message Support Chat choices for new player conversations, pre-filling the existing composer with either a problem or suggestion while preserving any saved draft.
+- Added Recent Marketplace sorting, which shows the newest listings first by publish date, while retaining direction-specific Price sorting.
+- Added blue Max buttons to Marketplace purchase, Marketplace fulfillment, and Campaign contribution modals for quickly selecting the available quantity.
+- Improved Marketplace buy-order fulfillment modal layout with a two-line request title, bank quantity indicator, and bank-aware quantity limit.
+- Added clear Marketplace buy-order fulfillment notices showing the items and quantities added to the player's bank.
+- Fixed Marketplace pagination controls appearing when all results fit on one page.
+
 ## 1.4.1
 
 - Added prepaid Guild Marketplace buy orders: players can request a specified item quantity at a fixed unit price, while other Guild members can fulfill orders partially or fully.

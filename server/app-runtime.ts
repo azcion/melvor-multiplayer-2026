@@ -1190,10 +1190,10 @@ maintain_client_deletions();
 // #region MARKET
 export async function market_list_item(guild_id: number, client_id: number, item_id: string, item_qty: number, item_sell_price: number) {
 	const lot = await db_get_single(
-		'INSERT INTO `market_items` (`guild_id`, `client_id`, `direction`, `item_id`, `qty`, `price`, `available`) VALUES(?, ?, \'sell\', ?, ?, ?, ?) ' +
+		'INSERT INTO `market_items` (`guild_id`, `client_id`, `direction`, `item_id`, `qty`, `price`, `available`, `published_at`) VALUES(?, ?, \'sell\', ?, ?, ?, ?, ?) ' +
 		'ON CONFLICT (`guild_id`, `client_id`, `direction`, `item_id`, `price`) DO UPDATE SET `qty` = `qty` + excluded.`qty`, ' +
 		'`available` = `available` + excluded.`available` RETURNING `id`',
-		[guild_id, client_id, item_id, item_qty, item_sell_price, item_qty]
+		[guild_id, client_id, item_id, item_qty, item_sell_price, item_qty, Date.now()]
 	) as db_row.market_items;
 
 	if (lot !== null)

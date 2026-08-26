@@ -30,7 +30,12 @@ test('shows every matching avatar in a bounded scrolling selector', async () => 
 	assert.doesNotMatch(filtered_icons, /slice\(0,\s*32\)/);
 	assert.match(icon_selector, /max-height:\s*320px/);
 	assert.match(icon_selector, /max-height:\s*min\(40dvh, 320px\)/);
-	assert.match(icon_selector, /overflow-y:\s*auto/);
+	assert.match(icon_selector, /overflow-y:\s*scroll/);
+	assert.match(icon_selector, /-webkit-overflow-scrolling:\s*touch/);
+	assert.match(icon_selector, /touch-action:\s*pan-y/);
+	assert.match(icon_selector, /overscroll-behavior-y:\s*contain/);
+	assert.match(main, /queue_modal\(game\.characterName, 'change-icon-modal'[^]*customClass: \{ popup: 'mp-icon-picker-modal-popup' \}/);
+	assert.match(styles, /\.mp-icon-picker-modal-popup \.swal2-html-container \{[^}]*overflow:\s*hidden/);
 	assert.match(templates, /v-for="icon in state\.filtered_icons"[\s\S]*?<img[^>]+loading="lazy">/);
 	assert.match(templates, /<\/div>\s*<div class="mp-button-tray">/);
 });

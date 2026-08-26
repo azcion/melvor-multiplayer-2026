@@ -125,5 +125,13 @@ export const migrations_041_050: Migration[] = [
 				UPDATE clients SET event_revision = event_revision + 1 WHERE id = OLD.client_id;
 			END;
 		`
+	}, {
+		version: 47,
+		sql: `
+			ALTER TABLE market_items ADD COLUMN published_at INTEGER NOT NULL DEFAULT 0
+				CHECK (published_at >= 0);
+			CREATE INDEX idx_market_items_guild_direction_published
+				ON market_items (guild_id, direction, published_at DESC, id DESC);
+		`
 	}
 ];

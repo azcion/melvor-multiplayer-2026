@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { apply_economy_receipt } from '../../mod/economy-receipts.mjs';
+import {
+	apply_economy_receipt,
+	summarize_market_fulfillment_receipts
+} from '../../mod/economy-receipts.mjs';
 
 function harness({ bank = {}, gp = 0, transfer = [], maximum = 32 } = {}) {
 	const state = { bank: { ...bank }, gp, transfer: transfer.map(item => ({ ...item })), saved_ids: [] };
@@ -79,4 +82,24 @@ test('preserves the destroyable transfer boundary', () => {
 
 	assert.equal(result, 'blocked');
 	assert.deepEqual(state.transfer, [{ id: 'logs', qty: 2 }]);
+});
+
+test('summarizes fulfilled items and combines repeated item receipts', () => {
+	const summary = summarize_market_fulfillment_receipts([
+		{ id: 'market-1', kind: 'market-fulfill', effects: [{ storage: 'bank', item_id: 'logs', qty: 5 }] },
+		{ id: 'gift-1', kind: 'gift-accept', effects: [{ storage: 'bank', item_id: 'fish', qty: 7 }] },
+		{ id: 'market-2', kind: 'market-fulfill', effects: [
+			{ storage: 'bank', item_id: 'fish', qty: 3 },
+			{ storage: 'bank', item_id: 'logs', qty: 2 },
+			{ storage: 'gp', qty: 10 }
+		] }
+	]);
+
+	assert.deepEqual(summary, {
+		order_count: 2,
+		items: [
+			{ item_id: 'logs', qty: 7 },
+			{ item_id: 'fish', qty: 3 }
+		]
+	});
 });

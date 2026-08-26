@@ -384,6 +384,7 @@ export type market_items = {
 	price: number;
 	payout: number;
 	escrow_gp: number;
+	published_at: number;
 };
 
 export type banishment_returns = {

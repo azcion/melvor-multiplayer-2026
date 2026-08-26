@@ -24,7 +24,11 @@ test('adds a first-class Chat page, inbox, unread indicators, and Guild-roster i
 	assert.equal(chat_page.sidebarItem.categoryID, 'Multiplayer');
 	assert.equal(chat_page.media, 'https://cdn2-main.melvor.net/assets/media/bank/message_in_a_bottle.png');
 	assert.equal(chat_page.sidebarItem.icon, 'https://cdn2-main.melvor.net/assets/media/bank/message_in_a_bottle.png');
-	assert.equal(chat_page.sidebarItem.asideClass, 'mp-chat-nav');
+	assert.equal(chat_page.sidebarItem.asideClass, 'badge mp-chat-nav');
+	for (const page_id of ['Chat', 'Transfer_Items', 'Charity_Tree', 'Campaign_Effort', 'Guild_Raid']) {
+		const page = data.data.pages.find(entry => entry.id === page_id);
+		assert.match(page.sidebarItem.asideClass, /^badge mp-[a-z-]+-nav$/);
+	}
 	assert.equal(chat_page.sidebarItem.aside, '0');
 	assert.match(templates, /template-mp-chat-page/);
 	assert.match(templates, /state\.open_chat_conversation\(conversation\)/);
@@ -32,12 +36,61 @@ test('adds a first-class Chat page, inbox, unread indicators, and Guild-roster i
 	assert.match(main, /api_post\('\/api\/chat\/conversations\/start'/);
 	assert.match(main, /changePage\(game\.pages\.getObjectByID\('multiplayer:Chat'\)\)/);
 	assert.match(main, /aside\.hidden = state\.chat_unread <= 0/);
+	assert.match(main, /header_badge\.hidden = state\.chat_unread <= 0/);
+	assert.match(main, /badge\.className = 'text-size-sm font-w600 text-white badge badge-danger mp-chat-header-unread'/);
 	const interface_ready = main.slice(main.indexOf('ctx.onInterfaceReady(() => {'), main.indexOf('\n\t});', main.indexOf('ctx.onInterfaceReady(() => {')));
 	assert.match(interface_ready, /update_chat_nav\(\);/);
+	assert.match(interface_ready, /setup_mobile_sidebar_unread\(\);/);
+	assert.match(style, /\.mp-chat-nav,[\s\S]*\.mp-transfer-nav[\s\S]*padding: 3px 5px[\s\S]*font-weight: 700 !important[\s\S]*text-align: center/);
 	assert.match(style, /\.mp-chat-nav[\s\S]*background-color: #ff4545/);
+	assert.match(style, /#mp-chat-header-unread[\s\S]*top: unset[\s\S]*padding: 3px 5px[\s\S]*background-color: #ff4545[\s\S]*font-weight: 700 !important/);
+	assert.match(style, /#mp-chat-header-unread[\s\S]*position: absolute[\s\S]*bottom: -5px[\s\S]*right: -5px/);
 	assert.equal(language.MOD_MP_MENU_VIEW_CHAT, 'Open Chat');
 	assert.doesNotMatch(templates, /MOD_MP_CHAT_INBOX/);
 	assert.equal(language.MOD_MP_CHAT_CATEGORY_PERSONAL_INFO, 'These stay with you across Guilds.');
+});
+
+test('mirrors the shared unread count on the mobile sidebar button without duplicating the badge', async () => {
+	const main = await read_client_source(root);
+	const update_start = main.indexOf('function update_chat_nav');
+	const functions = main.slice(update_start, main.indexOf('\nasync function refresh_chat_messages', update_start));
+	const state = { chat_unread: 4 };
+	const nodes = new Map();
+	let append_count = 0;
+	const aside = { textContent: '', hidden: true };
+	const sidebar_button = {
+		querySelector: selector => selector === '#mp-chat-header-unread' ? nodes.get('mp-chat-header-unread') ?? null : null,
+		append: badge => {
+			append_count++;
+			nodes.set(badge.id, badge);
+		}
+	};
+	const document = {
+		getElementById: id => id === 'sidebar-btn' ? sidebar_button : nodes.get(id) ?? null,
+		querySelector: selector => selector === '.mp-chat-nav' ? aside : null,
+		createElement: tag => ({ tag, id: '', className: '', hidden: false, textContent: '', attributes: {}, setAttribute(name, value) { this.attributes[name] = value; } })
+	};
+	const { setup_mobile_sidebar_unread, update_chat_nav } = new Function('document', 'state', `
+		${functions}
+		return { setup_mobile_sidebar_unread, update_chat_nav };
+	`)(document, state);
+
+	setup_mobile_sidebar_unread();
+	setup_mobile_sidebar_unread();
+	update_chat_nav();
+
+	const badge = nodes.get('mp-chat-header-unread');
+	assert.equal(append_count, 1);
+	assert.equal(badge.textContent, '4');
+	assert.equal(badge.hidden, false);
+	assert.equal(aside.textContent, '4');
+	assert.equal(aside.hidden, false);
+
+	state.chat_unread = 0;
+	update_chat_nav();
+	assert.equal(badge.textContent, '');
+	assert.equal(badge.hidden, true);
+	assert.equal(aside.hidden, true);
 });
 
 test('implements jittered foreground conversation polling and cursor-based history', async () => {
@@ -240,6 +293,32 @@ test('renders Support Chat identity, alignment, virtual welcomes, and restricted
 	assert.match(main, /sae_support: 'sae_support\.png'/);
 	assert.match(main, /conversation\?\.conversation_kind === 'support' && conversation\.viewer_side === 'player'/);
 	assert.match(main, /asset === undefined \? 'assets\/media\/main\/question\.png'/);
+});
+
+test('gates first Support replies behind localized prompt choices without losing drafts', async () => {
+	const { main, templates, style, language } = await sources();
+	const chat_view = templates.slice(templates.indexOf('<template id="template-mp-chat-page">'),
+		templates.indexOf('<template id="template-mp-chat-budget-info-modal">'));
+	const support_prompts = main.slice(main.indexOf('get show_chat_support_prompts()'), main.indexOf('get personal_chat_conversations()'));
+
+	assert.match(support_prompts, /conversation\?\.conversation_kind === 'support'/);
+	assert.match(support_prompts, /conversation\.viewer_side === 'player'/);
+	assert.match(support_prompts, /conversation\.conversation_id === null/);
+	assert.match(support_prompts, /this\.chat_draft\.trim\(\)\.length === 0/);
+	assert.match(main, /select_chat_support_prompt\(lang_id\)/);
+	assert.match(main, /if \(!this\.show_chat_support_prompts\)/);
+	assert.match(main, /this\.chat_draft = getLangString\(lang_id\)/);
+	assert.match(chat_view, /state\.show_chat_support_prompts/);
+	assert.match(chat_view, /state\.select_chat_support_prompt\('MOD_MP_CHAT_SUPPORT_PROBLEM'\)/);
+	assert.match(chat_view, /state\.select_chat_support_prompt\('MOD_MP_CHAT_SUPPORT_SUGGESTION'\)/);
+	assert.match(chat_view, /MOD_MP_CHAT_SUPPORT_PROMPTS/);
+	assert.match(chat_view, /MOD_MP_CHAT_SUPPORT_PROBLEM/);
+	assert.match(chat_view, /MOD_MP_CHAT_SUPPORT_SUGGESTION/);
+	assert.match(style, /\.mp-chat-support-prompt-actions[\s\S]*display: flex/);
+	assert.match(style, /@media \(max-width: 767\.98px\)[\s\S]*\.mp-chat-support-prompt-actions[\s\S]*flex-direction: column/);
+	assert.equal(language.MOD_MP_CHAT_SUPPORT_PROMPTS, 'What would you like to send?');
+	assert.equal(language.MOD_MP_CHAT_SUPPORT_PROBLEM, 'I have a Problem');
+	assert.equal(language.MOD_MP_CHAT_SUPPORT_SUGGESTION, 'I have a Suggestion');
 });
 
 test('retains an older-history cursor after deleting the visible page', async () => {

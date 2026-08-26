@@ -301,7 +301,14 @@
 					</div>
 				</div>
 				<div class="block-content mp-chat-compose">
-					<form @submit="state.send_chat_message($event)">
+					<div class="mp-chat-support-prompts" v-if="state.show_chat_support_prompts">
+						<div class="mp-chat-support-prompts-label"><lang-string lang-id="MOD_MP_CHAT_SUPPORT_PROMPTS"></lang-string></div>
+						<div class="mp-chat-support-prompt-actions">
+							<button type="button" class="btn btn-primary" @click="state.select_chat_support_prompt('MOD_MP_CHAT_SUPPORT_PROBLEM')"><lang-string lang-id="MOD_MP_CHAT_SUPPORT_PROBLEM"></lang-string></button>
+							<button type="button" class="btn btn-primary" @click="state.select_chat_support_prompt('MOD_MP_CHAT_SUPPORT_SUGGESTION')"><lang-string lang-id="MOD_MP_CHAT_SUPPORT_SUGGESTION"></lang-string></button>
+						</div>
+					</div>
+					<form v-else @submit="state.send_chat_message($event)">
 						<textarea class="mp-input-text" maxlength="1000" rows="3" v-model="state.chat_draft" @keydown="state.handle_chat_keydown($event)" :disabled="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && !state.messaging_enabled" :placeholder="state.get_chat_compose_placeholder()"></textarea>
 						<div class="mp-chat-compose-actions">
 							<button type="button" class="mp-chat-budget" v-if="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && state.chat_budget_enabled" @click="state.show_chat_budget_modal()" aria-haspopup="dialog" :aria-label="getLangString('MOD_MP_CHAT_BUDGET_ARIA')">
@@ -898,6 +905,9 @@
 		</div>
 	</div>
 	<div class="mp-button-tray">
+		<button type="button" class="btn btn-primary" @click="state.set_item_slider_max()">
+			<lang-string lang-id="MOD_MP_BUTTON_MAX"></lang-string>
+		</button>
 		<button type="button" class="btn btn-success" @click="state.contribute_to_campaign($event)">
 			<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 			<lang-string lang-id="MOD_MP_BUTTON_CONTRIBUTE"></lang-string>
@@ -912,6 +922,9 @@
 		<mp-item-slider :data-item-id="state.market_buy_item.item_id" :data-max="state.market_buy_item.available"></mp-item-slider>
 	</div>
 	<div class="mp-button-tray">
+		<button type="button" class="btn btn-primary" @click="state.set_item_slider_max()">
+			<lang-string lang-id="MOD_MP_BUTTON_MAX"></lang-string>
+		</button>
 		<button type="button" class="btn btn-success" @click="state.buy_market_item($event)">
 			<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 			<lang-string lang-id="MOD_MP_BUTTON_MARKET_PURCHASE"></lang-string>
@@ -925,9 +938,15 @@
 </template>
 <template id="template-mp-market-fulfill-modal">
 	<div class="form-group mp-gp-group">
-		<mp-item-slider :data-item-id="state.market_fulfill_item.item_id" :data-max="state.market_fulfill_item.available"></mp-item-slider>
+		<mp-item-slider :data-item-id="state.market_fulfill_item.item_id" :data-max="Math.min(state.market_fulfill_item.available, state.market_fulfill_item_owned_qty)"></mp-item-slider>
+		<div class="text-center mt-2">
+			<mp-lang-string-f lang-id="MOD_MP_CAMPAIGN_ITEM_OWNED" :lang-arg-1="numberWithCommas(state.market_fulfill_item_owned_qty)"></mp-lang-string-f>
+		</div>
 	</div>
 	<div class="mp-button-tray">
+		<button type="button" class="btn btn-primary" @click="state.set_item_slider_max()">
+			<lang-string lang-id="MOD_MP_BUTTON_MAX"></lang-string>
+		</button>
 		<button type="button" class="btn btn-success" @click="state.fulfill_market_order($event)">
 			<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 			<lang-string lang-id="MOD_MP_BUTTON_MARKET_FULFILL"></lang-string>
@@ -942,6 +961,18 @@
 <template id="template-mp-market-buy-order-created-modal">
 	<div class="mp-modal-text"><lang-string lang-id="MOD_MP_MARKET_BUY_ORDER_CREATED"></lang-string></div>
 	<button type="button" class="btn btn-primary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
+</template>
+<template id="template-mp-market-fulfillment-notice-modal">
+	<div class="mp-modal-text">
+		<lang-string lang-id="MOD_MP_MARKET_FULFILLMENT_INFO"></lang-string>
+		<div class="mp-market-fulfillment-list" role="list">
+			<div class="mp-market-fulfillment-row" role="listitem" v-for="item in state.market_fulfillment_notice_items" :key="item.item_id">
+				<span class="mp-market-fulfillment-quantity">{{ numberWithCommas(item.qty) }}</span>
+				<img class="skill-icon-sm" :src="state.get_item_icon(item.item_id)" :alt="state.get_item_name(item.item_id)" draggable="false">
+				<span>{{ state.get_item_name(item.item_id) }}</span>
+			</div>
+		</div>
+	</div>
 </template>
 <template id="template-mp-change-display-name-modal">
 	<div class="mp-modal-text">
@@ -1218,8 +1249,8 @@
 				</div>
 			</template>
 			<button type="button" class="btn btn-info m-1 float-right" @click="state.toggle_market_sort()">
-				<lang-string lang-id="MOD_MP_BUTTON_MARKET_SORT_ASC" v-if="state.market_sort_direction === 1"></lang-string>
-				<lang-string lang-id="MOD_MP_BUTTON_MARKET_SORT_DESC" v-else></lang-string>
+				<lang-string lang-id="MOD_MP_BUTTON_MARKET_SORT_RECENT" v-if="state.market_sort === 'recent'"></lang-string>
+				<lang-string lang-id="MOD_MP_BUTTON_MARKET_SORT_PRICE" v-else></lang-string>
 			</button>
 			<div id="mp-market-search-results" v-if="state.market_results.length > 0 && !state.market_search_loading">
 				<div class="mp-market-search-result" v-for="item in state.market_results">
@@ -1228,25 +1259,27 @@
 						<span>{{ state.get_item_name(item.item_id) }}</span>
 					</div>
 					<div class="mp-market-item-col" v-if="item.direction == 'sell'">
-						<lang-string lang-id="MOD_MP_MARKET_SOLD_BY" class="mr-2"></lang-string>
+						<lang-string lang-id="MOD_MP_MARKET_SOLD_BY" class="mp-market-item-label"></lang-string>
 						<template v-if="item.market_owner">
-							<img class="skill-icon-xs mr-2" :src="state.get_avatar_icon(item.market_owner.icon_id)"/>
+							<img class="skill-icon-xs" :src="state.get_avatar_icon(item.market_owner.icon_id)"/>
 							<span>{{ item.market_owner.display_name }}</span>
 						</template>
 					</div>
 					<div class="mp-market-item-col" v-else>
-						<lang-string lang-id="MOD_MP_MARKET_BOUGHT_BY" class="mr-2"></lang-string>
+						<lang-string lang-id="MOD_MP_MARKET_BOUGHT_BY" class="mp-market-item-label"></lang-string>
 						<template v-if="item.market_owner">
-							<img class="skill-icon-xs mr-2" :src="state.get_avatar_icon(item.market_owner.icon_id)"/>
+							<img class="skill-icon-xs" :src="state.get_avatar_icon(item.market_owner.icon_id)"/>
 							<span>{{ item.market_owner.display_name }}</span>
 						</template>
 					</div>
 					<div class="mp-market-item-col">
-						<mp-lang-string-f lang-id="MOD_MP_MARKET_AVAILABLE" :lang-arg-1="numberWithCommas(item.available)"></mp-lang-string-f>
+						<lang-string lang-id="MOD_MP_MARKET_AVAILABLE" class="mp-market-item-label" v-if="item.direction == 'sell'"></lang-string>
+						<lang-string lang-id="MOD_MP_MARKET_REQUESTED" class="mp-market-item-label" v-else></lang-string>
+						<span class="mp-market-item-value">{{ numberWithCommas(item.available) }}</span>
 					</div>
 					<div class="mp-market-item-col">
-						<mp-lang-string-f class="text-success" lang-id="MOD_MP_MARKET_PRICE" :lang-arg-1="numberWithCommas(item.price)"></mp-lang-string-f>
-						<img class="skill-icon-xxs ml-2" src="assets/media/main/coins.svg">
+						<lang-string lang-id="MOD_MP_MARKET_PRICE" class="mp-market-item-label"></lang-string>
+						<span class="mp-market-item-value text-success mp-market-item-gp"><span>{{ numberWithCommas(item.price) }}</span><img class="skill-icon-xxs" src="assets/media/main/coins.svg"></span>
 					</div>
 					<div class="mp-market-item-col">
 						<button v-if="state.market_direction == 'sell'" type="button" class="btn btn-success m-1" @click="state.show_market_buy_modal(item)">
@@ -1264,7 +1297,7 @@
 			<div class="p-4 block" v-else>
 				<lang-string lang-id="MOD_MP_MARKET_NO_RESULTS"></lang-string>
 			</div>
-			<div id="mp-market-pagation">
+			<div id="mp-market-pagation" v-if="state.market_page_count > 1">
 				<button type="button" class="btn btn-info m-1" @click="state.market_page_first()">
 					<lang-string lang-id="MOD_MP_BUTTON_PAGE_FIRST"></lang-string>
 				</button>
@@ -1309,15 +1342,16 @@
 							</div>
 						</div>
 						<div class="mp-market-item-col">
-							<mp-lang-string-f lang-id="MOD_MP_MARKET_WANTED" :lang-arg-1="numberWithCommas(item.available)" :lang-arg-2="numberWithCommas(item.qty)"></mp-lang-string-f>
+							<lang-string lang-id="MOD_MP_MARKET_WANTED" class="mp-market-item-label"></lang-string>
+							<span class="mp-market-item-value">{{ numberWithCommas(item.available) }} / {{ numberWithCommas(item.qty) }}</span>
 						</div>
 						<div class="mp-market-item-col">
-							<mp-lang-string-f lang-id="MOD_MP_MARKET_PRICE" :lang-arg-1="numberWithCommas(item.price)"></mp-lang-string-f>
-							<img class="skill-icon-xxs ml-2" src="assets/media/main/coins.svg">
+							<lang-string lang-id="MOD_MP_MARKET_PRICE" class="mp-market-item-label"></lang-string>
+							<span class="mp-market-item-value mp-market-item-gp"><span>{{ numberWithCommas(item.price) }}</span><img class="skill-icon-xxs" src="assets/media/main/coins.svg"></span>
 						</div>
 						<div class="mp-market-item-col">
-							<mp-lang-string-f class="text-success" lang-id="MOD_MP_MARKET_ESCROW" :lang-arg-1="numberWithCommas(item.escrow_gp)"></mp-lang-string-f>
-							<img class="skill-icon-xxs ml-2" src="assets/media/main/coins.svg">
+							<lang-string lang-id="MOD_MP_MARKET_ESCROW" class="mp-market-item-label"></lang-string>
+							<span class="mp-market-item-value text-success mp-market-item-gp"><span>{{ numberWithCommas(item.escrow_gp) }}</span><img class="skill-icon-xxs" src="assets/media/main/coins.svg"></span>
 						</div>
 						<div class="mp-market-item-col">
 							<button type="button" class="btn btn-danger m-1" @click="state.resolve_market_listing($event, item, 'cancel')" :key="item.id">
@@ -1333,15 +1367,16 @@
 							</div>
 						</div>
 						<div class="mp-market-item-col">
-							<mp-lang-string-f lang-id="MOD_MP_MARKET_SOLD" :lang-arg-1="numberWithCommas(item.qty - item.available)" :lang-arg-2="numberWithCommas(item.qty)"></mp-lang-string-f>
+							<lang-string lang-id="MOD_MP_MARKET_SOLD" class="mp-market-item-label"></lang-string>
+							<span class="mp-market-item-value">{{ numberWithCommas(item.qty - item.available) }} / {{ numberWithCommas(item.qty) }}</span>
 						</div>
 						<div class="mp-market-item-col">
-							<mp-lang-string-f lang-id="MOD_MP_MARKET_PRICE" :lang-arg-1="numberWithCommas(item.price)"></mp-lang-string-f>
-							<img class="skill-icon-xxs ml-2" src="assets/media/main/coins.svg">
+							<lang-string lang-id="MOD_MP_MARKET_PRICE" class="mp-market-item-label"></lang-string>
+							<span class="mp-market-item-value mp-market-item-gp"><span>{{ numberWithCommas(item.price) }}</span><img class="skill-icon-xxs" src="assets/media/main/coins.svg"></span>
 						</div>
 						<div class="mp-market-item-col">
-							<mp-lang-string-f class="text-success" lang-id="MOD_MP_MARKET_PROFIT" :lang-arg-1="numberWithCommas((item.price * (item.qty - item.available)) - item.payout)"></mp-lang-string-f>
-							<img class="skill-icon-xxs ml-2" src="assets/media/main/coins.svg">
+							<lang-string lang-id="MOD_MP_MARKET_PROFIT" class="mp-market-item-label"></lang-string>
+							<span class="mp-market-item-value text-success mp-market-item-gp"><span>{{ numberWithCommas((item.price * (item.qty - item.available)) - item.payout) }}</span><img class="skill-icon-xxs" src="assets/media/main/coins.svg"></span>
 						</div>
 						<div class="mp-market-item-col">
 							<template v-if="item.unresolved">

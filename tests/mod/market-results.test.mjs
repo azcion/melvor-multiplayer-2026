@@ -45,6 +45,12 @@ test('clamps a page window when no Marketplace results exist', () => {
 	assert.deepEqual(market_page_window(3, 0), [1]);
 });
 
+test('hides Marketplace pagination when there is only one page', async () => {
+	const templates = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
+
+	assert.match(templates, /<div id="mp-market-pagation" v-if="state\.market_page_count > 1">/);
+});
+
 test('captures Marketplace queries and ignores stale generations', async () => {
 	const main = await read_client_source();
 	const search = main.slice(main.indexOf('async function update_market_search'),
@@ -52,7 +58,7 @@ test('captures Marketplace queries and ignores stale generations', async () => {
 
 	assert.match(search, /const generation = \+\+market_search_generation/);
 	assert.match(search, /const page = state\.market_current_page/);
-	assert.match(search, /const sort = state\.market_sort_direction/);
+	assert.match(search, /const sort = state\.market_sort/);
 	assert.match(search, /const direction = state\.market_direction/);
 	assert.match(search, /const item_id = state\.market_filter_item/);
 	assert.match(search, /api_post\('\/api\/market\/catalog',[\s\S]*direction\s*\n?\s*\}/);
@@ -60,6 +66,27 @@ test('captures Marketplace queries and ignores stale generations', async () => {
 	assert.match(search, /market_owner: item\.buyer \?\? item\.seller \?\? null/);
 	assert.equal((search.match(/generation !== market_search_generation/g) ?? []).length, 2);
 	assert.match(search, /if \(generation === market_search_generation\)\s*state\.market_search_loading = false/);
+});
+
+test('defaults Marketplace sorting to Recent and toggles to direction-specific Price sorting', async () => {
+	const [main, actions, templates, english, chinese] = await Promise.all([
+		read_client_source(),
+		readFile(new URL('../../mod/client-actions-market-campaign-charity.mjs', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/data/lang/en.json', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/data/lang/zh-CN.json', import.meta.url), 'utf8')
+	]);
+
+	assert.match(main, /market_sort: 'recent'/);
+	assert.match(actions, /this\.market_sort = 'recent'/);
+	assert.match(actions, /state\.market_sort = state\.market_sort === 'recent' \? 'price' : 'recent'/);
+	assert.match(templates, /MOD_MP_BUTTON_MARKET_SORT_RECENT/);
+	assert.match(templates, /MOD_MP_BUTTON_MARKET_SORT_PRICE/);
+	for (const language of [english, chinese]) {
+		assert.match(language, /"MOD_MP_BUTTON_MARKET_SORT_RECENT":/);
+		assert.match(language, /"MOD_MP_BUTTON_MARKET_SORT_PRICE":/);
+		assert.doesNotMatch(language, /MOD_MP_BUTTON_MARKET_SORT_(ASC|DESC)/);
+	}
 });
 
 test('clears stale results when switching Marketplace direction', async () => {
@@ -120,6 +147,102 @@ test('exposes distinct buy-order creation and fulfillment flows', async () => {
 	assert.match(templates, /item\.market_owner\.icon_id/);
 });
 
+test('limits fulfillment to bank quantity and splits the fulfillment title across two lines', async () => {
+	const [main, actions, templates, style] = await Promise.all([
+		read_client_source(),
+		readFile(new URL('../../mod/client-actions-market-campaign-charity.mjs', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8')
+	]);
+
+	assert.match(main, /get market_fulfill_item_owned_qty\(\)[\s\S]*game\.bank\.getQty\(item\)/);
+	assert.match(actions, /queue_modal\(item_name, 'market-fulfill-modal'[\s\S]*didOpen:[\s\S]*createElement\('span'\)[\s\S]*MOD_MP_MARKET_FULFILL_MODAL_TITLE/);
+	assert.match(actions, /\$title\.prepend\(\$prefix\)/);
+	assert.match(templates, /:data-max="Math\.min\(state\.market_fulfill_item\.available, state\.market_fulfill_item_owned_qty\)"/);
+	assert.match(templates, /MOD_MP_CAMPAIGN_ITEM_OWNED/);
+	assert.match(templates, /state\.market_fulfill_item_owned_qty/);
+	assert.match(style, /\.mp-market-fulfill-modal-title-prefix[\s\S]*display: block[\s\S]*font-size: 0\.65em/);
+});
+
+test('adds a shared Max control to item quantity modals', async () => {
+	const [main, components, templates, english, chinese] = await Promise.all([
+		read_client_source(),
+		readFile(new URL('../../mod/client-components.mjs', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/data/lang/en.json', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/data/lang/zh-CN.json', import.meta.url), 'utf8')
+	]);
+
+	assert.match(main, /set_item_slider_max\(\)[\s\S]*document\.querySelector\('mp-item-slider'\)\?\.set_max\(\)/);
+	assert.match(components, /set_max\(\)[\s\S]*this\.slider\?\.setSliderPosition\(Infinity\)/);
+
+	for (const template_id of ['campaign-contribute-modal', 'market-buy-modal', 'market-fulfill-modal']) {
+		const template_start = templates.indexOf(`template-mp-${template_id}`);
+		const template = templates.slice(template_start, templates.indexOf('\n</template>', template_start));
+		assert.match(template, /class="btn btn-primary" @click="state\.set_item_slider_max\(\)"[\s\S]*MOD_MP_BUTTON_MAX/);
+	}
+
+	assert.equal((templates.match(/state\.set_item_slider_max\(\)/g) ?? []).length, 3);
+	assert.match(english, /"MOD_MP_BUTTON_MAX": "Max"/);
+	assert.match(chinese, /"MOD_MP_BUTTON_MAX":/);
+});
+
+test('uses the compact Sell label for Marketplace fulfillment', async () => {
+	const english = await readFile(new URL('../../mod/data/lang/en.json', import.meta.url), 'utf8');
+
+	assert.match(english, /"MOD_MP_BUTTON_MARKET_FULFILL": "Sell"/);
+});
+
+test('wraps shared Marketplace modal actions instead of clipping rows', async () => {
+	const [style, english] = await Promise.all([
+		readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/data/lang/en.json', import.meta.url), 'utf8')
+	]);
+
+	const button_tray = style.slice(style.indexOf('.mp-button-tray {'), style.indexOf('\n}', style.indexOf('.mp-button-tray {')));
+	assert.match(button_tray, /display: flex/);
+	assert.match(button_tray, /flex-direction: row/);
+	assert.match(button_tray, /gap: \.25rem/);
+	assert.match(button_tray, /flex-wrap: wrap/);
+	assert.match(button_tray, /justify-content: center/);
+	assert.doesNotMatch(button_tray, /height:/);
+	assert.match(english, /"MOD_MP_BUTTON_MARKET_PURCHASE": "Buy"/);
+});
+
+test('shows queued Marketplace fulfillment notices with item details', async () => {
+	const [main, templates, style, english, chinese] = await Promise.all([
+		read_client_source(),
+		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/data/lang/en.json', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/data/lang/zh-CN.json', import.meta.url), 'utf8')
+	]);
+
+	assert.match(main, /summarize_market_fulfillment_receipts\(receipts\)/);
+	assert.match(main, /market_fulfillment_notice_queue/);
+	assert.match(main, /notice\.order_count === 1/);
+	assert.match(main, /queue_modal\([\s\S]*market-fulfillment-notice-modal[\s\S]*assets\/market\.svg/);
+	assert.match(main, /market_fulfillment_notice_displaying = false;[\s\S]*show_next_market_fulfillment_notice\(\)/);
+	assert.match(templates, /id="template-mp-market-fulfillment-notice-modal"/);
+	assert.match(templates, /state\.market_fulfillment_notice_items/);
+	assert.match(templates, /numberWithCommas\(item\.qty\)/);
+	assert.match(templates, /state\.get_item_icon\(item\.item_id\)/);
+	assert.match(templates, /state\.get_item_name\(item\.item_id\)/);
+	const fulfillment_notice = templates.slice(
+		templates.indexOf('id="template-mp-market-fulfillment-notice-modal"'),
+		templates.indexOf('\n</template>', templates.indexOf('id="template-mp-market-fulfillment-notice-modal"'))
+	);
+	assert.doesNotMatch(fulfillment_notice, /MOD_MP_BUTTON_CLOSE/);
+	assert.match(style, /\.mp-market-fulfillment-list/);
+	assert.match(style, /\.mp-market-fulfillment-row[\s\S]*justify-content: center/);
+	assert.match(english, /"MOD_MP_MARKET_FULFILLMENT_TITLE": "Buy Order Fulfilled"/);
+	assert.match(english, /"MOD_MP_MARKET_FULFILLMENTS_TITLE": "Buy Orders Fulfilled"/);
+	assert.match(english, /"MOD_MP_MARKET_FULFILLMENT_INFO": "The following items have been added to your bank:"/);
+	assert.match(chinese, /"MOD_MP_MARKET_FULFILLMENT_TITLE":/);
+	assert.match(chinese, /"MOD_MP_MARKET_FULFILLMENTS_TITLE":/);
+	assert.match(chinese, /"MOD_MP_MARKET_FULFILLMENT_INFO":/);
+});
+
 test('splits owned Marketplace orders into responsive direction tabs', async () => {
 	const [main, actions, templates, style] = await Promise.all([
 		read_client_source(),
@@ -169,6 +292,36 @@ test('keeps the top Marketplace cards equal-width on desktop and full-width on m
 	assert.match(style, /\.mp-market-tabs > div > a \{[\s\S]*width: 100%/);
 	assert.match(style, /@media \(max-width: 767\.98px\) \{[\s\S]*\.mp-market-tabs \{[\s\S]*flex-direction: column/);
 	assert.match(style, /\.mp-market-tabs > div \{[\s\S]*width: 100%/);
+});
+
+test('splits Marketplace metric labels from values and keeps GP icons attached', async () => {
+	const [templates, style, english, chinese] = await Promise.all([
+		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/data/lang/en.json', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/data/lang/zh-CN.json', import.meta.url), 'utf8')
+	]);
+	const market_page = templates.slice(
+		templates.indexOf('<template id="template-mp-market-page">'),
+		templates.indexOf('<template id="template-mp-charity-page">')
+	);
+
+	assert.match(market_page, /<lang-string lang-id="MOD_MP_MARKET_AVAILABLE" class="mp-market-item-label" v-if="item\.direction == 'sell'"><\/lang-string>/);
+	assert.match(market_page, /<lang-string lang-id="MOD_MP_MARKET_REQUESTED" class="mp-market-item-label" v-else><\/lang-string>[\s\S]*numberWithCommas\(item\.available\)/);
+	assert.match(market_page, /<lang-string lang-id="MOD_MP_MARKET_WANTED" class="mp-market-item-label"><\/lang-string>[\s\S]*numberWithCommas\(item\.qty\)/);
+	assert.match(market_page, /<span class="mp-market-item-value text-success mp-market-item-gp"><span>\{\{ numberWithCommas\(item\.escrow_gp\) \}\}<\/span><img class="skill-icon-xxs"/);
+	assert.match(market_page, /<lang-string lang-id="MOD_MP_MARKET_SOLD_BY" class="mp-market-item-label"><\/lang-string>/);
+	assert.doesNotMatch(market_page, /<mp-lang-string-f lang-id="MOD_MP_MARKET_(AVAILABLE|WANTED|SOLD|PRICE|PROFIT|ESCROW)"/);
+	assert.match(style, /\.mp-market-item-label \{[\s\S]*font-size: 11px/);
+	assert.match(style, /\[lang-id="MOD_MP_MARKET_SOLD_BY"\] \+ img,[\s\S]*margin: 0 3px !important/);
+	assert.match(style, /\.mp-market-item-gp \{[\s\S]*display: inline-flex[\s\S]*gap: 3px/);
+	for (const language of [english, chinese]) {
+		assert.match(language, /"MOD_MP_MARKET_AVAILABLE": "[^\"]+"/);
+		assert.match(language, /"MOD_MP_MARKET_REQUESTED": "[^\"]+"/);
+		assert.doesNotMatch(language, /"MOD_MP_MARKET_AVAILABLE": "[^\"]*%s/);
+		assert.match(language, /"MOD_MP_MARKET_ESCROW": "[^\"]+"/);
+		assert.doesNotMatch(language, /"MOD_MP_MARKET_ESCROW": "[^\"]*%s/);
+	}
 });
 
 test('defaults a selected buy order item to its game sale value', () => {

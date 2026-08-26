@@ -253,7 +253,7 @@
 				"sidebarItem": {
 					"categoryID": "Multiplayer",
 					"icon": "https://cdn2-main.melvor.net/assets/media/bank/message_in_a_bottle.png",
-					"asideClass": "mp-chat-nav",
+					"asideClass": "badge mp-chat-nav",
 					"aside": "0"
 				}
 			},
@@ -281,7 +281,7 @@
 				"sidebarItem": {
 					"categoryID": "Multiplayer",
 					"icon": "assets/transfer_bag.svg",
-					"asideClass": "mp-transfer-nav",
+					"asideClass": "badge mp-transfer-nav",
 					"aside": "?? / ??"
 				}
 			},
@@ -309,7 +309,7 @@
 				"sidebarItem": {
 					"categoryID": "Multiplayer",
 					"icon": "assets/charity_tree.svg",
-					"asideClass": "mp-charity-nav",
+					"asideClass": "badge mp-charity-nav",
 					"aside": "ready",
 					"asideLangID": "MOD_MP_SIDEBAR_CHARITY_READY"
 				}
@@ -325,7 +325,7 @@
 				"sidebarItem": {
 					"categoryID": "Multiplayer",
 					"icon": "assets/campaigns.svg",
-					"asideClass": "mp-campaign-nav",
+					"asideClass": "badge mp-campaign-nav",
 					"aside": "Inactive",
 					"asideLangID": "MOD_MP_SIDEBAR_CAMPAIGN_INACTIVE"
 				}
@@ -341,7 +341,7 @@
 				"sidebarItem": {
 					"categoryID": "Multiplayer",
 					"icon": "assets/raid_plant_t1.png",
-					"asideClass": "mp-raid-nav",
+					"asideClass": "badge mp-raid-nav",
 					"aside": "preview",
 					"asideLangID": "MOD_MP_SIDEBAR_RAID_PREVIEW"
 				}

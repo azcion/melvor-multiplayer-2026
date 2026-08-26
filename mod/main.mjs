@@ -108,6 +108,8 @@ let event_snapshots = null;
 let gift_contents = null;
 let transfer_delivery_state = null;
 let economy_receipt_reconciliation = Promise.resolve(true);
+let market_fulfillment_notice_queue = [];
+let market_fulfillment_notice_displaying = false;
 let equipment_sync_timer = null;
 let equipment_sync_in_flight = false;
 let equipment_sync_pending = false;
@@ -257,8 +259,10 @@ const state = ui.createStore({
 	market_filter_items: [],
 	market_search_loading: false,
 	market_listings_loading: false,
-	market_sort_direction: 1,
+	market_sort: 'recent',
 	market_completed: [],
+	market_fulfillment_notice_items: [],
+	market_fulfillment_notice_order_count: 0,
 
 	market_total_items: 0,
 	market_current_page: 1,
@@ -522,6 +526,12 @@ const state = ui.createStore({
 		return key !== null && this.chat_sending_conversations[key] === true;
 	},
 
+	get show_chat_support_prompts() {
+		const conversation = this.selected_chat_conversation;
+		return conversation?.conversation_kind === 'support' && conversation.viewer_side === 'player' &&
+			conversation.conversation_id === null && this.chat_draft.trim().length === 0;
+	},
+
 	get personal_chat_conversations() {
 		return this.chat_conversations.filter(conversation => (conversation.conversation_kind ?? 'private') === 'private');
 	},
@@ -681,6 +691,12 @@ const state = ui.createStore({
 		return '0 GP';
 	},
 
+	get market_fulfill_item_owned_qty() {
+		const item = this.market_fulfill_item === null ? null :
+			game.items.getObjectByID(this.market_fulfill_item.item_id);
+		return item === undefined || item === null ? 0 : game.bank.getQty(item);
+	},
+
 	get market_create_total_formatted() {
 		const total = Number(this.market_create_qty) * Number(this.market_create_price);
 		return Number.isSafeInteger(total) && total > 0 ? formatNumber(total) + ' GP' : '0 GP';
@@ -720,7 +736,7 @@ function create_action_runtime() {
 		ctx,
 		game,
 		getLangString,
-		changePage,
+		changePage: navigate_page,
 		Swal,
 		document,
 		$,
@@ -831,7 +847,7 @@ function create_action_runtime() {
 function queue_modal(title_lang, template_id, image_url = 'assets/multiplayer.svg', data = {}, localize_title = true, get_image = true) {
 	if (!modal_queue_guard.reserve(template_id)) {
 		log('ignored duplicate modal request (%s)', template_id);
-		return;
+		return false;
 	}
 
 	const modal_options = Object.assign({
@@ -854,6 +870,7 @@ function queue_modal(title_lang, template_id, image_url = 'assets/multiplayer.sv
 
 	try {
 		addModalToQueue(modal_options);
+		return true;
 	} catch (error) {
 		modal_queue_guard.release(template_id);
 		throw error;
@@ -944,6 +961,15 @@ function close_account_dropdown() {
 	const $menu = document.getElementById('header-user-options-dropdown');
 	$menu?.classList.remove('show');
 	document.getElementById('page-header-user-dropdown')?.setAttribute('aria-expanded', 'false');
+}
+
+function close_sidebar() {
+	globalThis.One?.layout?.('sidebar_close');
+}
+
+function navigate_page(page) {
+	close_sidebar();
+	changePage(page);
 }
 
 function capture_equipment_snapshot() {
@@ -1513,7 +1539,7 @@ async function update_market_listings() {
 async function update_market_search() {
 	const generation = ++market_search_generation;
 	const page = state.market_current_page;
-	const sort = state.market_sort_direction;
+	const sort = state.market_sort;
 	const direction = state.market_direction;
 	const item_id = state.market_filter_item;
 	const item_namespaces = get_local_item_namespaces();
@@ -1971,6 +1997,55 @@ function persist_transfer_inventory() {
 	set_instance_storage_item('transfer_delivery_state', transfer_delivery_state);
 }
 
+function show_next_market_fulfillment_notice() {
+	if (market_fulfillment_notice_displaying || market_fulfillment_notice_queue.length === 0)
+		return;
+
+	const notice = market_fulfillment_notice_queue.shift();
+	state.market_fulfillment_notice_items = notice.items;
+	state.market_fulfillment_notice_order_count = notice.order_count;
+	market_fulfillment_notice_displaying = true;
+
+	try {
+		const queued = queue_modal(
+			notice.order_count === 1
+				? 'MOD_MP_MARKET_FULFILLMENT_TITLE'
+				: 'MOD_MP_MARKET_FULFILLMENTS_TITLE',
+			'market-fulfillment-notice-modal',
+			'assets/market.svg',
+			{
+				didClose() {
+					state.market_fulfillment_notice_items = [];
+					state.market_fulfillment_notice_order_count = 0;
+					market_fulfillment_notice_displaying = false;
+					show_next_market_fulfillment_notice();
+				}
+			}
+		);
+		if (queued === false) {
+			state.market_fulfillment_notice_items = [];
+			state.market_fulfillment_notice_order_count = 0;
+			market_fulfillment_notice_displaying = false;
+			market_fulfillment_notice_queue.unshift(notice);
+		}
+	} catch (e) {
+		state.market_fulfillment_notice_items = [];
+		state.market_fulfillment_notice_order_count = 0;
+		market_fulfillment_notice_displaying = false;
+		market_fulfillment_notice_queue.unshift(notice);
+		error('could not queue Marketplace fulfillment notice (%s)', e);
+	}
+}
+
+function queue_market_fulfillment_notice(receipts) {
+	const notice = economy_receipts.summarize_market_fulfillment_receipts(receipts);
+	if (notice.order_count === 0 || notice.items.length === 0)
+		return;
+
+	market_fulfillment_notice_queue.push(notice);
+	show_next_market_fulfillment_notice();
+}
+
 function load_transfer_inventory() {
 	transfer_delivery_state = load_transfer_delivery_state(
 		get_instance_storage_item('transfer_delivery_state'),
@@ -2021,6 +2096,7 @@ function reconcile_economy_receipts(receipts) {
 			if (!acknowledged?.success)
 				return false;
 		}
+		queue_market_fulfillment_notice(receipts);
 		return true;
 	};
 	const pending = economy_receipt_reconciliation.then(reconcile, reconcile);
@@ -2290,6 +2366,23 @@ function update_chat_nav() {
 		aside.textContent = state.chat_unread > 0 ? String(state.chat_unread) : '';
 		aside.hidden = state.chat_unread <= 0;
 	}
+	const header_badge = document.getElementById('mp-chat-header-unread');
+	if (header_badge !== null) {
+		header_badge.textContent = state.chat_unread > 0 ? String(state.chat_unread) : '';
+		header_badge.hidden = state.chat_unread <= 0;
+	}
+}
+
+function setup_mobile_sidebar_unread() {
+	const sidebar_button = document.getElementById('sidebar-btn');
+	if (!sidebar_button || sidebar_button.querySelector('#mp-chat-header-unread'))
+		return;
+	const badge = document.createElement('span');
+	badge.id = 'mp-chat-header-unread';
+	badge.className = 'text-size-sm font-w600 text-white badge badge-danger mp-chat-header-unread';
+	badge.setAttribute('aria-hidden', 'true');
+	badge.hidden = true;
+	sidebar_button.append(badge);
 }
 
 async function refresh_chat_messages(cursor = '', prepend = false, quiet = false, view_generation = chat_view_generation) {
@@ -2880,7 +2973,7 @@ export async function setup(ctx) {
 			if (game.combat.isActive && raid_module.is_raid_monster(game.combat.selectedMonster))
 				game.combat.stop(true);
 			if (interface_ready)
-				changePage(game.pages.getObjectByID('multiplayer:Guild_Raid'));
+				navigate_page(game.pages.getObjectByID('multiplayer:Guild_Raid'));
 			void refresh_raid_state();
 		}, 0)
 	});
@@ -2888,7 +2981,8 @@ export async function setup(ctx) {
 		ctx,
 		raid_controller,
 		globalThis.CombatManager ?? game.combat.constructor,
-		game
+		game,
+		navigate_page
 	);
 
 	await patch_localization(ctx);
@@ -2945,6 +3039,7 @@ export async function setup(ctx) {
 	ctx.onInterfaceReady(() => {
 		interface_ready = true;
 		setup_account_menu();
+		setup_mobile_sidebar_unread();
 		update_chat_nav();
 
 		const $main_container = $('main-container');

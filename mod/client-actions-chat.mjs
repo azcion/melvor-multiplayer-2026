@@ -162,6 +162,12 @@ export function install_chat_actions(runtime) {
 			await refresh_chat_messages('&before=' + this.chat_before_cursor, true);
 		},
 
+		select_chat_support_prompt(lang_id) {
+			if (!this.show_chat_support_prompts)
+				return;
+			this.chat_draft = getLangString(lang_id);
+		},
+
 		handle_chat_keydown(event) {
 			if (event.key !== 'Enter' || event.isComposing || event.shiftKey ||
 				(typeof nativeManager !== 'undefined' && nativeManager.isMobile))

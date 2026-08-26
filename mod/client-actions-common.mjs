@@ -1,9 +1,16 @@
 const BUNDLED_SKILL_ICON_ASSETS = Object.freeze({
+	'adventuring:Adventuring': 'skill_adventuring.svg',
+	'enchanting:Enchanting': 'skill_enchanting.png',
+	'invention:Invention': 'skill_invention.png',
 	'kru_archaeology:Archaeology': 'skill_archaeology.svg',
 	'mythMusic:Music': 'skill_music.png',
+	'namespace_profile:Profile': 'skill_profile.svg',
+	'namespace_thuum:Thuum': 'skill_thuum.png',
+	'necromancy:Necromancy': 'skill_necromancy.png',
 	'occultism:Occultism': 'skill_occultism.png',
 	'rielkConstruction:Construction': 'skill_construction.png',
-	'sailing:Sailing': 'skill_sailing.png'
+	'sailing:Sailing': 'skill_sailing.png',
+	'shamanism:Shamanism': 'skill_shamanism.png'
 });
 
 export function install_common_actions(runtime) {

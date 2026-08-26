@@ -101,7 +101,7 @@ export function install_market_campaign_charity_actions(runtime) {
 				return;
 
 			this.market_direction = direction;
-			this.market_sort_direction = direction === 'sell' ? 1 : 0;
+			this.market_sort = 'recent';
 			this.market_results = [];
 			this.market_total_items = 0;
 			this.market_page_first(true);
@@ -112,6 +112,10 @@ export function install_market_campaign_charity_actions(runtime) {
 				return;
 
 			this.market_listing_direction = direction;
+		},
+
+		set_item_slider_max() {
+			document.querySelector('mp-item-slider')?.set_max();
 		},
 
 		show_market_buy_modal(item) {
@@ -175,8 +179,18 @@ export function install_market_campaign_charity_actions(runtime) {
 			this.market_fulfill_item = item;
 
 			const item_name = this.get_item_name(item.item_id);
-			queue_modal(getLangString('MOD_MP_MARKET_FULFILL_MODAL_TITLE') + item_name, 'market-fulfill-modal', this.get_item_icon(item.item_id), {
-				showConfirmButton: false
+			queue_modal(item_name, 'market-fulfill-modal', this.get_item_icon(item.item_id), {
+				showConfirmButton: false,
+				didOpen: () => {
+					const $title = document.getElementById('swal2-title');
+					if (!$title)
+						return;
+
+					const $prefix = document.createElement('span');
+					$prefix.className = 'mp-market-fulfill-modal-title-prefix';
+					$prefix.textContent = getLangString('MOD_MP_MARKET_FULFILL_MODAL_TITLE');
+					$title.prepend($prefix);
+				}
 			}, false, false);
 		},
 
@@ -303,7 +317,7 @@ export function install_market_campaign_charity_actions(runtime) {
 		},
 
 		toggle_market_sort() {
-			state.market_sort_direction = state.market_sort_direction ^ 1;
+			state.market_sort = state.market_sort === 'recent' ? 'price' : 'recent';
 			update_market_search();
 		},
 

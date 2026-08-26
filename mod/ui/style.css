@@ -49,20 +49,39 @@ body.superDark {
 
 .mp-chat-nav,
 .mp-raid-nav,
+.mp-charity-nav,
+.mp-campaign-nav,
+.mp-transfer-nav {
+	display: inline-block;
+	margin-left: auto;
+	padding: 3px 5px;
+	font-weight: 700 !important;
+	text-align: center;
+}
+
+.mp-chat-nav,
+.mp-raid-nav,
 .mp-charity-nav {
 	color: white !important;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	margin-left: auto;
-	padding: 2px 8px;
-	border-radius: 999px;
-	font-size: 0.75rem;
-	line-height: 1.2;
 }
 
 .mp-chat-nav {
 	background-color: #ff4545;
+}
+
+#mp-chat-header-unread {
+	position: absolute;
+	top: unset;
+	bottom: -5px;
+	right: -5px;
+	padding: 3px 5px;
+	background-color: #ff4545;
+	font-weight: 700 !important;
+	pointer-events: none;
+}
+
+#sidebar-btn {
+	position: relative;
 }
 
 .mp-chat-nav:empty {
@@ -90,10 +109,16 @@ body.superDark {
 	flex-wrap: wrap;
 	max-height: 320px;
 	max-height: min(40dvh, 320px);
-	overflow-y: auto;
-	overscroll-behavior: contain;
+	overflow-y: scroll;
+	-webkit-overflow-scrolling: touch;
+	touch-action: pan-y;
+	overscroll-behavior-y: contain;
 	margin-top: 10px;
 	margin-bottom: 20px;
+}
+
+.mp-icon-picker-modal-popup .swal2-html-container {
+	overflow: hidden;
 }
 
 .mp-icon-picked {
@@ -162,6 +187,33 @@ body.superDark {
 	gap: 10px;
 	width: 100%;
 	text-align: left;
+}
+
+.mp-market-fulfillment-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin-top: 8px;
+	text-align: left;
+}
+
+.mp-market-fulfillment-row {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+}
+
+.mp-market-fulfillment-quantity {
+	min-width: 3.5em;
+	text-align: right;
+	font-weight: 600;
+}
+
+.mp-market-fulfill-modal-title-prefix {
+	display: block;
+	font-size: 0.65em;
+	line-height: 1.2;
 }
 
 .mp-chat-conversations {
@@ -309,6 +361,19 @@ body.superDark {
 	padding-bottom: 16px;
 }
 
+.mp-chat-support-prompts-label {
+	margin-bottom: 8px;
+}
+
+.mp-chat-support-prompt-actions {
+	display: flex;
+	gap: 8px;
+}
+
+.mp-chat-support-prompt-actions .btn {
+	flex: 1;
+}
+
 .mp-chat-compose textarea {
 	width: 100%;
 	resize: vertical;
@@ -354,6 +419,12 @@ body.superDark {
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
+}
+
+@media (max-width: 767.98px) {
+	.mp-chat-support-prompt-actions {
+		flex-direction: column;
+	}
 }
 
 .mp-guild-page-layout {
@@ -974,7 +1045,11 @@ body.superDark {
 }
 
 .mp-button-tray {
-	height: 50px;
+	display: flex;
+	flex-direction: row;
+	gap: .25rem;
+	flex-wrap: wrap;
+	justify-content: center;
 }
 
 #bank-item-box {
@@ -1321,6 +1396,41 @@ mp-item-icon.mp-charitree-new-item {
 	display: flex;
 	align-items: center;
 	min-width: 0;
+}
+
+.mp-market-item-label {
+	font-size: 11px;
+	line-height: 1.2;
+	margin: 0 4px 0 0 !important;
+	white-space: nowrap;
+	flex: 0 0 auto;
+}
+
+#mp-market-page [lang-id="MOD_MP_MARKET_SOLD_BY"],
+#mp-market-page [lang-id="MOD_MP_MARKET_BOUGHT_BY"] {
+	font-size: 11px;
+	margin: 0 !important;
+}
+
+#mp-market-page [lang-id="MOD_MP_MARKET_SOLD_BY"] + img,
+#mp-market-page [lang-id="MOD_MP_MARKET_BOUGHT_BY"] + img {
+	margin: 0 3px !important;
+}
+
+.mp-market-item-value {
+	min-width: 0;
+}
+
+.mp-market-item-gp {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	white-space: nowrap;
+}
+
+.mp-market-item-gp .skill-icon-xxs {
+	margin: 0 !important;
+	flex: 0 0 auto;
 }
 
 .mp-float-r {
