@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.3
+
+- Fixed acknowledged Marketplace and other economy receipts remaining in character storage indefinitely, including cleanup of legacy receipt IDs, while retaining retry safety for interrupted acknowledgements.
+
 ## 1.4.2
 
 - Added optimized fallback icons for Invention, Profile, Enchanting, Necromancy, Adventuring, Shamanism, and Thuum, and reduced the size of the existing custom skill PNGs for shared Player Status.

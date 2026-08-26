@@ -1,5 +1,14 @@
 export const PROCESSED_ECONOMY_RECEIPT_LIMIT = 128;
 
+export function forget_processed_economy_receipt(processed_ids, receipt_id) {
+	return processed_ids.filter(id => id !== receipt_id);
+}
+
+export function is_complete_economy_receipt_page(receipts, page_size) {
+	return Array.isArray(receipts) && Number.isSafeInteger(page_size) && page_size > 0 &&
+		receipts.length < page_size;
+}
+
 function normalize_effect(effect) {
 	if (typeof effect !== 'object' || effect === null || Array.isArray(effect) ||
 		!['bank', 'gp', 'transfer'].includes(effect.storage) ||

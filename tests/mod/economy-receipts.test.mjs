@@ -3,6 +3,8 @@ import test from 'node:test';
 
 import {
 	apply_economy_receipt,
+	forget_processed_economy_receipt,
+	is_complete_economy_receipt_page,
 	summarize_market_fulfillment_receipts
 } from '../../mod/economy-receipts.mjs';
 
@@ -43,6 +45,21 @@ test('applies all effects once and records the receipt', () => {
 	assert.deepEqual(state, { bank: { logs: 8 }, gp: 125, transfer: [{ id: 'logs', qty: 2 }], saved_ids: ['receipt-1'] });
 	assert.equal(apply_economy_receipt(receipt, processed, adapter), 'already-applied');
 	assert.deepEqual(state, { bank: { logs: 8 }, gp: 125, transfer: [{ id: 'logs', qty: 2 }], saved_ids: ['receipt-1'] });
+});
+
+test('forgets a receipt ID after acknowledgement without affecting other IDs', () => {
+	assert.deepEqual(
+		forget_processed_economy_receipt(['receipt-1', 'receipt-2', 'receipt-1'], 'receipt-1'),
+		['receipt-2']
+	);
+	assert.deepEqual(forget_processed_economy_receipt(['receipt-2'], 'receipt-2'), []);
+});
+
+test('only treats a short pending-receipt page as complete', () => {
+	assert.equal(is_complete_economy_receipt_page([], 64), true);
+	assert.equal(is_complete_economy_receipt_page(Array.from({ length: 63 }), 64), true);
+	assert.equal(is_complete_economy_receipt_page(Array.from({ length: 64 }), 64), false);
+	assert.equal(is_complete_economy_receipt_page(null, 64), false);
 });
 
 test('subtracts only the submitted transfer quantity when inventory changes in flight', () => {

@@ -31,6 +31,7 @@ const DEV_CHARACTER_STORAGE = {
 };
 
 const TRANSFER_INVENTORY_MAX_LIMIT = 32;
+const ECONOMY_RECEIPT_PAGE_SIZE = 64;
 const GIFT_FLAG_RETURNED = 1 << 0;
 
 const CHARITY_TIMEOUT = 1000 * 60 * 60 * 24; // 24 hours
@@ -2065,7 +2066,7 @@ function reconcile_economy_receipts(receipts) {
 		return Promise.resolve(true);
 	const reconcile = async () => {
 		const stored_ids = get_instance_storage_item('processed_economy_receipt_ids');
-		const processed_ids = Array.isArray(stored_ids) ? stored_ids : [];
+		let processed_ids = Array.isArray(stored_ids) ? stored_ids : [];
 		for (const receipt of receipts) {
 			const result = economy_receipts.apply_economy_receipt(receipt, processed_ids, {
 				maximum_transfer_entries: TRANSFER_INVENTORY_MAX_LIMIT,
@@ -2095,6 +2096,11 @@ function reconcile_economy_receipts(receipts) {
 			const acknowledged = await api_post('/api/economy/receipts/acknowledge', { receipt_id: receipt.id });
 			if (!acknowledged?.success)
 				return false;
+			processed_ids = economy_receipts.forget_processed_economy_receipt(processed_ids, receipt.id);
+			if (processed_ids.length === 0)
+				remove_instance_storage_item('processed_economy_receipt_ids');
+			else
+				set_instance_storage_item('processed_economy_receipt_ids', processed_ids);
 		}
 		queue_market_fulfillment_notice(receipts);
 		return true;
@@ -2787,8 +2793,11 @@ async function get_client_events_request(reconcile_gifts = true) {
 		if (res.unchanged === true)
 			return res;
 		client_events_have_pending = polling.has_pending_events(res);
-		if (!await reconcile_economy_receipts(res.economy_receipts ?? []))
+		const pending_economy_receipts = res.economy_receipts;
+		if (!await reconcile_economy_receipts(pending_economy_receipts ?? []))
 			return res;
+		if (economy_receipts.is_complete_economy_receipt_page(pending_economy_receipts, ECONOMY_RECEIPT_PAGE_SIZE))
+			remove_instance_storage_item('processed_economy_receipt_ids');
 		if (Number.isSafeInteger(res.revision))
 			client_event_revision = res.revision;
 		invalidate_guild_state();
