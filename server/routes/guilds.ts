@@ -7,7 +7,7 @@ import type { PetitionType } from '../council';
 import { get_guild_activity, parse_guild_activity_cursor } from '../guild-activity';
 import { record_guild_activity } from '../guild-activity';
 
-const { DIRECT_JOIN_CHARITREE_LOCK, FREE_FELLOWSHIP_TYPE, PETITION_LIFETIME, PUBLIC_GUILD_TYPE, db, db_get_all, db_get_single, db_run, ensure_guild_campaign, expire_charity_items, expire_petitions, forget_guild_campaign, get_client_display, get_client_guild_id, get_council_petitions, get_guild_applicants, get_guild_capabilities, get_guild_member_directory, get_guild_members, get_guild_summary, get_guild_type, get_petition_conflict_subject, get_petition_resolution, guild_summary_from_row, has_guild_departure_blocker, is_petition_choice, is_petition_type, is_valid_guild_icon_id, parse_guild_name, process_council_actions, resize_unprogressed_campaign, session_get_route, session_post_route, shadowed_cutoff, unlock_winnowing_targets } = runtime;
+const { DIRECT_JOIN_CHARITREE_LOCK, FREE_FELLOWSHIP_TYPE, GiftFlags, PETITION_LIFETIME, PUBLIC_GUILD_TYPE, db, db_get_all, db_get_single, db_run, ensure_guild_campaign, expire_charity_items, expire_petitions, forget_guild_campaign, get_client_display, get_client_guild_id, get_council_petitions, get_guild_applicants, get_guild_capabilities, get_guild_member_directory, get_guild_members, get_guild_summary, get_guild_type, get_petition_conflict_subject, get_petition_resolution, guild_summary_from_row, has_guild_departure_blocker, is_petition_choice, is_petition_type, is_valid_guild_icon_id, parse_guild_name, process_council_actions, resize_unprogressed_campaign, session_get_route, session_post_route, shadowed_cutoff, unlock_winnowing_targets } = runtime;
 
 export function register_guilds_routes(): void {
 	session_get_route('/api/guilds/activity', async (req, url, client_id): Promise<HandlerResult> => {
@@ -17,7 +17,7 @@ export function register_guilds_routes(): void {
 		const cursor = parse_guild_activity_cursor(url.searchParams.get('cursor'));
 		if (cursor === false)
 			return 400;
-		return get_guild_activity(guild_id, cursor);
+		return get_guild_activity(guild_id, client_id, cursor);
 	});
 	session_get_route('/api/guilds/council', async (req, url, client_id) => {
 		expire_petitions();
@@ -636,10 +636,10 @@ export function register_guilds_routes(): void {
 			const blocker = db.query(
 				'SELECT ' +
 				'EXISTS(SELECT 1 FROM `market_items` WHERE `client_id` = ?) OR ' +
-				'EXISTS(SELECT 1 FROM `gifts` WHERE `client_id` = ? OR `sender_id` = ?) OR ' +
+				'EXISTS(SELECT 1 FROM `gifts` WHERE `client_id` = ? OR (`sender_id` = ? AND (`flags` & ?) = 0)) OR ' +
 				'EXISTS(SELECT 1 FROM `trade_offers` WHERE `sender_id` = ? OR `recipient_id` = ?) OR ' +
 				'EXISTS(SELECT 1 FROM `resolved_trade_offers` WHERE `client_id` = ?) AS `blocked`'
-			).get(client_id, client_id, client_id, client_id, client_id, client_id) as { blocked: number };
+			).get(client_id, client_id, client_id, GiftFlags.Returned, client_id, client_id, client_id) as { blocked: number };
 			if (blocker.blocked === 1)
 				return 'blocked';
 

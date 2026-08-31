@@ -345,6 +345,19 @@
 					"aside": "preview",
 					"asideLangID": "MOD_MP_SIDEBAR_RAID_PREVIEW"
 				}
+			},
+			{
+				"id": "Updates",
+				"customName": "MOD_MP_PAGE_UPDATES",
+				"media": "https://cdn2-main.melvor.net/assets/media/main/announcement.png",
+				"containerID": "mp-updates-page",
+				"headerBgClass": "mp-updates-bg",
+				"hasGameGuide": false,
+				"canBeDefault": false,
+				"sidebarItem": {
+					"categoryID": "Multiplayer",
+					"icon": "https://cdn2-main.melvor.net/assets/media/main/announcement.png"
+				}
 			}
 		]
 	},

@@ -55,7 +55,7 @@ test('moves the multiplayer entry point into the vanilla account menu', async ()
 test('makes the Multiplayer sidebar category collapsible', async () => {
 	const main = await read_client_source(root);
 
-	assert.match(main, /sidebar\.category\('Multiplayer', \{[\s\S]*before: 'Combat',[\s\S]*toggleable: true,[\s\S]*MOD_MP_MENU_HEADER/);
+	assert.match(main, /sidebar\.category\('Multiplayer', \{[\s\S]*before: 'Into the Abyss',[\s\S]*toggleable: true,[\s\S]*MOD_MP_MENU_HEADER/);
 });
 
 test('makes Guild members selectable and keeps departure out of the Guild page', async () => {

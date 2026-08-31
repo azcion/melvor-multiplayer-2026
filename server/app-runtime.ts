@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { parse_device_diagnostics, mark_rejection, type DeviceDiagnostics } from './diagnostics';
 // #region IMPORTS
 import { format } from 'node:util';
 import type { SQLQueryBindings } from 'bun:sqlite';
@@ -134,9 +136,10 @@ export { BACKEND_VERSION } from './version';
 // #region TYPES
 export type SessionRequestHandler = (req: Request, url: URL, client_id: number, json: JsonObject) => HandlerReturnType;
 export type SessionBinaryRequestHandler = (req: Request, url: URL, client_id: number) => HandlerReturnType;
-export type CachedSession = { client_id: number, mod_version: string | null, last_access: number };
+export type CachedSession = { client_id: number, mod_version: string | null, device_diagnostics?: DeviceDiagnostics | null, last_access: number };
 
 export type ClientRuntime = {
+	device: DeviceDiagnostics | null;
 	mod_version: string;
 	active_mods: string[];
 	game_mode_id: string | null;
@@ -198,6 +201,8 @@ export type GuildMemberRow = {
 	status_activity_action_id: string | null;
 	status_activity_area_id: string | null;
 	status_activities: string | null;
+	account_creation_date: number | null;
+	total_skill_level: number | null;
 	gp_visible: number;
 	gp_amount: number | null;
 	game_mode_visible: number;
@@ -363,12 +368,6 @@ export const CAMPAIGN_RESTART_TIMER = 1000 * 60 * 60 * 12; // 12 hours
 
 export const MARKET_ITEMS_PER_PAGE = 30;
 
-export const CORS_ALLOWED_ORIGINS = new Set(
-	(process.env.CORS_ALLOWED_ORIGINS ?? '')
-		.split(',')
-		.map(origin => origin.trim())
-		.filter(origin => origin.length > 0)
-);
 // #endregion
 
 // #region GLOBALS
@@ -412,18 +411,28 @@ export function temporary_unavailable(): Response {
 
 export function require_service_available(handler: RequestHandler): RequestHandler {
 	return (req, url) => {
-		if (get_service_setting('maintenance') === '1')
+		if (get_service_setting('maintenance') === '1') {
+			mark_rejection(req, 'maintenance');
 			return temporary_unavailable();
+		}
 		return handler(req, url);
 	};
 }
 
 export function require_source_capacity(handler: RequestHandler): RequestHandler {
-	return (req, url) => request_limits.limit_source(req) ?? handler(req, url);
+	return (req, url) => {
+		const limited = request_limits.limit_source(req);
+		if (limited) mark_rejection(req, 'source_rate_limit');
+		return limited ?? handler(req, url);
+	};
 }
 
 export function require_registration_capacity(handler: RequestHandler): RequestHandler {
-	return (req, url) => request_limits.limit_registration(req) ?? handler(req, url);
+	return (req, url) => {
+		const limited = request_limits.limit_registration(req);
+		if (limited) mark_rejection(req, 'registration_rate_limit');
+		return limited ?? handler(req, url);
+	};
 }
 
 export function browser_response(req: Request, result: unknown): Response {
@@ -451,9 +460,16 @@ export function browser_response(req: Request, result: unknown): Response {
 	headers.set('Cache-Control', 'private, no-store');
 	headers.set('Access-Control-Allow-Origin', origin);
 	headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+	headers.set('Access-Control-Expose-Headers', 'X-Multiplayer-Session-State, Retry-After');
 	headers.set('Access-Control-Allow-Headers', 'Content-Type, X-Session-Token, X-Icon-Catalog-Upload-Token, Cache-Control, Pragma');
-	if (req.method === 'OPTIONS')
+	if (req.method === 'OPTIONS') {
+		// Native runtimes may add headers. Access is controlled by explicit tokens, not origins or cookies.
+		const requested_headers = req.headers.get('Access-Control-Request-Headers');
+		if (requested_headers)
+			headers.set('Access-Control-Allow-Headers', requested_headers);
+		headers.append('Vary', 'Access-Control-Request-Headers');
 		headers.set('Access-Control-Max-Age', '600');
+	}
 	headers.append('Vary', 'Origin');
 	headers.append('Vary', 'X-Session-Token');
 
@@ -466,10 +482,6 @@ export function browser_response(req: Request, result: unknown): Response {
 
 export function allow_browser_access(handler: RequestHandler): RequestHandler {
 	return async (req: Request, url: URL) => {
-		const origin = req.headers.get('Origin');
-		if (origin !== null && !CORS_ALLOWED_ORIGINS.has(origin))
-			return default_handler(403);
-
 		if (req.method === 'OPTIONS')
 			return browser_response(req, new Response(null, { status: 204 }));
 
@@ -591,7 +603,7 @@ export function parse_client_runtime(value: unknown): ClientRuntime | null | und
 		(typeof language !== 'string' || language.length > MAX_LANGUAGE_LENGTH))
 		return null;
 
-	return { mod_version, active_mods, game_mode_id: game_mode_id ?? null, language: language ?? null };
+	return { device: parse_device_diagnostics(runtime.device), mod_version, active_mods, game_mode_id: game_mode_id ?? null, language: language ?? null };
 }
 
 export function persist_client_runtime(client_id: number, runtime: ClientRuntime | undefined, now = Date.now()): void {
@@ -786,6 +798,18 @@ export function parse_player_status_skills(skills: unknown): PlayerStatusSkill[]
 	}
 
 	return parsed;
+}
+
+export function parse_player_status_account_creation_date(value: unknown): number | null | undefined {
+	if (value === null)
+		return null;
+	return Number.isSafeInteger(value) && (value as number) > 0 ? value as number : undefined;
+}
+
+export function parse_player_status_total_skill_level(value: unknown): number | null | undefined {
+	if (value === null)
+		return null;
+	return Number.isSafeInteger(value) && (value as number) >= 0 ? value as number : undefined;
 }
 // #endregion
 
@@ -1698,8 +1722,12 @@ export function get_guild_member_status_activities(member: GuildMemberRow, activ
 	return status_snapshot_activities({ activities: member.status_activities }, activity);
 }
 
-export function guild_member_from_row(member: GuildMemberRow) {
+export function guild_member_from_row(member: GuildMemberRow, now = Date.now()) {
 	const status_activity = get_guild_member_status_activity(member);
+	const account_age = member.status_visible === 1 && member.account_creation_date !== null &&
+		Number.isSafeInteger(member.account_creation_date) && member.account_creation_date > 0
+		? Math.max(0, now - member.account_creation_date)
+		: null;
 	return {
 		client_id: member.client_id,
 		display_name: member.display_name,
@@ -1710,6 +1738,10 @@ export function guild_member_from_row(member: GuildMemberRow) {
 		status_available: member.status_available === 1,
 		status_activity,
 		status_activities: get_guild_member_status_activities(member, status_activity),
+		account_age,
+		total_skill_level: member.status_visible === 1 && member.total_skill_level !== null &&
+			Number.isSafeInteger(member.total_skill_level) && member.total_skill_level >= 0
+			? member.total_skill_level : null,
 		gp_visible: member.gp_visible === 1,
 		gp: member.gp_visible === 1 ? member.gp_amount : null,
 		game_mode_visible: member.game_mode_visible === 1,
@@ -1735,6 +1767,7 @@ export async function get_guild_members(guild_id: number, shadowed = false, now 
 		'EXISTS(SELECT 1 FROM `status_snapshots` AS available_ss WHERE available_ss.`client_id` = c.`id`) AS `status_available`, ' +
 		'ss.`activity_type` AS `status_activity_type`, ss.`activity_skill_id` AS `status_activity_skill_id`, ' +
 		'ss.`activity_action_id` AS `status_activity_action_id`, ss.`activity_area_id` AS `status_activity_area_id`, ss.`activities` AS `status_activities`, ' +
+		'ss.`account_creation_date`, ss.`total_skill_level`, ' +
 		'c.`gp_visible`, gps.`amount` AS `gp_amount`, c.`game_mode_visible`, runtime.`game_mode_id`, ' +
 		'c.`active_mods_visible`, (runtime.`active_mods` IS NOT NULL AND runtime.`active_mods` <> \'[]\') AS `active_mods_available`, ' +
 		'runtime.`language`, ' +
@@ -1750,7 +1783,7 @@ export async function get_guild_members(guild_id: number, shadowed = false, now 
 		'ORDER BY c.`last_multiplayer_active_at` DESC, c.`display_name` COLLATE NOCASE, c.`id`',
 		[guild_id, cutoff]
 	) as GuildMemberRow[];
-	return members.map(guild_member_from_row);
+	return members.map(member => guild_member_from_row(member, now));
 }
 
 export async function get_guild_member_directory(
@@ -1775,6 +1808,7 @@ export async function get_guild_member_directory(
 				'EXISTS(SELECT 1 FROM `status_snapshots` AS available_ss WHERE available_ss.`client_id` = c.`id`) AS `status_available`, ' +
 				'ss.`activity_type` AS `status_activity_type`, ss.`activity_skill_id` AS `status_activity_skill_id`, ' +
 				'ss.`activity_action_id` AS `status_activity_action_id`, ss.`activity_area_id` AS `status_activity_area_id`, ss.`activities` AS `status_activities`, ' +
+				'ss.`account_creation_date`, ss.`total_skill_level`, ' +
 				'c.`gp_visible`, gps.`amount` AS `gp_amount`, c.`game_mode_visible`, runtime.`game_mode_id`, ' +
 				'c.`active_mods_visible`, (runtime.`active_mods` IS NOT NULL AND runtime.`active_mods` <> \'[]\') AS `active_mods_available`, ' +
 				'runtime.`language`, ' +
@@ -1799,7 +1833,7 @@ export async function get_guild_member_directory(
 	]);
 
 	return {
-		members: (members as GuildMemberRow[]).map(guild_member_from_row),
+		members: (members as GuildMemberRow[]).map(member => guild_member_from_row(member, now)),
 		page,
 		page_size: GUILD_MEMBER_PAGE_SIZE,
 		search,
@@ -1842,10 +1876,10 @@ export async function has_guild_departure_blocker(client_id: number): Promise<bo
 	const blockers = await db_get_single(
 		'SELECT ' +
 		'EXISTS(SELECT 1 FROM `market_items` WHERE `client_id` = ?) OR ' +
-		'EXISTS(SELECT 1 FROM `gifts` WHERE `client_id` = ? OR `sender_id` = ?) OR ' +
+		'EXISTS(SELECT 1 FROM `gifts` WHERE `client_id` = ? OR (`sender_id` = ? AND (`flags` & ?) = 0)) OR ' +
 		'EXISTS(SELECT 1 FROM `trade_offers` WHERE `sender_id` = ? OR `recipient_id` = ?) OR ' +
 		'EXISTS(SELECT 1 FROM `resolved_trade_offers` WHERE `client_id` = ?) AS `blocked`',
-		[client_id, client_id, client_id, client_id, client_id, client_id]
+		[client_id, client_id, client_id, GiftFlags.Returned, client_id, client_id, client_id]
 	);
 	return blockers?.blocked === 1;
 }
@@ -2253,20 +2287,60 @@ export async function get_client_resolved_trades(client_id: number) {
 // #endregion
 
 // #region SESSIONS
-export async function generate_session_token(client_id: number, mod_version: string | null): Promise<string> {
-	await db_execute('DELETE FROM `client_sessions` WHERE `client_id` = ?', [client_id]);
-	for (const [session_token, session] of client_session_cache)
-		if (session.client_id === client_id)
-			client_session_cache.delete(session_token);
+// Short-lived, bounded hashes explain replacement without retaining old bearer tokens or enabling replay.
+const replaced_sessions = new Map<string, { client_id: number; at: number; device: DeviceDiagnostics | null }>();
+function session_digest(token: string): string { return createHash('sha256').update(token).digest('hex'); }
+function remember_replaced_sessions(client_id: number, installation_id: string | null, except_token = ''): void {
+	const now = Date.now();
+	for (const [key, value] of replaced_sessions)
+		if (now - value.at >= 60 * 60 * 1000) replaced_sessions.delete(key);
+	for (const row of db.query<{ session_token: string; device_diagnostics: string | null }, [number, string | null, string]>(
+		'SELECT session_token, device_diagnostics FROM client_sessions WHERE client_id = ? AND installation_id IS ? AND session_token != ? LIMIT 64'
+	).all(client_id, installation_id, except_token)) {
+		replaced_sessions.set(session_digest(row.session_token), { client_id, at: now,
+			device: row.device_diagnostics ? parse_device_diagnostics(JSON.parse(row.device_diagnostics)) : null });
+	}
+	while (replaced_sessions.size > 4096) replaced_sessions.delete(replaced_sessions.keys().next().value!);
+}
 
-	const session_token = crypto.randomUUID();
-	await db_execute(
-		'INSERT INTO `client_sessions` (`session_token`, `client_id`, `mod_version`) VALUES(?, ?, ?)',
-		[session_token, client_id, mod_version]
-	);
-	client_session_cache.set(session_token, { client_id, mod_version, last_access: Date.now() });
+export function bind_installation_session(client_id: number, installation_id: string, token: string): void {
+	db.transaction(() => {
+		remember_replaced_sessions(client_id, installation_id, token);
+		db.query('DELETE FROM client_sessions WHERE client_id = ? AND installation_id = ? AND session_token != ?')
+			.run(client_id, installation_id, token);
+		db.query('UPDATE client_sessions SET installation_id = ? WHERE session_token = ? AND client_id = ?')
+			.run(installation_id, token, client_id);
+	}).immediate();
+}
 
-	return session_token;
+export async function generate_session_token(client_id: number, mod_version: string | null, device: DeviceDiagnostics | null = null, installation_id: string | null = null): Promise<string> {
+	return db.transaction(() => {
+		remember_replaced_sessions(client_id, installation_id);
+		db.query('DELETE FROM `client_sessions` WHERE `client_id` = ? AND installation_id IS ?').run(client_id, installation_id);
+		for (const [session_token, session] of client_session_cache)
+			if (session.client_id === client_id)
+				client_session_cache.delete(session_token);
+
+		const session_token = crypto.randomUUID();
+		db.query(
+			'INSERT INTO `client_sessions` (`session_token`, `client_id`, `mod_version`, `device_diagnostics`, `installation_id`) VALUES(?, ?, ?, ?, ?)'
+		).run(session_token, client_id, mod_version, device ? JSON.stringify(device) : null, installation_id);
+		client_session_cache.set(session_token, { client_id, mod_version, device_diagnostics: device, last_access: Date.now() });
+		if (device) {
+			// Diagnostic churn must never prevent a player from authenticating or grow storage without bound.
+			db.query(`INSERT INTO client_installations
+				(client_id, installation_id, device_diagnostics, mod_version, first_seen_at, last_seen_at)
+				SELECT ?, ?, ?, ?, ?, ? WHERE
+				EXISTS (SELECT 1 FROM client_installations WHERE client_id = ? AND installation_id = ?)
+				OR (SELECT COUNT(*) FROM client_installations WHERE client_id = ?) < 32
+				ON CONFLICT (client_id, installation_id) DO UPDATE SET
+				device_diagnostics=excluded.device_diagnostics, mod_version=excluded.mod_version,
+				last_seen_at=excluded.last_seen_at`).run(client_id, device.installation_id, JSON.stringify(device),
+				mod_version, Date.now(), Date.now(), client_id, device.installation_id, client_id);
+		}
+
+		return session_token;
+	}).immediate();
 }
 
 export async function get_client_session(session_token: unknown): Promise<CachedSession | null> {
@@ -2276,8 +2350,9 @@ export async function get_client_session(session_token: unknown): Promise<Cached
 	const cached_session = client_session_cache.get(session_token);
 	if (cached_session !== undefined) {
 		if (!await db_exists(
-			'SELECT 1 FROM `clients` WHERE `id` = ? AND `disabled` = 0 AND `deleted_at` IS NULL',
-			[cached_session.client_id]
+			'SELECT 1 FROM `client_sessions` s JOIN `clients` c ON c.id=s.client_id ' +
+			'WHERE s.session_token = ? AND c.disabled = 0 AND c.deleted_at IS NULL',
+			[session_token]
 		)) {
 			client_session_cache.delete(session_token);
 			return null;
@@ -2288,7 +2363,7 @@ export async function get_client_session(session_token: unknown): Promise<Cached
 	}
 
 	const session_row = await db_get_single(
-		'SELECT session.`client_id`, session.`mod_version` FROM `client_sessions` AS session ' +
+		'SELECT session.`client_id`, session.`mod_version`, session.`device_diagnostics` FROM `client_sessions` AS session ' +
 		'JOIN `clients` AS client ON client.`id` = session.`client_id` ' +
 		'WHERE session.`session_token` = ? AND client.`disabled` = 0 AND client.`deleted_at` IS NULL',
 		[session_token]
@@ -2299,6 +2374,7 @@ export async function get_client_session(session_token: unknown): Promise<Cached
 		const session = {
 			client_id,
 			mod_version: session_row?.mod_version ?? null,
+			device_diagnostics: session_row?.device_diagnostics ? parse_device_diagnostics(JSON.parse(session_row.device_diagnostics)) : null,
 			last_access: Date.now()
 		};
 		client_session_cache.set(session_token, session);
@@ -2322,14 +2398,25 @@ export function validate_session_request(handler: SessionRequestHandler, json_bo
 		const x_session_token = req.headers.get('X-Session-Token');
 		const session = await get_client_session(x_session_token);
 
-		if (session === null)
+		if (session === null) {
+			const replaced = typeof x_session_token === 'string' && x_session_token.length <= 128
+				? replaced_sessions.get(session_digest(x_session_token)) : undefined;
+			if (replaced && Date.now() - replaced.at < 60 * 60 * 1000) {
+				mark_rejection(req, 'session_replaced');
+				identify_request(req, replaced.client_id, undefined, replaced.device);
+				return new Response('Unauthorized', { status: 401, headers: { 'X-Multiplayer-Session-State': 'replaced' } });
+			}
+			mark_rejection(req, 'invalid_session');
 			return 401; // Unauthorized
+		}
 
 		const client_id = session.client_id;
-		identify_request(req, client_id, session.mod_version ?? undefined);
+		identify_request(req, client_id, session.mod_version ?? undefined, session.device_diagnostics);
 		const limited = request_limits.limit_identity(client_id);
-		if (limited !== null)
+		if (limited !== null) {
+			mark_rejection(req, 'identity_rate_limit');
 			return limited;
+		}
 
 		const now = Date.now();
 		if (now - (client_activity_writes.get(client_id) ?? 0) >= CLIENT_ACTIVITY_WRITE_INTERVAL) {
@@ -2347,6 +2434,9 @@ export function session_get_route(route: string, handler: SessionRequestHandler)
 		allow_browser_access(require_source_capacity(require_service_available(validate_session_request(handler)))),
 		['GET', 'OPTIONS']
 	);
+	// Android runtimes can fail authenticated GETs after a successful preflight.
+	// The POST alias uses the same read handler and all normal request guards.
+	session_post_route(route, handler);
 }
 
 export function session_post_route(route: string, handler: SessionRequestHandler) {

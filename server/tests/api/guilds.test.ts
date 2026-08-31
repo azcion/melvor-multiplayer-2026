@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { make_guild_group, make_guildmates, register_guild_client } from '../support/fixtures';
+import { get_events, make_guild_group, make_guildmates, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post, post_json, register_client } from '../support/http';
 import { db_count, db_run } from '../support/persistence';
 import { SHADOWED_AFTER } from '../../shadowed';
@@ -299,6 +299,28 @@ describe('guild API', () => {
 		expect(listed.json.success).toBe(true);
 		expect(listing_blocked.json.error_lang).toBe('MOD_MP_GUILD_DEPARTURE_BLOCKED');
 		expect(gift_blocked.json.error_lang).toBe('MOD_MP_GUILD_DEPARTURE_BLOCKED');
+	});
+
+	test('allows a declined gift recipient to depart while the returned gift remains with its sender', async () => {
+		const pair = await make_guildmates('Returned Gift Owner', 'Returned Gift Decliner');
+		await post_json('/api/gift/send', {
+			recipient_id: pair.second_id,
+			items: [{ id: 'melvorD:Returned_Guild_Departure_Gift', qty: 1 }]
+		}, pair.first.session_token);
+		const gift_id = (await get_events(pair.second)).gifts[0];
+		await post_json('/api/gift/decline', { gift_id }, pair.second.session_token);
+
+		const decliner_left = await post_json<{ success: boolean }>('/api/guilds/leave', {}, pair.second.session_token);
+		const owner_blocked = await post_json<{ error_lang: string }>('/api/guilds/leave', {}, pair.first.session_token);
+		const collected = await post_json<{ success: boolean }>('/api/gift/accept', {
+			gift_id
+		}, pair.first.session_token);
+		const owner_left = await post_json<{ success: boolean }>('/api/guilds/leave', {}, pair.first.session_token);
+
+		expect(decliner_left.json.success).toBe(true);
+		expect(owner_blocked.json.error_lang).toBe('MOD_MP_GUILD_DEPARTURE_BLOCKED');
+		expect(collected.json.success).toBe(true);
+		expect(owner_left.json.success).toBe(true);
 	});
 
 	test('reserves shared and player-to-player features for guild members', async () => {

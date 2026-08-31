@@ -68,7 +68,7 @@ test('registers and mounts the Guild Raid page as a first-class multiplayer view
 	assert.equal(page.sidebarItem.asideClass, 'badge mp-raid-nav');
 	assert.equal(page.sidebarItem.aside, 'preview');
 	assert.equal(page.sidebarItem.asideLangID, 'MOD_MP_SIDEBAR_RAID_PREVIEW');
-	assert.equal(data.data.pages.at(-1), page);
+	assert.equal(data.data.pages[data.data.pages.findIndex(entry => entry.id === 'Guild_Raid') + 1].id, 'Updates');
 	assert.match(style, /\.mp-raid-nav[\s\S]*background-color: #5b4aa1/);
 	assert.match(style, /\.mp-raid-nav\.mp-raid-active[\s\S]*background-color: #8f3030/);
 	assert.equal(language.MOD_MP_SIDEBAR_RAID_ACTIVE, 'active');

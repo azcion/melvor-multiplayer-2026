@@ -5,7 +5,8 @@ export const MULTIPLAYER_PAGE_LANG_IDS = Object.freeze({
 	Multiplayer_Market: 'MOD_MP_PAGE_MARKET',
 	Charity_Tree: 'MOD_MP_PAGE_CHARITREE',
 	Campaign_Effort: 'MOD_MP_PAGE_CAMPAIGN',
-	Guild_Raid: 'MOD_MP_PAGE_RAID'
+	Guild_Raid: 'MOD_MP_PAGE_RAID',
+	Updates: 'MOD_MP_PAGE_UPDATES'
 });
 
 export const MULTIPLAYER_SUPPORTED_LANGUAGES = Object.freeze(['en', 'zh-CN']);

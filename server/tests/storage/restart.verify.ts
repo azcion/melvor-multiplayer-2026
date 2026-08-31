@@ -5,12 +5,22 @@ import { read_restart_state } from '../support/restart-state';
 
 test('rebuilds caches and preserves API state after a server restart', async () => {
 	const state = await read_restart_state();
+	const existing_installation = await get_json_with_session('/api/events', state.installation.session_token);
+	expect(existing_installation.response.status).toBe(200);
+	const reauthenticated = await post_json<{ session_token: string }>('/api/authenticate', {
+		client_identifier: state.installation.client_identifier, installation_id: state.installation.installation_id,
+		installation_key: state.installation.installation_key
+	});
+	expect(reauthenticated.response.status).toBe(200);
+	expect((await get_json_with_session('/api/events', reauthenticated.json.session_token)).response.status).toBe(200);
 	const first_events = await get_events(state.first);
 	const second_events = await get_events(state.second);
 	const guild = await get_json_with_session<{
 		members: Array<{
 			client_id: number;
 			display_name: string;
+			account_age: number | null;
+			total_skill_level: number | null;
 			gp: number | null;
 		}>;
 	}>('/api/guilds/state', state.first.session_token);
@@ -130,6 +140,7 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	expect(guild.json.members).toEqual(expect.arrayContaining([
 		expect.objectContaining({
 			client_id: state.first_id,
+			total_skill_level: state.status_total_skill_level,
 			gp: state.gp_amount
 		}),
 		expect.objectContaining({

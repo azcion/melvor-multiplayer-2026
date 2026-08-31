@@ -29,6 +29,8 @@ export type charity_items = {
 };
 
 export type client_sessions = {
+	installation_id?: string | null;
+	device_diagnostics?: string | null;
 	session_token: string,
 	client_id: number,
 	mod_version: string | null
@@ -90,6 +92,12 @@ export type guild_activity_events = {
 	metadata: string;
 	source_key: string;
 	created_at: number;
+	buyer_client_id: number | null;
+	buyer_display_name: string | null;
+	seller_client_id: number | null;
+	seller_display_name: string | null;
+	item_id: string | null;
+	quantity: number | null;
 };
 
 export type guild_raid_roster = {
@@ -202,6 +210,8 @@ export type status_snapshots = {
 	activity_action_id: string | null;
 	activity_area_id: string | null;
 	activities: string;
+	account_creation_date: number | null;
+	total_skill_level: number | null;
 };
 
 export type status_snapshot_skills = {

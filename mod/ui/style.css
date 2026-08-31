@@ -104,6 +104,45 @@ body.superDark {
 	display: none;
 }
 
+.mp-changelog-list {
+	padding-bottom: 0;
+}
+
+.mp-changelog-entry {
+	padding-bottom: 1.25rem;
+	margin-bottom: 1.25rem;
+	border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.mp-changelog-entry:last-child {
+	padding-bottom: 0;
+	margin-bottom: 0;
+	border-bottom: 0;
+}
+
+.mp-changelog-entry p:last-child {
+	margin-bottom: 0;
+}
+
+.mp-updates-layout {
+	display: grid;
+	grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr);
+	gap: 1rem;
+	align-items: start;
+}
+
+.mp-updates-column {
+	min-width: 0;
+}
+
+.mp-updates-notice .block-content p:last-child {
+	margin-bottom: 0;
+}
+
+.mp-updates-tabs {
+	display: none;
+}
+
 .mp-icon-selector {
 	display: flex;
 	flex-wrap: wrap;
@@ -487,6 +526,18 @@ body.superDark {
 	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.mp-guild-activity-meta {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.mp-guild-activity-private {
+	margin-left: auto;
+	white-space: nowrap;
+}
+
 .mp-guild-activity-event .font-size-sm.text-muted {
 	opacity: 0.75;
 }
@@ -500,7 +551,7 @@ body.superDark {
 	align-items: center;
 	gap: 10px;
 	min-height: 60px;
-	padding: 10px 16px;
+	padding: 0 12px;
 	text-align: left;
 	border: 0;
 }
@@ -514,6 +565,12 @@ body.superDark {
 	border: 0;
 	background: transparent;
 	color: inherit;
+}
+
+.mp-guild-member-button > img {
+	height: 40px;
+	width: 40px;
+	margin: 0;
 }
 
 .mp-guild-member-button:hover,
@@ -1346,10 +1403,136 @@ mp-item-icon.mp-charitree-new-item {
 }
 
 .mp-market-buy-order-form {
-	background: var(--mp-element-bg);
+	background: #000;
 	color: #f5f5f5 !important;
 	box-shadow: 0 1px 2px rgb(33 34 35 / 50%), 0 1px 2px rgb(26 26 27 / 50%) !important;
 	border-radius: 0.25rem;
+	border-top: 4px solid #f5a900;
+}
+
+.mp-market-buy-order-form label {
+	display: block;
+	font-weight: 600;
+	margin-bottom: 0.4rem;
+}
+
+.mp-buy-order-item > mp-item-icon > img {
+	width: 32px;
+	height: 32px;
+}
+
+.mp-buy-order-item-selector {
+	min-height: 58px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.75rem 1rem;
+	background: #1d1d1d;
+	border: 1px solid #40454b;
+	border-radius: 0.25rem;
+}
+
+.mp-buy-order-item-selector:hover {
+	border-color: #6c757d;
+}
+
+.mp-buy-order-item {
+	min-width: 0;
+	flex: 1 1 auto;
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+}
+
+.mp-buy-order-item-name {
+	min-width: 0;
+	font-weight: 500;
+	line-height: 1.25;
+	overflow-wrap: break-word;
+}
+
+.mp-buy-order-item-chevron {
+	flex: 0 0 auto;
+	font-size: 1.75rem;
+	line-height: 1;
+	color: #adb5bd;
+}
+
+.mp-buy-order-field-description {
+	font-size: 0.8rem;
+	color: #8c96a0;
+}
+
+.mp-buy-order-total {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.85rem 1rem;
+	background: #151515;
+	border: 1px solid #40454b;
+	border-radius: 0.25rem;
+}
+
+.mp-buy-order-total-label {
+	font-size: 0.85rem;
+	color: #adb5bd;
+	margin-bottom: 0.2rem;
+}
+
+.mp-buy-order-total-value {
+	display: flex;
+	align-items: center;
+	font-size: 1.15rem;
+	font-weight: 600;
+}
+
+.mp-buy-order-total-calculation {
+	flex: 0 0 auto;
+	color: #adb5bd;
+	font-size: 0.85rem;
+}
+
+.mp-market-create-buy-order-icon {
+	position: absolute;
+	right: 8px;
+	bottom: 4px;
+	background-color: #30c78d;
+	width: 1.5rem;
+	height: 1.5rem;
+	border-radius: 0.25rem;
+	display: grid;
+	place-items: center;
+}
+
+.mp-market-create-buy-order-plus {
+	position: relative;
+	width: 0.75rem;
+	height: 0.75rem;
+	display: block;
+}
+
+.mp-market-create-buy-order-plus-horizontal,
+.mp-market-create-buy-order-plus-vertical {
+	position: absolute;
+	background: white;
+}
+
+.mp-market-create-buy-order-plus-horizontal {
+	left: 0;
+	top: 50%;
+	width: 100%;
+	height: 2px;
+	transform: translateY(-50%);
+}
+
+.mp-market-create-buy-order-plus-vertical {
+	top: 0;
+	left: 50%;
+	width: 2px;
+	height: 100%;
+	transform: translateX(-50%);
 }
 
 .mp-bank-market-fields {
@@ -1446,7 +1629,7 @@ mp-item-icon.mp-charitree-new-item {
 	color: #f5f5f5!important;
 	display: inline-block;
 	position: relative;
-	padding-right: 45px;
+	width: 50%;
 }
 
 .mp-market-filter-item {
@@ -1480,8 +1663,7 @@ mp-item-icon.mp-charitree-new-item {
 	border-radius: 5px;
 	border-color: orange !important;
 	color: #f5f5f5!important;
-	width: 100%;
-	max-width: 500px;
+	width: 50%;
 	padding: 0.75rem 1rem;
 	box-sizing: border-box;
 }
@@ -1492,14 +1674,13 @@ mp-item-icon.mp-charitree-new-item {
 }
 
 #mp-market-filter-items {
-	display: flex;
-	flex-wrap: wrap;
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
 	gap: 5px;
-	justify-content: center;
 }
 
 #mp-market-filter-items > div {
-	width: 250px;
+	min-width: 0;
 	background-color: var(--mp-element-bg);
 	border-radius: 5px;
 	padding: 10px;
@@ -1509,6 +1690,12 @@ mp-item-icon.mp-charitree-new-item {
 	cursor: pointer;
 }
 
+@media (max-width: 1199.98px) {
+	#mp-market-filter-items {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+}
+
 #mp-market-pagation {
 	display: flex;
 	justify-content: center;
@@ -1516,8 +1703,32 @@ mp-item-icon.mp-charitree-new-item {
 }
 
 @media (max-width: 767.98px) {
+	.mp-buy-order-item-selector {
+		min-height: 64px;
+	}
+
+	.mp-buy-order-item-name {
+		line-height: 1.3;
+	}
+
+	.mp-buy-order-total {
+		align-items: flex-end;
+	}
+
+	.mp-buy-order-total-calculation {
+		text-align: right;
+	}
+
 	.mp-market-tabs {
 		flex-direction: column;
+	}
+
+	#mp-market-filter-items {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.mp-market-search-input {
+		width: 100%;
 	}
 
 	.mp-market-tabs > div {
@@ -1722,6 +1933,21 @@ mp-item-icon.mp-charitree-new-item {
 }
 
 @media (max-width: 767.98px) {
+	.mp-updates-tabs {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 8px;
+		margin-bottom: 1rem;
+	}
+
+	.mp-updates-layout {
+		display: block;
+	}
+
+	.mp-updates-mobile-hidden {
+		display: none !important;
+	}
+
 	.mp-raid-activation {
 		grid-template-columns: 1fr;
 		text-align: center;

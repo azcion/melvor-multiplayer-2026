@@ -24,6 +24,8 @@ export function install_common_actions(runtime) {
 		close_account_dropdown,
 		close_modal_and_wait,
 		getLangString,
+		numberWithCommas,
+		format_status_account_age,
 		get_icon_object_by_id,
 		is_official_game_id,
 		Swal,
@@ -81,6 +83,15 @@ export function install_common_actions(runtime) {
 		get_language_name(language) {
 			const lang_id = this.get_language_lang_id(language);
 			return lang_id === null ? '' : getLangString(lang_id);
+		},
+
+		format_member_account_age(account_age) {
+			return format_status_account_age(account_age);
+		},
+
+		format_member_total_skill_level(total_skill_level) {
+			return Number.isSafeInteger(total_skill_level) && total_skill_level >= 0
+				? numberWithCommas(total_skill_level) : '';
 		},
 
 		get_guild_icon(id) {

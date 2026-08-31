@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.4.6 (Unreleased)
+
+- Fixed rejecting a Gift incorrectly preventing the declining player from leaving their Guild while the returned Gift awaited collection by its original sender.
+
+## 1.4.5
+
+- Moved the Multiplayer sidebar section to immediately after Bank, before Into the Abyss when that section is available.
+- Added private Marketplace activity entries for completed purchases and buy-order fulfillments. Buyers and sellers see personalized item quantities and names, other Guild members cannot see those entries, and private entries are marked with a lock. Activity records also retain item IDs for future icon rendering.
+- Added an Updates page to the Multiplayer sidebar with server-fetched developer notices, current work, and future plans alongside the mod.io changelog. Desktop shows both columns, while mobile switches between Updates and Changelog tabs.
+- Renamed Player Profile controls from Status to Skills to reflect that the profile modal shows only Skills and Equipment.
+- Added Guild member Account Age (minute precision) and Total Skill Level to the member actions modal, collected in the background and localized with Melvor's language formatting.
+- Fixed the Guild Activity mobile **Load more** button appearing outside the scrollable activity list instead of at the end of the loaded entries.
+- Added independently revocable installation credentials while retaining automatic save-based enrollment and compatibility with older servers. Different installations can stay connected simultaneously; reconnecting the same installation replaces only its own older session, with a clear explanation instead of repeatedly failing requests.
+- Added privacy-bounded connection diagnostics and a copyable report under Mod Settings, including recent request outcomes, platform/engine labels, and optional player-reported app distribution, stable/beta channel, version, and build. Reports support manual copying when clipboard access is unavailable and exclude IP addresses, raw user agents, device names, credentials, and request bodies.
+- Relaxed server CORS restrictions to accept browser and native-app origins and runtime-added request headers, while retaining session authentication and Guild permissions.
+
+## 1.4.4
+
+- Fixed the mobile side navigation remaining open when Multiplayer automatically changes pages, without hiding the persistent navigation on desktop.
+- Fixed an invalid Campaign reward leaving Campaign and other multiplayer state stuck after refreshes. Existing affected rewards are repaired and delivered once, new rewards are rounded to whole GP, and malformed receipts can no longer make an active Campaign appear inactive.
+
 ## 1.4.3
 
 - Fixed acknowledged Marketplace and other economy receipts remaining in character storage indefinitely, including cleanup of legacy receipt IDs, while retaining retry safety for interrupted acknowledgements.
@@ -8,7 +29,6 @@
 
 - Added optimized fallback icons for Invention, Profile, Enchanting, Necromancy, Adventuring, Shamanism, and Thuum, and reduced the size of the existing custom skill PNGs for shared Player Status.
 - Added a mobile burger-menu badge that mirrors the shared unread Chat count while the side navigation is collapsed.
-- Fixed the mobile side navigation remaining open when Multiplayer automatically changes pages, including opening private Chat, entering Raid combat, and returning to the Raid page after battle.
 - Added first-message Support Chat choices for new player conversations, pre-filling the existing composer with either a problem or suggestion while preserving any saved draft.
 - Added Recent Marketplace sorting, which shows the newest listings first by publish date, while retaining direction-specific Price sorting.
 - Added blue Max buttons to Marketplace purchase, Marketplace fulfillment, and Campaign contribution modals for quickly selecting the available quantity.

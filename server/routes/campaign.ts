@@ -54,7 +54,7 @@ export function register_campaign_routes(): void {
 			return 400; // Bad Request
 
 		const value = json.value;
-		if (typeof value !== 'number')
+		if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0)
 			return 400; // Bad Request
 
 		const result = run_economy_command(client_id, json.command_id, 'campaign-claim', () => {

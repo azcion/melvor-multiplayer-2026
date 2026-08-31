@@ -96,9 +96,15 @@ let transfer_inventory = null;
 let item_visibility = null;
 let charitree_rules = null;
 let client_runtime = null;
+let connection_diagnostics = null;
+let installation_store = null;
+let transport_diagnostics = null;
+let installation_credentials = null;
+let connected_backend_version = null;
 let game_mode_sharing = null;
 let localization = null;
 let status_activities = null;
+let status_statistics = null;
 let icon_catalog_discovery = null;
 let icon_catalog_collection = null;
 let economy_receipts = null;
@@ -107,6 +113,8 @@ let instance_storage = null;
 let is_reconciling_banishment_returns = false;
 let event_snapshots = null;
 let gift_contents = null;
+let changelog_loader = null;
+let updates_loader = null;
 let transfer_delivery_state = null;
 let economy_receipt_reconciliation = Promise.resolve(true);
 let market_fulfillment_notice_queue = [];
@@ -123,6 +131,7 @@ let status_sync_pending = false;
 let last_synced_status_skills = null;
 let last_synced_status_activity = null;
 let last_synced_status_activities = null;
+let last_synced_status_statistics = null;
 let status_icon_discovery_generation = 0;
 let status_icon_collection_queue = Promise.resolve();
 let last_synced_gp = null;
@@ -130,6 +139,7 @@ let last_status_sync_at = 0;
 let status_observer_timer = null;
 let last_observed_status_activity = null;
 let last_observed_status_activities = null;
+let last_observed_status_statistics = null;
 let last_observed_gp = null;
 let chat_poll_id = 0;
 let chat_poll_failures = 0;
@@ -158,9 +168,21 @@ function capture_active_mod_names() {
 	active_mod_names = client_runtime.normalize_active_mod_names(mod.manager.getLoadedModList());
 }
 
+function get_device_diagnostics() {
+	if (!installation_store) return null;
+	const manager = typeof nativeManager === 'undefined' ? globalThis.nativeManager : nativeManager;
+	return { ...installation_store.read(server_host),
+		...connection_diagnostics.detect_runtime(manager, globalThis.navigator?.userAgent),
+		details_source: 'player_reported' };
+}
+function get_connection_report() {
+	return transport_diagnostics.report({ device: get_device_diagnostics(), mod_version: MOD_VERSION,
+		connected: state.is_connected, backend_version: connected_backend_version });
+}
+
 function get_client_runtime_report() {
 	return client_runtime.make_client_runtime_report(MOD_VERSION, active_mod_names, loaded_game_mode_id,
-		client_runtime.get_language_code(typeof setLang === 'string' ? setLang : null));
+		client_runtime.get_language_code(typeof setLang === 'string' ? setLang : null), get_device_diagnostics());
 }
 
 function get_chat_conversation_key(conversation) {
@@ -215,6 +237,16 @@ const state = ui.createStore({
 	profile_icon: 'melvorD:Plant',
 	current_mod_version: MOD_VERSION,
 	released_mod_version: '',
+	changelog_entries: [],
+	changelog_loading: false,
+	changelog_loaded: false,
+	changelog_error: '',
+	updates_sections: [],
+	updates_loading: false,
+	updates_loaded: false,
+	updates_loaded_host: '',
+	updates_error: '',
+	updates_mobile_tab: 'updates',
 
 	add_gp_value: 0,
 	item_slider_value: 0,
@@ -703,6 +735,14 @@ const state = ui.createStore({
 		return Number.isSafeInteger(total) && total > 0 ? formatNumber(total) + ' GP' : '0 GP';
 	},
 
+	get market_create_calculation_formatted() {
+		const item_qty = Number(this.market_create_qty);
+		const item_price = Number(this.market_create_price);
+		return Number.isSafeInteger(item_qty) && item_qty > 0 && Number.isSafeInteger(item_price) && item_price > 0
+			? `${formatNumber(item_qty)} × ${formatNumber(item_price)} GP`
+			: '0 × 0 GP';
+	},
+
 	get market_listings_filtered() {
 		return this.market_listings.filter(item => item.direction === this.market_listing_direction);
 	},
@@ -757,6 +797,7 @@ function create_action_runtime() {
 		add_gp_to_transfer,
 		capture_equipment_snapshot,
 		capture_status_snapshot,
+		format_status_account_age,
 		invalidate_status_icon_collection,
 		close_account_dropdown,
 		close_modal: (...args) => state.close_modal(...args),
@@ -825,6 +866,8 @@ function create_action_runtime() {
 		set last_charity_check(value) { last_charity_check = value; },
 		get last_observed_gp() { return last_observed_gp; },
 		set last_observed_gp(value) { last_observed_gp = value; },
+		get last_synced_status_statistics() { return last_synced_status_statistics; },
+		set last_synced_status_statistics(value) { last_synced_status_statistics = value; },
 		get last_synced_equipment() { return last_synced_equipment; },
 		set last_synced_equipment(value) { last_synced_equipment = value; },
 		get last_synced_gp() { return last_synced_gp; },
@@ -964,13 +1007,17 @@ function close_account_dropdown() {
 	document.getElementById('page-header-user-dropdown')?.setAttribute('aria-expanded', 'false');
 }
 
-function close_sidebar() {
-	globalThis.One?.layout?.('sidebar_close');
+function close_mobile_sidebar() {
+	const page_container = document.getElementById('page-container');
+	if (!page_container?.classList.contains('sidebar-o-xs'))
+		return;
+
+	document.querySelector('[data-action="sidebar_close"]')?.click();
 }
 
 function navigate_page(page) {
-	close_sidebar();
 	changePage(page);
+	close_mobile_sidebar();
 }
 
 function capture_equipment_snapshot() {
@@ -1042,6 +1089,18 @@ function capture_status_skills() {
 		.sort((a, b) => a.skill_id.localeCompare(b.skill_id));
 }
 
+function capture_status_statistics() {
+	const account_creation_date = typeof GeneralStats === 'undefined' ? null :
+		Number(game.stats?.General?.get?.(GeneralStats.AccountCreationDate));
+	const total_skill_level = Number(game.completion?.skillLevelProgress?.currentCount?.getSum?.());
+	return {
+		account_creation_date: Number.isSafeInteger(account_creation_date) && account_creation_date > 0
+			? account_creation_date : null,
+		total_skill_level: Number.isSafeInteger(total_skill_level) && total_skill_level >= 0
+			? total_skill_level : null
+	};
+}
+
 function capture_status_activities() {
 	return status_activities.capture_status_activities(game);
 }
@@ -1054,6 +1113,7 @@ function capture_status_snapshot() {
 	const activities = capture_status_activities();
 	return {
 		skills: capture_status_skills(),
+		...capture_status_statistics(),
 		activity: capture_status_activity(activities),
 		activities,
 		gp: capture_gp()
@@ -1065,7 +1125,10 @@ function update_local_status_member(snapshot) {
 		return;
 
 	const update = member => member.client_id === state.guild_client_id
-		? { ...member, status_activity: snapshot.activity, status_activities: [...snapshot.activities] }
+		? { ...member, status_activity: snapshot.activity, status_activities: [...snapshot.activities],
+			account_age: snapshot.account_creation_date === null ? null :
+				Math.max(0, Date.now() - snapshot.account_creation_date),
+			total_skill_level: snapshot.total_skill_level }
 		: member;
 	state.guild_members = state.guild_members.map(update);
 	if (state.selected_guild_member?.client_id === state.guild_client_id)
@@ -1138,6 +1201,18 @@ function serialize_status_activities(activities) {
 	return JSON.stringify(activities);
 }
 
+function serialize_status_statistics(snapshot) {
+	return JSON.stringify({
+		account_creation_date: snapshot.account_creation_date,
+		total_skill_level: snapshot.total_skill_level
+	});
+}
+
+function format_status_account_age(account_age) {
+	const language = typeof setLang === 'string' && setLang.length > 0 ? setLang : 'en';
+	return status_statistics?.format_account_age(account_age, language, getLangString) ?? '';
+}
+
 function schedule_status_sync(delay = STATUS_SYNC_DELAY) {
 	if (!state.is_connected || (!state.status_visible && !state.gp_visible) || !polling.is_foreground(document))
 		return;
@@ -1157,18 +1232,24 @@ async function flush_status_sync() {
 
 	const snapshot = capture_status_snapshot();
 	const serialized_skills = state.status_visible ? JSON.stringify(snapshot.skills) : null;
+	const serialized_statistics = state.status_visible ? serialize_status_statistics(snapshot) : null;
 	const serialized_activity = state.status_visible ? serialize_status_activity(snapshot.activity) : null;
 	const serialized_activities = state.status_visible ? serialize_status_activities(snapshot.activities) : null;
 	const payload = {};
 	if (state.status_visible && serialized_skills !== last_synced_status_skills)
 		payload.skills = snapshot.skills;
+	if (state.status_visible && serialized_statistics !== last_synced_status_statistics) {
+		payload.account_creation_date = snapshot.account_creation_date;
+		payload.total_skill_level = snapshot.total_skill_level;
+	}
 	if (state.status_visible && serialized_activity !== last_synced_status_activity)
 		payload.activity = snapshot.activity;
 	if (state.status_visible && serialized_activities !== last_synced_status_activities)
 		payload.activities = snapshot.activities;
 	if (state.gp_visible && snapshot.gp !== null && snapshot.gp !== last_synced_gp)
 		payload.gp = snapshot.gp;
-	if (payload.skills === undefined && payload.activity === undefined && payload.activities === undefined && payload.gp === undefined)
+	if (payload.skills === undefined && payload.account_creation_date === undefined && payload.activity === undefined &&
+		payload.activities === undefined && payload.gp === undefined)
 		return;
 
 	status_sync_in_flight = true;
@@ -1186,6 +1267,8 @@ async function flush_status_sync() {
 			last_synced_status_skills = serialized_skills;
 			queue_status_icon_collection(snapshot.skills);
 		}
+		if (payload.account_creation_date !== undefined || payload.total_skill_level !== undefined)
+			last_synced_status_statistics = serialized_statistics;
 		if (payload.activity !== undefined)
 			last_synced_status_activity = serialized_activity;
 		if (payload.activities !== undefined)
@@ -1209,12 +1292,15 @@ function observe_status_changes() {
 	const snapshot = state.status_visible ? capture_status_snapshot() : null;
 	const serialized = snapshot === null ? null : serialize_status_activity(snapshot.activity);
 	const serialized_activities = snapshot === null ? null : serialize_status_activities(snapshot.activities);
+	const serialized_statistics = snapshot === null ? null : serialize_status_statistics(snapshot);
 	const gp = state.gp_visible ? capture_gp() : null;
-	if (serialized === last_observed_status_activity && serialized_activities === last_observed_status_activities && gp === last_observed_gp)
+	if (serialized === last_observed_status_activity && serialized_activities === last_observed_status_activities &&
+		serialized_statistics === last_observed_status_statistics && gp === last_observed_gp)
 		return;
 
 	last_observed_status_activity = serialized;
 	last_observed_status_activities = serialized_activities;
+	last_observed_status_statistics = serialized_statistics;
 	last_observed_gp = gp;
 	schedule_status_sync();
 }
@@ -1234,6 +1320,7 @@ function stop_status_observer() {
 	status_observer_timer = null;
 	last_observed_status_activity = null;
 	last_observed_status_activities = null;
+	last_observed_status_statistics = null;
 	last_observed_gp = null;
 }
 
@@ -1683,6 +1770,48 @@ function update_raid_nav() {
 	const active = state.raid?.active === true;
 	aside.textContent = getLangString(active ? 'MOD_MP_SIDEBAR_RAID_ACTIVE' : 'MOD_MP_SIDEBAR_RAID_PREVIEW');
 	aside.classList.toggle('mp-raid-active', active);
+}
+
+async function refresh_changelog() {
+	if (changelog_loader === null || state.changelog_loading)
+		return;
+
+	state.changelog_loading = true;
+	state.changelog_error = '';
+	try {
+		state.changelog_entries = await changelog_loader.load_changelog();
+		state.changelog_loaded = true;
+	} catch (e) {
+		state.changelog_error = getLangString('MOD_MP_CHANGELOG_LOAD_FAILED');
+		log('changelog loading failed (%s)', e);
+	} finally {
+		state.changelog_loading = false;
+	}
+}
+
+async function refresh_updates(force = false) {
+	if (updates_loader === null || state.updates_loading ||
+		(!force && state.updates_loaded && state.updates_loaded_host === server_host))
+		return;
+
+	const request_host = server_host;
+	state.updates_loading = true;
+	state.updates_error = '';
+	try {
+		state.updates_sections = await updates_loader.load_updates(fetch, request_host);
+		state.updates_loaded = true;
+		state.updates_loaded_host = request_host;
+	} catch (e) {
+		state.updates_error = getLangString('MOD_MP_UPDATES_LOAD_FAILED');
+		log('updates loading failed (%s)', e);
+	} finally {
+		state.updates_loading = false;
+	}
+}
+
+function set_updates_mobile_tab(tab) {
+	if (tab === 'updates' || tab === 'changelog')
+		state.updates_mobile_tab = tab;
 }
 
 function localize_multiplayer_page_names() {
@@ -2168,12 +2297,26 @@ async function reconcile_banishment_returns() {
 // #endregion
 
 // #region API FUNCTIONS
+function handle_session_response(response, request_generation) {
+	if (request_generation !== session_generation || response.status !== 401 || !state.is_connected)
+		return;
+	state.is_connected = false;
+	client_event_poll_id++;
+	stop_chat_polling();
+	stop_status_observer();
+	clearTimeout(status_sync_timer);
+	status_sync_timer = null;
+	notify_error(response.headers.get('X-Multiplayer-Session-State') === 'replaced'
+		? 'MOD_MP_SESSION_REPLACED' : 'MOD_MP_SESSION_ENDED');
+}
+
 function cache_bust_api_endpoint(endpoint) {
 	const separator = endpoint.includes('?') ? '&' : '?';
 	return `${endpoint}${separator}_mp_cache=${API_GET_CACHE_NONCE}-${++api_get_request_sequence}`;
 }
 
 async function api_get(endpoint) {
+	const request_generation = session_generation;
 	try {
 		return await polling.fetch_with_timeout(fetch, server_host + cache_bust_api_endpoint(endpoint), {
 			method: 'GET',
@@ -2181,45 +2324,46 @@ async function api_get(endpoint) {
 				'X-Session-Token': session_token ?? undefined
 			}
 		}, {
-			consume: async res => res.status === 200 ? await res.json() : null
+			observe: entry => transport_diagnostics?.record(entry),
+			consume: async res => {
+				handle_session_response(res, request_generation);
+				return res.status === 200 ? await res.json() : null;
+			}
 		});
 	} catch (e) {
-		error('GET transport failed for %s (%s)', endpoint, e);
+		error('GET transport failed for %s (%s)', endpoint, e?.name ?? 'Error');
 		return null;
 	}
 }
 
-async function api_post_response(endpoint, payload) {
+async function api_post_response(endpoint, payload, request_session_token = session_token) {
+	const request_generation = session_generation;
 	try {
 		return await polling.fetch_with_timeout(fetch, server_host + endpoint, {
 			method: 'POST',
 			body: JSON.stringify(payload),
 			headers: {
 				'Content-Type': 'application/json',
-				'X-Session-Token': session_token ?? undefined
+				'X-Session-Token': request_session_token ?? undefined
 			}
 		}, {
+			observe: entry => transport_diagnostics?.record(entry),
 			consume: async res => {
+				handle_session_response(res, request_generation);
 				let json = null;
-				if (res.headers.get('Content-Type')?.includes('application/json')) {
-					try {
-						json = await res.json();
-					} catch (e) {
-						if (e?.name === 'AbortError')
-							throw e;
-						error('failed to parse API response for %s (%s)', endpoint, e);
-					}
-				}
+				if (res.headers.get('Content-Type')?.includes('application/json'))
+					json = await res.json();
 				return { response: res, json };
 			}
 		});
 	} catch (e) {
-		error('POST transport failed for %s (%s)', endpoint, e);
+		error('POST transport failed for %s (%s)', endpoint, e?.name ?? 'Error');
 		return { response: null, json: null };
 	}
 }
 
 async function api_post_binary_response(endpoint, bytes, media_type, upload_token) {
+	const request_generation = session_generation;
 	try {
 		return await polling.fetch_with_timeout(fetch, server_host + endpoint, {
 			method: 'POST',
@@ -2230,21 +2374,17 @@ async function api_post_binary_response(endpoint, bytes, media_type, upload_toke
 				'X-Icon-Catalog-Upload-Token': upload_token
 			}
 		}, {
+			observe: entry => transport_diagnostics?.record(entry),
 			consume: async res => {
+				handle_session_response(res, request_generation);
 				let json = null;
-				if (res.headers.get('Content-Type')?.includes('application/json')) {
-					try {
-						json = await res.json();
-					} catch (e) {
-						if (e?.name === 'AbortError')
-							throw e;
-					}
-				}
+				if (res.headers.get('Content-Type')?.includes('application/json'))
+					json = await res.json();
 				return { response: res, json };
 			}
 		});
 	} catch (e) {
-		error('binary POST transport failed for %s (%s)', endpoint, e);
+		error('binary POST transport failed for %s (%s)', endpoint, e?.name ?? 'Error');
 		return { response: null, json: null };
 	}
 }
@@ -2310,9 +2450,11 @@ function set_session_token(token) {
 	last_synced_status_skills = null;
 	last_synced_status_activity = null;
 	last_synced_status_activities = null;
+	last_synced_status_statistics = null;
 	last_synced_gp = null;
 	last_observed_status_activity = null;
 	last_observed_status_activities = null;
+	last_observed_status_statistics = null;
 	last_observed_gp = null;
 	last_status_sync_at = 0;
 	client_event_revision = 0;
@@ -2537,6 +2679,8 @@ async function refresh_guild_state_request() {
 			...member,
 			status_activity: member.status_activity ?? null,
 			status_activities: Array.isArray(member.status_activities) ? member.status_activities : [],
+			account_age: Number.isSafeInteger(member.account_age) && member.account_age >= 0 ? member.account_age : null,
+			total_skill_level: Number.isSafeInteger(member.total_skill_level) && member.total_skill_level >= 0 ? member.total_skill_level : null,
 			gp: Number.isSafeInteger(member.gp) && member.gp >= 0 ? member.gp : null,
 			last_seen_at: Number.isSafeInteger(member.last_seen_at) && member.last_seen_at > 0 ? member.last_seen_at : null,
 			joined_at: Number.isSafeInteger(member.joined_at) && member.joined_at > 0 ? member.joined_at : null
@@ -2586,6 +2730,8 @@ async function refresh_guild_members(page = 0, search = state.guild_member_searc
 				...member,
 				status_activity: member.status_activity ?? null,
 				status_activities: Array.isArray(member.status_activities) ? member.status_activities : [],
+				account_age: Number.isSafeInteger(member.account_age) && member.account_age >= 0 ? member.account_age : null,
+				total_skill_level: Number.isSafeInteger(member.total_skill_level) && member.total_skill_level >= 0 ? member.total_skill_level : null,
 				gp: Number.isSafeInteger(member.gp) && member.gp >= 0 ? member.gp : null,
 				last_seen_at: Number.isSafeInteger(member.last_seen_at) && member.last_seen_at > 0 ? member.last_seen_at : null,
 				joined_at: Number.isSafeInteger(member.joined_at) && member.joined_at > 0 ? member.joined_at : null
@@ -2635,11 +2781,31 @@ function get_guild_activity_lang_id(event) {
 function get_guild_activity_arg_1(event) {
 	if (event.event_type.startsWith('petition_'))
 		return state.get_council_type_lang(event.metadata.petition_type);
+	if (event.event_type === 'market_bought' || event.event_type === 'market_sold')
+		return formatNumber(event.metadata.quantity);
+	if (event.event_type === 'market_bought_by')
+		return event.metadata.buyer_display_name ?? '';
+	if (event.event_type === 'market_sold_to')
+		return event.metadata.seller_display_name ?? '';
 	return event.actor_display_name ?? '';
 }
 
 function get_guild_activity_arg_2(event) {
+	if (event.event_type === 'market_bought' || event.event_type === 'market_sold')
+		return state.get_item_name(event.metadata.item_id);
+	if (event.event_type === 'market_bought_by' || event.event_type === 'market_sold_to')
+		return formatNumber(event.metadata.quantity);
 	return event.event_type === 'raid_boss_defeated' ? event.metadata.tier : '';
+}
+
+function get_guild_activity_arg_3(event) {
+	if (event.event_type === 'market_bought' || event.event_type === 'market_sold')
+		return event.event_type === 'market_bought'
+			? event.metadata.seller_display_name ?? ''
+			: event.metadata.buyer_display_name ?? '';
+	if (event.event_type === 'market_bought_by' || event.event_type === 'market_sold_to')
+		return state.get_item_name(event.metadata.item_id);
+	return '';
 }
 
 function format_guild_activity_time(created_at) {
@@ -2657,6 +2823,8 @@ async function refresh_shadowed_members(page = 0, search = state.shadowed_member
 				...member,
 				status_activity: member.status_activity ?? null,
 				status_activities: Array.isArray(member.status_activities) ? member.status_activities : [],
+				account_age: Number.isSafeInteger(member.account_age) && member.account_age >= 0 ? member.account_age : null,
+				total_skill_level: Number.isSafeInteger(member.total_skill_level) && member.total_skill_level >= 0 ? member.total_skill_level : null,
 				gp: Number.isSafeInteger(member.gp) && member.gp >= 0 ? member.gp : null,
 				last_seen_at: Number.isSafeInteger(member.last_seen_at) && member.last_seen_at > 0 ? member.last_seen_at : null,
 				joined_at: Number.isSafeInteger(member.joined_at) && member.joined_at > 0 ? member.joined_at : null
@@ -2787,12 +2955,38 @@ async function get_client_events(reconcile_gifts = true) {
 	}
 }
 
+function reconcile_campaign_event(campaign) {
+	if (typeof campaign !== 'object' || campaign === null || typeof campaign.active !== 'boolean')
+		return;
+	if (state.campaign_active && !campaign.active) {
+		// campaign no longer active, ditch known data client-side
+		state.campaign_id = '';
+		state.campaign_item_id = '';
+		state.campaign_item_total = 0;
+		state.campaign_contribution = 0;
+		state.campaign_max_contribution = 0;
+	}
+
+	const campaign_state_changed = state.campaign_active !== campaign.active;
+
+	state.campaign_pct = campaign.pct;
+	state.campaign_active = campaign.active;
+
+	if (campaign_state_changed) {
+		state.campaign_has_data = false;
+		update_campaign_info();
+	}
+
+	update_campaign_nav();
+}
+
 async function get_client_events_request(reconcile_gifts = true) {
 	const res = await api_get('/api/events?revision=' + client_event_revision + '&capabilities=' + GUILD_CHAT_CAPABILITY);
 	if (res !== null) {
 		if (res.unchanged === true)
 			return res;
 		client_events_have_pending = polling.has_pending_events(res);
+		reconcile_campaign_event(res.campaign);
 		const pending_economy_receipts = res.economy_receipts;
 		if (!await reconcile_economy_receipts(pending_economy_receipts ?? []))
 			return res;
@@ -2810,27 +3004,6 @@ async function get_client_events_request(reconcile_gifts = true) {
 			await refresh_chat_conversations();
 
 		event_snapshots.reconcile_event_transfers(state, res);
-
-		if (state.campaign_active && !res.campaign.active) {
-			// campaign no longer active, ditch known data client-side
-			state.campaign_id = '';
-			state.campaign_item_id = '';
-			state.campaign_item_total = 0;
-			state.campaign_contribution = 0;
-			state.campaign_max_contribution = 0;
-		}
-
-		const campaign_state_changed = state.campaign_active !== res.campaign.active;
-
-		state.campaign_pct = res.campaign.pct;
-		state.campaign_active = res.campaign.active;
-
-		if (campaign_state_changed) {
-			state.campaign_has_data = false;
-			update_campaign_info();
-		}
-
-		update_campaign_nav();
 
 		if (state.is_transfer_page_visible)
 			setTimeout(() => update_transfer_contents(), 1);
@@ -2860,7 +3033,7 @@ async function poll_client_events(poll_id) {
 		error('Client event polling failed (%s)', e);
 	} finally {
 		client_event_poll_failures = succeeded ? 0 : Math.min(client_event_poll_failures + 1, 5);
-		if (poll_id === client_event_poll_id && polling.is_foreground(document)) {
+		if (state.is_connected && poll_id === client_event_poll_id && polling.is_foreground(document)) {
 			const delay = succeeded
 				? polling.event_poll_delay(client_events_have_pending)
 				: polling.retry_poll_delay(client_event_poll_failures);
@@ -2888,6 +3061,8 @@ function handle_runtime_visibility_change() {
 // #region SETUP FUNCTIONS
 export async function setup(ctx) {
 	const { ModalQueueGuard, ModalComponentRegistry } = await ctx.loadModule('modal-queue.mjs');
+	changelog_loader = await ctx.loadModule('changelog.mjs');
+	updates_loader = await ctx.loadModule('updates.mjs');
 	const raid_module = await ctx.loadModule('raid-combat.mjs');
 	const transfer_page = await ctx.loadModule('transfer-page.mjs');
 	const market_results = await ctx.loadModule('market-results.mjs');
@@ -2904,9 +3079,17 @@ export async function setup(ctx) {
 	item_visibility = await ctx.loadModule('item-visibility.mjs');
 	charitree_rules = await ctx.loadModule('charitree-rules.mjs');
 	client_runtime = await ctx.loadModule('client-runtime.mjs');
+	connection_diagnostics = await ctx.loadModule('connection-diagnostics.mjs');
+	let installation_local_storage;
+	try { installation_local_storage = globalThis.localStorage; } catch { /* Storage restrictions must not block setup. */ }
+	installation_store = connection_diagnostics.create_installation_store(installation_local_storage);
+	transport_diagnostics = connection_diagnostics.create_transport_diagnostics();
+	const credentials_module = await ctx.loadModule('installation-credentials.mjs');
+	installation_credentials = credentials_module.create_installation_credentials(installation_local_storage);
 	game_mode_sharing = await ctx.loadModule('game-mode-sharing.mjs');
 	localization = await ctx.loadModule('localization.mjs');
 	status_activities = await ctx.loadModule('status-activities.mjs');
+	status_statistics = await ctx.loadModule('status-statistics.mjs');
 	icon_catalog_discovery = await ctx.loadModule('icon-catalog-discovery.mjs');
 	icon_catalog_collection = await ctx.loadModule('icon-catalog-collection.mjs');
 	open_transfer_page = transfer_page.open_transfer_page;
@@ -2933,7 +3116,9 @@ export async function setup(ctx) {
 			get_guild_activity_lang_id,
 			get_guild_activity_arg_1,
 			get_guild_activity_arg_2,
-			format_guild_activity_time
+			get_guild_activity_arg_3,
+			format_guild_activity_time,
+			set_updates_mobile_tab
 		},
 		install_common_actions(action_runtime),
 		install_chat_actions(action_runtime),
@@ -2996,6 +3181,12 @@ export async function setup(ctx) {
 
 	await patch_localization(ctx);
 
+	connection_diagnostics.install_diagnostics_settings(ctx, {
+		t: key => getLangString(`MOD_MP_DIAGNOSTICS_${key}`),
+		get_device: get_device_diagnostics,
+		get_report: get_connection_report,
+		save_details: details => installation_store.update(server_host, details)
+	});
 	server_settings_section = ctx.settings.section(getLangString('MOD_MP_SETTINGS_CONNECTION'));
 	ctx.onModsLoaded(capture_active_mod_names);
 	server_settings_section.add({
@@ -3038,7 +3229,7 @@ export async function setup(ctx) {
 	});
 
 	sidebar.category('Multiplayer', {
-		before: 'Combat',
+		before: 'Into the Abyss',
 		toggleable: true,
 		name: createElement('lang-string', {
 			attributes: [['lang-id', 'MOD_MP_MENU_HEADER']]
@@ -3052,8 +3243,10 @@ export async function setup(ctx) {
 		update_chat_nav();
 
 		const $main_container = $('main-container');
-		for (const page of ['guild', 'raid', 'chat', 'transfer', 'charity', 'campaign', 'market'])
+		for (const page of ['guild', 'raid', 'chat', 'transfer', 'charity', 'campaign', 'market', 'updates'])
 			make_scoped_template(page + '-page', $main_container);
+		void refresh_changelog();
+		void refresh_updates();
 
 		patch_bank();
 		patch_bank_market();
@@ -3089,6 +3282,12 @@ export async function setup(ctx) {
 			await refresh_guild_state();
 			await update_market_page(true);
 		}, true);
+		on_page_toggle('mp-updates-page', is_visible => {
+			if (is_visible && !state.changelog_loaded)
+				void refresh_changelog();
+			if (is_visible && state.updates_loaded_host !== server_host)
+				void refresh_updates();
+		}, false);
 	});
 }
 
@@ -3120,6 +3319,7 @@ function setup_account_menu() {
 }
 
 function apply_server_configuration() {
+	const previous_server_host = server_host;
 	try {
 		const config = resolve_server_config(
 			SERVER_HOST,
@@ -3152,6 +3352,8 @@ function apply_server_configuration() {
 		);
 		error('invalid saved custom server setting; using default server (%s)', e);
 	}
+	if (interface_ready && previous_server_host !== server_host)
+		void refresh_updates(true);
 }
 
 function get_icon_objects(collection) {
@@ -3424,7 +3626,10 @@ async function start_multiplayer_session() {
 		log('existing client identity found, authenticating session...');
 		const auth = await api_post_response('/api/authenticate', {
 			client_identifier: credentials.client_identifier,
+			// The save proof preserves compatibility with older servers, which ignore installation fields.
+			// New servers require the supplied installation key and never fall back to this proof on rejection.
 			client_key: credentials.client_key,
+			...installation_credentials.auth(server_host, credentials.client_identifier, get_device_diagnostics().installation_id),
 			client_runtime: get_client_runtime_report(),
 			...account
 		});
@@ -3432,6 +3637,7 @@ async function start_multiplayer_session() {
 			if (account !== null)
 				store_account_identity_binding(account, { ...credentials, friend_code: auth.json.friend_code });
 			activate_multiplayer_identity(auth.json);
+			void enroll_current_installation(auth.json, credentials.client_identifier);
 			if (auth.json.deletion_cancelled)
 				queue_identity_notice('deletion_cancelled', auth.json.deletion_cancelled);
 			if (auth.json.identity_recovered)
@@ -3445,7 +3651,7 @@ async function start_multiplayer_session() {
 			return;
 		}
 
-		notify_error('MOD_MP_MULTIPLAYER_CONNECTION_ERR');
+		notify_error(auth.json?.identity_status === 'installation_revoked' ? 'MOD_MP_INSTALLATION_REVOKED' : 'MOD_MP_MULTIPLAYER_CONNECTION_ERR');
 		error('failed to authenticate client (%s), multiplayer features not available', auth.response?.status ?? 'transport');
 	} catch (e) {
 		notify_error('MOD_MP_MULTIPLAYER_CONNECTION_ERR');
@@ -3494,12 +3700,22 @@ async function register_multiplayer_identity(account, account_changed) {
 		store_account_identity_binding(account, credentials);
 	}
 	activate_multiplayer_identity(registration.json);
+	void enroll_current_installation(registration.json, credentials.client_identifier);
 	if (account_changed)
 		queue_identity_notice('account_changed');
 	return true;
 }
 
+async function enroll_current_installation(response, client_identifier) {
+	if (response.installation_auth_supported !== true) return;
+	try {
+		await installation_credentials.enroll(server_host, client_identifier, get_device_diagnostics().installation_id,
+			payload => api_post_response('/api/installations/enroll', payload, response.session_token));
+	} catch { /* Enrollment failure leaves the already authenticated legacy session usable. */ }
+}
+
 function activate_multiplayer_identity(response) {
+	connected_backend_version = Number.isSafeInteger(response.backend_version) ? response.backend_version : null;
 	set_session_token(response.session_token);
 	guild_state_refresh_id++;
 	state.guild_state = { affiliation: 'none' };

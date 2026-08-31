@@ -63,6 +63,61 @@
 		</div>
 	</div>
 </template>
+<template id="template-mp-updates-page">
+	<div class="content d-none" id="mp-updates-page">
+		<div class="mp-updates-tabs" role="tablist">
+			<button type="button" class="btn" :class="state.updates_mobile_tab === 'updates' ? 'btn-primary' : 'btn-secondary'" role="tab" :aria-selected="state.updates_mobile_tab === 'updates'" @click="state.set_updates_mobile_tab('updates')">
+				<lang-string lang-id="MOD_MP_PAGE_UPDATES"></lang-string>
+			</button>
+			<button type="button" class="btn" :class="state.updates_mobile_tab === 'changelog' ? 'btn-primary' : 'btn-secondary'" role="tab" :aria-selected="state.updates_mobile_tab === 'changelog'" @click="state.set_updates_mobile_tab('changelog')">
+				<lang-string lang-id="MOD_MP_UPDATES_CHANGELOG"></lang-string>
+			</button>
+		</div>
+		<div class="mp-updates-layout">
+			<div class="mp-updates-column mp-updates-notices" :class="{ 'mp-updates-mobile-hidden': state.updates_mobile_tab !== 'updates' }">
+				<div class="block block-rounded" v-if="state.updates_loading">
+					<div class="block-content text-center">
+						<span class="spinner-border spinner-border-sm text-primary mr-2" role="status"></span>
+						<lang-string lang-id="MOD_MP_UPDATES_LOADING"></lang-string>
+					</div>
+				</div>
+				<div class="block block-rounded" v-else-if="state.updates_error">
+					<div class="block-content text-danger">{{ state.updates_error }}</div>
+				</div>
+				<div class="block block-rounded" v-else-if="state.updates_sections.length === 0">
+					<div class="block-content text-muted"><lang-string lang-id="MOD_MP_UPDATES_EMPTY"></lang-string></div>
+				</div>
+				<div class="block block-rounded mp-updates-notice" v-for="section in state.updates_sections" :key="section.id">
+					<div class="block-header block-header-default"><h3 class="block-title">{{ section.title }}</h3></div>
+					<div class="block-content">
+						<p v-for="(paragraph, index) in section.paragraphs" :key="section.id + '-' + index">{{ paragraph }}</p>
+					</div>
+				</div>
+			</div>
+			<div class="mp-updates-column mp-updates-changelog" :class="{ 'mp-updates-mobile-hidden': state.updates_mobile_tab !== 'changelog' }">
+				<div class="block block-rounded">
+					<div class="block-header block-header-default">
+						<h3 class="block-title"><lang-string lang-id="MOD_MP_UPDATES_CHANGELOG"></lang-string></h3>
+					</div>
+					<div class="block-content text-center" v-if="state.changelog_loading">
+						<span class="spinner-border spinner-border-sm text-primary mr-2" role="status"></span>
+						<lang-string lang-id="MOD_MP_CHANGELOG_LOADING"></lang-string>
+					</div>
+					<div class="block-content text-danger" v-else-if="state.changelog_error">{{ state.changelog_error }}</div>
+					<div class="block-content text-muted" v-else-if="state.changelog_entries.length === 0">
+						<lang-string lang-id="MOD_MP_CHANGELOG_EMPTY"></lang-string>
+					</div>
+					<div class="block-content mp-changelog-list" v-else>
+						<article class="mp-changelog-entry" v-for="entry in state.changelog_entries" :key="entry.version">
+							<h4 class="font-w600">{{ entry.version }}</h4>
+							<p v-for="(line, index) in entry.lines" :key="entry.version + '-' + index">{{ line }}</p>
+						</article>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</template>
 <template id="template-mp-raid-cache-modal">
 	<div class="mp-modal-text"><lang-string lang-id="MOD_MP_RAID_CACHE_INFO"></lang-string></div>
 	<button type="button" class="btn btn-primary" @click="state.open_transfer_data_page()"><lang-string lang-id="MOD_MP_RAID_CACHE_OPEN"></lang-string></button>
@@ -167,6 +222,12 @@
 			<div class="font-size-sm text-muted" v-else-if="!state.selected_guild_member.status_available"><lang-string lang-id="MOD_MP_STATUS_NOT_AVAILABLE_HINT"></lang-string></div>
 			<div class="font-size-sm text-muted" v-if="state.get_language_lang_id(state.selected_guild_member.language) !== null">
 				<lang-string lang-id="MOD_MP_LANGUAGE"></lang-string>: {{ state.get_language_name(state.selected_guild_member.language) }}
+			</div>
+			<div class="font-size-sm text-muted" v-if="state.format_member_account_age(state.selected_guild_member.account_age)">
+				<lang-string lang-id="STATISTICS_ACCOUNT_AGE"></lang-string>: {{ state.format_member_account_age(state.selected_guild_member.account_age) }}
+			</div>
+			<div class="font-size-sm text-muted" v-if="state.format_member_total_skill_level(state.selected_guild_member.total_skill_level)">
+				<lang-string lang-id="STATISTICS_TOTAL_SKILL_LEVEL"></lang-string>: {{ state.format_member_total_skill_level(state.selected_guild_member.total_skill_level) }}
 			</div>
 		</template>
 		<div class="text-danger" v-if="state.member_actions_error">{{ state.member_actions_error }}</div>
@@ -569,14 +630,17 @@
 						</div>
 						<div class="block-content p-0 mp-guild-activity-scroll">
 							<div class="mp-guild-activity-event" v-for="event in state.guild_activity" :key="event.id">
-								<mp-lang-string-f :lang-id="state.get_guild_activity_lang_id(event)" :lang-arg-1="state.get_guild_activity_arg_1(event)" :lang-arg-2="state.get_guild_activity_arg_2(event)"></mp-lang-string-f>
-								<span class="font-size-sm text-muted">{{ state.format_guild_activity_time(event.created_at) }}</span>
+								<mp-lang-string-f :lang-id="state.get_guild_activity_lang_id(event)" :lang-arg-1="state.get_guild_activity_arg_1(event)" :lang-arg-2="state.get_guild_activity_arg_2(event)" :lang-arg-3="state.get_guild_activity_arg_3(event)"></mp-lang-string-f>
+								<div class="mp-guild-activity-meta">
+									<span class="font-size-sm text-muted">{{ state.format_guild_activity_time(event.created_at) }}</span>
+									<span class="font-size-sm text-muted mp-guild-activity-private" v-if="event.private"><lang-string lang-id="MOD_MP_GUILD_ACTIVITY_PRIVATE"></lang-string></span>
+								</div>
 							</div>
 							<div class="p-3 text-muted" v-show="!state.guild_activity_loading && !state.guild_activity_error && state.guild_activity.length === 0"><lang-string lang-id="MOD_MP_GUILD_ACTIVITY_EMPTY"></lang-string></div>
 							<div class="p-3 text-danger" v-show="state.guild_activity_error"><lang-string lang-id="MOD_MP_GUILD_ACTIVITY_FAILED"></lang-string></div>
-						</div>
-						<div class="block-content text-center" v-show="state.guild_activity_cursor !== null">
-							<button type="button" class="btn btn-sm btn-secondary" @click="state.load_more_guild_activity()" :disabled="state.guild_activity_loading"><lang-string lang-id="MOD_MP_BUTTON_LOAD_MORE"></lang-string></button>
+							<div class="block-content text-center" v-show="state.guild_activity_cursor !== null">
+								<button type="button" class="btn btn-sm btn-secondary" @click="state.load_more_guild_activity()" :disabled="state.guild_activity_loading"><lang-string lang-id="MOD_MP_BUTTON_LOAD_MORE"></lang-string></button>
+							</div>
 						</div>
 					</div>
 					<div class="block block-rounded">
@@ -1161,8 +1225,14 @@
 			<div>
 				<a class="block block-content block-rounded block-link-pop border-top border-4x pointer-enabled p-2 pr-5" :class="state.market_active_tab == 'create' || state.market_active_tab == 'create-filter' ? 'mp-market-border-tab-active' : 'border-combat'" @click="state.market_active_tab = 'create'">
 					<div class="media d-flex align-items-center push">
-						<div class="mr-2">
+						<div class="mr-2" style="position: relative;">
 							<img class="bank-img p-2" :src="state.get_svg('market_listing')">
+							<span class="mp-market-create-buy-order-icon" aria-hidden="true">
+								<span class="mp-market-create-buy-order-plus">
+									<span class="mp-market-create-buy-order-plus-horizontal"></span>
+									<span class="mp-market-create-buy-order-plus-vertical"></span>
+								</span>
+							</span>
 						</div>
 						<div class="media-body">
 							<div class="font-w600">
@@ -1195,29 +1265,44 @@
 			</div>
 		</div>
 		<div v-if="state.market_active_tab == 'create'" class="mp-market-buy-order-form">
-			<div class="mp-market-filter border-top border-4x pointer-enabled" @click="state.choose_market_create_item()">
-				<lang-string lang-id="MOD_MP_MARKET_CREATE_ITEM" class="mr-1"></lang-string>
-				<template v-if="state.market_create_item">
-					<mp-item-icon :data-item-id="state.market_create_item"><img class="skill-icon-xxs mr-2" :src="state.get_item_icon(state.market_create_item)" draggable="false"></mp-item-icon>
-					<span>{{ state.get_item_name(state.market_create_item) }}</span>
-				</template>
-			</div>
-			<div class="row no-gutters p-3">
-				<div class="col-md-6 p-1">
-					<label><lang-string lang-id="MOD_MP_MARKET_BUY_ORDER_QTY"></lang-string></label>
-					<input type="number" min="1" class="form-control" v-model.number="state.market_create_qty">
+			<div class="p-3">
+				<div class="mp-buy-order-item-group mb-3">
+					<label class="mb-2"><lang-string lang-id="MOD_MP_MARKET_ITEM_TO_REQUEST"></lang-string></label>
+					<div class="mp-buy-order-item-selector pointer-enabled" @click="state.choose_market_create_item()">
+						<div class="mp-buy-order-item">
+							<template v-if="state.market_create_item">
+								<mp-item-icon :data-item-id="state.market_create_item"><img class="skill-icon-xxs" :src="state.get_item_icon(state.market_create_item)" draggable="false"></mp-item-icon>
+								<span class="mp-buy-order-item-name">{{ state.get_item_name(state.market_create_item) }}</span>
+							</template>
+							<span v-else class="mp-buy-order-item-name"><lang-string lang-id="MOD_MP_MARKET_CREATE_ITEM"></lang-string></span>
+						</div>
+						<span class="mp-buy-order-item-chevron" aria-hidden="true">›</span>
+					</div>
 				</div>
-				<div class="col-md-6 p-1">
-					<label><lang-string lang-id="MOD_MP_MARKET_BANK_PPI"></lang-string></label>
-					<input type="number" min="1" class="form-control" v-model.number="state.market_create_price">
+				<div class="row no-gutters">
+					<div class="col-md-6 pr-md-2 mb-3">
+						<label><lang-string lang-id="MOD_MP_MARKET_BUY_ORDER_QTY"></lang-string></label>
+						<input type="number" min="1" class="form-control" v-model.number="state.market_create_qty">
+						<div class="mp-buy-order-field-description mt-1"><lang-string lang-id="MOD_MP_MARKET_BUY_ORDER_QTY_HINT"></lang-string></div>
+					</div>
+					<div class="col-md-6 pl-md-2 mb-3">
+						<label><lang-string lang-id="MOD_MP_MARKET_BANK_PPI"></lang-string></label>
+						<input type="number" min="1" class="form-control" v-model.number="state.market_create_price">
+						<div class="mp-buy-order-field-description mt-1"><lang-string lang-id="MOD_MP_MARKET_BUY_ORDER_PRICE_HINT"></lang-string></div>
+					</div>
 				</div>
-				<div class="col-12 text-center mt-2">
-					<lang-string lang-id="MOD_MP_MARKET_ESCROW_TOTAL"></lang-string>
-					<img class="skill-icon-xxs ml-1 mr-1" src="assets/media/main/coins.svg">
-					<span>{{ state.market_create_total_formatted }}</span>
+				<div class="mp-buy-order-total mb-3">
+					<div>
+						<div class="mp-buy-order-total-label"><lang-string lang-id="MOD_MP_MARKET_ESCROW_TOTAL"></lang-string></div>
+						<div class="mp-buy-order-total-value">
+							<img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg" draggable="false">
+							<span>{{ state.market_create_total_formatted }}</span>
+						</div>
+					</div>
+					<div class="mp-buy-order-total-calculation">{{ state.market_create_calculation_formatted }}</div>
 				</div>
-				<div class="col-12 text-center mt-3">
-					<button type="button" class="btn btn-success" @click="state.create_market_buy_order($event)">
+				<div class="text-center">
+					<button type="button" class="btn btn-success mp-market-create-buy-order-button" @click="state.create_market_buy_order($event)">
 						<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 						<lang-string lang-id="MOD_MP_BUTTON_MARKET_CREATE_BUY_ORDER"></lang-string>
 					</button>
@@ -1225,7 +1310,7 @@
 			</div>
 		</div>
 		<div v-if="state.market_active_tab == 'search'">
-			<div class="btn-group m-2" role="group">
+			<div class="mp-market-listing-tabs" role="group">
 				<button type="button" class="btn" :class="state.market_direction == 'sell' ? 'btn-success' : 'btn-secondary'" @click="state.switch_market_direction('sell')">
 					<lang-string lang-id="MOD_MP_MARKET_BUY_ITEMS"></lang-string>
 				</button>

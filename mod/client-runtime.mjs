@@ -57,7 +57,7 @@ export function get_language_lang_id(language) {
 		: null;
 }
 
-export function make_client_runtime_report(mod_version, active_mods, game_mode_id, language = null) {
+export function make_client_runtime_report(mod_version, active_mods, game_mode_id, language = null, device = null) {
 	const report = {
 		mod_version,
 		active_mods: [...active_mods]
@@ -66,6 +66,8 @@ export function make_client_runtime_report(mod_version, active_mods, game_mode_i
 		report.game_mode_id = game_mode_id;
 	if (language !== null && language !== undefined)
 		report.language = language;
+	if (device !== null)
+		report.device = device;
 	return report;
 }
 

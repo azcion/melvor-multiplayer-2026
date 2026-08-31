@@ -40,14 +40,24 @@ test('renders localized paginated Guild Activity responsively and refreshes it o
 
 	assert.equal(english.MOD_MP_GUILD_ACTIVITY, 'Activity');
 	assert.equal(typeof chinese.MOD_MP_GUILD_ACTIVITY, 'string');
+	assert.equal(english.MOD_MP_GUILD_ACTIVITY_MARKET_BOUGHT, 'You bought %s %s from %s.');
+	assert.equal(english.MOD_MP_GUILD_ACTIVITY_MARKET_BOUGHT_BY, '%s bought %s %s from you.');
+	assert.equal(english.MOD_MP_GUILD_ACTIVITY_MARKET_SOLD, 'You sold %s %s to %s.');
+	assert.equal(english.MOD_MP_GUILD_ACTIVITY_MARKET_SOLD_TO, '%s sold you %s %s.');
+	assert.equal(english.MOD_MP_GUILD_ACTIVITY_PRIVATE, '🔒 only you');
 	assert.match(templates, /mp-guild-activity-scroll/);
 	assert.match(templates, /state\.get_guild_activity_lang_id\(event\)/);
+	assert.match(templates, /state\.get_guild_activity_arg_3\(event\)/);
+	assert.match(templates, /event\.private/);
 	assert.match(templates, /state\.load_more_guild_activity\(\)/);
+	assert.match(templates, /<div class="block-content p-0 mp-guild-activity-scroll">[\s\S]*\n\t\t\t\t\t\t\t<div class="block-content text-center" v-show="state\.guild_activity_cursor !== null">[\s\S]*state\.load_more_guild_activity\(\)/);
 	assert.match(templates, /block-content mp-member-search-wrapper/);
 	assert.match(templates, /block-content p-0 mp-guild-members-scroll/);
 	assert.match(style, /#mp-guild-page\s*\{[\s\S]*padding-bottom: 3rem !important/);
 	assert.match(style, /\.mp-guild-members-scroll,[\s\S]*\.mp-guild-activity-scroll\s*\{[\s\S]*max-height: 50rem;[\s\S]*overflow-y: auto/);
 	assert.match(style, /\.mp-guild-activity-event\s*\{[\s\S]*padding: 4px 16px/);
+	assert.match(style, /\.mp-guild-activity-meta\s*\{[\s\S]*justify-content: space-between[\s\S]*gap: 1rem/);
+	assert.match(style, /\.mp-guild-activity-private\s*\{[\s\S]*margin-left: auto[\s\S]*white-space: nowrap/);
 	assert.match(style, /\.mp-guild-activity-event \.font-size-sm\.text-muted\s*\{[\s\S]*opacity: 0\.75/);
 	assert.match(style, /\.mp-member-search-wrapper\s*\{[\s\S]*padding: 0 1\.25rem 1px/);
 	assert.match(style, /@media \(max-width: 767\.98px\)[\s\S]*\.mp-guild-activity[\s\S]*order: -1/);
@@ -55,7 +65,9 @@ test('renders localized paginated Guild Activity responsively and refreshes it o
 	assert.match(main, /api_get\(endpoint\)/);
 	assert.match(main, /refresh_shadowed_members\(\), refresh_guild_activity\(\)/);
 	const activity_state_actions = main.slice(main.indexOf('Object.assign('), main.indexOf('modal_queue_guard =', main.indexOf('Object.assign(')));
-	assert.match(activity_state_actions, /load_more_guild_activity,\s*get_guild_activity_lang_id,\s*get_guild_activity_arg_1,\s*get_guild_activity_arg_2,\s*format_guild_activity_time/);
+	assert.match(activity_state_actions, /load_more_guild_activity,\s*get_guild_activity_lang_id,\s*get_guild_activity_arg_1,\s*get_guild_activity_arg_2,\s*get_guild_activity_arg_3,\s*format_guild_activity_time/);
+	assert.match(main, /event\.event_type === 'market_bought'[\s\S]*formatNumber\(event\.metadata\.quantity\)/);
+	assert.match(main, /state\.get_item_name\(event\.metadata\.item_id\)/);
 });
 
 test('wires Free Fellowship direct joining and its no-Council presentation', async () => {
@@ -155,7 +167,7 @@ test('cache-busts authenticated GETs without using the Android-sensitive Fetch c
 		'/api/events?after=42&_mp_cache=runtime-nonce-2'
 	);
 	assert.match(api_get, /polling\.fetch_with_timeout\(fetch, server_host \+ cache_bust_api_endpoint\(endpoint\)/);
-	assert.match(api_get, /consume: async res => res\.status === 200 \? await res\.json\(\) : null/);
+	assert.match(api_get, /return res\.status === 200 \? await res\.json\(\) : null/);
 	assert.doesNotMatch(api_get, /cache\s*:/);
 	assert.equal(lang.MOD_MP_GUILD_LOADING, 'Loading Guild...');
 	assert.equal(typeof lang.MOD_MP_GUILD_LOAD_FAILED, 'string');

@@ -169,12 +169,27 @@ describe('campaign API', () => {
 			campaign_id: 'not-a-number',
 			value: 1
 		}, client.session_token);
+		const fractional = await post('/api/campaign/claim', {
+			campaign_id: -1,
+			value: 1.5
+		}, client.session_token);
+		const non_positive = await post('/api/campaign/claim', {
+			campaign_id: -1,
+			value: 0
+		}, client.session_token);
+		const unsafe = await post('/api/campaign/claim', {
+			campaign_id: -1,
+			value: Number.MAX_SAFE_INTEGER + 1
+		}, client.session_token);
 		const unavailable = await post('/api/campaign/claim', {
 			campaign_id: -1,
 			value: 1
 		}, client.session_token);
 
 		expect(malformed.status).toBe(400);
+		expect(fractional.status).toBe(400);
+		expect(non_positive.status).toBe(400);
+		expect(unsafe.status).toBe(400);
 		expect(unavailable.status).toBe(400);
 	});
 

@@ -135,6 +135,7 @@ export function execute_client_deletion(
 
 	hide_client_chat(database, request.target_client_id);
 	database.query('DELETE FROM `client_sessions` WHERE `client_id` = ?').run(request.target_client_id);
+	database.query('DELETE FROM `client_installations` WHERE `client_id` = ?').run(request.target_client_id);
 	database.query('UPDATE `clients` SET `deleted_at` = ? WHERE `id` = ?').run(now, request.target_client_id);
 	database.query('UPDATE `client_deletion_requests` SET `executed_at` = ? WHERE `id` = ?').run(now, request.id);
 	return {

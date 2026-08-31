@@ -8,7 +8,10 @@ const source_files = [
 	'mod/client-actions-trading.mjs',
 	'mod/client-actions-transfer.mjs',
 	'mod/client-actions-social.mjs',
-	'mod/client-components.mjs'
+	'mod/client-components.mjs',
+	'mod/status-statistics.mjs',
+	'mod/changelog.mjs',
+	'mod/updates.mjs'
 ];
 
 export async function read_client_source(root = new URL('../../', import.meta.url)) {

@@ -133,5 +133,71 @@ export const migrations_041_050: Migration[] = [
 			CREATE INDEX idx_market_items_guild_direction_published
 				ON market_items (guild_id, direction, published_at DESC, id DESC);
 		`
+	}, {
+		version: 48,
+		sql: `
+			UPDATE clients SET event_revision = event_revision + 1
+			WHERE id IN (
+				SELECT client_id FROM economy_receipts
+				WHERE kind = 'campaign-claim' AND acknowledged_at IS NULL
+					AND json_valid(response_json)
+					AND json_extract(response_json, '$.receipt.kind') = 'campaign-claim'
+					AND json_array_length(json_extract(response_json, '$.receipt.effects')) = 1
+					AND json_extract(response_json, '$.receipt.effects[0].storage') = 'gp'
+					AND typeof(json_extract(response_json, '$.receipt.effects[0].qty')) = 'real'
+					AND json_extract(response_json, '$.receipt.effects[0].qty') > 0
+					AND json_extract(response_json, '$.receipt.effects[0].qty') <= 9007199254740991
+			);
+
+			UPDATE economy_receipts
+			SET response_json = json_set(
+				response_json,
+				'$.receipt.effects[0].qty',
+				CAST(ROUND(json_extract(response_json, '$.receipt.effects[0].qty')) AS INTEGER)
+			)
+			WHERE kind = 'campaign-claim'
+				AND json_valid(response_json)
+				AND json_extract(response_json, '$.receipt.kind') = 'campaign-claim'
+				AND json_array_length(json_extract(response_json, '$.receipt.effects')) = 1
+				AND json_extract(response_json, '$.receipt.effects[0].storage') = 'gp'
+				AND typeof(json_extract(response_json, '$.receipt.effects[0].qty')) = 'real'
+				AND json_extract(response_json, '$.receipt.effects[0].qty') > 0
+				AND json_extract(response_json, '$.receipt.effects[0].qty') <= 9007199254740991;
+
+			UPDATE campaign_completions SET taken = CAST(ROUND(taken) AS INTEGER)
+			WHERE typeof(taken) = 'real' AND taken > 0 AND taken <= 9007199254740991;
+			UPDATE campaign_contributions SET taken = CAST(ROUND(taken) AS INTEGER)
+			WHERE typeof(taken) = 'real' AND taken > 0 AND taken <= 9007199254740991;
+		`
+	}, {
+		version: 49,
+		sql: `
+			ALTER TABLE client_sessions ADD COLUMN device_diagnostics TEXT;
+			CREATE TABLE client_installations (
+				client_id INTEGER NOT NULL REFERENCES clients(id),
+				installation_id TEXT NOT NULL,
+				device_diagnostics TEXT NOT NULL,
+				mod_version TEXT,
+				first_seen_at INTEGER NOT NULL,
+				last_seen_at INTEGER NOT NULL,
+				PRIMARY KEY (client_id, installation_id)
+			);
+		`
+
+	}, {
+		version: 50,
+		sql: `
+			CREATE TABLE installation_credentials (
+				client_id INTEGER NOT NULL REFERENCES clients(id),
+				installation_id TEXT NOT NULL,
+				credential_hash TEXT NOT NULL,
+				revoked_at INTEGER,
+				PRIMARY KEY (client_id, installation_id)
+			);
+			ALTER TABLE client_sessions ADD COLUMN installation_id TEXT;
+			CREATE UNIQUE INDEX idx_client_sessions_installation ON client_sessions(client_id, installation_id)
+				WHERE installation_id IS NOT NULL;
+		`
+
 	}
 ];

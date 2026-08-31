@@ -180,6 +180,8 @@ export function install_transfer_actions(runtime) {
 				equipment_available: false,
 				status_visible: this.status_visible,
 				status_available: false,
+				account_age: null,
+				total_skill_level: null,
 				gp_visible: this.gp_visible,
 				gp: null,
 				game_mode_visible: this.game_mode_visible,
@@ -270,6 +272,9 @@ export function install_transfer_actions(runtime) {
 				status_available: this.status_visible,
 				status_activity: status?.activity ?? null,
 				status_activities: status?.activities ?? [],
+				account_age: status?.account_creation_date === null || status?.account_creation_date === undefined ? null :
+					Math.max(0, Date.now() - status.account_creation_date),
+				total_skill_level: status?.total_skill_level ?? null,
 				game_mode_visible: this.game_mode_visible,
 				game_mode_id: runtime.loaded_game_mode_id,
 				active_mods_visible: this.active_mods_visible,
@@ -341,10 +346,14 @@ export function install_transfer_actions(runtime) {
 				if (!res.visible)
 					invalidate_status_icon_collection();
 				if (this.selected_guild_member?.client_id === this.guild_client_id)
-					this.selected_guild_member.status_visible = res.visible;
+					Object.assign(this.selected_guild_member, {
+						status_visible: res.visible,
+						...(res.visible ? {} : { status_available: false, status_activity: null, status_activities: [], account_age: null, total_skill_level: null })
+					});
 				runtime.last_synced_status_skills = null;
 				runtime.last_synced_status_activity = null;
 				runtime.last_synced_status_activities = null;
+				runtime.last_synced_status_statistics = null;
 				if (res.visible) {
 					start_status_observer();
 					schedule_status_sync(0);

@@ -11,7 +11,6 @@ serial_streaming_test_path="./tests/api/icon-catalog-streaming.test.ts"
 serial_test_ignore_pattern="tests/api/icon-catalog*.test.ts"
 
 export MELVOR_SERVER_PORT="$server_port"
-export MELVOR_CORS_ALLOWED_ORIGINS="https://melvoridle.com,https://play.melvoridle.com,https://ios.melvoridle.com,https://android.melvoridle.com"
 export MELVOR_REQUEST_SOURCE_PER_MINUTE=10000
 export MELVOR_REQUEST_SOURCE_BURST=10000
 export MELVOR_REQUEST_IDENTITY_PER_MINUTE=10000

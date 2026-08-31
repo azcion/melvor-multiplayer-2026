@@ -9,16 +9,21 @@ type StatusActivity =
 	| { type: 'skill'; skill_id: string; action_id: string }
 	| { type: 'combat'; area_id: string | null };
 type StatusActiveActivity = Exclude<StatusActivity, { type: 'idle' }>;
+type StatusStatistics = {
+	account_creation_date: number | null;
+	total_skill_level: number | null;
+};
 
 async function sync_status(
 	session_token: string,
 	skills: StatusSkill[],
 	activity: StatusActivity,
-	activities?: StatusActiveActivity[]
+	activities?: StatusActiveActivity[],
+	statistics?: StatusStatistics
 ) {
 	return post_json<{ success?: boolean; error_lang?: string }>(
 		'/api/client/status/sync',
-		{ skills, activity, ...(activities === undefined ? {} : { activities }) },
+		{ skills, activity, ...(activities === undefined ? {} : { activities }), ...(statistics ?? {}) },
 		session_token
 	);
 }
@@ -110,6 +115,90 @@ describe('player status API', () => {
 		expect(after_skills.json.activity).toEqual({ type: 'combat', area_id: 'melvorD:Volcanic_Cave' });
 		expect(after_skills.json.activities).toEqual(activities);
 		expect(empty.status).toBe(400);
+	});
+
+	test('shares Account Age and Total Skill Level through Guild roster read models', async () => {
+		const pair = await make_guildmates('Statistics Owner', 'Statistics Viewer');
+		const account_creation_date = Date.now() - (2 * 365 * 24 * 60 * 60 * 1000 + 33 * 24 * 60 * 60 * 1000 + 18 * 60 * 60 * 1000 + 8 * 60 * 1000);
+		const statistics = { account_creation_date, total_skill_level: 1_234 };
+		const before_sync = Date.now();
+		await sync_status(pair.first.session_token, [], { type: 'idle' }, undefined, statistics);
+		const after_sync = Date.now();
+		const state = await get_json_with_session<{
+			members: Array<{
+				client_id: number;
+				account_age: number | null;
+				total_skill_level: number | null;
+			}>;
+		}>('/api/guilds/state', pair.second.session_token);
+		const directory = await get_json_with_session<{
+			members: Array<{
+				client_id: number;
+				account_age: number | null;
+				total_skill_level: number | null;
+			}>;
+		}>('/api/guilds/members?page=0&search=', pair.second.session_token);
+		const owner = state.json.members.find(member => member.client_id === pair.first_id);
+		const directory_owner = directory.json.members.find(member => member.client_id === pair.first_id);
+		const minimum_age = before_sync - account_creation_date;
+		const maximum_age = Math.max(after_sync, Date.now()) - account_creation_date;
+
+		expect(owner).toMatchObject({ total_skill_level: 1_234 });
+		expect(owner?.account_age).toBeGreaterThanOrEqual(minimum_age);
+		expect(owner?.account_age).toBeLessThanOrEqual(maximum_age);
+		expect(directory_owner).toMatchObject({ total_skill_level: 1_234 });
+		expect(directory_owner?.account_age).toBeGreaterThanOrEqual(minimum_age);
+		expect(directory_owner?.account_age).toBeLessThanOrEqual(maximum_age);
+
+		const activity_only = await post_json<{ success: boolean }>('/api/client/status/sync', {
+			activity: { type: 'combat', area_id: 'melvorD:Volcanic_Cave' }
+		}, pair.first.session_token);
+		const after_partial = await get_json_with_session<{
+			members: Array<{ client_id: number; account_age: number | null; total_skill_level: number | null }>;
+		}>('/api/guilds/state', pair.second.session_token);
+		const partial_owner = after_partial.json.members.find(member => member.client_id === pair.first_id);
+
+		expect(activity_only.json.success).toBe(true);
+		expect(partial_owner).toMatchObject({ total_skill_level: 1_234 });
+		expect(partial_owner?.account_age).not.toBeNull();
+		const stored = await db_all<StatusStatistics & { client_id: number }>(
+			'SELECT `client_id`, `account_creation_date`, `total_skill_level` FROM `status_snapshots` WHERE `client_id` = ?',
+			[pair.first_id]
+		);
+		expect(stored).toEqual([{ client_id: pair.first_id, ...statistics }]);
+	});
+
+	test('rejects malformed shared statistics and hides them after status opt-out', async () => {
+		const pair = await make_guildmates('Invalid Statistics Owner', 'Invalid Statistics Viewer');
+		for (const body of [
+			{ account_creation_date: 0 },
+			{ account_creation_date: -1 },
+			{ account_creation_date: 'yesterday' },
+			{ total_skill_level: -1 },
+			{ total_skill_level: Number.MAX_SAFE_INTEGER + 1 },
+			{ total_skill_level: '1234' }
+		]) {
+			const rejected = await post('/api/client/status/sync', body, pair.first.session_token);
+			expect(rejected.status).toBe(400);
+		}
+
+		await sync_status(pair.first.session_token, [], { type: 'idle' }, undefined, {
+			account_creation_date: null,
+			total_skill_level: 2_000
+		});
+		const disabled = await post_json<{ success: boolean; visible: boolean }>(
+			'/api/client/status/visibility', { visible: false }, pair.first.session_token
+		);
+		const hidden_state = await get_json_with_session<{
+			members: Array<{ client_id: number; account_age: number | null; total_skill_level: number | null }>;
+		}>('/api/guilds/state', pair.second.session_token);
+		const hidden = hidden_state.json.members.find(member => member.client_id === pair.first_id);
+
+		expect(disabled.json).toEqual({ success: true, visible: false });
+		expect(hidden).toMatchObject({ account_age: null, total_skill_level: null });
+		expect(await db_all<{ client_id: number }>(
+			'SELECT `client_id` FROM `status_snapshots` WHERE `client_id` = ?', [pair.first_id]
+		)).toEqual([]);
 	});
 
 	test('shares raw GP and authenticated last-seen activity with current Guild members', async () => {

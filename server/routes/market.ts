@@ -156,6 +156,9 @@ export function register_market_routes(): void {
 			const new_item_qty = Math.max(lot.available - final_qty, 0);
 			if (new_item_qty === 0)
 				market_completed_cached.get(lot.client_id)?.push(lot.id);
+			record_guild_activity({ guild_id, event_type: 'market_purchased', actor_client_id: client_id,
+				buyer_client_id: client_id, seller_client_id: lot.client_id, item_id: lot.item_id,
+				quantity: final_qty, source_key: `market-purchase:${json.command_id ?? crypto.randomUUID()}` });
 			return { success: true, item_id: lot.item_id, item_qty: final_qty, gp_loss: final_cost,
 				new_item_qty, effects: [
 					{ storage: 'bank' as const, item_id: lot.item_id, qty: final_qty },
@@ -200,6 +203,9 @@ export function register_market_routes(): void {
 				return { error_lang: 'MOD_MP_MARKET_FULFILL_ERROR_INVALID' };
 
 			create_market_buyer_receipt(lot.client_id, lot.item_id, final_qty);
+			record_guild_activity({ guild_id, event_type: 'market_fulfilled', actor_client_id: client_id,
+				buyer_client_id: lot.client_id, seller_client_id: client_id, item_id: lot.item_id,
+				quantity: final_qty, source_key: `market-fulfillment:${json.command_id}` });
 			return { success: true, item_id: lot.item_id, item_qty: final_qty, gp_gain: final_cost,
 				new_item_qty, effects: [
 					{ storage: 'bank' as const, item_id: lot.item_id, qty: -final_qty },

@@ -5,20 +5,48 @@ import { read_client_source } from './source.mjs';
 
 const root = new URL('../../', import.meta.url);
 
-test('closes the native sidebar before programmatic page navigation', async () => {
+test('closes only an open mobile sidebar after programmatic page navigation', async () => {
 	const main = await read_client_source(root);
-	const navigation_start = main.indexOf('function close_sidebar');
+	const navigation_start = main.indexOf('function close_mobile_sidebar');
 	const navigation_source = main.slice(navigation_start, main.indexOf('\nfunction capture_equipment_snapshot', navigation_start));
-	const calls = [];
-	const navigate_page = new Function('globalThis', 'changePage', `
+	const load_navigation = (classes, change_page_layout = () => {}) => {
+		const calls = [];
+		const active_classes = new Set(classes);
+		const close_control = { click: () => {
+			calls.push('sidebar_close');
+			active_classes.delete('sidebar-o-xs');
+		} };
+		const document = {
+			getElementById: id => id === 'page-container' ? {
+				classList: { contains: class_name => active_classes.has(class_name) }
+			} : null,
+			querySelector: selector => selector === '[data-action="sidebar_close"]' ? close_control : null
+		};
+		const navigate_page = new Function('document', 'changePage', `
 		${navigation_source}
 		return navigate_page;
-	`)({ One: { layout: action => calls.push(action) } }, page => calls.push(page));
+	`)(document, page => {
+		calls.push(page);
+		change_page_layout(active_classes);
+	});
+		return { active_classes, calls, navigate_page };
+	};
 	const page = { id: 'multiplayer:Chat' };
 
-	navigate_page(page);
+	const closed_mobile = load_navigation(['sidebar-o'], classes => classes.add('sidebar-o-xs'));
+	closed_mobile.navigate_page(page);
+	assert.deepEqual(closed_mobile.calls, [page, 'sidebar_close']);
+	assert.equal(closed_mobile.active_classes.has('sidebar-o-xs'), false);
 
-	assert.deepEqual(calls, ['sidebar_close', page]);
+	const open_mobile = load_navigation(['sidebar-o', 'sidebar-o-xs'], classes => classes.delete('sidebar-o-xs'));
+	open_mobile.navigate_page(page);
+	assert.deepEqual(open_mobile.calls, [page]);
+	assert.equal(open_mobile.active_classes.has('sidebar-o-xs'), false);
+
+	const desktop = load_navigation(['sidebar-o']);
+	desktop.navigate_page(page);
+	assert.deepEqual(desktop.calls, [page]);
+
 	assert.match(main, /changePage: navigate_page/);
 	assert.match(main, /install_raid_combat_hooks\([\s\S]*game,\s*navigate_page/);
 });

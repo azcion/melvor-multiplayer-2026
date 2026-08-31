@@ -46,9 +46,23 @@ export async function fetch_with_timeout(fetch_impl, url, options = {}, request 
 	const consume = request.consume ?? (response => response);
 	const controller = new AbortController();
 	const timeout_id = setTimeout(() => controller.abort(), timeout);
+	const started_at = Date.now();
+	let response_status = null;
+	let session_state = null;
+	const observe = outcome => {
+		try { request.observe?.({ route: url, method: options.method, status: response_status,
+			duration_ms: Date.now() - started_at, outcome, session_state }); } catch { /* Diagnostics cannot break requests. */ }
+	};
 	try {
 		const response = await fetch_impl(url, { ...options, signal: controller.signal });
-		return await consume(response);
+		response_status = response.status;
+		session_state = response.headers?.get?.('X-Multiplayer-Session-State') === 'replaced' ? 'replaced' : null;
+		const result = await consume(response);
+		observe(response.status >= 400 ? 'http_error' : 'ok');
+		return result;
+	} catch (error) {
+		observe(controller.signal.aborted ? 'timeout' : response_status === null ? 'network_error' : 'response_error');
+		throw error;
 	} finally {
 		clearTimeout(timeout_id);
 	}

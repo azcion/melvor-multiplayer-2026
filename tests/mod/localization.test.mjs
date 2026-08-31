@@ -50,7 +50,7 @@ test('routes Multiplayer sidebar page names and text badges through localization
 	]);
 	const pages = data.data.pages.filter(page => page.sidebarItem?.categoryID === 'Multiplayer');
 
-	assert.equal(pages.length, 7);
+	assert.equal(pages.length, 8);
 	for (const page of pages) {
 		assert.match(page.customName, /^MOD_MP_PAGE_/);
 		assert.equal(typeof language[page.customName], 'string');

@@ -73,11 +73,15 @@ test('creates representative state before a server restart', async () => {
 		status_activity,
 		{ type: 'combat' as const, area_id: 'melvorD:Volcanic_Cave' }
 	];
+	const status_account_creation_date = Date.now() - 3 * 365 * 24 * 60 * 60 * 1000;
+	const status_total_skill_level = 1_234;
 	const gp_amount = 142_609;
 	await post_json('/api/client/status/sync', {
 		skills: status_skills,
 		activity: status_activity,
 		activities: status_activities,
+		account_creation_date: status_account_creation_date,
+		total_skill_level: status_total_skill_level,
 		gp: gp_amount
 	}, pair.first.session_token);
 	const chat = await post_json<{
@@ -179,7 +183,17 @@ test('creates representative state before a server restart', async () => {
 		choice: 'aye'
 	}, banished.session_token);
 
+	const installation_id = crypto.randomUUID();
+	const installation_key = crypto.randomUUID();
+	const installed = await post_json<{ client_identifier: string; session_token: string }>('/api/register', {
+		client_key: crypto.randomUUID(), display_name: 'Restart Install',
+		client_runtime: { mod_version: '1.4.5', active_mods: [], device: { installation_id, platform: 'android', app_channel: 'beta' } }
+	});
+	const enrolled = await post_json<{ success: boolean }>('/api/installations/enroll', { installation_id, installation_key }, installed.json.session_token);
+	expect(enrolled.json.success).toBe(true);
+
 	const state: RestartState = {
+		installation: { ...installed.json, installation_id, installation_key },
 		...pair,
 		gift_id,
 		trade_id: offered.json.trade_id,
@@ -194,6 +208,8 @@ test('creates representative state before a server restart', async () => {
 		status_skills,
 		status_activity,
 		status_activities,
+		status_account_creation_date,
+		status_total_skill_level,
 		gp_amount,
 		chat_conversation_id: chat_message.json.message.conversation_id,
 		chat_message_id: chat_message.json.message.message_id,

@@ -5,7 +5,6 @@ services:
     environment:
       SERVER_PORT: "3000"
       DB_PATH: /app/data/melvor-multiplayer.sqlite
-      CORS_ALLOWED_ORIGINS: ${MELVOR_CORS_ALLOWED_ORIGINS:-https://melvoridle.com,https://play.melvoridle.com,https://ios.melvoridle.com,https://android.melvoridle.com}
       TRUST_PROXY: ${MELVOR_TRUST_PROXY:-0}
       MAX_JSON_BODY_BYTES: ${MELVOR_MAX_JSON_BODY_BYTES:-32768}
       REQUEST_SOURCE_PER_MINUTE: ${MELVOR_REQUEST_SOURCE_PER_MINUTE:-120}

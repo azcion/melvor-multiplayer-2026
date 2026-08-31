@@ -10,6 +10,7 @@ type ActivityEvent = {
 	actor_display_name: string | null;
 	metadata: Record<string, string | number>;
 	created_at: number;
+	private: boolean;
 };
 
 async function activity(session_token: string, cursor?: string) {
@@ -17,6 +18,14 @@ async function activity(session_token: string, cursor?: string) {
 		`/api/guilds/activity${cursor === undefined ? '' : `?cursor=${encodeURIComponent(cursor)}`}`,
 		session_token
 	);
+}
+
+async function market_listings(session_token: string) {
+	return get_json_with_session<{ items: Array<{
+		id: number;
+		direction: 'sell' | 'buy';
+		item_id: string;
+	}> }>('/api/market/listings', session_token);
 }
 
 describe('Guild Activity', () => {
@@ -75,5 +84,63 @@ describe('Guild Activity', () => {
 			"SELECT COUNT(*) AS `count` FROM `guild_activity_events` WHERE `guild_id` = ? AND `event_type` = 'charitree_donated'",
 			[client.guild_id]
 		)).toBe(1);
+	});
+
+	test('records Marketplace purchases and fulfillments privately for both participants', async () => {
+		const pair = await make_guildmates('Market Seller', 'Market Buyer', 'Activity Market');
+		const outsider = await register_guild_client('Market Outsider', 'Other Market Guild');
+		const watermelon = 'melvorD:Activity_Watermelon';
+		const apple = 'melvorD:Activity_Apple';
+
+		await post_json('/api/market/sell', {
+			item_id: watermelon, item_qty: 10, item_sell_price: 3, command_id: crypto.randomUUID()
+		}, pair.first.session_token);
+		const sell_listing = (await market_listings(pair.first.session_token)).json.items.find(item => item.item_id === watermelon);
+		expect(sell_listing).toBeDefined();
+		const purchase_command_id = crypto.randomUUID();
+		const purchase = await post_json('/api/market/buy', {
+			id: sell_listing?.id, qty: 5, command_id: purchase_command_id
+		}, pair.second.session_token);
+		const purchase_replay = await post_json('/api/market/buy', {
+			id: sell_listing?.id, qty: 5, command_id: purchase_command_id
+		}, pair.second.session_token);
+		expect(purchase.response.status).toBe(200);
+		expect(purchase_replay.response.status).toBe(200);
+
+		await post_json('/api/market/buy-order', {
+			item_id: apple, item_qty: 4, item_buy_price: 7, command_id: crypto.randomUUID()
+		}, pair.second.session_token);
+		const buy_order = (await market_listings(pair.second.session_token)).json.items.find(item => item.item_id === apple);
+		expect(buy_order).toBeDefined();
+		await post_json('/api/market/fulfill', {
+			id: buy_order?.id, qty: 1, command_id: crypto.randomUUID()
+		}, pair.first.session_token);
+
+		const buyer_private = (await activity(pair.second.session_token)).json.events.filter(event => event.private);
+		const seller_private = (await activity(pair.first.session_token)).json.events.filter(event => event.private);
+		const outsider_private = (await activity(outsider.session_token)).json.events.filter(event => event.private);
+		expect(buyer_private).toHaveLength(2);
+		expect(buyer_private.map(event => [event.event_type, event.metadata])).toEqual([
+			['market_sold_to', {
+				item_id: apple, quantity: 1,
+				buyer_display_name: 'Market Buyer', seller_display_name: 'Market Seller'
+			}],
+			['market_bought', {
+				item_id: watermelon, quantity: 5,
+				buyer_display_name: 'Market Buyer', seller_display_name: 'Market Seller'
+			}]
+		]);
+		expect(seller_private).toHaveLength(2);
+		expect(seller_private.map(event => [event.event_type, event.metadata])).toEqual([
+			['market_sold', {
+				item_id: apple, quantity: 1,
+				buyer_display_name: 'Market Buyer', seller_display_name: 'Market Seller'
+			}],
+			['market_bought_by', {
+				item_id: watermelon, quantity: 5,
+				buyer_display_name: 'Market Buyer', seller_display_name: 'Market Seller'
+			}]
+		]);
+		expect(outsider_private).toEqual([]);
 	});
 });

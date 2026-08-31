@@ -9,10 +9,14 @@ export function is_complete_economy_receipt_page(receipts, page_size) {
 		receipts.length < page_size;
 }
 
-function normalize_effect(effect) {
+function normalize_effect(effect, receipt_kind) {
+	const qty = receipt_kind === 'campaign-claim' && effect?.storage === 'gp' &&
+		typeof effect.qty === 'number' && Number.isFinite(effect.qty) && effect.qty > 0
+		? Math.round(effect.qty)
+		: effect?.qty;
 	if (typeof effect !== 'object' || effect === null || Array.isArray(effect) ||
 		!['bank', 'gp', 'transfer'].includes(effect.storage) ||
-		!Number.isSafeInteger(effect.qty) || effect.qty === 0)
+		!Number.isSafeInteger(qty) || qty === 0)
 		return null;
 	if (effect.storage !== 'gp' && (typeof effect.item_id !== 'string' || effect.item_id.length === 0))
 		return null;
@@ -21,7 +25,7 @@ function normalize_effect(effect) {
 	return {
 		storage: effect.storage,
 		item_id: effect.item_id,
-		qty: effect.qty,
+		qty,
 		destroyable: effect.destroyable === true
 	};
 }
@@ -61,7 +65,7 @@ export function apply_economy_receipt(receipt, processed_ids, adapter) {
 	if (processed_ids.includes(receipt.id))
 		return 'already-applied';
 
-	const effects = receipt.effects.map(normalize_effect);
+	const effects = receipt.effects.map(effect => normalize_effect(effect, receipt.kind));
 	if (effects.some(effect => effect === null))
 		return 'invalid';
 	for (const effect of effects) {

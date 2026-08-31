@@ -117,6 +117,44 @@ test('limits both Marketplace item pickers to 24 results', async () => {
 	assert.match(templates, /id="mp-market-filter-input"[^>]*class="mp-market-search-input/);
 });
 
+test('uses responsive fixed columns for Marketplace item pickers and shared direction tabs', async () => {
+	const [templates, style] = await Promise.all([
+		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8')
+	]);
+	const market_search = templates.slice(
+		templates.indexOf('<div v-if="state.market_active_tab == \'search\'">'),
+		templates.indexOf('<div v-if="state.market_active_tab == \'listing\'">')
+	);
+	const filter_style = style.slice(
+		style.indexOf('#mp-market-filter-items {'),
+		style.indexOf('#mp-market-pagation')
+	);
+	const tablet_start = style.indexOf('@media (max-width: 1199.98px) {');
+	const mobile_start = style.indexOf('@media (max-width: 767.98px) {', tablet_start);
+	const mobile_filter_style = style.slice(mobile_start, style.indexOf('.mp-market-tabs > div', mobile_start));
+
+	assert.match(market_search, /<div class="mp-market-listing-tabs" role="group">/);
+	assert.doesNotMatch(market_search, /btn-group/);
+	assert.match(filter_style, /display: grid;[\s\S]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
+	assert.match(style.slice(tablet_start, mobile_start), /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+	assert.match(mobile_filter_style, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+});
+
+test('keeps Marketplace search inputs half-width on desktop and full-width on mobile', async () => {
+	const style = await readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8');
+	const search_input = style.slice(
+		style.indexOf('.mp-market-search-input {'),
+		style.indexOf('.mp-market-search-input::placeholder')
+	);
+	const mobile_start = style.indexOf('@media (max-width: 767.98px) {');
+	const mobile_style = style.slice(mobile_start, style.indexOf('\n\t.mp-market-tabs > div', mobile_start));
+
+	assert.match(search_input, /width: 50%/);
+	assert.doesNotMatch(search_input, /max-width:/);
+	assert.match(mobile_style, /\.mp-market-search-input \{[\s\S]*width: 100%/);
+});
+
 test('tears down the buy modal before changing its reactive slider maximum', async () => {
 	const main = await read_client_source();
 	const buy = main.slice(main.indexOf('\tasync buy_market_item'), main.indexOf('\n\tmarket_page('));
@@ -126,9 +164,10 @@ test('tears down the buy modal before changing its reactive slider maximum', asy
 });
 
 test('exposes distinct buy-order creation and fulfillment flows', async () => {
-	const [actions, templates] = await Promise.all([
+	const [actions, templates, style] = await Promise.all([
 		readFile(new URL('../../mod/client-actions-market-campaign-charity.mjs', import.meta.url), 'utf8'),
-		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8')
+		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8')
 	]);
 
 	assert.match(actions, /api_post\('\/api\/market\/buy-order'/);
@@ -143,8 +182,64 @@ test('exposes distinct buy-order creation and fulfillment flows', async () => {
 	assert.match(templates, /MOD_MP_MARKET_BUY_ORDER_CREATED/);
 	assert.match(templates, /class="mp-market-buy-order-form"/);
 	assert.match(templates, /MOD_MP_MARKET_BUY_ORDER_QTY/);
+	assert.match(templates, /class="btn btn-success mp-market-create-buy-order-button"/);
+	assert.match(templates, /class="mp-market-create-buy-order-icon" aria-hidden="true"/);
+	assert.match(templates, /class="mp-market-create-buy-order-plus-horizontal"/);
+	assert.match(templates, /class="mp-market-create-buy-order-plus-vertical"/);
+	assert.match(style, /.mp-market-create-buy-order-icon {[\s\S]*right: 8px[\s\S]*bottom: 4px[\s\S]*background-color: #30c78d[\s\S]*width: 1\.5rem[\s\S]*height: 1\.5rem/);
+	assert.match(style, /.mp-market-create-buy-order-plus-horizontal,[\s\S]*height: 2px/);
+	assert.match(style, /.mp-market-create-buy-order-plus-vertical {[\s\S]*width: 2px[\s\S]*height: 100%/);
 	assert.doesNotMatch(templates, /item\.buyer\.icon_id/);
 	assert.match(templates, /item\.market_owner\.icon_id/);
+});
+
+test('renders a responsive buy-order form with a calculated escrow breakdown', async () => {
+	const [main, templates, style, english, chinese] = await Promise.all([
+		read_client_source(),
+		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/data/lang/en.json', import.meta.url), 'utf8').then(JSON.parse),
+		readFile(new URL('../../mod/data/lang/zh-CN.json', import.meta.url), 'utf8').then(JSON.parse)
+	]);
+	const form = templates.slice(
+		templates.indexOf('<div v-if="state.market_active_tab == \'create\'" class="mp-market-buy-order-form">'),
+		templates.indexOf('\n\t\t<div v-if="state.market_active_tab == \'search\'">')
+	);
+
+	assert.match(form, /class="p-3"/);
+	assert.match(form, /MOD_MP_MARKET_ITEM_TO_REQUEST/);
+	assert.match(form, /class="mp-buy-order-item-selector pointer-enabled"/);
+	assert.match(form, /class="mp-buy-order-item"[\s\S]*class="mp-buy-order-item-name"/);
+	assert.match(form, /class="mp-buy-order-item-chevron" aria-hidden="true">›/);
+	assert.match(form, /class="mp-buy-order-item-selector pointer-enabled"[\s\S]*class="mp-buy-order-item-chevron"/);
+	assert.match(form, /class="col-md-6 pr-md-2 mb-3"[\s\S]*market_create_qty/);
+	assert.match(form, /class="col-md-6 pl-md-2 mb-3"[\s\S]*market_create_price/);
+	assert.match(form, /mp-buy-order-field-description mt-1[\s\S]*MOD_MP_MARKET_BUY_ORDER_QTY_HINT/);
+	assert.match(form, /mp-buy-order-field-description mt-1[\s\S]*MOD_MP_MARKET_BUY_ORDER_PRICE_HINT/);
+	assert.match(form, /class="mp-buy-order-total mb-3"[\s\S]*MOD_MP_MARKET_ESCROW_TOTAL/);
+	assert.match(form, /assets\/media\/main\/coins\.svg/);
+	assert.match(form, /mp-buy-order-total-calculation[\s\S]*market_create_calculation_formatted/);
+	assert.doesNotMatch(form, /class="mp-market-create-buy-order-icon"/);
+	assert.match(templates, /class="mr-2" style="position: relative;"[\s\S]*class="mp-market-create-buy-order-icon"/);
+	assert.match(main, /get market_create_calculation_formatted\(\)[\s\S]*formatNumber\(item_qty\)[\s\S]*formatNumber\(item_price\)/);
+	assert.match(style, /\.mp-market-buy-order-form \{[\s\S]*border-top: 4px solid #f5a900/);
+	assert.match(style, /\.mp-buy-order-item > mp-item-icon > img \{[\s\S]*width: 32px[\s\S]*height: 32px/);
+	assert.match(style, /\.mp-buy-order-item \{[\s\S]*min-width: 0/);
+	assert.match(style, /\.mp-buy-order-item-name \{[\s\S]*min-width: 0[\s\S]*overflow-wrap: break-word/);
+	assert.match(style, /\.mp-buy-order-item-selector \{[\s\S]*min-height: 58px/);
+	assert.match(style, /@media \(max-width: 767\.98px\) \{[\s\S]*\.mp-buy-order-item-selector \{[\s\S]*min-height: 64px/);
+	const market_filter_style = style.slice(style.indexOf('.mp-market-filter {'), style.indexOf('\n}', style.indexOf('.mp-market-filter {')));
+	assert.match(market_filter_style, /width: 50%/);
+	assert.doesNotMatch(market_filter_style, /padding-right: 45px/);
+	assert.equal(english.MOD_MP_MARKET_BUY_ORDER_QTY, 'Quantity');
+	assert.equal(chinese.MOD_MP_MARKET_BUY_ORDER_QTY, '数量');
+	assert.equal(english.MOD_MP_MARKET_BANK_PPI, 'Price Per Item');
+	assert.equal(english.MOD_MP_MARKET_ITEM_TO_REQUEST, 'Item to Request');
+	assert.equal(english.MOD_MP_MARKET_BUY_ORDER_QTY_HINT, 'How many items you want to buy');
+	assert.equal(english.MOD_MP_MARKET_BUY_ORDER_PRICE_HINT, 'How much you will pay for each item');
+	assert.ok(chinese.MOD_MP_MARKET_ITEM_TO_REQUEST);
+	assert.ok(chinese.MOD_MP_MARKET_BUY_ORDER_QTY_HINT);
+	assert.ok(chinese.MOD_MP_MARKET_BUY_ORDER_PRICE_HINT);
 });
 
 test('limits fulfillment to bank quantity and splits the fulfillment title across two lines', async () => {
@@ -191,6 +286,19 @@ test('uses the compact Sell label for Marketplace fulfillment', async () => {
 	const english = await readFile(new URL('../../mod/data/lang/en.json', import.meta.url), 'utf8');
 
 	assert.match(english, /"MOD_MP_BUTTON_MARKET_FULFILL": "Sell"/);
+});
+
+test('uses the compact Search label for every Marketplace item search surface', async () => {
+	const [english, chinese] = await Promise.all([
+		readFile(new URL('../../mod/data/lang/en.json', import.meta.url), 'utf8').then(JSON.parse),
+		readFile(new URL('../../mod/data/lang/zh-CN.json', import.meta.url), 'utf8').then(JSON.parse)
+	]);
+
+	for (const [language, expected] of [[english, 'Search'], [chinese, '搜索']]) {
+		assert.equal(language.MOD_MP_PLACEHOLDER_SEARCH_ITEMS, expected);
+		assert.equal(language.MOD_MP_MARKET_SEARCH, expected);
+		assert.equal(language.MOD_MP_MARKET_CREATE_ITEM, expected);
+	}
 });
 
 test('wraps shared Marketplace modal actions instead of clipping rows', async () => {

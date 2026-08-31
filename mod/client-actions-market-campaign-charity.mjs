@@ -446,7 +446,12 @@ export function install_market_campaign_charity_actions(runtime) {
 				reward_mod += 0.1;
 
 			const reward_item = game.items.getObjectByID(campaign.item_id);
-			const reward_value = (reward_item.sellsFor.quantity * campaign.item_amount) * reward_mod;
+			const reward_value = Math.round((reward_item.sellsFor.quantity * campaign.item_amount) * reward_mod);
+			if (!Number.isSafeInteger(reward_value) || reward_value <= 0) {
+				notify_error('MOD_MP_GENERIC_ERR');
+				hide_button_spinner($button);
+				return;
+			}
 
 			const res = await api_post('/api/campaign/claim', {
 				campaign_id: campaign.id,

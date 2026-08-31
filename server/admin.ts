@@ -1,3 +1,4 @@
+import { revoke_installation } from './installations';
 import { db, get_service_setting } from './db';
 import {
 	ICON_CATALOG_SETTING_KEYS,
@@ -25,6 +26,7 @@ function usage(output: AdminOutput): number {
   bun run admin.ts icon-collection on|off
   bun run admin.ts icon-collection-limit icon-bytes|manifest-items|catalog-bytes|observations VALUE
   bun run admin.ts release-version VERSION|clear
+  bun run admin.ts installation revoke CLIENT_ID INSTALLATION_ID
   bun run admin.ts identity inspect CLIENT_ID
   bun run admin.ts identity enable|disable CLIENT_ID`);
 	return 2;
@@ -85,6 +87,13 @@ export function run_admin(args: string[], output: AdminOutput = console_output):
 			output.log(`released_mod_version=${get_service_setting('released_mod_version') || 'none'}`);
 			output.log(`identities=${identity_count}`);
 			output.log(`disabled_identities=${disabled_count}`);
+			return 0;
+		}
+		case 'installation': {
+			const client_id = parse_positive_integer(argument);
+			if (action !== 'revoke' || args.length !== 4 || client_id === null) return usage(output);
+			if (!revoke_installation(client_id, args[3]!)) { output.error('Installation not found.'); return 1; }
+			output.log('Installation revoked. Other installation credentials remain valid.');
 			return 0;
 		}
 		case 'registrations':
@@ -159,6 +168,15 @@ export function run_admin(args: string[], output: AdminOutput = console_output):
 				}
 
 				output.log(`identity_id=${identity.id}`);
+				const installations = db.query(`SELECT i.installation_id, i.device_diagnostics, i.mod_version,
+					first_seen_at, last_seen_at, c.revoked_at, (c.credential_hash IS NOT NULL) AS credential_enrolled
+					FROM client_installations i LEFT JOIN installation_credentials c
+					ON c.client_id=i.client_id AND c.installation_id=i.installation_id WHERE i.client_id = ?
+					ORDER BY last_seen_at DESC LIMIT 32`).all(client_id);
+				output.log(`installations=${JSON.stringify(installations)}`);
+				const credential_installations = db.query(`SELECT installation_id, revoked_at FROM installation_credentials
+					WHERE client_id = ? LIMIT 32`).all(client_id);
+				output.log(`credential_installations=${JSON.stringify(credential_installations)}`);
 				output.log(`display_name=${JSON.stringify(identity.display_name)}`);
 				output.log(`disabled=${identity.disabled === 1 ? 'yes' : 'no'}`);
 				output.log(`deleted=${identity.deleted_at === null ? 'no' : 'yes'}`);

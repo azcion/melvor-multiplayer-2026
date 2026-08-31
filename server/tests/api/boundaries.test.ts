@@ -10,7 +10,7 @@ const allowed_origins = [
 	'https://android.melvoridle.com'
 ];
 const allowed_origin = allowed_origins[0];
-const denied_origin = 'https://example.invalid';
+const custom_origin = 'https://example.invalid';
 
 describe('browser and request boundaries', () => {
 	let client: RegisteredClient;
@@ -34,24 +34,34 @@ describe('browser and request boundaries', () => {
 			expect(response.headers.get('Access-Control-Allow-Origin')).toBe(origin);
 			expect(response.headers.get('Access-Control-Allow-Methods')).toBe('GET, POST, OPTIONS');
 			expect(response.headers.get('Access-Control-Allow-Headers')).toBe(
-				'Content-Type, X-Session-Token, X-Icon-Catalog-Upload-Token, Cache-Control, Pragma'
+				'content-type,x-session-token'
 			);
 			expect(response.headers.get('Access-Control-Max-Age')).toBe('600');
 			expect(response.headers.get('Vary')).toContain('Origin');
 		}
 	});
 
-	test('rejects requests from unconfigured browser origins', async () => {
-		const response = await request('/api/register', {
-			method: 'OPTIONS',
-			headers: {
-				'Origin': denied_origin,
-				'Access-Control-Request-Method': 'POST'
-			}
-		});
+	test('allows custom and opaque app origins without bypassing authentication', async () => {
+		for (const origin of [custom_origin, 'null', 'capacitor://localhost', 'http://localhost:8080']) {
+			const response = await request('/api/register', {
+				method: 'OPTIONS',
+				headers: {
+					'Origin': origin,
+					'Access-Control-Request-Method': 'POST'
+				}
+			});
 
-		expect(response.status).toBe(403);
-		expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull();
+			expect(response.status).toBe(204);
+			expect(response.headers.get('Access-Control-Allow-Origin')).toBe(origin);
+			expect(response.headers.get('Access-Control-Allow-Credentials')).toBeNull();
+			for (const token of [undefined, 'invalid-session', crypto.randomUUID(), client.session_token]) {
+				const headers: Record<string, string> = { Origin: origin };
+				if (token) headers['X-Session-Token'] = token;
+				const read = await request('/api/guilds/state', { headers });
+				expect(read.status).toBe(token === client.session_token ? 200 : 401);
+				expect(read.headers.get('Access-Control-Allow-Origin')).toBe(origin);
+			}
+		}
 	});
 
 	test('does not add browser headers to server-to-server requests', async () => {
@@ -161,7 +171,7 @@ describe('browser and request boundaries', () => {
 
 	test('rejects unsupported methods', async () => {
 		const response = await request('/api/events', {
-			method: 'POST',
+			method: 'DELETE',
 			headers: {
 				'X-Session-Token': client.session_token
 			}
@@ -169,6 +179,48 @@ describe('browser and request boundaries', () => {
 
 		expect(response.status).toBe(405);
 		expect(await response.text()).toBe('Method Not Allowed');
+	});
+
+	test('advertises POST reads during both registration and authentication', async () => {
+		const registered = await register_client('Read Compatibility');
+		expect((registered as RegisteredClient & { read_post_supported: boolean }).read_post_supported).toBe(true);
+		const { response, json } = await post_json<{ read_post_supported: boolean }>('/api/authenticate', {
+			client_identifier: registered.client_identifier, client_key: registered.client_key
+		});
+		expect(response.status).toBe(200);
+		expect(json.read_post_supported).toBe(true);
+	});
+
+	test('serves Guild state and discovery through the same authenticated POST read handlers', async () => {
+		for (const endpoint of ['/api/guilds/state', '/api/guilds/list']) {
+			const get_response = await get_with_session(endpoint, client.session_token);
+			const post_response = await post(endpoint, {}, client.session_token, { Origin: allowed_origins[3] });
+			expect(post_response.status).toBe(200);
+			expect(await post_response.json()).toEqual(await get_response.json());
+			expect(post_response.headers.get('Access-Control-Allow-Origin')).toBe(allowed_origins[3]);
+			expect(post_response.headers.get('Cache-Control')).toBe('private, no-store');
+		}
+	});
+
+	test('preserves query selectors and cross-Guild privacy on POST reads', async () => {
+		const outsider = await register_client('Read Outsider');
+		const endpoint = `/api/guilds/equipment?client_id=${outsider.client_id}&_mp_cache=probe`;
+		const get_response = await get_with_session(endpoint, client.session_token);
+		const post_response = await post(endpoint, {}, client.session_token);
+		expect(get_response.status).toBe(200);
+		expect(post_response.status).toBe(get_response.status);
+		const expected = await get_response.json();
+		expect(expected).toEqual({ error_lang: 'MOD_MP_GUILD_MEMBERSHIP_MISSING' });
+		expect(await post_response.json()).toEqual(expected);
+		expect((await post('/api/guilds/equipment?client_id=invalid', {}, client.session_token)).status).toBe(400);
+	});
+
+	test('keeps POST reads behind session and bounded JSON validation', async () => {
+		expect((await post('/api/guilds/state', {})).status).toBe(401);
+		expect((await post('/api/guilds/state', {}, 'invalid-session')).status).toBe(401);
+		expect((await post('/api/guilds/state', {}, client.session_token, { Origin: custom_origin })).status).toBe(200);
+		expect((await post('/api/guilds/state', [], client.session_token)).status).toBe(400);
+		expect((await post('/api/guilds/state', { padding: 'x'.repeat(32768) }, client.session_token)).status).toBe(413);
 	});
 
 	test('echoes the allowed origin on JSON responses', async () => {
@@ -190,14 +242,15 @@ describe('browser and request boundaries', () => {
 			headers: {
 				'Origin': allowed_origin,
 				'Access-Control-Request-Method': 'GET',
-				'Access-Control-Request-Headers': 'cache-control, pragma, x-session-token'
+				'Access-Control-Request-Headers': 'cache-control, pragma, x-session-token, x-requested-with'
 			}
 		});
 
 		expect(response.status).toBe(204);
 		expect(response.headers.get('Access-Control-Allow-Headers')).toBe(
-			'Content-Type, X-Session-Token, X-Icon-Catalog-Upload-Token, Cache-Control, Pragma'
+			'cache-control, pragma, x-session-token, x-requested-with'
 		);
+		expect(response.headers.get('Vary')).toContain('Access-Control-Request-Headers');
 	});
 
 	test('adds browser headers to numeric error responses', async () => {
@@ -216,6 +269,7 @@ describe('browser and request boundaries', () => {
 		await db_run("UPDATE `service_settings` SET `value` = '1' WHERE `key` = 'maintenance'");
 		try {
 			const response = await get_with_session('/api/events', client.session_token);
+			const post_read = await post('/api/events', {}, client.session_token);
 			const preflight = await request('/api/register', {
 				method: 'OPTIONS',
 				headers: {
@@ -225,6 +279,7 @@ describe('browser and request boundaries', () => {
 			});
 
 			expect(response.status).toBe(503);
+			expect(post_read.status).toBe(503);
 			expect(response.headers.get('Retry-After')).toBe('300');
 			expect(await response.text()).toBe('Service Unavailable');
 			expect(preflight.status).toBe(204);

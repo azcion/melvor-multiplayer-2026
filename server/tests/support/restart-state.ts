@@ -3,6 +3,7 @@ import type { RegisteredClient } from './http';
 export const restart_state_path = '/test-state/restart.json';
 
 export type RestartState = {
+	installation: { client_identifier: string; installation_id: string; installation_key: string; session_token: string };
 	first: RegisteredClient;
 	first_id: number;
 	second: RegisteredClient;
@@ -23,6 +24,8 @@ export type RestartState = {
 		| { type: 'skill'; skill_id: string; action_id: string }
 		| { type: 'combat'; area_id: string | null }
 	>;
+	status_account_creation_date: number;
+	status_total_skill_level: number;
 	gp_amount: number;
 	chat_conversation_id: number;
 	chat_message_id: number;

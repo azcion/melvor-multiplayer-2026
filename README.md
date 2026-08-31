@@ -82,7 +82,21 @@ Supports Melvor Idle v1.3.1 on iOS, Android, Desktop, and Browser. The service m
 
 The server stores the multiplayer data needed to provide these features, including Guild data, shared Player Status,
 the latest reported player language, and Messages. Deleted Messages and conversations are removed only from your view.
-Request logs are retained for seven days.
+Request logs are retained for seven days. New clients report a random, server-scoped installation ID and coarse
+platform/engine labels. Optional app distribution (including Huawei AppGallery), stable/beta channel, app version,
+and build are explicitly player-reported, not inferred from the phone brand. These labels accompany authenticated
+request logs; origin categories, recognized preflight header names, and rejection reasons help diagnose transport
+failures. The operator retains up to 32 latest installation records per Client, with first/last authentication times; those records are erased when the Client is deleted.
+Diagnostics exclude IP addresses, raw user agents, device names, credentials, and request bodies. Mod Settings includes
+a local, 50-request connection report that can be copied even when connection fails; it is not uploaded automatically.
+
+New servers enroll a separate installation credential in device-local storage after a successful connection.
+Credential hashes and revocation state remain with the retained Client to support recovery after soft deletion;
+they are never included in diagnostic reports. Different installations may stay connected simultaneously; reconnecting an installation replaces only its own
+previous session. Keep your Melvor saves synchronized: last-save overwrite does not reverse trades or other shared
+server changes made from another copy, and unacknowledged character-owned deliveries may reach both copies. Installation revocation does not revoke the save-carried identity proof:
+anyone holding that proof may enroll another installation. Do not share saves containing multiplayer credentials.
+Older servers continue using the save credential and cannot enforce installation revocation.
 
 ## Attribution
 

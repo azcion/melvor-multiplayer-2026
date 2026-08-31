@@ -1,3 +1,5 @@
+import { BACKEND_VERSION } from './version';
+import { device_log_fields, origin_category, preflight_diagnostics, rejection_diagnostics, mark_rejection, type DeviceDiagnostics } from './diagnostics';
 import { STATUS_CODES } from 'node:http';
 import { report_error, write_log } from './log';
 
@@ -36,6 +38,7 @@ function body_too_large_response(): Response {
 }
 
 type RequestIdentity = {
+	device?: DeviceDiagnostics | null;
 	client_id: number;
 	mod_version?: string;
 };
@@ -52,13 +55,19 @@ function positive_body_limit(): number {
 
 const MAX_JSON_BODY_BYTES = positive_body_limit();
 
-export function identify_request(req: Request, client_id: number, mod_version?: string): void {
-	request_identities.set(req, { client_id, mod_version });
+export function identify_request(req: Request, client_id: number, mod_version?: string, device?: DeviceDiagnostics | null): void {
+	request_identities.set(req, { client_id, mod_version, device });
+}
+
+function invalid_json_response(req: Request): JsonReadResult {
+	mark_rejection(req, 'invalid_json');
+	return { response: status_response(400) };
 }
 
 export async function read_json_request(req: Request): Promise<JsonReadResult> {
-	if (req.headers.get('Content-Type') !== 'application/json')
-		return { response: status_response(400) };
+	if (req.headers.get('Content-Type') !== 'application/json') {
+		return invalid_json_response(req);
+	}
 
 	const declared_length = req.headers.get('Content-Length');
 	if (declared_length !== null && Number(declared_length) > MAX_JSON_BODY_BYTES)
@@ -67,7 +76,7 @@ export async function read_json_request(req: Request): Promise<JsonReadResult> {
 	try {
 		const reader = req.body?.getReader();
 		if (reader === undefined)
-			return { response: status_response(400) };
+			return invalid_json_response(req);
 
 		const chunks: Uint8Array[] = [];
 		let length = 0;
@@ -93,11 +102,11 @@ export async function read_json_request(req: Request): Promise<JsonReadResult> {
 
 		const json = JSON.parse(new TextDecoder().decode(body));
 		if (json === null || typeof json !== 'object' || Array.isArray(json))
-			return { response: status_response(400) };
+			return invalid_json_response(req);
 
 		return { json: json as JsonObject };
 	} catch {
-		return { response: status_response(400) };
+		return invalid_json_response(req);
 	}
 }
 
@@ -181,7 +190,10 @@ function log_request(req: Request, response: Response, started_at: number): Resp
 	write_log(
 		'info',
 		`type=http method=${req.method} path=${url.pathname} status=${response.status} ` +
-		`duration_ms=${elapsed_ms}${identity}${mod_version}`
+		`duration_ms=${elapsed_ms}${identity}${mod_version}` +
+		` origin=${origin_category(req.headers.get('Origin'))}` +
+		device_log_fields(request_identity?.device) + rejection_diagnostics(req) +
+		(req.method === 'OPTIONS' ? preflight_diagnostics(req) : '')
 	);
 	return response;
 }
@@ -253,7 +265,7 @@ export function create_http_server(port: number) {
 				}
 			});
 
-			write_log('info', `type=server event=started port=${runtime_server.port}`);
+			write_log('info', `type=server event=started port=${runtime_server.port} backend_version=${BACKEND_VERSION}`);
 		},
 
 		async stop(close_active_connections = false): Promise<void> {

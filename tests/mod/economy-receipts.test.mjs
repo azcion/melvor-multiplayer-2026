@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import {
@@ -45,6 +46,32 @@ test('applies all effects once and records the receipt', () => {
 	assert.deepEqual(state, { bank: { logs: 8 }, gp: 125, transfer: [{ id: 'logs', qty: 2 }], saved_ids: ['receipt-1'] });
 	assert.equal(apply_economy_receipt(receipt, processed, adapter), 'already-applied');
 	assert.deepEqual(state, { bank: { logs: 8 }, gp: 125, transfer: [{ id: 'logs', qty: 2 }], saved_ids: ['receipt-1'] });
+});
+
+test('rounds a legacy fractional Campaign GP receipt before applying it', () => {
+	const { state, adapter } = harness({ gp: 100 });
+	const processed = [];
+	const receipt = {
+		id: 'legacy-campaign-receipt',
+		kind: 'campaign-claim',
+		effects: [{ storage: 'gp', qty: 125.6 }]
+	};
+
+	assert.equal(apply_economy_receipt(receipt, processed, adapter), 'applied');
+	assert.equal(state.gp, 226);
+	assert.deepEqual(state.saved_ids, ['legacy-campaign-receipt']);
+});
+
+test('does not normalize fractional effects outside legacy Campaign claims', () => {
+	const { state, adapter } = harness({ gp: 100 });
+	const result = apply_economy_receipt({
+		id: 'fractional-market-receipt',
+		kind: 'market-buy',
+		effects: [{ storage: 'gp', qty: 125.6 }]
+	}, [], adapter);
+
+	assert.equal(result, 'invalid');
+	assert.equal(state.gp, 100);
 });
 
 test('forgets a receipt ID after acknowledgement without affecting other IDs', () => {
@@ -119,4 +146,30 @@ test('summarizes fulfilled items and combines repeated item receipts', () => {
 			{ item_id: 'fish', qty: 3 }
 		]
 	});
+});
+
+test('hydrates Campaign event state before a blocked receipt can stop event reconciliation', async () => {
+	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const events = main.slice(
+		main.indexOf('async function get_client_events_request'),
+		main.indexOf('function start_client_event_polling')
+	);
+
+	assert.ok(events.indexOf('reconcile_campaign_event(res.campaign)') <
+		events.indexOf('reconcile_economy_receipts(pending_economy_receipts'));
+});
+
+test('rounds and validates Campaign rewards before submitting a claim', async () => {
+	const actions = await readFile(
+		new URL('../../mod/client-actions-market-campaign-charity.mjs', import.meta.url),
+		'utf8'
+	);
+	const claim = actions.slice(
+		actions.indexOf('async claim_campaign_reward'),
+		actions.indexOf('// #endregion', actions.indexOf('async claim_campaign_reward'))
+	);
+
+	assert.match(claim, /const reward_value = Math\.round\(/);
+	assert.match(claim, /!Number\.isSafeInteger\(reward_value\) \|\| reward_value <= 0/);
+	assert.ok(claim.indexOf('Number.isSafeInteger(reward_value)') < claim.indexOf("api_post('/api/campaign/claim'"));
 });

@@ -15,6 +15,7 @@ import { register_friends_routes } from './routes/friends';
 import { register_identities_routes } from './routes/identities';
 import { register_general_routes } from './routes/general';
 import { register_auth_routes } from './routes/auth';
+import { register_updates_routes } from './routes/updates';
 import { default_handler, flush_logs, report_error, server } from './app-runtime';
 import { create_shutdown_handler } from './shutdown';
 
@@ -35,6 +36,7 @@ register_friends_routes();
 register_identities_routes();
 register_general_routes();
 register_auth_routes();
+register_updates_routes();
 
 server.error((err: Error) => {
 	report_error('unhandled request error', err);
