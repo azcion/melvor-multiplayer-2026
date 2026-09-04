@@ -22,6 +22,10 @@ body.superDark {
 	outline: 0;
 }
 
+input.form-control[type="text"] {
+	outline: 1px solid white;
+}
+
 .mp-modal-tray {
 	display: flex;
 	justify-content: center;
@@ -47,11 +51,18 @@ body.superDark {
 	padding: 5px;
 }
 
+/* Native category toggles own d-none; feature eligibility must survive expansion. */
+.nav-main-item.mp-nav-unavailable {
+	display: none !important;
+}
+
+.mp-guild-nav,
 .mp-chat-nav,
 .mp-raid-nav,
 .mp-charity-nav,
 .mp-campaign-nav,
-.mp-transfer-nav {
+.mp-transfer-nav,
+.mp-updates-nav {
 	display: inline-block;
 	margin-left: auto;
 	padding: 3px 5px;
@@ -61,12 +72,29 @@ body.superDark {
 
 .mp-chat-nav,
 .mp-raid-nav,
-.mp-charity-nav {
+.mp-charity-nav,
+.mp-updates-nav {
 	color: white !important;
 }
 
 .mp-chat-nav {
 	background-color: #ff4545;
+}
+
+.mp-transfer-action-nav {
+	background-color: #ff4545;
+}
+
+.mp-transfer-inbox-nav {
+	background-color: orange;
+}
+
+.mp-guild-nav {
+	background: #179cd8;
+}
+
+.mp-guild-nav:empty {
+	display: none;
 }
 
 #mp-chat-header-unread {
@@ -92,6 +120,10 @@ body.superDark {
 	background-color: #5b4aa1;
 }
 
+.mp-raid-nav:empty {
+	display: none;
+}
+
 .mp-raid-nav.mp-raid-active {
 	background-color: #8f3030;
 }
@@ -101,6 +133,14 @@ body.superDark {
 }
 
 .mp-charity-nav:empty {
+	display: none;
+}
+
+.mp-updates-nav {
+	background: #30c78d;
+}
+
+.mp-updates-nav:empty {
 	display: none;
 }
 
@@ -176,13 +216,173 @@ body.superDark {
 	padding: 0;
 }
 
+.mp-social-mode-choice-modal-popup {
+	width: min(732px, calc(100vw - 24px)) !important;
+	padding: 20px 26px 28px !important;
+	background: #111820 !important;
+	border: 1px solid rgba(255, 255, 255, .08);
+	color: #f4f6fa;
+}
+
+.mp-social-mode-choice-modal-popup .swal2-image {
+	margin: 0 auto 16px;
+}
+
+.mp-social-mode-choice-modal-popup #swal2-title {
+	margin: 0;
+	font-size: clamp(1.8rem, 4vw, 2.5rem);
+	line-height: 1.15;
+}
+
+.mp-social-mode-choice-modal-popup .swal2-html-container {
+	margin: 0;
+	overflow: visible;
+}
+
+.mp-social-mode-choice {
+	text-align: center;
+}
+
+.mp-social-mode-subtitle {
+	margin: 16px 0 28px;
+	color: #8e9bad;
+	font-size: 1.25rem;
+}
+
+.mp-social-mode-options {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 24px;
+}
+
+.mp-social-mode-card {
+	display: flex;
+	flex-direction: column;
+	min-height: 246px;
+	padding: 30px 30px 28px;
+	border: 2px solid;
+	border-radius: 12px;
+	background: rgba(255, 255, 255, .035);
+}
+
+.mp-social-mode-card-full {
+	border-color: #17d873;
+	background: rgba(16, 38, 73, .18);
+}
+
+.mp-social-mode-card-social {
+	border-color: #179cd8;
+	background: rgba(255, 255, 255, .045);
+}
+
+.mp-social-mode-card-full h3 {
+	color: #17d873;
+}
+
+.mp-social-mode-card-social h3 {
+	color: #179cd8;
+}
+
+.mp-social-mode-card h3 {
+	margin: 0 0 10px;
+	font-size: 2rem;
+	line-height: 1.15;
+}
+
+.mp-social-mode-description {
+	color: #b6c2d3;
+	font-size: 1.15rem;
+	line-height: 1.4;
+}
+
+.mp-social-mode-button {
+	width: 100%;
+	min-height: 52px;
+	margin-top: auto;
+	border: 0;
+	border-radius: 6px;
+	color: #fff !important;
+	font-size: 1.3rem;
+	font-weight: 600;
+}
+
+.mp-social-mode-card-full .mp-social-mode-button {
+	background: #17d873;
+}
+
+.mp-social-mode-card-social .mp-social-mode-button {
+	background: #179cd8;
+}
+
+.mp-social-mode-button:hover,
+.mp-social-mode-button:focus-visible {
+	filter: brightness(1.12);
+}
+
+@media (max-width: 767.98px) {
+	.mp-social-mode-choice-modal-popup {
+		padding: 16px 16px 20px !important;
+	}
+
+	.mp-social-mode-choice-modal-popup .swal2-image {
+		width: 80px !important;
+		height: 80px !important;
+		margin-bottom: 12px;
+	}
+
+	.mp-social-mode-choice-modal-popup #swal2-title {
+		font-size: 2rem;
+	}
+
+	.mp-social-mode-subtitle {
+		margin: 12px 0 20px;
+		font-size: 1rem;
+	}
+
+	.mp-social-mode-options {
+		grid-template-columns: 1fr;
+		gap: 12px;
+	}
+
+	.mp-social-mode-card {
+		min-height: 0;
+		padding: 22px 20px 20px;
+	}
+
+	.mp-social-mode-card h3 {
+		font-size: 1.75rem;
+	}
+
+	.mp-social-mode-description {
+		font-size: 1rem;
+	}
+
+	.mp-social-mode-button {
+		min-height: 48px;
+		margin-top: 22px;
+		font-size: 1.15rem;
+	}
+}
+
 .mp-col {
 	display: flex;
 	flex-direction: column;
 }
 
 .mp-transfer-bg {
-	background-color: #179CD8 !important;
+	background: linear-gradient(135deg, #6a4527, #c4963d) !important;
+}
+
+/* Multiplayer pages do not use Melvor's potions menu. */
+.mp-chat-bg #page-header-potions-dropdown,
+.mp-guild-bg #page-header-potions-dropdown,
+.mp-transfer-bg #page-header-potions-dropdown,
+.mp-market-bg #page-header-potions-dropdown,
+.mp-charity-bg #page-header-potions-dropdown,
+.mp-campaign-bg #page-header-potions-dropdown,
+.mp-raid-bg #page-header-potions-dropdown,
+.mp-updates-bg #page-header-potions-dropdown {
+	display: none;
 }
 
 .mp-transfer-border {
@@ -190,7 +390,7 @@ body.superDark {
 }
 
 .mp-guild-bg {
-	background-color: #79582D !important;
+	background: linear-gradient(135deg, #23628a, #2fae68) !important;
 }
 
 .mp-guild-border {
@@ -198,7 +398,11 @@ body.superDark {
 }
 
 .mp-chat-bg {
-	background-color: #5b4aa1 !important;
+	background: linear-gradient(135deg, #204b63, #39aebf) !important;
+}
+
+.mp-updates-bg {
+	background: linear-gradient(135deg, #353d50, #4c718c) !important;
 }
 
 .mp-chat-layout {
@@ -223,6 +427,21 @@ body.superDark {
 .mp-identity-row {
 	display: flex;
 	align-items: center;
+	gap: 10px;
+	width: 100%;
+	text-align: left;
+}
+
+.mp-currency-list {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.mp-currency-row {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
 	gap: 10px;
 	width: 100%;
 	text-align: left;
@@ -472,8 +691,15 @@ body.superDark {
 	min-height: calc(100vh - 235px);
 }
 
-#mp-guild-page {
-	padding-bottom: 3rem !important;
+#mp-chat-page,
+#mp-guild-page,
+#mp-transfer-page,
+#mp-market-page,
+#mp-charity-page,
+#mp-campaign-page,
+#mp-raid-page,
+#mp-updates-page {
+	padding-bottom: 0 !important;
 }
 
 .mp-guild-summary,
@@ -562,12 +788,19 @@ body.superDark {
 
 .mp-guild-member-button {
 	width: 100%;
+	min-height: 69px;
+	display: flex;
+	align-items: center;
+	gap: 10px;
 	border: 0;
 	background: transparent;
 	color: inherit;
+	overflow: hidden;
+	position: relative;
+	padding: 8px 12px;
 }
 
-.mp-guild-member-button > img {
+.mp-guild-member-avatar {
 	height: 40px;
 	width: 40px;
 	margin: 0;
@@ -582,46 +815,69 @@ body.superDark {
 	padding: 0 1.25rem 1px;
 }
 
-.mp-guild-member-meta {
-	display: flex;
-	flex-direction: column;
-	align-items: flex-end;
-	justify-content: center;
-	gap: 8px;
-	margin-left: auto;
-	white-space: nowrap;
+.mp-guild-member-last-seen {
+	font-size: 10px !important;
 }
 
-.mp-guild-member-details,
-.mp-guild-member-indicators,
+.mp-guild-member-content,
+.mp-guild-member-row,
+.mp-guild-member-tags,
 .mp-guild-member-name {
 	display: flex;
 	align-items: center;
 	gap: 8px;
 }
 
-.mp-game-mode-icon {
-	width: 16px;
-	height: 16px;
-	object-fit: contain;
+.mp-guild-member-content {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
 }
 
-.mp-guild-member-details {
-	flex-direction: column;
-	align-items: flex-start;
+.mp-guild-member-row {
+	justify-content: space-between;
 	min-width: 0;
+	width: 100%;
+}
+
+.mp-guild-member-name {
+	min-width: 0;
+}
+
+.mp-guild-member-tags {
+	justify-content: flex-end;
+	width: 100%;
+}
+
+.mp-guild-member-avatar,
+.mp-guild-member-content {
+	position: relative;
+	z-index: 1;
+}
+
+.mp-game-mode-icon {
+	object-fit: contain;
+	position: absolute;
+	width: 96px;
+	opacity: .15;
+	right: calc(50% - 48px);
+	height: 96px;
+	z-index: 0;
+	pointer-events: none;
 }
 
 .mp-guild-member-gp {
 	display: flex;
 	align-items: center;
 	gap: 3px;
-	font-size: .875rem;
+	font-size: 10px;
 }
 
 .mp-guild-member-gp img {
-	width: 20px;
-	height: 20px;
+	width: 12px;
+	height: 12px;
 }
 
 .mp-guild-new-member-badge {
@@ -662,7 +918,7 @@ body.superDark {
 
 .mp-member-actions-rule {
 	width: 70%;
-	margin: 8px auto;
+	margin: 0 auto;
 	border-color: rgba(255, 255, 255, 0.2);
 }
 
@@ -688,7 +944,8 @@ body.superDark {
 	margin: 4px 0;
 }
 
-.mp-status-visibility {
+.mp-skills-visibility,
+.mp-activity-visibility {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -732,24 +989,36 @@ body.superDark {
 	font-weight: 600;
 }
 
-.mp-game-mode-label img,
-.mp-member-activity img {
+.mp-game-mode-label img {
 	width: 24px;
 	height: 24px;
 	object-fit: contain;
+}
+
+.mp-member-activity-icon {
+	width: 24px;
+	height: 24px;
+	object-fit: contain;
+	margin: 0;
 }
 
 .mp-member-activity {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	gap: 8px;
+	gap: 4px;
 	font-weight: 600;
 }
 
 .mp-member-activities {
-	display: grid;
-	gap: 4px;
+	gap: 8px;
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+}
+
+.mp-member-shared-stat-label {
+	opacity: .75;
 }
 
 .mp-guild-member-activities {
@@ -1129,7 +1398,7 @@ mp-item-slider .noUi-target * {
 }
 
 .mp-charity-bg {
-	background-color: #2B9546 !important;
+	background: linear-gradient(135deg, #116654, #779900) !important;
 }
 
 .mp-charity-border {
@@ -1167,7 +1436,7 @@ mp-item-icon.mp-charitree-new-item {
 }
 
 .mp-campaign-bg {
-	background-color: #265170 !important;
+	background: linear-gradient(135deg, #005555, #4c718c) !important;
 }
 
 .mp-campaign-border {
@@ -1352,7 +1621,7 @@ mp-item-icon.mp-charitree-new-item {
 }
 
 .mp-market-bg {
-	background-color: #267036 !important;
+	background: linear-gradient(135deg, #653943, #b96349) !important;
 }
 
 .mp-market-border {
@@ -1932,12 +2201,197 @@ mp-item-icon.mp-charitree-new-item {
 	display: block;
 }
 
+/* Transfers keeps each panel mounted when switching mobile tabs. */
+.mp-transfers-tabs {
+	display: none;
+}
+
+.mp-transfers-layout {
+	display: grid;
+	grid-template-columns: minmax(0, .9fr) minmax(0, 1fr) minmax(0, 1.25fr);
+	gap: 16px;
+	align-items: stretch;
+	min-height: calc(100vh - 180px);
+}
+
+.mp-transfers-panel {
+	min-width: 0;
+	height: max-content;
+	margin-bottom: 0;
+	border: 1px solid rgba(128, 128, 128, .5);
+	overflow: hidden;
+}
+
+.mp-transfer-panel-header {
+	gap: 12px;
+	padding: 18px 20px;
+	border-bottom: 1px solid rgba(0, 0, 0, .25);
+}
+
+.mp-transfer-panel-header > span {
+	flex-shrink: 0;
+}
+
+.mp-transfers-inbox {
+	display: flex;
+	flex-direction: column;
+}
+
+.mp-transfers-panel .mp-transfer-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+}
+
+.mp-transfers-panel .mp-transfer-buttons .btn {
+	flex: 1 1 100px;
+	min-width: 0;
+	min-height: 50px;
+	white-space: normal;
+	margin: 0 !important;
+}
+
+.mp-transfers-inbox .mp-inbox-claim .btn {
+	flex: 0 0 50%;
+	margin-left: auto !important;
+}
+
+.mp-transfers-panel .bank-item > a {
+	height: 100%;
+	display: inline-block;
+}
+
+.mp-transfers-outbox .mp-transfer-buttons {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mp-transfers-outbox .mp-transfer-buttons.mp-transfer-buttons-single .btn {
+	grid-column: 2;
+}
+
+.mp-outbox-value {
+	margin: 0 16px 16px;
+	padding: 12px;
+	text-align: center;
+	border: 1px solid rgba(128, 128, 128, .5);
+	border-radius: 6px;
+}
+
+.mp-transfer-exchanges {
+	padding: 16px;
+}
+
+.mp-transfer-exchanges > .block {
+	border: 1px solid rgba(128, 128, 128, .5);
+	border-radius: 8px;
+	overflow: hidden;
+	margin-bottom: 20px;
+}
+
+.mp-transfer-exchanges > .block:last-child {
+	margin-bottom: 0;
+}
+
+.mp-transfer-exchanges .bg-dark-bank-info {
+	padding: 16px !important;
+	text-align: left !important;
+	background: transparent !important;
+}
+
+.mp-transfer-exchanges .bg-dark-bank-info > .row {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.mp-transfer-exchanges .bg-dark-bank-info .col-6 {
+	flex: 0 1 auto;
+	width: auto;
+	max-width: 100%;
+}
+
+.mp-transfer-exchanges .bg-dark-bank-info .ml-3 {
+	margin-left: 0 !important;
+}
+
+.mp-transfer-exchanges .mp-dual-trade {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.mp-transfer-exchanges .mp-dual-trade-divider {
+	margin: 12px 0;
+	height: 1px;
+}
+
 @media (max-width: 767.98px) {
+	.mp-transfers-tabs {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 8px;
+		margin-bottom: 1rem;
+	}
+
+	.mp-transfers-tabs .btn {
+		position: relative;
+		padding-left: 8px;
+		padding-right: 8px;
+		white-space: normal;
+	}
+
+	.mp-transfer-tab-badge {
+		position: absolute !important;
+		top: unset !important;
+		bottom: -5px;
+		right: -5px;
+		padding: 3px 5px;
+		background-color: #232a35;
+		border: 1px solid rgba(128, 128, 128, .5);
+		font-weight: 700 !important;
+		pointer-events: none;
+	}
+
+	.mp-transfer-tab-badge-inbox {
+		background-color: orange;
+		border: 0;
+	}
+
+	.mp-transfer-tab-badge-pending {
+		background-color: #ff4545;
+		border: 0;
+	}
+
+	.mp-transfers-layout {
+		display: block;
+		min-height: 0;
+	}
+
+	.mp-transfers-mobile-hidden {
+		display: none !important;
+	}
+
 	.mp-updates-tabs {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: 8px;
 		margin-bottom: 1rem;
+	}
+
+	.mp-updates-tabs .btn {
+		position: relative;
+	}
+
+	.mp-updates-tab-badge {
+		position: absolute !important;
+		top: unset !important;
+		bottom: -5px;
+		right: -5px;
+		padding: 3px 5px;
+		background: #30c78d;
+		border: 1px solid rgba(128, 128, 128, .5);
+		font-weight: 700 !important;
+		pointer-events: none;
 	}
 
 	.mp-updates-layout {

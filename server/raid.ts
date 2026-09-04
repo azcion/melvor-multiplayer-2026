@@ -1,6 +1,8 @@
 import { db } from './db';
 import { shadowed_cutoff } from './shadowed';
 import { record_guild_activity } from './guild-activity';
+import { add_inbox_items } from './inbox';
+import { client_uses_legacy_transfer_protocol } from './transfer-compatibility';
 
 export const RAID_DURATION = 72 * 60 * 60 * 1000;
 export const RAID_COOLDOWN = 96 * 60 * 60 * 1000;
@@ -99,6 +101,20 @@ function assault_balance(raid: RaidRow, membership_id: number, now: number): num
 }
 
 function create_cache(raid_id: number, roster: Pick<RosterRow, 'membership_id' | 'client_id'>, now: number): void {
+	const client = db.query<{ social_mode: 'full' | 'social' }, [number]>(
+		'SELECT `social_mode` FROM `clients` WHERE `id` = ? LIMIT 1'
+	).get(roster.client_id);
+	if (client?.social_mode === 'social')
+		return;
+	if (!client_uses_legacy_transfer_protocol(roster.client_id)) {
+		const inserted = db.query(
+			'INSERT OR IGNORE INTO `guild_raid_victory_caches` ' +
+			'(`id`, `raid_id`, `membership_id`, `client_id`, `created_at`, `acknowledged_at`) VALUES(?, ?, ?, ?, ?, ?)'
+		).run(crypto.randomUUID(), raid_id, roster.membership_id, roster.client_id, now, now);
+		if (inserted.changes === 1)
+			add_inbox_items(roster.client_id, RAID_VICTORY_CACHE);
+		return;
+	}
 	db.query(
 		'INSERT OR IGNORE INTO `guild_raid_victory_caches` ' +
 		'(`id`, `raid_id`, `membership_id`, `client_id`, `created_at`) VALUES(?, ?, ?, ?, ?)'

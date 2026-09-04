@@ -267,7 +267,10 @@
 				"canBeDefault": false,
 				"sidebarItem": {
 					"categoryID": "Multiplayer",
-					"icon": "assets/multiplayer.svg"
+					"icon": "assets/multiplayer.svg",
+					"asideClass": "badge mp-guild-nav",
+					"aside": "start here",
+					"asideLangID": "MOD_MP_SIDEBAR_GUILD_START"
 				}
 			},
 			{
@@ -342,8 +345,7 @@
 					"categoryID": "Multiplayer",
 					"icon": "assets/raid_plant_t1.png",
 					"asideClass": "badge mp-raid-nav",
-					"aside": "preview",
-					"asideLangID": "MOD_MP_SIDEBAR_RAID_PREVIEW"
+					"aside": ""
 				}
 			},
 			{
@@ -356,7 +358,10 @@
 				"canBeDefault": false,
 				"sidebarItem": {
 					"categoryID": "Multiplayer",
-					"icon": "https://cdn2-main.melvor.net/assets/media/main/announcement.png"
+					"icon": "https://cdn2-main.melvor.net/assets/media/main/announcement.png",
+					"asideClass": "badge mp-updates-nav",
+					"aside": "new",
+					"asideLangID": "MOD_MP_SIDEBAR_NEW"
 				}
 			}
 		]

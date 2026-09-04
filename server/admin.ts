@@ -18,6 +18,10 @@ const console_output: AdminOutput = {
 	error: message => console.error(message)
 };
 
+const MAX_GUILD_DIAGNOSTIC_MEMBERS = 512;
+const MAX_GUILD_DIAGNOSTIC_CONTRIBUTIONS = 512;
+const MAX_GUILD_DIAGNOSTIC_ACTIVITY = 20;
+
 function usage(output: AdminOutput): number {
 	output.error(`Usage:
   bun run admin.ts status
@@ -27,6 +31,7 @@ function usage(output: AdminOutput): number {
   bun run admin.ts icon-collection-limit icon-bytes|manifest-items|catalog-bytes|observations VALUE
   bun run admin.ts release-version VERSION|clear
   bun run admin.ts installation revoke CLIENT_ID INSTALLATION_ID
+  bun run admin.ts guild inspect GUILD_ID
   bun run admin.ts identity inspect CLIENT_ID
   bun run admin.ts identity enable|disable CLIENT_ID`);
 	return 2;
@@ -60,6 +65,134 @@ function set_setting(key: string, value: string): void {
 
 function is_release_version(value: string | undefined): value is string {
 	return typeof value === 'string' && /^[0-9]+\.[0-9]+\.[0-9]+$/.test(value) && value.length <= 64;
+}
+
+function parse_stored_json(value: string): unknown {
+	try {
+		return JSON.parse(value);
+	} catch {
+		return null;
+	}
+}
+
+function inspect_guild(guild_id: number, output: AdminOutput): number {
+	const guild = db.query<{
+		id: number;
+		name: string;
+		icon_id: string;
+		type: string;
+		charitree_enabled: number;
+	}, [number]>(
+		'SELECT `id`, `name`, `icon_id`, `type`, `charitree_enabled` FROM `guilds` WHERE `id` = ? LIMIT 1'
+	).get(guild_id);
+	if (guild === null) {
+		output.error(`Guild ${guild_id} does not exist.`);
+		return 1;
+	}
+
+	const members = db.query<{
+		membership_id: number;
+		client_id: number;
+		display_name: string;
+		disabled: number;
+		deleted_at: number | null;
+		last_multiplayer_active_at: number;
+		mod_version: string | null;
+		active_mods: string | null;
+		game_mode_id: string | null;
+		language: string | null;
+		reported_at: number | null;
+	}, [number, number]>(
+		'SELECT m.`id` AS `membership_id`, c.`id` AS `client_id`, c.`display_name`, c.`disabled`, c.`deleted_at`, ' +
+		'c.`last_multiplayer_active_at`, runtime.`mod_version`, runtime.`active_mods`, runtime.`game_mode_id`, ' +
+		'runtime.`language`, runtime.`reported_at` FROM `guild_memberships` AS m ' +
+		'JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
+		'LEFT JOIN `client_runtime_snapshots` AS runtime ON runtime.`client_id` = c.`id` ' +
+		'WHERE m.`guild_id` = ? ORDER BY m.`id` LIMIT ?'
+	).all(guild_id, MAX_GUILD_DIAGNOSTIC_MEMBERS).map(member => ({
+		membership_id: member.membership_id,
+		client_id: member.client_id,
+		display_name: member.display_name,
+		disabled: member.disabled === 1,
+		deleted: member.deleted_at !== null,
+		last_multiplayer_active_at: member.last_multiplayer_active_at,
+		runtime: member.mod_version === null ? null : {
+			mod_version: member.mod_version,
+			active_mods: member.active_mods === null ? null : parse_stored_json(member.active_mods),
+			game_mode_id: member.game_mode_id,
+			language: member.language,
+			reported_at: member.reported_at
+		}
+	}));
+
+	const campaign = db.query<{
+		id: number;
+		campaign_id: string;
+		item_id: string;
+		item_amount: number;
+		item_current: number;
+		required_contributors: number;
+		auto_contribution: number;
+		campaign_next: number;
+		complete: number;
+	}, [number]>(
+		'SELECT `id`, `campaign_id`, `item_id`, `item_amount`, `item_current`, `required_contributors`, ' +
+		'`auto_contribution`, `campaign_next`, `complete` FROM `campaign_state` ' +
+		'WHERE `guild_id` = ? ORDER BY `id` DESC LIMIT 1'
+	).get(guild_id);
+	const contributions = campaign === null ? [] : db.query<{
+		client_id: number;
+		display_name: string;
+		item_amount: number;
+		taken: number;
+	}, [number, number]>(
+		'SELECT contribution.`client_id`, client.`display_name`, contribution.`item_amount`, contribution.`taken` ' +
+		'FROM `campaign_contributions` AS contribution JOIN `clients` AS client ON client.`id` = contribution.`client_id` ' +
+		'WHERE contribution.`campaign_id` = ? ORDER BY contribution.`client_id` LIMIT ?'
+	).all(campaign.id, MAX_GUILD_DIAGNOSTIC_CONTRIBUTIONS);
+
+	const activity = db.query<{
+		id: number;
+		event_type: string;
+		actor_client_id: number | null;
+		actor_display_name: string | null;
+		metadata: string;
+		created_at: number;
+		buyer_client_id: number | null;
+		buyer_display_name: string | null;
+		seller_client_id: number | null;
+		seller_display_name: string | null;
+		item_id: string | null;
+		quantity: number | null;
+	}, [number, number]>(
+		'SELECT `id`, `event_type`, `actor_client_id`, `actor_display_name`, `metadata`, `created_at`, ' +
+		'`buyer_client_id`, `buyer_display_name`, `seller_client_id`, `seller_display_name`, `item_id`, `quantity` ' +
+		'FROM `guild_activity_events` WHERE `guild_id` = ? ORDER BY `created_at` DESC, `id` DESC LIMIT ?'
+	).all(guild_id, MAX_GUILD_DIAGNOSTIC_ACTIVITY).map(event => ({
+		id: event.id,
+		event_type: event.event_type,
+		actor_client_id: event.actor_client_id,
+		actor_display_name: event.actor_display_name,
+		metadata: parse_stored_json(event.metadata),
+		created_at: event.created_at,
+		buyer_client_id: event.buyer_client_id,
+		buyer_display_name: event.buyer_display_name,
+		seller_client_id: event.seller_client_id,
+		seller_display_name: event.seller_display_name,
+		item_id: event.item_id,
+		quantity: event.quantity
+	}));
+
+	output.log(`guild_id=${guild.id}`);
+	output.log(`name=${JSON.stringify(guild.name)}`);
+	output.log(`type=${guild.type}`);
+	output.log(`icon_id=${JSON.stringify(guild.icon_id)}`);
+	output.log(`charitree_enabled=${guild.charitree_enabled === 1 ? 'yes' : 'no'}`);
+	output.log(`members=${JSON.stringify(members)}`);
+	output.log(`latest_campaign=${campaign === null ? 'none' : JSON.stringify(campaign)}`);
+	output.log(`campaign_contributions=${JSON.stringify(contributions)}`);
+	output.log(`recent_activity=${JSON.stringify(activity)}`);
+	return 0;
 }
 
 export function run_admin(args: string[], output: AdminOutput = console_output): number {
@@ -132,6 +265,12 @@ export function run_admin(args: string[], output: AdminOutput = console_output):
 				? 'Released mod version cleared.'
 				: `Released mod version set to ${action}.`);
 			return 0;
+		case 'guild': {
+			if (action !== 'inspect' || args.length !== 3)
+				return usage(output);
+			const guild_id = parse_positive_integer(argument);
+			return guild_id === null ? usage(output) : inspect_guild(guild_id, output);
+		}
 		case 'identity': {
 			if (args.length !== 3 || !['inspect', 'enable', 'disable'].includes(action ?? ''))
 				return usage(output);

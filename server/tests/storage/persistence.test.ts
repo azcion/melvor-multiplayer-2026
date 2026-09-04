@@ -59,6 +59,9 @@ describe('SQLite persistence probe', () => {
 			'guilds',
 			'icon_catalog_blobs',
 			'icon_catalog_observations',
+			'inbox_claim_items',
+			'inbox_claims',
+			'inbox_items',
 			'installation_credentials',
 			'market_items',
 			'melvor_accounts',
@@ -140,7 +143,7 @@ describe('SQLite persistence probe', () => {
 		expect(await db_count('SELECT COUNT(*) AS count FROM `gift_items` WHERE `gift_id` = ?', [gift_id])).toBe(0);
 	});
 
-	test('removes resolved trades, offers, and all item rows', async () => {
+	test('removes settled trades, offers, and all item rows after Inbox delivery', async () => {
 		const pair = await make_guildmates('Trade Cleanup Sender', 'Trade Cleanup Recipient');
 		const offered = await post_json<{
 			trade_id: number;
@@ -161,17 +164,16 @@ describe('SQLite persistence probe', () => {
 		expect(await db_count(
 			'SELECT COUNT(*) AS count FROM `resolved_trade_offers` WHERE `trade_id` = ?',
 			[trade_id]
-		)).toBe(1);
-		expect(await db_count('SELECT COUNT(*) AS count FROM `trade_items` WHERE `trade_id` = ?', [trade_id])).toBe(1);
-
-		await post_json('/api/trade/resolve', {
-			trade_id
-		}, pair.second.session_token);
-
-		expect(await db_count(
-			'SELECT COUNT(*) AS count FROM `resolved_trade_offers` WHERE `trade_id` = ?',
-			[trade_id]
 		)).toBe(0);
 		expect(await db_count('SELECT COUNT(*) AS count FROM `trade_items` WHERE `trade_id` = ?', [trade_id])).toBe(0);
+		expect(await db_count(
+			'SELECT COUNT(*) AS count FROM `inbox_items` WHERE `client_id` = ? AND `item_id` = ?',
+			[pair.first_id, 'melvorD:Cleanup_Counter']
+		)).toBe(1);
+		expect(await db_count(
+			'SELECT COUNT(*) AS count FROM `inbox_items` WHERE `client_id` = ? AND `item_id` = ?',
+			[pair.second_id, 'melvorD:Cleanup_Offer']
+		)).toBe(1);
+
 	});
 });

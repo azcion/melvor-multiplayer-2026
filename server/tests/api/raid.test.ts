@@ -3,6 +3,7 @@ import { get_json_with_session, post, post_json, register_client } from '../supp
 import { attach_to_free_fellowship, make_guild_group, make_guildmates, register_guild_client } from '../support/fixtures';
 import { db_count, db_run } from '../support/persistence';
 import { SHADOWED_AFTER } from '../../shadowed';
+import { RAID_VICTORY_CACHE } from '../../raid';
 
 type RaidState = {
 	affiliation: string;
@@ -52,6 +53,26 @@ async function settle(session_token: string, assault: Reservation, outcome = 'su
 }
 
 describe('Guild Raids', () => {
+	test('allows Social Only Raid progress but forfeits cache delivery', async () => {
+		const member = await register_guild_client('Social Raid Member', 'Social Raid Guild');
+		await post_json('/api/raids/activate', {}, member.session_token);
+		await db_run('UPDATE `guild_raids` SET `remaining_health` = 1000 WHERE `guild_id` = ?', [member.guild_id]);
+		const mode = await post_json<{ success: boolean; social_mode: string }>('/api/social-mode/set', {
+			mode: 'social', command_id: crypto.randomUUID()
+		}, member.session_token);
+		expect(mode.json).toMatchObject({ success: true, social_mode: 'social' });
+
+		const assault = await reserve(member.session_token, 1);
+		const settled = await settle(member.session_token, assault);
+		expect(settled.json).toMatchObject({ success: true, credited_progress: 1000 });
+		const state = await get_json_with_session<RaidState>('/api/raids/state', member.session_token);
+		const inbox = await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>('/api/inbox', member.session_token);
+
+		expect(state.json).toMatchObject({ cache_pending: false, raid: { secured: true } });
+		expect(inbox.json.items).not.toEqual(expect.arrayContaining([...RAID_VICTORY_CACHE]));
+		expect(await db_count('SELECT COUNT(*) AS `count` FROM `guild_raid_victory_caches` WHERE `client_id` = ?', [member.client_id])).toBe(0);
+	});
+
 	test('activates a private-Guild Raid and secures it through bounded idempotent Assaults', async () => {
 		const member = await register_guild_client('Raid Founder', 'Raid Test Guild');
 		const before = await get_json_with_session<RaidState>('/api/raids/state', member.session_token);
@@ -82,7 +103,7 @@ describe('Guild Raids', () => {
 
 		const secured = await get_json_with_session<RaidState>('/api/raids/state', member.session_token);
 		expect(secured.json).toMatchObject({
-			cache_pending: true,
+			cache_pending: false,
 			raid: {
 				secured: true,
 				remaining_health: 0,
@@ -90,16 +111,32 @@ describe('Guild Raids', () => {
 			}
 		});
 
-		const cache = await get_json_with_session<{
-			cache: { id: string; items: Array<{ item_id: string; qty: number }> };
-		}>('/api/raids/cache', member.session_token);
-		expect(cache.json.cache.items.length).toBeGreaterThan(0);
-		const acknowledged = await post_json<{ success: boolean }>(
-			'/api/raids/cache/acknowledge', { cache_id: cache.json.cache.id }, member.session_token
+		expect((await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
+			'/api/inbox', member.session_token
+		)).json.items).toEqual([...RAID_VICTORY_CACHE].sort((a, b) => a.item_id.localeCompare(b.item_id)));
+	});
+
+	test('preserves 1.4.5 Victory Cache acknowledgement delivery', async () => {
+		const member = await register_client('Legacy Raid Founder', undefined, '1.4.5');
+		await post_json('/api/guilds/create', {
+			name: 'Legacy Raid Guild', icon_id: 'melvorD:Farmlands'
+		}, member.session_token);
+		await post_json('/api/raids/activate', {}, member.session_token);
+		await db_run('UPDATE `guild_raids` SET `remaining_health` = 1000 WHERE `guild_id` = ?', [
+			(await get_json_with_session<{ guild: { guild_id: number } }>('/api/guilds/state', member.session_token))
+				.json.guild.guild_id
+		]);
+		const assault = await reserve(member.session_token, 1);
+		await settle(member.session_token, assault);
+		const state = await get_json_with_session<RaidState>('/api/raids/state', member.session_token);
+		expect(state.json.cache_pending).toBe(true);
+		const cache = await get_json_with_session<{ cache: { id: string; items: unknown[] } }>(
+			'/api/raids/cache', member.session_token
 		);
-		expect(acknowledged.json.success).toBe(true);
-		const no_cache = await get_json_with_session<{ cache: null }>('/api/raids/cache', member.session_token);
-		expect(no_cache.json.cache).toBeNull();
+		expect(cache.json.cache.items).toEqual([...RAID_VICTORY_CACHE]);
+		expect((await post_json<{ success: boolean }>('/api/raids/cache/acknowledge', {
+			cache_id: cache.json.cache.id
+		}, member.session_token)).json.success).toBe(true);
 	});
 
 	test('lists only members who have started an Assault, including an unresolved Assault at Tier 0', async () => {

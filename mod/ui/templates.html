@@ -11,6 +11,33 @@
 		</template>
 	</div>
 </template>
+<template id="template-mp-social-mode-choice-modal">
+	<div class="mp-social-mode-choice">
+		<div class="mp-social-mode-subtitle"><lang-string lang-id="MOD_MP_SOCIAL_MODE_SUBTITLE"></lang-string></div>
+		<div class="mp-social-mode-options">
+			<div class="mp-social-mode-card mp-social-mode-card-full">
+				<h3><lang-string lang-id="MOD_MP_SOCIAL_MODE_FULL"></lang-string></h3>
+				<div class="mp-social-mode-description">
+					<div><lang-string lang-id="MOD_MP_SOCIAL_MODE_FULL_INFO"></lang-string></div>
+					<div><lang-string lang-id="MOD_MP_SOCIAL_MODE_FULL_DETAIL"></lang-string></div>
+				</div>
+				<button type="button" class="btn mp-social-mode-button" @click="state.choose_social_mode('full')">
+					<lang-string lang-id="MOD_MP_SOCIAL_MODE_CHOOSE"></lang-string>
+				</button>
+			</div>
+			<div class="mp-social-mode-card mp-social-mode-card-social">
+				<h3><lang-string lang-id="MOD_MP_SOCIAL_MODE_SOCIAL"></lang-string></h3>
+				<div class="mp-social-mode-description">
+					<div><lang-string lang-id="MOD_MP_SOCIAL_MODE_SOCIAL_INFO"></lang-string></div>
+					<div><lang-string lang-id="MOD_MP_SOCIAL_MODE_SOCIAL_DETAIL"></lang-string></div>
+				</div>
+				<button type="button" class="btn mp-social-mode-button" @click="state.choose_social_mode('social')">
+					<lang-string lang-id="MOD_MP_SOCIAL_MODE_CHOOSE"></lang-string>
+				</button>
+			</div>
+		</div>
+	</div>
+</template>
 <template id="template-mp-raid-page">
 	<div class="content d-none" id="mp-raid-page">
 		<div class="block block-rounded">
@@ -40,6 +67,7 @@
 				</div>
 			</template>
 			<div class="block-content text-danger" v-if="state.raid_error">{{ state.raid_error }}</div>
+			<div class="block-content alert alert-info m-3" v-if="state.is_social_only"><lang-string lang-id="MOD_MP_SOCIAL_ONLY_RAID_INFO"></lang-string></div>
 		</div>
 
 		<div class="block block-rounded" v-if="state.raid?.active && state.raid?.member">
@@ -70,7 +98,7 @@
 				<lang-string lang-id="MOD_MP_PAGE_UPDATES"></lang-string>
 			</button>
 			<button type="button" class="btn" :class="state.updates_mobile_tab === 'changelog' ? 'btn-primary' : 'btn-secondary'" role="tab" :aria-selected="state.updates_mobile_tab === 'changelog'" @click="state.set_updates_mobile_tab('changelog')">
-				<lang-string lang-id="MOD_MP_UPDATES_CHANGELOG"></lang-string>
+				<lang-string lang-id="MOD_MP_UPDATES_CHANGELOG"></lang-string><span class="badge mp-updates-tab-badge" v-show="state.updates_new"><lang-string lang-id="MOD_MP_SIDEBAR_NEW"></lang-string></span>
 			</button>
 		</div>
 		<div class="mp-updates-layout">
@@ -142,10 +170,15 @@
 				<span><lang-string lang-id="MOD_MP_EQUIPMENT_VISIBILITY"></lang-string></span>
 				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.equipment_visibility_pending"></span>
 			</label>
-			<label class="mp-status-visibility">
-				<input type="checkbox" :checked="state.status_visible" :disabled="state.status_visibility_pending" @click="state.set_status_visibility($event)">
-				<span><lang-string lang-id="MOD_MP_STATUS_VISIBILITY"></lang-string></span>
-				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.status_visibility_pending"></span>
+			<label class="mp-skills-visibility">
+				<input type="checkbox" :checked="state.skills_visible" :disabled="state.skills_visibility_pending" @click="state.set_skills_visibility($event)">
+				<span><lang-string lang-id="MOD_MP_SKILLS_VISIBILITY"></lang-string></span>
+				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.skills_visibility_pending"></span>
+			</label>
+			<label class="mp-activity-visibility" v-if="state.split_visibility_supported">
+				<input type="checkbox" :checked="state.activity_visible" :disabled="state.activity_visibility_pending" @click="state.set_activity_visibility($event)">
+				<span><lang-string lang-id="MOD_MP_ACTIVITY_VISIBILITY"></lang-string></span>
+				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.activity_visibility_pending"></span>
 			</label>
 			<label class="mp-gp-visibility">
 				<input type="checkbox" :checked="state.gp_visible" :disabled="state.gp_visibility_pending" @click="state.set_gp_visibility($event)">
@@ -200,7 +233,7 @@
 			</div>
 			<div class="mp-member-activities" v-if="state.get_status_activities(state.selected_guild_member).length">
 				<div class="mp-member-activity" v-for="(activity, activity_index) in state.get_status_activities(state.selected_guild_member)" :key="activity_index">
-					<img :src="state.get_status_activity_icon(activity)" :alt="state.get_status_activity_name(activity)">
+					<img class="mp-member-activity-icon" :src="state.get_status_activity_icon(activity)" :alt="state.get_status_activity_name(activity)">
 					<span>{{ state.get_status_activity_name(activity) }}</span>
 				</div>
 			</div>
@@ -218,16 +251,20 @@
 			</button>
 			<div class="font-size-sm text-muted" v-if="!state.selected_guild_member.equipment_visible"><lang-string lang-id="MOD_MP_EQUIPMENT_NOT_SHARED"></lang-string></div>
 			<div class="font-size-sm text-muted" v-else-if="!state.selected_guild_member.equipment_available"><lang-string lang-id="MOD_MP_EQUIPMENT_NOT_AVAILABLE_HINT"></lang-string></div>
-			<div class="font-size-sm text-muted" v-if="!state.selected_guild_member.status_visible"><lang-string lang-id="MOD_MP_STATUS_NOT_SHARED"></lang-string></div>
-			<div class="font-size-sm text-muted" v-else-if="!state.selected_guild_member.status_available"><lang-string lang-id="MOD_MP_STATUS_NOT_AVAILABLE_HINT"></lang-string></div>
-			<div class="font-size-sm text-muted" v-if="state.get_language_lang_id(state.selected_guild_member.language) !== null">
-				<lang-string lang-id="MOD_MP_LANGUAGE"></lang-string>: {{ state.get_language_name(state.selected_guild_member.language) }}
-			</div>
-			<div class="font-size-sm text-muted" v-if="state.format_member_account_age(state.selected_guild_member.account_age)">
-				<lang-string lang-id="STATISTICS_ACCOUNT_AGE"></lang-string>: {{ state.format_member_account_age(state.selected_guild_member.account_age) }}
-			</div>
-			<div class="font-size-sm text-muted" v-if="state.format_member_total_skill_level(state.selected_guild_member.total_skill_level)">
-				<lang-string lang-id="STATISTICS_TOTAL_SKILL_LEVEL"></lang-string>: {{ state.format_member_total_skill_level(state.selected_guild_member.total_skill_level) }}
+			<div class="font-size-sm text-muted" v-if="!state.selected_guild_member.skills_visible"><lang-string lang-id="MOD_MP_SKILLS_NOT_SHARED"></lang-string></div>
+			<div class="font-size-sm text-muted" v-else-if="!state.selected_guild_member.skills_available"><lang-string lang-id="MOD_MP_SKILLS_NOT_AVAILABLE"></lang-string></div>
+			<div class="font-size-sm text-muted" v-if="!state.selected_guild_member.activity_visible"><lang-string lang-id="MOD_MP_ACTIVITY_NOT_SHARED"></lang-string></div>
+			<div class="font-size-sm text-muted" v-else-if="!state.selected_guild_member.activity_available"><lang-string lang-id="MOD_MP_ACTIVITY_NOT_AVAILABLE"></lang-string></div>
+			<div class="mp-member-shared-stats">
+				<div class="font-size-sm text-muted" v-if="state.get_language_lang_id(state.selected_guild_member.language) !== null">
+					<span class="mp-member-shared-stat-label"><lang-string lang-id="MOD_MP_LANGUAGE"></lang-string>:</span> {{ state.get_language_name(state.selected_guild_member.language) }}
+				</div>
+				<div class="font-size-sm text-muted" v-if="state.format_member_account_age(state.selected_guild_member.account_age)">
+					<span class="mp-member-shared-stat-label"><lang-string lang-id="STATISTICS_ACCOUNT_AGE"></lang-string>:</span> {{ state.format_member_account_age(state.selected_guild_member.account_age) }}
+				</div>
+				<div class="font-size-sm text-muted" v-if="state.format_member_total_skill_level(state.selected_guild_member.total_skill_level)">
+					<span class="mp-member-shared-stat-label"><lang-string lang-id="STATISTICS_TOTAL_SKILL_LEVEL"></lang-string>:</span> {{ state.format_member_total_skill_level(state.selected_guild_member.total_skill_level) }}
+				</div>
 			</div>
 		</template>
 		<div class="text-danger" v-if="state.member_actions_error">{{ state.member_actions_error }}</div>
@@ -578,7 +615,7 @@
 	<hr class="mp-council-modal-rule">
 	<div class="font-w600 mb-1"><lang-string lang-id="MOD_MP_COUNCIL_PROPOSED_ICON"></lang-string></div>
 	<input class="mp-input-text w-100" type="search" v-model="state.council_icon_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_COMBAT_LOCATIONS')">
-	<div class="mp-guild-icon-selector mt-2">
+	<div class="mp-guild-icon-selector mt-2" @touchmove="state.stop_icon_scroll_propagation($event)">
 		<button type="button" class="bank-item no-bg btn-light pointer-enabled resize-48" :class="{ 'mp-icon-picked': icon.id === state.council_picked_icon }" v-for="icon in state.filtered_council_icons" @click="state.pick_council_icon(icon)"><img class="p-2 resize-48" :src="icon.media"></button>
 	</div>
 	<div class="text-danger mt-3" v-if="state.council_error">{{ state.council_error }}</div>
@@ -656,35 +693,40 @@
 						<div class="block-content p-0 mp-guild-members-scroll">
 							<template v-for="(member, member_index) in state.guild_members">
 							<button type="button" class="mp-guild-person mp-guild-member-button" @click="state.show_member_actions(member)">
-								<img class="skill-icon-xs" :src="state.get_avatar_icon(member.icon_id)">
-								<span class="mp-guild-member-details">
-									<span class="mp-guild-member-name">
-										<span class="font-w600">{{ member.display_name }}</span>
-										<img class="mp-game-mode-icon" v-if="state.get_roster_game_mode(member)" :src="state.get_roster_game_mode(member)?.media || 'assets/media/main/question.png'" :alt="state.get_roster_game_mode(member)?.name || ''">
-									</span>
-									<span class="mp-guild-member-gp" v-if="member.gp !== null">
-										<img src="assets/media/main/coins.png" alt="">{{ state.format_shared_gp(member.gp) }}
-									</span>
-								</span>
-								<span class="mp-guild-member-meta">
-									<span class="mp-guild-member-indicators">
-										<span class="badge badge-info" v-if="member.client_id === state.guild_client_id">
-											<lang-string lang-id="MOD_MP_GUILD_YOU"></lang-string>
-										</span>
-										<span class="badge mp-guild-new-member-badge" v-else-if="state.is_new_guild_member(member.joined_at)">
-											<lang-string lang-id="MOD_MP_GUILD_NEW_MEMBER"></lang-string>
+								<img class="mp-guild-member-avatar skill-icon-xs" :src="state.get_avatar_icon(member.icon_id)">
+								<div class="mp-guild-member-content">
+									<div class="mp-guild-member-row">
+										<span class="mp-guild-member-name">
+											<span class="font-w600">{{ member.display_name }}</span>
 										</span>
 										<span class="mp-guild-member-activities" v-if="state.get_status_activities(member).length">
 											<template v-for="(activity, activity_index) in state.get_status_activities(member).slice(0, 3)">
-												<img class="skill-icon-xs" :key="activity_index" :src="state.get_status_activity_icon(activity)" :alt="state.get_status_activity_name(activity)">
+												<img class="mp-member-activity-icon" :key="activity_index" :src="state.get_status_activity_icon(activity)" :alt="state.get_status_activity_name(activity)">
 											</template>
 											<span class="badge badge-info mp-guild-member-activity-more" v-if="state.get_status_activities(member).length > 3">+{{ state.get_status_activities(member).length - 3 }}</span>
 										</span>
-									</span>
-									<span class="font-size-sm text-muted">
-										<mp-lang-string-f :lang-id="state.get_last_seen_lang_id(member.last_seen_at)" :lang-arg-1="state.get_last_seen_value(member.last_seen_at)"></mp-lang-string-f>
-									</span>
-								</span>
+									</div>
+									<div class="mp-guild-member-row">
+										<span class="mp-guild-member-gp" v-if="member.gp !== null">
+											<img src="assets/media/main/coins.png" alt="">{{ state.format_shared_gp(member.gp) }}
+										</span>
+										<span class="font-size-sm text-muted mp-guild-member-last-seen">
+											<mp-lang-string-f :lang-id="state.get_last_seen_lang_id(member.last_seen_at, member.client_id === state.guild_client_id)" :lang-arg-1="state.get_last_seen_value(member.last_seen_at)"></mp-lang-string-f>
+										</span>
+									</div>
+									<div class="mp-guild-member-tags">
+										<span class="badge badge-info" v-if="member.client_id === state.guild_client_id">
+											<lang-string lang-id="MOD_MP_GUILD_YOU"></lang-string>
+										</span>
+										<span class="badge mp-guild-new-member-badge" v-if="member.client_id !== state.guild_client_id && state.is_new_guild_member(member.joined_at)">
+											<lang-string lang-id="MOD_MP_GUILD_NEW_MEMBER"></lang-string>
+										</span>
+										<span class="badge badge-info" v-if="member.social_mode === 'social'">
+											<lang-string lang-id="MOD_MP_SOCIAL_MODE_SOCIAL"></lang-string>
+										</span>
+									</div>
+								</div>
+								<img class="mp-game-mode-icon" v-if="state.get_roster_game_mode(member)" :src="state.get_roster_game_mode(member)?.media || 'assets/media/main/question.png'" :alt="state.get_roster_game_mode(member)?.name || ''">
 							</button>
 							<hr class="mp-member-actions-rule mp-guild-member-rule" v-show="member_index < state.guild_members.length - 1">
 							</template>
@@ -851,7 +893,7 @@
 							<input class="mp-input-text w-100 mt-1" type="text" maxlength="20" v-model="state.guild_name_input">
 						</label>
 						<input class="mp-input-text w-100 mt-3" type="search" v-model="state.guild_icon_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_COMBAT_LOCATIONS')">
-						<div class="mp-guild-icon-selector mt-2" v-if="state.filtered_guild_icons.length > 0">
+						<div class="mp-guild-icon-selector mt-2" v-if="state.filtered_guild_icons.length > 0" @touchmove="state.stop_icon_scroll_propagation($event)">
 							<button type="button" class="bank-item no-bg btn-light pointer-enabled resize-48" :class="{ 'mp-icon-picked': icon.id === state.picked_guild_icon }" v-for="icon in state.filtered_guild_icons" @click="state.pick_guild_icon(icon)">
 								<img class="p-2 resize-48" :src="icon.media">
 							</button>
@@ -945,13 +987,22 @@
 		<lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string>
 	</button>
 </template>
-<template id="template-mp-add-gp-modal">
+<template id="template-mp-add-currency-modal">
+	<div class="mp-currency-list">
+		<button type="button" class="btn btn-outline-primary mp-currency-row" v-for="currency in state.transfer_currencies" :key="currency.id" @click="state.show_add_currency_amount_modal(currency.id)">
+			<span><lang-string lang-id="MOD_MP_CURRENCY_ADD"></lang-string></span>
+			<img class="skill-icon-sm" :src="currency.currency.media" alt="">
+			<mp-lang-string-f :lang-id="currency.lang_id"></mp-lang-string-f>
+		</button>
+	</div>
+</template>
+<template id="template-mp-add-currency-amount-modal">
 	<div class="form-group mp-gp-group">
-		<mp-gp-slider></mp-gp-slider>
+		<mp-currency-slider></mp-currency-slider>
 	</div>
 	<div class="mp-button-tray">
-		<button type="button" class="btn btn-success" @click="state.add_gp_to_transfer($event)">
-			<mp-lang-string-f lang-id="MOD_MP_BUTTON_ADD_GP_F" :lang-arg-1="state.add_gp_value_formatted"></mp-lang-string-f>
+		<button type="button" class="btn btn-success" @click="state.add_currency_to_transfer($event)">
+			<mp-lang-string-f lang-id="MOD_MP_BUTTON_ADD_CURRENCY_F" :lang-arg-1="state.add_currency_value_formatted" :lang-arg-2="state.selected_transfer_currency.shorthand"></mp-lang-string-f>
 		</button>
 		<button type="button" class="btn btn-danger" @click="state.close_modal()">
 			<lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string>
@@ -1059,7 +1110,7 @@
 </template>
 <template id="template-mp-change-icon-modal">
 	<input class="form-control" type="text" v-model="state.icon_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_ICON')"/>
-	<div class="mp-icon-selector" v-if="state.filtered_icons.length > 0">
+	<div class="mp-icon-selector" v-if="state.filtered_icons.length > 0" @touchmove="state.stop_icon_scroll_propagation($event)">
 		<div class="bank-item no-bg btn-light pointer-enabled m-1 resize-48" :class="{ 'mp-icon-picked': icon.id == state.picked_icon }" v-for="icon in state.filtered_icons" @click="state.pick_icon(icon)">
 			<img class="p-2 resize-48" :src="icon.media" loading="lazy">
 		</div>
@@ -1173,7 +1224,8 @@
 </template>
 <template id="template-mp-market-page">
 	<div class="content d-none" id="mp-market-page">
-		<div :class="{ 'mp-guild-locked': !state.is_guild_member }">
+		<div class="block block-rounded p-4" v-if="state.is_social_only"><lang-string lang-id="MOD_MP_SOCIAL_ONLY_DISABLED"></lang-string></div>
+		<div :class="{ 'mp-guild-locked': !state.is_guild_member }" v-if="!state.is_social_only">
 		<div class="block block-rounded p-4 mp-guild-required">
 			<lang-string lang-id="MOD_MP_GUILD_REQUIRED_INFO"></lang-string>
 		</div>
@@ -1249,7 +1301,7 @@
 		<div v-if="state.market_active_tab == 'create-filter'">
 			<input type="text" id="mp-market-create-filter-input" v-model="state.market_filter_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_ITEMS')" class="mp-market-search-input border-top border-4x">
 			<div id="mp-market-filter-items">
-				<div v-for="item in state.market_filter_items_filtered" @click="state.select_market_filter_item(item.id)">
+				<div v-for="item in state.market_filter_items_filtered" :key="item.id" @click="state.select_market_filter_item(item.id)">
 					<mp-item-icon :data-item-id="item.id"><img class="mp-market-item-icon mr-3" :src="item.media" draggable="false"></mp-item-icon>
 					<span>{{ item.name }}</span>
 				</div>
@@ -1258,7 +1310,7 @@
 		<div v-if="state.market_active_tab == 'filter'">
 			<input type="text" id="mp-market-filter-input" v-model="state.market_filter_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_ITEMS')" class="mp-market-search-input border-top border-4x">
 			<div id="mp-market-filter-items">
-				<div v-for="item in state.market_filter_items_filtered" @click="state.select_market_filter_item(item.id)">
+				<div v-for="item in state.market_filter_items_filtered" :key="item.id" @click="state.select_market_filter_item(item.id)">
 					<mp-item-icon :data-item-id="item.id"><img class="mp-market-item-icon mr-3" :src="item.media" draggable="false"></mp-item-icon>
 					<span>{{ item.name }}</span>
 				</div>
@@ -1338,7 +1390,7 @@
 				<lang-string lang-id="MOD_MP_BUTTON_MARKET_SORT_PRICE" v-else></lang-string>
 			</button>
 			<div id="mp-market-search-results" v-if="state.market_results.length > 0 && !state.market_search_loading">
-				<div class="mp-market-search-result" v-for="item in state.market_results">
+				<div class="mp-market-search-result" v-for="item in state.market_results" :key="item.id">
 					<div class="mp-market-item-col">
 						<mp-item-icon :data-item-id="item.item_id"><img class="mp-market-item-icon mr-3" :src="state.get_item_icon(item.item_id)" draggable="false"></mp-item-icon>
 						<span>{{ state.get_item_name(item.item_id) }}</span>
@@ -1410,7 +1462,7 @@
 				</button>
 			</div>
 			<div id="mp-market-search-results" v-if="state.market_listings_filtered.length > 0 && !state.market_listings_loading">
-				<div class="mp-market-search-result mp-market-listing-result" v-for="item in state.market_listings_filtered">
+				<div class="mp-market-search-result mp-market-listing-result" v-for="item in state.market_listings_filtered" :key="item.id">
 					<div class="mp-market-item-col">
 						<mp-item-icon v-if="!item.unresolved" :data-item-id="item.item_id"><img class="mp-market-item-icon mr-3" :src="state.get_item_icon(item.item_id)" draggable="false"></mp-item-icon>
 						<img v-else class="mp-market-item-icon mr-3" :src="state.get_item_icon(item.item_id)" draggable="false">
@@ -1439,7 +1491,7 @@
 							<span class="mp-market-item-value text-success mp-market-item-gp"><span>{{ numberWithCommas(item.escrow_gp) }}</span><img class="skill-icon-xxs" src="assets/media/main/coins.svg"></span>
 						</div>
 						<div class="mp-market-item-col">
-							<button type="button" class="btn btn-danger m-1" @click="state.resolve_market_listing($event, item, 'cancel')" :key="item.id">
+							<button type="button" class="btn btn-danger m-1" @click="state.resolve_market_listing($event, item, 'cancel')">
 								<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 								<lang-string lang-id="MOD_MP_BUTTON_MARKET_CANCEL"></lang-string>
 							</button>
@@ -1465,17 +1517,17 @@
 						</div>
 						<div class="mp-market-item-col">
 							<template v-if="item.unresolved">
-								<button type="button" class="btn btn-danger m-1" @click="state.resolve_market_listing($event, item, 'destroy')" :key="item.id">
+								<button type="button" class="btn btn-danger m-1" @click="state.resolve_market_listing($event, item, 'destroy')">
 									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 									<lang-string lang-id="MOD_MP_BUTTON_MARKET_DESTROY"></lang-string>
 								</button>
 							</template>
 							<template v-else>
-								<button type="button" class="btn btn-success m-1" @click="state.resolve_market_listing($event, item, 'payout')" :class="{ disabled: ((item.price * (item.qty - item.available)) - item.payout) == 0 }" :key="item.id">
+								<button type="button" class="btn btn-success m-1" @click="state.resolve_market_listing($event, item, 'payout')" :class="{ disabled: ((item.price * (item.qty - item.available)) - item.payout) == 0 }">
 									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 									<lang-string lang-id="MOD_MP_BUTTON_MARKET_CLAIM_PAYOUT"></lang-string>
 								</button>
-								<button type="button" class="btn btn-danger m-1" @click="state.resolve_market_listing($event, item, 'cancel')" :key="item.id">
+								<button type="button" class="btn btn-danger m-1" @click="state.resolve_market_listing($event, item, 'cancel')">
 									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 									<lang-string lang-id="MOD_MP_BUTTON_MARKET_CANCEL"></lang-string>
 								</button>
@@ -1497,7 +1549,8 @@
 </template>
 <template id="template-mp-campaign-page">
 	<div class="content d-none" id="mp-campaign-page">
-		<div :class="{ 'mp-guild-locked': !state.is_guild_member }">
+		<div class="block block-rounded p-4" v-if="state.is_social_only"><lang-string lang-id="MOD_MP_SOCIAL_ONLY_DISABLED"></lang-string></div>
+		<div :class="{ 'mp-guild-locked': !state.is_guild_member }" v-if="!state.is_social_only">
 		<div class="block block-rounded p-4 mp-guild-required">
 			<lang-string lang-id="MOD_MP_GUILD_REQUIRED_INFO"></lang-string>
 		</div>
@@ -1633,7 +1686,8 @@
 </template>
 <template id="template-mp-charity-page">
 	<div class="content d-none" id="mp-charity-page">
-		<div :class="{ 'mp-guild-locked': !state.is_guild_member }">
+		<div class="block block-rounded p-4" v-if="state.is_social_only"><lang-string lang-id="MOD_MP_SOCIAL_ONLY_DISABLED"></lang-string></div>
+		<div :class="{ 'mp-guild-locked': !state.is_guild_member }" v-if="!state.is_social_only">
 		<div class="block block-rounded p-4 mp-guild-required">
 			<lang-string lang-id="MOD_MP_GUILD_REQUIRED_INFO"></lang-string>
 		</div>
@@ -1703,55 +1757,45 @@
 </template>
 <template id="template-mp-transfer-page">
 	<div class="content d-none" id="mp-transfer-page">
-		<div>
-		<div class="block block-rounded p-4" v-show="!state.is_guild_member">
-			<lang-string lang-id="MOD_MP_TRANSFER_GUILDLESS_INFO"></lang-string>
+		<div class="block block-rounded p-4" v-show="!state.is_guild_member"><lang-string lang-id="MOD_MP_TRANSFER_GUILDLESS_INFO"></lang-string></div>
+		<div class="mp-transfers-tabs" role="tablist">
+			<button type="button" class="btn" :class="state.transfers_mobile_tab === 'inbox' ? 'btn-primary' : 'btn-secondary'" role="tab" :aria-selected="state.transfers_mobile_tab === 'inbox'" aria-controls="mp-transfers-inbox" @click="state.transfers_mobile_tab = 'inbox'"><lang-string lang-id="MOD_MP_INBOX_TITLE"></lang-string><span class="badge badge-secondary mp-transfer-tab-badge mp-transfer-tab-badge-inbox" v-show="state.inbox_items.length > 0">{{ formatNumber(state.inbox_items.length) }}</span></button>
+			<button type="button" class="btn" :class="state.transfers_mobile_tab === 'outbox' ? 'btn-primary' : 'btn-secondary'" role="tab" :aria-selected="state.transfers_mobile_tab === 'outbox'" aria-controls="mp-transfers-outbox" @click="state.transfers_mobile_tab = 'outbox'"><lang-string lang-id="MOD_MP_TRANSFER_OUTBOX"></lang-string><span class="badge badge-secondary mp-transfer-tab-badge" v-show="state.transfer_inventory.length > 0">{{ formatNumber(state.transfer_inventory.length) }}</span></button>
+			<button type="button" class="btn" :class="state.transfers_mobile_tab === 'pending' ? 'btn-primary' : 'btn-secondary'" role="tab" :aria-selected="state.transfers_mobile_tab === 'pending'" aria-controls="mp-transfers-pending" @click="state.transfers_mobile_tab = 'pending'"><lang-string lang-id="MOD_MP_TRANSFER_PENDING"></lang-string><span class="badge badge-danger mp-transfer-tab-badge mp-transfer-tab-badge-pending" v-show="state.num_active_transfers > 0">{{ formatNumber(state.num_active_transfers) }}</span></button>
 		</div>
-		<div class="row row-deck gutters-tiny">
-			<div class="block block-rounded block-link-pop border-top mp-transfer-border border-4x w-100">
-				<div class="row row-deck gutters-tiny">
-					<div class="p-3 mp-transfer-info">
-						<img class="skill-icon-xxs mr-1" :src="state.get_svg('transfer_bag')">
-						<lang-string lang-id="MOD_MP_TRANSFER_WINDOW_INFO"></lang-string>
+		<div class="mp-transfers-layout">
+			<section id="mp-transfers-inbox" class="block block-rounded mp-transfers-panel mp-transfers-inbox" :class="{ 'mp-transfers-mobile-hidden': state.transfers_mobile_tab !== 'inbox' }">
+				<div class="block-header block-header-default mp-transfer-panel-header"><h3 class="block-title"><lang-string lang-id="MOD_MP_INBOX_TITLE"></lang-string></h3><span>{{ formatNumber(state.inbox_items.length) }}</span></div>
+				<div class="block-content" v-if="state.inbox_items.length > 0">
+					<div class="pb-4 row">
+						<mp-item-icon v-for="item of state.inbox_items" class="bank-item m-2" :data-item-id="item.item_id" :key="item.item_id">
+							<a role="button">
+								<img class="bank-img p-3" :src="state.get_item_icon(item.item_id)">
+								<div class="font-size-sm text-white text-center in-bank">
+									<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
+								</div>
+							</a>
+						</mp-item-icon>
 					</div>
 				</div>
-			</div>
-			<div class="block tabbable w-100 mp-col">
-				<div class="pl-3 pt-1 pb-1 bg-dark-bank-info text-center">
-					<div class="row gutters-tiny">
-						<div class="col-6 col-lg-3">
-							<span class="font-w400 font-size-sm mb-0">
-								<span class="font-w600">
-									<lang-string lang-id="MOD_MP_TRANSFER_WINDOW_HEADER"></lang-string>
-								</span>
-							</span>
-						</div>
-						<div class="col-6 col-lg-3">
-							<span class="font-w400 font-size-sm mb-0">
-								<span class="font-w600"><lang-string lang-id="MOD_MP_TRANSFER_SPACE"></lang-string> </span><span>{{ state.transfer_inventory.length + ' / ' + state.TRANSFER_INVENTORY_MAX_LIMIT }}</span>
-							</span>
-						</div>
-						<div class="col-6 col-lg-3">
-							<span class="font-w400 font-size-sm mb-0 ml-3">
-								<span class="font-w600">
-									<lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string>
-									<span>
-										<span class="mr-2">
-											<img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">
-											<span class="font-w400">{{ state.transfer_inventory_value }}</span>
-										</span>
-									</span>
-								</span>
-							</span>
-						</div>
-					</div>
+				<div class="p-4" v-else>
+					<lang-string lang-id="MOD_MP_INBOX_EMPTY"></lang-string>
 				</div>
+				<div class="p-3 mp-transfer-buttons mp-inbox-claim">
+					<button type="button" class="btn btn-success m-1" @click="state.claim_inbox($event)" :disabled="state.inbox_claiming" v-if="state.inbox_items.length > 0 || state.inbox_pending_claim">
+						<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+						<lang-string lang-id="MOD_MP_INBOX_CLAIM"></lang-string>
+					</button>
+				</div>
+			</section>
+			<section id="mp-transfers-outbox" class="block block-rounded mp-transfers-panel mp-transfers-outbox" :class="{ 'mp-transfers-mobile-hidden': state.transfers_mobile_tab !== 'outbox' }">
+				<div class="block-header block-header-default mp-transfer-panel-header"><h3 class="block-title"><lang-string lang-id="MOD_MP_TRANSFER_OUTBOX"></lang-string></h3><span>{{ state.transfer_inventory.length + ' / ' + state.TRANSFER_INVENTORY_MAX_LIMIT }}</span></div>
 				<template v-if="state.transfer_inventory.length > 0">
 					<div class="block-content">
 						<div class="pb-4 row">
 							<mp-item-icon v-for="item of state.transfer_inventory" class="bank-item pointer-enabled m-2" :data-item-id="item.id" :key="item.id">
 								<a role="button" @click="state.selected_transfer_item_id = item.id">
-									<img class="bank-img p-3" :src="state.get_item_icon(item.id)" :class="{ 'border border-4x border-success': state.selected_transfer_item_id === item.id }">
+									<img class="bank-img p-3" :src="state.get_item_icon(item.id)" draggable="false" :class="{ 'border border-4x border-success': state.selected_transfer_item_id === item.id }">
 									<div class="font-size-sm text-white text-center in-bank">
 										<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
 									</div>
@@ -1762,19 +1806,25 @@
 					<div class="p-3 text-warning" v-if="state.has_destroyable_transfer_items">
 						<lang-string lang-id="MOD_MP_TRANSFER_DESTROY_ONLY"></lang-string>
 					</div>
-					<div class="p-3 mp-transfer-buttons">
-						<button type="button" class="btn btn-success m-1" v-show="state.is_guild_member && !state.has_destroyable_transfer_items" @click="state.show_add_gp_modal()">
-							<lang-string lang-id="MOD_MP_BUTTON_ADD_GP"></lang-string>
+					<div class="mp-outbox-value"><lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string> <img class="skill-icon-xxs mx-1" src="assets/media/main/coins.svg">{{ state.transfer_inventory_value }}</div>
+				</template>
+				<div class="p-4" v-else>
+					<lang-string lang-id="MOD_MP_TRANSFER_NO_ITEMS"></lang-string>
+				</div>
+				<div class="p-3 mp-transfer-buttons" :class="{ 'mp-transfer-buttons-single': state.transfer_inventory.length === 0 }">
+					<button type="button" class="btn btn-success m-1" v-show="state.is_guild_member && !state.is_social_only && !state.has_destroyable_transfer_items" @click="state.show_add_currency_modal()">
+						<lang-string lang-id="MOD_MP_BUTTON_ADD_CURRENCY"></lang-string>
+					</button>
+					<template v-if="state.transfer_inventory.length > 0">
+						<button type="button" class="btn btn-success m-1" v-show="state.is_guild_member && !state.is_social_only && !state.has_destroyable_transfer_items" @click="state.create_trade()">
+							<lang-string lang-id="MOD_MP_TRANSFER_START_TRADE"></lang-string>
 						</button>
-						<button type="button" class="btn btn-success m-1" v-show="state.is_guild_member && !state.has_destroyable_transfer_items" @click="state.create_trade()">
-							<mp-lang-string-f lang-id="MOD_MP_BUTTON_CREATE_TRADE" :lang-arg-1="state.transfer_inventory.length"></mp-lang-string-f>
-						</button>
-						<button type="button" class="btn btn-success m-1" v-show="state.is_guild_member && !state.has_destroyable_transfer_items" @click="state.gift_friend()">
-							<mp-lang-string-f lang-id="MOD_MP_BUTTON_GIFT_ITEMS" :lang-arg-1="state.transfer_inventory.length"></mp-lang-string-f>
+						<button type="button" class="btn btn-success m-1" v-show="state.is_guild_member && !state.is_social_only && !state.has_destroyable_transfer_items" @click="state.gift_friend()">
+							<lang-string lang-id="MOD_MP_TRANSFER_SEND_GIFT"></lang-string>
 						</button>
 						<button type="button" class="btn btn-success m-1" v-show="state.is_guild_member && state.is_charitree_enabled && !state.has_destroyable_transfer_items" @click="state.donate_items($event)">
 							<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-							<mp-lang-string-f lang-id="MOD_MP_BUTTON_DONATE_ITEMS" :lang-arg-1="state.transfer_inventory.length"></mp-lang-string-f>
+							<lang-string lang-id="MOD_MP_TRANSFER_DONATE"></lang-string>
 						</button>
 						<button type="button" class="btn btn-warning m-1" v-if="state.selected_transfer_item_is_destroyable" @click="state.transfer_destroy_selected()">
 							<lang-string lang-id="MOD_MP_BUTTON_DESTROY_ITEM"></lang-string>
@@ -1785,195 +1835,60 @@
 						<button type="button" class="btn btn-danger m-1" v-if="!state.has_destroyable_transfer_items" @click="state.transfer_return_all()">
 							<lang-string lang-id="MOD_MP_BUTTON_RETURN_ALL"></lang-string>
 						</button>
-					</div>
-				</template>
-				<div class="p-4" v-else>
-					<lang-string lang-id="MOD_MP_TRANSFER_NO_ITEMS"></lang-string>
+					</template>
 				</div>
-			</div>
-			<div class="block block-rounded block-link-pop border-top mp-exchange-border border-4x w-100 mt-5">
-				<div class="row row-deck gutters-tiny">
-					<div class="p-3 mp-transfer-info">
-						<img class="skill-icon-xxs mr-1" :src="state.get_svg('multiplayer')">
-						<lang-string lang-id="MOD_MP_EXCHANGE_WINDOW_INFO"></lang-string>
+			</section>
+			<section id="mp-transfers-pending" class="block block-rounded mp-transfers-panel mp-transfers-pending" :class="{ 'mp-transfers-mobile-hidden': state.transfers_mobile_tab !== 'pending' }">
+				<div class="block-header block-header-default mp-transfer-panel-header"><h3 class="block-title"><lang-string lang-id="MOD_MP_TRANSFER_PENDING"></lang-string></h3><span>{{ formatNumber(state.num_active_transfers) }}</span></div>
+				<div class="block block-rounded p-4" v-show="state.is_social_only"><lang-string lang-id="MOD_MP_SOCIAL_ONLY_TRANSFER_INFO"></lang-string></div>
+				<div class="mp-transfer-exchanges" v-show="!state.is_social_only">
+					<div class="p-4 block w-100" v-if="state.num_active_transfers === 0">
+						<lang-string lang-id="MOD_MP_NO_EXCHANGES"></lang-string>
 					</div>
-				</div>
-			</div>
-			<div class="p-4 block w-100" v-if="state.num_active_transfers === 0">
-				<lang-string lang-id="MOD_MP_NO_EXCHANGES"></lang-string>
-			</div>
-			<template v-for="gift in state.gifts">
-				<div class="block tabbable w-100 mp-col" v-if="gift.unresolved">
-					<div class="p-4">
-						<div class="text-warning"><lang-string lang-id="MOD_MP_UNSUPPORTED_RETURNED_GIFT_INFO"></lang-string></div>
-						<div class="mt-2" v-for="item of gift.data.items" :key="item.item_id">
-							<small>{{ item.item_id }} × {{ formatNumber(item.qty) }}</small>
-						</div>
-					</div>
-					<div class="p-3 mp-transfer-buttons">
-						<button type="button" class="btn btn-danger m-1" @click="state.show_discard_returned_gift_confirmation(gift.id)">
-							<lang-string lang-id="MOD_MP_DISCARD_RETURNED_GIFT_ACTION"></lang-string>
-						</button>
-					</div>
-				</div>
-				<div class="block tabbable w-100 mp-col" v-else-if="!!gift.data">
-					<div class="pl-3 pt-1 pb-1 bg-dark-bank-info text-center">
-						<div class="row gutters-tiny">
-							<div class="col-6 col-lg-3">
-								<span class="font-w400 font-size-sm mb-0">
-									<span class="font-w600">
-										<img class="skill-icon-xs" :src="state.get_avatar_icon(gift.data.sender.icon_id)"/>
-										<mp-lang-string-f lang-id="MOD_MP_TRANSFER_GIFT_SENDER" :lang-arg-1="gift.data.sender.display_name" v-if="!state.is_returned_gift(gift)"></mp-lang-string-f>
-										<mp-lang-string-f lang-id="MOD_MP_TRANSFER_GIFT_RETURN_SENDER" :lang-arg-1="gift.data.sender.display_name" v-else></mp-lang-string-f>
-									</span>
-								</span>
-							</div>
-							<div class="col-6 col-lg-3">
-								<span class="font-w400 font-size-sm mb-0 ml-3">
-									<span class="font-w600">
-										<lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string>
-										<span>
-											<span class="mr-2">
-												<img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">
-												<span class="font-w400">{{ state.get_transfer_value(gift) }}</span>
-											</span>
-										</span>
-									</span>
-								</span>
-							</div>
-						</div>
-					</div>
-					<div class="block-content">
-						<div class="pb-4 row">
-							<mp-item-icon v-for="item of gift.data.items" class="bank-item pointer-enabled m-2" :data-item-id="item.item_id" :key="item.item_id">
-								<a role="button">
-									<img class="bank-img p-3" :src="state.get_item_icon(item.item_id)">
-									<div class="font-size-sm text-white text-center in-bank">
-										<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
-									</div>
-								</a>
-							</mp-item-icon>
-						</div>
-					</div>
-					<div class="p-3 mp-transfer-buttons">
-						<button type="button" class="btn btn-success m-1" @click="state.resolve_gift($event, gift.id, true)" :key="gift.id">
-							<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-							<lang-string lang-id="MOD_MP_BUTTON_TAKE_ITEMS" v-if="state.is_returned_gift(gift)"></lang-string>
-							<lang-string lang-id="MOD_MP_BUTTON_ACCEPT_GIFT" v-else></lang-string>
-						</button>
-						<button type="button" class="btn btn-danger m-1" @click="state.resolve_gift($event, gift.id, false)" v-if="!state.is_returned_gift(gift)" :key="gift.id">
-							<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-							<lang-string lang-id="MOD_MP_BUTTON_DECLINE_GIFT"></lang-string>
-						</button>
-					</div>
-				</div>
-				<div class="block tabbable w-100 mp-col" v-else>
-					<div class="p-4">
-						<lang-string lang-id="MOD_MP_TRANSFER_LOADING_GIFT"></lang-string>
-					</div>
-				</div>
-			</template>
-			<template v-for="trade in state.resolved_trades">
-				<div class="block tabbable w-100 mp-col" v-if="trade.data">
-					<div class="pl-3 pt-1 pb-1 bg-dark-bank-info text-center">
-						<div class="row gutters-tiny">
-							<div class="col-6 col-lg-3">
-								<span class="font-w400 font-size-sm mb-0">
-									<span class="font-w600">
-										<img class="skill-icon-xs" :src="state.get_avatar_icon(trade.data.other_player.icon_id)"/>
-										<mp-lang-string-f lang-id="MOD_MP_TRANSFER_TRADE_DECLINED" :lang-arg-1="trade.data.other_player.display_name" v-if="trade.data.declined"></mp-lang-string-f>
-										<mp-lang-string-f lang-id="MOD_MP_TRANSFER_TRADE_COMPLETE" :lang-arg-1="trade.data.other_player.display_name" v-else></mp-lang-string-f>
-									</span>
-								</span>
-							</div>
-							<div class="col-6 col-lg-3">
-								<span class="font-w400 font-size-sm mb-0 ml-3">
-									<span class="font-w600">
-										<lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string>
-										<span>
-											<span class="mr-2">
-												<img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">
-												<span class="font-w400">{{ state.get_transfer_value(trade) }}</span>
-											</span>
-										</span>
-									</span>
-								</span>
-							</div>
-						</div>
-					</div>
-					<div class="block-content">
-						<div class="pb-4 row">
-							<mp-item-icon v-for="item of trade.data.items" class="bank-item pointer-enabled m-2" :data-item-id="item.item_id" :key="item.item_id">
-								<a role="button">
-									<img class="bank-img p-3" :src="state.get_item_icon(item.item_id)">
-									<div class="font-size-sm text-white text-center in-bank">
-										<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
-									</div>
-								</a>
-							</mp-item-icon>
-						</div>
-					</div>
-					<div class="p-3 mp-transfer-buttons">
-						<button type="button" class="btn btn-success m-1" @click="state.resolve_trade($event, trade.trade_id)" :key="trade.trade_id">
-							<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-							<lang-string lang-id="MOD_MP_BUTTON_TAKE_ITEMS"></lang-string>
-						</button>
-					</div>
-				</div>
-				<div class="block tabbable w-100 mp-col" v-else>
-					<div class="p-4">
-						<lang-string lang-id="MOD_MP_TRANSFER_LOADING_TRADE"></lang-string>
-					</div>
-				</div>
-			</template>
-			<template v-for="trade in state.sorted_trades">
-				<div class="block tabbable w-100 mp-col" v-if="!!trade.data">
-					<div class="pl-3 pt-1 pb-1 bg-dark-bank-info text-center">
-						<div class="row gutters-tiny">
-							<div class="col-6 col-lg-3">
-								<span class="font-w400 font-size-sm mb-0">
-									<span class="font-w600">
-										<img class="skill-icon-xs" :src="state.get_avatar_icon(trade.data.other_player.icon_id)"/>
-										<mp-lang-string-f lang-id="MOD_MP_TRANSFER_TRADE_FROM" :lang-arg-1="trade.data.other_player.display_name" v-if="trade.attending"></mp-lang-string-f>
-										<mp-lang-string-f lang-id="MOD_MP_TRANSFER_TRADE_SENT" :lang-arg-1="trade.data.other_player.display_name" v-else></mp-lang-string-f>
-									</span>
-								</span>
-							</div>
-							<div class="col-6 col-lg-3" v-if="trade.state === 0">
-								<span class="font-w400 font-size-sm mb-0 ml-3">
-									<span class="font-w600">
-										<lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string>
-										<span>
-											<span class="mr-2">
-												<img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">
-												<span class="font-w400">{{ state.get_transfer_value(trade) }}</span>
-											</span>
-										</span>
-									</span>
-								</span>
-							</div>
-						</div>
-					</div>
-					<div class="block-content">
-						<div class="pb-4 mp-dual-trade" v-if="trade.state === 1">
-							<div class="mp-dual-trade-panel">
-								<div class="mp-dual-trade-header">
-									<h5>
-										<img class="skill-icon-xs" :src="state.get_avatar_icon(state.profile_icon)"/>
-										<lang-string lang-id="MOD_MP_TRANSFER_HEADER_HOME"></lang-string>
-									</h5>
-									<span class="font-w600">
-										<lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string>
-										<span>
-											<span class="mr-2">
-												<img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">
-												<span class="font-w400">{{ state.get_trade_items_value(state.filter_trade_items_home(trade)) }}</span>
-											</span>
-										</span>
-									</span>
+					<template v-for="gift in state.gifts">
+						<div class="block tabbable w-100 mp-col" v-if="gift.unresolved">
+							<div class="p-4">
+								<div class="text-warning"><lang-string lang-id="MOD_MP_UNSUPPORTED_RETURNED_GIFT_INFO"></lang-string></div>
+								<div class="mt-2" v-for="item of gift.data.items" :key="item.item_id">
+									<small>{{ item.item_id }} × {{ formatNumber(item.qty) }}</small>
 								</div>
-								<div class="mp-dual-trade-items">
-									<mp-item-icon v-for="item of state.filter_trade_items_home(trade)" class="bank-item pointer-enabled m-2" :data-item-id="item.item_id" :key="item.item_id">
+							</div>
+							<div class="p-3 mp-transfer-buttons">
+								<button type="button" class="btn btn-danger m-1" @click="state.show_discard_returned_gift_confirmation(gift.id)">
+									<lang-string lang-id="MOD_MP_DISCARD_RETURNED_GIFT_ACTION"></lang-string>
+								</button>
+							</div>
+						</div>
+						<div class="block tabbable w-100 mp-col" v-else-if="!!gift.data">
+							<div class="pl-3 pt-1 pb-1 bg-dark-bank-info text-center">
+								<div class="row gutters-tiny">
+									<div class="col-6 col-lg-3">
+										<span class="font-w400 font-size-sm mb-0">
+											<span class="font-w600">
+												<img class="skill-icon-xs" :src="state.get_avatar_icon(gift.data.sender.icon_id)"/>
+												<mp-lang-string-f lang-id="MOD_MP_TRANSFER_GIFT_SENDER" :lang-arg-1="gift.data.sender.display_name" v-if="!state.is_returned_gift(gift)"></mp-lang-string-f>
+												<mp-lang-string-f lang-id="MOD_MP_TRANSFER_GIFT_RETURN_SENDER" :lang-arg-1="gift.data.sender.display_name" v-else></mp-lang-string-f>
+											</span>
+										</span>
+									</div>
+									<div class="col-6 col-lg-3">
+										<span class="font-w400 font-size-sm mb-0 ml-3">
+											<span class="font-w600">
+												<lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string>
+												<span>
+													<span class="mr-2">
+														<img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">
+														<span class="font-w400">{{ state.get_transfer_value(gift) }}</span>
+													</span>
+												</span>
+											</span>
+										</span>
+									</div>
+								</div>
+							</div>
+							<div class="block-content">
+								<div class="pb-4 row">
+									<mp-item-icon v-for="item of gift.data.items" class="bank-item pointer-enabled m-2" :data-item-id="item.item_id" :key="item.item_id">
 										<a role="button">
 											<img class="bank-img p-3" :src="state.get_item_icon(item.item_id)">
 											<div class="font-size-sm text-white text-center in-bank">
@@ -1983,25 +1898,55 @@
 									</mp-item-icon>
 								</div>
 							</div>
-							<div class="mp-dual-trade-divider"></div>
-							<div class="mp-dual-trade-panel">
-								<div class="mp-dual-trade-header">
-									<h5>
-										<img class="skill-icon-xs" :src="state.get_avatar_icon(trade.data.other_player.icon_id)"/>
-										<mp-lang-string-f lang-id="MOD_MP_TRANSFER_HEADER_AWAY" :lang-arg-1="trade.data.other_player.display_name"></mp-lang-string-f>
-									</h5>
-									<span class="font-w600">
-										<lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string>
-										<span>
-											<span class="mr-2">
-												<img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">
-												<span class="font-w400">{{ state.get_trade_items_value(state.filter_trade_items_away(trade)) }}</span>
+							<div class="p-3 mp-transfer-buttons">
+								<button type="button" class="btn btn-success m-1" @click="state.resolve_gift($event, gift.id, true)" :key="gift.id">
+									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+									<lang-string lang-id="MOD_MP_BUTTON_TAKE_ITEMS" v-if="state.is_returned_gift(gift)"></lang-string>
+									<lang-string lang-id="MOD_MP_BUTTON_ACCEPT_GIFT" v-else></lang-string>
+								</button>
+								<button type="button" class="btn btn-danger m-1" @click="state.resolve_gift($event, gift.id, false)" v-if="!state.is_returned_gift(gift)" :key="gift.id">
+									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+									<lang-string lang-id="MOD_MP_TRANSFER_DECLINE"></lang-string>
+								</button>
+							</div>
+						</div>
+						<div class="block tabbable w-100 mp-col" v-else>
+							<div class="p-4">
+								<lang-string lang-id="MOD_MP_TRANSFER_LOADING_GIFT"></lang-string>
+							</div>
+						</div>
+					</template>
+					<template v-for="trade in state.resolved_trades">
+						<div class="block tabbable w-100 mp-col" v-if="trade.data">
+							<div class="pl-3 pt-1 pb-1 bg-dark-bank-info text-center">
+								<div class="row gutters-tiny">
+									<div class="col-6 col-lg-3">
+										<span class="font-w400 font-size-sm mb-0">
+											<span class="font-w600">
+												<img class="skill-icon-xs" :src="state.get_avatar_icon(trade.data.other_player.icon_id)"/>
+												<mp-lang-string-f lang-id="MOD_MP_TRANSFER_TRADE_DECLINED" :lang-arg-1="trade.data.other_player.display_name" v-if="trade.data.declined"></mp-lang-string-f>
+												<mp-lang-string-f lang-id="MOD_MP_TRANSFER_TRADE_COMPLETE" :lang-arg-1="trade.data.other_player.display_name" v-else></mp-lang-string-f>
 											</span>
 										</span>
-									</span>
+									</div>
+									<div class="col-6 col-lg-3">
+										<span class="font-w400 font-size-sm mb-0 ml-3">
+											<span class="font-w600">
+												<lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string>
+												<span>
+													<span class="mr-2">
+														<img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">
+														<span class="font-w400">{{ state.get_transfer_value(trade) }}</span>
+													</span>
+												</span>
+											</span>
+										</span>
+									</div>
 								</div>
-								<div class="mp-dual-trade-items">
-									<mp-item-icon v-for="item of state.filter_trade_items_away(trade)" class="bank-item pointer-enabled m-2" :data-item-id="item.item_id" :key="item.item_id">
+							</div>
+							<div class="block-content">
+								<div class="pb-4 row">
+									<mp-item-icon v-for="item of trade.data.items" class="bank-item pointer-enabled m-2" :data-item-id="item.item_id" :key="item.item_id">
 										<a role="button">
 											<img class="bank-img p-3" :src="state.get_item_icon(item.item_id)">
 											<div class="font-size-sm text-white text-center in-bank">
@@ -2011,49 +1956,162 @@
 									</mp-item-icon>
 								</div>
 							</div>
+							<div class="p-3 mp-transfer-buttons">
+								<button type="button" class="btn btn-success m-1" @click="state.resolve_trade($event, trade.trade_id)" :key="trade.trade_id">
+									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+									<lang-string lang-id="MOD_MP_BUTTON_TAKE_ITEMS"></lang-string>
+								</button>
+							</div>
 						</div>
-						<div class="pb-4 row" v-else>
-							<mp-item-icon v-for="item of trade.data.items" class="bank-item pointer-enabled m-2" :data-item-id="item.item_id" :key="item.item_id">
-								<a role="button">
-									<img class="bank-img p-3" :src="state.get_item_icon(item.item_id)">
-									<div class="font-size-sm text-white text-center in-bank">
-										<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
+						<div class="block tabbable w-100 mp-col" v-else>
+							<div class="p-4">
+								<lang-string lang-id="MOD_MP_TRANSFER_LOADING_TRADE"></lang-string>
+							</div>
+						</div>
+					</template>
+					<template v-for="trade in state.sorted_trades">
+						<div class="block tabbable w-100 mp-col" v-if="!!trade.data">
+							<div class="pl-3 pt-1 pb-1 bg-dark-bank-info text-center">
+								<div class="row gutters-tiny">
+									<div class="col-6 col-lg-3">
+										<span class="font-w400 font-size-sm mb-0">
+											<span class="font-w600">
+												<img class="skill-icon-xs" :src="state.get_avatar_icon(trade.data.other_player.icon_id)"/>
+												<mp-lang-string-f lang-id="MOD_MP_TRANSFER_TRADE_FROM" :lang-arg-1="trade.data.other_player.display_name" v-if="trade.attending"></mp-lang-string-f>
+												<mp-lang-string-f lang-id="MOD_MP_TRANSFER_TRADE_SENT" :lang-arg-1="trade.data.other_player.display_name" v-else></mp-lang-string-f>
+											</span>
+										</span>
 									</div>
-								</a>
-							</mp-item-icon>
+									<div class="col-6 col-lg-3" v-if="trade.state === 0">
+										<span class="font-w400 font-size-sm mb-0 ml-3">
+											<span class="font-w600">
+												<lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string>
+												<span>
+													<span class="mr-2">
+														<img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">
+														<span class="font-w400">{{ state.get_transfer_value(trade) }}</span>
+													</span>
+												</span>
+											</span>
+										</span>
+									</div>
+								</div>
+							</div>
+							<div class="block-content">
+								<div class="pb-4 mp-dual-trade" v-if="trade.state === 1">
+									<div class="mp-dual-trade-panel">
+										<div class="mp-dual-trade-header">
+											<h5>
+												<img class="skill-icon-xs" :src="state.get_avatar_icon(state.profile_icon)"/>
+												<lang-string lang-id="MOD_MP_TRANSFER_HEADER_HOME"></lang-string>
+											</h5>
+											<span class="font-w600">
+												<lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string>
+												<span>
+													<span class="mr-2">
+														<img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">
+														<span class="font-w400">{{ state.get_trade_items_value(state.filter_trade_items_home(trade)) }}</span>
+													</span>
+												</span>
+											</span>
+										</div>
+										<div class="mp-dual-trade-items">
+											<mp-item-icon v-for="item of state.filter_trade_items_home(trade)" class="bank-item pointer-enabled m-2" :data-item-id="item.item_id" :key="item.item_id">
+												<a role="button">
+													<img class="bank-img p-3" :src="state.get_item_icon(item.item_id)">
+													<div class="font-size-sm text-white text-center in-bank">
+														<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
+													</div>
+												</a>
+											</mp-item-icon>
+										</div>
+									</div>
+									<div class="mp-dual-trade-divider"></div>
+									<div class="mp-dual-trade-panel">
+										<div class="mp-dual-trade-header">
+											<h5>
+												<img class="skill-icon-xs" :src="state.get_avatar_icon(trade.data.other_player.icon_id)"/>
+												<mp-lang-string-f lang-id="MOD_MP_TRANSFER_HEADER_AWAY" :lang-arg-1="trade.data.other_player.display_name"></mp-lang-string-f>
+											</h5>
+											<span class="font-w600">
+												<lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string>
+												<span>
+													<span class="mr-2">
+														<img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">
+														<span class="font-w400">{{ state.get_trade_items_value(state.filter_trade_items_away(trade)) }}</span>
+													</span>
+												</span>
+											</span>
+										</div>
+										<div class="mp-dual-trade-items">
+											<mp-item-icon v-for="item of state.filter_trade_items_away(trade)" class="bank-item pointer-enabled m-2" :data-item-id="item.item_id" :key="item.item_id">
+												<a role="button">
+													<img class="bank-img p-3" :src="state.get_item_icon(item.item_id)">
+													<div class="font-size-sm text-white text-center in-bank">
+														<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
+													</div>
+												</a>
+											</mp-item-icon>
+										</div>
+									</div>
+								</div>
+								<div class="pb-4 row" v-else>
+									<mp-item-icon v-for="item of trade.data.items" class="bank-item pointer-enabled m-2" :data-item-id="item.item_id" :key="item.item_id">
+										<a role="button">
+											<img class="bank-img p-3" :src="state.get_item_icon(item.item_id)">
+											<div class="font-size-sm text-white text-center in-bank">
+												<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
+											</div>
+										</a>
+									</mp-item-icon>
+								</div>
+							</div>
+							<div class="p-3 mp-transfer-buttons">
+								<template v-if="trade.attending">
+									<button v-if="trade.state === 0" type="button" class="btn btn-success m-1" @click="state.counter_trade($event, trade.trade_id)" :key="trade.trade_id">
+										<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+										<lang-string lang-id="MOD_MP_TRANSFER_OFFER_OUTBOX"></lang-string>
+									</button>
+									<button v-else-if="trade.state === 1" type="button" class="btn btn-success m-1" @click="state.accept_trade($event, trade.trade_id)" :key="trade.trade_id">
+										<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+										<lang-string lang-id="MOD_MP_BUTTON_ACCEPT_TRADE"></lang-string>
+									</button>
+									<button type="button" class="btn btn-danger m-1" @click="state.decline_trade($event, trade.trade_id)" :key="trade.trade_id">
+										<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+										<lang-string lang-id="MOD_MP_TRANSFER_DECLINE"></lang-string>
+									</button>
+								</template>
+								<template v-else>
+									<button type="button" class="btn btn-danger m-1" @click="state.cancel_trade($event, trade.trade_id)" :key="trade.trade_id">
+										<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+										<lang-string lang-id="MOD_MP_BUTTON_CANCEL_TRADE"></lang-string>
+									</button>
+								</template>
+							</div>
 						</div>
-					</div>
-					<div class="p-3 mp-transfer-buttons">
-						<template v-if="trade.attending">
-							<button v-if="trade.state === 0" type="button" class="btn btn-success m-1" @click="state.counter_trade($event, trade.trade_id)" :key="trade.trade_id">
-								<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-								<mp-lang-string-f lang-id="MOD_MP_BUTTON_COUNTER_TRADE" :lang-arg-1="state.transfer_inventory.length"></mp-lang-string-f>
-							</button>
-							<button v-else-if="trade.state === 1" type="button" class="btn btn-success m-1" @click="state.accept_trade($event, trade.trade_id)" :key="trade.trade_id">
-								<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-								<lang-string lang-id="MOD_MP_BUTTON_ACCEPT_TRADE"></lang-string>
-							</button>
-							<button type="button" class="btn btn-danger m-1" @click="state.decline_trade($event, trade.trade_id)" :key="trade.trade_id">
-								<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-								<lang-string lang-id="MOD_MP_BUTTON_DECLINE_TRADE"></lang-string>
-							</button>
-						</template>
-						<template v-else>
-							<button type="button" class="btn btn-danger m-1" @click="state.cancel_trade($event, trade.trade_id)" :key="trade.trade_id">
-								<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-								<lang-string lang-id="MOD_MP_BUTTON_CANCEL_TRADE"></lang-string>
-							</button>
-						</template>
-					</div>
+						<div class="block tabbable w-100 mp-col" v-else>
+							<div class="p-4">
+								<lang-string lang-id="MOD_MP_TRANSFER_LOADING_TRADE"></lang-string>
+							</div>
+						</div>
+					</template>
 				</div>
-				<div class="block tabbable w-100 mp-col" v-else>
-					<div class="p-4">
-						<lang-string lang-id="MOD_MP_TRANSFER_LOADING_TRADE"></lang-string>
-					</div>
-				</div>
-			</template>
+			</section>
 		</div>
-		</div>
+	</div>
+</template>
+<template id="template-mp-transfer-confirm-modal">
+	<div class="mp-modal-text">
+		<mp-lang-string-f :lang-id="state.get_transfer_confirmation_info_lang_id()"></mp-lang-string-f>
+	</div>
+	<div class="mp-button-tray">
+		<button type="button" class="btn btn-danger" @click="state.confirm_transfer_action($event)">
+			<span class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></span>
+			<mp-lang-string-f :lang-id="state.get_transfer_confirmation_action_lang_id()"></mp-lang-string-f>
+		</button>
+		<button type="button" class="btn btn-secondary" @click="state.close_modal()">
+			<lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string>
+		</button>
 	</div>
 </template>
 <template id="template-mp-gift-friend-modal">
@@ -2081,7 +2139,8 @@
 		<div v-for="recipient in state.guild_recipients" class="mp-friend">
 			<img class="skill-icon-xs" :src="state.get_avatar_icon(recipient.icon_id)"/>
 			<span>{{ recipient.display_name }}</span>
-			<button type="button" class="btn btn-success" @click="state.select_trade_recipient(recipient)">
+			<button type="button" class="btn btn-success" @click="state.select_trade_recipient($event, recipient)">
+				<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 				<lang-string lang-id="MOD_MP_BUTTON_SELECT"></lang-string>
 			</button>
 		</div>
@@ -2089,6 +2148,7 @@
 	<div class="mp-modal-text" v-else>
 		<lang-string lang-id="MOD_MP_MODAL_NO_GUILD_RECIPIENTS"></lang-string>
 	</div>
+	<div id="mp-modal-error" class="d-none text-danger mt-2"></div>
 	<button type="button" class="btn btn-secondary" v-show="state.is_free_fellowship && state.guild_member_directory_has_more" @click="state.load_more_guild_members()"><lang-string lang-id="MOD_MP_COUNCIL_LOAD_MORE"></lang-string></button>
 	<button type="button" class="btn btn-danger" @click="state.close_modal()">
 		<lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string>

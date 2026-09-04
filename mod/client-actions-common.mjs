@@ -42,21 +42,27 @@ export function install_common_actions(runtime) {
 		},
 
 		get_item_icon(id) {
-			if (id === 'melvorD:GP')
-				return game.gp.media;
+			const currency = game.currencies?.getObjectByID(id);
+			if (currency !== undefined)
+				return currency.media;
 
 			const item = game.items.getObjectByID(id);
 			return item?.media ?? 'assets/media/main/question.png';
 		},
 
 		get_item_name(id) {
+			const currency = game.currencies?.getObjectByID(id);
+			if (currency !== undefined)
+				return currency.name;
+
 			const item = game.items.getObjectByID(id);
 			return item?.name ?? 'Unknown Item';
 		},
 
 		get_avatar_icon(id) {
 			const icon_object = get_icon_object_by_id(game.monsters, id) ??
-				get_icon_object_by_id(game.thieving?.actions, id);
+				get_icon_object_by_id(game.thieving?.actions, id) ??
+				get_icon_object_by_id(game.pets, id);
 			return icon_object?.media ?? 'assets/media/main/question.png';
 		},
 
@@ -126,8 +132,8 @@ export function install_common_actions(runtime) {
 		},
 
 		get_profile_status_message() {
-			return getLangString(this.selected_guild_member?.status_visible === false
-				? 'MOD_MP_STATUS_NOT_SHARED' : 'MOD_MP_STATUS_NOT_AVAILABLE');
+			return getLangString(this.selected_guild_member?.skills_visible === false
+				? 'MOD_MP_SKILLS_NOT_SHARED' : 'MOD_MP_SKILLS_NOT_AVAILABLE');
 		},
 
 		get_status_activity_name(activity) {
@@ -157,12 +163,17 @@ export function install_common_actions(runtime) {
 				? [] : [member.status_activity];
 		},
 
-		get_last_seen_lang_id(timestamp) {
+		get_last_seen_lang_id(timestamp, is_current_member = false) {
+			if (is_current_member)
+				return 'MOD_MP_LAST_SEEN_JUST_NOW';
 			if (!Number.isSafeInteger(timestamp) || timestamp <= 0)
 				return 'MOD_MP_LAST_SEEN_UNKNOWN';
-			return Math.max(0, Date.now() - timestamp) < 60 * 60 * 1000
-				? 'MOD_MP_LAST_SEEN_MINUTES'
-				: 'MOD_MP_LAST_SEEN_HOURS';
+			const elapsed = Math.max(0, Date.now() - timestamp);
+			return elapsed < 5 * 60 * 1000
+				? 'MOD_MP_LAST_SEEN_JUST_NOW'
+				: elapsed < 60 * 60 * 1000
+					? 'MOD_MP_LAST_SEEN_MINUTES'
+					: 'MOD_MP_LAST_SEEN_HOURS';
 		},
 
 		get_last_seen_value(timestamp) {

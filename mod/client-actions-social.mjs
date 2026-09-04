@@ -15,6 +15,7 @@ export function install_social_actions(runtime) {
 		get_friends,
 		getLangString,
 		get_instance_storage_item,
+		is_social_only,
 		hide_button_spinner,
 		hide_modal_error,
 		invalidate_guild_state,
@@ -83,6 +84,10 @@ export function install_social_actions(runtime) {
 
 			if ($image)
 				$image.src = icon.media;
+		},
+
+		stop_icon_scroll_propagation(event) {
+			event.stopPropagation();
 		},
 
 		async confirm_icon_pick(event) {
@@ -293,6 +298,8 @@ export function install_social_actions(runtime) {
 		},
 
 		show_council_petition_modal(type) {
+			if (is_social_only() && type.startsWith('charitree_'))
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			this.close_modal();
 			this.council_type = type;
 			this.council_error = '';
@@ -322,6 +329,8 @@ export function install_social_actions(runtime) {
 		},
 
 		async submit_council_petition(event, type, target_client_id = null) {
+			if (is_social_only() && type.startsWith('charitree_'))
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			const payload = { type };
 			if (type === 'appellation') {
 				const name = this.council_name_input.trim();
@@ -386,7 +395,8 @@ export function install_social_actions(runtime) {
 		},
 
 		can_raise_council_petition(type) {
-			return this.council_available_petition_types.includes(type);
+			return this.council_available_petition_types.includes(type) &&
+				(!is_social_only() || !type.startsWith('charitree_'));
 		},
 
 		get_council_action_key(type) {

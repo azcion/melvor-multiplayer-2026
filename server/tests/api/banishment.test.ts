@@ -106,7 +106,10 @@ describe('Banishment execution and returns', () => {
 		const target_events = await get_events(target);
 		expect(target_events.trades).toEqual([]);
 		expect(target_events.gifts).toHaveLength(1);
-		expect(target_events.resolved_trades).toContain(resolved_trade.json.trade_id);
+		expect(target_events.resolved_trades).toEqual([]);
+		expect((await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
+		'/api/inbox', target.session_token
+	)).json.items).toContainEqual({ item_id: 'melvorD:Banish_Resolved', qty: 4 });
 
 		const first_claim = await claim_return(target.session_token, ['melvorD:Banish_Offer'], 0);
 		expect(first_claim.json.claim).toMatchObject({
@@ -138,13 +141,9 @@ describe('Banishment execution and returns', () => {
 			banished: null
 		});
 
-		const resolved = await post_json<{ success: boolean }>('/api/trade/resolve', {
-			trade_id: resolved_trade.json.trade_id
-		}, target.session_token);
 		const accepted_gift = await post_json<{ success: boolean }>('/api/gift/accept', {
 			gift_id: target_events.gifts[0]
 		}, target.session_token);
-		expect(resolved.json.success).toBe(true);
 		expect(accepted_gift.json.success).toBe(true);
 	});
 

@@ -3,6 +3,7 @@ const SERVER_HOST = 'http://127.0.0.1:3000';
 const SERVER_INSTANCE_STORAGE_PREFIX = 'instance:local-mac:';
 const SERVER_INSTANCE_STORAGE_LEGACY_PREFIXES = [];
 const MOD_VERSION = 'development';
+const UPDATES_LAST_SEEN_MOD_VERSION_KEY = 'updates_last_seen_mod_version';
 const LOCAL_MOD_CHARACTER_STORAGE_PREFIX = 'mp:local-character:';
 const LEGACY_LOCAL_MOD_CHARACTER_STORAGE_PREFIX = 'kru-melvor-multiplayer:local-character:';
 const SERVER_SCOPED_LEGACY_STORAGE_KEYS = [
@@ -10,6 +11,7 @@ const SERVER_SCOPED_LEGACY_STORAGE_KEYS = [
 	'charity_bonus_timeout',
 	'pending_banishment_guild_name',
 	'processed_banishment_claim_ids',
+	'processed_inbox_claim_ids',
 	'processed_economy_receipt_ids',
 	'processed_raid_cache_ids',
 	'raid_terminal_result',
@@ -30,7 +32,7 @@ const DEV_CHARACTER_STORAGE = {
 	]
 };
 
-const TRANSFER_INVENTORY_MAX_LIMIT = 32;
+const TRANSFER_INVENTORY_MAX_LIMIT = 6;
 const ECONOMY_RECEIPT_PAGE_SIZE = 64;
 const GIFT_FLAG_RETURNED = 1 << 0;
 
@@ -56,6 +58,7 @@ const OFFICIAL_GAME_NAMESPACES = new Set([
 	'melvorTotH',
 	'melvorItA'
 ]);
+const MULTIPLAYER_GAME_NAMESPACE = 'multiplayer';
 // #endregion
 
 // #region GLOBALS
@@ -68,13 +71,16 @@ let api_get_request_sequence = 0;
 let is_connecting = false;
 let client_event_poll_id = 0;
 let client_event_request = null;
+let client_event_trailing = false;
 let client_event_revision = 0;
 let client_events_have_pending = false;
 let client_event_poll_failures = 0;
+let client_event_scheduled_checks = 0;
 let market_search_generation = 0;
 let guild_state_refresh_id = 0;
 let guild_state_refresh_request = null;
 let guild_state_refreshed_at = 0;
+let inbox_update_request = null;
 let server_host = SERVER_HOST;
 let server_instance_storage_prefix = SERVER_INSTANCE_STORAGE_PREFIX;
 let server_instance_storage_legacy_prefixes = SERVER_INSTANCE_STORAGE_LEGACY_PREFIXES;
@@ -89,6 +95,10 @@ let open_transfer_page = null;
 let remove_sold_out_market_result = null;
 let get_market_page_window = null;
 let apply_banishment_claim = null;
+let apply_inbox_claim = null;
+let load_inbox_delivery_state = null;
+let forget_inbox_claim = null;
+let get_inbox_existing_item_ids = null;
 let load_transfer_delivery_state = null;
 let replace_transfer_delivery_inventory = null;
 let trade_returns = null;
@@ -110,13 +120,18 @@ let icon_catalog_collection = null;
 let economy_receipts = null;
 let identity_bindings = null;
 let instance_storage = null;
+let social_mode = null;
+let social_mode_change_request = Promise.resolve();
+const acknowledged_economy_receipt_ids = [];
 let is_reconciling_banishment_returns = false;
 let event_snapshots = null;
 let gift_contents = null;
 let changelog_loader = null;
 let updates_loader = null;
 let transfer_delivery_state = null;
+let inbox_delivery_state = null;
 let economy_receipt_reconciliation = Promise.resolve(true);
+let transfer_currency_support = null;
 let market_fulfillment_notice_queue = [];
 let market_fulfillment_notice_displaying = false;
 let equipment_sync_timer = null;
@@ -128,6 +143,7 @@ let equipment_view_action_timer = null;
 let status_sync_timer = null;
 let status_sync_in_flight = false;
 let status_sync_pending = false;
+let status_sync_failures = 0;
 let last_synced_status_skills = null;
 let last_synced_status_activity = null;
 let last_synced_status_activities = null;
@@ -140,7 +156,9 @@ let status_observer_timer = null;
 let last_observed_status_activity = null;
 let last_observed_status_activities = null;
 let last_observed_status_statistics = null;
-let last_observed_gp = null;
+let gp_sampling_timer = null;
+let gp_sampling_id = 0;
+let gp_scheduled_checks = 0;
 let chat_poll_id = 0;
 let chat_poll_failures = 0;
 let chat_view_generation = 0;
@@ -151,6 +169,7 @@ let raid_combat = null;
 let raid_loaded_session_id = null;
 let is_reconciling_raid_cache = false;
 const pending_identity_notices = [];
+let social_mode_choice_selection = false;
 
 let last_charity_check = 0;
 let charity_clock_timer = null;
@@ -212,8 +231,11 @@ const state = ui.createStore({
 	profile_display_name: '',
 	equipment_visible: true,
 	equipment_visibility_pending: false,
-	status_visible: true,
-	status_visibility_pending: false,
+	skills_visible: true,
+	skills_visibility_pending: false,
+	activity_visible: true,
+	activity_visibility_pending: false,
+	split_visibility_supported: false,
 	gp_visible: true,
 	gp_visibility_pending: false,
 	game_mode_visible: true,
@@ -236,6 +258,8 @@ const state = ui.createStore({
 	picked_icon: '',
 	profile_icon: 'melvorD:Plant',
 	current_mod_version: MOD_VERSION,
+	social_mode: 'full',
+	social_mode_cancellation_pending: false,
 	released_mod_version: '',
 	changelog_entries: [],
 	changelog_loading: false,
@@ -247,11 +271,19 @@ const state = ui.createStore({
 	updates_loaded_host: '',
 	updates_error: '',
 	updates_mobile_tab: 'updates',
+	last_seen_mod_version: '',
+	updates_new: false,
+	transfers_mobile_tab: 'inbox',
 
-	add_gp_value: 0,
+	add_currency_value: 0,
+	selected_transfer_currency_id: '',
 	item_slider_value: 0,
 
 	transfer_inventory: [],
+	inbox_items: [],
+	inbox_pending_claim: false,
+	inbox_loading: false,
+	inbox_claiming: false,
 	selected_transfer_item_id: '',
 
 	charity_tree_inventory: [],
@@ -387,6 +419,10 @@ const state = ui.createStore({
 	// #endregion
 
 	// #region COMPUTED PROPS
+	get_transfer_currency(currency_id) {
+		return transfer_currency_support?.get_transfer_currency(game, currency_id) ?? null;
+	},
+
 	get sorted_trades() {
 		return this.trades.sort((a, b) => a.attending === b.attending ? 0 : a.attending ? -1 : 1);
 	},
@@ -397,7 +433,7 @@ const state = ui.createStore({
 		for (const entry of this.transfer_inventory) {
 			if (entry.id === 'melvorD:GP') {
 				total_value += entry.qty;
-		 	} else {
+			} else if (!transfer_currency_support?.is_transfer_currency(game, entry.id)) {
 				const item = game.items.getObjectByID(entry.id);
 				if (item?.sellsFor.currency === game.gp)
 					total_value += game.bank.getItemSalePrice(item, entry.qty);
@@ -411,8 +447,16 @@ const state = ui.createStore({
 		return game.gp.formatAmount(numberWithCommas(this.transfer_inventory_value_raw));
 	},
 
-	get add_gp_value_formatted() {
-		return formatNumber(this.add_gp_value);
+	get add_currency_value_formatted() {
+		return formatNumber(this.add_currency_value);
+	},
+
+	get transfer_currencies() {
+		return transfer_currency_support?.get_available_transfer_currencies(game) ?? [];
+	},
+
+	get selected_transfer_currency() {
+		return transfer_currency_support?.get_transfer_currency(game, this.selected_transfer_currency_id) ?? null;
 	},
 
 	format_shared_gp(amount) {
@@ -461,6 +505,10 @@ const state = ui.createStore({
 		return this.guild_state.affiliation === 'member' && this.guild_state.guild != null;
 	},
 
+	get is_social_only() {
+		return social_mode?.is_social_only_mode(this.social_mode) === true;
+	},
+
 	get is_free_fellowship() {
 		return this.guild_state.guild?.is_free_fellowship === true;
 	},
@@ -478,7 +526,7 @@ const state = ui.createStore({
 	},
 
 	get is_charitree_enabled() {
-		return this.is_guild_member && this.guild_state.guild.charitree_enabled !== false;
+		return this.is_guild_member && !this.is_social_only && this.guild_state.guild.charitree_enabled !== false;
 	},
 
 	get guild_member_count() {
@@ -486,7 +534,7 @@ const state = ui.createStore({
 	},
 
 	get guild_recipients() {
-		return this.guild_members.filter(member => member.client_id !== this.guild_client_id);
+		return this.guild_members.filter(member => member.client_id !== this.guild_client_id && member.social_mode !== 'social');
 	},
 
 	get viewed_equipment_grid() {
@@ -495,7 +543,7 @@ const state = ui.createStore({
 
 	get member_profile_available() {
 		const member = this.selected_guild_member;
-		return member !== null && ((member.status_visible === true && member.status_available === true) ||
+		return member !== null && ((member.skills_visible === true && member.skills_available === true) ||
 			(member.equipment_visible === true && member.equipment_available === true));
 	},
 
@@ -511,8 +559,11 @@ const state = ui.createStore({
 	},
 
 	get has_transfer_access() {
+		if (this.is_social_only)
+			return this.inbox_items.length > 0 || this.inbox_pending_claim;
 		return this.is_guild_member || this.transfer_inventory.length > 0 || this.gifts.length > 0 ||
-			this.resolved_trades.length > 0;
+			this.trades.length > 0 || this.resolved_trades.length > 0 || this.inbox_items.length > 0 ||
+			this.inbox_pending_claim;
 	},
 
 	get has_destroyable_transfer_items() {
@@ -787,6 +838,7 @@ function create_action_runtime() {
 		GIFT_FLAG_RETURNED,
 		MARKET_ITEMS_PER_PAGE,
 		TRANSFER_INVENTORY_MAX_LIMIT,
+		is_social_only: () => state.is_social_only,
 		game_mode_sharing,
 		client_runtime,
 		charitree_rules,
@@ -794,7 +846,10 @@ function create_action_runtime() {
 		transfer_inventory,
 		api_get,
 		api_post,
+		add_currency_to_transfer,
 		add_gp_to_transfer,
+		is_transfer_currency: currency_id => transfer_currency_support?.is_transfer_currency(game, currency_id) === true,
+		claim_inbox,
 		capture_equipment_snapshot,
 		capture_status_snapshot,
 		format_status_account_age,
@@ -844,12 +899,15 @@ function create_action_runtime() {
 		show_button_spinner,
 		show_modal_error,
 		start_chat_polling,
+		start_gp_sampling,
 		start_status_observer,
 		stop_chat_polling,
+		stop_gp_sampling,
 		stop_status_observer,
 		unmount_connected_modal_components,
 		update_campaign_nav,
 		update_charitree_nav,
+		update_multiplayer_nav,
 		update_market_listings,
 		update_market_page,
 		update_market_search,
@@ -864,8 +922,6 @@ function create_action_runtime() {
 		set has_sorted_market_filter_items(value) { has_sorted_market_filter_items = value; },
 		get last_charity_check() { return last_charity_check; },
 		set last_charity_check(value) { last_charity_check = value; },
-		get last_observed_gp() { return last_observed_gp; },
-		set last_observed_gp(value) { last_observed_gp = value; },
 		get last_synced_status_statistics() { return last_synced_status_statistics; },
 		set last_synced_status_statistics(value) { last_synced_status_statistics = value; },
 		get last_synced_equipment() { return last_synced_equipment; },
@@ -964,6 +1020,10 @@ function make_template(id, parent = null) {
 	if (host !== document.body && !host.hasAttribute('data-mp-template-scope'))
 		host.setAttribute('data-mp-template-scope', id);
 	return ui.create({ $template: '#template-mp-' + id, state }, host);
+}
+
+function find_main_container() {
+	return $('main-container') ?? document.querySelector('main-container');
 }
 
 function make_scoped_template(id, parent) {
@@ -1121,14 +1181,16 @@ function capture_status_snapshot() {
 }
 
 function update_local_status_member(snapshot) {
-	if (!state.status_visible || !Number.isSafeInteger(state.guild_client_id))
+	if (!Number.isSafeInteger(state.guild_client_id))
 		return;
 
 	const update = member => member.client_id === state.guild_client_id
-		? { ...member, status_activity: snapshot.activity, status_activities: [...snapshot.activities],
+		? { ...member,
+			...(state.skills_visible ? { skills_visible: true, skills_available: true } : {}),
+			...(state.activity_visible ? { activity_visible: true, activity_available: true, status_activity: snapshot.activity, status_activities: [...snapshot.activities] } : {}),
 			account_age: snapshot.account_creation_date === null ? null :
 				Math.max(0, Date.now() - snapshot.account_creation_date),
-			total_skill_level: snapshot.total_skill_level }
+			total_skill_level: state.skills_visible ? snapshot.total_skill_level : null }
 		: member;
 	state.guild_members = state.guild_members.map(update);
 	if (state.selected_guild_member?.client_id === state.guild_client_id)
@@ -1147,9 +1209,9 @@ function queue_status_icon_collection(skills) {
 }
 
 async function collect_status_icon_catalog(skills, generation) {
-	if (!state.status_visible || icon_catalog_discovery === null || icon_catalog_collection === null)
+	if (!state.skills_visible || icon_catalog_discovery === null || icon_catalog_collection === null)
 		return;
-	const is_collection_allowed = () => state.status_visible && generation === status_icon_discovery_generation;
+	const is_collection_allowed = () => state.skills_visible && generation === status_icon_discovery_generation;
 	try {
 		await icon_catalog_collection.collect_skill_icon_candidates(skills, {
 			discover_candidates: async snapshot => {
@@ -1192,19 +1254,17 @@ function capture_gp() {
 }
 
 function serialize_status_activity(activity) {
-	return JSON.stringify(activity.type === 'skill'
-		? { type: activity.type, skill_id: activity.skill_id }
-		: activity);
+	return status_activities.status_activity_sync_signature(activity);
 }
 
 function serialize_status_activities(activities) {
-	return JSON.stringify(activities);
+	return status_activities.status_activities_sync_signature(activities);
 }
 
-function serialize_status_statistics(snapshot) {
+function serialize_status_statistics(snapshot, include_total_skill_level = true) {
 	return JSON.stringify({
 		account_creation_date: snapshot.account_creation_date,
-		total_skill_level: snapshot.total_skill_level
+		...(include_total_skill_level ? { total_skill_level: snapshot.total_skill_level } : {})
 	});
 }
 
@@ -1213,17 +1273,26 @@ function format_status_account_age(account_age) {
 	return status_statistics?.format_account_age(account_age, language, getLangString) ?? '';
 }
 
-function schedule_status_sync(delay = STATUS_SYNC_DELAY) {
-	if (!state.is_connected || (!state.status_visible && !state.gp_visible) || !polling.is_foreground(document))
+function status_sync_allowed() {
+	return status_statistics_sync_allowed() || state.gp_visible;
+}
+
+function status_statistics_sync_allowed() {
+	return state.split_visibility_supported || state.skills_visible || state.activity_visible;
+}
+
+function schedule_status_sync(delay = STATUS_SYNC_DELAY, enforce_minimum = true) {
+	if (!state.is_connected || !status_sync_allowed() || !polling.is_foreground(document))
 		return;
-	delay = Math.max(delay, last_status_sync_at + STATUS_MIN_SYNC_INTERVAL - Date.now());
+	if (enforce_minimum)
+		delay = Math.max(delay, last_status_sync_at + STATUS_MIN_SYNC_INTERVAL - Date.now());
 	clearTimeout(status_sync_timer);
 	status_sync_timer = setTimeout(flush_status_sync, Math.max(0, delay));
 }
 
 async function flush_status_sync() {
 	status_sync_timer = null;
-	if (!state.is_connected || (!state.status_visible && !state.gp_visible) || !polling.is_foreground(document))
+	if (!state.is_connected || !status_sync_allowed() || !polling.is_foreground(document))
 		return;
 	if (status_sync_in_flight) {
 		status_sync_pending = true;
@@ -1231,27 +1300,33 @@ async function flush_status_sync() {
 	}
 
 	const snapshot = capture_status_snapshot();
-	const serialized_skills = state.status_visible ? JSON.stringify(snapshot.skills) : null;
-	const serialized_statistics = state.status_visible ? serialize_status_statistics(snapshot) : null;
-	const serialized_activity = state.status_visible ? serialize_status_activity(snapshot.activity) : null;
-	const serialized_activities = state.status_visible ? serialize_status_activities(snapshot.activities) : null;
+	const serialized_skills = state.skills_visible ? JSON.stringify(snapshot.skills) : null;
+	const statistics_sync_allowed = status_statistics_sync_allowed();
+	const serialized_statistics = statistics_sync_allowed
+		? serialize_status_statistics(snapshot, state.skills_visible) : null;
+	const serialized_activity = state.activity_visible ? serialize_status_activity(snapshot.activity) : null;
+	const serialized_activities = state.activity_visible ? serialize_status_activities(snapshot.activities) : null;
 	const payload = {};
-	if (state.status_visible && serialized_skills !== last_synced_status_skills)
+	if (state.skills_visible && serialized_skills !== last_synced_status_skills)
 		payload.skills = snapshot.skills;
-	if (state.status_visible && serialized_statistics !== last_synced_status_statistics) {
+	if (statistics_sync_allowed && serialized_statistics !== last_synced_status_statistics) {
 		payload.account_creation_date = snapshot.account_creation_date;
-		payload.total_skill_level = snapshot.total_skill_level;
+		if (state.skills_visible)
+			payload.total_skill_level = snapshot.total_skill_level;
 	}
-	if (state.status_visible && serialized_activity !== last_synced_status_activity)
+	if (state.activity_visible && serialized_activity !== last_synced_status_activity)
 		payload.activity = snapshot.activity;
-	if (state.status_visible && serialized_activities !== last_synced_status_activities)
+	if (state.activity_visible && serialized_activities !== last_synced_status_activities)
 		payload.activities = snapshot.activities;
 	if (state.gp_visible && snapshot.gp !== null && snapshot.gp !== last_synced_gp)
 		payload.gp = snapshot.gp;
 	if (payload.skills === undefined && payload.account_creation_date === undefined && payload.activity === undefined &&
-		payload.activities === undefined && payload.gp === undefined)
+		payload.activities === undefined && payload.gp === undefined) {
+		status_sync_failures = 0;
 		return;
+	}
 
+	const request_generation = session_generation;
 	status_sync_in_flight = true;
 	last_status_sync_at = Date.now();
 	let res = null;
@@ -1261,8 +1336,17 @@ async function flush_status_sync() {
 		log('player status synchronization failed (%s)', e);
 	}
 	status_sync_in_flight = false;
+	if (request_generation !== session_generation) {
+		status_sync_pending = false;
+		if (state.is_connected)
+			schedule_status_sync(0);
+		return;
+	}
 	if (res?.success) {
-		update_local_status_member(snapshot);
+		status_sync_failures = 0;
+		if (payload.skills !== undefined || payload.account_creation_date !== undefined || payload.activity !== undefined ||
+			payload.activities !== undefined)
+			update_local_status_member(snapshot);
 		if (payload.skills !== undefined) {
 			last_synced_status_skills = serialized_skills;
 			queue_status_icon_collection(snapshot.skills);
@@ -1276,37 +1360,39 @@ async function flush_status_sync() {
 		if (payload.gp !== undefined)
 			last_synced_gp = payload.gp;
 	}
-	else
+	else {
+		status_sync_failures = Math.min(status_sync_failures + 1, 5);
 		log('player status synchronization deferred');
+	}
 
 	if (status_sync_pending) {
 		status_sync_pending = false;
 		schedule_status_sync(0);
-	}
+	} else if (!res?.success && state.is_connected)
+		schedule_status_sync(polling.retry_poll_delay(status_sync_failures), false);
 }
 
 function observe_status_changes() {
-	if (!state.is_connected || (!state.status_visible && !state.gp_visible) || !polling.is_foreground(document))
+	if (!state.is_connected || !status_sync_allowed() || !polling.is_foreground(document))
 		return;
 
-	const snapshot = state.status_visible ? capture_status_snapshot() : null;
-	const serialized = snapshot === null ? null : serialize_status_activity(snapshot.activity);
-	const serialized_activities = snapshot === null ? null : serialize_status_activities(snapshot.activities);
-	const serialized_statistics = snapshot === null ? null : serialize_status_statistics(snapshot);
-	const gp = state.gp_visible ? capture_gp() : null;
+	const snapshot = capture_status_snapshot();
+	const serialized = state.activity_visible ? serialize_status_activity(snapshot.activity) : null;
+	const serialized_activities = state.activity_visible ? serialize_status_activities(snapshot.activities) : null;
+	const serialized_statistics = status_statistics_sync_allowed()
+		? serialize_status_statistics(snapshot, state.skills_visible) : null;
 	if (serialized === last_observed_status_activity && serialized_activities === last_observed_status_activities &&
-		serialized_statistics === last_observed_status_statistics && gp === last_observed_gp)
+		serialized_statistics === last_observed_status_statistics)
 		return;
 
 	last_observed_status_activity = serialized;
 	last_observed_status_activities = serialized_activities;
 	last_observed_status_statistics = serialized_statistics;
-	last_observed_gp = gp;
 	schedule_status_sync();
 }
 
 function start_status_observer() {
-	if (status_observer_timer !== null || !state.is_connected || (!state.status_visible && !state.gp_visible) ||
+	if (status_observer_timer !== null || !state.is_connected ||
 		!polling.is_foreground(document))
 		return;
 
@@ -1321,7 +1407,32 @@ function stop_status_observer() {
 	last_observed_status_activity = null;
 	last_observed_status_activities = null;
 	last_observed_status_statistics = null;
-	last_observed_gp = null;
+}
+
+function start_gp_sampling(count_initial_check = false) {
+	stop_gp_sampling();
+	if (!state.is_connected || !state.gp_visible || !polling.is_foreground(document))
+		return;
+	const sampling_id = gp_sampling_id;
+	sample_gp(sampling_id, count_initial_check);
+}
+
+function stop_gp_sampling() {
+	gp_sampling_id++;
+	clearTimeout(gp_sampling_timer);
+	gp_sampling_timer = null;
+}
+
+function sample_gp(sampling_id, scheduled_check = true) {
+	if (sampling_id !== gp_sampling_id || !state.is_connected || !state.gp_visible || !polling.is_foreground(document))
+		return;
+	if (scheduled_check)
+		gp_scheduled_checks++;
+	schedule_status_sync(0);
+	gp_sampling_timer = setTimeout(
+		() => sample_gp(sampling_id, true),
+		polling.event_poll_delay(false, gp_scheduled_checks)
+	);
 }
 
 function watch_status_changes() {
@@ -1448,8 +1559,9 @@ function get_local_item_namespaces() {
 }
 
 function add_bank_item(item_id, amount, found = false) {
-	if (item_id === 'melvorD:GP')
-		game.gp.add(amount);
+	const currency = transfer_currency_support?.get_transfer_currency(game, item_id)?.currency;
+	if (currency !== undefined)
+		currency.add(amount);
 	else
 		game.bank.addItemByID(item_id, amount, false, found, true);
 }
@@ -1542,6 +1654,131 @@ function remove_instance_storage_item(key) {
 	remove_character_storage_item(server_instance_storage_prefix + key);
 }
 
+function load_social_mode() {
+	state.social_mode = social_mode.normalize_social_mode(get_instance_storage_item('social_mode'));
+}
+
+function leave_social_only_disabled_page() {
+	if (!interface_ready)
+		return;
+	const disabled_pages = ['mp-charity-page', 'mp-campaign-page', 'mp-market-page'];
+	if (disabled_pages.some(id => {
+		const page = document.getElementById(id);
+		return page !== null && !page.classList.contains('d-none');
+	}))
+		navigate_page(game.pages.getObjectByID('multiplayer:Guild'));
+}
+
+async function request_social_mode(next) {
+	if (!state.is_connected)
+		return false;
+
+	state.social_mode_cancellation_pending = true;
+	const storage_key = `social_mode_${next}_command_id`;
+	const command_id = get_instance_storage_item(storage_key) ?? crypto.randomUUID();
+	set_instance_storage_item(storage_key, command_id);
+	try {
+		const result = await api_post('/api/social-mode/set', { mode: next, command_id });
+		if (result?.success !== true || !await reconcile_economy_receipts([result.receipt])) {
+			notify_error('MOD_MP_SOCIAL_MODE_CANCEL_FAILED');
+			return false;
+		}
+
+		remove_instance_storage_item(storage_key);
+		state.social_mode = social_mode.normalize_social_mode(result.social_mode);
+		set_instance_storage_item('social_mode', state.social_mode);
+		state.gifts = [];
+		state.trades = [];
+		state.resolved_trades = [];
+		state.market_listings = [];
+		state.market_completed = [];
+		state.market_results = [];
+		state.charity_tree_inventory = [];
+		state.inbox_items = [];
+		state.inbox_pending_claim = false;
+		await get_client_events(false);
+		if (next === social_mode.SOCIAL_MODE_FULL)
+			await update_transfer_contents();
+		else
+			await update_inbox();
+		if (next === social_mode.SOCIAL_MODE_FULL)
+			void refresh_raid_state();
+		update_multiplayer_nav();
+		leave_social_only_disabled_page();
+		return true;
+	} catch (e) {
+		error('Social Only exchange cancellation failed (%s)', e);
+		notify_error('MOD_MP_SOCIAL_MODE_CANCEL_FAILED');
+		return false;
+	} finally {
+		state.social_mode_cancellation_pending = false;
+	}
+}
+
+function apply_social_mode(value, selected = true) {
+	const next = social_mode.normalize_social_mode(value);
+	if (next === state.social_mode && get_instance_storage_item(`social_mode_${next}_command_id`) === undefined) {
+		if (selected)
+			set_instance_storage_item('social_mode_selected', true);
+		return Promise.resolve(true);
+	}
+
+	social_mode_change_request = social_mode_change_request.then(
+		() => request_social_mode(next),
+		() => request_social_mode(next)
+	);
+	if (selected)
+		social_mode_change_request = social_mode_change_request.then(result => {
+			if (result)
+				set_instance_storage_item('social_mode_selected', true);
+			return result;
+		});
+	return social_mode_change_request;
+}
+
+function queue_social_mode_modal(mark_as_selected = false) {
+	social_mode_choice_selection = false;
+	return queue_modal('MOD_MP_SOCIAL_MODE_TITLE', 'social-mode-choice-modal', 'assets/multiplayer.svg', {
+		imageWidth: 100,
+		imageHeight: 100,
+		customClass: { popup: 'mp-social-mode-choice-modal-popup' },
+		showConfirmButton: false,
+		showCloseButton: true,
+		allowOutsideClick: true,
+		allowEscapeKey: true,
+		didClose: () => {
+			if (mark_as_selected && !social_mode_choice_selection)
+				set_instance_storage_item('social_mode_selected', true);
+			social_mode_choice_selection = false;
+		}
+	});
+}
+
+function open_social_mode_picker() {
+	Swal.close();
+	setTimeout(() => { queue_social_mode_modal(); }, 0);
+}
+
+function install_social_mode_setting(ctx) {
+	ctx.settings.type('social-mode', {
+		get: () => state.social_mode,
+		// Melvor calls set(root, value) when rendering/restoring settings. This button
+		// must not replace the server-owned mode with the separate Mod Settings value.
+		set: () => {},
+		render() {
+			const root = document.createElement('div');
+			const button = document.createElement('button');
+			button.type = 'button';
+			button.className = 'btn btn-primary';
+			button.setAttribute('aria-label', getLangString('MOD_MP_SETTINGS_MODE'));
+			button.textContent = getLangString('MOD_MP_SETTINGS_CHANGE_MODE');
+			button.addEventListener('click', open_social_mode_picker);
+			root.append(button);
+			return root;
+		}
+	});
+}
+
 function on_page_toggle(id, callback, visible_only) {
 	const $element = $(id);
 	let was_visible = !$element.classList.contains('d-none');
@@ -1564,7 +1801,7 @@ function on_page_toggle(id, callback, visible_only) {
 
 // #region MARKET FUNCTIONS
 async function update_market_page(force_reload = false) {
-	if (!state.is_guild_member)
+	if (!state.is_guild_member || state.is_social_only)
 		return;
 
 	if (state.market_active_tab === 'search') {
@@ -1578,6 +1815,8 @@ async function update_market_page(force_reload = false) {
 }
 
 async function market_create_listing(item, item_qty, item_sell_price) {
+	if (state.is_social_only)
+		return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 	if (!state.is_guild_member)
 		return notify_error('MOD_MP_GUILD_REQUIRED');
 
@@ -1608,6 +1847,8 @@ async function market_create_listing(item, item_qty, item_sell_price) {
 }
 
 async function update_market_listings() {
+	if (state.is_social_only)
+		return;
 	if (state.market_listings_loading)
 		return;
 
@@ -1625,6 +1866,11 @@ async function update_market_listings() {
 }
 
 async function update_market_search() {
+	if (state.is_social_only) {
+		state.market_results = [];
+		state.market_total_items = 0;
+		return;
+	}
 	const generation = ++market_search_generation;
 	const page = state.market_current_page;
 	const sort = state.market_sort;
@@ -1702,7 +1948,7 @@ function load_market_filter_items() {
 async function update_campaign_info(force_reload = false) {
 	state.campaign_update_time = Date.now();
 
-	if (!state.is_guild_member)
+	if (!state.is_guild_member || state.is_social_only)
 		return;
 
 	if (state.campaign_loading || (!force_reload && state.campaign_has_data))
@@ -1768,7 +2014,7 @@ function update_raid_nav() {
 		return;
 
 	const active = state.raid?.active === true;
-	aside.textContent = getLangString(active ? 'MOD_MP_SIDEBAR_RAID_ACTIVE' : 'MOD_MP_SIDEBAR_RAID_PREVIEW');
+	aside.textContent = active ? getLangString('MOD_MP_SIDEBAR_RAID_ACTIVE') : '';
 	aside.classList.toggle('mp-raid-active', active);
 }
 
@@ -1810,8 +2056,23 @@ async function refresh_updates(force = false) {
 }
 
 function set_updates_mobile_tab(tab) {
-	if (tab === 'updates' || tab === 'changelog')
+	if (tab === 'updates' || tab === 'changelog') {
 		state.updates_mobile_tab = tab;
+		if (tab === 'changelog' && is_mobile_layout())
+			mark_updates_seen();
+	}
+}
+
+function is_mobile_layout() {
+	return typeof window !== 'undefined' && typeof window.matchMedia === 'function' &&
+		window.matchMedia('(max-width: 767.98px)').matches;
+}
+
+function mark_updates_seen() {
+	set_character_storage_item(UPDATES_LAST_SEEN_MOD_VERSION_KEY, MOD_VERSION);
+	state.last_seen_mod_version = MOD_VERSION;
+	state.updates_new = false;
+	update_multiplayer_nav();
 }
 
 function localize_multiplayer_page_names() {
@@ -1820,7 +2081,7 @@ function localize_multiplayer_page_names() {
 
 function update_charitree_nav() {
 	const nav_item = sidebar.category('Multiplayer').item('multiplayer:Charity_Tree');
-	nav_item.rootEl?.classList.toggle('d-none', state.is_guild_member && !state.is_charitree_enabled);
+	nav_item.rootEl?.classList.toggle('mp-nav-unavailable', !state.is_charitree_enabled);
 
 	const aside = document.querySelector('.mp-charity-nav');
 	if (!aside)
@@ -1829,6 +2090,28 @@ function update_charitree_nav() {
 	aside.textContent = state.is_charitree_enabled && state.can_take_charity
 		? getLangString('MOD_MP_SIDEBAR_CHARITY_READY')
 		: '';
+}
+
+function update_multiplayer_nav() {
+	const multiplayer_category = sidebar.category('Multiplayer');
+	const guild_aside = document.querySelector('.mp-guild-nav');
+	if (guild_aside !== null)
+		guild_aside.textContent = state.is_guild_member ? '' : getLangString('MOD_MP_SIDEBAR_GUILD_START');
+	const updates_aside = document.querySelector('.mp-updates-nav');
+	if (updates_aside !== null) {
+		updates_aside.textContent = state.updates_new ? getLangString('MOD_MP_SIDEBAR_NEW') : '';
+		updates_aside.hidden = !state.updates_new;
+	}
+
+	for (const page_id of ['Multiplayer_Market', 'Campaign_Effort', 'Guild_Raid']) {
+		const nav_item = multiplayer_category.item('multiplayer:' + page_id);
+		nav_item.rootEl?.classList.toggle('mp-nav-unavailable', !state.is_guild_member ||
+			(state.is_social_only && page_id !== 'Guild_Raid'));
+	}
+
+	const transfer_nav_item = multiplayer_category.item('multiplayer:Transfer_Items');
+	transfer_nav_item.rootEl?.classList.toggle('mp-nav-unavailable', !state.has_transfer_access);
+	update_charitree_nav();
 }
 // #endregion
 
@@ -1863,7 +2146,7 @@ async function request_charity_tree_contents(force_reload = false) {
 	state.charity_update_time = Date.now();
 	update_charitree_nav();
 
-	if (!state.is_guild_member)
+	if (!state.is_guild_member || state.is_social_only)
 		return;
 
 	if (state.charity_tree_loading)
@@ -1923,6 +2206,122 @@ async function apply_gift_contents(gift, gift_data) {
 	return false;
 }
 
+async function update_inbox() {
+	if (inbox_update_request !== null)
+		return inbox_update_request;
+	const request = (async () => {
+		state.inbox_loading = true;
+		try {
+			const res = await api_get('/api/inbox');
+			if (res !== null) {
+				state.inbox_items = Array.isArray(res.items) ? res.items.map(item => ({ ...item })) : [];
+				state.inbox_pending_claim = res.pending_claim === true;
+			}
+			return res !== null;
+		} finally {
+			state.inbox_loading = false;
+			update_transfer_inventory_nav();
+		}
+	})();
+	inbox_update_request = request;
+	try {
+		return await request;
+	} finally {
+		if (inbox_update_request === request)
+			inbox_update_request = null;
+	}
+}
+
+function reconcile_guild_member_social_modes(modes) {
+	if (!Array.isArray(modes))
+		return;
+	const by_client_id = new Map(modes
+		.filter(entry => Number.isSafeInteger(entry?.client_id) &&
+			(entry.social_mode === social_mode.SOCIAL_MODE_FULL || entry.social_mode === social_mode.SOCIAL_MODE_SOCIAL))
+		.map(entry => [entry.client_id, entry.social_mode]));
+	const reconcile = member => by_client_id.has(member.client_id)
+		? { ...member, social_mode: by_client_id.get(member.client_id) }
+		: member;
+	state.guild_members = state.guild_members.map(reconcile);
+	if (state.selected_guild_member !== null)
+		state.selected_guild_member = reconcile(state.selected_guild_member);
+}
+
+function get_bank_item_ids() {
+	const bank_item_ids = [...(game.bank.items?.keys?.() ?? [])]
+		.map(item => typeof item === 'string' ? item : item?.id ?? game.items.getObjectByID(item)?.id)
+		.filter(item_id => typeof item_id === 'string');
+	return [...new Set([
+		...bank_item_ids,
+		...(transfer_currency_support?.get_transfer_currencies(game).map(({ id }) => id) ?? [])
+	])];
+}
+
+function get_bank_free_slots() {
+	const capacity = game.bank.maximumSlots;
+	const used = game.bank.occupiedSlots;
+	return Number.isSafeInteger(capacity) && Number.isSafeInteger(used)
+		&& capacity >= 0 && used >= 0
+		? Math.max(0, capacity - used) : 0;
+}
+
+async function claim_inbox(event) {
+	const $button = event.currentTarget;
+	if (state.inbox_claiming || is_button_spinning($button))
+		return;
+	state.inbox_claiming = true;
+	show_button_spinner($button);
+	try {
+		const res = await api_post('/api/inbox/claim', {
+			existing_item_ids: get_inbox_existing_item_ids(state.inbox_items, get_bank_item_ids()),
+			available_slots: get_bank_free_slots()
+		});
+		const claim = res?.claim;
+		if (!claim) {
+			await update_inbox();
+			if (res !== null && state.inbox_items.length > 0)
+				notify_error('MOD_MP_INBOX_CLAIM_BLOCKED');
+			return;
+		}
+
+		const applied = apply_inbox_claim(inbox_delivery_state, claim, {
+			is_known_item: item_id => game.items.getObjectByID(item_id) !== undefined,
+			is_known_currency: item_id => transfer_currency_support?.is_transfer_currency(game, item_id) === true,
+			has_bank_item: item_id => get_bank_item_ids().includes(item_id),
+			get_bank_free_slots
+		});
+		if (applied.status === 'invalid' || applied.status === 'blocked') {
+			notify_error('MOD_MP_INBOX_CLAIM_BLOCKED');
+			return;
+		}
+		if (applied.status === 'applied') {
+			for (const item of claim.items) {
+				if (item.id === 'melvorD:GP')
+					game.gp.add(item.qty);
+				else
+					add_bank_item(item.id, item.qty);
+			}
+			inbox_delivery_state = applied.state;
+			set_instance_storage_item('inbox_delivery_state', inbox_delivery_state);
+		}
+
+		const acknowledged = await api_post('/api/inbox/acknowledge', { claim_id: claim.claim_id });
+		if (!acknowledged?.success) {
+			notify_error('MOD_MP_GENERIC_ERR');
+			return;
+		}
+		inbox_delivery_state = forget_inbox_claim(inbox_delivery_state, claim.claim_id);
+		if (inbox_delivery_state.processed_claim_ids.length === 0)
+			remove_instance_storage_item('inbox_delivery_state');
+		else
+			set_instance_storage_item('inbox_delivery_state', inbox_delivery_state);
+		await update_inbox();
+	} finally {
+		hide_button_spinner($button);
+		state.inbox_claiming = false;
+	}
+}
+
 async function reconcile_pending_gifts() {
 	const pending_gifts = state.gifts.filter(gift => gift.data === null);
 	if (pending_gifts.length === 0)
@@ -1953,6 +2352,7 @@ async function update_transfer_contents() {
 
 	state.is_updating_transfer_contents = true;
 	try {
+		await update_inbox();
 		const missing_gifts = state.gifts.filter(gift => gift.data === null).map(gift => gift.id);
 		const missing_trades = state.trades.filter(trade => trade.data === null).map(trade => trade.trade_id);
 		const missing_resolved_trades = state.resolved_trades.filter(trade => trade.data === null).map(trade => trade.trade_id);
@@ -1989,6 +2389,7 @@ async function update_transfer_contents() {
 		}
 	} finally {
 		state.is_updating_transfer_contents = false;
+		update_multiplayer_nav();
 	}
 }
 
@@ -2040,20 +2441,37 @@ function destroy_selected_transfer_inventory() {
 
 function update_transfer_inventory_nav() {
 	const aside = document.querySelector('.mp-transfer-nav');
-	aside.textContent = state.transfer_inventory.length + ' / ' + TRANSFER_INVENTORY_MAX_LIMIT;
-	aside.classList.toggle('text-danger', state.transfer_inventory.length >= TRANSFER_INVENTORY_MAX_LIMIT);
+	if (aside !== null) {
+		const num_transfer_offers = state.num_transfer_offers;
+		const has_items = state.transfer_inventory.length > 0;
+		const has_transfer_offers = num_transfer_offers > 0;
+		const has_inbox_items = state.inbox_items.length > 0;
+		aside.textContent = has_transfer_offers
+			? String(num_transfer_offers)
+			: has_inbox_items ? String(state.inbox_items.length)
+			: has_items ? state.transfer_inventory.length + ' / ' + TRANSFER_INVENTORY_MAX_LIMIT : '';
+		aside.hidden = !has_transfer_offers && !has_inbox_items && !has_items;
+		aside.classList.toggle('mp-transfer-action-nav', has_transfer_offers);
+		aside.classList.toggle('mp-transfer-inbox-nav', !has_transfer_offers && has_inbox_items);
+	}
+	update_multiplayer_nav();
 }
 
-function add_gp_to_transfer(amount) {
+function add_currency_to_transfer(currency_id, amount) {
+	if (state.is_social_only)
+		return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 	if (!state.is_guild_member)
 		return notify_error('MOD_MP_GUILD_REQUIRED');
 	if (state.has_destroyable_transfer_items)
 		return notify_error('MOD_MP_TRANSFER_DESTROY_ITEM_FIRST');
 
-	if (game.gp.amount < amount)
-		return notify_error('MOD_MP_INSUFFICIENT_GP_ERR');
+	const currency = transfer_currency_support?.get_transfer_currency(game, currency_id)?.currency;
+	if (currency === undefined)
+		return notify_error('MOD_MP_GENERIC_ERR');
+	if (!Number.isSafeInteger(amount) || amount < 1 || currency.amount < amount)
+		return notify_error(currency === game.gp ? 'MOD_MP_INSUFFICIENT_GP_ERR' : 'MOD_MP_INSUFFICIENT_CURRENCY_ERR');
 
-	const existing_entry = state.transfer_inventory.find(e => e.id === 'melvorD:GP');
+	const existing_entry = state.transfer_inventory.find(e => e.id === currency_id);
 	if (existing_entry) {
 		existing_entry.qty += amount;
 	} else {
@@ -2061,14 +2479,18 @@ function add_gp_to_transfer(amount) {
 			return notify_error('MOD_MP_TRANSFER_INVENTORY_FULL');
 
 		state.transfer_inventory.unshift({
-			id: 'melvorD:GP',
+			id: currency_id,
 			qty: amount
 		});
 	}
 
-	game.gp.remove(amount);
+	currency.remove(amount);
 	update_transfer_inventory_nav();
 	persist_transfer_inventory();
+}
+
+function add_gp_to_transfer(amount) {
+	return add_currency_to_transfer('melvorD:GP', amount);
 }
 
 function add_destroyable_item_to_transfer_inventory(item_id, qty) {
@@ -2096,6 +2518,8 @@ function add_destroyable_item_to_transfer_inventory(item_id, qty) {
 }
 
 function add_item_to_transfer_inventory(item, qty) {
+	if (state.is_social_only)
+		return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 	if (!state.is_guild_member)
 		return notify_error('MOD_MP_GUILD_REQUIRED');
 
@@ -2177,6 +2601,11 @@ function queue_market_fulfillment_notice(receipts) {
 }
 
 function load_transfer_inventory() {
+	inbox_delivery_state = load_inbox_delivery_state(
+		get_instance_storage_item('inbox_delivery_state'),
+		get_instance_storage_item('processed_inbox_claim_ids')
+	);
+	set_instance_storage_item('inbox_delivery_state', inbox_delivery_state);
 	transfer_delivery_state = load_transfer_delivery_state(
 		get_instance_storage_item('transfer_delivery_state'),
 		get_instance_storage_item('transfer_inventory'),
@@ -2197,16 +2626,26 @@ function reconcile_economy_receipts(receipts) {
 		const stored_ids = get_instance_storage_item('processed_economy_receipt_ids');
 		let processed_ids = Array.isArray(stored_ids) ? stored_ids : [];
 		for (const receipt of receipts) {
+			if (typeof receipt?.id === 'string' && acknowledged_economy_receipt_ids.includes(receipt.id))
+				continue;
 			const result = economy_receipts.apply_economy_receipt(receipt, processed_ids, {
 				maximum_transfer_entries: TRANSFER_INVENTORY_MAX_LIMIT,
-				has_bank_item: item_id => game.items.getObjectByID(item_id) !== undefined,
-				get_bank_qty: item_id => game.bank.getQty(game.items.getObjectByID(item_id)),
+				has_bank_item: item_id => transfer_currency_support?.is_transfer_currency(game, item_id) === true ||
+					game.items.getObjectByID(item_id) !== undefined,
+				get_bank_qty: item_id => transfer_currency_support?.get_transfer_currency(game, item_id)?.currency?.amount ??
+					game.bank.getQty(game.items.getObjectByID(item_id)),
 				add_bank_item: (item_id, qty) => add_bank_item(
 					item_id,
 					qty,
 					receipt.kind === 'charity-take' && !state.is_charity_item_discovered(item_id)
 				),
-				remove_bank_item: (item_id, qty) => game.bank.removeItemQuantity(game.items.getObjectByID(item_id), qty),
+				remove_bank_item: (item_id, qty) => {
+					const currency = transfer_currency_support?.get_transfer_currency(game, item_id)?.currency;
+					if (currency !== undefined)
+						currency.remove(qty);
+					else
+						game.bank.removeItemQuantity(game.items.getObjectByID(item_id), qty);
+				},
 				get_gp: () => game.gp.amount,
 				add_gp: qty => game.gp.add(qty),
 				remove_gp: qty => game.gp.remove(qty),
@@ -2230,6 +2669,10 @@ function reconcile_economy_receipts(receipts) {
 				remove_instance_storage_item('processed_economy_receipt_ids');
 			else
 				set_instance_storage_item('processed_economy_receipt_ids', processed_ids);
+			economy_receipts.remember_acknowledged_economy_receipt(
+				acknowledged_economy_receipt_ids,
+				receipt.id
+			);
 		}
 		queue_market_fulfillment_notice(receipts);
 		return true;
@@ -2303,6 +2746,7 @@ function handle_session_response(response, request_generation) {
 	state.is_connected = false;
 	client_event_poll_id++;
 	stop_chat_polling();
+	stop_gp_sampling();
 	stop_status_observer();
 	clearTimeout(status_sync_timer);
 	status_sync_timer = null;
@@ -2394,10 +2838,69 @@ async function api_post(endpoint, payload) {
 	if (result.response?.status === 200) {
 		if (endpoint.startsWith('/api/guilds/') || endpoint.startsWith('/api/banishment/'))
 			invalidate_guild_state();
+		if (is_event_affecting_mutation(endpoint) && result.json !== null && result.json?.error_lang === undefined &&
+			result.json?.success !== false)
+			void get_client_events();
 		return result.json;
 	}
 
 	return null;
+}
+
+const EVENT_AFFECTING_MUTATIONS = new Set([
+	'/api/banishment/returns/acknowledge',
+	'/api/banishment/returns/claim',
+	'/api/campaign/claim',
+	'/api/campaign/contribute',
+	'/api/charity/donate',
+	'/api/charity/take',
+	'/api/chat/block',
+	'/api/chat/conversations/delete',
+	'/api/chat/conversations/start',
+	'/api/chat/guild-participation',
+	'/api/chat/messages/delete',
+	'/api/chat/messages/send',
+	'/api/chat/privacy',
+	'/api/economy/receipts/acknowledge',
+	'/api/friends/accept',
+	'/api/friends/add',
+	'/api/friends/ignore',
+	'/api/friends/remove',
+	'/api/gift/accept',
+	'/api/gift/decline',
+	'/api/gift/discard',
+	'/api/gift/send',
+	'/api/guilds/application/decide',
+	'/api/guilds/apply',
+	'/api/guilds/create',
+	'/api/guilds/join',
+	'/api/guilds/join-free',
+	'/api/guilds/leave',
+	'/api/guilds/petitions/raise',
+	'/api/guilds/petitions/vote',
+	'/api/guilds/petitions/withdraw',
+	'/api/guilds/withdraw',
+	'/api/identities/delete',
+	'/api/identities/delete/cancel',
+	'/api/market/buy',
+	'/api/market/buy-order',
+	'/api/market/cancel',
+	'/api/market/destroy',
+	'/api/market/fulfill',
+	'/api/market/payout',
+	'/api/market/sell',
+	'/api/social-mode/cancel',
+	'/api/social-mode/set',
+	'/api/trade/accept',
+	'/api/trade/cancel',
+	'/api/trade/counter',
+	'/api/trade/decline',
+	'/api/trade/offer',
+	'/api/trade/resolve'
+]);
+
+function is_event_affecting_mutation(endpoint) {
+	return EVENT_AFFECTING_MUTATIONS.has(endpoint);
 }
 
 async function refresh_identities() {
@@ -2438,6 +2941,8 @@ function show_pending_identity_notices() {
 			queue_modal('MOD_MP_IDENTITY_RECOVERED_TITLE', 'identity-recovered-modal');
 		} else if (notice.type === 'outdated_version') {
 			queue_modal('MOD_MP_OUTDATED_VERSION_TITLE', 'outdated-version-modal');
+		} else if (notice.type === 'social_mode_choice') {
+			queue_social_mode_modal(true);
 		}
 	}
 }
@@ -2455,10 +2960,13 @@ function set_session_token(token) {
 	last_observed_status_activity = null;
 	last_observed_status_activities = null;
 	last_observed_status_statistics = null;
-	last_observed_gp = null;
 	last_status_sync_at = 0;
+	status_sync_failures = 0;
 	client_event_revision = 0;
 	client_events_have_pending = false;
+	client_event_scheduled_checks = 0;
+	gp_scheduled_checks = 0;
+	stop_gp_sampling();
 	invalidate_guild_state();
 	log('client session authenticated');
 }
@@ -2675,8 +3183,13 @@ async function refresh_guild_state_request() {
 		state.guild_state = res;
 		guild_state_refreshed_at = Date.now();
 		state.guild_state_loaded = true;
-		state.guild_members = (res.members ?? []).map(member => ({
+		state.guild_client_id = res.current_client_id ?? null;
+		state.guild_members = prioritize_current_guild_member((res.members ?? []).map(member => ({
 			...member,
+			skills_visible: member.skills_visible !== undefined ? member.skills_visible === true : member.status_visible !== false,
+			skills_available: member.skills_available !== undefined ? member.skills_available === true : member.status_available === true,
+			activity_visible: member.activity_visible !== undefined ? member.activity_visible === true : member.status_visible !== false,
+			activity_available: member.activity_available !== undefined ? member.activity_available === true : member.status_available === true,
 			status_activity: member.status_activity ?? null,
 			status_activities: Array.isArray(member.status_activities) ? member.status_activities : [],
 			account_age: Number.isSafeInteger(member.account_age) && member.account_age >= 0 ? member.account_age : null,
@@ -2684,14 +3197,13 @@ async function refresh_guild_state_request() {
 			gp: Number.isSafeInteger(member.gp) && member.gp >= 0 ? member.gp : null,
 			last_seen_at: Number.isSafeInteger(member.last_seen_at) && member.last_seen_at > 0 ? member.last_seen_at : null,
 			joined_at: Number.isSafeInteger(member.joined_at) && member.joined_at > 0 ? member.joined_at : null
-		}));
+		})));
 		state.guild_member_search = res.member_directory?.search ?? '';
 		state.guild_member_directory_page = res.member_directory?.page ?? 0;
 		state.guild_member_directory_has_more = res.member_directory?.has_more === true;
 		state.guild_applicants = res.applicants ?? [];
-		state.guild_client_id = res.current_client_id ?? null;
 		state.events.guild_applicants = state.guild_applicants;
-		update_charitree_nav();
+		update_multiplayer_nav();
 
 		if (res.affiliation !== 'member') {
 			state.shadowed_member_count = 0;
@@ -2719,6 +3231,11 @@ async function refresh_guild_state_request() {
 	}
 }
 
+function prioritize_current_guild_member(members) {
+	const current_index = members.findIndex(member => member.client_id === state.guild_client_id);
+	return current_index <= 0 ? members : [members[current_index], ...members.slice(0, current_index), ...members.slice(current_index + 1)];
+}
+
 async function refresh_guild_members(page = 0, search = state.guild_member_search, append = false) {
 	if (!state.is_guild_member || !state.is_free_fellowship || state.guild_member_directory_loading)
 		return;
@@ -2728,6 +3245,10 @@ async function refresh_guild_members(page = 0, search = state.guild_member_searc
 		if (res !== null) {
 			const members = (res.members ?? []).map(member => ({
 				...member,
+				skills_visible: member.skills_visible !== undefined ? member.skills_visible === true : member.status_visible !== false,
+				skills_available: member.skills_available !== undefined ? member.skills_available === true : member.status_available === true,
+				activity_visible: member.activity_visible !== undefined ? member.activity_visible === true : member.status_visible !== false,
+				activity_available: member.activity_available !== undefined ? member.activity_available === true : member.status_available === true,
 				status_activity: member.status_activity ?? null,
 				status_activities: Array.isArray(member.status_activities) ? member.status_activities : [],
 				account_age: Number.isSafeInteger(member.account_age) && member.account_age >= 0 ? member.account_age : null,
@@ -2736,10 +3257,10 @@ async function refresh_guild_members(page = 0, search = state.guild_member_searc
 				last_seen_at: Number.isSafeInteger(member.last_seen_at) && member.last_seen_at > 0 ? member.last_seen_at : null,
 				joined_at: Number.isSafeInteger(member.joined_at) && member.joined_at > 0 ? member.joined_at : null
 			}));
-			state.guild_members = append
+			state.guild_members = prioritize_current_guild_member(append
 				? [...state.guild_members, ...members.filter(member =>
 					!state.guild_members.some(existing => existing.client_id === member.client_id))]
-				: members;
+				: members);
 			state.guild_member_search = res.search ?? search;
 			state.guild_member_directory_page = res.page ?? page;
 			state.guild_member_directory_has_more = res.has_more === true;
@@ -2850,7 +3371,7 @@ async function refresh_guild_list() {
 
 async function refresh_guild_page() {
 	setup_guild_icons();
-	const guild_state = await refresh_guild_state();
+	const [, guild_state] = await Promise.all([get_client_events(), refresh_guild_state()]);
 
 	if (state.is_guild_member) {
 		state.shadowed_member_count = 0;
@@ -2878,7 +3399,7 @@ async function refresh_raid_state() {
 }
 
 async function reconcile_raid_cache() {
-	if (is_reconciling_raid_cache || !state.is_connected)
+	if (is_reconciling_raid_cache || !state.is_connected || state.is_social_only)
 		return;
 	is_reconciling_raid_cache = true;
 	try {
@@ -2945,13 +3466,21 @@ async function refresh_council(page = 0, append = false) {
 }
 
 async function get_client_events(reconcile_gifts = true) {
-	if (client_event_request !== null)
+	if (client_event_request !== null) {
+		client_event_trailing = true;
 		return client_event_request;
-	client_event_request = get_client_events_request(reconcile_gifts);
+	}
+	const request_generation = session_generation;
+	client_event_request = get_client_events_request(reconcile_gifts, request_generation);
 	try {
 		return await client_event_request;
 	} finally {
 		client_event_request = null;
+		if (client_event_trailing) {
+			client_event_trailing = false;
+			if (state.is_connected && polling.is_foreground(document))
+				void get_client_events();
+		}
 	}
 }
 
@@ -2980,9 +3509,9 @@ function reconcile_campaign_event(campaign) {
 	update_campaign_nav();
 }
 
-async function get_client_events_request(reconcile_gifts = true) {
+async function get_client_events_request(reconcile_gifts, request_generation) {
 	const res = await api_get('/api/events?revision=' + client_event_revision + '&capabilities=' + GUILD_CHAT_CAPABILITY);
-	if (res !== null) {
+	if (res !== null && request_generation === session_generation) {
 		if (res.unchanged === true)
 			return res;
 		client_events_have_pending = polling.has_pending_events(res);
@@ -2990,6 +3519,8 @@ async function get_client_events_request(reconcile_gifts = true) {
 		const pending_economy_receipts = res.economy_receipts;
 		if (!await reconcile_economy_receipts(pending_economy_receipts ?? []))
 			return res;
+		if (request_generation !== session_generation)
+			return null;
 		if (economy_receipts.is_complete_economy_receipt_page(pending_economy_receipts, ECONOMY_RECEIPT_PAGE_SIZE))
 			remove_instance_storage_item('processed_economy_receipt_ids');
 		if (Number.isSafeInteger(res.revision))
@@ -2999,18 +3530,28 @@ async function get_client_events_request(reconcile_gifts = true) {
 		state.events.guild_applicants = res.guild_applicants ?? [];
 		state.market_completed = res.market_completed;
 		state.chat_unread = res.chat_unread ?? 0;
+		state.inbox_pending_claim = res.inbox_pending === true;
 		update_chat_nav();
 		if (chat_page_visible)
 			await refresh_chat_conversations();
+		if (request_generation !== session_generation)
+			return null;
 
 		event_snapshots.reconcile_event_transfers(state, res);
+		reconcile_guild_member_social_modes(res.guild_member_social_modes);
+		update_transfer_inventory_nav();
+		update_multiplayer_nav();
 
 		if (state.is_transfer_page_visible)
 			setTimeout(() => update_transfer_contents(), 1);
 		else if (reconcile_gifts)
 			void reconcile_pending_gifts();
+		if (res.inbox_pending === true || state.inbox_items.length > 0)
+			void update_inbox();
 		if (res.banishment_return_pending) {
 			await reconcile_banishment_returns();
+			if (request_generation !== session_generation)
+				return null;
 			await refresh_guild_state();
 		}
 		show_pending_banishment_notice();
@@ -3018,14 +3559,14 @@ async function get_client_events_request(reconcile_gifts = true) {
 	return res;
 }
 
-function start_client_event_polling() {
+function start_client_event_polling(count_initial_check = false) {
 	const poll_id = ++client_event_poll_id;
 	client_event_poll_failures = 0;
 	if (state.is_connected && polling.is_foreground(document))
-		void poll_client_events(poll_id);
+		void poll_client_events(poll_id, count_initial_check);
 }
 
-async function poll_client_events(poll_id) {
+async function poll_client_events(poll_id, scheduled_check = true) {
 	let succeeded = false;
 	try {
 		succeeded = await get_client_events() !== null;
@@ -3033,11 +3574,13 @@ async function poll_client_events(poll_id) {
 		error('Client event polling failed (%s)', e);
 	} finally {
 		client_event_poll_failures = succeeded ? 0 : Math.min(client_event_poll_failures + 1, 5);
+		if (succeeded && scheduled_check)
+			client_event_scheduled_checks++;
 		if (state.is_connected && poll_id === client_event_poll_id && polling.is_foreground(document)) {
 			const delay = succeeded
-				? polling.event_poll_delay(client_events_have_pending)
+				? polling.event_poll_delay(client_events_have_pending, client_event_scheduled_checks)
 				: polling.retry_poll_delay(client_event_poll_failures);
-			setTimeout(() => poll_client_events(poll_id), delay);
+			setTimeout(() => poll_client_events(poll_id, true), delay);
 		}
 	}
 }
@@ -3046,12 +3589,14 @@ function handle_runtime_visibility_change() {
 	if (!polling.is_foreground(document)) {
 		client_event_poll_id++;
 		stop_chat_polling();
+		stop_gp_sampling();
 		stop_status_observer();
 		clearTimeout(status_sync_timer);
 		status_sync_timer = null;
 		return;
 	}
 	start_client_event_polling();
+	start_gp_sampling();
 	start_status_observer();
 	schedule_status_sync(0);
 	start_chat_polling();
@@ -3067,13 +3612,16 @@ export async function setup(ctx) {
 	const transfer_page = await ctx.loadModule('transfer-page.mjs');
 	const market_results = await ctx.loadModule('market-results.mjs');
 	const banishment_returns = await ctx.loadModule('banishment-returns.mjs');
+	const inbox_module = await ctx.loadModule('inbox-delivery.mjs');
 	trade_returns = await ctx.loadModule('trade-returns.mjs');
 	transfer_inventory = await ctx.loadModule('transfer-inventory.mjs');
+	transfer_currency_support = await ctx.loadModule('transfer-currencies.mjs');
 	economy_receipts = await ctx.loadModule('economy-receipts.mjs');
 	const server_config = await ctx.loadModule('server-config.mjs');
 	polling = await ctx.loadModule('polling.mjs');
 	identity_bindings = await ctx.loadModule('identity-bindings.mjs');
 	instance_storage = await ctx.loadModule('instance-storage.mjs');
+	social_mode = await ctx.loadModule('social-mode.mjs');
 	event_snapshots = await ctx.loadModule('event-snapshots.mjs');
 	gift_contents = await ctx.loadModule('gift-contents.mjs');
 	item_visibility = await ctx.loadModule('item-visibility.mjs');
@@ -3096,6 +3644,10 @@ export async function setup(ctx) {
 	remove_sold_out_market_result = market_results.remove_sold_out_market_result;
 	get_market_page_window = market_results.market_page_window;
 	apply_banishment_claim = banishment_returns.apply_banishment_claim;
+	apply_inbox_claim = inbox_module.apply_inbox_claim;
+	load_inbox_delivery_state = inbox_module.load_inbox_delivery_state;
+	forget_inbox_claim = inbox_module.forget_inbox_claim;
+	get_inbox_existing_item_ids = inbox_module.get_inbox_existing_item_ids;
 	load_transfer_delivery_state = banishment_returns.load_transfer_delivery_state;
 	replace_transfer_delivery_inventory = banishment_returns.replace_transfer_inventory;
 	resolve_server_config = server_config.resolve_server_config;
@@ -3112,6 +3664,12 @@ export async function setup(ctx) {
 	Object.assign(
 		state,
 		{
+			choose_social_mode: mode => {
+				social_mode_choice_selection = true;
+				state.close_modal();
+				void apply_social_mode(mode);
+			},
+			set_social_mode: mode => { void apply_social_mode(mode); },
 			load_more_guild_activity,
 			get_guild_activity_lang_id,
 			get_guild_activity_arg_1,
@@ -3181,11 +3739,12 @@ export async function setup(ctx) {
 
 	await patch_localization(ctx);
 
-	connection_diagnostics.install_diagnostics_settings(ctx, {
-		t: key => getLangString(`MOD_MP_DIAGNOSTICS_${key}`),
-		get_device: get_device_diagnostics,
-		get_report: get_connection_report,
-		save_details: details => installation_store.update(server_host, details)
+	install_social_mode_setting(ctx);
+	const mode_settings_section = ctx.settings.section(getLangString('MOD_MP_SETTINGS_MODE_SECTION'));
+	mode_settings_section.add({
+		type: 'social-mode',
+		name: 'social-mode',
+		default: social_mode.SOCIAL_MODE_FULL
 	});
 	server_settings_section = ctx.settings.section(getLangString('MOD_MP_SETTINGS_CONNECTION'));
 	ctx.onModsLoaded(capture_active_mod_names);
@@ -3214,7 +3773,11 @@ export async function setup(ctx) {
 		raid_combat.clear_loaded_combat();
 		raid_loaded_session_id = crypto.randomUUID();
 		loaded_game_mode_id = client_runtime.get_game_mode_id(game.currentGamemode);
+		state.last_seen_mod_version = get_character_storage_item(UPDATES_LAST_SEEN_MOD_VERSION_KEY) ?? '';
+		state.updates_new = updates_loader.has_unseen_mod_version(MOD_VERSION, state.last_seen_mod_version);
 		apply_server_configuration();
+		load_social_mode();
+		update_multiplayer_nav();
 		start_multiplayer_session();
 		load_transfer_inventory();
 
@@ -3238,56 +3801,84 @@ export async function setup(ctx) {
 	
 	ctx.onInterfaceReady(() => {
 		interface_ready = true;
-		setup_account_menu();
-		setup_mobile_sidebar_unread();
-		update_chat_nav();
+		const setup_interface = $main_container => {
+			setup_account_menu();
+			setup_mobile_sidebar_unread();
+			update_chat_nav();
+			update_transfer_inventory_nav();
+			update_multiplayer_nav();
 
-		const $main_container = $('main-container');
-		for (const page of ['guild', 'raid', 'chat', 'transfer', 'charity', 'campaign', 'market', 'updates'])
-			make_scoped_template(page + '-page', $main_container);
-		void refresh_changelog();
-		void refresh_updates();
+			for (const page of ['guild', 'raid', 'chat', 'transfer', 'charity', 'campaign', 'market', 'updates'])
+				make_scoped_template(page + '-page', $main_container);
+			void refresh_changelog();
+			void refresh_updates();
 
-		patch_bank();
-		patch_bank_market();
-		watch_equipment_view_actions();
-		watch_status_changes(ctx);
-		show_pending_banishment_notice();
-		show_pending_identity_notices();
-		
-		on_page_toggle('mp-guild-page', refresh_guild_page, true);
-		on_page_toggle('mp-raid-page', refresh_raid_state, true);
-		on_page_toggle('mp-chat-page', is_visible => {
-			chat_page_visible = is_visible;
-			if (is_visible)
-				void refresh_chat_page();
-			else {
-				chat_view_generation++;
-				state.chat_loading = false;
-				stop_chat_polling();
-			}
-		});
-		on_page_toggle('mp-charity-page', async is_visible => {
-			set_charity_page_visible(is_visible);
-			if (!is_visible)
+			patch_bank();
+			patch_bank_market();
+			watch_equipment_view_actions();
+			watch_status_changes(ctx);
+			show_pending_banishment_notice();
+			show_pending_identity_notices();
+
+			on_page_toggle('mp-guild-page', refresh_guild_page, true);
+			on_page_toggle('mp-raid-page', async () => {
+				await Promise.all([get_client_events(), refresh_raid_state()]);
+			}, true);
+			on_page_toggle('mp-chat-page', is_visible => {
+				chat_page_visible = is_visible;
+				if (is_visible) {
+					void get_client_events();
+					void refresh_chat_page();
+				} else {
+					chat_view_generation++;
+					state.chat_loading = false;
+					stop_chat_polling();
+				}
+			});
+			on_page_toggle('mp-charity-page', async is_visible => {
+				set_charity_page_visible(is_visible);
+				if (!is_visible)
+					return;
+				await Promise.all([get_client_events(), refresh_guild_state()]);
+				await request_charity_tree_contents(true);
+			}, false);
+			on_page_toggle('mp-campaign-page', async () => {
+				await Promise.all([get_client_events(), refresh_guild_state()]);
+				await update_campaign_info(true);
+			}, true);
+			on_page_toggle('mp-market-page', async () => {
+				await Promise.all([get_client_events(), refresh_guild_state()]);
+				await update_market_page(true);
+			}, true);
+			on_page_toggle('mp-updates-page', is_visible => {
+				if (is_visible && !is_mobile_layout())
+					mark_updates_seen();
+				if (is_visible && !state.changelog_loaded)
+					void refresh_changelog();
+				if (is_visible && state.updates_loaded_host !== server_host)
+					void refresh_updates();
+			}, false);
+		};
+
+		const $main_container = find_main_container();
+		if ($main_container !== null) {
+			setup_interface($main_container);
+			return;
+		}
+
+		const observer_root = document.documentElement ?? document.body;
+		if (observer_root === null) {
+			error('main container unavailable during interface setup');
+			return;
+		}
+		const observer = new MutationObserver(() => {
+			const main_container = find_main_container();
+			if (main_container === null)
 				return;
-			await refresh_guild_state();
-			await request_charity_tree_contents(true);
-		}, false);
-		on_page_toggle('mp-campaign-page', async () => {
-			await Promise.all([get_client_events(), refresh_guild_state()]);
-			await update_campaign_info(true);
-		}, true);
-		on_page_toggle('mp-market-page', async () => {
-			await refresh_guild_state();
-			await update_market_page(true);
-		}, true);
-		on_page_toggle('mp-updates-page', is_visible => {
-			if (is_visible && !state.changelog_loaded)
-				void refresh_changelog();
-			if (is_visible && state.updates_loaded_host !== server_host)
-				void refresh_updates();
-		}, false);
+			observer.disconnect();
+			setup_interface(main_container);
+		});
+		observer.observe(observer_root, { childList: true, subtree: true });
 	});
 }
 
@@ -3381,8 +3972,16 @@ function is_official_game_id(id) {
 	return separator > 0 && OFFICIAL_GAME_NAMESPACES.has(id.slice(0, separator));
 }
 
-function make_avatar_icon(icon_object) {
-	if (!is_official_game_id(icon_object?.id) || typeof icon_object.name !== 'string' ||
+function is_multiplayer_game_id(id) {
+	if (typeof id !== 'string')
+		return false;
+	const separator = id.indexOf(':');
+	return separator > 0 && id.slice(0, separator) === MULTIPLAYER_GAME_NAMESPACE;
+}
+
+function make_avatar_icon(icon_object, allow_multiplayer = false) {
+	if ((!is_official_game_id(icon_object?.id) && !(allow_multiplayer && is_multiplayer_game_id(icon_object?.id))) ||
+		typeof icon_object.name !== 'string' ||
 		typeof icon_object.media !== 'string')
 		return null;
 	return {
@@ -3395,12 +3994,13 @@ function make_avatar_icon(icon_object) {
 function setup_icons() {
 	if (state.available_icons.length === 0) {
 		const icon_objects = [
-			...get_icon_objects(game.monsters),
-			...get_icon_objects(game.thieving?.actions)
+			...get_icon_objects(game.monsters).map(icon => ({ icon, allow_multiplayer: false })),
+			...get_icon_objects(game.thieving?.actions).map(icon => ({ icon, allow_multiplayer: false })),
+			...get_icon_objects(game.pets).map(icon => ({ icon, allow_multiplayer: true }))
 		];
 		const seen = new Set();
 		state.available_icons = icon_objects
-			.map(make_avatar_icon)
+			.map(entry => make_avatar_icon(entry.icon, entry.allow_multiplayer))
 			.filter(icon => {
 				if (icon === null || seen.has(icon.id))
 					return false;
@@ -3725,8 +4325,13 @@ function activate_multiplayer_identity(response) {
 	state.guilds = [];
 	state.profile_display_name = response.display_name;
 	state.profile_icon = response.icon_id;
+	state.social_mode = social_mode.normalize_social_mode(response.social_mode);
+	set_instance_storage_item('social_mode', state.social_mode);
 	state.equipment_visible = response.equipment_visible !== false;
-	state.status_visible = response.status_visible !== false;
+	const legacy_status_visible = response.status_visible !== false;
+	state.split_visibility_supported = typeof response.skills_visible === 'boolean' && typeof response.activity_visible === 'boolean';
+	state.skills_visible = state.split_visibility_supported ? response.skills_visible : legacy_status_visible;
+	state.activity_visible = state.split_visibility_supported ? response.activity_visible : legacy_status_visible;
 	invalidate_status_icon_collection();
 	state.gp_visible = response.gp_visible !== false;
 	state.game_mode_visible = response.game_mode_visible !== false;
@@ -3743,8 +4348,12 @@ function activate_multiplayer_identity(response) {
 	}
 	if (response.chat?.budget)
 		state.chat_budget = response.chat.budget;
+	if (get_instance_storage_item('social_mode_selected') !== true)
+		queue_identity_notice('social_mode_choice');
+	update_multiplayer_nav();
+	start_gp_sampling(true);
 	start_status_observer();
-	start_client_event_polling();
+	start_client_event_polling(true);
 	void refresh_guild_state();
 	void raid_combat?.flush();
 	void refresh_raid_state();

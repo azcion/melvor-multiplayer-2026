@@ -67,7 +67,7 @@ test('request observations separate HTTP, transport, response-body, and timeout 
 test('main client reports diagnostics without introducing new preflight headers', async () => {
 	const source = await read_client_source();
 	assert.match(source, /get_device_diagnostics\(\)/);
-	assert.match(source, /install_diagnostics_settings/);
+	assert.doesNotMatch(source, /install_diagnostics_settings/);
 	assert.doesNotMatch(source, /X-Installation|X-Device|X-Diagnostic/);
 });
 

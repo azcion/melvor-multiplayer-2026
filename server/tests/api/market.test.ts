@@ -347,14 +347,18 @@ describe('market API', () => {
 		expect(fulfilled.json).toMatchObject({
 			success: true, item_qty: 5, new_item_qty: 7, gp_gain: 25,
 			receipt: { effects: [
-				{ storage: 'bank', item_id, qty: -5 },
-				{ storage: 'gp', qty: 25 }
+				{ storage: 'bank', item_id, qty: -5 }
 			] }
 		});
 
-		const incoming = (await get_events(buyer)).economy_receipts.find(receipt => receipt.kind === 'market-fulfill');
-		expect(incoming).toMatchObject({ effects: [{ storage: 'bank', item_id, qty: 5 }] });
-		await post_json('/api/economy/receipts/acknowledge', { receipt_id: incoming?.id }, buyer.session_token);
+		const buyer_inbox = await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
+			'/api/inbox', buyer.session_token
+		);
+		expect(buyer_inbox.json.items).toEqual([{ item_id, qty: 5 }]);
+		const seller_inbox = await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
+			'/api/inbox', seller.session_token
+		);
+		expect(seller_inbox.json.items).toEqual([{ item_id: 'melvorD:GP', qty: 25 }]);
 
 		const remaining = await wait_for_listing(buyer, item_id, listing =>
 			listing.direction === 'buy' && listing.available === 7 && listing.escrow_gp === 35
@@ -369,12 +373,18 @@ describe('market API', () => {
 		expect(cancelled.json).toMatchObject({
 			success: true,
 			gp_refund: 35,
-			receipt: { effects: [{ storage: 'gp', qty: 35 }] }
+			receipt: { effects: [] }
 		});
 		await post_json('/api/economy/receipts/acknowledge', {
 			receipt_id: cancelled.json.receipt.id
 		}, buyer.session_token);
 		expect((await get_listings(buyer)).items).toEqual([]);
+		expect((await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
+			'/api/inbox', buyer.session_token
+		)).json.items).toEqual([
+			{ item_id: 'melvorD:GP', qty: 35 },
+			{ item_id, qty: 5 }
+		]);
 	});
 
 	test('removes a fully fulfilled buy order and keeps the buyer delivery durable', async () => {
@@ -393,7 +403,29 @@ describe('market API', () => {
 		}, seller.session_token);
 		expect(fulfilled.json.new_item_qty).toBe(0);
 		expect((await get_listings(buyer)).items).toEqual([]);
-		expect((await get_events(buyer)).economy_receipts.some(receipt => receipt.kind === 'market-fulfill')).toBe(true);
+		expect((await get_events(buyer)).economy_receipts.some(receipt => receipt.kind === 'market-fulfill')).toBe(false);
+		expect((await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
+			'/api/inbox', buyer.session_token
+		)).json.items).toEqual([{ item_id, qty: 3 }]);
+	});
+
+	test('preserves 1.4.5 market incoming receipts for requesters and recorded recipients', async () => {
+		const pair = await make_guildmates('Legacy Market Buyer', 'Legacy Market Seller', 'Legacy Market Guild', {
+			first: '1.4.5', second: '1.4.5'
+		});
+		await post_json('/api/market/sell', {
+			item_id: 'melvorD:Legacy_Market_Item', item_qty: 2, item_sell_price: 7
+		}, pair.second.session_token);
+		const sell = await wait_for_listing(pair.second, 'melvorD:Legacy_Market_Item');
+		const bought = await post_json<{ receipt: { effects: unknown[] } }>('/api/market/buy', {
+			id: sell.id, qty: 1, command_id: crypto.randomUUID()
+		}, pair.first.session_token);
+		expect(bought.json.receipt.effects).toEqual([
+			{ storage: 'bank', item_id: 'melvorD:Legacy_Market_Item', qty: 1 },
+			{ storage: 'gp', qty: -7 }
+		]);
+		expect((await get_json_with_session<{ items: unknown[] }>('/api/inbox', pair.first.session_token)).json.items)
+			.toEqual([]);
 	});
 
 	test('sorts, filters, and paginates market searches', async () => {

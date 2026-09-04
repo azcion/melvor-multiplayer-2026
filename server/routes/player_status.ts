@@ -28,10 +28,12 @@ export function register_player_status_routes(): void {
 
 		const save_snapshot = db.transaction(() => {
 			const client = db.query(
-				'SELECT `status_visible`, `gp_visible` FROM `clients` WHERE `id` = ? LIMIT 1'
-			).get(client_id) as Pick<db_row.clients, 'status_visible' | 'gp_visible'>;
-			if ((has_skills || has_activity || has_activities || has_account_creation_date || has_total_skill_level) && client.status_visible !== 1)
-				return 'status_disabled';
+				'SELECT `status_visible`, `skills_visible`, `activity_visible`, `gp_visible` FROM `clients` WHERE `id` = ? LIMIT 1'
+			).get(client_id) as Pick<db_row.clients, 'status_visible' | 'skills_visible' | 'activity_visible' | 'gp_visible'>;
+			if ((has_skills || has_total_skill_level) && client.skills_visible !== 1)
+				return client.activity_visible !== 1 && client.status_visible !== 1 ? 'status_disabled' : 'skills_disabled';
+			if ((has_activity || has_activities) && client.activity_visible !== 1)
+				return client.skills_visible !== 1 && client.status_visible !== 1 ? 'status_disabled' : 'activity_disabled';
 			if (has_gp && client.gp_visible !== 1)
 				return 'gp_disabled';
 
@@ -52,11 +54,13 @@ export function register_player_status_routes(): void {
 					activity.type === 'combat' ? activity.area_id : null,
 					JSON.stringify(persisted_activities)
 				);
+				db.query('UPDATE `clients` SET `activity_available` = 1 WHERE `id` = ?').run(client_id);
 			} else if (activities !== null) {
 				db.query(
 					"INSERT INTO `status_snapshots` (`client_id`, `activity_type`, `activities`) VALUES(?, 'idle', ?) " +
 					'ON CONFLICT(`client_id`) DO UPDATE SET `activities` = excluded.`activities`'
 				).run(client_id, JSON.stringify(activities));
+				db.query('UPDATE `clients` SET `activity_available` = 1 WHERE `id` = ?').run(client_id);
 			}
 			if (skills !== null) {
 				db.query(
@@ -69,6 +73,7 @@ export function register_player_status_routes(): void {
 				);
 				for (const skill of skills)
 					insert.run(client_id, skill.skill_id, skill.level);
+				db.query('UPDATE `clients` SET `skills_available` = 1 WHERE `id` = ?').run(client_id);
 			}
 			if (has_account_creation_date || has_total_skill_level) {
 				db.query(
@@ -93,27 +98,70 @@ export function register_player_status_routes(): void {
 		const result = save_snapshot.immediate();
 		if (result === 'status_disabled')
 			return { error_lang: 'MOD_MP_STATUS_SHARING_DISABLED' };
+		if (result === 'skills_disabled')
+			return { error_lang: 'MOD_MP_SKILLS_SHARING_DISABLED' };
+		if (result === 'activity_disabled')
+			return { error_lang: 'MOD_MP_ACTIVITY_SHARING_DISABLED' };
 		if (result === 'gp_disabled')
 			return { error_lang: 'MOD_MP_GP_SHARING_DISABLED' };
 		return { success: true };
 	});
 
-	session_post_route('/api/client/status/visibility', async (req, url, client_id, json) => {
-		if (typeof json.visible !== 'boolean')
-			return 400; // Bad Request
-
+	const set_status_visibility = (client_id: number, visible: boolean) => {
 		const set_visibility = db.transaction(() => {
-			db.query('UPDATE `clients` SET `status_visible` = ? WHERE `id` = ?').run(
-				json.visible ? 1 : 0,
-				client_id
+			db.query(
+				'UPDATE `clients` SET `status_visible` = ?, `skills_visible` = ?, `activity_visible` = ?, ' +
+				'`skills_available` = CASE WHEN ? = 1 THEN `skills_available` ELSE 0 END, ' +
+				'`activity_available` = CASE WHEN ? = 1 THEN `activity_available` ELSE 0 END WHERE `id` = ?'
+			).run(
+				visible ? 1 : 0, visible ? 1 : 0, visible ? 1 : 0,
+				visible ? 1 : 0, visible ? 1 : 0, client_id
 			);
-			if (!json.visible)
+			if (!visible)
 				db.query('DELETE FROM `status_snapshots` WHERE `client_id` = ?').run(client_id);
 		});
 		set_visibility.immediate();
+	};
+
+	const set_split_visibility = (
+		client_id: number,
+		field: 'skills_visible' | 'activity_visible',
+		available_field: 'skills_available' | 'activity_available',
+		visible: boolean
+	) => {
+		const set_visibility = db.transaction(() => {
+			const other_field = field === 'skills_visible' ? 'activity_visible' : 'skills_visible';
+			db.query(
+				`UPDATE clients SET ${field} = ?, ${available_field} = CASE WHEN ? = 1 THEN ${available_field} ELSE 0 END, ` +
+				`status_visible = CASE WHEN ? = 1 AND ${other_field} = 1 THEN 1 ELSE 0 END WHERE id = ?`
+			).run(visible ? 1 : 0, visible ? 1 : 0, visible ? 1 : 0, client_id);
+			if (!visible && field === 'skills_visible')
+				db.query('DELETE FROM `status_snapshot_skills` WHERE `client_id` = ?').run(client_id);
+			else if (!visible)
+				db.query("UPDATE `status_snapshots` SET `activity_type` = 'idle', `activity_skill_id` = NULL, `activity_action_id` = NULL, `activity_area_id` = NULL, `activities` = '[]' WHERE `client_id` = ?").run(client_id);
+		});
+		set_visibility.immediate();
+	};
+
+	session_post_route('/api/client/status/visibility', async (req, url, client_id, json) => {
+		if (typeof json.visible !== 'boolean')
+			return 400; // Bad Request
+		set_status_visibility(client_id, json.visible);
 
 		return { success: true, visible: json.visible };
 	});
+
+	for (const [route, field, available_field] of [
+		['/api/client/skills/visibility', 'skills_visible', 'skills_available'],
+		['/api/client/activity/visibility', 'activity_visible', 'activity_available']
+	] as const) {
+		session_post_route(route, async (req, url, client_id, json) => {
+			if (typeof json.visible !== 'boolean')
+				return 400; // Bad Request
+			set_split_visibility(client_id, field, available_field, json.visible);
+			return { success: true, visible: json.visible };
+		});
+	}
 
 	session_post_route('/api/client/gp/visibility', async (req, url, client_id, json) => {
 		if (typeof json.visible !== 'boolean')
@@ -188,12 +236,12 @@ export function register_player_status_routes(): void {
 			return { error_lang: 'MOD_MP_GUILD_MEMBERSHIP_MISSING' };
 
 		const subject = await db_get_single(
-			'SELECT c.`status_visible`, EXISTS(' +
-				'SELECT 1 FROM `status_snapshots` AS ss WHERE ss.`client_id` = c.`id`' +
-			') AS `status_available` FROM `clients` AS c WHERE c.`id` = ? LIMIT 1',
+			'SELECT c.`status_visible`, c.`skills_visible`, c.`skills_available`, c.`activity_visible`, c.`activity_available`, ' +
+				'EXISTS(SELECT 1 FROM `status_snapshots` AS ss WHERE ss.`client_id` = c.`id`) AS `status_available` ' +
+				'FROM `clients` AS c WHERE c.`id` = ? LIMIT 1',
 			[subject_id]
 		);
-		if (subject === null || subject.status_visible !== 1)
+		if (subject === null || (subject.skills_visible !== 1 && subject.activity_visible !== 1))
 			return { error_lang: 'MOD_MP_STATUS_SHARING_DISABLED' };
 		if (subject.status_available !== 1)
 			return { error_lang: 'MOD_MP_STATUS_NOT_AVAILABLE' };
@@ -210,12 +258,12 @@ export function register_player_status_routes(): void {
 
 		return {
 			client_id: subject_id,
-			skills: await db_get_all(
+			skills: subject.skills_visible === 1 && subject.skills_available === 1 ? await db_get_all(
 				'SELECT `skill_id`, `level` FROM `status_snapshot_skills` WHERE `client_id` = ? ORDER BY `skill_id`',
 				[subject_id]
-			),
-			activity,
-			activities: status_snapshot_activities(snapshot, activity)
+			) : [],
+			activity: subject.activity_visible === 1 && subject.activity_available === 1 ? activity : null,
+			activities: subject.activity_visible === 1 && subject.activity_available === 1 ? status_snapshot_activities(snapshot, activity) : []
 		};
 	});
 }

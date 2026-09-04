@@ -59,6 +59,11 @@ test('creates representative state before a server restart', async () => {
 		history: Array<{ id: number; campaign_id: string }>;
 	}>('/api/campaign/info', campaign_history_client.session_token);
 	const campaign_completion_id = completed_campaign.json.history[0].id;
+	await post_json('/api/campaign/claim', {
+		campaign_id: campaign_completion_id,
+		value: 321,
+		command_id: crypto.randomUUID()
+	}, campaign_history_client.session_token);
 	const equipment_slots = [
 		{ slot_id: 'melvorD:Helmet', item_id: 'melvorD:Restart_Helmet' },
 		{ slot_id: 'melvorD:Weapon', item_id: 'melvorD:Restart_Weapon' }

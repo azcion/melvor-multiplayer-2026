@@ -61,3 +61,11 @@ test('renders failed Gift sends in the confirm modal', async () => {
 	assert.match(confirm_action, /show_modal_error\(getLangString\(e\.message\)\)/);
 	assert.match(confirm_template, /id="mp-modal-error"/);
 });
+
+test('journals Gift decisions while accepting legacy no-receipt declines', async () => {
+	const main = await read_client_source();
+	const action = main.slice(main.indexOf('async resolve_gift'), main.indexOf('async gift_friend'));
+
+	assert.match(action, /gift_id,\s*command_id: crypto\.randomUUID\(\)/);
+	assert.match(action, /res\.receipt === undefined \|\| await reconcile_economy_receipts\(\[res\.receipt\]\)/);
+});

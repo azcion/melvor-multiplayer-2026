@@ -122,7 +122,8 @@ export async function get_json_with_session<T>(path: string, session_token: stri
 
 export async function register_client(
 	display_name = 'Test Idler',
-	melvor_account?: MelvorAccountFixture
+	melvor_account?: MelvorAccountFixture,
+	mod_version?: string
 ): Promise<RegisteredClient> {
 	const client_key = crypto.randomUUID();
 	const { response, json } = await post_json<Omit<RegisteredClient, 'client_key' | 'client_id'> & {
@@ -130,7 +131,8 @@ export async function register_client(
 	}>('/api/register', {
 		client_key,
 		display_name,
-		...melvor_account
+		...melvor_account,
+		...(mod_version === undefined ? {} : { client_runtime: { mod_version, active_mods: [] } })
 	});
 
 	if (!response.ok)

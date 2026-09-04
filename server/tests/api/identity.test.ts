@@ -202,6 +202,9 @@ describe('identity API', () => {
 		const invalid = await post('/api/client/set_icon', {
 			icon_id: 'otherMod:Invalid'
 		}, client.session_token);
+		const multiplayer_pet = await post_json('/api/client/set_icon', {
+			icon_id: 'multiplayer:Multiplayer_Pet_Charity'
+		}, client.session_token);
 		const official_dlc_namespaces = ['melvorAoD', 'melvorTotH', 'melvorItA'];
 		for (const namespace of official_dlc_namespaces) {
 			const valid = await post_json('/api/client/set_icon', {
@@ -220,6 +223,7 @@ describe('identity API', () => {
 		});
 
 		expect(invalid.status).toBe(400);
+		expect(multiplayer_pet.response.status).toBe(200);
 		expect(authenticated.response.status).toBe(200);
 		expect(authenticated.json.icon_id).toBe('melvorItA:Icon_Test');
 	});

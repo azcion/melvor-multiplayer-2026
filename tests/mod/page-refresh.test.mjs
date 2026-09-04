@@ -152,7 +152,8 @@ test('keeps reactive Guild state off Melvor page visibility containers', async (
 	for (const page of ['market', 'campaign', 'charity']) {
 		const page_root = new RegExp(
 			`<div class="content d-none" id="mp-${page}-page">\\s*` +
-			`<div :class="\\{ 'mp-guild-locked': !state\\.is_guild_member \\}">`
+			`<div class="block block-rounded p-4" v-if="state\\.is_social_only">[\\s\\S]*?` +
+			`<div :class="\\{ 'mp-guild-locked': !state\\.is_guild_member \\}" v-if="!state\\.is_social_only">`
 		);
 
 		assert.match(templates, page_root);
@@ -169,6 +170,9 @@ test('mounts each Multiplayer page in one isolated Petite Vue scope', async () =
 	assert.match(scoped_mount, /make_template\(id, host\)/);
 	assert.match(interface_setup, /make_scoped_template\(page \+ '-page', \$main_container\)/);
 	assert.doesNotMatch(interface_setup, /make_template\(page \+ '-page', \$main_container\)/);
+	assert.match(main, /const \$main_container = find_main_container\(\);[\s\S]*if \(\$main_container !== null\)[\s\S]*setup_interface\(\$main_container\)/);
+	assert.match(main, /function find_main_container\(\)[\s\S]*document\.querySelector\('main-container'\)/);
+	assert.match(main, /new MutationObserver\([\s\S]*setup_interface\(main_container\)/);
 });
 
 test('keeps returned assets accessible from Transfer while Guildless', async () => {
@@ -177,10 +181,10 @@ test('keeps returned assets accessible from Transfer while Guildless', async () 
 		templates.indexOf('<template id="template-mp-transfer-page">')
 	);
 
-	assert.match(transfer_page, /id="mp-transfer-page">\s*<div>/);
+	assert.match(transfer_page, /id="mp-transfer-page">/);
 	assert.doesNotMatch(transfer_page, /mp-guild-locked/);
 	assert.match(transfer_page, /MOD_MP_TRANSFER_GUILDLESS_INFO/);
-	assert.match(transfer_page, /v-show="state\.is_guild_member && !state\.has_destroyable_transfer_items" @click="state\.create_trade\(\)"/);
+	assert.match(transfer_page, /v-show="state\.is_guild_member && !state\.is_social_only && !state\.has_destroyable_transfer_items" @click="state\.create_trade\(\)"/);
 	assert.match(transfer_page, /@click="state\.transfer_return_selected\(\)"/);
 	assert.match(transfer_page, /@click="state\.transfer_return_all\(\)"/);
 });
@@ -223,4 +227,17 @@ test('adds non-draggable item tooltips to resolved Marketplace icons', async () 
 	assert.match(item_tooltip, /createItemInformationTooltip\(this\.item\)/);
 	assert.match(item_tooltip, /disconnectedCallback\(\) \{\s*this\.tooltip\?\.destroy\(\);/);
 	assert.match(style, /#mp-market-page mp-item-icon img,[\s\S]*-webkit-user-drag: none;[\s\S]*user-select: none;/);
+});
+
+test('refreshes item tooltips when a reused item-icon slot changes items', async () => {
+	const main = await read_client_source(root);
+	const item_tooltip = main.slice(
+		main.indexOf('class MPItemIcon'),
+		main.indexOf('class MPEquipmentItem')
+	);
+
+	assert.match(item_tooltip, /updateItem\(\)/);
+	assert.match(item_tooltip, /onShow: \(instance\) => \{[\s\S]*this\.updateItem\(\);[\s\S]*getAttribute\('data-item-id'\)/);
+	assert.match(item_tooltip, /attributeChangedCallback\(name, oldValue, newValue\)[\s\S]*this\.updateItem\(\);[\s\S]*this\.tooltip\?\.hide\(\)/);
+	assert.match(item_tooltip, /static get observedAttributes\(\) \{[\s\S]*return \['data-item-id'\]/);
 });

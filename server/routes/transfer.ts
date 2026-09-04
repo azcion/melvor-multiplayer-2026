@@ -4,10 +4,12 @@ import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
 import type { PetitionType } from '../council';
 
-const { db_get_all, parse_number_array, query_placeholders, session_post_route } = runtime;
+const { db_get_all, is_social_only_client, parse_number_array, query_placeholders, session_post_route } = runtime;
 
 export function register_transfer_routes(): void {
 	session_post_route('/api/transfers/get_contents', async (req, url, client_id, json) => {
+		if (is_social_only_client(client_id))
+			return { error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 		const gift_ids = parse_number_array(json.gift_ids);
 		const trade_ids = parse_number_array(json.trade_ids);
 		const resolved_trade_ids = parse_number_array(json.resolved_trade_ids);

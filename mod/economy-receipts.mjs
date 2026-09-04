@@ -4,6 +4,15 @@ export function forget_processed_economy_receipt(processed_ids, receipt_id) {
 	return processed_ids.filter(id => id !== receipt_id);
 }
 
+export function remember_acknowledged_economy_receipt(acknowledged_ids, receipt_id) {
+	if (typeof receipt_id !== 'string' || acknowledged_ids.includes(receipt_id))
+		return acknowledged_ids;
+	acknowledged_ids.push(receipt_id);
+	if (acknowledged_ids.length > PROCESSED_ECONOMY_RECEIPT_LIMIT)
+		acknowledged_ids.splice(0, acknowledged_ids.length - PROCESSED_ECONOMY_RECEIPT_LIMIT);
+	return acknowledged_ids;
+}
+
 export function is_complete_economy_receipt_page(receipts, page_size) {
 	return Array.isArray(receipts) && Number.isSafeInteger(page_size) && page_size > 0 &&
 		receipts.length < page_size;

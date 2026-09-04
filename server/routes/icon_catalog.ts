@@ -43,10 +43,10 @@ type IconCatalogUploadResult = {
 };
 
 function caller_shared_skill_exists(client_id: number, skill_id: string): boolean {
-	const client = db.query<{ status_visible: number }, [number]>(
-		'SELECT `status_visible` FROM `clients` WHERE `id` = ? LIMIT 1'
+	const client = db.query<{ skills_visible: number; skills_available: number }, [number]>(
+		'SELECT `skills_visible`, `skills_available` FROM `clients` WHERE `id` = ? LIMIT 1'
 	).get(client_id);
-	if (client?.status_visible !== 1)
+	if (client?.skills_visible !== 1 || client.skills_available !== 1)
 		return false;
 	return db.query<{ skill_id: string }, [number, string]>(
 		'SELECT `skill_id` FROM `status_snapshot_skills` WHERE `client_id` = ? AND `skill_id` = ? LIMIT 1'
@@ -111,10 +111,10 @@ export function register_icon_catalog_routes(): void {
 			return 400;
 		}
 
-		const client = db.query<{ status_visible: number }, [number]>(
-			'SELECT `status_visible` FROM `clients` WHERE `id` = ? LIMIT 1'
+		const client = db.query<{ skills_visible: number; skills_available: number }, [number]>(
+			'SELECT `skills_visible`, `skills_available` FROM `clients` WHERE `id` = ? LIMIT 1'
 		).get(client_id);
-		if (client?.status_visible !== 1)
+		if (client?.skills_visible !== 1 || client.skills_available !== 1)
 			return { success: true, enabled: true, results: [] };
 
 		const shared_skills = new Set(db.query<{ skill_id: string }, [number]>(

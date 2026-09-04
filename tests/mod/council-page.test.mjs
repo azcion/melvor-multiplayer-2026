@@ -86,11 +86,11 @@ test('hides the felled Charitree and its donation action until restored', async 
 
 	assert.match(main, /get is_charitree_enabled\(\)/);
 	assert.match(main, /sidebar\.category\('Multiplayer'\)\.item\('multiplayer:Charity_Tree'\)/);
-	assert.match(main, /nav_item\.rootEl\?\.classList\.toggle\('d-none', state\.is_guild_member && !state\.is_charitree_enabled\)/);
+	assert.match(main, /nav_item\.rootEl\?\.classList\.toggle\('mp-nav-unavailable', !state\.is_charitree_enabled\)/);
 	assert.match(main, /document\.querySelector\('\.mp-charity-nav'\)/);
 	assert.match(main, /state\.is_charitree_enabled && state\.can_take_charity/);
 	assert.doesNotMatch(main, /nav_item\.(hide|show)\(\)/);
-	assert.match(main, /state\.events\.guild_applicants = state\.guild_applicants;\s*update_charitree_nav\(\);/);
+	assert.match(main, /state\.events\.guild_applicants = state\.guild_applicants;\s*update_multiplayer_nav\(\);/);
 	assert.match(charitree_page, /v-show="state\.is_guild_member && !state\.is_charitree_enabled"/);
 	assert.match(charitree_page, /MOD_MP_CHARITY_DISABLED_INFO/);
 	assert.match(charitree_page, /v-show="state\.is_charitree_enabled"/);

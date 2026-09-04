@@ -5,7 +5,7 @@ import { read_client_source } from './source.mjs';
 
 const root = new URL('../../', import.meta.url);
 
-test('adds player status visibility and combined profile viewing to member actions', async () => {
+test('adds independent skills and activity visibility controls to member actions', async () => {
 	const [templates, main, language_text] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
 		read_client_source(root),
@@ -13,14 +13,20 @@ test('adds player status visibility and combined profile viewing to member actio
 	]);
 	const language = JSON.parse(language_text);
 
-	assert.match(templates, /MOD_MP_STATUS_VISIBILITY/);
+	assert.match(templates, /MOD_MP_SKILLS_VISIBILITY/);
+	assert.match(templates, /MOD_MP_ACTIVITY_VISIBILITY/);
+	assert.match(templates, /state\.set_skills_visibility\(\$event\)/);
+	assert.match(templates, /state\.set_activity_visibility\(\$event\)/);
 	assert.match(templates, /state\.view_member_profile\(\$event\)/);
 	assert.match(templates, /template-mp-profile-modal/);
 	assert.match(main, /api_get\('\/api\/guilds\/equipment\?client_id=' \+ member\.client_id\)/);
 	assert.match(main, /api_get\('\/api\/guilds\/status\?client_id=' \+ member\.client_id\)/);
-	assert.match(main, /api_post\('\/api\/client\/status\/visibility'/);
+	assert.match(main, /'\/api\/client\/skills\/visibility'/);
+	assert.match(main, /api_post\('\/api\/client\/activity\/visibility'/);
 	assert.equal(language.MOD_MP_PROFILE_VIEW, 'View Skills & Equipment');
-	assert.equal(language.MOD_MP_STATUS_VISIBILITY, 'Let others see your skills');
+	assert.equal(language.MOD_MP_SKILLS_VISIBILITY, 'Let others see your skills');
+	assert.equal(language.MOD_MP_ACTIVITY_VISIBILITY, 'Let others see your activity');
+	assert.doesNotMatch(templates, /MOD_MP_(?:LANGUAGE|ACCOUNT_AGE)_VISIBILITY/);
 });
 
 test('renders local skill icons and levels while keeping activity in the member modal', async () => {
@@ -57,6 +63,8 @@ test('renders local skill icons and levels while keeping activity in the member 
 	assert.match(member_modal, /STATISTICS_TOTAL_SKILL_LEVEL/);
 	assert.match(member_modal, /state\.format_member_account_age\(state\.selected_guild_member\.account_age\)/);
 	assert.match(member_modal, /state\.format_member_total_skill_level\(state\.selected_guild_member\.total_skill_level\)/);
+	assert.match(member_modal, /<div class="mp-member-shared-stats">[\s\S]*<\/div>/);
+	assert.equal((member_modal.match(/class="mp-member-shared-stat-label"/g) ?? []).length, 3);
 	assert.match(main, /activity\.area_id === null \? null : game\.combatAreas\?\.getObjectByID\(activity\.area_id\)/);
 	assert.match(main, /is_official_game_id\(area\?\.id\) && area\.media/);
 	assert.doesNotMatch(profile_modal, /qty|quantity|rate|duration|inventory|history/i);
@@ -68,7 +76,10 @@ test('renders local skill icons and levels while keeping activity in the member 
 	assert.match(skill_grid_rule, /grid-template-columns: repeat\(3/);
 	assert.doesNotMatch(skill_grid_rule, /(?:max-)?height|overflow|touch-action|overscroll-behavior/);
 	assert.doesNotMatch(style, /\.mp-profile-modal-popup \.mp-status-skills/);
-	assert.match(style, /\.mp-member-activity img \{[^}]*width: 24px;[^}]*height: 24px;[^}]*object-fit: contain;[^}]*\}/s);
+	assert.match(templates, /class="mp-member-activity-icon" :src="state\.get_status_activity_icon\(activity\)"/);
+	assert.match(style, /\.mp-member-activity-icon \{[^}]*width: 24px;[^}]*height: 24px;[^}]*object-fit: contain;[^}]*margin: 0;/s);
+	assert.match(style, /\.mp-member-shared-stat-label \{[^}]*opacity: \.75;/s);
+	assert.doesNotMatch(style, /\.mp-member-language \{/);
 	assert.match(style, /\.mp-profile-modal-popup \.mp-status-skill img[\s\S]*width: 24px;[\s\S]*height: 24px;[\s\S]*margin: 0;/);
 	assert.match(style, /\.mp-profile-modal-popup \.badge\.badge-secondary\.mp-status-skill-level[\s\S]*font-size: 60%;/);
 	assert.match(style, /\.mp-profile-modal-popup \.swal2-image[\s\S]*margin: \.5rem auto;/);
@@ -121,13 +132,24 @@ test('observes status changes without heartbeats and sends bounded partial snaps
 	assert.match(capture, /game\.completion\?\.skillLevelProgress\?\.currentCount\?\.getSum\?\.\(\)/);
 	assert.match(main, /payload\.account_creation_date = snapshot\.account_creation_date/);
 	assert.match(main, /payload\.total_skill_level = snapshot\.total_skill_level/);
+	assert.match(main, /const serialized_skills = state\.skills_visible/);
+	assert.match(main, /const serialized_activity = state\.activity_visible/);
+	assert.match(main, /serialize_status_statistics\(snapshot, state\.skills_visible\)/);
+	assert.match(main, /function status_statistics_sync_allowed\(\)[\s\S]*state\.split_visibility_supported/);
+	assert.match(main, /function status_sync_allowed\(\)[\s\S]*state\.gp_visible/);
+	assert.match(main, /statistics_sync_allowed && serialized_statistics !== last_synced_status_statistics/);
 	assert.match(main, /serialized_statistics !== last_synced_status_statistics/);
 	assert.match(main, /serialized_skills !== last_synced_status_skills/);
 	assert.match(main, /serialized_activity !== last_synced_status_activity/);
 	assert.match(main, /serialized_activities !== last_synced_status_activities/);
 	assert.match(main, /STATUS_MIN_SYNC_INTERVAL/);
-	assert.match(main, /activity.type === 'skill'[^]*skill_id: activity.skill_id/);
+	assert.match(main, /status_activity_sync_signature\(activity\)/);
+	assert.match(main, /status_activities_sync_signature\(activities\)/);
 	assert.match(main, /status_sync_in_flight/);
+	assert.match(main, /request_generation !== session_generation/);
+	assert.match(main, /status_sync_failures = Math\.min\(status_sync_failures \+ 1, 5\)/);
+	assert.match(main, /polling\.retry_poll_delay\(status_sync_failures\)/);
+	assert.match(main, /if \(status_sync_pending\)[\s\S]*schedule_status_sync\(0\)/);
 	assert.match(main, /watch_status_changes/);
 	assert.match(main, /skill\.on\('levelChanged'/);
 	assert.match(watcher, /serialized_activities === last_observed_status_activities/);
@@ -157,7 +179,11 @@ test('collects changed raw GP in the status batch and keeps formatting viewer-lo
 	assert.match(main, /const amount = Number\(game\.gp\?\.amount\)/);
 	assert.match(main, /snapshot\.gp !== last_synced_gp/);
 	assert.match(main, /payload\.gp = snapshot\.gp/);
-	assert.match(main, /gp === last_observed_gp/);
+	assert.doesNotMatch(main, /last_observed_gp/);
+	assert.match(main, /function start_gp_sampling\(count_initial_check = false\)/);
+	assert.match(main, /gp_scheduled_checks\+\+/);
+	assert.match(main, /polling\.event_poll_delay\(false, gp_scheduled_checks\)/);
+	assert.match(main, /stop_gp_sampling\(\)/);
 	assert.match(main, /api_post\('\/api\/client\/gp\/visibility'/);
 	assert.match(main, /format_shared_gp\(amount\)[^]*Number\.isSafeInteger\(amount\)[^]*formatNumber\(amount\)/);
 	assert.match(member_list, /state\.format_shared_gp\(member\.gp\)/);
@@ -166,17 +192,36 @@ test('collects changed raw GP in the status batch and keeps formatting viewer-lo
 	assert.equal(language.MOD_MP_GP_VISIBILITY, 'Let others see your GP');
 });
 
+test('keeps Account Age in self-preview and suppresses unavailable Skills profiles', async () => {
+	const [main, transfer, templates] = await Promise.all([
+		read_client_source(root),
+		readFile(new URL('mod/client-actions-transfer.mjs', root), 'utf8'),
+		readFile(new URL('mod/ui/templates.html', root), 'utf8')
+	]);
+
+	assert.match(transfer, /const status = capture_status_snapshot\(\);/);
+	assert.match(transfer, /const account_age = status\.account_creation_date === null/);
+	assert.match(transfer, /this\.selected_guild_member\?\.account_age \?\? null/);
+	assert.match(transfer, /member\.skills_visible === true && member\.skills_available === true/);
+	assert.match(templates, /state\.viewed_status/);
+	assert.match(main, /account_age: snapshot\.account_creation_date === null/);
+});
+
 test('renders compact roster separation and snapped last-seen labels', async () => {
-	const [templates, main, style] = await Promise.all([
+	const [templates, main, style, language] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
 		read_client_source(root),
-		readFile(new URL('mod/ui/style.css', root), 'utf8')
+		readFile(new URL('mod/ui/style.css', root), 'utf8'),
+		readFile(new URL('mod/data/lang/en.json', root), 'utf8')
 	]);
 
 	assert.match(templates, /<hr class="mp-member-actions-rule mp-guild-member-rule" v-show="member_index < state\.guild_members\.length - 1">/);
 	assert.doesNotMatch(templates, /<hr class="mp-member-actions-rule mp-guild-member-rule" v-if=/);
-	assert.match(templates, /get_last_seen_lang_id\(member\.last_seen_at\)/);
-	assert.match(main, /elapsed < 60 \* 60 \* 1000/);
+	assert.match(templates, /get_last_seen_lang_id\(member\.last_seen_at, member\.client_id === state\.guild_client_id\)/);
+	assert.match(main, /get_last_seen_lang_id\(timestamp, is_current_member = false\)/);
+	assert.match(main, /is_current_member\)[\s\S]*MOD_MP_LAST_SEEN_JUST_NOW/);
+	assert.match(main, /elapsed < 5 \* 60 \* 1000/);
+	assert.match(language, /MOD_MP_LAST_SEEN_JUST_NOW/);
 	assert.match(main, /Math\.floor\(elapsed \/ \(60 \* 60 \* 1000\)\)/);
 	assert.match(style, /\.mp-guild-member-rule \{[^}]*margin: 0 auto;/s);
 });

@@ -35,7 +35,7 @@ export function register_auth_routes(): void {
 		}
 
 		const client_row = await db_get_single(
-			'SELECT `id`, `client_key`, `friend_code`, `display_name`, `icon_id`, `disabled`, `equipment_visible`, `status_visible`, `gp_visible`, `game_mode_visible`, `active_mods_visible`, ' +
+			' SELECT `id`, `client_key`, `friend_code`, `display_name`, `icon_id`, `disabled`, `equipment_visible`, `status_visible`, `skills_visible`, `activity_visible`, `gp_visible`, `game_mode_visible`, `active_mods_visible`, `social_mode`, ' +
 			'`messaging_enabled`, `melvor_account_id`, `deleted_at` ' +
 			'FROM `clients` WHERE `client_identifier` = ? LIMIT 1',
 			[client_identifier]
@@ -81,7 +81,10 @@ export function register_auth_routes(): void {
 
 		return { session_token, friend_code: client_row.friend_code, display_name: client_row.display_name,
 			icon_id: client_row.icon_id, equipment_visible: client_row.equipment_visible === 1,
-			status_visible: client_row.status_visible === 1, gp_visible: client_row.gp_visible === 1,
+			social_mode: client_row.social_mode,
+			status_visible: client_row.status_visible === 1,
+			skills_visible: client_row.skills_visible === 1, activity_visible: client_row.activity_visible === 1,
+			gp_visible: client_row.gp_visible === 1,
 			game_mode_visible: client_row.game_mode_visible === 1,
 			active_mods_visible: client_row.active_mods_visible === 1,
 			chat: get_chat_state(client_row.id),
@@ -129,7 +132,8 @@ export function register_auth_routes(): void {
 
 		const session_token = await generate_session_token(client_id, client_runtime?.mod_version ?? null, client_runtime?.device);
 		return { session_token, client_identifier, friend_code, display_name, icon_id: DEFAULT_USER_ICON_ID,
-			equipment_visible: true, status_visible: true, gp_visible: true, game_mode_visible: true,
+			social_mode: 'full',
+			equipment_visible: true, status_visible: true, skills_visible: true, activity_visible: true, gp_visible: true, game_mode_visible: true,
 			active_mods_visible: true,
 			chat: get_chat_state(client_id),
 			read_post_supported: true,

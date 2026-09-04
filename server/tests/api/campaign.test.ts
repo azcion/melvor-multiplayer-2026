@@ -320,7 +320,7 @@ describe('campaign API', () => {
 		expect(first.json.receipt).toEqual({
 			id: command_id,
 			kind: 'campaign-claim',
-			effects: [{ storage: 'gp', qty: 456 }]
+			effects: []
 		});
 		expect((await get_events(contributor)).economy_receipts).toContainEqual(first.json.receipt);
 		await post_json('/api/economy/receipts/acknowledge', {
@@ -331,5 +331,8 @@ describe('campaign API', () => {
 		);
 		expect(acknowledged.json).toEqual({ success: true, receipt: null });
 		expect((await get_campaign_info(contributor.session_token)).history[0].taken).toBe(456);
+		expect((await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
+			'/api/inbox', contributor.session_token
+		)).json.items).toEqual([{ item_id: 'melvorD:GP', qty: 456 }]);
 	});
 });

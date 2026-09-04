@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { get_events, make_guildmates } from '../support/fixtures';
-import { post, post_json, register_client } from '../support/http';
+import { get_json_with_session, post, post_json, register_client } from '../support/http';
 
 type TradeContents = {
 	gifts: Record<string, unknown>;
@@ -41,6 +41,12 @@ async function get_trade_contents(
 		trade_ids,
 		resolved_trade_ids
 	}, session_token);
+}
+
+async function get_inbox(session_token: string) {
+	return get_json_with_session<{ items: Array<{ item_id: string; qty: number }>; pending_claim: boolean }>(
+		'/api/inbox', session_token
+	);
 }
 
 async function offer_trade(
@@ -86,9 +92,6 @@ describe('trade API', () => {
 		await post_json('/api/trade/decline', {
 			trade_id: offered.json.trade_id
 		}, pair.second.session_token);
-		await post_json('/api/trade/resolve', {
-			trade_id: offered.json.trade_id
-		}, pair.first.session_token);
 		await post_json('/api/guilds/leave', {}, pair.second.session_token);
 
 		const non_friend = await offer_trade(pair.first.session_token, pair.second_id);
@@ -153,32 +156,17 @@ describe('trade API', () => {
 		const accepted = await post_json<{ success: boolean }>('/api/trade/accept', {
 			trade_id
 		}, pair.first.session_token);
-		const resolved_events = await get_events(pair.second);
-		const resolved_contents = await get_trade_contents(pair.second.session_token, [], [trade_id]);
+		const sender_inbox = await get_inbox(pair.first.session_token);
+		const recipient_inbox = await get_inbox(pair.second.session_token);
 
 		expect(accepted.json.success).toBe(true);
 		expect((await get_events(pair.first)).trades).toEqual([]);
-		expect(resolved_events.trades).toEqual([]);
-		expect(resolved_events.resolved_trades).toEqual([trade_id]);
-		expect(resolved_contents.json.resolved_trades[String(trade_id)]).toMatchObject({
-			items: [
-				{ item_id: 'melvorD:Iron_Ore', qty: 10, counter: 0 },
-				{ item_id: 'exampleMod:Trade_Item', qty: 2, counter: 0 }
-			],
-			declined: false,
-			other_player: {
-				display_name: 'Trade Sender',
-				icon_id: pair.first.icon_id
-			}
-		});
-
-		const resolved = await post_json<{ success: boolean }>('/api/trade/resolve', {
-			trade_id
-		}, pair.second.session_token);
-
-		expect(resolved.json.success).toBe(true);
 		expect((await get_events(pair.second)).resolved_trades).toEqual([]);
-		expect((await get_trade_contents(pair.second.session_token, [], [trade_id])).json.resolved_trades).toEqual({});
+		expect(sender_inbox.json.items).toEqual([{ item_id: 'melvorF:Air_Rune', qty: 50 }]);
+		expect(recipient_inbox.json.items).toEqual([
+			{ item_id: 'exampleMod:Trade_Item', qty: 2 },
+			{ item_id: 'melvorD:Iron_Ore', qty: 10 }
+		]);
 	});
 
 	test('declines an offer and returns its items to the sender', async () => {
@@ -191,16 +179,50 @@ describe('trade API', () => {
 		const declined = await post_json<{ success: boolean }>('/api/trade/decline', {
 			trade_id
 		}, pair.second.session_token);
-		const contents = await get_trade_contents(pair.first.session_token, [], [trade_id]);
+		const inbox = await get_inbox(pair.first.session_token);
 
 		expect(unauthorized.status).toBe(400);
 		expect(declined.json.success).toBe(true);
 		expect((await get_events(pair.second)).trades).toEqual([]);
-		expect((await get_events(pair.first)).resolved_trades).toEqual([trade_id]);
-		expect(contents.json.resolved_trades[String(trade_id)]).toMatchObject({
-			items: [{ item_id: 'melvorD:Iron_Ore', qty: 10, counter: 0 }],
-			declined: true
+		expect((await get_events(pair.first)).resolved_trades).toEqual([]);
+		expect(inbox.json.items).toEqual([{ item_id: 'melvorD:Iron_Ore', qty: 10 }]);
+	});
+
+	test('preserves the legacy resolved-trade protocol when either participant is on 1.4.5', async () => {
+		const pair = await make_guildmates('Legacy Trade Sender', 'Legacy Trade Recipient', 'Legacy Trade Guild', {
+			first: '1.4.5',
+			second: '1.5.0'
 		});
+		const offered = await offer_trade(pair.first.session_token, pair.second_id, [
+			{ id: 'melvorD:Iron_Ore', qty: 10 }
+		]);
+		const trade_id = offered.json.trade_id;
+		await post_json('/api/trade/counter', {
+			trade_id,
+			items: [{ id: 'melvorF:Air_Rune', qty: 5 }],
+			command_id: crypto.randomUUID()
+		}, pair.second.session_token);
+
+		const accepted = await post_json<{ success: boolean; receipt: { kind: string; effects: unknown[] } }>(
+			'/api/trade/accept', { trade_id, command_id: crypto.randomUUID() }, pair.first.session_token
+		);
+		expect(accepted.json.success).toBe(true);
+		expect(accepted.json.receipt.kind).toBe('trade-accept');
+		expect(accepted.json.receipt.effects).toEqual([
+			{ storage: 'bank', item_id: 'melvorF:Air_Rune', qty: 5 }
+		]);
+		expect((await get_events(pair.second)).resolved_trades).toEqual([trade_id]);
+		expect((await get_inbox(pair.first.session_token)).json.items).toEqual([]);
+
+		const resolved = await post_json<{ success: boolean; receipt: { kind: string; effects: unknown[] } }>(
+			'/api/trade/resolve', { trade_id, command_id: crypto.randomUUID() }, pair.second.session_token
+		);
+		expect(resolved.json.success).toBe(true);
+		expect(resolved.json.receipt.kind).toBe('trade-resolve');
+		expect(resolved.json.receipt.effects).toEqual([
+			{ storage: 'bank', item_id: 'melvorD:Iron_Ore', qty: 10 }
+		]);
+		expect((await get_inbox(pair.second.session_token)).json.items).toEqual([]);
 	});
 
 	test('identifies the recipient on a declined trade returned to its sender', async () => {
@@ -209,10 +231,9 @@ describe('trade API', () => {
 		await post_json('/api/trade/decline', {
 			trade_id: offered.json.trade_id
 		}, pair.second.session_token);
-		const contents = await get_trade_contents(pair.first.session_token, [], [offered.json.trade_id]);
-
-		expect(contents.json.resolved_trades[String(offered.json.trade_id)].other_player.display_name)
-			.toBe('Trade Recipient');
+		expect((await get_inbox(pair.first.session_token)).json.items).toEqual([
+			{ item_id: 'melvorD:Iron_Ore', qty: 10 }
+		]);
 	});
 
 	test('enforces cancellation ownership and removes an initial offer', async () => {
@@ -241,17 +262,38 @@ describe('trade API', () => {
 		const counter_cancel = await post_json<{ success: boolean }>('/api/trade/cancel', {
 			trade_id: counter.json.trade_id
 		}, counter_pair.second.session_token);
-		const counter_contents = await get_trade_contents(
-			counter_pair.first.session_token,
-			[],
-			[counter.json.trade_id]
-		);
+		const sender_inbox = await get_inbox(counter_pair.first.session_token);
+		const recipient_inbox = await get_inbox(counter_pair.second.session_token);
 
 		expect(counter_cancel.json.success).toBe(true);
-		expect(counter_contents.json.resolved_trades[String(counter.json.trade_id)]).toMatchObject({
-			items: [{ item_id: 'melvorD:Iron_Ore', qty: 10, counter: 0 }],
-			declined: true
-		});
+		expect(sender_inbox.json.items).toEqual([{ item_id: 'melvorD:Iron_Ore', qty: 10 }]);
+		expect(recipient_inbox.json.items).toEqual([{ item_id: 'melvorF:Water_Rune', qty: 40 }]);
+	});
+
+	test('declines a countered offer into each player Inbox', async () => {
+		const pair = await make_guildmates('Counter Decline Sender', 'Counter Decline Recipient');
+		const offered = await offer_trade(pair.first.session_token, pair.second_id);
+		const trade_id = offered.json.trade_id;
+		await post_json('/api/trade/counter', {
+			trade_id,
+			items: [{ id: 'melvorF:Water_Rune', qty: 40 }]
+		}, pair.second.session_token);
+		const command_id = crypto.randomUUID();
+		const declined = await post_json<{ success: boolean }>('/api/trade/decline', {
+			trade_id, command_id
+		}, pair.second.session_token);
+		const replay = await post_json<typeof declined.json>('/api/trade/decline', {
+			trade_id, command_id
+		}, pair.second.session_token);
+
+		expect(declined.json.success).toBe(true);
+		expect(replay.json).toEqual(declined.json);
+		expect((await get_inbox(pair.first.session_token)).json.items).toEqual([
+			{ item_id: 'melvorD:Iron_Ore', qty: 10 }
+		]);
+		expect((await get_inbox(pair.second.session_token)).json.items).toEqual([
+			{ item_id: 'melvorF:Water_Rune', qty: 40 }
+		]);
 	});
 
 	test('returns original items when the sender cancels an initial offer', async () => {
@@ -260,20 +302,8 @@ describe('trade API', () => {
 		await post_json('/api/trade/cancel', {
 			trade_id: offered.json.trade_id
 		}, pair.first.session_token);
-		const contents = await get_trade_contents(pair.first.session_token, [], [offered.json.trade_id]);
-
-		expect(contents.json.resolved_trades[String(offered.json.trade_id)]).toMatchObject({
-			items: [{ item_id: 'melvorD:Iron_Ore', qty: 10, counter: 0 }],
-			declined: true
-		});
-
-		const resolved = await post_json<{ success: boolean }>('/api/trade/resolve', {
-			trade_id: offered.json.trade_id
-		}, pair.first.session_token);
-
-		expect(resolved.json.success).toBe(true);
-		expect((await get_events(pair.first)).resolved_trades).toEqual([]);
-		expect((await get_trade_contents(pair.first.session_token, [], [offered.json.trade_id])).json.resolved_trades)
-			.toEqual({});
+		expect((await get_inbox(pair.first.session_token)).json.items).toEqual([
+			{ item_id: 'melvorD:Iron_Ore', qty: 10 }
+		]);
 	});
 });

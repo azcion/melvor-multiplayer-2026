@@ -4,8 +4,10 @@ import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
 import type { PetitionType } from '../council';
 import { record_guild_activity } from '../guild-activity';
+import { add_inbox_gp } from '../inbox';
+import { is_legacy_transfer_request } from '../transfer-compatibility';
 
-const { apply_campaign_completion, db, db_get_single, ensure_guild_campaign, get_campaign_history, get_campaign_rankings, get_client_guild_id, persist_campaign_completion, run_economy_command, session_get_route, session_post_route } = runtime;
+const { apply_campaign_completion, db, db_get_single, ensure_guild_campaign, get_campaign_history, get_campaign_rankings, get_client_guild_id, is_social_only_client, persist_campaign_completion, run_economy_command, session_get_route, session_post_route } = runtime;
 
 export function register_campaign_routes(): void {
 	session_get_route('/api/campaign/info', async (req, url, client_id): Promise<HandlerResult> => {
@@ -58,6 +60,8 @@ export function register_campaign_routes(): void {
 			return 400; // Bad Request
 
 		const result = run_economy_command(client_id, json.command_id, 'campaign-claim', () => {
+			if (is_social_only_client(client_id))
+				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 			const completion = db.query(
 				'UPDATE `campaign_completions` SET `taken` = ? ' +
 				'WHERE `source_campaign_state_id` = ? AND `client_id` = ? AND `taken` = 0 ' +
@@ -68,9 +72,12 @@ export function register_campaign_routes(): void {
 			db.query(
 				'UPDATE `campaign_contributions` SET `taken` = ? WHERE `client_id` = ? AND `campaign_id` = ?'
 			).run(value, client_id, completion.source_campaign_state_id);
-			return { success: true, effects: [{ storage: 'gp', qty: value }] };
+			const legacy = is_legacy_transfer_request(req);
+			if (!legacy)
+				add_inbox_gp(client_id, value);
+			return { success: true, effects: legacy ? [{ storage: 'gp', qty: value }] : [] };
 		});
-		return result?.success === true ? result : 400;
+		return result?.success === true || result?.error_lang !== undefined ? result : 400;
 	});
 
 	session_post_route('/api/campaign/contribute', async (req, url, client_id, json): Promise<HandlerResult> => {
@@ -97,6 +104,8 @@ export function register_campaign_routes(): void {
 
 		let completed_at: number | null = null;
 		const result = run_economy_command(client_id, json.command_id, 'campaign-contribute', () => {
+			if (is_social_only_client(client_id))
+				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 			const contribution = db.query(
 				'SELECT `item_amount` FROM `campaign_contributions` WHERE `client_id` = ? AND `campaign_id` = ?'
 			).get(client_id, campaign.active_id) as db_row.campaign_contributions;

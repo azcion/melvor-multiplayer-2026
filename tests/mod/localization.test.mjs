@@ -61,8 +61,9 @@ test('routes Multiplayer sidebar page names and text badges through localization
 		'MOD_MP_SIDEBAR_CHARITY_READY');
 	assert.equal(pages.find(page => page.id === 'Campaign_Effort').sidebarItem.asideLangID,
 		'MOD_MP_SIDEBAR_CAMPAIGN_INACTIVE');
-	assert.equal(pages.find(page => page.id === 'Guild_Raid').sidebarItem.asideLangID,
-		'MOD_MP_SIDEBAR_RAID_PREVIEW');
+	const raid_page = pages.find(page => page.id === 'Guild_Raid');
+	assert.equal(raid_page.sidebarItem.aside, '');
+	assert.equal(raid_page.sidebarItem.asideLangID, undefined);
 	assert.deepEqual(Object.keys(MULTIPLAYER_PAGE_LANG_IDS), pages.map(page => page.id));
 });
 

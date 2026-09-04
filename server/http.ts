@@ -59,6 +59,10 @@ export function identify_request(req: Request, client_id: number, mod_version?: 
 	request_identities.set(req, { client_id, mod_version, device });
 }
 
+export function get_request_mod_version(req: Request): string | null {
+	return request_identities.get(req)?.mod_version ?? null;
+}
+
 function invalid_json_response(req: Request): JsonReadResult {
 	mark_rejection(req, 'invalid_json');
 	return { response: status_response(400) };

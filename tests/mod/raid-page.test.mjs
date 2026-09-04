@@ -62,26 +62,32 @@ function resolve_raid_attack(tier, player, { landed = true, barrier = false, imm
 
 test('registers and mounts the Guild Raid page as a first-class multiplayer view', () => {
 	const page = data.data.pages.find(entry => entry.id === 'Guild_Raid');
+	const charitree = data.data.pages.find(entry => entry.id === 'Charity_Tree');
 	assert.equal(page.customName, 'MOD_MP_PAGE_RAID');
-	assert.equal(language.MOD_MP_PAGE_RAID, 'Raid');
+	assert.equal(language.MOD_MP_PAGE_CHARITREE, 'Charitree');
+	assert.equal(language.MOD_MP_PAGE_RAID, 'Raid (preview)');
+	assert.equal(language.MOD_MP_RAID_TITLE, 'Raid (preview)');
 	assert.equal(page.containerID, 'mp-raid-page');
 	assert.equal(page.sidebarItem.asideClass, 'badge mp-raid-nav');
-	assert.equal(page.sidebarItem.aside, 'preview');
-	assert.equal(page.sidebarItem.asideLangID, 'MOD_MP_SIDEBAR_RAID_PREVIEW');
+	assert.equal(charitree.customName, 'MOD_MP_PAGE_CHARITREE');
+	assert.equal(page.sidebarItem.aside, '');
+	assert.equal(page.sidebarItem.asideLangID, undefined);
 	assert.equal(data.data.pages[data.data.pages.findIndex(entry => entry.id === 'Guild_Raid') + 1].id, 'Updates');
 	assert.match(style, /\.mp-raid-nav[\s\S]*background-color: #5b4aa1/);
+	assert.match(style, /\.mp-raid-nav:empty[\s\S]*display: none/);
 	assert.match(style, /\.mp-raid-nav\.mp-raid-active[\s\S]*background-color: #8f3030/);
 	assert.equal(language.MOD_MP_SIDEBAR_RAID_ACTIVE, 'active');
 	assert.match(templates, /template-mp-raid-page/);
 	assert.doesNotMatch(templates, /MOD_MP_RAID_GUILD_EVENT/);
 	assert.doesNotMatch(templates, /template-mp-dropdown|state\.open_raid_page\(\)/);
 	assert.doesNotMatch(templates, /MOD_MP_RAID_FELLOWSHIP_EXCLUDED/);
-	assert.match(main, /on_page_toggle\('mp-raid-page', refresh_raid_state, true\)/);
+	assert.match(main, /on_page_toggle\('mp-raid-page'[\s\S]*Promise\.all\(\[get_client_events\(\), refresh_raid_state\(\)\]\)/);
+	assert.match(main, /aside\.textContent = active \? getLangString\('MOD_MP_SIDEBAR_RAID_ACTIVE'\) : ''/);
 	assert.match(main, /update_raid_nav\(\)/);
 });
 
 test('namespaces the formatted-language custom element', () => {
-	assert.match(main, /customElements\.define\('mp-lang-string-f'/);
+	assert.match(main, /\['mp-lang-string-f', LangStringFormattedElement\]/);
 	assert.doesNotMatch(main, /customElements\.define\('lang-string-f'/);
 	assert.match(templates, /<mp-lang-string-f/);
 	assert.doesNotMatch(templates, /<lang-string-f/);

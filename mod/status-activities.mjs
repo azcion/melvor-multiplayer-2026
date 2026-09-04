@@ -100,6 +100,18 @@ export function normalize_status_activities(activities, maximum = MAX_STATUS_ACT
 	return normalized;
 }
 
+export function status_activity_sync_signature(activity) {
+	if (activity?.type === 'skill')
+		return JSON.stringify({ type: 'skill', skill_id: activity.skill_id });
+	return JSON.stringify(activity);
+}
+
+export function status_activities_sync_signature(activities) {
+	return JSON.stringify(activities.map(activity => activity?.type === 'skill'
+		? { type: 'skill', skill_id: activity.skill_id }
+		: activity));
+}
+
 export function capture_status_activities(game) {
 	const activities = get_registered_game_objects(game?.skills)
 		.map(capture_skill_status_activity)

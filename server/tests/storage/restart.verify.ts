@@ -15,6 +15,9 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	expect((await get_json_with_session('/api/events', reauthenticated.json.session_token)).response.status).toBe(200);
 	const first_events = await get_events(state.first);
 	const second_events = await get_events(state.second);
+	const inbox = await get_json_with_session<{
+		items: Array<{ item_id: string; qty: number }>;
+	}>('/api/inbox', state.campaign_history_client.session_token);
 	const guild = await get_json_with_session<{
 		members: Array<{
 			client_id: number;
@@ -150,6 +153,7 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	]));
 	expect(transfers.json.gifts).toHaveProperty(String(state.gift_id));
 	expect(transfers.json.trades).toHaveProperty(String(state.trade_id));
+	expect(inbox.json.items).toEqual([{ item_id: 'melvorD:GP', qty: 321 }]);
 	expect(market.json.items).toContainEqual(expect.objectContaining({
 		id: state.market_lot_id,
 		item_id: state.market_item_id
@@ -163,7 +167,7 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	expect(campaign_history.json.history).toContainEqual(expect.objectContaining({
 		id: state.campaign_completion_id,
 		campaign_id: state.campaign_completion_type,
-		taken: 0
+		taken: 321
 	}));
 	expect(campaign_history.json.rankings[state.campaign_completion_type]).toBe(1);
 	expect(equipment.json).toEqual({ client_id: state.first_id, slots: state.equipment_slots });

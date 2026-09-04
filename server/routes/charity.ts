@@ -4,11 +4,15 @@ import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
 import type { PetitionType } from '../council';
 import { record_guild_activity } from '../guild-activity';
+import { add_inbox_items } from '../inbox';
+import { is_legacy_transfer_request } from '../transfer-compatibility';
 
-const { CHARITY_ITEM_LIFETIME, CHARITY_TIMEOUT, db, db_get_all, db_get_single, economy_item_effects, expire_charity_items, get_client_guild_id, is_valid_item_id, parse_transfer_items, run_economy_command, session_get_route, session_post_route } = runtime;
+const { CHARITY_ITEM_LIFETIME, CHARITY_TIMEOUT, db, db_get_all, db_get_single, economy_item_effects, expire_charity_items, get_client_guild_id, is_social_only_client, is_valid_item_id, parse_transfer_items, run_economy_command, session_get_route, session_post_route } = runtime;
 
 export function register_charity_routes(): void {
 	session_get_route('/api/charity/contents', async (req, url, client_id): Promise<HandlerResult> => {
+		if (is_social_only_client(client_id))
+			return { enabled: false, items: [] };
 		const guild_id = await get_client_guild_id(client_id);
 		if (guild_id === null)
 			return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
@@ -69,6 +73,8 @@ export function register_charity_routes(): void {
 			return { error_lang: 'MOD_MP_CHARITY_TIMEOUT', timeout: client_row.last_charity, timeout_bonus: client_row.last_bonus_charity };
 
 		const result = run_economy_command(client_id, json.command_id, 'charity-take', () => {
+			if (is_social_only_client(client_id))
+				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 			const item_entry = db.query(
 				'SELECT `qty` FROM `charity_items` WHERE `guild_id` = ? AND `item_id` = ? LIMIT 1'
 			).get(guild_id, item_id) as Pick<db_row.charity_items, 'qty'> | null;
@@ -102,6 +108,9 @@ export function register_charity_routes(): void {
 				client_row.last_charity = current_time;
 			}
 
+			const legacy = is_legacy_transfer_request(req);
+			if (!legacy)
+				add_inbox_items(client_id, [{ item_id, qty: item_qty }]);
 			return {
 				success: true,
 				item_qty,
@@ -109,7 +118,7 @@ export function register_charity_routes(): void {
 				item_expires_at,
 				timeout: client_row.last_charity,
 				timeout_bonus: client_row.last_bonus_charity,
-				effects: economy_item_effects([{ id: item_id, qty: item_qty }], 'bank')
+				effects: legacy ? economy_item_effects([{ id: item_id, qty: item_qty }], 'bank') : []
 			};
 		});
 		return result ?? 400;
@@ -125,6 +134,8 @@ export function register_charity_routes(): void {
 			return 400; // Bad Request
 
 		const result = run_economy_command(client_id, json.command_id, 'charity-donate', () => {
+			if (is_social_only_client(client_id))
+				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 			const now = Date.now();
 			expire_charity_items(now, guild_id);
 			const guild = db.query('SELECT `charitree_enabled` FROM `guilds` WHERE `id` = ? LIMIT 1').get(

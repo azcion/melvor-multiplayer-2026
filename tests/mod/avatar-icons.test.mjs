@@ -5,7 +5,7 @@ import { read_client_source } from './source.mjs';
 
 const root = new URL('../../', import.meta.url);
 
-test('builds avatar choices from official monsters and pickpocketing targets', async () => {
+test('builds avatar choices from official monsters, pickpocketing targets, and pets', async () => {
 	const main = await read_client_source(root);
 
 	for (const namespace of ['melvorD', 'melvorF', 'melvorAoD', 'melvorTotH', 'melvorItA'])
@@ -13,9 +13,13 @@ test('builds avatar choices from official monsters and pickpocketing targets', a
 	const setup_icons = main.slice(main.indexOf('function setup_icons()'), main.indexOf('function setup_guild_icons()'));
 	assert.match(setup_icons, /get_icon_objects\(game\.monsters\)/);
 	assert.match(setup_icons, /get_icon_objects\(game\.thieving\?\.actions\)/);
+	assert.match(setup_icons, /get_icon_objects\(game\.pets\)/);
 	assert.match(main, /get_icon_object_by_id\(game\.thieving\?\.actions, id\)/);
+	assert.match(main, /get_icon_object_by_id\(game\.pets, id\)/);
 	assert.match(main, /search_name: icon_object\.name\.toLowerCase\(\)/);
 	assert.doesNotMatch(setup_icons, /id\.startsWith\('melvorF:'\) \|\| icon\.id\.startsWith\('melvorD:'\)/);
+	assert.match(main, /MULTIPLAYER_GAME_NAMESPACE = 'multiplayer'/);
+	assert.match(setup_icons, /allow_multiplayer: true/);
 });
 
 test('shows every matching avatar in a bounded scrolling selector', async () => {
@@ -35,7 +39,10 @@ test('shows every matching avatar in a bounded scrolling selector', async () => 
 	assert.match(icon_selector, /touch-action:\s*pan-y/);
 	assert.match(icon_selector, /overscroll-behavior-y:\s*contain/);
 	assert.match(main, /queue_modal\(game\.characterName, 'change-icon-modal'[^]*customClass: \{ popup: 'mp-icon-picker-modal-popup' \}/);
+	assert.match(main, /stop_icon_scroll_propagation\(event\) \{\s*event\.stopPropagation\(\);/);
+	assert.doesNotMatch(main, /stop_icon_scroll_propagation\(event\) \{[^}]*preventDefault/);
 	assert.match(styles, /\.mp-icon-picker-modal-popup \.swal2-html-container \{[^}]*overflow:\s*hidden/);
+	assert.match(templates, /class="mp-icon-selector"[\s\S]*?@touchmove="state\.stop_icon_scroll_propagation\(\$event\)"/);
 	assert.match(templates, /v-for="icon in state\.filtered_icons"[\s\S]*?<img[^>]+loading="lazy">/);
 	assert.match(templates, /<\/div>\s*<div class="mp-button-tray">/);
 });

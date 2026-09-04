@@ -1,3 +1,26 @@
+const TRANSFER_CONFIRMATIONS = Object.freeze({
+	donate: {
+		info_lang_id: 'MOD_MP_TRANSFER_CONFIRM_DONATE',
+		action_lang_id: 'MOD_MP_TRANSFER_CONFIRM_DONATE_ACTION'
+	},
+	counter_trade: {
+		info_lang_id: 'MOD_MP_TRANSFER_CONFIRM_COUNTER_TRADE',
+		action_lang_id: 'MOD_MP_TRANSFER_CONFIRM_COUNTER_TRADE_ACTION'
+	},
+	cancel_trade: {
+		info_lang_id: 'MOD_MP_TRANSFER_CONFIRM_CANCEL_TRADE',
+		action_lang_id: 'MOD_MP_TRANSFER_CONFIRM_CANCEL_TRADE_ACTION'
+	},
+	decline_gift: {
+		info_lang_id: 'MOD_MP_TRANSFER_CONFIRM_DECLINE_GIFT',
+		action_lang_id: 'MOD_MP_TRANSFER_CONFIRM_DECLINE_GIFT_ACTION'
+	},
+	decline_trade: {
+		info_lang_id: 'MOD_MP_TRANSFER_CONFIRM_DECLINE_TRADE',
+		action_lang_id: 'MOD_MP_TRANSFER_CONFIRM_DECLINE_TRADE_ACTION'
+	}
+});
+
 export function install_transfer_actions(runtime) {
 	const {
 		state,
@@ -6,7 +29,9 @@ export function install_transfer_actions(runtime) {
 		TRANSFER_INVENTORY_MAX_LIMIT,
 		api_get,
 		api_post,
+		add_currency_to_transfer,
 		add_gp_to_transfer,
+		claim_inbox,
 		capture_equipment_snapshot,
 		capture_status_snapshot,
 		invalidate_status_icon_collection,
@@ -22,6 +47,8 @@ export function install_transfer_actions(runtime) {
 		game,
 		get_client_events,
 		getLangString,
+		is_transfer_currency,
+		is_social_only,
 		has_local_unresolved_item,
 		hide_button_spinner,
 		is_button_spinning,
@@ -46,7 +73,9 @@ export function install_transfer_actions(runtime) {
 		show_button_spinner,
 		show_modal_error,
 		Swal,
+		start_gp_sampling,
 		start_status_observer,
+		stop_gp_sampling,
 		stop_status_observer,
 		trade_returns,
 		transfer_inventory,
@@ -56,9 +85,54 @@ export function install_transfer_actions(runtime) {
 		update_market_search,
 		update_transfer_contents,
 	} = runtime;
+	let transfer_confirmation = null;
 
 	return {
 		// #region TRANSFER ACTIONS
+		show_transfer_confirmation(action, transfer_id = null) {
+			if (TRANSFER_CONFIRMATIONS[action] === undefined)
+				return;
+			transfer_confirmation = { action, transfer_id };
+			queue_modal('MOD_MP_TRANSFER_CONFIRM_TITLE', 'transfer-confirm-modal', 'assets/transfer_bag.svg', {
+				showConfirmButton: false
+			});
+		},
+
+		get_transfer_confirmation_info_lang_id() {
+			return TRANSFER_CONFIRMATIONS[transfer_confirmation?.action]?.info_lang_id ??
+				'MOD_MP_TRANSFER_CONFIRM_TITLE';
+		},
+
+		get_transfer_confirmation_action_lang_id() {
+			return TRANSFER_CONFIRMATIONS[transfer_confirmation?.action]?.action_lang_id ??
+				'MOD_MP_BUTTON_CANCEL';
+		},
+
+		async confirm_transfer_action(event) {
+			const confirmation = transfer_confirmation;
+			if (confirmation === null)
+				return;
+			transfer_confirmation = null;
+			this.close_modal();
+
+			switch (confirmation.action) {
+			case 'donate':
+				return this.donate_items(event, true);
+			case 'counter_trade':
+				return this.counter_trade(event, confirmation.transfer_id, true);
+			case 'cancel_trade':
+				return this.cancel_trade(event, confirmation.transfer_id, true);
+			case 'decline_gift':
+				return this.resolve_gift(event, confirmation.transfer_id, false, true);
+			case 'decline_trade':
+				return this.decline_trade(event, confirmation.transfer_id, true);
+			}
+		},
+
+		claim_inbox(event) {
+			return claim_inbox(event);
+		},
+
 		get_transfer_value(transfer) {
 			if (transfer.data === null)
 				return '...';
@@ -68,7 +142,7 @@ export function install_transfer_actions(runtime) {
 			for (const entry of transfer.data.items) {
 				if (entry.item_id === 'melvorD:GP') {
 					total_value += entry.qty;
-				} else {
+				} else if (!is_transfer_currency(entry.item_id)) {
 					const item = game.items.getObjectByID(entry.item_id);
 					if (item?.sellsFor.currency === game.gp)
 						total_value += game.bank.getItemSalePrice(item, entry.qty);
@@ -89,6 +163,8 @@ export function install_transfer_actions(runtime) {
 		},
 
 		async open_market_page(tab_id) {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			state.close_account_dropdown();
 			changePage(game.pages.getObjectByID('multiplayer:Multiplayer_Market'));
 			state.market_active_tab = tab_id;
@@ -178,8 +254,10 @@ export function install_transfer_actions(runtime) {
 				icon_id: this.profile_icon,
 				equipment_visible: this.equipment_visible,
 				equipment_available: false,
-				status_visible: this.status_visible,
-				status_available: false,
+				skills_visible: this.skills_visible,
+				skills_available: false,
+				activity_visible: this.activity_visible,
+				activity_available: false,
 				account_age: null,
 				total_skill_level: null,
 				gp_visible: this.gp_visible,
@@ -260,7 +338,10 @@ export function install_transfer_actions(runtime) {
 		},
 
 		async preview_self_from_options() {
-			const status = this.status_visible ? capture_status_snapshot() : null;
+			const status = capture_status_snapshot();
+			const account_age = status.account_creation_date === null
+				? this.selected_guild_member?.account_age ?? null
+				: Math.max(0, Date.now() - status.account_creation_date);
 			const member = {
 				...this.selected_guild_member,
 				client_id: this.guild_client_id,
@@ -268,13 +349,14 @@ export function install_transfer_actions(runtime) {
 				icon_id: this.profile_icon,
 				equipment_visible: this.equipment_visible,
 				equipment_available: this.equipment_visible,
-				status_visible: this.status_visible,
-				status_available: this.status_visible,
-				status_activity: status?.activity ?? null,
-				status_activities: status?.activities ?? [],
-				account_age: status?.account_creation_date === null || status?.account_creation_date === undefined ? null :
-					Math.max(0, Date.now() - status.account_creation_date),
-				total_skill_level: status?.total_skill_level ?? null,
+				skills_visible: this.skills_visible,
+				skills_available: this.skills_visible,
+				activity_visible: this.activity_visible,
+				activity_available: this.activity_visible,
+				status_activity: this.activity_visible ? status?.activity ?? null : null,
+				status_activities: this.activity_visible ? status?.activities ?? [] : [],
+				account_age,
+				total_skill_level: this.skills_visible ? status?.total_skill_level ?? null : null,
 				game_mode_visible: this.game_mode_visible,
 				game_mode_id: runtime.loaded_game_mode_id,
 				active_mods_visible: this.active_mods_visible,
@@ -328,42 +410,69 @@ export function install_transfer_actions(runtime) {
 			this.equipment_visibility_pending = false;
 		},
 
-		async set_status_visibility(event) {
-			if (this.status_visibility_pending)
+		async set_skills_visibility(event) {
+			if (this.skills_visibility_pending)
 				return;
 			event.preventDefault();
-			const desired = !this.status_visible;
-			this.status_visibility_pending = true;
+			const desired = !this.skills_visible;
+			this.skills_visibility_pending = true;
 			this.member_actions_error = '';
 			let res = null;
 			try {
-				res = await api_post('/api/client/status/visibility', { visible: desired });
+				res = await api_post(this.split_visibility_supported ? '/api/client/skills/visibility' : '/api/client/status/visibility', { visible: desired });
 			} catch (e) {
-				log('player status visibility update failed (%s)', e);
+				log('player skills visibility update failed (%s)', e);
 			}
 			if (res?.success) {
-				this.status_visible = res.visible;
+				this.skills_visible = res.visible;
+				if (!this.split_visibility_supported)
+					this.activity_visible = res.visible;
 				if (!res.visible)
 					invalidate_status_icon_collection();
 				if (this.selected_guild_member?.client_id === this.guild_client_id)
 					Object.assign(this.selected_guild_member, {
-						status_visible: res.visible,
-						...(res.visible ? {} : { status_available: false, status_activity: null, status_activities: [], account_age: null, total_skill_level: null })
+						skills_visible: res.visible,
+						...(!this.split_visibility_supported ? { activity_visible: res.visible, activity_available: res.visible } : {}),
+						...(res.visible ? {} : { skills_available: false, total_skill_level: null })
 					});
 				runtime.last_synced_status_skills = null;
-				runtime.last_synced_status_activity = null;
-				runtime.last_synced_status_activities = null;
 				runtime.last_synced_status_statistics = null;
-				if (res.visible) {
-					start_status_observer();
-					schedule_status_sync(0);
-				} else if (!this.gp_visible) {
-					stop_status_observer();
-				}
+				start_status_observer();
+				schedule_status_sync(0);
 			} else {
 				this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 			}
-			this.status_visibility_pending = false;
+			this.skills_visibility_pending = false;
+		},
+
+		async set_activity_visibility(event) {
+			if (this.activity_visibility_pending)
+				return;
+			event.preventDefault();
+			const desired = !this.activity_visible;
+			this.activity_visibility_pending = true;
+			this.member_actions_error = '';
+			let res = null;
+			try {
+				res = await api_post('/api/client/activity/visibility', { visible: desired });
+			} catch (e) {
+				log('player activity visibility update failed (%s)', e);
+			}
+			if (res?.success) {
+				this.activity_visible = res.visible;
+				if (this.selected_guild_member?.client_id === this.guild_client_id)
+					Object.assign(this.selected_guild_member, {
+						activity_visible: res.visible,
+						...(res.visible ? {} : { activity_available: false, status_activity: null, status_activities: [] })
+					});
+				runtime.last_synced_status_activity = null;
+				runtime.last_synced_status_activities = null;
+				start_status_observer();
+				schedule_status_sync(0);
+			} else {
+				this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+			}
+			this.activity_visibility_pending = false;
 		},
 
 		async set_gp_visibility(event) {
@@ -387,13 +496,11 @@ export function install_transfer_actions(runtime) {
 						this.selected_guild_member.gp = null;
 				}
 				runtime.last_synced_gp = null;
-				runtime.last_observed_gp = null;
 				if (res.visible) {
-					start_status_observer();
+					start_gp_sampling(true);
 					schedule_status_sync(0);
-				} else if (!this.status_visible) {
-					stop_status_observer();
-				}
+				} else
+					stop_gp_sampling();
 			} else {
 				this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 			}
@@ -496,7 +603,7 @@ export function install_transfer_actions(runtime) {
 			let status_res = null;
 			if (this.member_actions_preview) {
 				equipment_res = member.equipment_visible ? { slots: capture_equipment_snapshot() } : null;
-				status_res = member.status_visible ? capture_status_snapshot() : null;
+				status_res = member.skills_visible || member.activity_visible ? capture_status_snapshot() : null;
 			} else {
 				try {
 					[equipment_res, status_res] = await Promise.all([
@@ -509,7 +616,8 @@ export function install_transfer_actions(runtime) {
 			}
 			hide_button_spinner($button);
 			const equipment = Array.isArray(equipment_res?.slots) ? equipment_res.slots : null;
-			const status = Array.isArray(status_res?.skills) && status_res.activity?.type !== undefined ? status_res : null;
+			const status = member.skills_visible === true && member.skills_available === true &&
+				Array.isArray(status_res?.skills) ? status_res : null;
 			if (equipment === null && status === null) {
 				this.member_actions_error = getLangString(equipment_res?.error_lang ?? status_res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 				return;
@@ -531,14 +639,28 @@ export function install_transfer_actions(runtime) {
 		},
 
 		async add_gp_to_transfer() {
-			add_gp_to_transfer(state.add_gp_value);
+			add_currency_to_transfer('melvorD:GP', state.add_currency_value);
 			this.close_modal();
 		},
 
-		show_add_gp_modal() {
-			queue_modal('MOD_MP_TITLE_ADD_GP', 'add-gp-modal', 'assets/media/main/coins.png', {
+		show_add_currency_modal() {
+			queue_modal('MOD_MP_TITLE_ADD_CURRENCY', 'add-currency-modal', 'assets/media/main/coins.png', {
 				showConfirmButton: false
 			}, true, false);
+		},
+
+		show_add_currency_amount_modal(currency_id) {
+			if (!state.get_transfer_currency(currency_id))
+				return;
+			state.selected_transfer_currency_id = currency_id;
+			this.close_modal();
+			setTimeout(() => queue_modal('MOD_MP_TITLE_ADD_CURRENCY', 'add-currency-amount-modal',
+				state.selected_transfer_currency?.currency?.media, { showConfirmButton: false }, true, false), 0);
+		},
+
+		async add_currency_to_transfer() {
+			add_currency_to_transfer(state.selected_transfer_currency_id, state.add_currency_value);
+			this.close_modal();
 		},
 
 		transfer_return_selected() {

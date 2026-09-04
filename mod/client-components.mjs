@@ -129,8 +129,7 @@ export function register_components(runtime) {
 		}
 
 		connectedCallback() {
-			const item_id = this.getAttribute('data-item-id');
-			this.item = game.items.getObjectByID(item_id);
+			this.updateItem();
 
 			this.tooltip = tippy(this, {
 				content: '',
@@ -139,15 +138,36 @@ export function register_components(runtime) {
 				interactive: false,
 				animation: false,
 				touch: 'hold',
-				onShow: (instance) => {
-					if (item_id === 'melvorD:GP')
-						instance.setContent(this.createGPTooltip());
-					else if (this.item !== undefined)
-						instance.setContent(createItemInformationTooltip(this.item));
-					else
-						instance.setContent(this.createUnsupportedItemTooltip());
+					onShow: (instance) => {
+						this.updateItem();
+						const item_id = this.getAttribute('data-item-id');
+						if (item_id === 'melvorD:GP')
+							instance.setContent(this.createGPTooltip());
+						else if (this.currency !== undefined)
+							instance.setContent(`<div class="text-center"><div class="media d-flex align-items-center"><div class="mr-3"><img class="bank-img m-1" src="${this.currency.media}"></div><div class="media-body"><div class="font-w600">${this.currency.name}</div></div></div></div>`);
+						else if (this.item !== undefined)
+							instance.setContent(createItemInformationTooltip(this.item));
+						else
+							instance.setContent(this.createUnsupportedItemTooltip());
 				}
 			});
+		}
+
+		updateItem() {
+			this.item = game.items.getObjectByID(this.getAttribute('data-item-id'));
+			this.currency = game.currencies?.getObjectByID(this.getAttribute('data-item-id'));
+		}
+
+		attributeChangedCallback(name, oldValue, newValue) {
+			if (name !== 'data-item-id' || oldValue === newValue)
+				return;
+
+			this.updateItem();
+			this.tooltip?.hide();
+		}
+
+		static get observedAttributes() {
+			return ['data-item-id'];
 		}
 
 		disconnectedCallback() {
@@ -176,11 +196,13 @@ export function register_components(runtime) {
 		}
 	}
 
-	class MPGPSlider extends HTMLElement {
+	class MPCurrencySlider extends HTMLElement {
 		constructor() {
 			super();
 
-			state.add_gp_value = 1;
+			state.add_currency_value = 1;
+			const currency = state.selected_transfer_currency?.currency;
+			const maximum = Math.max(1, Number(currency?.amount) || 0);
 
 			const $input = document.createElement('input');
 			$input.type = 'text';
@@ -189,12 +211,12 @@ export function register_components(runtime) {
 
 			this.slider = new BankRangeSlider($input);
 
-			this.slider.sliderMax = game.gp.amount;
+			this.slider.sliderMax = maximum;
 			this.slider.sliderMin = 1;
 
 			this.slider.sliderInstance.update({
 				min: 1,
-				max: game.gp.amount
+				max: maximum
 			});
 
 			const $value = document.createElement('input');
@@ -205,7 +227,7 @@ export function register_components(runtime) {
 			$value.addEventListener('input', () => this.slider.setSliderPosition($value.value));
 			this.slider.customOnChange = (amount) => {
 				$value.value = amount;
-				state.add_gp_value = amount;
+				state.add_currency_value = amount;
 			};
 
 			this.appendChild($value);
@@ -287,10 +309,16 @@ export function register_components(runtime) {
 		}
 	}
 
-	window.customElements.define('mp-lang-string-f', LangStringFormattedElement);
-	window.customElements.define('mp-modal-component', MPModalComponent);
-	window.customElements.define('mp-item-icon', MPItemIcon);
-	window.customElements.define('mp-equipment-item', MPEquipmentItem);
-	window.customElements.define('mp-gp-slider', MPGPSlider);
-	window.customElements.define('mp-item-slider', MPItemSlider);
+	const definitions = [
+		['mp-lang-string-f', LangStringFormattedElement],
+		['mp-modal-component', MPModalComponent],
+		['mp-item-icon', MPItemIcon],
+		['mp-equipment-item', MPEquipmentItem],
+		['mp-currency-slider', MPCurrencySlider],
+		['mp-item-slider', MPItemSlider]
+	];
+	for (const [name, constructor] of definitions) {
+		if (window.customElements.get(name) === undefined)
+			window.customElements.define(name, constructor);
+	}
 }

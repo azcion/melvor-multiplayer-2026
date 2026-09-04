@@ -59,6 +59,8 @@ test('wires game modes into the roster, other-player modal, and Options sharing 
 	);
 
 	assert.match(roster, /mp-guild-member-name/);
+	assert.match(roster, /<img class="mp-guild-member-avatar skill-icon-xs"[\s\S]*mp-guild-member-content/);
+	assert.match(roster, /mp-guild-member-content[\s\S]*mp-game-mode-icon/);
 	assert.match(roster, /state\.get_roster_game_mode\(member\)/);
 	assert.match(roster, /state\.get_roster_game_mode\(member\)\?\.media \|\| 'assets\/media\/main\/question\.png'/);
 	assert.match(roster, /state\.get_roster_game_mode\(member\)\?\.name \|\| ''/);
@@ -70,8 +72,16 @@ test('wires game modes into the roster, other-player modal, and Options sharing 
 	assert.match(member_modal, /state\.set_game_mode_visibility\(\$event\)/);
 	assert.match(main, /game\.gamemodes\?\.getObjectByID\(id\)/);
 	assert.match(main, /api_post\('\/api\/client\/game-mode\/visibility'/);
-	assert.match(style, /\.mp-game-mode-icon \{[^}]*width: 16px;[^}]*height: 16px;[^}]*object-fit: contain;[^}]*\}/s);
-	assert.match(style, /\.mp-game-mode-label img,[^}]*\{[^}]*width: 24px;[^}]*height: 24px;[^}]*object-fit: contain;[^}]*\}/s);
+	assert.match(style, /\.mp-game-mode-icon \{[^}]*object-fit: contain;[^}]*position: absolute;[^}]*width: 96px;[^}]*opacity: \.15;[^}]*right: calc\(50% - 48px\);[^}]*height: 96px;[^}]*\}/s);
+	assert.doesNotMatch(style, /\.mp-game-mode-icon \{[^}]*top:/s);
+	assert.match(style, /\.mp-guild-member-avatar \{[^}]*height: 40px;[^}]*width: 40px;[^}]*\}/s);
+	assert.doesNotMatch(style, /\.mp-guild-member-button > img/);
+	assert.match(style, /\.mp-guild-member-avatar,[\s\S]*\.mp-guild-member-content \{[\s\S]*position: relative;[\s\S]*z-index: 1;/);
+	assert.match(style, /\.mp-game-mode-icon \{[\s\S]*right: calc\(50% - 48px\);[\s\S]*z-index: 0;[\s\S]*pointer-events: none;/);
+	assert.match(style, /\.mp-guild-member-last-seen \{[\s\S]*font-size: 10px !important;/);
+	assert.match(style, /\.mp-guild-member-gp \{[\s\S]*font-size: 10px;/);
+	assert.match(style, /\.mp-guild-member-gp img \{[\s\S]*width: 12px;[\s\S]*height: 12px;/);
+	assert.match(style, /\.mp-game-mode-label img \{[^}]*width: 24px;[^}]*height: 24px;[^}]*object-fit: contain;[^}]*\}/s);
 	assert.equal(language.MOD_MP_GAME_MODE_VISIBILITY, 'Let others see your game mode');
 	assert.equal(language.MOD_MP_GAME_MODE_UNKNOWN, 'Unknown Mode');
 });

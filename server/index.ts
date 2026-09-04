@@ -2,6 +2,7 @@ import { register_market_routes } from './routes/market';
 import { register_campaign_routes } from './routes/campaign';
 import { register_charity_routes } from './routes/charity';
 import { register_banishment_returns_routes } from './routes/banishment_returns';
+import { register_inbox_routes } from './routes/inbox';
 import { register_transfer_routes } from './routes/transfer';
 import { register_trade_routes } from './routes/trade';
 import { register_gifting_routes } from './routes/gifting';
@@ -16,6 +17,7 @@ import { register_identities_routes } from './routes/identities';
 import { register_general_routes } from './routes/general';
 import { register_auth_routes } from './routes/auth';
 import { register_updates_routes } from './routes/updates';
+import { register_social_mode_routes } from './routes/social_mode';
 import { default_handler, flush_logs, report_error, server } from './app-runtime';
 import { create_shutdown_handler } from './shutdown';
 
@@ -23,6 +25,7 @@ register_market_routes();
 register_campaign_routes();
 register_charity_routes();
 register_banishment_returns_routes();
+register_inbox_routes();
 register_transfer_routes();
 register_trade_routes();
 register_gifting_routes();
@@ -37,6 +40,7 @@ register_identities_routes();
 register_general_routes();
 register_auth_routes();
 register_updates_routes();
+register_social_mode_routes();
 
 server.error((err: Error) => {
 	report_error('unhandled request error', err);

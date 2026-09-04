@@ -210,6 +210,9 @@ describe('charity API', () => {
 			qty: 2,
 			expires_at: taken.json.item_expires_at
 		});
+		expect((await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
+			'/api/inbox', taker.session_token
+		)).json.items).toEqual([{ item_id, qty: 1 }]);
 	});
 
 	test('isolates donated inventory between guilds', async () => {

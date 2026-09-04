@@ -22,7 +22,7 @@ test('preflights and applies returned items and GP to a cloned state once', () =
 		gp: 5
 	};
 
-	const applied = apply_banishment_claim(initial, claim, 32);
+	const applied = apply_banishment_claim(initial, claim, 6);
 	assert.equal(applied.status, 'applied');
 	assert.deepEqual(applied.state, delivery_state([
 		{ id: 'melvorD:Iron_Ore', qty: 5 },
@@ -30,7 +30,7 @@ test('preflights and applies returned items and GP to a cloned state once', () =
 		{ id: 'melvorD:Coal_Ore', qty: 4 }
 	], ['claim-1']));
 	assert.deepEqual(initial, delivery_state([{ id: 'melvorD:Iron_Ore', qty: 2 }]));
-	assert.equal(apply_banishment_claim(applied.state, claim, 32).status, 'already-applied');
+	assert.equal(apply_banishment_claim(applied.state, claim, 6).status, 'already-applied');
 });
 
 test('leaves the complete state unchanged when capacity changes before application', () => {
@@ -59,4 +59,13 @@ test('migrates legacy inventory and processed IDs into one versioned record', ()
 
 	const replaced = replace_transfer_inventory(migrated, [{ id: 'melvorD:Fish', qty: 3 }]);
 	assert.deepEqual(replaced, delivery_state([{ id: 'melvorD:Fish', qty: 3 }], ['old-claim']));
+});
+
+test('preserves legacy inventory entries above the current capacity', () => {
+	const inventory = Array.from({ length: 7 }, (_, index) => ({ id: `melvorD:Legacy_${index}`, qty: 1 }));
+
+	assert.deepEqual(
+		load_transfer_delivery_state(undefined, inventory, []).inventory,
+		inventory
+	);
 });

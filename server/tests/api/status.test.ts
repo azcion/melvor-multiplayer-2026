@@ -168,6 +168,64 @@ describe('player status API', () => {
 		expect(stored).toEqual([{ client_id: pair.first_id, ...statistics }]);
 	});
 
+	test('keeps skills, activity, Account Age, and language independently shared', async () => {
+		const pair = await make_guildmates('Split Sharing Owner', 'Split Sharing Viewer');
+		const account_creation_date = Date.now() - 9 * 24 * 60 * 60 * 1000;
+		await sync_status(pair.first.session_token, [
+			{ skill_id: 'melvorD:Mining', level: 55 }
+		], { type: 'skill', skill_id: 'melvorD:Mining', action_id: 'melvorD:Ore' }, undefined, {
+			account_creation_date, total_skill_level: 555
+		});
+		await db_run(
+			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `language`, `reported_at`) VALUES(?, ?, ?, ?, ?)',
+			[pair.first_id, '1.4.5', '[]', 'x-debug-locale', Date.now()]
+		);
+
+		const skills_disabled = await post_json<{ success: boolean; visible: boolean }>(
+			'/api/client/skills/visibility', { visible: false }, pair.first.session_token
+		);
+		const after_skills = await get_json_with_session<{
+			members: Array<{
+				client_id: number; skills_visible: boolean; skills_available: boolean;
+				activity_visible: boolean; activity_available: boolean; status_activity: StatusActivity | null;
+				account_age: number | null; total_skill_level: number | null; language: string | null;
+			}>;
+		}>('/api/guilds/state', pair.second.session_token);
+		const skills_hidden_owner = after_skills.json.members.find(member => member.client_id === pair.first_id);
+		const partial_status = await get_status(pair.second.session_token, pair.first_id);
+
+		const activity_disabled = await post_json<{ success: boolean; visible: boolean }>(
+			'/api/client/activity/visibility', { visible: false }, pair.first.session_token
+		);
+		const after_activity = await get_json_with_session<{
+			members: Array<{
+				client_id: number; skills_visible: boolean; activity_visible: boolean;
+				account_age: number | null; language: string | null;
+			}>;
+		}>('/api/guilds/state', pair.second.session_token);
+		const activity_hidden_owner = after_activity.json.members.find(member => member.client_id === pair.first_id);
+
+		expect(skills_disabled.json).toEqual({ success: true, visible: false });
+		expect(skills_hidden_owner).toMatchObject({
+			skills_visible: false,
+			skills_available: false,
+			activity_visible: true,
+			activity_available: true,
+			status_activity: { type: 'skill', skill_id: 'melvorD:Mining', action_id: 'melvorD:Ore' },
+			total_skill_level: null,
+			language: 'x-debug-locale'
+		});
+		expect(skills_hidden_owner?.account_age).toBeGreaterThan(0);
+		expect(partial_status.json).toMatchObject({ skills: [], activity: { type: 'skill' } });
+		expect(activity_disabled.json).toEqual({ success: true, visible: false });
+		expect(activity_hidden_owner).toMatchObject({
+			skills_visible: false,
+			activity_visible: false,
+			account_age: expect.any(Number),
+			language: 'x-debug-locale'
+		});
+	});
+
 	test('rejects malformed shared statistics and hides them after status opt-out', async () => {
 		const pair = await make_guildmates('Invalid Statistics Owner', 'Invalid Statistics Viewer');
 		for (const body of [

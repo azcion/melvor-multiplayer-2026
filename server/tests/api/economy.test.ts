@@ -15,6 +15,7 @@ type Receipt = {
 describe('Economy Receipts', () => {
 	test('replays a committed command and keeps its receipt pending until acknowledgement', async () => {
 		const seller = await register_guild_client('Receipt Seller');
+		const before = await get_json_with_session<{ revision: number }>('/api/events', seller.session_token);
 		const command_id = crypto.randomUUID();
 		const body = {
 			command_id,
@@ -53,7 +54,14 @@ describe('Economy Receipts', () => {
 			{ id: expect.any(Number), item_id: 'melvorD:Receipt_Ore', qty: 3, available: 3, price: 7, payout: 0 }
 		]);
 
-		const pending = await get_events(seller);
+		const pending_response = await get_json_with_session<{
+			revision: number;
+			unchanged?: boolean;
+			economy_receipts: Receipt[];
+		}>(`/api/events?revision=${before.json.revision}`, seller.session_token);
+		const pending = pending_response.json;
+		expect(pending.revision).toBeGreaterThan(before.json.revision);
+		expect(pending.unchanged).not.toBe(true);
 		expect(pending.economy_receipts).toEqual([first.json.receipt]);
 		const acknowledged = await post_json<{ success: boolean }>(
 			'/api/economy/receipts/acknowledge',
@@ -61,7 +69,14 @@ describe('Economy Receipts', () => {
 			seller.session_token
 		);
 		expect(acknowledged.json.success).toBe(true);
-		expect((await get_events(seller)).economy_receipts).toEqual([]);
+		const after_acknowledgement = await get_json_with_session<{
+			revision: number;
+			unchanged?: boolean;
+			economy_receipts: Receipt[];
+		}>(`/api/events?revision=${pending.revision}`, seller.session_token);
+		expect(after_acknowledgement.json.revision).toBeGreaterThan(pending.revision);
+		expect(after_acknowledgement.json.unchanged).not.toBe(true);
+		expect(after_acknowledgement.json.economy_receipts).toEqual([]);
 		const completed_replay = await post_json<{ success: boolean; receipt: null }>(
 			'/api/market/sell',
 			body,
@@ -70,7 +85,7 @@ describe('Economy Receipts', () => {
 		expect(completed_replay.json.receipt).toBeNull();
 	});
 
-	test('durably delivers accepted gift contents after the gift rows are deleted', async () => {
+	test('durably delivers accepted gift contents to the Inbox after the gift rows are deleted', async () => {
 		const pair = await make_guildmates('Receipt Gift Sender', 'Receipt Gift Recipient');
 		const send_id = crypto.randomUUID();
 		const sent = await post_json<{ success: boolean; receipt: Receipt }>('/api/gift/send', {
@@ -86,27 +101,22 @@ describe('Economy Receipts', () => {
 		const recipient_events = await get_events(pair.second);
 		const gift_id = recipient_events.gifts[0];
 		const accept_id = crypto.randomUUID();
-		const accepted = await post_json<{ success: boolean; receipt: Receipt }>('/api/gift/accept', {
+		const accepted = await post_json<{ success: boolean }>('/api/gift/accept', {
 			command_id: accept_id,
 			gift_id
 		}, pair.second.session_token);
-		const replay = await post_json<{ success: boolean; receipt: Receipt }>('/api/gift/accept', {
-			command_id: accept_id,
-			gift_id
-		}, pair.second.session_token);
-
-		expect(replay.json).toEqual(accepted.json);
-		expect(accepted.json.receipt.effects).toEqual([
-			{ storage: 'gp', qty: 11 },
-			{ storage: 'bank', item_id: 'melvorD:Logs', qty: 4 }
-		]);
+		expect(accepted.json.success).toBe(true);
 		const after_accept = await get_events(pair.second);
 		expect(after_accept.gifts).toEqual([]);
-		expect(after_accept.economy_receipts).toEqual([accepted.json.receipt]);
-
-		const wrong_owner = await post('/api/economy/receipts/acknowledge', {
-			receipt_id: accept_id
-		}, pair.first.session_token);
-		expect(wrong_owner.status).toBe(404);
+		expect(after_accept.economy_receipts).toEqual([{
+			id: accept_id,
+			kind: 'gift-accept',
+			effects: []
+		}]);
+		expect((await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>('/api/inbox', pair.second.session_token)).json.items)
+			.toEqual([
+				{ item_id: 'melvorD:GP', qty: 11 },
+				{ item_id: 'melvorD:Logs', qty: 4 }
+			]);
 	});
 });

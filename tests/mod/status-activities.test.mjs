@@ -4,7 +4,9 @@ import {
 	MAX_STATUS_ACTIVITY_COUNT,
 	capture_primary_status_activity,
 	capture_status_activities,
-	normalize_status_activities
+	normalize_status_activities,
+	status_activities_sync_signature,
+	status_activity_sync_signature
 } from '../../mod/status-activities.mjs';
 
 function registered(...skills) {
@@ -95,4 +97,17 @@ test('keeps Alt. Magic as a skill, excludes malformed active state, and bounds d
 	assert.deepEqual(normalize_status_activities([duplicate, duplicate]), [duplicate]);
 	assert.equal(normalize_status_activities(many).length, MAX_STATUS_ACTIVITY_COUNT);
 	assert.deepEqual(capture_status_activities({ skills: registered(unknown), combat: {} }), []);
+});
+
+test('ignores action selection churn but detects meaningful activity changes for synchronization', () => {
+	const oak = { type: 'skill', skill_id: 'melvorD:Woodcutting', action_id: 'melvorD:Oak' };
+	const teak = { type: 'skill', skill_id: 'melvorD:Woodcutting', action_id: 'melvorD:Teak' };
+	const fishing = { type: 'skill', skill_id: 'melvorD:Fishing', action_id: 'melvorD:Shrimp' };
+	const combat = { type: 'combat', area_id: 'melvorD:Volcanic_Cave' };
+
+	assert.equal(status_activity_sync_signature(oak), status_activity_sync_signature(teak));
+	assert.notEqual(status_activity_sync_signature(oak), status_activity_sync_signature(fishing));
+	assert.equal(status_activities_sync_signature([oak, fishing]), status_activities_sync_signature([teak, fishing]));
+	assert.notEqual(status_activities_sync_signature([oak, fishing]), status_activities_sync_signature([fishing, oak]));
+	assert.notEqual(status_activities_sync_signature([oak]), status_activities_sync_signature([oak, combat]));
 });

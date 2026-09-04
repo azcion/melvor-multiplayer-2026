@@ -53,7 +53,7 @@ test('renders localized paginated Guild Activity responsively and refreshes it o
 	assert.match(templates, /<div class="block-content p-0 mp-guild-activity-scroll">[\s\S]*\n\t\t\t\t\t\t\t<div class="block-content text-center" v-show="state\.guild_activity_cursor !== null">[\s\S]*state\.load_more_guild_activity\(\)/);
 	assert.match(templates, /block-content mp-member-search-wrapper/);
 	assert.match(templates, /block-content p-0 mp-guild-members-scroll/);
-	assert.match(style, /#mp-guild-page\s*\{[\s\S]*padding-bottom: 3rem !important/);
+	assert.match(style, /#mp-guild-page,[\s\S]*#mp-updates-page\s*\{[\s\S]*padding-bottom: 0 !important/);
 	assert.match(style, /\.mp-guild-members-scroll,[\s\S]*\.mp-guild-activity-scroll\s*\{[\s\S]*max-height: 50rem;[\s\S]*overflow-y: auto/);
 	assert.match(style, /\.mp-guild-activity-event\s*\{[\s\S]*padding: 4px 16px/);
 	assert.match(style, /\.mp-guild-activity-meta\s*\{[\s\S]*justify-content: space-between[\s\S]*gap: 1rem/);
@@ -256,15 +256,42 @@ test('renders each loaded member activity as a right-aligned icon', async () => 
 	assert.doesNotMatch(roster_refresh, /api_get\('\/api\/guilds\/status\?client_id=' \+ member\.client_id\)/);
 	assert.match(member_list, /state\.get_status_activities\(member\)\.slice\(0, 3\)/);
 	assert.match(member_list, /state\.get_status_activities\(member\)\.length - 3/);
-	assert.match(member_list, /MOD_MP_GUILD_YOU[\s\S]*get_status_activity_icon\(activity\)/);
+	assert.match(member_list, /mp-guild-member-content[\s\S]*mp-guild-member-row[\s\S]*mp-guild-member-name[\s\S]*mp-guild-member-activities/);
+	assert.match(member_list, /mp-guild-member-gp[\s\S]*mp-guild-member-last-seen/);
+	assert.match(member_list, /mp-guild-member-row[\s\S]*mp-guild-member-tags/);
+	assert.match(member_list, /MOD_MP_GUILD_YOU[\s\S]*member\.client_id !== state\.guild_client_id && state\.is_new_guild_member/);
 	assert.match(member_list, /state\.format_shared_gp\(member\.gp\)/);
 	assert.match(member_list, /member\.last_seen_at/);
-	assert.match(member_list, /v-else-if="state\.is_new_guild_member\(member\.joined_at\)"/);
+	assert.match(member_list, /member\.client_id !== state\.guild_client_id && state\.is_new_guild_member\(member\.joined_at\)/);
 	assert.match(member_list, /MOD_MP_GUILD_NEW_MEMBER/);
+	assert.match(member_list, /member\.social_mode === 'social'[\s\S]*MOD_MP_SOCIAL_MODE_SOCIAL/);
+	assert.doesNotMatch(member_list, /MOD_MP_SOCIAL_MODE_FULL/);
 	assert.match(main, /Math\.max\(0, Date\.now\(\) - timestamp\) <= 48 \* 60 \* 60 \* 1000/);
 	assert.match(style, /\.mp-guild-new-member-badge \{[\s\S]*background-color: #269e70;/);
-	assert.match(style, /\.mp-guild-member-meta \{[\s\S]*margin-left: auto;/);
+	assert.match(style, /\.mp-guild-member-content \{[\s\S]*display: flex;[\s\S]*flex-direction: column;/);
+	assert.match(style, /\.mp-guild-member-row \{[\s\S]*justify-content: space-between;[\s\S]*width: 100%;/);
+	assert.match(style, /\.mp-guild-member-tags \{[\s\S]*justify-content: flex-end;/);
+	assert.match(style, /\.mp-guild-member-button \{[\s\S]*overflow: hidden;[\s\S]*position: relative;[\s\S]*padding: 8px 12px;/);
+	assert.match(style, /\.mp-member-activities \{[\s\S]*gap: 8px;[\s\S]*display: flex;[\s\S]*flex-wrap: wrap;[\s\S]*justify-content: center;/);
 	assert.match(style, /\.mp-member-actions > label \{[\s\S]*justify-content: flex-start;/);
+
+	const prioritizer_source = main.slice(
+		main.indexOf('function prioritize_current_guild_member'),
+		main.indexOf('\n\nasync function refresh_guild_members')
+	);
+	const prioritize_current_guild_member = new Function('state', `${prioritizer_source}; return prioritize_current_guild_member;`)({ guild_client_id: 2 });
+	assert.deepEqual(
+		prioritize_current_guild_member([
+			{ client_id: 1, last_seen_at: 300 },
+			{ client_id: 2, last_seen_at: 100 },
+			{ client_id: 3, last_seen_at: 200 }
+		]),
+		[
+			{ client_id: 2, last_seen_at: 100 },
+			{ client_id: 1, last_seen_at: 300 },
+			{ client_id: 3, last_seen_at: 200 }
+		]
+	);
 });
 
 test('tucks Shadowed members behind a normal-action modal at the bottom of the Guild page', async () => {

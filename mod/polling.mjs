@@ -1,5 +1,7 @@
 export const EVENT_ACTIVE_INTERVAL = 20 * 1000;
-export const EVENT_IDLE_INTERVAL = 60 * 1000;
+export const EVENT_WARMUP_STEP_INTERVAL = 20 * 1000;
+export const EVENT_MAX_INTERVAL = 3 * 60 * 1000;
+export const EVENT_WARMUP_CHECK_GROUP = 4;
 export const CHAT_INTERVAL = 5 * 1000;
 export const RETRY_INITIAL_INTERVAL = 2 * 1000;
 export const RETRY_MAX_INTERVAL = 30 * 1000;
@@ -22,11 +24,22 @@ export function has_pending_events(events) {
 		(events.economy_receipts?.length ?? 0) > 0 ||
 		(events.market_completed?.length ?? 0) > 0 ||
 		events.banishment_return_pending === true ||
+		events.inbox_pending === true ||
 		(events.chat_unread ?? 0) > 0;
 }
 
-export function event_poll_delay(has_pending, random = Math.random) {
-	return jittered_delay(has_pending ? EVENT_ACTIVE_INTERVAL : EVENT_IDLE_INTERVAL, random);
+export function ramped_poll_interval(successful_checks) {
+	const checks = Number.isSafeInteger(successful_checks) && successful_checks > 0 ? successful_checks : 0;
+	const group = Math.floor(checks / EVENT_WARMUP_CHECK_GROUP);
+	return Math.min(EVENT_WARMUP_STEP_INTERVAL * (group + 1), EVENT_MAX_INTERVAL);
+}
+
+export function event_poll_delay(has_pending, successful_checks = 0, random = Math.random) {
+	if (typeof successful_checks === 'function') {
+		random = successful_checks;
+		successful_checks = 0;
+	}
+	return jittered_delay(has_pending ? EVENT_ACTIVE_INTERVAL : ramped_poll_interval(successful_checks), random);
 }
 
 export function chat_poll_delay(random = Math.random) {

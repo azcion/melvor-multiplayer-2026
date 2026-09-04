@@ -87,8 +87,8 @@ platform/engine labels. Optional app distribution (including Huawei AppGallery),
 and build are explicitly player-reported, not inferred from the phone brand. These labels accompany authenticated
 request logs; origin categories, recognized preflight header names, and rejection reasons help diagnose transport
 failures. The operator retains up to 32 latest installation records per Client, with first/last authentication times; those records are erased when the Client is deleted.
-Diagnostics exclude IP addresses, raw user agents, device names, credentials, and request bodies. Mod Settings includes
-a local, 50-request connection report that can be copied even when connection fails; it is not uploaded automatically.
+Diagnostics exclude IP addresses, raw user agents, device names, credentials, and request bodies. Connection request
+details remain local to the installation and are not uploaded as a report automatically.
 
 New servers enroll a separate installation credential in device-local storage after a successful connection.
 Credential hashes and revocation state remain with the retained Client to support recovery after soft deletion;

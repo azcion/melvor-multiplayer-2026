@@ -6,10 +6,11 @@ import {
 	apply_economy_receipt,
 	forget_processed_economy_receipt,
 	is_complete_economy_receipt_page,
+	remember_acknowledged_economy_receipt,
 	summarize_market_fulfillment_receipts
 } from '../../mod/economy-receipts.mjs';
 
-function harness({ bank = {}, gp = 0, transfer = [], maximum = 32 } = {}) {
+function harness({ bank = {}, gp = 0, transfer = [], maximum = 6 } = {}) {
 	const state = { bank: { ...bank }, gp, transfer: transfer.map(item => ({ ...item })), saved_ids: [] };
 	return {
 		state,
@@ -82,6 +83,20 @@ test('forgets a receipt ID after acknowledgement without affecting other IDs', (
 	assert.deepEqual(forget_processed_economy_receipt(['receipt-2'], 'receipt-2'), []);
 });
 
+test('retains a bounded in-memory guard for stale duplicate deliveries after acknowledgement', () => {
+	const acknowledged = [];
+	remember_acknowledged_economy_receipt(acknowledged, 'receipt-1');
+	remember_acknowledged_economy_receipt(acknowledged, 'receipt-1');
+	assert.deepEqual(acknowledged, ['receipt-1']);
+
+	for (let index = 2; index <= 129; index++)
+		remember_acknowledged_economy_receipt(acknowledged, `receipt-${index}`);
+
+	assert.equal(acknowledged.length, 128);
+	assert.equal(acknowledged.includes('receipt-1'), false);
+	assert.equal(acknowledged.at(-1), 'receipt-129');
+});
+
 test('only treats a short pending-receipt page as complete', () => {
 	assert.equal(is_complete_economy_receipt_page([], 64), true);
 	assert.equal(is_complete_economy_receipt_page(Array.from({ length: 63 }), 64), true);
@@ -114,6 +129,20 @@ test('preflights the complete receipt before mutating any asset', () => {
 
 	assert.equal(result, 'blocked');
 	assert.deepEqual(state, { bank: { logs: 1 }, gp: 5, transfer: [], saved_ids: [] });
+});
+
+test('retains an oversized Transfer Inventory while blocking new receipt entries', () => {
+	const transfer = Array.from({ length: 7 }, (_, index) => ({ id: `item-${index}`, qty: 1 }));
+	const { state, adapter } = harness({ transfer, maximum: 6 });
+
+	const blocked = apply_economy_receipt({
+		id: 'receipt-over-cap',
+		kind: 'market-fulfill',
+		effects: [{ storage: 'transfer', item_id: 'new-item', qty: 1 }]
+	}, [], adapter);
+
+	assert.equal(blocked, 'blocked');
+	assert.deepEqual(state.transfer, transfer);
 });
 
 test('preserves the destroyable transfer boundary', () => {

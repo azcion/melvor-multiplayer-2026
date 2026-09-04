@@ -24,6 +24,21 @@ function fixture_database(): string {
 	database.query('INSERT INTO `client_sessions` (`session_token`, `client_id`) VALUES (?, 1)').run('secret-session');
 	database.query('INSERT INTO `guilds` (`name`, `icon_id`) VALUES (?, ?)').run('Diagnostic Guild', 'melvorD:Farmlands');
 	database.query('INSERT INTO `guild_memberships` (`client_id`, `guild_id`) VALUES (1, 2)').run();
+	database.query(
+		'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `game_mode_id`, `language`, `reported_at`) ' +
+		'VALUES (1, ?, ?, ?, ?, ?)'
+	).run('1.4.5', '["Melvor Multiplayer", "Test Mod"]', 'melvor:standard', 'en-US', 1700000000000);
+	const campaign = database.query(
+		'INSERT INTO `campaign_state` (`guild_id`, `campaign_id`, `item_id`, `item_amount`, `item_current`, ' +
+		'`required_contributors`, `auto_contribution`, `campaign_next`, `complete`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+	).run(2, 'Diagnostic Campaign', 'melvorD:Logs', 100, 25, 1, 5, 1700003600000, 0);
+	database.query(
+		'INSERT INTO `campaign_contributions` (`campaign_id`, `client_id`, `item_amount`, `taken`) VALUES (?, ?, ?, ?)'
+	).run(Number(campaign.lastInsertRowid), 1, 20, 0);
+	database.query(
+		'INSERT INTO `guild_activity_events` (`guild_id`, `event_type`, `actor_client_id`, `actor_display_name`, ' +
+		'`metadata`, `source_key`, `created_at`) VALUES (?, ?, ?, ?, ?, ?, ?)'
+	).run(2, 'campaign_contributed', 1, 'Diagnostic Idler', '{"amount":20}', 'diagnostic:campaign:1', 1700000000000);
 	database.close();
 	return database_path;
 }
@@ -109,6 +124,28 @@ describe('administration CLI', () => {
 		expect(result.stdout).toContain('active_sessions=1\n');
 		expect(result.stdout).toContain('guild_name="Diagnostic Guild"\n');
 		expect(result.stdout).not.toContain('secret-session');
+	});
+
+	test('inspects bounded Guild state without exposing credentials', async () => {
+		const result = await run_admin(fixture_database(), 'guild', 'inspect', '2');
+
+		expect(result.exit_code).toBe(0);
+		expect(result.stderr).toBe('');
+		expect(result.stdout).toContain('guild_id=2\n');
+		expect(result.stdout).toContain('name="Diagnostic Guild"\n');
+		expect(result.stdout).toContain('"mod_version":"1.4.5"');
+		expect(result.stdout).toContain('"campaign_id":"Diagnostic Campaign"');
+		expect(result.stdout).toContain('"item_amount":20');
+		expect(result.stdout).toContain('"event_type":"campaign_contributed"');
+		expect(result.stdout).not.toContain('secret-session');
+	});
+
+	test('reports a missing Guild without accepting arbitrary SQL', async () => {
+		const result = await run_admin(fixture_database(), 'guild', 'inspect', '999');
+
+		expect(result.exit_code).toBe(1);
+		expect(result.stdout).toBe('');
+		expect(result.stderr).toBe('Guild 999 does not exist.\n');
 	});
 
 	test('reports a missing identity without accepting arbitrary SQL', async () => {

@@ -301,26 +301,23 @@ describe('guild API', () => {
 		expect(gift_blocked.json.error_lang).toBe('MOD_MP_GUILD_DEPARTURE_BLOCKED');
 	});
 
-	test('allows a declined gift recipient to depart while the returned gift remains with its sender', async () => {
+	test('allows both Gift participants to depart after a modern decline reaches Inbox', async () => {
 		const pair = await make_guildmates('Returned Gift Owner', 'Returned Gift Decliner');
 		await post_json('/api/gift/send', {
 			recipient_id: pair.second_id,
 			items: [{ id: 'melvorD:Returned_Guild_Departure_Gift', qty: 1 }]
 		}, pair.first.session_token);
 		const gift_id = (await get_events(pair.second)).gifts[0];
-		await post_json('/api/gift/decline', { gift_id }, pair.second.session_token);
+		await post_json('/api/gift/decline', { gift_id, command_id: crypto.randomUUID() }, pair.second.session_token);
 
 		const decliner_left = await post_json<{ success: boolean }>('/api/guilds/leave', {}, pair.second.session_token);
-		const owner_blocked = await post_json<{ error_lang: string }>('/api/guilds/leave', {}, pair.first.session_token);
-		const collected = await post_json<{ success: boolean }>('/api/gift/accept', {
-			gift_id
-		}, pair.first.session_token);
 		const owner_left = await post_json<{ success: boolean }>('/api/guilds/leave', {}, pair.first.session_token);
 
 		expect(decliner_left.json.success).toBe(true);
-		expect(owner_blocked.json.error_lang).toBe('MOD_MP_GUILD_DEPARTURE_BLOCKED');
-		expect(collected.json.success).toBe(true);
 		expect(owner_left.json.success).toBe(true);
+		expect((await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
+			'/api/inbox', pair.first.session_token
+		)).json.items).toEqual([{ item_id: 'melvorD:Returned_Guild_Departure_Gift', qty: 1 }]);
 	});
 
 	test('reserves shared and player-to-player features for guild members', async () => {

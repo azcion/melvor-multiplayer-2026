@@ -15,9 +15,9 @@ describe('updates API', () => {
 			'future-update'
 		]);
 		expect(json.sections.map(section => section.title)).toEqual([
-			'Message from the devs',
-			"What we're working on",
-			'Coming in a future update'
+			'Dev note',
+			'In development',
+			'On the roadmap'
 		]);
 		expect(json.sections.every(section => section.paragraphs.length > 0)).toBe(true);
 	});

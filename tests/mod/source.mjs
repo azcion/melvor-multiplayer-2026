@@ -20,3 +20,13 @@ export async function read_client_source(root = new URL('../../', import.meta.ur
 	));
 	return sources.join('\n');
 }
+
+export async function read_release_changelog(root = new URL('../../', import.meta.url)) {
+	try {
+		return await readFile(new URL('CHANGELOG.md', root), 'utf8');
+	} catch (error) {
+		if (error?.code !== 'ENOENT')
+			throw error;
+		return readFile(new URL('public-release/replacements/changelog.md', root), 'utf8');
+	}
+}

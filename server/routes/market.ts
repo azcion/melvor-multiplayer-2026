@@ -3,8 +3,10 @@ import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonSerializable } from '../http';
 import { record_guild_activity } from '../guild-activity';
+import { add_inbox_gp, add_inbox_items } from '../inbox';
+import { client_uses_legacy_transfer_protocol, is_legacy_transfer_request } from '../transfer-compatibility';
 
-const { MARKET_ITEMS_PER_PAGE, db, db_get_all, db_get_single, get_client_guild_id, is_valid_item_id, is_valid_uuid, market_completed_cached, parse_market_excluded_item_ids, parse_market_namespaces, remove_player_cache_entry, run_economy_command, session_get_route, session_post_route } = runtime;
+const { MARKET_ITEMS_PER_PAGE, db, db_get_all, db_get_single, get_client_guild_id, is_social_only_client, is_valid_item_id, is_valid_uuid, market_completed_cached, parse_market_excluded_item_ids, parse_market_namespaces, remove_player_cache_entry, run_economy_command, session_get_route, session_post_route } = runtime;
 
 type MarketDirection = 'sell' | 'buy';
 
@@ -37,6 +39,13 @@ function create_market_buyer_receipt(client_id: number, item_id: string, item_qt
 	db.query('UPDATE `clients` SET `event_revision` = `event_revision` + 1 WHERE `id` = ?').run(client_id);
 }
 
+function deliver_market_purchase(client_id: number, item_id: string, item_qty: number): void {
+	if (client_uses_legacy_transfer_protocol(client_id))
+		create_market_buyer_receipt(client_id, item_id, item_qty);
+	else
+		add_inbox_items(client_id, [{ item_id, qty: item_qty }]);
+}
+
 export function register_market_routes(): void {
 	session_post_route('/api/market/sell', async (req, url, client_id, json) => {
 		const guild_id = await get_client_guild_id(client_id);
@@ -58,6 +67,8 @@ export function register_market_routes(): void {
 			return 400; // Bad Request
 
 		const result = run_economy_command(client_id, json.command_id, 'market-sell', () => {
+			if (is_social_only_client(client_id))
+				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 			const published_at = Date.now();
 			const existing = db.query(
 				' SELECT `id` FROM `market_items` WHERE `guild_id` = ? AND `client_id` = ? AND `direction` = \'sell\' AND `item_id` = ? AND `price` = ?'
@@ -102,6 +113,8 @@ export function register_market_routes(): void {
 			return 400; // Bad Request
 
 		const result = run_economy_command(client_id, json.command_id, 'market-buy-order', () => {
+			if (is_social_only_client(client_id))
+				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 			const published_at = Date.now();
 			const existing = db.query<Pick<db_row.market_items, 'id' | 'qty' | 'escrow_gp'>, [number, number, string, number]>(
 				' SELECT `id`, `qty`, `escrow_gp` FROM `market_items` WHERE `guild_id` = ? AND `client_id` = ? AND `direction` = \'buy\' AND `item_id` = ? AND `price` = ?'
@@ -138,6 +151,8 @@ export function register_market_routes(): void {
 			return 400; // Bad Request
 
 		const result = run_economy_command(client_id, json.command_id, 'market-buy', () => {
+			if (is_social_only_client(client_id))
+				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 			const lot = db.query('SELECT * FROM `market_items` WHERE `id` = ? AND `guild_id` = ? AND `direction` = \'sell\' LIMIT 1')
 				.get(lot_id, guild_id) as db_row.market_items | null;
 			if (lot === null || lot.available <= 0)
@@ -156,12 +171,15 @@ export function register_market_routes(): void {
 			const new_item_qty = Math.max(lot.available - final_qty, 0);
 			if (new_item_qty === 0)
 				market_completed_cached.get(lot.client_id)?.push(lot.id);
+			const legacy = is_legacy_transfer_request(req);
+			if (!legacy)
+				add_inbox_items(client_id, [{ item_id: lot.item_id, qty: final_qty }]);
 			record_guild_activity({ guild_id, event_type: 'market_purchased', actor_client_id: client_id,
 				buyer_client_id: client_id, seller_client_id: lot.client_id, item_id: lot.item_id,
 				quantity: final_qty, source_key: `market-purchase:${json.command_id ?? crypto.randomUUID()}` });
 			return { success: true, item_id: lot.item_id, item_qty: final_qty, gp_loss: final_cost,
 				new_item_qty, effects: [
-					{ storage: 'bank' as const, item_id: lot.item_id, qty: final_qty },
+					...(legacy ? [{ storage: 'bank' as const, item_id: lot.item_id, qty: final_qty }] : []),
 					{ storage: 'gp' as const, qty: -final_cost }
 				] };
 		});
@@ -182,6 +200,8 @@ export function register_market_routes(): void {
 			return 400; // Bad Request
 
 		const result = run_economy_command(client_id, json.command_id, 'market-fulfill', () => {
+			if (is_social_only_client(client_id))
+				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 			const lot = db.query('SELECT * FROM `market_items` WHERE `id` = ? AND `guild_id` = ? AND `direction` = \'buy\' LIMIT 1')
 				.get(lot_id, guild_id) as db_row.market_items | null;
 			if (lot === null || lot.available <= 0 || lot.client_id === client_id)
@@ -202,20 +222,25 @@ export function register_market_routes(): void {
 			if (updated.changes === 0)
 				return { error_lang: 'MOD_MP_MARKET_FULFILL_ERROR_INVALID' };
 
-			create_market_buyer_receipt(lot.client_id, lot.item_id, final_qty);
+			deliver_market_purchase(lot.client_id, lot.item_id, final_qty);
+			const legacy = is_legacy_transfer_request(req);
+			if (!legacy)
+				add_inbox_gp(client_id, final_cost);
 			record_guild_activity({ guild_id, event_type: 'market_fulfilled', actor_client_id: client_id,
 				buyer_client_id: lot.client_id, seller_client_id: client_id, item_id: lot.item_id,
 				quantity: final_qty, source_key: `market-fulfillment:${json.command_id}` });
 			return { success: true, item_id: lot.item_id, item_qty: final_qty, gp_gain: final_cost,
 				new_item_qty, effects: [
 					{ storage: 'bank' as const, item_id: lot.item_id, qty: -final_qty },
-					{ storage: 'gp' as const, qty: final_cost }
+					...(legacy ? [{ storage: 'gp' as const, qty: final_cost }] : [])
 				] };
 		});
 		return result ?? 400;
 	});
 
 	session_get_route('/api/market/listings', async (req, url, client_id): Promise<HandlerResult> => {
+		if (is_social_only_client(client_id))
+			return { error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 		const guild_id = await get_client_guild_id(client_id);
 		if (guild_id === null)
 			return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
@@ -248,6 +273,8 @@ export function register_market_routes(): void {
 			return 400; // Bad Request
 
 		const result = run_economy_command(client_id, json.command_id, 'market-payout', () => {
+			if (is_social_only_client(client_id))
+				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 			const lot = db.query('SELECT * FROM `market_items` WHERE `id` = ? AND `guild_id` = ? AND `direction` = \'sell\' LIMIT 1')
 				.get(lot_id, guild_id) as db_row.market_items | null;
 			if (lot?.client_id !== client_id)
@@ -261,10 +288,13 @@ export function register_market_routes(): void {
 				db.query('UPDATE `market_items` SET `payout` = `payout` + ? WHERE `id` = ?')
 					.run(payout_available, lot.id);
 			}
+			const legacy = is_legacy_transfer_request(req);
+			if (!legacy)
+				add_inbox_gp(client_id, payout_available);
 			return { success: true, payout: payout_available, ended,
-				effects: payout_available > 0 ? [{ storage: 'gp' as const, qty: payout_available }] : [] };
+				effects: payout_available > 0 && legacy ? [{ storage: 'gp' as const, qty: payout_available }] : [] };
 		});
-		return result?.success === false ? 400 : result ?? 400;
+		return result?.error_lang !== undefined ? result : result?.success === false ? 400 : result ?? 400;
 	});
 
 	session_post_route('/api/market/cancel', async (req, url, client_id, json): Promise<HandlerResult> => {
@@ -277,23 +307,33 @@ export function register_market_routes(): void {
 			return 400; // Bad Request
 
 		const result = run_economy_command(client_id, json.command_id, 'market-cancel', () => {
+			if (is_social_only_client(client_id))
+				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 			const lot = db.query(
 				'DELETE FROM `market_items` WHERE `id` = ? AND `guild_id` = ? AND `client_id` = ? RETURNING *'
 			).get(lot_id, guild_id, client_id) as db_row.market_items | null;
 			if (lot === null)
 				return { success: false };
 			remove_player_cache_entry(market_completed_cached, client_id, lot.id);
-			if (lot.direction === 'buy')
+			const legacy = is_legacy_transfer_request(req);
+			if (lot.direction === 'buy') {
+				if (!legacy)
+					add_inbox_gp(client_id, lot.escrow_gp);
 				return { success: true, direction: lot.direction, item_id: lot.item_id, item_qty: lot.available,
 					payout: 0, gp_refund: lot.escrow_gp,
-					effects: lot.escrow_gp > 0 ? [{ storage: 'gp' as const, qty: lot.escrow_gp }] : [] };
+					effects: lot.escrow_gp > 0 && legacy ? [{ storage: 'gp' as const, qty: lot.escrow_gp }] : [] };
+			}
 			const payout = (lot.qty - lot.available) * lot.price - lot.payout;
+			if (!legacy) {
+				add_inbox_items(client_id, [{ item_id: lot.item_id, qty: lot.available }]);
+				add_inbox_gp(client_id, payout);
+			}
 			return { success: true, item_id: lot.item_id, item_qty: lot.available, payout, effects: [
-				...(lot.available > 0 ? [{ storage: 'bank' as const, item_id: lot.item_id, qty: lot.available }] : []),
-				...(payout > 0 ? [{ storage: 'gp' as const, qty: payout }] : [])
+				...(lot.available > 0 && legacy ? [{ storage: 'bank' as const, item_id: lot.item_id, qty: lot.available }] : []),
+				...(payout > 0 && legacy ? [{ storage: 'gp' as const, qty: payout }] : [])
 			] };
 		});
-		return result?.success === false ? 400 : result ?? 400;
+		return result?.error_lang !== undefined ? result : result?.success === false ? 400 : result ?? 400;
 	});
 
 	session_post_route('/api/market/destroy', async (req, url, client_id, json): Promise<HandlerResult> => {
@@ -306,6 +346,8 @@ export function register_market_routes(): void {
 			return 400; // Bad Request
 
 		const result = run_economy_command(client_id, json.command_id, 'market-destroy', () => {
+			if (is_social_only_client(client_id))
+				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 			const lot = db.query(
 				'DELETE FROM `market_items` WHERE `id` = ? AND `guild_id` = ? AND `client_id` = ? AND `direction` = \'sell\' RETURNING *'
 			).get(lot_id, guild_id, client_id) as db_row.market_items | null;
@@ -313,16 +355,23 @@ export function register_market_routes(): void {
 				return { success: false };
 			const payout = (lot.qty - lot.available) * lot.price - lot.payout;
 			remove_player_cache_entry(market_completed_cached, client_id, lot.id);
+			const legacy = is_legacy_transfer_request(req);
+			if (!legacy) {
+				add_inbox_items(client_id, [{ item_id: lot.item_id, qty: lot.available }]);
+				add_inbox_gp(client_id, payout);
+			}
 			return { success: true, item_id: lot.item_id, item_qty: lot.available, payout, effects: [
-				...(lot.available > 0 ? [{ storage: 'transfer' as const, item_id: lot.item_id, qty: lot.available,
+				...(lot.available > 0 && legacy ? [{ storage: 'transfer' as const, item_id: lot.item_id, qty: lot.available,
 					destroyable: true }] : []),
-				...(payout > 0 ? [{ storage: 'gp' as const, qty: payout }] : [])
+				...(payout > 0 && legacy ? [{ storage: 'gp' as const, qty: payout }] : [])
 			] };
 		});
-		return result?.success === false ? 400 : result ?? 400;
+		return result?.error_lang !== undefined ? result : result?.success === false ? 400 : result ?? 400;
 	});
 
 	session_post_route('/api/market/catalog', async (req, url, client_id, json): Promise<HandlerResult> => {
+		if (is_social_only_client(client_id))
+			return { error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 		const guild_id = await get_client_guild_id(client_id);
 		if (guild_id === null)
 			return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
@@ -345,6 +394,8 @@ export function register_market_routes(): void {
 	});
 
 	session_post_route('/api/market/search', async (req, url, client_id, json): Promise<HandlerResult> => {
+		if (is_social_only_client(client_id))
+			return { error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 		const guild_id = await get_client_guild_id(client_id);
 		if (guild_id === null)
 			return { error_lang: 'MOD_MP_GUILD_REQUIRED' };

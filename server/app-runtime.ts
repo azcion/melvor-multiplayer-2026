@@ -36,6 +36,7 @@ import {
 import type { PetitionType } from './council';
 import {
 	create_http_server,
+	get_request_mod_version,
 	identify_request,
 	read_json_request,
 	status_response,
@@ -118,7 +119,7 @@ import {
 export { db, db_get_single, db_execute, db_insert, db_exists, db_get_all, db_run, get_service_setting, register_client } from './db';
 export { CAMPAIGN_AUTO_ADVANCE_INTERVAL, CAMPAIGN_AUTO_CONTRIBUTION_CAP, CAMPAIGN_AUTO_PROGRESS_SQL, get_campaign_auto_advance, get_campaign_item_total, get_required_campaign_contributors } from './campaign';
 export { COUNCIL_HISTORY_PAGE_SIZE, COUNCIL_MAINTENANCE_INTERVAL, get_petition_conflict_subject, get_petition_resolution, is_petition_choice, is_petition_type, PETITION_FAILED_RETRY_AFTER, PETITION_LIFETIME, PETITION_RUNNING_STALE_AFTER } from './council';
-export { create_http_server, identify_request, read_json_request, status_response, validate_json_request } from './http';
+export { create_http_server, get_request_mod_version, identify_request, read_json_request, status_response, validate_json_request } from './http';
 export { flush_logs, report_error, write_log } from './log';
 export { load_auth_response_delay, load_request_limit_configuration, RequestLimitPolicy } from './security';
 export { create_shutdown_handler } from './shutdown';
@@ -145,6 +146,8 @@ export type ClientRuntime = {
 	game_mode_id: string | null;
 	language: string | null;
 };
+
+export type SocialMode = 'full' | 'social';
 
 export type ActiveTrade = {
 	trade_id: number;
@@ -190,12 +193,17 @@ export type PlayerStatusActiveActivity = Exclude<PlayerStatusActivity, { type: '
 
 export type GuildMemberRow = {
 	client_id: number;
+	social_mode: SocialMode;
 	display_name: string;
 	icon_id: string;
 	equipment_visible: number;
 	equipment_available: number;
 	status_visible: number;
 	status_available: number;
+	skills_visible: number;
+	skills_available: number;
+	activity_visible: number;
+	activity_available: number;
 	status_activity_type: 'idle' | 'skill' | 'combat' | null;
 	status_activity_skill_id: string | null;
 	status_activity_action_id: string | null;
@@ -213,6 +221,30 @@ export type GuildMemberRow = {
 	last_multiplayer_active_at: number;
 	joined_at: number | null;
 };
+
+export function get_client_social_mode(client_id: number): SocialMode {
+	const row = db.query<{ social_mode: SocialMode }, [number]>(
+		'SELECT `social_mode` FROM `clients` WHERE `id` = ? LIMIT 1'
+	).get(client_id);
+	return row?.social_mode === 'social' ? 'social' : 'full';
+}
+
+export function is_social_only_client(client_id: number): boolean {
+	return get_client_social_mode(client_id) === 'social';
+}
+
+export function get_guild_member_social_modes(client_id: number): Array<{
+	client_id: number;
+	social_mode: SocialMode;
+}> {
+	return db.query<{ client_id: number; social_mode: SocialMode }, [number, number]>(
+		'SELECT member.`client_id`, client.`social_mode` FROM `guild_memberships` AS own ' +
+		'JOIN `guild_memberships` AS member ON member.`guild_id` = own.`guild_id` ' +
+		'JOIN `clients` AS client ON client.`id` = member.`client_id` WHERE own.`client_id` = ? ' +
+		'AND client.`last_multiplayer_active_at` >= ? ' +
+		'ORDER BY member.`client_id`'
+	).all(client_id, shadowed_cutoff(Date.now()));
+}
 
 export type GuildSummary = {
 	guild_id: number;
@@ -653,6 +685,7 @@ export const OFFICIAL_GAME_ICON_NAMESPACES = new Set([
 	'melvorTotH',
 	'melvorItA'
 ]);
+export const MULTIPLAYER_AVATAR_ICON_NAMESPACES = new Set(['multiplayer']);
 
 export function is_valid_namespaced_icon_id(icon_id: unknown, namespaces: Set<string>): icon_id is string {
 	if (typeof icon_id !== 'string')
@@ -662,7 +695,8 @@ export function is_valid_namespaced_icon_id(icon_id: unknown, namespaces: Set<st
 }
 
 export function is_valid_avatar_icon_id(icon_id: unknown): icon_id is string {
-	return is_valid_namespaced_icon_id(icon_id, OFFICIAL_GAME_ICON_NAMESPACES);
+	return is_valid_namespaced_icon_id(icon_id, OFFICIAL_GAME_ICON_NAMESPACES) ||
+		is_valid_namespaced_icon_id(icon_id, MULTIPLAYER_AVATAR_ICON_NAMESPACES);
 }
 
 export function is_valid_guild_icon_id(icon_id: unknown): icon_id is string {
@@ -1706,7 +1740,7 @@ export async function get_guild_summary(guild_id: number): Promise<GuildSummary 
 }
 
 export function get_guild_member_status_activity(member: GuildMemberRow): PlayerStatusActivity | null {
-	if (member.status_visible !== 1 || member.status_available !== 1 || member.status_activity_type === null)
+	if (member.activity_visible !== 1 || member.activity_available !== 1 || member.status_activity_type === null)
 		return null;
 	return status_snapshot_activity({
 		activity_type: member.status_activity_type,
@@ -1717,29 +1751,34 @@ export function get_guild_member_status_activity(member: GuildMemberRow): Player
 }
 
 export function get_guild_member_status_activities(member: GuildMemberRow, activity: PlayerStatusActivity | null): PlayerStatusActiveActivity[] {
-	if (member.status_visible !== 1 || member.status_available !== 1 || activity === null || member.status_activities === null)
+	if (member.activity_visible !== 1 || member.activity_available !== 1 || activity === null || member.status_activities === null)
 		return [];
 	return status_snapshot_activities({ activities: member.status_activities }, activity);
 }
 
 export function guild_member_from_row(member: GuildMemberRow, now = Date.now()) {
 	const status_activity = get_guild_member_status_activity(member);
-	const account_age = member.status_visible === 1 && member.account_creation_date !== null &&
+	const account_age = member.account_creation_date !== null &&
 		Number.isSafeInteger(member.account_creation_date) && member.account_creation_date > 0
 		? Math.max(0, now - member.account_creation_date)
 		: null;
 	return {
 		client_id: member.client_id,
+		social_mode: member.social_mode,
 		display_name: member.display_name,
 		icon_id: member.icon_id,
 		equipment_visible: member.equipment_visible === 1,
 		equipment_available: member.equipment_available === 1,
 		status_visible: member.status_visible === 1,
 		status_available: member.status_available === 1,
+		skills_visible: member.skills_visible === 1,
+		skills_available: member.skills_available === 1,
+		activity_visible: member.activity_visible === 1,
+		activity_available: member.activity_available === 1,
 		status_activity,
 		status_activities: get_guild_member_status_activities(member, status_activity),
 		account_age,
-		total_skill_level: member.status_visible === 1 && member.total_skill_level !== null &&
+		total_skill_level: member.skills_visible === 1 && member.total_skill_level !== null &&
 			Number.isSafeInteger(member.total_skill_level) && member.total_skill_level >= 0
 			? member.total_skill_level : null,
 		gp_visible: member.gp_visible === 1,
@@ -1760,11 +1799,15 @@ export async function get_guild_members(guild_id: number, shadowed = false, now 
 		? ' AND (c.`last_multiplayer_active_at` = 0 OR c.`last_multiplayer_active_at` < ?)'
 		: ' AND c.`last_multiplayer_active_at` >= ?';
 	const members = await db_get_all(
-		'SELECT c.`id` AS `client_id`, c.`display_name`, c.`icon_id`, ' +
+		'SELECT c.`id` AS `client_id`, c.`social_mode`, c.`display_name`, c.`icon_id`, ' +
 		'c.`equipment_visible`, ' +
 		'EXISTS(SELECT 1 FROM `equipment_snapshots` AS es WHERE es.`client_id` = c.`id`) AS `equipment_available`, ' +
 		'c.`status_visible`, ' +
-		'EXISTS(SELECT 1 FROM `status_snapshots` AS available_ss WHERE available_ss.`client_id` = c.`id`) AS `status_available`, ' +
+		'EXISTS(SELECT 1 FROM `status_snapshots` AS available_ss WHERE available_ss.`client_id` = c.`id`) AND c.`skills_available` = 1 AND c.`activity_available` = 1 AS `status_available`, ' +
+		'c.`skills_visible`, ' +
+		'c.`skills_available`, ' +
+		'c.`activity_visible`, ' +
+		'c.`activity_available`, ' +
 		'ss.`activity_type` AS `status_activity_type`, ss.`activity_skill_id` AS `status_activity_skill_id`, ' +
 		'ss.`activity_action_id` AS `status_activity_action_id`, ss.`activity_area_id` AS `status_activity_area_id`, ss.`activities` AS `status_activities`, ' +
 		'ss.`account_creation_date`, ss.`total_skill_level`, ' +
@@ -1801,11 +1844,15 @@ export async function get_guild_member_directory(
 		: ' AND c.`last_multiplayer_active_at` >= ?';
 	const [members, count] = await Promise.all([
 			db_get_all(
-				'SELECT c.`id` AS `client_id`, c.`display_name`, c.`icon_id`, ' +
+				'SELECT c.`id` AS `client_id`, c.`social_mode`, c.`display_name`, c.`icon_id`, ' +
 				'c.`equipment_visible`, ' +
 				'EXISTS(SELECT 1 FROM `equipment_snapshots` AS es WHERE es.`client_id` = c.`id`) AS `equipment_available`, ' +
 				'c.`status_visible`, ' +
-				'EXISTS(SELECT 1 FROM `status_snapshots` AS available_ss WHERE available_ss.`client_id` = c.`id`) AS `status_available`, ' +
+				'EXISTS(SELECT 1 FROM `status_snapshots` AS available_ss WHERE available_ss.`client_id` = c.`id`) AND c.`skills_available` = 1 AND c.`activity_available` = 1 AS `status_available`, ' +
+				'c.`skills_visible`, ' +
+				'c.`skills_available`, ' +
+				'c.`activity_visible`, ' +
+				'c.`activity_available`, ' +
 				'ss.`activity_type` AS `status_activity_type`, ss.`activity_skill_id` AS `status_activity_skill_id`, ' +
 				'ss.`activity_action_id` AS `status_activity_action_id`, ss.`activity_area_id` AS `status_activity_area_id`, ss.`activities` AS `status_activities`, ' +
 				'ss.`account_creation_date`, ss.`total_skill_level`, ' +

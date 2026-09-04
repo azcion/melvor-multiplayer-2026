@@ -193,8 +193,11 @@ describe('concurrent persistence invariants', () => {
 		const receipt_count_after = await db_count(
 			' SELECT COUNT(*) AS count FROM `economy_receipts` WHERE `kind` = \'market-fulfill\'', []
 		);
-		expect(receipt_count_after - receipt_count_before).toBe(2);
-		expect((await get_events(buyer)).economy_receipts.some(receipt => receipt.kind === 'market-fulfill')).toBe(true);
+		expect(receipt_count_after - receipt_count_before).toBe(1);
+		expect((await get_events(buyer)).economy_receipts.some(receipt => receipt.kind === 'market-fulfill')).toBe(false);
+		expect((await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
+			'/api/inbox', buyer.session_token
+		)).json.items).toEqual([{ item_id, qty: 1 }]);
 		expect(await db_count(
 			' SELECT COUNT(*) AS count FROM `market_items` WHERE `id` = ?',
 			[rows[0].id]

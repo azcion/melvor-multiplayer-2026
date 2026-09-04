@@ -127,11 +127,11 @@ test('routes every modal title through SweetAlert text without permitting an HTM
 
 test('destroys modal range sliders when their custom elements disconnect', async () => {
 	const main = await read_client_source();
-	const gp_slider = main.slice(main.indexOf('class MPGPSlider'), main.indexOf('class MPItemSlider'));
+	const currency_slider = main.slice(main.indexOf('class MPCurrencySlider'), main.indexOf('class MPItemSlider'));
 	const item_slider = main.slice(main.indexOf('class MPItemSlider'),
 		main.indexOf("window.customElements.define('mp-lang-string-f'"));
 
-	for (const slider of [gp_slider, item_slider]) {
+	for (const slider of [currency_slider, item_slider]) {
 		assert.match(slider, /disconnectedCallback\(\)/);
 		assert.match(slider, /this\.slider\?\.sliderInstance\?\.destroy\(\)/);
 		assert.match(slider, /this\.slider = null/);

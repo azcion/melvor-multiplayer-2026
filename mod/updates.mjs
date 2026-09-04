@@ -2,6 +2,10 @@ function updates_endpoint(server_host) {
 	return server_host.replace(/\/$/, '') + '/api/updates';
 }
 
+export function has_unseen_mod_version(current_version, last_seen_version) {
+	return typeof current_version === 'string' && current_version.length > 0 && current_version !== last_seen_version;
+}
+
 export function normalize_updates(payload) {
 	if (!Array.isArray(payload?.sections))
 		return [];

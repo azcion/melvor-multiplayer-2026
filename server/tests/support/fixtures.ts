@@ -26,6 +26,10 @@ export type Events = {
 		state: number;
 	}>;
 	resolved_trades: number[];
+	guild_member_social_modes: Array<{
+		client_id: number;
+		social_mode: 'full' | 'social';
+	}>;
 	economy_receipts: Array<{
 		id: string;
 		kind: string;
@@ -37,6 +41,7 @@ export type Events = {
 	};
 	market_completed: number[];
 	banishment_return_pending: boolean;
+	inbox_pending: boolean;
 	chat_unread: number;
 };
 
@@ -49,6 +54,11 @@ export type FriendPair = {
 
 export type GuildPair = FriendPair & {
 	guild_id: number;
+};
+
+export type GuildmateModVersions = {
+	first?: string;
+	second?: string;
 };
 
 export type RegisteredGuildClient = RegisteredClient & {
@@ -123,12 +133,13 @@ export async function make_friends(
 export async function make_guildmates(
 	first_name = 'First Guildmate',
 	second_name = 'Second Guildmate',
-	guild_name = 'Test Guild'
+	guild_name = 'Test Guild',
+	mod_versions: GuildmateModVersions = {}
 ): Promise<GuildPair> {
 	validate_fixture_guild_name(guild_name);
 	const [first, second] = await Promise.all([
-		register_client(first_name),
-		register_client(second_name)
+		register_client(first_name, undefined, mod_versions.first),
+		register_client(second_name, undefined, mod_versions.second)
 	]);
 
 	const created = await post_json<{

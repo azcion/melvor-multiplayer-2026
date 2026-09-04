@@ -3,7 +3,6 @@ export function install_market_campaign_charity_actions(runtime) {
 		state,
 		GIFT_FLAG_RETURNED,
 		MARKET_ITEMS_PER_PAGE,
-		TRANSFER_INVENTORY_MAX_LIMIT,
 		api_get,
 		api_post,
 		add_gp_to_transfer,
@@ -20,6 +19,7 @@ export function install_market_campaign_charity_actions(runtime) {
 		game,
 		get_client_events,
 		getLangString,
+		is_social_only,
 		has_local_unresolved_item,
 		hide_button_spinner,
 		is_button_spinning,
@@ -128,6 +128,8 @@ export function install_market_campaign_charity_actions(runtime) {
 		},
 
 		async buy_market_item(event) {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			const $button = event.currentTarget;
 
 			if (is_button_spinning($button))
@@ -195,6 +197,8 @@ export function install_market_campaign_charity_actions(runtime) {
 		},
 
 		async fulfill_market_order(event) {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			const $button = event.currentTarget;
 
 			if (is_button_spinning($button))
@@ -235,6 +239,8 @@ export function install_market_campaign_charity_actions(runtime) {
 		},
 
 		async create_market_buy_order(event) {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			const $button = event.currentTarget;
 			if (is_button_spinning($button))
 				return;
@@ -332,19 +338,14 @@ export function install_market_campaign_charity_actions(runtime) {
 		},
 
 		async resolve_market_listing(event, item, action) {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			const $button = event.currentTarget;
 
 			if ($button.classList.contains('disabled') || is_button_spinning($button))
 				return;
 			if (item.unresolved && action !== 'destroy')
 				return;
-			if (action === 'destroy' && state.transfer_inventory.length >= TRANSFER_INVENTORY_MAX_LIMIT && item.available > 0)
-				return notify_error('MOD_MP_TRANSFER_INVENTORY_FULL');
-			if (action === 'destroy' && state.transfer_inventory.some(entry =>
-				entry.id === item.item_id && entry.destroyable !== true
-			))
-				return notify_error('MOD_MP_TRANSFER_DESTROY_ITEM_FIRST');
-
 			show_button_spinner($button);
 
 			const res = await api_post('/api/market/' + action, { id: item.id, command_id: crypto.randomUUID() });
@@ -391,12 +392,16 @@ export function install_market_campaign_charity_actions(runtime) {
 		},
 
 		show_campaign_contribute_modal() {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			queue_modal('MOD_MP_CAMPAIGN_CONTRIBUTE', 'campaign-contribute-modal', this.campaign_item_icon, {
 				showConfirmButton: false
 			}, true, false);
 		},
 
 		async contribute_to_campaign(event) {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			if (!state.campaign_active || !state.campaign_has_data)
 				return notify_error('MOD_MP_CAMPAIGN_CONTRIBUTE_ERR');
 
@@ -433,6 +438,8 @@ export function install_market_campaign_charity_actions(runtime) {
 		},
 
 		async claim_campaign_reward(event, campaign) {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			const $button = event.currentTarget;
 			if (is_button_spinning($button))
 				return;
@@ -474,6 +481,8 @@ export function install_market_campaign_charity_actions(runtime) {
 
 		// #region CHARITY ACTIONS
 		async charity_take_item(event) {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			const item = this.charity_tree_inventory.find(e => e.id === state.selected_charity_item_id);
 			if (!item)
 				return notify_error('MOD_MP_CHARITY_INVALID_ITEM');
@@ -555,7 +564,9 @@ export function install_market_campaign_charity_actions(runtime) {
 			return charitree_rules.format_charitree_remaining(expires_at, this.charity_update_time);
 		},
 
-		async donate_items(event) {
+		async donate_items(event, confirmed = false) {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			if (this.has_destroyable_transfer_items)
 				return notify_error('MOD_MP_TRANSFER_DESTROY_ITEM_FIRST');
 
@@ -571,6 +582,8 @@ export function install_market_campaign_charity_actions(runtime) {
 			const $button = event.currentTarget;
 			if (is_button_spinning($button))
 				return;
+			if (!confirmed)
+				return this.show_transfer_confirmation('donate');
 
 			show_button_spinner($button);
 

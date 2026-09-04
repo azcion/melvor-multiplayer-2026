@@ -29,6 +29,6 @@ test('renders every matching Guild location in the scrolling selectors', async (
 	assert.doesNotMatch(filtered_guild_icons, /slice\(0,\s*32\)/);
 	assert.doesNotMatch(filtered_council_icons, /slice\(0,\s*32\)/);
 	assert.match(styles, /\.mp-guild-icon-selector \{[\s\S]*max-height: 230px;[\s\S]*overflow-y: auto/);
-	assert.match(templates, /class="mp-guild-icon-selector mt-2"[\s\S]*v-for="icon in state\.filtered_guild_icons"/);
-	assert.match(templates, /class="mp-guild-icon-selector mt-2"[\s\S]*v-for="icon in state\.filtered_council_icons"/);
+	assert.match(templates, /class="mp-guild-icon-selector mt-2"[\s\S]*?@touchmove="state\.stop_icon_scroll_propagation\(\$event\)"[\s\S]*v-for="icon in state\.filtered_guild_icons"/);
+	assert.match(templates, /class="mp-guild-icon-selector mt-2"[\s\S]*?@touchmove="state\.stop_icon_scroll_propagation\(\$event\)"[\s\S]*v-for="icon in state\.filtered_council_icons"/);
 });

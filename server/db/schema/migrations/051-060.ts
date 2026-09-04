@@ -60,5 +60,67 @@ export const migrations_051_060: Migration[] = [
 			CREATE INDEX idx_guild_activity_private_seller
 				ON guild_activity_events (guild_id, seller_client_id, created_at DESC, id DESC);
 		`
+	}, {
+		version: 53,
+		sql: `
+			ALTER TABLE clients ADD COLUMN skills_visible INTEGER NOT NULL DEFAULT 1
+				CHECK (skills_visible IN (0, 1));
+			ALTER TABLE clients ADD COLUMN activity_visible INTEGER NOT NULL DEFAULT 1
+				CHECK (activity_visible IN (0, 1));
+			ALTER TABLE clients ADD COLUMN skills_available INTEGER NOT NULL DEFAULT 0
+				CHECK (skills_available IN (0, 1));
+			ALTER TABLE clients ADD COLUMN activity_available INTEGER NOT NULL DEFAULT 0
+				CHECK (activity_available IN (0, 1));
+			UPDATE clients SET
+				skills_available = EXISTS(SELECT 1 FROM status_snapshot_skills WHERE status_snapshot_skills.client_id = clients.id),
+				activity_available = EXISTS(SELECT 1 FROM status_snapshots WHERE status_snapshots.client_id = clients.id);
+			UPDATE clients SET skills_visible = status_visible, activity_visible = status_visible;
+		`
+	}, {
+		version: 54,
+		sql: `
+			CREATE TABLE inbox_items (
+				client_id INTEGER NOT NULL,
+				item_id TEXT NOT NULL,
+				qty INTEGER NOT NULL CHECK (qty > 0),
+				PRIMARY KEY (client_id, item_id),
+				FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
+			);
+
+			CREATE TABLE inbox_claims (
+				id TEXT PRIMARY KEY,
+				client_id INTEGER NOT NULL,
+				created_at INTEGER NOT NULL CHECK (created_at >= 0),
+				acknowledged_at INTEGER CHECK (acknowledged_at IS NULL OR acknowledged_at >= created_at),
+				FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
+			);
+			CREATE UNIQUE INDEX idx_inbox_claims_outstanding
+				ON inbox_claims (client_id) WHERE acknowledged_at IS NULL;
+
+			CREATE TABLE inbox_claim_items (
+				claim_id TEXT NOT NULL,
+				item_id TEXT NOT NULL,
+				qty INTEGER NOT NULL CHECK (qty > 0),
+				PRIMARY KEY (claim_id, item_id),
+				FOREIGN KEY (claim_id) REFERENCES inbox_claims (id) ON DELETE CASCADE
+			);
+
+			CREATE TRIGGER event_inbox_insert AFTER INSERT ON inbox_items BEGIN
+				UPDATE clients SET event_revision = event_revision + 1 WHERE id = NEW.client_id;
+			END;
+			CREATE TRIGGER event_inbox_update AFTER UPDATE ON inbox_items BEGIN
+				UPDATE clients SET event_revision = event_revision + 1
+				WHERE id IN (OLD.client_id, NEW.client_id);
+			END;
+			CREATE TRIGGER event_inbox_delete AFTER DELETE ON inbox_items BEGIN
+				UPDATE clients SET event_revision = event_revision + 1 WHERE id = OLD.client_id;
+			END;
+		`
+	}, {
+		version: 55,
+		sql: `
+			ALTER TABLE clients ADD COLUMN social_mode TEXT NOT NULL DEFAULT 'full'
+				CHECK (social_mode IN ('full', 'social'));
+		`
 	}
 ];

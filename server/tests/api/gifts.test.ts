@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { get_events, make_guildmates } from '../support/fixtures';
-import { post, post_json } from '../support/http';
+import { get_json_with_session, post, post_json } from '../support/http';
 
 type TransferContents = {
 	gifts: Record<string, {
@@ -25,6 +25,11 @@ type Receipt = {
 	effects: Array<Record<string, unknown>>;
 };
 
+type Inbox = {
+	items: Array<{ item_id: string; qty: number }>;
+	pending_claim: boolean;
+};
+
 async function get_transfer_contents(
 	session_token: string,
 	gift_ids: number[]
@@ -34,6 +39,10 @@ async function get_transfer_contents(
 		trade_ids: [],
 		resolved_trade_ids: []
 	}, session_token);
+}
+
+async function get_inbox(session_token: string) {
+	return get_json_with_session<Inbox>('/api/inbox', session_token);
 }
 
 describe('gift API', () => {
@@ -123,6 +132,10 @@ describe('gift API', () => {
 		expect(accepted.json.success).toBe(true);
 		expect((await get_events(pair.second)).gifts).toEqual([]);
 		expect((await get_transfer_contents(pair.second.session_token, [gift_id])).json.gifts).toEqual({});
+		expect((await get_inbox(pair.second.session_token)).json.items).toEqual([
+			{ item_id: 'exampleMod:Allowed_Gift', qty: 3 },
+			{ item_id: 'melvorD:Coal_Ore', qty: 12 }
+		]);
 	});
 
 	test('returns declined gifts to the sender for collection', async () => {
@@ -143,23 +156,40 @@ describe('gift API', () => {
 
 		expect(declined.json.success).toBe(true);
 		expect((await get_events(pair.second)).gifts).toEqual([]);
-		expect(returned_events.gifts).toEqual([gift_id]);
-		expect(returned_contents.json.gifts[String(gift_id)]).toMatchObject({
-			items: [{ item_id: 'melvorF:Air_Rune', qty: 25 }],
-			flags: 1
-		});
+		expect(returned_events.gifts).toEqual([]);
+		expect(returned_contents.json.gifts).toEqual({});
+		expect((await get_inbox(pair.first.session_token)).json.items).toEqual([
+			{ item_id: 'melvorF:Air_Rune', qty: 25 }
+		]);
 		expect(decline_returned.status).toBe(400);
+	});
 
-		const collected = await post_json<{ success: boolean }>('/api/gift/accept', {
-			gift_id
+	test('preserves the Economy Receipt protocol for 1.4.5 gift clients', async () => {
+		const pair = await make_guildmates('Legacy Gift Sender', 'Legacy Gift Recipient', 'Legacy Gift Guild', {
+			second: '1.4.5'
+		});
+		await post_json('/api/gift/send', {
+			recipient_id: pair.second_id,
+			items: [{ id: 'melvorD:Coal_Ore', qty: 12 }, { id: 'melvorD:GP', qty: 5 }]
 		}, pair.first.session_token);
+		const gift_id = (await get_events(pair.second)).gifts[0];
+		const accepted = await post_json<{ success: boolean; receipt: { kind: string; effects: unknown[] } }>(
+			'/api/gift/accept', { gift_id, command_id: crypto.randomUUID() }, pair.second.session_token
+		);
 
-		expect(collected.json.success).toBe(true);
-		expect((await get_events(pair.first)).gifts).toEqual([]);
+		expect(accepted.json.success).toBe(true);
+		expect(accepted.json.receipt.kind).toBe('gift-accept');
+		expect(accepted.json.receipt.effects).toEqual([
+			{ storage: 'bank', item_id: 'melvorD:Coal_Ore', qty: 12 },
+			{ storage: 'gp', qty: 5 }
+		]);
+		expect((await get_inbox(pair.second.session_token)).json.items).toEqual([]);
 	});
 
 	test('identifies the declining recipient as the sender of a returned gift', async () => {
-		const pair = await make_guildmates('Gift Sender', 'Gift Recipient');
+		const pair = await make_guildmates('Gift Sender', 'Gift Recipient', 'Legacy Return Guild', {
+			first: '1.4.5'
+		});
 		await post_json('/api/gift/send', {
 			recipient_id: pair.second_id,
 			items: [{ id: 'melvorF:Water_Rune', qty: 5 }]
@@ -174,7 +204,9 @@ describe('gift API', () => {
 	});
 
 	test('discards only owned returned gifts through a replay-safe command', async () => {
-		const pair = await make_guildmates('Discarded Gift Sender', 'Discarded Gift Recipient');
+		const pair = await make_guildmates('Discarded Gift Sender', 'Discarded Gift Recipient', 'Legacy Discard Guild', {
+			first: '1.4.5'
+		});
 		await post_json('/api/gift/send', {
 			recipient_id: pair.second_id,
 			items: [{ id: 'removedMod:Unavailable_Item', qty: 7 }]

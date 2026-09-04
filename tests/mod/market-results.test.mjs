@@ -370,6 +370,21 @@ test('splits owned Marketplace orders into responsive direction tabs', async () 
 	assert.match(style, /\.mp-market-listing-tabs \.btn \{[\s\S]*flex: 1 1 0/);
 });
 
+test('keys Marketplace rows by listing ID instead of nested action buttons', async () => {
+	const templates = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
+	const market_page = templates.slice(
+		templates.indexOf('<template id="template-mp-market-page">'),
+		templates.indexOf('<template id="template-mp-charity-page">')
+	);
+	const owned_listings = market_page.slice(
+		market_page.indexOf('state.market_listings_filtered'),
+		market_page.indexOf('<div class="p-4 block" v-else-if="state.market_listings_loading">')
+	);
+
+	assert.match(owned_listings, /v-for="item in state\.market_listings_filtered" :key="item\.id"/);
+	assert.doesNotMatch(owned_listings, /resolve_market_listing\(\$event, item, '[^']+'\)"[^>]*:key=/);
+});
+
 test('switches the owned Marketplace direction without accepting invalid values', () => {
 	const state = { market_listing_direction: 'buy' };
 	const actions = install_market_campaign_charity_actions({ state });

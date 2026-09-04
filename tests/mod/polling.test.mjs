@@ -6,7 +6,9 @@ import { read_client_source } from './source.mjs';
 import {
 	CHAT_INTERVAL,
 	EVENT_ACTIVE_INTERVAL,
-	EVENT_IDLE_INTERVAL,
+	EVENT_MAX_INTERVAL,
+	EVENT_WARMUP_CHECK_GROUP,
+	EVENT_WARMUP_STEP_INTERVAL,
 	RETRY_INITIAL_INTERVAL,
 	RETRY_MAX_INTERVAL,
 	chat_poll_delay,
@@ -15,6 +17,7 @@ import {
 	has_pending_events,
 	is_foreground,
 	jittered_delay,
+	ramped_poll_interval,
 	retry_poll_delay
 } from '../../mod/polling.mjs';
 
@@ -24,12 +27,24 @@ test('bounds jitter around each polling interval', () => {
 	assert.equal(jittered_delay(1000, () => 0), 900);
 	assert.equal(jittered_delay(1000, () => 0.5), 1000);
 	assert.equal(jittered_delay(1000, () => 1), 1100);
-	assert.equal(event_poll_delay(false, () => 0.5), EVENT_IDLE_INTERVAL);
+	assert.equal(event_poll_delay(false, 0, () => 0.5), EVENT_WARMUP_STEP_INTERVAL);
 	assert.equal(event_poll_delay(true, () => 0.5), EVENT_ACTIVE_INTERVAL);
 	assert.equal(chat_poll_delay(() => 0.5), CHAT_INTERVAL);
 	assert.equal(retry_poll_delay(1, () => 0.5), RETRY_INITIAL_INTERVAL);
 	assert.equal(retry_poll_delay(2, () => 0.5), RETRY_INITIAL_INTERVAL * 2);
 	assert.equal(retry_poll_delay(99, () => 0.5), RETRY_MAX_INTERVAL);
+});
+
+test('ramps successful scheduled checks in four-check groups up to three minutes', () => {
+	assert.equal(EVENT_WARMUP_CHECK_GROUP, 4);
+	for (const checks of [0, 1, 2, 3])
+		assert.equal(ramped_poll_interval(checks), EVENT_WARMUP_STEP_INTERVAL);
+	for (const checks of [4, 5, 6, 7])
+		assert.equal(ramped_poll_interval(checks), EVENT_WARMUP_STEP_INTERVAL * 2);
+	assert.equal(ramped_poll_interval(8), EVENT_WARMUP_STEP_INTERVAL * 3);
+	assert.equal(ramped_poll_interval(10_000), EVENT_MAX_INTERVAL);
+	assert.equal(event_poll_delay(true, 10_000, () => 0.5), EVENT_ACTIVE_INTERVAL);
+	assert.equal(event_poll_delay(false, 10_000, () => 0.5), EVENT_MAX_INTERVAL);
 });
 
 test('aborts a transport request that exceeds its timeout', async () => {
@@ -75,6 +90,7 @@ test('uses the active interval only for actionable pending events', () => {
 		{ economy_receipts: [1] },
 		{ market_completed: [1] },
 		{ banishment_return_pending: true },
+		{ inbox_pending: true },
 		{ chat_unread: 1 }
 	])
 		assert.equal(has_pending_events(events), true);
@@ -94,17 +110,39 @@ test('single-flights event and Guild refreshes and pauses recurring work in the 
 	const visibility = main.slice(visibility_start, main.indexOf('// #region', visibility_start));
 
 	assert.match(events, /if \(client_event_request !== null\)[\s\S]*return client_event_request/);
+	assert.match(events, /client_event_trailing = true/);
+	assert.match(events, /if \(client_event_trailing\)[\s\S]*void get_client_events\(\)/);
 	assert.match(events, /\/api\/events\?revision=/);
 	assert.match(events, /res\.unchanged === true/);
-	assert.match(events, /polling\.event_poll_delay\(client_events_have_pending\)/);
+	assert.match(events, /request_generation !== session_generation/);
+	assert.match(events, /client_event_scheduled_checks\+\+/);
+	assert.match(events, /polling\.event_poll_delay\(client_events_have_pending, client_event_scheduled_checks\)/);
 	assert.match(events, /finally \{[\s\S]*polling\.retry_poll_delay\(client_event_poll_failures\)/);
 	assert.match(chat, /finally \{[\s\S]*polling\.retry_poll_delay\(chat_poll_failures\)/);
 	assert.match(guild, /guild_state_refresh_request !== null/);
 	assert.match(guild, /GUILD_STATE_FRESHNESS/);
 	assert.match(visibility, /client_event_poll_id\+\+/);
 	assert.match(visibility, /stop_chat_polling\(\)/);
+	assert.match(visibility, /stop_gp_sampling\(\)/);
 	assert.match(visibility, /stop_status_observer\(\)/);
 	assert.match(visibility, /start_client_event_polling\(\)/);
+	assert.match(visibility, /start_gp_sampling\(\)/);
+});
+
+test('refreshes event state after relevant navigation and successful mutations only', () => {
+	const mutations = main.slice(
+		main.indexOf('const EVENT_AFFECTING_MUTATIONS'),
+		main.indexOf('async function refresh_identities')
+	);
+
+	for (const endpoint of ['/api/gift/send', '/api/trade/accept', '/api/friends/add', '/api/guilds/apply',
+		'/api/market/buy', '/api/campaign/contribute', '/api/chat/messages/send'])
+		assert.match(mutations, new RegExp(endpoint.replaceAll('/', '\\/')));
+	for (const endpoint of ['/api/client/status/sync', '/api/client/equipment/sync', '/api/market/search'])
+		assert.doesNotMatch(mutations, new RegExp(endpoint.replaceAll('/', '\\/')));
+	assert.match(main, /is_event_affecting_mutation\(endpoint\)[\s\S]*void get_client_events\(\)/);
+	assert.match(main, /async function refresh_guild_page\(\)[\s\S]*Promise\.all\(\[get_client_events\(\), refresh_guild_state\(\)\]\)/);
+	assert.match(main, /on_page_toggle\('mp-market-page'[\s\S]*Promise\.all\(\[get_client_events\(\), refresh_guild_state\(\)\]\)/);
 });
 
 test('bounds requests and releases guarded page loaders from finally blocks', () => {

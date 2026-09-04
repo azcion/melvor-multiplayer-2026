@@ -20,6 +20,8 @@ export function install_trading_actions(runtime) {
 		game,
 		get_client_events,
 		getLangString,
+		is_transfer_currency,
+		is_social_only,
 		has_local_unresolved_item,
 		hide_button_spinner,
 		is_button_spinning,
@@ -52,12 +54,15 @@ export function install_trading_actions(runtime) {
 		update_market_listings,
 		update_market_page,
 		update_market_search,
+		update_multiplayer_nav,
 		update_transfer_contents,
 	} = runtime;
 
 	return {
 		// #region TRADE ACTIONS
 		async create_trade() {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			if (this.has_destroyable_transfer_items)
 				return notify_error('MOD_MP_TRANSFER_DESTROY_ITEM_FIRST');
 
@@ -71,24 +76,36 @@ export function install_trading_actions(runtime) {
 			}
 		},
 
-		async select_trade_recipient(recipient) {
-			this.close_modal();
+		async select_trade_recipient(event, recipient) {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
+			const $button = event.currentTarget;
+			if (is_button_spinning($button))
+				return;
+
+			show_button_spinner($button);
 
 			const res = await api_post('/api/trade/offer', {
 				recipient_id: recipient.client_id,
 				items: state.transfer_inventory,
 				command_id: crypto.randomUUID()
 			});
+			hide_button_spinner($button);
 
 			if (res?.success && await reconcile_economy_receipts([res.receipt])) {
+				this.close_modal();
 				state.trades.push({
 					trade_id: res.trade_id,
 					state: 0,
 					data: null
 				});
+				update_multiplayer_nav();
 
 				update_transfer_contents();
+				return;
 			}
+
+			show_modal_error(getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR'));
 		},
 
 		get_trade_items_value(items) {
@@ -97,7 +114,7 @@ export function install_trading_actions(runtime) {
 			for (const entry of items) {
 				if (entry.item_id === 'melvorD:GP') {
 					total_value += entry.qty;
-				} else {
+				} else if (!is_transfer_currency(entry.item_id)) {
 					const item = game.items.getObjectByID(entry.item_id);
 					if (item?.sellsFor.currency === game.gp)
 						total_value += game.bank.getItemSalePrice(item, entry.qty);
@@ -115,7 +132,9 @@ export function install_trading_actions(runtime) {
 			return trade.data.items.filter(item => item.counter === (trade.attending ? 1 : 0));
 		},
 
-		async counter_trade(event, trade_id) {
+		async counter_trade(event, trade_id, confirmed = false) {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			const trade = state.trades.find(t => t.trade_id === trade_id);
 			if (!trade)
 				return;
@@ -123,6 +142,8 @@ export function install_trading_actions(runtime) {
 			const $button = event.currentTarget;
 			if (is_button_spinning($button))
 				return;
+			if (!confirmed)
+				return this.show_transfer_confirmation('counter_trade', trade_id);
 
 			show_button_spinner($button);
 
@@ -136,6 +157,7 @@ export function install_trading_actions(runtime) {
 
 			if (res?.success && await reconcile_economy_receipts([res.receipt])) {
 				state.trades = state.trades.filter(t => t.trade_id !== trade_id);
+				update_multiplayer_nav();
 
 				// this needs to happen on the next tick to prevent petite-vue breaking
 				// bug: https://github.com/vuejs/core/issues/5657 (element hoisting is not a good solution)
@@ -146,6 +168,7 @@ export function install_trading_actions(runtime) {
 						attending: false,
 						data: null
 					});
+					update_multiplayer_nav();
 
 					update_transfer_contents();
 				}, 1);
@@ -156,6 +179,8 @@ export function install_trading_actions(runtime) {
 		},
 
 		async resolve_trade(event, trade_id) {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			// prevent resolving a trade with no local data
 			const trade = state.resolved_trades.find(t => t.trade_id === trade_id);
 			if (!trade?.data)
@@ -173,12 +198,15 @@ export function install_trading_actions(runtime) {
 
 			if (res?.success === true && await reconcile_economy_receipts([res.receipt])) {
 				state.resolved_trades = state.resolved_trades.filter(trade => trade.trade_id !== trade_id);
+				update_multiplayer_nav();
 			} else {
 				notify_error('MOD_MP_GENERIC_ERR');
 			}
 		},
 
-		async decline_trade(event, trade_id) {
+		async decline_trade(event, trade_id, confirmed = false) {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			// prevent declining a trade with no local data
 			const trade = state.trades.find(t => t.trade_id === trade_id);
 			if (!trade?.data)
@@ -187,20 +215,25 @@ export function install_trading_actions(runtime) {
 			const $button = event.currentTarget;
 			if (is_button_spinning($button))
 				return;
+			if (!confirmed)
+				return this.show_transfer_confirmation('decline_trade', trade_id);
 
 			show_button_spinner($button);
 
-			const res = await api_post('/api/trade/decline', { trade_id });
+			const res = await api_post('/api/trade/decline', { trade_id, command_id: crypto.randomUUID() });
 			hide_button_spinner($button);
 
-			if (res?.success === true) {
+			if (res?.success === true && (res.receipt === undefined || await reconcile_economy_receipts([res.receipt]))) {
 				state.trades = state.trades.filter(trade => trade.trade_id !== trade_id);
+				update_multiplayer_nav();
 			} else {
 				notify_error('MOD_MP_GENERIC_ERR');
 			}
 		},
 
 		async accept_trade(event, trade_id) {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			// prevent accepting a trade with no local data
 			const trade = state.trades.find(t => t.trade_id === trade_id);
 			if (!trade?.data)
@@ -217,12 +250,15 @@ export function install_trading_actions(runtime) {
 
 			if (res?.success === true && await reconcile_economy_receipts([res.receipt])) {
 				state.trades = state.trades.filter(trade => trade.trade_id !== trade_id);
+				update_multiplayer_nav();
 			} else {
 				notify_error('MOD_MP_GENERIC_ERR');
 			}
 		},
 
-		async cancel_trade(event, trade_id) {
+		async cancel_trade(event, trade_id, confirmed = false) {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			// prevent cancelling a trade with no local data
 			const trade = state.trades.find(t => t.trade_id === trade_id);
 			if (!trade?.data)
@@ -231,14 +267,17 @@ export function install_trading_actions(runtime) {
 			const $button = event.currentTarget;
 			if (is_button_spinning($button))
 				return;
+			if (!confirmed)
+				return this.show_transfer_confirmation('cancel_trade', trade_id);
 
 			show_button_spinner($button);
 
-			const res = await api_post('/api/trade/cancel', { trade_id });
+			const res = await api_post('/api/trade/cancel', { trade_id, command_id: crypto.randomUUID() });
 			hide_button_spinner($button);
 
-			if (res?.success === true) {
+			if (res?.success === true && (res.receipt === undefined || await reconcile_economy_receipts([res.receipt]))) {
 				trade_returns.complete_trade_cancellation(state, trade_id);
+				update_multiplayer_nav();
 			} else {
 				notify_error('MOD_MP_GENERIC_ERR');
 			}
@@ -267,6 +306,7 @@ export function install_trading_actions(runtime) {
 			const res = await api_post('/api/gift/discard', { gift_id, command_id });
 			if (res?.success && await reconcile_economy_receipts([res.receipt])) {
 				this.gifts = this.gifts.filter(gift => gift.id !== gift_id);
+				update_multiplayer_nav();
 				this.unsupported_returned_gift_id = null;
 				this.unsupported_returned_gift_command_id = '';
 				this.close_modal();
@@ -278,7 +318,9 @@ export function install_trading_actions(runtime) {
 			notify_error('MOD_MP_GENERIC_ERR');
 		},
 
-		async resolve_gift(event, gift_id, accept) {
+		async resolve_gift(event, gift_id, accept, confirmed = false) {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			const $button = event.currentTarget;
 
 			if (is_button_spinning($button))
@@ -287,23 +329,28 @@ export function install_trading_actions(runtime) {
 			const gift = this.gifts.find(g => g.id === gift_id);
 			if (gift === undefined)
 				return notify_error('MOD_MP_GENERIC_ERR');
+			if (!accept && !confirmed)
+				return this.show_transfer_confirmation('decline_gift', gift_id);
 
 			show_button_spinner($button);
 
 			const res = await api_post(accept ? '/api/gift/accept' : '/api/gift/decline', {
 				gift_id,
-				...(accept ? { command_id: crypto.randomUUID() } : {})
+				command_id: crypto.randomUUID()
 			});
 			hide_button_spinner($button);
 
-			if (res?.success && (!accept || await reconcile_economy_receipts([res.receipt]))) {
+			if (res?.success && (res.receipt === undefined || await reconcile_economy_receipts([res.receipt]))) {
 				this.gifts = this.gifts.filter(g => g.id !== gift_id);
+				update_multiplayer_nav();
 			} else {
 				notify_error('MOD_MP_GENERIC_ERR');
 			}
 		},
 
 		async gift_friend() {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			if (this.has_destroyable_transfer_items)
 				return notify_error('MOD_MP_TRANSFER_DESTROY_ITEM_FIRST');
 
@@ -318,6 +365,8 @@ export function install_trading_actions(runtime) {
 		},
 
 		select_gift_recipient(recipient) {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			this.close_modal();
 
 			state.gifting_recipient = recipient;
@@ -328,6 +377,8 @@ export function install_trading_actions(runtime) {
 		},
 
 		async confirm_gift(event) {
+			if (is_social_only())
+				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			const $button = event.currentTarget;
 
 			if (is_button_spinning($button))

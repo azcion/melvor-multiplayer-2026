@@ -57,6 +57,10 @@ export type clients = {
 	disabled: number,
 	equipment_visible: number,
 	status_visible: number,
+	skills_visible: number,
+	activity_visible: number,
+	skills_available: number,
+	activity_available: number,
 	gp_visible: number,
 	game_mode_visible: number,
 	active_mods_visible: number,
@@ -68,7 +72,8 @@ export type clients = {
 	manual_melvor_account_link: number,
 	deleted_at: number | null,
 	last_multiplayer_active_at: number,
-	event_revision: number
+	event_revision: number,
+	social_mode: 'full' | 'social'
 };
 
 export type guild_raids = {
@@ -426,6 +431,25 @@ export type banishment_return_claims = {
 };
 
 export type banishment_return_claim_items = {
+	claim_id: string;
+	item_id: string;
+	qty: number;
+};
+
+export type inbox_items = {
+	client_id: number;
+	item_id: string;
+	qty: number;
+};
+
+export type inbox_claims = {
+	id: string;
+	client_id: number;
+	created_at: number;
+	acknowledged_at: number | null;
+};
+
+export type inbox_claim_items = {
 	claim_id: string;
 	item_id: string;
 	qty: number;
