@@ -53,6 +53,8 @@ test('renders localized paginated Guild Activity responsively and refreshes it o
 	assert.match(templates, /<div class="block-content p-0 mp-guild-activity-scroll">[\s\S]*\n\t\t\t\t\t\t\t<div class="block-content text-center" v-show="state\.guild_activity_cursor !== null">[\s\S]*state\.load_more_guild_activity\(\)/);
 	assert.match(templates, /block-content mp-member-search-wrapper/);
 	assert.match(templates, /block-content p-0 mp-guild-members-scroll/);
+	assert.match(templates, /<div class="block-content p-0 mp-guild-members-scroll">[\s\S]*<div class="block-content text-center" v-show="state\.is_free_fellowship && state\.guild_member_directory_has_more">[\s\S]*state\.load_more_guild_members\(\)/);
+	assert.doesNotMatch(templates.slice(templates.indexOf('<div class="block-content p-0 mp-guild-members-scroll">'), templates.indexOf('<div class="block block-rounded mp-guild-applicants-block">')), /<\/div>\s*<div class="block-content text-center" v-show="state\.is_free_fellowship && state\.guild_member_directory_has_more">/);
 	assert.match(style, /#mp-guild-page,[\s\S]*#mp-updates-page\s*\{[\s\S]*padding-bottom: 0 !important/);
 	assert.match(style, /\.mp-guild-members-scroll,[\s\S]*\.mp-guild-activity-scroll\s*\{[\s\S]*max-height: 50rem;[\s\S]*overflow-y: auto/);
 	assert.match(style, /\.mp-guild-activity-event\s*\{[\s\S]*padding: 4px 16px/);

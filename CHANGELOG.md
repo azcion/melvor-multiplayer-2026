@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.2
+
+- Added Marketplace Haggles for reserved Buy and Sell listing quantities, alternating GP-per-item counteroffers, 72-hour offer expiry, fully escrowed acceptance, and source-labelled claims that move settled or returned value into the Transfers Inbox.
+- Fixed Charitree donations of supported unmodded currencies, including Slayer Coins, being rejected as unavailable in the active mod profile.
+- Fixed Guild member separators appearing too narrow and kept “Last seen” aligned when GP sharing is hidden.
+- Improved Marketplace search-result column proportions.
+- Fixed Chat and Free Fellowship pagination controls scrolling with their message and member lists.
+- Fixed the active Raid sidebar badge disappearing after renaming the page to Raid (preview).
+- Hid placeholder sidebar badges until their state is initialized, preventing colorful 0 and null badges during load.
+
 ## 1.5.1
 
 - Fixed Inbox items failing to claim despite available Bank space. Items held in the Inbox can be claimed after updating.

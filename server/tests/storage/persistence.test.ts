@@ -63,6 +63,8 @@ describe('SQLite persistence probe', () => {
 			'inbox_claims',
 			'inbox_items',
 			'installation_credentials',
+			'market_haggle_claims',
+			'market_haggles',
 			'market_items',
 			'melvor_accounts',
 			'resolved_trade_offers',

@@ -5,6 +5,7 @@ import type { HandlerResult, JsonSerializable } from '../http';
 import { record_guild_activity } from '../guild-activity';
 import { add_inbox_gp, add_inbox_items } from '../inbox';
 import { client_uses_legacy_transfer_protocol, is_legacy_transfer_request } from '../transfer-compatibility';
+import { cancel_listing_haggles } from './haggle';
 
 const { MARKET_ITEMS_PER_PAGE, db, db_get_all, db_get_single, get_client_guild_id, is_social_only_client, is_valid_item_id, is_valid_uuid, market_completed_cached, parse_market_excluded_item_ids, parse_market_namespaces, remove_player_cache_entry, run_economy_command, session_get_route, session_post_route } = runtime;
 
@@ -169,7 +170,7 @@ export function register_market_routes(): void {
 			if (updated.changes === 0)
 				return { error_lang: 'MOD_MP_MARKET_BUY_ERROR_INVALID' };
 			const new_item_qty = Math.max(lot.available - final_qty, 0);
-			if (new_item_qty === 0)
+			if (new_item_qty === 0 && lot.reserved === 0)
 				market_completed_cached.get(lot.client_id)?.push(lot.id);
 			const legacy = is_legacy_transfer_request(req);
 			if (!legacy)
@@ -211,7 +212,7 @@ export function register_market_routes(): void {
 			if (final_cost === null || final_cost > lot.escrow_gp)
 				return { error_lang: 'MOD_MP_MARKET_FULFILL_ERROR_INVALID' };
 			const new_item_qty = Math.max(lot.available - final_qty, 0);
-			const updated = new_item_qty === 0
+			const updated = new_item_qty === 0 && lot.reserved === 0
 				? db.query(
 					'DELETE FROM `market_items` WHERE `id` = ? AND `direction` = \'buy\' AND `available` = ? AND `escrow_gp` = ?'
 				).run(lot_id, lot.available, lot.escrow_gp)
@@ -255,9 +256,9 @@ export function register_market_routes(): void {
 			const row = results[i] as db_row.market_items;
 			items[i] = row.direction === 'buy'
 				? { id: row.id, direction: row.direction, item_id: row.item_id, available: row.available,
-					qty: row.qty, price: row.price, escrow_gp: row.escrow_gp }
+					reserved: row.reserved, haggled: row.haggled, qty: row.qty, price: row.price, escrow_gp: row.escrow_gp }
 				: { id: row.id, item_id: row.item_id, available: row.available, qty: row.qty,
-					price: row.price, payout: row.payout };
+					reserved: row.reserved, haggled: row.haggled, price: row.price, payout: row.payout };
 		}
 
 		return { success: true, items };
@@ -279,8 +280,8 @@ export function register_market_routes(): void {
 				.get(lot_id, guild_id) as db_row.market_items | null;
 			if (lot?.client_id !== client_id)
 				return { success: false };
-			const payout_available = (lot.qty - lot.available) * lot.price - lot.payout;
-			const ended = lot.available === 0;
+			const payout_available = (lot.qty - lot.available - lot.reserved - lot.haggled) * lot.price - lot.payout;
+			const ended = lot.available === 0 && lot.reserved === 0;
 			if (ended) {
 				db.query('DELETE FROM `market_items` WHERE `id` = ?').run(lot.id);
 				remove_player_cache_entry(market_completed_cached, client_id, lot.id);
@@ -309,9 +310,13 @@ export function register_market_routes(): void {
 		const result = run_economy_command(client_id, json.command_id, 'market-cancel', () => {
 			if (is_social_only_client(client_id))
 				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
-			const lot = db.query(
-				'DELETE FROM `market_items` WHERE `id` = ? AND `guild_id` = ? AND `client_id` = ? RETURNING *'
-			).get(lot_id, guild_id, client_id) as db_row.market_items | null;
+			const owned = db.query<db_row.market_items, [number, number, number]>(
+				'SELECT * FROM `market_items` WHERE `id` = ? AND `guild_id` = ? AND `client_id` = ?'
+			).get(lot_id, guild_id, client_id);
+			if (owned !== null)
+				cancel_listing_haggles(owned.id);
+			const lot = db.query('DELETE FROM `market_items` WHERE `id` = ? AND `guild_id` = ? AND `client_id` = ? RETURNING *')
+				.get(lot_id, guild_id, client_id) as db_row.market_items | null;
 			if (lot === null)
 				return { success: false };
 			remove_player_cache_entry(market_completed_cached, client_id, lot.id);
@@ -323,7 +328,7 @@ export function register_market_routes(): void {
 					payout: 0, gp_refund: lot.escrow_gp,
 					effects: lot.escrow_gp > 0 && legacy ? [{ storage: 'gp' as const, qty: lot.escrow_gp }] : [] };
 			}
-			const payout = (lot.qty - lot.available) * lot.price - lot.payout;
+			const payout = (lot.qty - lot.available - lot.reserved - lot.haggled) * lot.price - lot.payout;
 			if (!legacy) {
 				add_inbox_items(client_id, [{ item_id: lot.item_id, qty: lot.available }]);
 				add_inbox_gp(client_id, payout);
@@ -348,12 +353,17 @@ export function register_market_routes(): void {
 		const result = run_economy_command(client_id, json.command_id, 'market-destroy', () => {
 			if (is_social_only_client(client_id))
 				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
+			const owned = db.query<db_row.market_items, [number, number, number]>(
+				'SELECT * FROM `market_items` WHERE `id` = ? AND `guild_id` = ? AND `client_id` = ? AND `direction` = \'sell\''
+			).get(lot_id, guild_id, client_id);
+			if (owned !== null)
+				cancel_listing_haggles(owned.id);
 			const lot = db.query(
 				'DELETE FROM `market_items` WHERE `id` = ? AND `guild_id` = ? AND `client_id` = ? AND `direction` = \'sell\' RETURNING *'
 			).get(lot_id, guild_id, client_id) as db_row.market_items | null;
 			if (lot === null)
 				return { success: false };
-			const payout = (lot.qty - lot.available) * lot.price - lot.payout;
+			const payout = (lot.qty - lot.available - lot.reserved - lot.haggled) * lot.price - lot.payout;
 			remove_player_cache_entry(market_completed_cached, client_id, lot.id);
 			const legacy = is_legacy_transfer_request(req);
 			if (!legacy) {

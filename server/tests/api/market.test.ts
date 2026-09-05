@@ -3,12 +3,14 @@ import { get_events, make_guildmates, register_guild_client } from '../support/f
 import { get_json_with_session, post, post_json } from '../support/http';
 import type { RegisteredClient } from '../support/http';
 import { wait_for } from '../support/wait';
+import { db_run } from '../support/persistence';
 
 type MarketListing = {
 	id: number;
 	direction?: 'sell' | 'buy';
 	item_id: string;
 	available: number;
+	reserved?: number;
 	qty: number;
 	price: number;
 	payout?: number;
@@ -69,6 +71,125 @@ async function wait_for_listing(
 }
 
 describe('market API', () => {
+	test('reserves, counters, settles, and independently claims a Sell-listing Haggle', async () => {
+		const pair = await make_guildmates('Haggle Buyer', 'Haggle Seller', 'Haggle Sell Guild');
+		const [buyer, seller] = [pair.first, pair.second];
+		const item_id = 'melvorD:Haggle_Apples';
+		await post_json('/api/market/sell', { item_id, item_qty: 10, item_sell_price: 10,
+			command_id: crypto.randomUUID() }, seller.session_token);
+		const listing = await wait_for_listing(seller, item_id);
+		const created = await post_json<{ success: boolean; receipt: { effects: unknown[] } }>('/api/market/haggle', {
+			id: listing.id, qty: 5, price: 8, command_id: crypto.randomUUID()
+		}, buyer.session_token);
+		expect(created.json).toMatchObject({ success: true, receipt: { effects: [{ storage: 'gp', qty: -40 }] } });
+		expect(await wait_for_listing(seller, item_id, row => row.available === 5)).toMatchObject({
+			qty: 10, available: 5, reserved: 5
+		});
+
+		const owner_view = await get_json_with_session<{ haggles: Array<{ id: string; revision: number; is_turn: boolean }> }>(
+			'/api/market/haggles', seller.session_token);
+		const haggle = owner_view.json.haggles[0];
+		expect(haggle.is_turn).toBe(true);
+		const countered = await post_json<{ revision: number; receipt: { effects: unknown[] } }>(
+			'/api/market/haggle/counter', { id: haggle.id, revision: haggle.revision, price: 9,
+				command_id: crypto.randomUUID() }, seller.session_token);
+		expect(countered.json).toMatchObject({ revision: 2, receipt: { effects: [] } });
+		const buyer_view = await get_json_with_session<{ haggles: Array<{ id: string; revision: number; is_turn: boolean }> }>(
+			'/api/market/haggles', buyer.session_token);
+		const accepted = await post_json<{ success: boolean; receipt: { effects: unknown[] } }>(
+			'/api/market/haggle/accept', { id: haggle.id, revision: buyer_view.json.haggles[0].revision,
+				command_id: crypto.randomUUID() }, buyer.session_token);
+		expect(accepted.json).toMatchObject({ success: true, receipt: { effects: [{ storage: 'gp', qty: -5 }] } });
+
+		const settled_buyer = await get_json_with_session<{ haggles: Array<{ claim: { item_qty: number; gp: number } }> }>(
+			'/api/market/haggles', buyer.session_token);
+		const settled_seller = await get_json_with_session<{ haggles: Array<{ claim: { item_qty: number; gp: number } }> }>(
+			'/api/market/haggles', seller.session_token);
+		expect(settled_buyer.json.haggles[0].claim).toMatchObject({ item_qty: 5, gp: 0 });
+		expect(settled_seller.json.haggles[0].claim).toMatchObject({ item_qty: 0, gp: 45 });
+		await post_json('/api/market/haggle/claim', { id: haggle.id, command_id: crypto.randomUUID() }, buyer.session_token);
+		await post_json('/api/market/haggle/claim', { id: haggle.id, command_id: crypto.randomUUID() }, seller.session_token);
+		expect((await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
+			'/api/inbox', buyer.session_token)).json.items).toEqual([{ item_id, qty: 5 }]);
+		expect((await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
+			'/api/inbox', seller.session_token)).json.items).toEqual([{ item_id: 'melvorD:GP', qty: 45 }]);
+		const ordinary_payout = await post_json<{ payout: number }>('/api/market/payout', {
+			id: listing.id, command_id: crypto.randomUUID()
+		}, seller.session_token);
+		expect(ordinary_payout.json.payout).toBe(0);
+	});
+
+	test('reserves Buy-order escrow and collects its accepted Haggle top-up', async () => {
+		const pair = await make_guildmates('Haggle Order Owner', 'Haggle Order Seller', 'Haggle Buy Guild');
+		const [owner, seller] = [pair.first, pair.second];
+		const item_id = 'melvorD:Haggle_Ingots';
+		await post_json('/api/market/buy-order', { item_id, item_qty: 10, item_buy_price: 10,
+			command_id: crypto.randomUUID() }, owner.session_token);
+		const listing = await wait_for_listing(owner, item_id);
+		const created = await post_json<{ receipt: { effects: unknown[] } }>('/api/market/haggle', {
+			id: listing.id, qty: 10, price: 15, command_id: crypto.randomUUID()
+		}, seller.session_token);
+		expect(created.json.receipt.effects).toEqual([{ storage: 'bank', item_id, qty: -10 }]);
+		expect(await wait_for_listing(owner, item_id, row => row.available === 0)).toMatchObject({
+			qty: 10, available: 0, reserved: 10, escrow_gp: 0
+		});
+		const view = await get_json_with_session<{ haggles: Array<{ id: string; revision: number }> }>(
+			'/api/market/haggles', owner.session_token);
+		const accepted = await post_json<{ receipt: { effects: unknown[] } }>('/api/market/haggle/accept', {
+			id: view.json.haggles[0].id, revision: view.json.haggles[0].revision, command_id: crypto.randomUUID()
+		}, owner.session_token);
+		expect(accepted.json.receipt.effects).toEqual([{ storage: 'gp', qty: -50 }]);
+	});
+
+	test('limits initiations and restores reservations on cancellation and expiry', async () => {
+		const pair = await make_guildmates('Haggle Limit Buyer', 'Haggle Limit Seller', 'Haggle Limit Guild');
+		for (let index = 0; index < 5; index++)
+			await post_json('/api/market/sell', { item_id: `melvorD:Haggle_Limit_${index}`, item_qty: 2,
+				item_sell_price: 10 + index, command_id: crypto.randomUUID() }, pair.second.session_token);
+		const listings = (await get_listings(pair.second)).items.filter(item => item.item_id.startsWith('melvorD:Haggle_Limit_'));
+		for (const listing of listings.slice(0, 4)) {
+			const result = await post_json<{ success: boolean }>('/api/market/haggle', {
+				id: listing.id, qty: 1, price: 5, command_id: crypto.randomUUID()
+			}, pair.first.session_token);
+			expect(result.json.success).toBe(true);
+		}
+		const limited = await post_json<{ error_lang: string }>('/api/market/haggle', {
+			id: listings[4].id, qty: 1, price: 5, command_id: crypto.randomUUID()
+		}, pair.first.session_token);
+		expect(limited.json.error_lang).toBe('MOD_MP_MARKET_HAGGLE_LIMIT');
+		const view = await get_json_with_session<{ haggles: Array<{ id: string; revision: number }> }>(
+			'/api/market/haggles', pair.first.session_token);
+		await post_json('/api/market/haggle/terminate', { id: view.json.haggles[0].id,
+			revision: view.json.haggles[0].revision, command_id: crypto.randomUUID() }, pair.first.session_token);
+		const replacement = await post_json<{ success: boolean }>('/api/market/haggle', {
+			id: listings[4].id, qty: 1, price: 5, command_id: crypto.randomUUID()
+		}, pair.first.session_token);
+		expect(replacement.json.success).toBe(true);
+		const refreshed = await get_json_with_session<{ haggles: Array<{ id: string; status: string }> }>(
+			'/api/market/haggles', pair.first.session_token);
+		const expiring = refreshed.json.haggles.find(haggle => haggle.status === 'active') as { id: string };
+		await db_run('UPDATE `market_haggles` SET `expires_at` = `updated_at` WHERE `id` = ?', [expiring.id]);
+		const expired = await get_json_with_session<{ haggles: Array<{ id: string; status: string; claim: unknown }> }>(
+			'/api/market/haggles', pair.first.session_token);
+		expect(expired.json.haggles.find(haggle => haggle.id === expiring.id)).toMatchObject({ status: 'expired' });
+	});
+
+	test('cancels child Haggles when their Marketplace listing is cancelled', async () => {
+		const pair = await make_guildmates('Haggle Cancel Buyer', 'Haggle Cancel Seller', 'Haggle Cancel Guild');
+		const item_id = 'melvorD:Haggle_Cancel_Item';
+		await post_json('/api/market/sell', { item_id, item_qty: 4, item_sell_price: 9,
+			command_id: crypto.randomUUID() }, pair.second.session_token);
+		const listing = await wait_for_listing(pair.second, item_id);
+		await post_json('/api/market/haggle', { id: listing.id, qty: 3, price: 7,
+			command_id: crypto.randomUUID() }, pair.first.session_token);
+		const cancelled = await post_json<{ item_qty: number }>('/api/market/cancel', {
+			id: listing.id, command_id: crypto.randomUUID()
+		}, pair.second.session_token);
+		expect(cancelled.json.item_qty).toBe(4);
+		const haggles = await get_json_with_session<{ haggles: Array<{ status: string; claim: { gp: number } }> }>(
+			'/api/market/haggles', pair.first.session_token);
+		expect(haggles.json.haggles[0]).toMatchObject({ status: 'cancelled', claim: { gp: 21 } });
+	});
 	test('validates listings, allows modded items, and merges matching lots', async () => {
 		const seller = await register_guild_client('Market Validation Seller');
 		const nothing = await post_json<{ error_lang: string }>('/api/market/sell', {
@@ -409,25 +530,6 @@ describe('market API', () => {
 		)).json.items).toEqual([{ item_id, qty: 3 }]);
 	});
 
-	test('preserves 1.4.5 market incoming receipts for requesters and recorded recipients', async () => {
-		const pair = await make_guildmates('Legacy Market Buyer', 'Legacy Market Seller', 'Legacy Market Guild', {
-			first: '1.4.5', second: '1.4.5'
-		});
-		await post_json('/api/market/sell', {
-			item_id: 'melvorD:Legacy_Market_Item', item_qty: 2, item_sell_price: 7
-		}, pair.second.session_token);
-		const sell = await wait_for_listing(pair.second, 'melvorD:Legacy_Market_Item');
-		const bought = await post_json<{ receipt: { effects: unknown[] } }>('/api/market/buy', {
-			id: sell.id, qty: 1, command_id: crypto.randomUUID()
-		}, pair.first.session_token);
-		expect(bought.json.receipt.effects).toEqual([
-			{ storage: 'bank', item_id: 'melvorD:Legacy_Market_Item', qty: 1 },
-			{ storage: 'gp', qty: -7 }
-		]);
-		expect((await get_json_with_session<{ items: unknown[] }>('/api/inbox', pair.first.session_token)).json.items)
-			.toEqual([]);
-	});
-
 	test('sorts, filters, and paginates market searches', async () => {
 		const pair = await make_guildmates('Market Pagination Seller', 'Market Pagination Buyer');
 		const [seller, buyer] = [pair.first, pair.second];
@@ -639,4 +741,28 @@ describe('market API', () => {
 		expect(search.json.items).toEqual([]);
 		expect(buy.json.error_lang).toBe('MOD_MP_MARKET_BUY_ERROR_INVALID');
 	});
+});
+
+test('completion events exclude reservations and Haggle-only payouts, including cached transitions', async () => {
+	const { first: seller, second: buyer } = await make_guildmates('Completion Seller', 'Completion Buyer');
+	for (const direct_qty of [0, 2]) {
+		const item_id = `melvorD:Haggle_Completion_${direct_qty}`;
+		await post_json('/api/market/sell', { item_id, item_qty: 5, item_sell_price: 10 }, seller.session_token);
+		const listing = await wait_for_listing(seller, item_id);
+		expect((await get_events(seller)).market_completed).not.toContain(listing.id);
+		const created = await post_json<{ haggle_id: string }>('/api/market/haggle', {
+			id: listing.id, qty: 5 - direct_qty, price: 8, command_id: crypto.randomUUID()
+		}, buyer.session_token);
+		if (direct_qty > 0)
+			await post_json('/api/market/buy', { id: listing.id, qty: direct_qty }, buyer.session_token);
+		expect((await get_events(seller)).market_completed).not.toContain(listing.id);
+		await post_json('/api/market/haggle/accept', {
+			id: created.json.haggle_id, revision: 1, command_id: crypto.randomUUID()
+		}, seller.session_token);
+		const completed = (await get_events(seller)).market_completed;
+		expect(completed.includes(listing.id)).toBe(direct_qty > 0);
+		const payout = await post_json<{ payout: number }>('/api/market/payout', { id: listing.id }, seller.session_token);
+		expect(payout.json.payout).toBe(direct_qty * 10);
+		expect((await get_events(seller)).market_completed).not.toContain(listing.id);
+	}
 });

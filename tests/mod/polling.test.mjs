@@ -89,6 +89,7 @@ test('uses the active interval only for actionable pending events', () => {
 		{ resolved_trades: [1] },
 		{ economy_receipts: [1] },
 		{ market_completed: [1] },
+		{ haggle_pending: 1 },
 		{ banishment_return_pending: true },
 		{ inbox_pending: true },
 		{ chat_unread: 1 }

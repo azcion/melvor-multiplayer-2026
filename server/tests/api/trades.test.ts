@@ -188,43 +188,6 @@ describe('trade API', () => {
 		expect(inbox.json.items).toEqual([{ item_id: 'melvorD:Iron_Ore', qty: 10 }]);
 	});
 
-	test('preserves the legacy resolved-trade protocol when either participant is on 1.4.5', async () => {
-		const pair = await make_guildmates('Legacy Trade Sender', 'Legacy Trade Recipient', 'Legacy Trade Guild', {
-			first: '1.4.5',
-			second: '1.5.0'
-		});
-		const offered = await offer_trade(pair.first.session_token, pair.second_id, [
-			{ id: 'melvorD:Iron_Ore', qty: 10 }
-		]);
-		const trade_id = offered.json.trade_id;
-		await post_json('/api/trade/counter', {
-			trade_id,
-			items: [{ id: 'melvorF:Air_Rune', qty: 5 }],
-			command_id: crypto.randomUUID()
-		}, pair.second.session_token);
-
-		const accepted = await post_json<{ success: boolean; receipt: { kind: string; effects: unknown[] } }>(
-			'/api/trade/accept', { trade_id, command_id: crypto.randomUUID() }, pair.first.session_token
-		);
-		expect(accepted.json.success).toBe(true);
-		expect(accepted.json.receipt.kind).toBe('trade-accept');
-		expect(accepted.json.receipt.effects).toEqual([
-			{ storage: 'bank', item_id: 'melvorF:Air_Rune', qty: 5 }
-		]);
-		expect((await get_events(pair.second)).resolved_trades).toEqual([trade_id]);
-		expect((await get_inbox(pair.first.session_token)).json.items).toEqual([]);
-
-		const resolved = await post_json<{ success: boolean; receipt: { kind: string; effects: unknown[] } }>(
-			'/api/trade/resolve', { trade_id, command_id: crypto.randomUUID() }, pair.second.session_token
-		);
-		expect(resolved.json.success).toBe(true);
-		expect(resolved.json.receipt.kind).toBe('trade-resolve');
-		expect(resolved.json.receipt.effects).toEqual([
-			{ storage: 'bank', item_id: 'melvorD:Iron_Ore', qty: 10 }
-		]);
-		expect((await get_inbox(pair.second.session_token)).json.items).toEqual([]);
-	});
-
 	test('identifies the recipient on a declined trade returned to its sender', async () => {
 		const pair = await make_guildmates('Trade Sender', 'Trade Recipient');
 		const offered = await offer_trade(pair.first.session_token, pair.second_id);

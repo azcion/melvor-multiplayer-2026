@@ -51,6 +51,30 @@ normalize_test_path() {
 	esac
 }
 
+append_mod_test_path() {
+	normalized_argument="$1"
+	test_path="$repo_root/${normalized_argument#./}"
+	if [ ! -e "$test_path" ]; then
+		printf 'Focused mod test path does not exist: %s\n' "$normalized_argument" >&2
+		rm -f -- "$server_args_file" "$mod_args_file"
+		exit 2
+	fi
+	if [ -d "$test_path" ]; then
+		discovered_files="$(find "$test_path" -type f -name '*.test.mjs' -print | sort)"
+		if [ -z "$discovered_files" ]; then
+			printf 'Focused mod test directory contains no .test.mjs files: %s\n' "$normalized_argument" >&2
+			rm -f -- "$server_args_file" "$mod_args_file"
+			exit 2
+		fi
+		printf '%s\n' "$discovered_files" >> "$mod_args_file"
+		discovered_count="$(printf '%s\n' "$discovered_files" | wc -l | tr -d ' ')"
+		mod_test_count=$((mod_test_count + discovered_count))
+		return
+	fi
+	printf '%s\n' "$normalized_argument" >> "$mod_args_file"
+	mod_test_count=$((mod_test_count + 1))
+}
+
 if [ "$#" -gt 0 ]; then
 	server_args_file="$(mktemp "${TMPDIR:-/tmp}/melvor-server-test-args.XXXXXX")"
 	mod_args_file="$(mktemp "${TMPDIR:-/tmp}/melvor-mod-test-args.XXXXXX")"
@@ -59,14 +83,8 @@ if [ "$#" -gt 0 ]; then
 	for test_argument in "$@"; do
 		normalized_argument="$(normalize_test_path "$test_argument")"
 		case "$normalized_argument" in
-			./tests/mod/*)
-				if [ ! -e "$repo_root/${normalized_argument#./}" ]; then
-					printf 'Focused mod test path does not exist: %s\n' "$test_argument" >&2
-					rm -f -- "$server_args_file" "$mod_args_file"
-					exit 2
-				fi
-				printf '%s\n' "$normalized_argument" >> "$mod_args_file"
-				mod_test_count=$((mod_test_count + 1))
+			./tests/mod|./tests/mod/*)
+				append_mod_test_path "$normalized_argument"
 				continue
 				;;
 			./tests/*)

@@ -11,6 +11,10 @@ const TRANSFER_CONFIRMATIONS = Object.freeze({
 		info_lang_id: 'MOD_MP_TRANSFER_CONFIRM_CANCEL_TRADE',
 		action_lang_id: 'MOD_MP_TRANSFER_CONFIRM_CANCEL_TRADE_ACTION'
 	},
+	cancel_haggle: {
+		info_lang_id: 'MOD_MP_MARKET_HAGGLE_CONFIRM_CANCEL',
+		action_lang_id: 'MOD_MP_MARKET_HAGGLE_CONFIRM_CANCEL_ACTION'
+	},
 	decline_gift: {
 		info_lang_id: 'MOD_MP_TRANSFER_CONFIRM_DECLINE_GIFT',
 		action_lang_id: 'MOD_MP_TRANSFER_CONFIRM_DECLINE_GIFT_ACTION'
@@ -18,6 +22,10 @@ const TRANSFER_CONFIRMATIONS = Object.freeze({
 	decline_trade: {
 		info_lang_id: 'MOD_MP_TRANSFER_CONFIRM_DECLINE_TRADE',
 		action_lang_id: 'MOD_MP_TRANSFER_CONFIRM_DECLINE_TRADE_ACTION'
+	},
+	reject_haggle: {
+		info_lang_id: 'MOD_MP_MARKET_HAGGLE_CONFIRM_REJECT',
+		action_lang_id: 'MOD_MP_MARKET_HAGGLE_CONFIRM_REJECT_ACTION'
 	}
 });
 
@@ -80,6 +88,7 @@ export function install_transfer_actions(runtime) {
 		trade_returns,
 		transfer_inventory,
 		update_campaign_nav,
+		update_market_haggles,
 		update_market_listings,
 		update_market_page,
 		update_market_search,
@@ -126,6 +135,9 @@ export function install_transfer_actions(runtime) {
 				return this.resolve_gift(event, confirmation.transfer_id, false, true);
 			case 'decline_trade':
 				return this.decline_trade(event, confirmation.transfer_id, true);
+			case 'cancel_haggle':
+			case 'reject_haggle':
+				return this.respond_market_haggle(event, confirmation.transfer_id, 'terminate', false, true);
 			}
 		},
 
@@ -157,7 +169,10 @@ export function install_transfer_actions(runtime) {
 			await open_transfer_page({
 				refresh_events: () => get_client_events(false),
 				refresh_guild: refresh_guild_state,
-				update_contents: update_transfer_contents,
+				update_contents: async () => {
+					await update_transfer_contents();
+					await update_market_haggles();
+				},
 				navigate: () => changePage(game.pages.getObjectByID('multiplayer:Transfer_Items'))
 			});
 		},

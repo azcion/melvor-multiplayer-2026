@@ -224,4 +224,6 @@ test('renders compact roster separation and snapped last-seen labels', async () 
 	assert.match(language, /MOD_MP_LAST_SEEN_JUST_NOW/);
 	assert.match(main, /Math\.floor\(elapsed \/ \(60 \* 60 \* 1000\)\)/);
 	assert.match(style, /\.mp-guild-member-rule \{[^}]*margin: 0 auto;/s);
+	assert.match(style, /\.mp-member-actions-rule \{[^}]*width: 85%;/s);
+	assert.match(style, /\.mp-guild-member-last-seen \{[^}]*margin-left: auto;[^}]*text-align: right;/s);
 });

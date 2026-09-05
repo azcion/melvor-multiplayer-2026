@@ -46,12 +46,15 @@ describe('Economy Receipts', () => {
 				item_id: string;
 				qty: number;
 				available: number;
+				reserved: number;
+				haggled: number;
 				price: number;
 				payout: number;
 			}>;
 		}>('/api/market/listings', seller.session_token);
 		expect(listings.json.items.filter(item => item.item_id === 'melvorD:Receipt_Ore')).toEqual([
-			{ id: expect.any(Number), item_id: 'melvorD:Receipt_Ore', qty: 3, available: 3, price: 7, payout: 0 }
+			{ id: expect.any(Number), item_id: 'melvorD:Receipt_Ore', qty: 3, available: 3, reserved: 0,
+				haggled: 0, price: 7, payout: 0 }
 		]);
 
 		const pending_response = await get_json_with_session<{

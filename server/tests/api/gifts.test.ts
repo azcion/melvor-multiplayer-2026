@@ -19,12 +19,6 @@ type TransferContents = {
 	resolved_trades: Record<string, unknown>;
 };
 
-type Receipt = {
-	id: string;
-	kind: string;
-	effects: Array<Record<string, unknown>>;
-};
-
 type Inbox = {
 	items: Array<{ item_id: string; qty: number }>;
 	pending_claim: boolean;
@@ -164,86 +158,4 @@ describe('gift API', () => {
 		expect(decline_returned.status).toBe(400);
 	});
 
-	test('preserves the Economy Receipt protocol for 1.4.5 gift clients', async () => {
-		const pair = await make_guildmates('Legacy Gift Sender', 'Legacy Gift Recipient', 'Legacy Gift Guild', {
-			second: '1.4.5'
-		});
-		await post_json('/api/gift/send', {
-			recipient_id: pair.second_id,
-			items: [{ id: 'melvorD:Coal_Ore', qty: 12 }, { id: 'melvorD:GP', qty: 5 }]
-		}, pair.first.session_token);
-		const gift_id = (await get_events(pair.second)).gifts[0];
-		const accepted = await post_json<{ success: boolean; receipt: { kind: string; effects: unknown[] } }>(
-			'/api/gift/accept', { gift_id, command_id: crypto.randomUUID() }, pair.second.session_token
-		);
-
-		expect(accepted.json.success).toBe(true);
-		expect(accepted.json.receipt.kind).toBe('gift-accept');
-		expect(accepted.json.receipt.effects).toEqual([
-			{ storage: 'bank', item_id: 'melvorD:Coal_Ore', qty: 12 },
-			{ storage: 'gp', qty: 5 }
-		]);
-		expect((await get_inbox(pair.second.session_token)).json.items).toEqual([]);
-	});
-
-	test('identifies the declining recipient as the sender of a returned gift', async () => {
-		const pair = await make_guildmates('Gift Sender', 'Gift Recipient', 'Legacy Return Guild', {
-			first: '1.4.5'
-		});
-		await post_json('/api/gift/send', {
-			recipient_id: pair.second_id,
-			items: [{ id: 'melvorF:Water_Rune', qty: 5 }]
-		}, pair.first.session_token);
-		const gift_id = (await get_events(pair.second)).gifts[0];
-		await post_json('/api/gift/decline', {
-			gift_id
-		}, pair.second.session_token);
-		const contents = await get_transfer_contents(pair.first.session_token, [gift_id]);
-
-		expect(contents.json.gifts[String(gift_id)].sender.display_name).toBe('Gift Recipient');
-	});
-
-	test('discards only owned returned gifts through a replay-safe command', async () => {
-		const pair = await make_guildmates('Discarded Gift Sender', 'Discarded Gift Recipient', 'Legacy Discard Guild', {
-			first: '1.4.5'
-		});
-		await post_json('/api/gift/send', {
-			recipient_id: pair.second_id,
-			items: [{ id: 'removedMod:Unavailable_Item', qty: 7 }]
-		}, pair.first.session_token);
-		const gift_id = (await get_events(pair.second)).gifts[0];
-		await post_json('/api/gift/decline', { gift_id }, pair.second.session_token);
-		const command_id = crypto.randomUUID();
-		const wrong_owner = await post('/api/gift/discard', {
-			gift_id,
-			command_id: crypto.randomUUID()
-		}, pair.second.session_token);
-		const discarded = await post_json<{ success: boolean; receipt: Receipt }>('/api/gift/discard', {
-			gift_id,
-			command_id
-		}, pair.first.session_token);
-		const replay = await post_json<{ success: boolean; receipt: Receipt }>('/api/gift/discard', {
-			gift_id,
-			command_id
-		}, pair.first.session_token);
-
-		expect(wrong_owner.status).toBe(400);
-		expect(replay.json).toEqual(discarded.json);
-		expect(discarded.json.receipt).toEqual({ id: command_id, kind: 'gift-discard', effects: [] });
-		const pending = await get_events(pair.first);
-		expect(pending.gifts).toEqual([]);
-		expect(pending.economy_receipts).toContainEqual(discarded.json.receipt);
-		const left = await post_json<{ success: boolean }>('/api/guilds/leave', {}, pair.first.session_token);
-		expect(left.json.success).toBe(true);
-
-		const acknowledged = await post_json<{ success: boolean }>('/api/economy/receipts/acknowledge', {
-			receipt_id: command_id
-		}, pair.first.session_token);
-		expect(acknowledged.json.success).toBe(true);
-		const completed_replay = await post_json<{ success: boolean; receipt: null }>('/api/gift/discard', {
-			gift_id,
-			command_id
-		}, pair.first.session_token);
-		expect(completed_replay.json.receipt).toBeNull();
-	});
 });

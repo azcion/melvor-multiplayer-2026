@@ -43,7 +43,6 @@ export function install_market_campaign_charity_actions(runtime) {
 		set_instance_storage_item,
 		show_button_spinner,
 		show_modal_error,
-		Swal,
 		start_status_observer,
 		stop_status_observer,
 		trade_returns,
@@ -51,6 +50,7 @@ export function install_market_campaign_charity_actions(runtime) {
 		update_campaign_nav,
 		update_charitree_nav,
 		update_market_listings,
+		update_market_haggles,
 		update_market_page,
 		update_market_search,
 		update_transfer_contents,
@@ -335,6 +335,94 @@ export function install_market_campaign_charity_actions(runtime) {
 		open_listing_tab() {
 			this.market_active_tab = 'listing';
 			update_market_listings();
+		},
+
+		show_market_haggle_modal(item) {
+			this.market_haggle_item = item;
+			this.market_haggle_price = item.price;
+			queue_modal(getLangString('MOD_MP_MARKET_HAGGLE_TITLE'), 'market-haggle-modal',
+				this.get_item_icon(item.item_id), { showConfirmButton: false }, false, false);
+		},
+
+		async create_market_haggle(event) {
+			const item = this.market_haggle_item;
+			const qty = this.item_slider_value;
+			const price = Number(this.market_haggle_price);
+			if (!item || !Number.isSafeInteger(qty) || qty <= 0 || !Number.isSafeInteger(price) || price <= 0)
+				return notify_error('MOD_MP_MARKET_HAGGLE_INVALID');
+			if (!Number.isSafeInteger(qty * price))
+				return notify_error('MOD_MP_MARKET_VALUE_TOO_LARGE');
+			const local_item = game.items.getObjectByID(item.item_id);
+			if (item.direction === 'sell' && game.gp.amount < qty * price)
+				return notify_error('MOD_MP_MARKET_INSUFFICIENT_GP');
+			if (item.direction === 'buy' && (!local_item || game.bank.getQty(local_item) < qty))
+				return notify_error('MOD_MP_MARKET_NOT_ENOUGH_ITEM');
+			const $button = event.currentTarget;
+			show_button_spinner($button);
+			const res = await api_post('/api/market/haggle', { id: item.id, qty, price, command_id: crypto.randomUUID() });
+			if (res?.success && await reconcile_economy_receipts([res.receipt])) {
+				await close_modal_and_wait('market-haggle-modal');
+				await update_market_search();
+				await update_market_haggles();
+			} else
+				notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+			hide_button_spinner($button);
+		},
+
+		async respond_market_haggle(event, haggle, action, from_modal = false, from_confirmation = false) {
+			const $button = event.currentTarget;
+			if (is_button_spinning($button))
+				return;
+			if (action === 'terminate' && !from_confirmation) {
+				this.show_transfer_confirmation(!haggle.is_initiator && haggle.is_turn ? 'reject_haggle' : 'cancel_haggle', haggle);
+				return;
+			}
+			if (action === 'counter' && !from_modal) {
+				this.market_haggle_counter = haggle;
+				this.market_haggle_price = haggle.offer_price;
+				if (!queue_modal('MOD_MP_MARKET_HAGGLE_COUNTER', 'market-haggle-counter-modal', this.get_item_icon(haggle.item_id), {
+					showConfirmButton: false
+				}))
+					this.market_haggle_counter = null;
+				return;
+			}
+			show_button_spinner($button);
+			let price = haggle.offer_price;
+			if (action === 'counter') {
+				price = Number(this.market_haggle_price);
+				if (!Number.isSafeInteger(price) || price <= 0) {
+					hide_button_spinner($button);
+					return;
+				}
+			}
+			if (action === 'counter' || action === 'accept') {
+				const total = haggle.item_qty * price;
+				if (!Number.isSafeInteger(total)) {
+					hide_button_spinner($button);
+					return notify_error('MOD_MP_MARKET_VALUE_TOO_LARGE');
+				}
+				const is_payer = haggle.direction === 'sell' ? haggle.is_initiator : !haggle.is_initiator;
+				const top_up = Math.max(total - haggle.payer_escrow_gp, 0);
+				if (is_payer && game.gp.amount < top_up) {
+					hide_button_spinner($button);
+					return notify_error('MOD_MP_MARKET_INSUFFICIENT_GP');
+				}
+			}
+			const res = await api_post('/api/market/haggle/' + action, {
+				id: haggle.id, revision: haggle.revision, ...(action === 'counter' ? { price } : {}),
+				command_id: crypto.randomUUID()
+			});
+			if (res?.success && await reconcile_economy_receipts([res.receipt])) {
+				if (from_modal) {
+					await close_modal_and_wait('market-haggle-counter-modal');
+					this.market_haggle_counter = null;
+				}
+				await update_market_haggles();
+				await update_market_search();
+				await update_market_listings();
+			} else
+				notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+			hide_button_spinner($button);
 		},
 
 		async resolve_market_listing(event, item, action) {

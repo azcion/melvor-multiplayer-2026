@@ -105,6 +105,38 @@ export type guild_activity_events = {
 	quantity: number | null;
 };
 
+export type market_haggles = {
+	id: string;
+	listing_id: number | null;
+	listing_ref: number;
+	guild_id: number | null;
+	initiator_id: number;
+	owner_id: number;
+	direction: 'sell' | 'buy';
+	item_id: string;
+	item_qty: number;
+	listing_price: number;
+	offer_price: number;
+	listing_reserved_gp: number;
+	payer_escrow_gp: number;
+	turn_client_id: number | null;
+	revision: number;
+	status: 'active' | 'accepted' | 'cancelled' | 'rejected' | 'expired';
+	created_at: number;
+	updated_at: number;
+	expires_at: number | null;
+	terminal_at: number | null;
+};
+
+export type market_haggle_claims = {
+	haggle_id: string;
+	client_id: number;
+	item_id: string | null;
+	item_qty: number;
+	gp: number;
+	claimed_at: number | null;
+};
+
 export type guild_raid_roster = {
 	raid_id: number;
 	membership_id: number;
@@ -396,6 +428,8 @@ export type market_items = {
 	item_id: string;
 	qty: number;
 	available: number;
+	reserved: number;
+	haggled: number;
 	price: number;
 	payout: number;
 	escrow_gp: number;

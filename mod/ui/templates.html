@@ -53,17 +53,17 @@
 			</div>
 			<template v-else>
 				<div class="block-content mp-raid-overview">
-					<div class="mp-raid-health-copy"><span class="font-w600"><lang-string lang-id="MOD_MP_RAID_SHARED_HEALTH"></lang-string></span><span>{{ state.raid.remaining_health }} / {{ state.raid.max_health }}</span></div>
+					<div class="mp-raid-health-copy"><span class="font-w600"><lang-string lang-id="MOD_MP_RAID_SHARED_HEALTH"></lang-string></span><span>{{ state.raid?.remaining_health }} / {{ state.raid?.max_health }}</span></div>
 					<div class="progress mp-raid-health"><div class="progress-bar bg-success" :style="{ width: state.raid_progress_pct + '%' }"></div></div>
 					<div class="mp-raid-stats">
-						<div><span><lang-string lang-id="MOD_MP_RAID_STATUS"></lang-string></span><strong>{{ getLangString(state.raid.secured ? 'MOD_MP_RAID_STATUS_SECURED' : state.raid.active ? 'MOD_MP_RAID_STATUS_ACTIVE' : 'MOD_MP_RAID_STATUS_FAILED') }}</strong></div>
-						<div><span><lang-string lang-id="MOD_MP_RAID_TIME"></lang-string></span><strong>{{ state.raid.active ? state.format_raid_time(state.raid.expires_at) : getLangString('MOD_MP_RAID_ENDED') }}</strong></div>
-						<div><span><lang-string lang-id="MOD_MP_RAID_ASSAULTS"></lang-string></span><strong>{{ state.raid.member?.assaults ?? 0 }}</strong></div>
-						<div><span><lang-string lang-id="MOD_MP_RAID_CONTRIBUTION"></lang-string></span><strong>{{ state.raid.member?.contribution ?? 0 }} / {{ state.raid.contribution_cap }}</strong></div>
+						<div><span><lang-string lang-id="MOD_MP_RAID_STATUS"></lang-string></span><strong>{{ getLangString(state.raid?.secured ? 'MOD_MP_RAID_STATUS_SECURED' : state.raid?.active ? 'MOD_MP_RAID_STATUS_ACTIVE' : 'MOD_MP_RAID_STATUS_FAILED') }}</strong></div>
+						<div><span><lang-string lang-id="MOD_MP_RAID_TIME"></lang-string></span><strong>{{ state.raid?.active ? state.format_raid_time(state.raid?.expires_at) : getLangString('MOD_MP_RAID_ENDED') }}</strong></div>
+						<div><span><lang-string lang-id="MOD_MP_RAID_ASSAULTS"></lang-string></span><strong>{{ state.raid?.member?.assaults ?? 0 }}</strong></div>
+						<div><span><lang-string lang-id="MOD_MP_RAID_CONTRIBUTION"></lang-string></span><strong>{{ state.raid?.member?.contribution ?? 0 }} / {{ state.raid?.contribution_cap }}</strong></div>
 					</div>
-					<div class="alert alert-warning mt-3" v-if="!state.raid.member"><lang-string lang-id="MOD_MP_RAID_NOT_ROSTERED"></lang-string></div>
-					<div class="alert alert-success mt-3" v-if="state.raid.secured"><lang-string lang-id="MOD_MP_RAID_SECURED_INFO"></lang-string></div>
-					<div class="mt-3" v-if="!state.raid.active && state.raid_state.can_activate"><button type="button" class="btn btn-primary" :disabled="state.raid_action_pending" @click="state.activate_raid()"><span class="spinner-border spinner-border-sm mr-2" v-if="state.raid_action_pending"></span><lang-string lang-id="MOD_MP_RAID_ACTIVATE_NEXT"></lang-string></button></div>
+					<div class="alert alert-warning mt-3" v-if="!state.raid?.member"><lang-string lang-id="MOD_MP_RAID_NOT_ROSTERED"></lang-string></div>
+					<div class="alert alert-success mt-3" v-if="state.raid?.secured"><lang-string lang-id="MOD_MP_RAID_SECURED_INFO"></lang-string></div>
+					<div class="mt-3" v-if="!state.raid?.active && state.raid_state.can_activate"><button type="button" class="btn btn-primary" :disabled="state.raid_action_pending" @click="state.activate_raid()"><span class="spinner-border spinner-border-sm mr-2" v-if="state.raid_action_pending"></span><lang-string lang-id="MOD_MP_RAID_ACTIVATE_NEXT"></lang-string></button></div>
 				</div>
 			</template>
 			<div class="block-content text-danger" v-if="state.raid_error">{{ state.raid_error }}</div>
@@ -86,7 +86,7 @@
 		<div class="block block-rounded" v-if="state.raid">
 			<div class="block-header block-header-default"><h3 class="block-title"><lang-string lang-id="MOD_MP_RAID_PARTICIPANTS"></lang-string></h3></div>
 			<div class="block-content p-0 mp-raid-leaderboard">
-				<div class="mp-raid-leaderboard-row" v-for="member in state.raid.leaderboard" :key="member.client_id"><img class="skill-icon-xs" :src="state.get_avatar_icon(member.icon_id)"><span class="font-w600">{{ member.display_name }}</span><span><mp-lang-string-f lang-id="MOD_MP_RAID_TIER" :lang-arg-1="member.highest_tier || '—'"></mp-lang-string-f></span><span>{{ member.contribution }}</span></div>
+				<div class="mp-raid-leaderboard-row" v-for="member in state.raid?.leaderboard" :key="member.client_id"><img class="skill-icon-xs" :src="state.get_avatar_icon(member.icon_id)"><span class="font-w600">{{ member.display_name }}</span><span><mp-lang-string-f lang-id="MOD_MP_RAID_TIER" :lang-arg-1="member.highest_tier || '—'"></mp-lang-string-f></span><span>{{ member.contribution }}</span></div>
 			</div>
 		</div>
 	</div>
@@ -387,10 +387,10 @@
 						<span class="font-w600">{{ state.selected_chat_conversation?.participant?.display_name }}</span>
 					</div>
 				</div>
-				<div class="block-content text-center" v-if="state.chat_has_more">
-					<button type="button" class="btn btn-sm btn-secondary" :disabled="state.chat_messages_loading" @click="state.load_older_chat_messages()"><lang-string lang-id="MOD_MP_CHAT_LOAD_OLDER"></lang-string></button>
-				</div>
 				<div class="mp-chat-messages" role="log" aria-live="polite">
+					<div class="block-content text-center" v-if="state.chat_has_more">
+						<button type="button" class="btn btn-sm btn-secondary" :disabled="state.chat_messages_loading" @click="state.load_older_chat_messages()"><lang-string lang-id="MOD_MP_CHAT_LOAD_OLDER"></lang-string></button>
+					</div>
 					<div class="text-center text-muted" v-if="state.chat_messages_loading && state.chat_messages.length === 0"><lang-string lang-id="MOD_MP_CHAT_LOADING"></lang-string></div>
 					<div class="text-center text-muted" v-else-if="state.chat_messages.length === 0"><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div>
 					<div class="mp-chat-message" :class="{ 'mp-chat-message-own': message.sent_by_viewer === true || (message.sent_by_viewer === undefined && message.sender_id === state.chat_client_id) }" v-for="message in state.chat_messages" :key="message.message_id">
@@ -730,9 +730,9 @@
 							</button>
 							<hr class="mp-member-actions-rule mp-guild-member-rule" v-show="member_index < state.guild_members.length - 1">
 							</template>
-						</div>
-						<div class="block-content text-center" v-show="state.is_free_fellowship && state.guild_member_directory_has_more">
-							<button type="button" class="btn btn-sm btn-secondary" @click="state.load_more_guild_members()" :disabled="state.guild_member_directory_loading"><lang-string lang-id="MOD_MP_BUTTON_LOAD_MORE"></lang-string></button>
+							<div class="block-content text-center" v-show="state.is_free_fellowship && state.guild_member_directory_has_more">
+								<button type="button" class="btn btn-sm btn-secondary" @click="state.load_more_guild_members()" :disabled="state.guild_member_directory_loading"><lang-string lang-id="MOD_MP_BUTTON_LOAD_MORE"></lang-string></button>
+							</div>
 						</div>
 					</div>
 
@@ -1034,7 +1034,7 @@
 </template>
 <template id="template-mp-market-buy-modal">
 	<div class="form-group mp-gp-group">
-		<mp-item-slider :data-item-id="state.market_buy_item.item_id" :data-max="state.market_buy_item.available"></mp-item-slider>
+		<mp-item-slider :data-item-id="state.market_buy_item.item_id" :data-min="1" :data-max="state.market_buy_item.available"></mp-item-slider>
 	</div>
 	<div class="mp-button-tray">
 		<button type="button" class="btn btn-primary" @click="state.set_item_slider_max()">
@@ -1051,9 +1051,39 @@
 		</button>
 	</div>
 </template>
+<template id="template-mp-market-haggle-modal">
+	<div class="form-group mp-gp-group">
+		<mp-item-slider :data-item-id="state.market_haggle_item.item_id" :data-min="1" :data-max="state.market_haggle_item.direction == 'buy' ? Math.min(state.market_haggle_item.available, state.market_haggle_item_owned_qty) : state.market_haggle_item.available"></mp-item-slider>
+		<label class="mt-3"><lang-string lang-id="MOD_MP_MARKET_HAGGLE_PRICE"></lang-string></label>
+		<input type="number" min="1" step="1" class="form-control" v-model.number="state.market_haggle_price">
+		<div class="text-center mt-2">{{ numberWithCommas(state.item_slider_value) }} × {{ numberWithCommas(state.market_haggle_price) }} GP</div>
+	</div>
+	<div class="mp-button-tray">
+		<button type="button" class="btn btn-primary" @click="state.set_item_slider_max()"><lang-string lang-id="MOD_MP_BUTTON_MAX"></lang-string></button>
+		<button type="button" class="btn btn-warning" @click="state.create_market_haggle($event)">
+			<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+			<lang-string lang-id="MOD_MP_BUTTON_MARKET_HAGGLE"></lang-string>
+		</button>
+		<button type="button" class="btn btn-danger" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
+	</div>
+</template>
+<template id="template-mp-market-haggle-counter-modal">
+	<div class="form-group mp-gp-group">
+		<label><lang-string lang-id="MOD_MP_MARKET_HAGGLE_PRICE"></lang-string></label>
+		<input type="number" min="1" step="1" class="form-control" v-model.number="state.market_haggle_price">
+		<div class="text-center mt-2">{{ numberWithCommas(state.market_haggle_counter.item_qty) }} × {{ numberWithCommas(state.market_haggle_price) }} GP</div>
+	</div>
+	<div class="mp-button-tray">
+		<button type="button" class="btn btn-warning" @click="state.respond_market_haggle($event, state.market_haggle_counter, 'counter', true)">
+			<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+			<lang-string lang-id="MOD_MP_BUTTON_MARKET_HAGGLE"></lang-string>
+		</button>
+		<button type="button" class="btn btn-danger" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
+	</div>
+</template>
 <template id="template-mp-market-fulfill-modal">
 	<div class="form-group mp-gp-group">
-		<mp-item-slider :data-item-id="state.market_fulfill_item.item_id" :data-max="Math.min(state.market_fulfill_item.available, state.market_fulfill_item_owned_qty)"></mp-item-slider>
+		<mp-item-slider :data-item-id="state.market_fulfill_item.item_id" :data-min="1" :data-max="Math.min(state.market_fulfill_item.available, state.market_fulfill_item_owned_qty)"></mp-item-slider>
 		<div class="text-center mt-2">
 			<mp-lang-string-f lang-id="MOD_MP_CAMPAIGN_ITEM_OWNED" :lang-arg-1="numberWithCommas(state.market_fulfill_item_owned_qty)"></mp-lang-string-f>
 		</div>
@@ -1228,16 +1258,6 @@
 		<div :class="{ 'mp-guild-locked': !state.is_guild_member }" v-if="!state.is_social_only">
 		<div class="block block-rounded p-4 mp-guild-required">
 			<lang-string lang-id="MOD_MP_GUILD_REQUIRED_INFO"></lang-string>
-		</div>
-		<div class="row row-deck gutters-tiny">
-			<div class="block block-rounded block-link-pop border-top mp-market-border border-4x w-100">
-				<div class="row row-deck gutters-tiny">
-					<div class="p-3 mp-transfer-info">
-						<img class="skill-icon-xxs mr-1" :src="state.get_svg('transfer_bag')">
-						<lang-string lang-id="MOD_MP_MARKET_WINDOW_INFO"></lang-string>
-					</div>
-				</div>
-			</div>
 		</div>
 		<div class="row row-deck gutters-tiny mp-market-tabs">
 			<div>
@@ -1419,6 +1439,7 @@
 						<span class="mp-market-item-value text-success mp-market-item-gp"><span>{{ numberWithCommas(item.price) }}</span><img class="skill-icon-xxs" src="assets/media/main/coins.svg"></span>
 					</div>
 					<div class="mp-market-item-col">
+						<button type="button" class="btn btn-warning m-1" @click="state.show_market_haggle_modal(item)"><lang-string lang-id="MOD_MP_BUTTON_MARKET_HAGGLE"></lang-string></button>
 						<button v-if="state.market_direction == 'sell'" type="button" class="btn btn-success m-1" @click="state.show_market_buy_modal(item)">
 							<lang-string lang-id="MOD_MP_BUTTON_MARKET_BUY"></lang-string>
 						</button>
@@ -1474,11 +1495,6 @@
 					</div>
 					<template v-if="item.direction == 'buy'">
 						<div class="mp-market-item-col">
-							<div class="mp-market-item-bar">
-								<div class="mp-market-item-bar-fill" :style="{ width: (((item.qty - item.available) / item.qty) * 100) + '%'  }" :class="{ complete: item.available == 0 }"></div>
-							</div>
-						</div>
-						<div class="mp-market-item-col">
 							<lang-string lang-id="MOD_MP_MARKET_WANTED" class="mp-market-item-label"></lang-string>
 							<span class="mp-market-item-value">{{ numberWithCommas(item.available) }} / {{ numberWithCommas(item.qty) }}</span>
 						</div>
@@ -1499,13 +1515,8 @@
 					</template>
 					<template v-else>
 						<div class="mp-market-item-col">
-							<div class="mp-market-item-bar">
-								<div class="mp-market-item-bar-fill" :style="{ width: (((item.qty - item.available) / item.qty) * 100) + '%'  }" :class="{ complete: item.available == 0 }"></div>
-							</div>
-						</div>
-						<div class="mp-market-item-col">
 							<lang-string lang-id="MOD_MP_MARKET_SOLD" class="mp-market-item-label"></lang-string>
-							<span class="mp-market-item-value">{{ numberWithCommas(item.qty - item.available) }} / {{ numberWithCommas(item.qty) }}</span>
+							<span class="mp-market-item-value">{{ numberWithCommas(item.qty - item.available - item.reserved) }} / {{ numberWithCommas(item.qty) }}</span>
 						</div>
 						<div class="mp-market-item-col">
 							<lang-string lang-id="MOD_MP_MARKET_PRICE" class="mp-market-item-label"></lang-string>
@@ -1513,7 +1524,7 @@
 						</div>
 						<div class="mp-market-item-col">
 							<lang-string lang-id="MOD_MP_MARKET_PROFIT" class="mp-market-item-label"></lang-string>
-							<span class="mp-market-item-value text-success mp-market-item-gp"><span>{{ numberWithCommas((item.price * (item.qty - item.available)) - item.payout) }}</span><img class="skill-icon-xxs" src="assets/media/main/coins.svg"></span>
+							<span class="mp-market-item-value text-success mp-market-item-gp"><span>{{ numberWithCommas((item.price * (item.qty - item.available - item.reserved - (item.haggled ?? 0))) - item.payout) }}</span><img class="skill-icon-xxs" src="assets/media/main/coins.svg"></span>
 						</div>
 						<div class="mp-market-item-col">
 							<template v-if="item.unresolved">
@@ -1523,7 +1534,7 @@
 								</button>
 							</template>
 							<template v-else>
-								<button type="button" class="btn btn-success m-1" @click="state.resolve_market_listing($event, item, 'payout')" :class="{ disabled: ((item.price * (item.qty - item.available)) - item.payout) == 0 }">
+								<button type="button" class="btn btn-success m-1" @click="state.resolve_market_listing($event, item, 'payout')" :class="{ disabled: ((item.price * (item.qty - item.available - item.reserved - (item.haggled ?? 0))) - item.payout) <= 0 }">
 									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 									<lang-string lang-id="MOD_MP_BUTTON_MARKET_CLAIM_PAYOUT"></lang-string>
 								</button>
@@ -1844,6 +1855,68 @@
 				<div class="mp-transfer-exchanges" v-show="!state.is_social_only">
 					<div class="p-4 block w-100" v-if="state.num_active_transfers === 0">
 						<lang-string lang-id="MOD_MP_NO_EXCHANGES"></lang-string>
+					</div>
+					<div class="block tabbable w-100 mp-col mp-transfer-haggle" v-for="haggle in state.market_haggles" :key="haggle.id">
+						<div class="pl-3 pt-1 pb-1 bg-dark-bank-info text-center mp-transfer-haggle-header">
+							<div class="mp-transfer-haggle-title">
+								<span class="font-w400 font-size-sm mb-0">
+									<span class="font-w600">
+										<img class="skill-icon-xs" :src="state.get_avatar_icon(haggle.counterparty.icon_id)"/>
+										<mp-lang-string-f :lang-id="haggle.status === 'active' ? (haggle.is_initiator ? 'MOD_MP_TRANSFER_HAGGLE_SENT' : 'MOD_MP_TRANSFER_HAGGLE_FROM') : 'MOD_MP_TRANSFER_HAGGLE_WITH'" :lang-arg-1="haggle.counterparty.display_name"></mp-lang-string-f>
+									</span>
+								</span>
+							</div>
+							<div class="mp-transfer-haggle-meta">
+								<span class="font-w400 font-size-sm mb-0 mp-transfer-haggle-value">
+									<span class="font-w600">
+										<lang-string lang-id="MOD_MP_TRANSFER_OFFERED"></lang-string>
+										<span><img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">{{ numberWithCommas(haggle.item_qty * haggle.offer_price) }} GP</span>
+									</span>
+								</span>
+								<span class="font-w400 font-size-sm mb-0 mp-transfer-haggle-status">
+									<span class="font-w600">
+										<lang-string :lang-id="haggle.status == 'accepted' && haggle.claim && haggle.claim.claimed ? 'MOD_MP_MARKET_HAGGLE_STATUS_CLAIMED' : 'MOD_MP_MARKET_HAGGLE_STATUS_' + haggle.status.toUpperCase()"></lang-string>
+									</span>
+								</span>
+							</div>
+						</div>
+						<div class="block-content">
+							<div class="pb-4 row mp-transfer-haggle-items">
+								<mp-item-icon class="bank-item pointer-enabled m-2" :data-item-id="haggle.item_id">
+									<a role="button">
+										<img class="bank-img p-3" :src="state.get_item_icon(haggle.item_id)" draggable="false">
+										<div class="font-size-sm text-white text-center in-bank">
+											<small class="badge-pill bg-secondary">{{ formatNumber(haggle.item_qty) }}</small>
+										</div>
+									</a>
+								</mp-item-icon>
+							</div>
+							<div class="mp-transfer-haggle-claim" v-if="haggle.claim && !haggle.claim.claimed">
+								<span class="mp-market-item-label"><lang-string lang-id="MOD_MP_MARKET_HAGGLE_CLAIM_CONTENTS"></lang-string></span>
+								<span v-if="haggle.claim.item_qty > 0">{{ numberWithCommas(haggle.claim.item_qty) }} × {{ state.get_item_name(haggle.claim.item_id) }}</span>
+								<span v-if="haggle.claim.gp > 0">{{ numberWithCommas(haggle.claim.gp) }} GP</span>
+							</div>
+						</div>
+						<div class="p-3 mp-transfer-buttons">
+							<button type="button" class="btn btn-success m-1" v-if="haggle.claim && !haggle.claim.claimed" @click="state.respond_market_haggle($event, haggle, 'claim')">
+								<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+								<lang-string lang-id="MOD_MP_BUTTON_CLAIM"></lang-string>
+							</button>
+							<template v-else-if="haggle.status == 'active'">
+								<button type="button" class="btn btn-success m-1" v-if="haggle.is_turn" @click="state.respond_market_haggle($event, haggle, 'accept')">
+									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+									<lang-string lang-id="MOD_MP_BUTTON_ACCEPT"></lang-string>
+								</button>
+								<button type="button" class="btn btn-warning m-1" v-if="haggle.is_turn" @click="state.respond_market_haggle($event, haggle, 'counter')">
+									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+									<lang-string lang-id="MOD_MP_BUTTON_MARKET_HAGGLE_BACK"></lang-string>
+								</button>
+								<button type="button" class="btn btn-danger m-1" @click="state.respond_market_haggle($event, haggle, 'terminate')">
+									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+									<lang-string :lang-id="!haggle.is_initiator && haggle.is_turn ? 'MOD_MP_BUTTON_REJECT' : 'MOD_MP_BUTTON_CANCEL'"></lang-string>
+								</button>
+							</template>
+						</div>
 					</div>
 					<template v-for="gift in state.gifts">
 						<div class="block tabbable w-100 mp-col" v-if="gift.unresolved">

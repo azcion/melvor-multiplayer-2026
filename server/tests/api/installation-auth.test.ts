@@ -6,7 +6,7 @@ async function new_client() {
 	const client_key = crypto.randomUUID();
 	const installation_id = crypto.randomUUID();
 	const registered = await post_json<any>('/api/register', { client_key, display_name: 'Installations',
-		client_runtime: { mod_version: '1.4.5', active_mods: [], device: { installation_id, platform: 'android' } } });
+		client_runtime: { mod_version: '1.5.1', active_mods: [], device: { installation_id, platform: 'android' } } });
 	return { ...registered.json, client_key, installation_id, installation_key: crypto.randomUUID() };
 }
 async function enroll(client: any) {
@@ -42,7 +42,7 @@ test('independent installations remain connected and same-installation authentic
 	await enroll(first);
 	const second = { ...first, installation_id: crypto.randomUUID(), installation_key: crypto.randomUUID() };
 	const legacy = await post_json<any>('/api/authenticate', { client_identifier: first.client_identifier, client_key: first.client_key,
-		client_runtime: { mod_version: '1.4.5', active_mods: [], device: { installation_id: second.installation_id } } });
+		client_runtime: { mod_version: '1.5.1', active_mods: [], device: { installation_id: second.installation_id } } });
 	second.session_token = legacy.json.session_token;
 	expect((await enroll(second)).status).toBe(200);
 	const attempts = await Promise.all([installation_auth(first), installation_auth(second)]);

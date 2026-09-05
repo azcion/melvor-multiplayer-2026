@@ -2,6 +2,7 @@ import * as runtime from '../app-runtime';
 import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonObject } from '../http';
 import { add_inbox_gp, add_inbox_items } from '../inbox';
+import { cancel_client_haggles } from './haggle';
 
 const {
 	GiftFlags,
@@ -32,13 +33,25 @@ type ModeChange = {
 };
 
 function cancel_owned_exchanges(client_id: number): Omit<ModeChange, 'success' | 'social_mode' | 'effects'> {
+	cancel_client_haggles(client_id);
+	const haggle_claims = db.query<db_row.market_haggle_claims, [number]>(
+		'SELECT * FROM `market_haggle_claims` WHERE `client_id` = ? AND `claimed_at` IS NULL'
+	).all(client_id);
+	for (const claim of haggle_claims) {
+		if (claim.item_id !== null)
+			add_inbox_items(client_id, [{ item_id: claim.item_id, qty: claim.item_qty }]);
+		if (claim.gp > 0)
+			add_inbox_gp(client_id, claim.gp);
+		db.query('UPDATE `market_haggle_claims` SET `claimed_at` = ? WHERE `haggle_id` = ? AND `client_id` = ?')
+			.run(Date.now(), claim.haggle_id, client_id);
+	}
 	const market_items = db.query('SELECT * FROM `market_items` WHERE `client_id` = ?').all(client_id) as db_row.market_items[];
 	for (const lot of market_items) {
 		if (lot.direction === 'buy') {
 			add_inbox_gp(client_id, lot.escrow_gp);
 		} else {
 			add_inbox_items(client_id, [{ item_id: lot.item_id, qty: lot.available }]);
-			add_inbox_gp(client_id, (lot.qty - lot.available) * lot.price - lot.payout);
+			add_inbox_gp(client_id, (lot.qty - lot.available - lot.reserved - lot.haggled) * lot.price - lot.payout);
 		}
 		remove_player_cache_entry(market_completed_cached, client_id, lot.id);
 	}

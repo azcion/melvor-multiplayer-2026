@@ -114,6 +114,38 @@ test('keeps three Transfers panels mounted with mobile-only tab visibility', asy
 	assert.match(page, /MOD_MP_TRANSFER_DECLINE/);
 });
 
+test('renders only pending Haggles in the Transfers Pending section', async () => {
+	const [main, actions, templates, style] = await Promise.all([
+		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		readFile(new URL('mod/client-actions-transfer.mjs', root), 'utf8'),
+		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
+		readFile(new URL('mod/ui/style.css', root), 'utf8')
+	]);
+	const market_page = templates.slice(templates.indexOf('<template id="template-mp-market-page">'), templates.indexOf('<template id="template-mp-charity-page">'));
+	const transfer_page = templates.slice(templates.indexOf('<template id="template-mp-transfer-page">'), templates.indexOf('<template id="template-mp-gift-friend-modal">'));
+	const pending = transfer_page.slice(transfer_page.indexOf('id="mp-transfers-pending"'));
+
+	assert.doesNotMatch(market_page, /market_active_tab == 'haggles'/);
+	assert.match(pending, /class="block tabbable w-100 mp-col mp-transfer-haggle" v-for="haggle in state\.market_haggles"/);
+	assert.match(pending, /class="pl-3 pt-1 pb-1 bg-dark-bank-info text-center mp-transfer-haggle-header"[\s\S]*class="mp-transfer-haggle-title"/);
+	assert.match(pending, /class="mp-transfer-haggle-meta"[\s\S]*mp-transfer-haggle-status/);
+	assert.match(pending, /mp-transfer-haggle-value[\s\S]*MOD_MP_TRANSFER_OFFERED/);
+	assert.match(pending, /state\.get_avatar_icon\(haggle\.counterparty\.icon_id\)/);
+	assert.match(pending, /MOD_MP_TRANSFER_HAGGLE_WITH/);
+	assert.doesNotMatch(pending, /MOD_MP_MARKET_HAGGLE_WITH/);
+	assert.match(pending, /class="pb-4 row mp-transfer-haggle-items"/);
+	assert.doesNotMatch(pending, /mp-market-search-result/);
+	assert.match(pending, /state\.respond_market_haggle\(\$event, haggle, 'claim'\)/);
+	assert.match(pending, /state\.respond_market_haggle\(\$event, haggle, 'accept'\)/);
+	assert.match(style, /\.mp-transfer-haggle-meta \{[\s\S]*justify-content: space-between/);
+	assert.match(style, /\.mp-transfer-haggle-claim \{[\s\S]*border-top: 1px solid/);
+	assert.match(main, /state\.market_haggles = haggles\.filter\(haggle => haggle\.status === 'active' \|\|/);
+	assert.match(main, /state\.market_haggle_pending = state\.market_haggles\.length;\s*update_transfer_inventory_nav\(\);/);
+	assert.match(main, /this\.market_haggle_pending > 0/);
+	assert.match(main, /this\.market_haggle_pending;[\s\S]*get num_active_transfers\(\)/);
+	assert.match(actions, /update_contents: async \(\) => \{[\s\S]*await update_transfer_contents\(\);[\s\S]*await update_market_haggles\(\);/);
+});
+
 test('retains the Claim button while the async request is in flight', async () => {
 	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
 	const claim = main.slice(main.indexOf('async function claim_inbox'), main.indexOf('async function reconcile_pending_gifts'));
@@ -176,6 +208,17 @@ test('keeps non-GP currencies out of Transfer GP values', async () => {
 	assert.match(trading_actions, /!is_transfer_currency\(entry\.item_id\)/);
 });
 
+test('treats supported currencies as locally resolved Charitree items', async () => {
+	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const resolution = main.slice(
+		main.indexOf('function is_local_item_resolved'),
+		main.indexOf('\n}\n', main.indexOf('function is_local_item_resolved')) + 2
+	);
+
+	assert.match(resolution, /transfer_currency_support\?\.is_transfer_currency\(game, item_id\) === true/);
+	assert.match(resolution, /item_visibility\.is_item_resolved\(item_id/);
+});
+
 test('confirms the requested Transfer actions before sending them', async () => {
 	const [source, templates, english] = await Promise.all([
 		read_client_source(root),
@@ -193,13 +236,16 @@ test('confirms the requested Transfer actions before sending them', async () => 
 		['donate', 'MOD_MP_TRANSFER_CONFIRM_DONATE', 'MOD_MP_TRANSFER_CONFIRM_DONATE_ACTION'],
 		['counter_trade', 'MOD_MP_TRANSFER_CONFIRM_COUNTER_TRADE', 'MOD_MP_TRANSFER_CONFIRM_COUNTER_TRADE_ACTION'],
 		['cancel_trade', 'MOD_MP_TRANSFER_CONFIRM_CANCEL_TRADE', 'MOD_MP_TRANSFER_CONFIRM_CANCEL_TRADE_ACTION'],
+		['cancel_haggle', 'MOD_MP_MARKET_HAGGLE_CONFIRM_CANCEL', 'MOD_MP_MARKET_HAGGLE_CONFIRM_CANCEL_ACTION'],
 		['decline_gift', 'MOD_MP_TRANSFER_CONFIRM_DECLINE_GIFT', 'MOD_MP_TRANSFER_CONFIRM_DECLINE_GIFT_ACTION'],
-		['decline_trade', 'MOD_MP_TRANSFER_CONFIRM_DECLINE_TRADE', 'MOD_MP_TRANSFER_CONFIRM_DECLINE_TRADE_ACTION']
+		['decline_trade', 'MOD_MP_TRANSFER_CONFIRM_DECLINE_TRADE', 'MOD_MP_TRANSFER_CONFIRM_DECLINE_TRADE_ACTION'],
+		['reject_haggle', 'MOD_MP_MARKET_HAGGLE_CONFIRM_REJECT', 'MOD_MP_MARKET_HAGGLE_CONFIRM_REJECT_ACTION']
 	]) {
 		assert.equal(typeof english[info_lang_id], 'string');
 		assert.equal(typeof english[action_lang_id], 'string');
 		assert.match(transfer_action, new RegExp(`${action}:\\s*\\{[\\s\\S]*${info_lang_id}[\\s\\S]*${action_lang_id}`));
-		assert.match(source, new RegExp(`show_transfer_confirmation\\('${action}'`));
+		if (!action.endsWith('_haggle'))
+			assert.match(source, new RegExp(`show_transfer_confirmation\\('${action}'`));
 	}
 
 	assert.match(source, /this\.donate_items\(event, true\)/);
@@ -207,6 +253,7 @@ test('confirms the requested Transfer actions before sending them', async () => 
 	assert.match(source, /this\.cancel_trade\(event, confirmation\.transfer_id, true\)/);
 	assert.match(source, /this\.resolve_gift\(event, confirmation\.transfer_id, false, true\)/);
 	assert.match(source, /this\.decline_trade\(event, confirmation\.transfer_id, true\)/);
+	assert.match(source, /this\.respond_market_haggle\(event, confirmation\.transfer_id, 'terminate', false, true\)/);
 	assert.match(source, /async donate_items\(event, confirmed = false\)[\s\S]*if \(!confirmed\)[\s\S]*show_transfer_confirmation\('donate'\)/);
 	assert.match(source, /async counter_trade\(event, trade_id, confirmed = false\)[\s\S]*if \(!confirmed\)[\s\S]*show_transfer_confirmation\('counter_trade', trade_id\)/);
 	assert.match(source, /async cancel_trade\(event, trade_id, confirmed = false\)[\s\S]*if \(!confirmed\)[\s\S]*show_transfer_confirmation\('cancel_trade', trade_id\)/);

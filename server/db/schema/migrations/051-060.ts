@@ -122,5 +122,78 @@ export const migrations_051_060: Migration[] = [
 			ALTER TABLE clients ADD COLUMN social_mode TEXT NOT NULL DEFAULT 'full'
 				CHECK (social_mode IN ('full', 'social'));
 		`
+	}, {
+		version: 56,
+		sql: `
+			ALTER TABLE market_items ADD COLUMN reserved INTEGER NOT NULL DEFAULT 0 CHECK (reserved >= 0);
+			ALTER TABLE market_items ADD COLUMN haggled INTEGER NOT NULL DEFAULT 0 CHECK (haggled >= 0);
+
+			CREATE TABLE market_haggles (
+				id TEXT PRIMARY KEY,
+				listing_id INTEGER,
+				listing_ref INTEGER NOT NULL,
+				guild_id INTEGER,
+				initiator_id INTEGER NOT NULL,
+				owner_id INTEGER NOT NULL,
+				direction TEXT NOT NULL CHECK (direction IN ('sell', 'buy')),
+				item_id TEXT NOT NULL,
+				item_qty INTEGER NOT NULL CHECK (item_qty > 0),
+				listing_price INTEGER NOT NULL CHECK (listing_price > 0),
+				offer_price INTEGER NOT NULL CHECK (offer_price > 0),
+				listing_reserved_gp INTEGER NOT NULL DEFAULT 0 CHECK (listing_reserved_gp >= 0),
+				payer_escrow_gp INTEGER NOT NULL DEFAULT 0 CHECK (payer_escrow_gp >= 0),
+				turn_client_id INTEGER,
+				revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+				status TEXT NOT NULL DEFAULT 'active'
+					CHECK (status IN ('active', 'accepted', 'cancelled', 'rejected', 'expired')),
+				created_at INTEGER NOT NULL CHECK (created_at >= 0),
+				updated_at INTEGER NOT NULL CHECK (updated_at >= created_at),
+				expires_at INTEGER CHECK (expires_at IS NULL OR expires_at >= updated_at),
+				terminal_at INTEGER CHECK (terminal_at IS NULL OR terminal_at >= created_at),
+				FOREIGN KEY (listing_id) REFERENCES market_items (id) ON DELETE SET NULL,
+				FOREIGN KEY (guild_id) REFERENCES guilds (id) ON DELETE SET NULL,
+				FOREIGN KEY (initiator_id) REFERENCES clients (id) ON DELETE CASCADE,
+				FOREIGN KEY (owner_id) REFERENCES clients (id) ON DELETE CASCADE,
+				FOREIGN KEY (turn_client_id) REFERENCES clients (id) ON DELETE SET NULL,
+				CHECK (initiator_id != owner_id),
+				CHECK ((status = 'active' AND listing_id IS NOT NULL AND guild_id IS NOT NULL AND turn_client_id IS NOT NULL AND
+					expires_at IS NOT NULL AND terminal_at IS NULL) OR
+					(status != 'active' AND turn_client_id IS NULL AND expires_at IS NULL AND terminal_at IS NOT NULL)),
+				CHECK ((direction = 'sell' AND listing_reserved_gp = 0) OR
+					(direction = 'buy' AND listing_reserved_gp = item_qty * listing_price))
+			);
+			CREATE UNIQUE INDEX idx_market_haggles_active_initiator_listing
+				ON market_haggles (initiator_id, listing_ref) WHERE status = 'active';
+			CREATE INDEX idx_market_haggles_active_expiry
+				ON market_haggles (expires_at) WHERE status = 'active';
+			CREATE INDEX idx_market_haggles_participants
+				ON market_haggles (initiator_id, owner_id, updated_at DESC);
+
+			CREATE TABLE market_haggle_claims (
+				haggle_id TEXT NOT NULL,
+				client_id INTEGER NOT NULL,
+				item_id TEXT,
+				item_qty INTEGER NOT NULL DEFAULT 0 CHECK (item_qty >= 0),
+				gp INTEGER NOT NULL DEFAULT 0 CHECK (gp >= 0),
+				claimed_at INTEGER CHECK (claimed_at IS NULL OR claimed_at >= 0),
+				PRIMARY KEY (haggle_id, client_id),
+				FOREIGN KEY (haggle_id) REFERENCES market_haggles (id) ON DELETE CASCADE,
+				FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE,
+				CHECK ((item_qty = 0 AND item_id IS NULL) OR (item_qty > 0 AND item_id IS NOT NULL)),
+				CHECK (item_qty > 0 OR gp > 0)
+			);
+
+			CREATE TRIGGER event_market_haggle_insert AFTER INSERT ON market_haggles BEGIN
+				UPDATE clients SET event_revision = event_revision + 1
+					WHERE id IN (NEW.initiator_id, NEW.owner_id);
+			END;
+			CREATE TRIGGER event_market_haggle_update AFTER UPDATE ON market_haggles BEGIN
+				UPDATE clients SET event_revision = event_revision + 1
+					WHERE id IN (OLD.initiator_id, OLD.owner_id, NEW.initiator_id, NEW.owner_id);
+			END;
+			CREATE TRIGGER event_market_haggle_claim_update AFTER UPDATE ON market_haggle_claims BEGIN
+				UPDATE clients SET event_revision = event_revision + 1 WHERE id = NEW.client_id;
+			END;
+		`
 	}
 ];

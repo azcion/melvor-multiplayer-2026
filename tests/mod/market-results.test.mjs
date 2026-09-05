@@ -51,6 +51,23 @@ test('hides Marketplace pagination when there is only one page', async () => {
 	assert.match(templates, /<div id="mp-market-pagation" v-if="state\.market_page_count > 1">/);
 });
 
+test('removes Marketplace descriptions and progress bars', async () => {
+	const [templates, style] = await Promise.all([
+		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8')
+	]);
+	const market_page = templates.slice(
+		templates.indexOf('<template id="template-mp-market-page">'),
+		templates.indexOf('<template id="template-mp-charity-page">')
+	);
+
+	assert.doesNotMatch(market_page, /MOD_MP_MARKET_WINDOW_INFO/);
+	assert.doesNotMatch(market_page, /mp-market-item-bar/);
+	assert.doesNotMatch(style, /mp-market-item-bar/);
+	assert.doesNotMatch(style, /mp-market-item-bar-fill/);
+	assert.match(style, /\.mp-market-listing-result \{\s*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\);/);
+});
+
 test('captures Marketplace queries and ignores stale generations', async () => {
 	const main = await read_client_source();
 	const search = main.slice(main.indexOf('async function update_market_search'),
@@ -66,6 +83,19 @@ test('captures Marketplace queries and ignores stale generations', async () => {
 	assert.match(search, /market_owner: item\.buyer \?\? item\.seller \?\? null/);
 	assert.equal((search.match(/generation !== market_search_generation/g) ?? []).length, 2);
 	assert.match(search, /if \(generation === market_search_generation\)\s*state\.market_search_loading = false/);
+});
+
+test('serializes overlapping Haggle refreshes and keeps the post-response refresh', async () => {
+	const main = await read_client_source();
+	const haggles = main.slice(main.indexOf('async function update_market_haggles'),
+		main.indexOf('async function update_market_search'));
+
+	assert.match(main, /let market_haggles_update_request = null/);
+	assert.match(main, /let market_haggles_update_requested = false/);
+	assert.match(haggles, /market_haggles_update_requested = true/);
+	assert.match(haggles, /if \(market_haggles_update_request !== null\)\s*return market_haggles_update_request/);
+	assert.match(haggles, /while \(market_haggles_update_requested\)/);
+	assert.match(haggles, /if \(market_haggles_update_requested\)\s*continue/);
 });
 
 test('defaults Marketplace sorting to Recent and toggles to direction-specific Price sorting', async () => {
@@ -137,6 +167,7 @@ test('uses responsive fixed columns for Marketplace item pickers and shared dire
 	assert.match(market_search, /<div class="mp-market-listing-tabs" role="group">/);
 	assert.doesNotMatch(market_search, /btn-group/);
 	assert.match(filter_style, /display: grid;[\s\S]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
+	assert.match(style, /\.mp-market-search-result \{[\s\S]*grid-template-columns: 1fr \.5fr \.5fr \.5fr auto;/);
 	assert.match(style.slice(tablet_start, mobile_start), /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
 	assert.match(mobile_filter_style, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
 });
@@ -251,12 +282,68 @@ test('limits fulfillment to bank quantity and splits the fulfillment title acros
 	]);
 
 	assert.match(main, /get market_fulfill_item_owned_qty\(\)[\s\S]*game\.bank\.getQty\(item\)/);
+	assert.match(main, /get market_haggle_item_owned_qty\(\)[\s\S]*game\.bank\.getQty\(item\)/);
 	assert.match(actions, /queue_modal\(item_name, 'market-fulfill-modal'[\s\S]*didOpen:[\s\S]*createElement\('span'\)[\s\S]*MOD_MP_MARKET_FULFILL_MODAL_TITLE/);
 	assert.match(actions, /\$title\.prepend\(\$prefix\)/);
-	assert.match(templates, /:data-max="Math\.min\(state\.market_fulfill_item\.available, state\.market_fulfill_item_owned_qty\)"/);
+	assert.match(templates, /:data-min="1" :data-max="Math\.min\(state\.market_fulfill_item\.available, state\.market_fulfill_item_owned_qty\)"/);
+	assert.match(templates, /:data-min="1" :data-max="state\.market_haggle_item\.direction == 'buy' \? Math\.min\(state\.market_haggle_item\.available, state\.market_haggle_item_owned_qty\) : state\.market_haggle_item\.available"/);
 	assert.match(templates, /MOD_MP_CAMPAIGN_ITEM_OWNED/);
 	assert.match(templates, /state\.market_fulfill_item_owned_qty/);
 	assert.match(style, /\.mp-market-fulfill-modal-title-prefix[\s\S]*display: block[\s\S]*font-size: 0\.65em/);
+});
+
+test('renders Haggle counteroffers in a Marketplace-style modal without a quantity picker', async () => {
+	const [actions, templates] = await Promise.all([
+		readFile(new URL('../../mod/client-actions-market-campaign-charity.mjs', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8')
+	]);
+	const counter_template_start = templates.indexOf('template-mp-market-haggle-counter-modal');
+	const counter_template = templates.slice(counter_template_start, templates.indexOf('\n</template>', counter_template_start));
+
+	assert.match(actions, /respond_market_haggle\(event, haggle, action, from_modal = false, from_confirmation = false\)/);
+	assert.match(actions, /queue_modal\('MOD_MP_MARKET_HAGGLE_COUNTER', 'market-haggle-counter-modal'/);
+	assert.match(actions, /this\.market_haggle_price = haggle\.offer_price/);
+	assert.match(counter_template, /MOD_MP_MARKET_HAGGLE_PRICE/);
+	assert.match(counter_template, /state\.market_haggle_counter\.item_qty/);
+	assert.match(counter_template, /state\.respond_market_haggle\(\$event, state\.market_haggle_counter, 'counter', true\)/);
+	assert.doesNotMatch(counter_template, /mp-item-slider/);
+});
+
+test('sets the Buy, Sell, and Haggle quantity pickers to a minimum of one', async () => {
+	const [components, templates] = await Promise.all([
+		readFile(new URL('../../mod/client-components.mjs', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8')
+	]);
+
+	assert.match(components, /getMin\(\)[\s\S]*getAttribute\('data-min'\)[\s\S]*\?\? 0/);
+	for (const template_id of ['market-buy-modal', 'market-fulfill-modal', 'market-haggle-modal']) {
+		const template_start = templates.indexOf(`template-mp-${template_id}`);
+		const template = templates.slice(template_start, templates.indexOf('\n</template>', template_start));
+		assert.match(template, /<mp-item-slider[\s\S]*:data-min="1"/);
+	}
+});
+
+test('keeps the item quantity input aligned when Vue applies a minimum after mount', async () => {
+	const components = await readFile(new URL('../../mod/client-components.mjs', import.meta.url), 'utf8');
+
+	assert.match(components, /this\.value_input = \$value/);
+	assert.match(components, /current_value = Number\(state\.item_slider_value\)[\s\S]*current_value < min[\s\S]*state\.item_slider_value = min[\s\S]*this\.value_input\.value = min/);
+});
+
+test('outlines Marketplace, Transfer, and Haggle numeric inputs', async () => {
+	const [components, templates, style] = await Promise.all([
+		readFile(new URL('../../mod/client-components.mjs', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8')
+	]);
+
+	assert.match(style, /input\.form-control\[type="number"\] \{\s*outline: 1px solid #fff7;\s*\}/);
+	assert.match(components, /\$value\.classList\.add\('form-control', 'mt-2'\);\s*\$value\.type = 'number';/);
+	for (const template_id of ['market-haggle-modal', 'market-haggle-counter-modal']) {
+		const template_start = templates.indexOf(`template-mp-${template_id}`);
+		const template = templates.slice(template_start, templates.indexOf('\n</template>', template_start));
+		assert.match(template, /<input type="number"[^>]*class="form-control"/);
+	}
 });
 
 test('adds a shared Max control to item quantity modals', async () => {
@@ -271,13 +358,13 @@ test('adds a shared Max control to item quantity modals', async () => {
 	assert.match(main, /set_item_slider_max\(\)[\s\S]*document\.querySelector\('mp-item-slider'\)\?\.set_max\(\)/);
 	assert.match(components, /set_max\(\)[\s\S]*this\.slider\?\.setSliderPosition\(Infinity\)/);
 
-	for (const template_id of ['campaign-contribute-modal', 'market-buy-modal', 'market-fulfill-modal']) {
+	for (const template_id of ['campaign-contribute-modal', 'market-buy-modal', 'market-fulfill-modal', 'market-haggle-modal']) {
 		const template_start = templates.indexOf(`template-mp-${template_id}`);
 		const template = templates.slice(template_start, templates.indexOf('\n</template>', template_start));
 		assert.match(template, /class="btn btn-primary" @click="state\.set_item_slider_max\(\)"[\s\S]*MOD_MP_BUTTON_MAX/);
 	}
 
-	assert.equal((templates.match(/state\.set_item_slider_max\(\)/g) ?? []).length, 3);
+	assert.equal((templates.match(/state\.set_item_slider_max\(\)/g) ?? []).length, 4);
 	assert.match(english, /"MOD_MP_BUTTON_MAX": "Max"/);
 	assert.match(chinese, /"MOD_MP_BUTTON_MAX":/);
 });
@@ -417,6 +504,18 @@ test('keeps the top Marketplace cards equal-width on desktop and full-width on m
 	assert.match(style, /\.mp-market-tabs > div \{[\s\S]*width: 100%/);
 });
 
+test('places Haggle before the direct Marketplace action and exposes source-labelled claims', async () => {
+	const [templates, actions] = await Promise.all([
+		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/client-actions-market-campaign-charity.mjs', import.meta.url), 'utf8')
+	]);
+	const result_actions = templates.slice(templates.indexOf('state.show_market_haggle_modal(item)'),
+		templates.indexOf('</div>', templates.indexOf('state.show_market_haggle_modal(item)')));
+	assert.ok(result_actions.indexOf('MOD_MP_BUTTON_MARKET_HAGGLE') < result_actions.indexOf('MOD_MP_BUTTON_MARKET_BUY'));
+	assert.match(templates, /haggle\.claim && !haggle\.claim\.claimed[\s\S]*MOD_MP_BUTTON_CLAIM/);
+	assert.match(actions, /\/api\/market\/haggle[\s\S]*command_id: crypto\.randomUUID\(\)/);
+});
+
 test('splits Marketplace metric labels from values and keeps GP icons attached', async () => {
 	const [templates, style, english, chinese] = await Promise.all([
 		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
@@ -467,4 +566,146 @@ test('defaults a selected buy order item to its game sale value', () => {
 	assert.equal(state.market_create_item, item.id);
 	assert.equal(state.market_create_price, 42);
 	assert.equal(state.market_active_tab, 'create');
+});
+
+function haggle_actions_fixture({ gp = 0, bank_qty = 0, price = 10, confirm = true } = {}) {
+	const state = { market_haggle_price: price, get_item_icon: item_id => `icon:${item_id}` };
+	const requests = [];
+	const errors = [];
+	const confirmations = [];
+	const modals = [];
+	state.show_transfer_confirmation = (...args) => { confirmations.push(args); };
+	let spinning = false;
+	const game = { gp: { amount: gp }, items: { getObjectByID: () => ({}) }, bank: { getQty: () => bank_qty } };
+	const actions = install_market_campaign_charity_actions({
+		state, game, crypto: { randomUUID: () => 'command' },
+		getLangString: key => key,
+		queue_modal: (...args) => { modals.push(args); return true; },
+		is_button_spinning: () => spinning,
+		show_button_spinner: () => { spinning = true; },
+		hide_button_spinner: () => { spinning = false; },
+		notify_error: key => errors.push(key),
+		api_post: async (url, body) => { requests.push({ url, body }); return { success: true, receipt: {} }; },
+		reconcile_economy_receipts: async () => true,
+		close_modal_and_wait: async () => {},
+		update_market_haggles: async () => {}, update_market_search: async () => {}, update_market_listings: async () => {}
+	});
+	return { actions, state, game, requests, errors, confirmations, modals, is_spinning: () => spinning, event: { currentTarget: {} } };
+}
+
+for (const direction of ['sell', 'buy']) {
+	for (const action of ['counter', 'accept']) {
+		test(`${direction} Haggle ${action} checks only the payer's additional GP`, async () => {
+			const fixture = haggle_actions_fixture({ gp: 19 });
+			const haggle = { id: 'haggle', revision: 1, direction, is_initiator: direction === 'sell',
+				item_qty: 5, offer_price: 10, payer_escrow_gp: 30 };
+			await fixture.actions.respond_market_haggle.call(fixture.state, fixture.event, haggle, action, action === 'counter');
+			assert.deepEqual(fixture.errors, ['MOD_MP_MARKET_INSUFFICIENT_GP']);
+			assert.equal(fixture.requests.length, 0);
+			assert.equal(fixture.is_spinning(), false);
+			fixture.game.gp.amount = 20;
+			await fixture.actions.respond_market_haggle.call(fixture.state, fixture.event, haggle, action, action === 'counter');
+			assert.equal(fixture.requests.length, 1);
+			fixture.game.gp.amount = 0;
+			haggle.payer_escrow_gp = 60;
+			await fixture.actions.respond_market_haggle.call(fixture.state, fixture.event, haggle, action, action === 'counter');
+			assert.equal(fixture.requests.length, 2);
+			haggle.payer_escrow_gp = 0;
+			haggle.is_initiator = !haggle.is_initiator;
+			await fixture.actions.respond_market_haggle.call(fixture.state, fixture.event, haggle, action, action === 'counter');
+			assert.equal(fixture.requests.length, 3);
+			assert.equal(fixture.is_spinning(), false);
+		});
+	}
+}
+
+test('Haggle creation rejects missing GP, missing items, and unsafe totals before submission', async () => {
+	const fixture = haggle_actions_fixture();
+	Object.assign(fixture.state, { market_haggle_item: { id: 1, direction: 'sell', item_id: 'melvorD:Logs' },
+		item_slider_value: 5, market_haggle_price: 10 });
+	await fixture.actions.create_market_haggle.call(fixture.state, fixture.event);
+	fixture.state.market_haggle_item.direction = 'buy';
+	await fixture.actions.create_market_haggle.call(fixture.state, fixture.event);
+	fixture.state.market_haggle_price = Number.MAX_SAFE_INTEGER;
+	await fixture.actions.create_market_haggle.call(fixture.state, fixture.event);
+	assert.deepEqual(fixture.errors, ['MOD_MP_MARKET_INSUFFICIENT_GP', 'MOD_MP_MARKET_NOT_ENOUGH_ITEM',
+		'MOD_MP_MARKET_VALUE_TOO_LARGE']);
+	assert.equal(fixture.requests.length, 0);
+});
+
+test('Haggle responses reject unsafe totals but never require GP for cancellation or claims', async () => {
+	const fixture = haggle_actions_fixture({ price: Number.MAX_SAFE_INTEGER });
+	const haggle = { item_qty: 2, offer_price: Number.MAX_SAFE_INTEGER, direction: 'sell', is_initiator: true,
+		payer_escrow_gp: 0 };
+	for (const action of ['counter', 'accept']) {
+		await fixture.actions.respond_market_haggle.call(fixture.state, fixture.event, haggle, action, action === 'counter');
+		assert.equal(fixture.is_spinning(), false);
+	}
+	assert.equal(fixture.requests.length, 0);
+	assert.deepEqual(fixture.errors, ['MOD_MP_MARKET_VALUE_TOO_LARGE', 'MOD_MP_MARKET_VALUE_TOO_LARGE']);
+	for (const action of ['terminate', 'claim'])
+		await fixture.actions.respond_market_haggle.call(fixture.state, fixture.event, haggle, action, false, action === 'terminate');
+	assert.equal(fixture.requests.length, 2);
+});
+
+test('opens the Haggle counteroffer modal before submitting', async () => {
+	const fixture = haggle_actions_fixture();
+	const haggle = { id: 'haggle', item_id: 'melvorD:Logs', item_qty: 2, offer_price: 10 };
+
+	await fixture.actions.respond_market_haggle.call(fixture.state, fixture.event, haggle, 'counter');
+
+	assert.deepEqual(fixture.modals[0], [
+		'MOD_MP_MARKET_HAGGLE_COUNTER', 'market-haggle-counter-modal', 'icon:melvorD:Logs', { showConfirmButton: false }
+	]);
+	assert.equal(fixture.requests.length, 0);
+});
+
+test('routes Haggle cancellation and rejection through the shared confirmation modal', async () => {
+	const cancelled = haggle_actions_fixture();
+	const cancelled_haggle = {
+		id: 'haggle', revision: 1, is_initiator: true, is_turn: false
+	};
+	await cancelled.actions.respond_market_haggle.call(cancelled.state, cancelled.event, cancelled_haggle, 'terminate');
+	assert.deepEqual(cancelled.confirmations[0], ['cancel_haggle', cancelled_haggle]);
+	assert.equal(cancelled.requests.length, 0);
+	await cancelled.actions.respond_market_haggle.call(cancelled.state, cancelled.event, cancelled_haggle, 'terminate', false, true);
+	assert.equal(cancelled.requests.length, 1);
+
+	const rejected = haggle_actions_fixture();
+	const rejected_haggle = {
+		id: 'haggle', revision: 1, is_initiator: false, is_turn: true
+	};
+	await rejected.actions.respond_market_haggle.call(rejected.state, rejected.event, rejected_haggle, 'terminate');
+	assert.deepEqual(rejected.confirmations[0], ['reject_haggle', rejected_haggle]);
+	assert.equal(rejected.requests.length, 0);
+	await rejected.actions.respond_market_haggle.call(rejected.state, rejected.event, rejected_haggle, 'terminate', false, true);
+	assert.equal(rejected.requests.length, 1);
+	assert.equal(rejected.requests[0].url, '/api/market/haggle/terminate');
+});
+
+test('the payout button excludes reserved and Haggle-settled value', async () => {
+	const templates = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
+	const expression = templates.match(/resolve_market_listing\(\$event, item, 'payout'\)" :class="\{ disabled: (.*?) \}"/)[1];
+	const disabled = new Function('item', `return ${expression}`);
+	const item = { price: 10, qty: 5, available: 0, reserved: 5, haggled: 0, payout: 0 };
+	assert.equal(disabled(item), true);
+	assert.equal(disabled({ ...item, reserved: 0, haggled: 5 }), true);
+	assert.equal(disabled({ ...item, reserved: 2, haggled: 1 }), false);
+	assert.equal(disabled({ ...item, reserved: 2, haggled: 1, payout: 20 }), true);
+});
+
+test('counter affordability uses the current balance when the offer modal is submitted', async () => {
+	const errors = [];
+	const game = { gp: { amount: 100 } };
+	const state = { market_haggle_price: 10 };
+	const actions = install_market_campaign_charity_actions({
+		state, game,
+		is_button_spinning: () => false, show_button_spinner: () => {}, hide_button_spinner: () => {},
+		notify_error: key => errors.push(key), api_post: () => assert.fail('unaffordable counter submitted')
+	});
+	game.gp.amount = 0;
+	await actions.respond_market_haggle.call(state, { currentTarget: {} }, {
+		direction: 'buy', is_initiator: false, item_qty: 5, offer_price: 5, payer_escrow_gp: 25
+	}, 'counter', true);
+	assert.deepEqual(errors, ['MOD_MP_MARKET_INSUFFICIENT_GP']);
 });

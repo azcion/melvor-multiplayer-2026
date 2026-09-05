@@ -77,6 +77,8 @@ let client_events_have_pending = false;
 let client_event_poll_failures = 0;
 let client_event_scheduled_checks = 0;
 let market_search_generation = 0;
+let market_haggles_update_request = null;
+let market_haggles_update_requested = false;
 let guild_state_refresh_id = 0;
 let guild_state_refresh_request = null;
 let guild_state_refreshed_at = 0;
@@ -313,6 +315,12 @@ const state = ui.createStore({
 	market_direction: 'sell',
 	market_results: [],
 	market_listings: [],
+	market_haggles: [],
+	market_haggle_item: null,
+	market_haggle_counter: null,
+	market_haggle_price: 1,
+	market_haggles_loading: false,
+	market_haggle_pending: 0,
 	market_buy_item: null,
 	market_fulfill_item: null,
 	market_create_item: null,
@@ -563,7 +571,7 @@ const state = ui.createStore({
 			return this.inbox_items.length > 0 || this.inbox_pending_claim;
 		return this.is_guild_member || this.transfer_inventory.length > 0 || this.gifts.length > 0 ||
 			this.trades.length > 0 || this.resolved_trades.length > 0 || this.inbox_items.length > 0 ||
-			this.inbox_pending_claim;
+			this.inbox_pending_claim || this.market_haggle_pending > 0;
 	},
 
 	get has_destroyable_transfer_items() {
@@ -641,7 +649,7 @@ const state = ui.createStore({
 	},
 
 	get num_transfer_offers() {
-		return this.gifts.length + this.num_attending_trades + this.resolved_trades.length;
+		return this.gifts.length + this.num_attending_trades + this.resolved_trades.length + this.market_haggle_pending;
 	},
 
 	get num_friend_requests() {
@@ -653,7 +661,7 @@ const state = ui.createStore({
 	},
 
 	get num_active_transfers() {
-		return this.gifts.length + this.resolved_trades.length + this.trades.length;
+		return this.gifts.length + this.resolved_trades.length + this.trades.length + this.market_haggle_pending;
 	},
 
 	get raid() {
@@ -778,6 +786,12 @@ const state = ui.createStore({
 	get market_fulfill_item_owned_qty() {
 		const item = this.market_fulfill_item === null ? null :
 			game.items.getObjectByID(this.market_fulfill_item.item_id);
+		return item === undefined || item === null ? 0 : game.bank.getQty(item);
+	},
+
+	get market_haggle_item_owned_qty() {
+		const item = this.market_haggle_item === null ? null :
+			game.items.getObjectByID(this.market_haggle_item.item_id);
 		return item === undefined || item === null ? 0 : game.bank.getQty(item);
 	},
 
@@ -909,6 +923,7 @@ function create_action_runtime() {
 		update_charitree_nav,
 		update_multiplayer_nav,
 		update_market_listings,
+		update_market_haggles,
 		update_market_page,
 		update_market_search,
 		update_transfer_contents,
@@ -1543,7 +1558,8 @@ function error(message, ...params) {
 }
 
 function is_local_item_resolved(item_id) {
-	return item_visibility.is_item_resolved(item_id, id => game.items.getObjectByID(id));
+	return transfer_currency_support?.is_transfer_currency(game, item_id) === true ||
+		item_visibility.is_item_resolved(item_id, id => game.items.getObjectByID(id));
 }
 
 function filter_local_resolved_items(items, get_item_id) {
@@ -1865,6 +1881,35 @@ async function update_market_listings() {
 	}
 }
 
+async function update_market_haggles() {
+	if (state.is_social_only)
+		return;
+	market_haggles_update_requested = true;
+	if (market_haggles_update_request !== null)
+		return market_haggles_update_request;
+
+	market_haggles_update_request = (async () => {
+		state.market_haggles_loading = true;
+		try {
+			while (market_haggles_update_requested) {
+				market_haggles_update_requested = false;
+				const res = await api_get('/api/market/haggles');
+				if (market_haggles_update_requested)
+					continue;
+				const haggles = res?.success ? res.haggles ?? [] : [];
+				state.market_haggles = haggles.filter(haggle => haggle.status === 'active' ||
+					(haggle.claim && !haggle.claim.claimed));
+				state.market_haggle_pending = state.market_haggles.length;
+				update_transfer_inventory_nav();
+			}
+		} finally {
+			state.market_haggles_loading = false;
+			market_haggles_update_request = null;
+		}
+	})();
+	return market_haggles_update_request;
+}
+
 async function update_market_search() {
 	if (state.is_social_only) {
 		state.market_results = [];
@@ -1999,8 +2044,16 @@ async function load_campaign_data(ctx) {
 	state.campaign_data = await ctx.loadData('data/campaigns.json');
 }
 
+function set_nav_ready(aside, ready) {
+	aside.classList.toggle('mp-nav-ready', ready);
+}
+
 function update_campaign_nav() {
 	const aside = document.querySelector('.mp-campaign-nav');
+	if (!aside)
+		return;
+
+	set_nav_ready(aside, true);
 
 	if (state.campaign_active)
 		aside.textContent = Math.floor(state.campaign_pct * 100) + '%';
@@ -2014,7 +2067,9 @@ function update_raid_nav() {
 		return;
 
 	const active = state.raid?.active === true;
+	set_nav_ready(aside, true);
 	aside.textContent = active ? getLangString('MOD_MP_SIDEBAR_RAID_ACTIVE') : '';
+	aside.hidden = !active;
 	aside.classList.toggle('mp-raid-active', active);
 }
 
@@ -2087,6 +2142,13 @@ function update_charitree_nav() {
 	if (!aside)
 		return;
 
+	const ready = state.guild_state_loaded;
+	set_nav_ready(aside, ready);
+	if (!ready) {
+		aside.textContent = '';
+		return;
+	}
+
 	aside.textContent = state.is_charitree_enabled && state.can_take_charity
 		? getLangString('MOD_MP_SIDEBAR_CHARITY_READY')
 		: '';
@@ -2095,10 +2157,16 @@ function update_charitree_nav() {
 function update_multiplayer_nav() {
 	const multiplayer_category = sidebar.category('Multiplayer');
 	const guild_aside = document.querySelector('.mp-guild-nav');
-	if (guild_aside !== null)
-		guild_aside.textContent = state.is_guild_member ? '' : getLangString('MOD_MP_SIDEBAR_GUILD_START');
+	if (guild_aside !== null) {
+		const ready = state.guild_state_loaded;
+		set_nav_ready(guild_aside, ready);
+		guild_aside.textContent = ready && !state.is_guild_member
+			? getLangString('MOD_MP_SIDEBAR_GUILD_START')
+			: '';
+	}
 	const updates_aside = document.querySelector('.mp-updates-nav');
 	if (updates_aside !== null) {
+		set_nav_ready(updates_aside, true);
 		updates_aside.textContent = state.updates_new ? getLangString('MOD_MP_SIDEBAR_NEW') : '';
 		updates_aside.hidden = !state.updates_new;
 	}
@@ -2442,6 +2510,7 @@ function destroy_selected_transfer_inventory() {
 function update_transfer_inventory_nav() {
 	const aside = document.querySelector('.mp-transfer-nav');
 	if (aside !== null) {
+		set_nav_ready(aside, true);
 		const num_transfer_offers = state.num_transfer_offers;
 		const has_items = state.transfer_inventory.length > 0;
 		const has_transfer_offers = num_transfer_offers > 0;
@@ -3019,6 +3088,7 @@ async function refresh_chat_conversations() {
 function update_chat_nav() {
 	const aside = document.querySelector('.mp-chat-nav');
 	if (aside !== null) {
+		set_nav_ready(aside, true);
 		aside.textContent = state.chat_unread > 0 ? String(state.chat_unread) : '';
 		aside.hidden = state.chat_unread <= 0;
 	}
@@ -3529,6 +3599,9 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 		state.events.friend_requests = res.friend_requests;
 		state.events.guild_applicants = res.guild_applicants ?? [];
 		state.market_completed = res.market_completed;
+		state.market_haggle_pending = res.haggle_pending ?? 0;
+		if (state.is_transfer_page_visible)
+			update_market_haggles();
 		state.chat_unread = res.chat_unread ?? 0;
 		state.inbox_pending_claim = res.inbox_pending === true;
 		update_chat_nav();
@@ -3807,6 +3880,7 @@ export async function setup(ctx) {
 			update_chat_nav();
 			update_transfer_inventory_nav();
 			update_multiplayer_nav();
+			update_raid_nav();
 
 			for (const page of ['guild', 'raid', 'chat', 'transfer', 'charity', 'campaign', 'market', 'updates'])
 				make_scoped_template(page + '-page', $main_container);
@@ -4162,7 +4236,7 @@ function patch_bank() {
 		state.is_transfer_page_visible = is_visible;
 		if (is_visible) {
 			await Promise.all([get_client_events(), refresh_guild_state()]);
-			await update_transfer_contents();
+			await Promise.all([update_transfer_contents(), update_market_haggles()]);
 		}
 	});
 }

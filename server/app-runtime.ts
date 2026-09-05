@@ -52,6 +52,7 @@ import type { CampaignData, CampaignItemData } from './campaign_data';
 import { record_guild_activity } from './guild-activity';
 import type * as db_row from './db/types/db_types';
 import { BACKEND_VERSION } from './version';
+import { legacy_client_compatibility_response } from './legacy-client-compatibility';
 import {
 	CHAT_BUDGET_ENABLED,
 	CHAT_BUDGET_ERROR,
@@ -994,6 +995,43 @@ export function apply_banishment_target(
 			return { effect: 'already_absent' as const, dissolved: false, trade_ids: [] as number[] };
 
 		const target_return_id = ensure_banishment_return(petition, target_client_id, true, now);
+		const active_haggles = db.query<db_row.market_haggles, [number, number]>(
+			'SELECT * FROM `market_haggles` WHERE `status` = \'active\' AND (`initiator_id` = ? OR `owner_id` = ?)'
+		).all(target_client_id, target_client_id);
+		for (const haggle of active_haggles) {
+			db.query(
+				'UPDATE `market_haggles` SET `status` = \'cancelled\', `turn_client_id` = NULL, `expires_at` = NULL, ' +
+				'`terminal_at` = ?, `updated_at` = ? WHERE `id` = ? AND `status` = \'active\''
+			).run(now, now, haggle.id);
+			if (haggle.listing_id !== null)
+				db.query(
+					'UPDATE `market_items` SET `available` = `available` + ?, `reserved` = `reserved` - ?, ' +
+					'`escrow_gp` = `escrow_gp` + ? WHERE `id` = ?'
+				).run(haggle.item_qty, haggle.item_qty, haggle.listing_reserved_gp, haggle.listing_id);
+			if (haggle.direction === 'sell')
+				db.query('INSERT OR IGNORE INTO `market_haggle_claims` (`haggle_id`, `client_id`, `gp`) VALUES(?, ?, ?)')
+					.run(haggle.id, haggle.initiator_id, haggle.payer_escrow_gp);
+			else {
+				db.query(
+					'INSERT OR IGNORE INTO `market_haggle_claims` (`haggle_id`, `client_id`, `item_id`, `item_qty`) VALUES(?, ?, ?, ?)'
+				).run(haggle.id, haggle.initiator_id, haggle.item_id, haggle.item_qty);
+				const extra_gp = Math.max(haggle.payer_escrow_gp - haggle.listing_reserved_gp, 0);
+				if (extra_gp > 0)
+					db.query('INSERT OR IGNORE INTO `market_haggle_claims` (`haggle_id`, `client_id`, `gp`) VALUES(?, ?, ?)')
+						.run(haggle.id, haggle.owner_id, extra_gp);
+			}
+		}
+		const target_haggle_claims = db.query<db_row.market_haggle_claims, [number]>(
+			'SELECT * FROM `market_haggle_claims` WHERE `client_id` = ? AND `claimed_at` IS NULL'
+		).all(target_client_id);
+		for (const claim of target_haggle_claims) {
+			if (claim.item_id !== null)
+				add_banishment_return_item(target_return_id, claim.item_id, claim.item_qty);
+			if (claim.gp > 0)
+				db.query('UPDATE `banishment_returns` SET `gp` = `gp` + ? WHERE `id` = ?').run(claim.gp, target_return_id);
+			db.query('UPDATE `market_haggle_claims` SET `claimed_at` = ? WHERE `haggle_id` = ? AND `client_id` = ?')
+				.run(now, claim.haggle_id, target_client_id);
+		}
 		const market_items = db.query(
 			'SELECT * FROM `market_items` WHERE `client_id` = ? AND `guild_id` = ?'
 		).all(target_client_id, petition.guild_id) as db_row.market_items[];
@@ -1003,7 +1041,7 @@ export function apply_banishment_target(
 				gp += item.escrow_gp;
 			else {
 				add_banishment_return_item(target_return_id, item.item_id, item.available);
-				gp += Math.max((item.qty - item.available) * item.price - item.payout, 0);
+				gp += Math.max((item.qty - item.available - item.reserved - item.haggled) * item.price - item.payout, 0);
 			}
 		}
 		if (gp > 0)
@@ -1268,7 +1306,8 @@ export async function get_market_completed(client_id: number) {
 		return cached;
 
 	const results = await db_get_all(
-		'SELECT `id` FROM `market_items` WHERE `guild_id` = ? AND `client_id` = ? AND `direction` = \'sell\' AND `available` = 0',
+		'SELECT `id` FROM `market_items` WHERE `guild_id` = ? AND `client_id` = ? AND `direction` = \'sell\' AND `available` = 0 ' +
+		'AND `reserved` = 0 AND (`qty` - `haggled`) * `price` > `payout`',
 		[guild_id, client_id]
 	) as db_row.market_items[];
 	const completed = results.map(row => row.id);
@@ -2459,6 +2498,9 @@ export function validate_session_request(handler: SessionRequestHandler, json_bo
 
 		const client_id = session.client_id;
 		identify_request(req, client_id, session.mod_version ?? undefined, session.device_diagnostics);
+		const compatibility_response = legacy_client_compatibility_response(req, url, session.mod_version, client_id);
+		if (compatibility_response !== null)
+			return compatibility_response;
 		const limited = request_limits.limit_identity(client_id);
 		if (limited !== null) {
 			mark_rejection(req, 'identity_rate_limit');

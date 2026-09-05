@@ -243,8 +243,9 @@ export function register_components(runtime) {
 		constructor() {
 			super();
 
+			const min = this.getMin();
 			const max = this.getMax();
-			state.item_slider_value = 0;
+			state.item_slider_value = min;
 
 			const $input = document.createElement('input');
 			$input.type = 'text';
@@ -254,17 +255,18 @@ export function register_components(runtime) {
 			this.slider = new BankRangeSlider($input);
 
 			this.slider.sliderMax = max;
-			this.slider.sliderMin = 0;
+			this.slider.sliderMin = min;
 
 			this.slider.sliderInstance.update({
-				min: 0,
+				min,
 				max
 			});
 
 			const $value = document.createElement('input');
 			$value.classList.add('form-control', 'mt-2');
 			$value.type = 'number';
-			$value.value = 0;
+			$value.value = min;
+			this.value_input = $value;
 
 			$value.addEventListener('input', () => this.slider.setSliderPosition($value.value));
 			this.slider.customOnChange = (amount) => {
@@ -280,6 +282,10 @@ export function register_components(runtime) {
 			return parseInt(this.getAttribute('data-max') ?? game.bank.getQty(game.items.getObjectByID(item_id)));
 		}
 
+		getMin() {
+			return parseInt(this.getAttribute('data-min') ?? 0);
+		}
+
 		set_max() {
 			this.slider?.setSliderPosition(Infinity);
 		}
@@ -288,19 +294,26 @@ export function register_components(runtime) {
 			if (this.slider === null)
 				return;
 
+			const min = this.getMin();
 			const max = this.getMax();
 
 			this.slider.sliderMax = max;
-			this.slider.sliderMin = 0;
+			this.slider.sliderMin = min;
 
 			this.slider.sliderInstance.update({
-				min: 0,
+				min,
 				max: max
 			});
+
+			const current_value = Number(state.item_slider_value);
+			if (!Number.isFinite(current_value) || current_value < min || current_value > max) {
+				state.item_slider_value = min;
+				this.value_input.value = min;
+			}
 		}
 
 		static get observedAttributes() {
-			return ['data-item-id', 'data-max'];
+			return ['data-item-id', 'data-min', 'data-max'];
 		}
 
 		disconnectedCallback() {

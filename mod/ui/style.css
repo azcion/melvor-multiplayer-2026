@@ -26,6 +26,10 @@ input.form-control[type="text"] {
 	outline: 1px solid white;
 }
 
+input.form-control[type="number"] {
+	outline: 1px solid #fff7;
+}
+
 .mp-modal-tray {
 	display: flex;
 	justify-content: center;
@@ -68,6 +72,16 @@ input.form-control[type="text"] {
 	padding: 3px 5px;
 	font-weight: 700 !important;
 	text-align: center;
+}
+
+.mp-guild-nav:not(.mp-nav-ready),
+.mp-chat-nav:not(.mp-nav-ready),
+.mp-raid-nav:not(.mp-nav-ready),
+.mp-charity-nav:not(.mp-nav-ready),
+.mp-campaign-nav:not(.mp-nav-ready),
+.mp-transfer-nav:not(.mp-nav-ready),
+.mp-updates-nav:not(.mp-nav-ready) {
+	display: none;
 }
 
 .mp-chat-nav,
@@ -817,6 +831,8 @@ input.form-control[type="text"] {
 
 .mp-guild-member-last-seen {
 	font-size: 10px !important;
+	margin-left: auto;
+	text-align: right;
 }
 
 .mp-guild-member-content,
@@ -917,7 +933,7 @@ input.form-control[type="text"] {
 }
 
 .mp-member-actions-rule {
-	width: 70%;
+	width: 85%;
 	margin: 0 auto;
 	border-color: rgba(255, 255, 255, 0.2);
 }
@@ -1815,7 +1831,7 @@ mp-item-icon.mp-charitree-new-item {
 	gap: 5px;
 }
 
-.mp-market-search-result  {
+.mp-market-search-result {
 	background: var(--mp-element-bg);
 	color: #f5f5f5!important;
 	box-shadow: 0 1px 2px rgb(33 34 35/50%),0 1px 2px rgb(26 26 27/50%)!important;
@@ -1823,11 +1839,11 @@ mp-item-icon.mp-charitree-new-item {
 	width: 100%;
 	padding: 10px;
 	display: grid;
-	grid-template-columns: 1fr 1fr 1fr 1fr auto;
+	grid-template-columns: 1fr .5fr .5fr .5fr auto;
 }
 
 .mp-market-listing-result {
-	grid-template-columns: repeat(6, minmax(0, 1fr));
+	grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .mp-market-item-icon {
@@ -2072,10 +2088,6 @@ mp-item-icon.mp-charitree-new-item {
 		justify-content: flex-end;
 	}
 
-	.mp-market-item-bar {
-		margin: 0;
-	}
-
 	#mp-market-pagation {
 		flex-wrap: wrap;
 		gap: 5px;
@@ -2084,34 +2096,6 @@ mp-item-icon.mp-charitree-new-item {
 	#mp-market-pagation .btn {
 		margin: 0 !important;
 	}
-}
-
-.mp-market-item-bar {
-	height: 20px;
-	border: 1px solid #777777;
-	background: rgba(0, 0, 0, 0.306);
-	border-radius: 5px;
-	width: 100%;
-	margin: 0 20px;
-}
-
-.mp-market-item-bar-fill {
-	height: 100%;
-	position: relative;
-	background: orange;
-}
-
-.mp-market-item-bar-fill.complete {
-	background: green;
-}
-
-.mp-market-item-bar-fill::before {
-	content: '';
-	position: absolute;
-	top: 50%;
-	height: 50%;
-	width: 100%;
-	background: rgba(0, 0, 0, 0.14);
 }
 
 .mp-guild-required {
@@ -2325,6 +2309,53 @@ mp-item-icon.mp-charitree-new-item {
 	height: 1px;
 }
 
+.mp-transfer-haggle-title {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.mp-transfer-haggle-title > span {
+	min-width: 0;
+}
+
+.mp-transfer-haggle-title .skill-icon-xs {
+	margin-right: 4px;
+}
+
+.mp-transfer-haggle-meta {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	margin-top: 10px;
+}
+
+.mp-transfer-haggle-value {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	white-space: nowrap;
+}
+
+.mp-transfer-haggle-status {
+	text-align: right;
+}
+
+.mp-transfer-haggle-claim {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 4px 10px;
+	padding: 12px 16px;
+	border-top: 1px solid rgba(128, 128, 128, .25);
+	color: #f5c542;
+}
+
+.mp-transfer-haggle-claim .mp-market-item-label {
+	margin-right: 0 !important;
+}
+
 @media (max-width: 767.98px) {
 	.mp-transfers-tabs {
 		display: grid;
@@ -2369,6 +2400,10 @@ mp-item-icon.mp-charitree-new-item {
 
 	.mp-transfers-mobile-hidden {
 		display: none !important;
+	}
+
+	.mp-transfer-haggle-meta {
+		gap: 8px;
 	}
 
 	.mp-updates-tabs {

@@ -43,6 +43,11 @@ export function register_general_routes(): void {
 			economy_receipts: pending_economy_receipts(client_id),
 			campaign: await get_campaign_progress(client_id),
 			market_completed: await get_market_completed(client_id),
+			haggle_pending: (db.query<{ count: number }, [number, number, number]>(
+				'SELECT COUNT(*) AS `count` FROM `market_haggles` WHERE (`initiator_id` = ? OR `owner_id` = ?) ' +
+				'AND (`status` = \'active\' OR EXISTS(SELECT 1 FROM `market_haggle_claims` AS claim ' +
+				'WHERE claim.`haggle_id` = `market_haggles`.`id` AND claim.`client_id` = ? AND claim.`claimed_at` IS NULL))'
+			).get(client_id, client_id, client_id)?.count ?? 0),
 			banishment_return_pending: await db_exists(
 				'SELECT 1 FROM `banishment_returns` WHERE `client_id` = ? AND `completed_at` IS NULL LIMIT 1',
 				[client_id]

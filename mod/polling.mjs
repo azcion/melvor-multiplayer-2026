@@ -23,6 +23,7 @@ export function has_pending_events(events) {
 		(events.resolved_trades?.length ?? 0) > 0 ||
 		(events.economy_receipts?.length ?? 0) > 0 ||
 		(events.market_completed?.length ?? 0) > 0 ||
+		(events.haggle_pending ?? 0) > 0 ||
 		events.banishment_return_pending === true ||
 		events.inbox_pending === true ||
 		(events.chat_unread ?? 0) > 0;

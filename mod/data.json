@@ -345,7 +345,7 @@
 					"categoryID": "Multiplayer",
 					"icon": "assets/raid_plant_t1.png",
 					"asideClass": "badge mp-raid-nav",
-					"aside": ""
+					"aside": "0"
 				}
 			},
 			{

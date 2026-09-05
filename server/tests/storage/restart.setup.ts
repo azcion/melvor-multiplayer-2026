@@ -192,7 +192,7 @@ test('creates representative state before a server restart', async () => {
 	const installation_key = crypto.randomUUID();
 	const installed = await post_json<{ client_identifier: string; session_token: string }>('/api/register', {
 		client_key: crypto.randomUUID(), display_name: 'Restart Install',
-		client_runtime: { mod_version: '1.4.5', active_mods: [], device: { installation_id, platform: 'android', app_channel: 'beta' } }
+		client_runtime: { mod_version: '1.5.1', active_mods: [], device: { installation_id, platform: 'android', app_channel: 'beta' } }
 	});
 	const enrolled = await post_json<{ success: boolean }>('/api/installations/enroll', { installation_id, installation_key }, installed.json.session_token);
 	expect(enrolled.json.success).toBe(true);

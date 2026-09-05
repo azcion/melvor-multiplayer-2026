@@ -62,7 +62,7 @@ test('routes Multiplayer sidebar page names and text badges through localization
 	assert.equal(pages.find(page => page.id === 'Campaign_Effort').sidebarItem.asideLangID,
 		'MOD_MP_SIDEBAR_CAMPAIGN_INACTIVE');
 	const raid_page = pages.find(page => page.id === 'Guild_Raid');
-	assert.equal(raid_page.sidebarItem.aside, '');
+	assert.equal(raid_page.sidebarItem.aside, '0');
 	assert.equal(raid_page.sidebarItem.asideLangID, undefined);
 	assert.deepEqual(Object.keys(MULTIPLAYER_PAGE_LANG_IDS), pages.map(page => page.id));
 });

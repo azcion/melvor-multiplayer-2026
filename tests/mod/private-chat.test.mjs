@@ -57,7 +57,11 @@ test('mirrors the shared unread count on the mobile sidebar button without dupli
 	const state = { chat_unread: 4 };
 	const nodes = new Map();
 	let append_count = 0;
-	const aside = { textContent: '', hidden: true };
+	const aside = { textContent: '', hidden: true, classList: {
+		toggle(class_name, enabled) {
+			this[class_name] = enabled;
+		}
+	} };
 	const sidebar_button = {
 		querySelector: selector => selector === '#mp-chat-header-unread' ? nodes.get('mp-chat-header-unread') ?? null : null,
 		append: badge => {
@@ -71,6 +75,9 @@ test('mirrors the shared unread count on the mobile sidebar button without dupli
 		createElement: tag => ({ tag, id: '', className: '', hidden: false, textContent: '', attributes: {}, setAttribute(name, value) { this.attributes[name] = value; } })
 	};
 	const { setup_mobile_sidebar_unread, update_chat_nav } = new Function('document', 'state', `
+		function set_nav_ready(aside, ready) {
+			aside.classList.toggle('mp-nav-ready', ready);
+		}
 		${functions}
 		return { setup_mobile_sidebar_unread, update_chat_nav };
 	`)(document, state);
@@ -95,6 +102,11 @@ test('mirrors the shared unread count on the mobile sidebar button without dupli
 
 test('implements jittered foreground conversation polling and cursor-based history', async () => {
 	const { main, templates } = await sources();
+	const chat_view = templates.slice(
+		templates.indexOf('<template id="template-mp-chat-page">'),
+		templates.indexOf('<template id="template-mp-profile-modal">')
+	);
+	const chat_messages = chat_view.slice(chat_view.indexOf('<div class="mp-chat-messages"'), chat_view.indexOf('<div class="block-content mp-chat-compose"'));
 
 	assert.match(main, /ctx\.loadModule\('polling\.mjs'\)/);
 	assert.match(main, /on_page_toggle\('mp-chat-page', is_visible =>/);
@@ -104,7 +116,8 @@ test('implements jittered foreground conversation polling and cursor-based histo
 	assert.match(main, /polling\.chat_poll_delay\(\)/);
 	assert.match(main, /finally \{[\s\S]*polling\.retry_poll_delay\(chat_poll_failures\)/);
 	assert.match(main, /state\.selected_chat_conversation\?\.conversation_id !== conversation_id/);
-	assert.match(templates, /MOD_MP_CHAT_LOAD_OLDER/);
+	assert.match(chat_messages, /<div class="block-content text-center" v-if="state\.chat_has_more">[\s\S]*MOD_MP_CHAT_LOAD_OLDER/);
+	assert.doesNotMatch(chat_view.slice(chat_view.indexOf('mp-chat-header'), chat_view.indexOf('mp-chat-messages')), /MOD_MP_CHAT_LOAD_OLDER/);
 	assert.match(templates, /role="log" aria-live="polite"/);
 });
 

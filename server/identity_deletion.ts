@@ -31,6 +31,35 @@ function add_deletion_return_item(database: Database, return_id: number, item_id
 	).run(return_id, item_id, qty);
 }
 
+function cancel_deleted_client_haggles(database: Database, client_id: number, now: number): void {
+	const haggles = database.query<db_row.market_haggles, [number, number]>(
+		'SELECT * FROM `market_haggles` WHERE `status` = \'active\' AND (`initiator_id` = ? OR `owner_id` = ?)'
+	).all(client_id, client_id);
+	for (const haggle of haggles) {
+		database.query(
+			'UPDATE `market_haggles` SET `status` = \'cancelled\', `turn_client_id` = NULL, `expires_at` = NULL, ' +
+			'`terminal_at` = ?, `updated_at` = ? WHERE `id` = ? AND `status` = \'active\''
+		).run(now, now, haggle.id);
+		if (haggle.listing_id !== null)
+			database.query(
+				'UPDATE `market_items` SET `available` = `available` + ?, `reserved` = `reserved` - ?, ' +
+				'`escrow_gp` = `escrow_gp` + ? WHERE `id` = ?'
+			).run(haggle.item_qty, haggle.item_qty, haggle.listing_reserved_gp, haggle.listing_id);
+		if (haggle.direction === 'sell')
+			database.query('INSERT OR IGNORE INTO `market_haggle_claims` (`haggle_id`, `client_id`, `gp`) VALUES(?, ?, ?)')
+				.run(haggle.id, haggle.initiator_id, haggle.payer_escrow_gp);
+		else {
+			database.query(
+				'INSERT OR IGNORE INTO `market_haggle_claims` (`haggle_id`, `client_id`, `item_id`, `item_qty`) VALUES(?, ?, ?, ?)'
+			).run(haggle.id, haggle.initiator_id, haggle.item_id, haggle.item_qty);
+			const extra_gp = Math.max(haggle.payer_escrow_gp - haggle.listing_reserved_gp, 0);
+			if (extra_gp > 0)
+				database.query('INSERT OR IGNORE INTO `market_haggle_claims` (`haggle_id`, `client_id`, `gp`) VALUES(?, ?, ?)')
+					.run(haggle.id, haggle.owner_id, extra_gp);
+		}
+	}
+}
+
 function hide_client_chat(database: Database, client_id: number) {
 	const conversations = database.query<{ id: number; latest_message_id: number }, [number, number]>(
 		'SELECT conversation.`id`, COALESCE(MAX(message.`id`), 0) AS `latest_message_id` ' +
@@ -71,6 +100,21 @@ export function execute_client_deletion(
 		target.display_name,
 		now
 	);
+	cancel_deleted_client_haggles(database, request.target_client_id, now);
+	const haggle_claims = database.query<db_row.market_haggle_claims, [number]>(
+		'SELECT * FROM `market_haggle_claims` WHERE `client_id` = ? AND `claimed_at` IS NULL'
+	).all(request.target_client_id);
+	let haggle_gp = 0;
+	for (const claim of haggle_claims) {
+		if (claim.item_id !== null)
+			add_deletion_return_item(database, target_return_id(), claim.item_id, claim.item_qty);
+		haggle_gp += claim.gp;
+		database.query('UPDATE `market_haggle_claims` SET `claimed_at` = ? WHERE `haggle_id` = ? AND `client_id` = ?')
+			.run(now, claim.haggle_id, request.target_client_id);
+	}
+	if (haggle_gp > 0)
+		database.query('UPDATE `client_deletion_returns` SET `gp` = `gp` + ? WHERE `id` = ?')
+			.run(haggle_gp, target_return_id());
 
 	const market_items = database.query<db_row.market_items, [number]>(
 		'SELECT * FROM `market_items` WHERE `client_id` = ?'
@@ -81,7 +125,7 @@ export function execute_client_deletion(
 			market_gp += item.escrow_gp;
 		else {
 			add_deletion_return_item(database, target_return_id(), item.item_id, item.available);
-			market_gp += Math.max((item.qty - item.available) * item.price - item.payout, 0);
+			market_gp += Math.max((item.qty - item.available - item.reserved - item.haggled) * item.price - item.payout, 0);
 		}
 	}
 	if (market_gp > 0)

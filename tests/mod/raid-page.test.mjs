@@ -70,7 +70,7 @@ test('registers and mounts the Guild Raid page as a first-class multiplayer view
 	assert.equal(page.containerID, 'mp-raid-page');
 	assert.equal(page.sidebarItem.asideClass, 'badge mp-raid-nav');
 	assert.equal(charitree.customName, 'MOD_MP_PAGE_CHARITREE');
-	assert.equal(page.sidebarItem.aside, '');
+	assert.equal(page.sidebarItem.aside, '0');
 	assert.equal(page.sidebarItem.asideLangID, undefined);
 	assert.equal(data.data.pages[data.data.pages.findIndex(entry => entry.id === 'Guild_Raid') + 1].id, 'Updates');
 	assert.match(style, /\.mp-raid-nav[\s\S]*background-color: #5b4aa1/);
@@ -83,7 +83,42 @@ test('registers and mounts the Guild Raid page as a first-class multiplayer view
 	assert.doesNotMatch(templates, /MOD_MP_RAID_FELLOWSHIP_EXCLUDED/);
 	assert.match(main, /on_page_toggle\('mp-raid-page'[\s\S]*Promise\.all\(\[get_client_events\(\), refresh_raid_state\(\)\]\)/);
 	assert.match(main, /aside\.textContent = active \? getLangString\('MOD_MP_SIDEBAR_RAID_ACTIVE'\) : ''/);
+	assert.match(main, /aside\.hidden = !active/);
 	assert.match(main, /update_raid_nav\(\)/);
+});
+
+test('keeps the Raid aside element mounted while hiding inactive state', async () => {
+	const function_start = main.indexOf('function update_raid_nav');
+	const function_source = main.slice(function_start, main.indexOf('\nasync function refresh_changelog', function_start));
+	const aside = { textContent: '0', hidden: false, classList: {
+		toggle(class_name, enabled) {
+			this[class_name] = enabled;
+		}
+	} };
+	const state = { raid: null };
+	const update_raid_nav = new Function('state', 'document', 'getLangString', `
+		function set_nav_ready(aside, ready) {
+			aside.classList.toggle('mp-nav-ready', ready);
+		}
+		${function_source}
+		return update_raid_nav;
+	`)(
+		state,
+		{ querySelector: selector => selector === '.mp-raid-nav' ? aside : null },
+		() => 'active'
+	);
+
+	update_raid_nav();
+	assert.equal(aside.textContent, '');
+	assert.equal(aside.hidden, true);
+	assert.equal(aside.classList['mp-nav-ready'], true);
+	assert.equal(aside.classList['mp-raid-active'], false);
+
+	state.raid = { active: true };
+	update_raid_nav();
+	assert.equal(aside.textContent, 'active');
+	assert.equal(aside.hidden, false);
+	assert.equal(aside.classList['mp-raid-active'], true);
 });
 
 test('namespaces the formatted-language custom element', () => {
@@ -108,8 +143,16 @@ test('wires reservation before combat and durable victory-cache reconciliation',
 test('renders all placeholder combat tiers and cooperative Raid state', () => {
 	assert.equal(data.data.monsters.filter(monster => monster.id.startsWith('Raid_Tier_')).length, 4);
 	assert.match(templates, /v-for="tier in \[1, 2, 3, 4\]"/);
-	assert.match(templates, /state\.raid\.remaining_health/);
-	assert.match(templates, /state\.raid\.leaderboard/);
+	assert.match(templates, /state\.raid\?\.remaining_health/);
+	assert.match(templates, /state\.raid\?\.leaderboard/);
+});
+
+test('keeps Raid overview bindings safe before the server state arrives', () => {
+	const raid_page = templates.slice(templates.indexOf('template-mp-raid-page'), templates.indexOf('template-mp-updates-page'));
+	for (const property of ['remaining_health', 'max_health', 'secured', 'active', 'expires_at', 'member', 'contribution_cap', 'leaderboard'])
+		assert.doesNotMatch(raid_page, new RegExp(`state\\.raid\\.${property}\\b`));
+	assert.match(raid_page, /state\.raid\?\.remaining_health/);
+	assert.match(raid_page, /state\.raid\?\.leaderboard/);
 });
 
 test('resolves the packaged Raid monster icon through the mod context', () => {
