@@ -126,8 +126,6 @@ test('migrates unscoped server state into the packaged server namespace once', (
 test('keeps every server-coupled character value behind instance storage', async () => {
 	const main = await read_client_source(root);
 	const server_scoped_keys = [
-		'charity_timeout',
-		'charity_bonus_timeout',
 		'pending_banishment_guild_name',
 		'processed_banishment_claim_ids',
 		'processed_inbox_claim_ids',

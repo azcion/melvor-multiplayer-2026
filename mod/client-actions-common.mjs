@@ -21,6 +21,7 @@ export function install_common_actions(runtime) {
 		game,
 		game_mode_sharing,
 		client_runtime,
+		multiplayer_pet_flare,
 		close_account_dropdown,
 		close_modal_and_wait,
 		getLangString,
@@ -61,8 +62,7 @@ export function install_common_actions(runtime) {
 
 		get_avatar_icon(id) {
 			const icon_object = get_icon_object_by_id(game.monsters, id) ??
-				get_icon_object_by_id(game.thieving?.actions, id) ??
-				get_icon_object_by_id(game.pets, id);
+				get_icon_object_by_id(game.thieving?.actions, id);
 			return icon_object?.media ?? 'assets/media/main/question.png';
 		},
 
@@ -229,8 +229,9 @@ export function install_common_actions(runtime) {
 		},
 
 		get_pet_icon(id) {
-			const pet = game.pets.getObjectByID(id);
-			return pet?.media ?? 'assets/media/main/question.png';
+			const pet_id = typeof id === 'string' && id.startsWith('multiplayer:') ? id.slice('multiplayer:'.length) : id;
+			const pet = multiplayer_pet_flare.get(pet_id);
+			return pet?.media ? ctx.getResourceUrl(pet.media) : 'assets/media/main/question.png';
 		},
 
 		close_modal() {

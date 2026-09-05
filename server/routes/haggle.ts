@@ -37,8 +37,8 @@ function terminate_active_haggle(haggle: db_row.market_haggles, status: 'cancell
 	if (restore_listing && haggle.listing_id !== null) {
 		db.query(
 			'UPDATE `market_items` SET `available` = `available` + ?, `reserved` = `reserved` - ?, ' +
-			'`escrow_gp` = `escrow_gp` + ? WHERE `id` = ?'
-		).run(haggle.item_qty, haggle.item_qty, haggle.listing_reserved_gp, haggle.listing_id);
+			'`escrow_gp` = `escrow_gp` + ?, `updated_at` = ? WHERE `id` = ?'
+		).run(haggle.item_qty, haggle.item_qty, haggle.listing_reserved_gp, now, haggle.listing_id);
 	}
 	market_completed_cached.delete(haggle.owner_id);
 	if (haggle.direction === 'sell')
@@ -163,8 +163,8 @@ export function register_haggle_routes(): void {
 				throw error;
 			}
 			db.query('UPDATE `market_items` SET `available` = `available` - ?, `reserved` = `reserved` + ?, ' +
-				'`escrow_gp` = `escrow_gp` - ? WHERE `id` = ?')
-				.run(item_qty, item_qty, listing_reserved_gp, lot.id);
+				'`escrow_gp` = `escrow_gp` - ?, `updated_at` = ? WHERE `id` = ?')
+				.run(item_qty, item_qty, listing_reserved_gp, now, lot.id);
 			market_completed_cached.delete(lot.client_id);
 			return { success: true, haggle_id: id, effects: lot.direction === 'sell'
 				? [{ storage: 'gp' as const, qty: -offered_total }]
@@ -235,8 +235,8 @@ export function register_haggle_routes(): void {
 			if (changed.changes === 0)
 				return { success: false, error_lang: 'MOD_MP_MARKET_HAGGLE_STALE' };
 			if (haggle.listing_id !== null)
-				db.query('UPDATE `market_items` SET `reserved` = `reserved` - ?, `haggled` = `haggled` + ? WHERE `id` = ?')
-					.run(haggle.item_qty, haggle.item_qty, haggle.listing_id);
+				db.query('UPDATE `market_items` SET `reserved` = `reserved` - ?, `haggled` = `haggled` + ?, `updated_at` = ? WHERE `id` = ?')
+					.run(haggle.item_qty, haggle.item_qty, now, haggle.listing_id);
 			market_completed_cached.delete(haggle.owner_id);
 			const buyer_id = haggle.direction === 'sell' ? haggle.initiator_id : haggle.owner_id;
 			const seller_id = haggle.direction === 'sell' ? haggle.owner_id : haggle.initiator_id;

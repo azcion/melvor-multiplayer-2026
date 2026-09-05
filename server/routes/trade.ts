@@ -20,7 +20,7 @@ export function register_trade_routes(): void {
 		const trade_protocol = db.query(
 			'SELECT `client_id`, `sender_id` FROM `resolved_trade_offers` WHERE `trade_id` = ? LIMIT 1'
 		).get(trade_id) as Pick<db_row.resolved_trade_offers, 'client_id' | 'sender_id'> | null;
-		if (participants_use_legacy_trade_protocol(req, trade_protocol ? [trade_protocol.client_id, trade_protocol.sender_id] : [])) {
+		if (participants_use_legacy_trade_protocol(trade_protocol ? [trade_protocol.client_id, trade_protocol.sender_id] : [])) {
 			const result = run_economy_command(client_id, json.command_id, 'trade-resolve', () => {
 				if (is_social_only_client(client_id))
 					return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
@@ -78,12 +78,14 @@ export function register_trade_routes(): void {
 			) as db_row.trade_offers;
 			if (!trade || trade.recipient_id !== client_id)
 				return { success: false };
+			const updated_at = Date.now();
 			for (const item of items)
 				db.query(
 					'INSERT INTO `trade_items` (trade_id, item_id, qty, counter) VALUES(?, ?, ?, 1)'
 				).run(trade_id, item.id, item.qty);
-			db.query('UPDATE `trade_offers` SET `state` = 1, `attending_id` = ? WHERE `trade_id` = ?').run(
+			db.query('UPDATE `trade_offers` SET `state` = 1, `attending_id` = ?, `updated_at` = ? WHERE `trade_id` = ?').run(
 				trade.sender_id,
+				updated_at,
 				trade_id
 			);
 			const cached_meta = trade_cache.get(trade_id);
@@ -106,7 +108,7 @@ export function register_trade_routes(): void {
 		const trade_protocol = db.query(
 			'SELECT `sender_id`, `recipient_id` FROM `trade_offers` WHERE `trade_id` = ? LIMIT 1'
 		).get(trade_id) as Pick<db_row.trade_offers, 'sender_id' | 'recipient_id'> | null;
-		if (participants_use_legacy_trade_protocol(req, trade_protocol ? [trade_protocol.sender_id, trade_protocol.recipient_id] : [])) {
+		if (participants_use_legacy_trade_protocol(trade_protocol ? [trade_protocol.sender_id, trade_protocol.recipient_id] : [])) {
 			const result = run_economy_command(client_id, json.command_id, 'trade-accept', () => {
 				if (is_social_only_client(client_id))
 					return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
@@ -118,11 +120,12 @@ export function register_trade_routes(): void {
 				const items = db.query(
 					'SELECT `item_id`, `qty` FROM `trade_items` WHERE `trade_id` = ? AND `counter` = 1'
 				).all(trade_id) as Array<{ item_id: string; qty: number }>;
+				const created_at = Date.now();
 				db.query('DELETE FROM `trade_items` WHERE `trade_id` = ? AND `counter` = 1').run(trade_id);
 				db.query('DELETE FROM `trade_offers` WHERE `trade_id` = ?').run(trade_id);
 				db.query(
-					'INSERT INTO `resolved_trade_offers` (trade_id, client_id, sender_id, declined) VALUES(?, ?, ?, 0)'
-				).run(trade_id, trade.recipient_id, trade.sender_id);
+					'INSERT INTO `resolved_trade_offers` (trade_id, client_id, sender_id, declined, created_at) VALUES(?, ?, ?, 0, ?)'
+				).run(trade_id, trade.recipient_id, trade.sender_id, created_at);
 				trade_cache.delete(trade_id);
 				remove_player_cache_entry(trade_player_cache, trade.sender_id, trade_id);
 				remove_player_cache_entry(trade_player_cache, trade.recipient_id, trade_id);
@@ -168,7 +171,7 @@ export function register_trade_routes(): void {
 		const trade_protocol = db.query(
 			'SELECT `sender_id`, `recipient_id` FROM `trade_offers` WHERE `trade_id` = ? LIMIT 1'
 		).get(trade_id) as Pick<db_row.trade_offers, 'sender_id' | 'recipient_id'> | null;
-		if (participants_use_legacy_trade_protocol(req, trade_protocol ? [trade_protocol.sender_id, trade_protocol.recipient_id] : [])) {
+		if (participants_use_legacy_trade_protocol(trade_protocol ? [trade_protocol.sender_id, trade_protocol.recipient_id] : [])) {
 			const result = db.transaction(() => {
 				if (is_social_only_client(client_id))
 					return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' } as const;
@@ -180,10 +183,11 @@ export function register_trade_routes(): void {
 					return null;
 				if (trade.state === 1)
 					db.query('DELETE FROM `trade_items` WHERE `trade_id` = ? AND `counter` = 1').run(trade_id);
+				const created_at = Date.now();
 				db.query(
-					'INSERT INTO `resolved_trade_offers` (`trade_id`, `client_id`, `sender_id`, `declined`) ' +
-					'VALUES(?, ?, ?, 1)'
-				).run(trade_id, trade.sender_id, trade.recipient_id);
+					'INSERT INTO `resolved_trade_offers` (`trade_id`, `client_id`, `sender_id`, `declined`, `created_at`) ' +
+					'VALUES(?, ?, ?, 1, ?)'
+				).run(trade_id, trade.sender_id, trade.recipient_id, created_at);
 				db.query('DELETE FROM `trade_offers` WHERE `trade_id` = ?').run(trade_id);
 				return { success: true, trade } as const;
 			}).immediate();
@@ -238,7 +242,7 @@ export function register_trade_routes(): void {
 		const trade_protocol = db.query(
 			'SELECT `sender_id`, `recipient_id` FROM `trade_offers` WHERE `trade_id` = ? LIMIT 1'
 		).get(trade_id) as Pick<db_row.trade_offers, 'sender_id' | 'recipient_id'> | null;
-		if (participants_use_legacy_trade_protocol(req, trade_protocol ? [trade_protocol.sender_id, trade_protocol.recipient_id] : [])) {
+		if (participants_use_legacy_trade_protocol(trade_protocol ? [trade_protocol.sender_id, trade_protocol.recipient_id] : [])) {
 			const result = db.transaction(() => {
 				if (is_social_only_client(client_id))
 					return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' } as const;
@@ -247,11 +251,12 @@ export function register_trade_routes(): void {
 				) as db_row.trade_offers;
 				if (!trade || trade.recipient_id !== client_id)
 					return null;
+				const created_at = Date.now();
 				db.query('DELETE FROM `trade_offers` WHERE `trade_id` = ?').run(trade_id);
 				db.query(
-					'INSERT INTO `resolved_trade_offers` (`trade_id`, `client_id`, `sender_id`, `declined`) ' +
-					'VALUES(?, ?, ?, 1)'
-				).run(trade_id, trade.sender_id, trade.recipient_id);
+					'INSERT INTO `resolved_trade_offers` (`trade_id`, `client_id`, `sender_id`, `declined`, `created_at`) ' +
+					'VALUES(?, ?, ?, 1, ?)'
+				).run(trade_id, trade.sender_id, trade.recipient_id, created_at);
 				return { success: true, trade } as const;
 			}).immediate();
 			if (result === null)
@@ -316,9 +321,10 @@ export function register_trade_routes(): void {
 			).get(client_id, recipient_id);
 			if (exists !== null)
 				return { success: false, error_lang: 'MOD_MP_TRADE_EXISTS' };
+			const created_at = Date.now();
 			const inserted = db.query(
-				'INSERT INTO `trade_offers` (sender_id, recipient_id, attending_id) VALUES(?, ?, ?) RETURNING `trade_id`'
-			).get(client_id, recipient_id, recipient_id) as { trade_id: number };
+				'INSERT INTO `trade_offers` (sender_id, recipient_id, attending_id, created_at, updated_at) VALUES(?, ?, ?, ?, ?) RETURNING `trade_id`'
+			).get(client_id, recipient_id, recipient_id, created_at, created_at) as { trade_id: number };
 			for (const item of items)
 				db.query(
 					'INSERT INTO `trade_items` (trade_id, item_id, qty, counter) VALUES(?, ?, ?, 0)'

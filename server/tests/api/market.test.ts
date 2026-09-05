@@ -3,7 +3,7 @@ import { get_events, make_guildmates, register_guild_client } from '../support/f
 import { get_json_with_session, post, post_json } from '../support/http';
 import type { RegisteredClient } from '../support/http';
 import { wait_for } from '../support/wait';
-import { db_run } from '../support/persistence';
+import { db_all, db_run } from '../support/persistence';
 
 type MarketListing = {
 	id: number;
@@ -583,13 +583,14 @@ describe('market API', () => {
 		expect(exact_second_page.json.items[0].price).toBe(1);
 	});
 
-	test('sorts recent listings by their original publish date', async () => {
+	test('sorts recent listings by their last update date', async () => {
 		const pair = await make_guildmates('Recent Market Seller', 'Recent Market Buyer');
 		const [seller, buyer] = [pair.first, pair.second];
 		await post_json('/api/market/sell', {
 			item_id: 'melvorD:Recent_Market_First', item_qty: 1, item_sell_price: 5
 		}, seller.session_token);
 		const first = await wait_for_listing(seller, 'melvorD:Recent_Market_First');
+		await db_run('UPDATE `market_items` SET `updated_at` = 1 WHERE `id` = ?', [first.id]);
 		await new Promise(resolve => setTimeout(resolve, 5));
 		await post_json('/api/market/sell', {
 			item_id: 'melvorD:Recent_Market_Second', item_qty: 1, item_sell_price: 6
@@ -604,7 +605,11 @@ describe('market API', () => {
 			sort: 'recent', page: 1
 		}, buyer.session_token);
 
-		expect(recent.json.items.slice(0, 2).map(item => item.id)).toEqual([second.id, first.id]);
+		const first_timestamps = await db_all<{ published_at: number; updated_at: number | null }>(
+			'SELECT `published_at`, `updated_at` FROM `market_items` WHERE `id` = ?', [first.id]
+		);
+		expect(recent.json.items.slice(0, 2).map(item => item.id)).toEqual([first.id, second.id]);
+		expect(first_timestamps[0]?.updated_at).toBeGreaterThan(1);
 	});
 
 	test('destroys an owner listing into a non-bank return and pays accrued profit', async () => {

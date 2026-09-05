@@ -22,6 +22,10 @@ export function get_transfer_currency(game, currency_id) {
 	return get_transfer_currencies(game).find(({ id }) => id === currency_id) ?? null;
 }
 
+export function get_transfer_currency_for_currency(game, currency) {
+	return get_transfer_currencies(game).find(({ currency: supported_currency }) => supported_currency === currency) ?? null;
+}
+
 export function is_transfer_currency(game, currency_id) {
 	return get_transfer_currency(game, currency_id) !== null;
 }

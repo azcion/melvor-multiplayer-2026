@@ -1702,16 +1702,25 @@
 		<div class="block block-rounded p-4 mp-guild-required">
 			<lang-string lang-id="MOD_MP_GUILD_REQUIRED_INFO"></lang-string>
 		</div>
-		<div class="block block-rounded p-4" v-show="state.is_guild_member && !state.is_charitree_enabled">
+		<div class="block block-rounded p-4" v-show="state.is_guild_member && !state.charity_server_supported">
+			<lang-string lang-id="MOD_MP_CHARITY_SERVER_UNSUPPORTED"></lang-string>
+		</div>
+		<div class="block block-rounded p-4" v-show="state.is_guild_member && state.charity_server_supported && !state.is_charitree_enabled">
 			<lang-string lang-id="MOD_MP_CHARITY_DISABLED_INFO"></lang-string>
 		</div>
-		<div class="row row-deck gutters-tiny" v-show="state.is_charitree_enabled">
+		<div class="row row-deck gutters-tiny" v-show="state.charity_server_supported && state.is_charitree_enabled">
 			<div class="block block-rounded block-link-pop border-top mp-charity-border border-4x w-100">
 				<div class="row row-deck gutters-tiny">
 					<div class="p-3 mp-transfer-info">
-						<img class="skill-icon-xxs mr-1" :src="state.get_svg('charity_tree')">
 						<div class="mp-charitree-window-copy">
-							<lang-string lang-id="MOD_MP_CHARITY_WINDOW_INFO"></lang-string>
+							<p class="mb-2"><strong><lang-string lang-id="MOD_MP_CHARITY_INFO_ONCE_PER_DAY"></lang-string></strong><lang-string lang-id="MOD_MP_CHARITY_INFO_INTRO"></lang-string></p>
+							<ul class="mb-2">
+								<li><lang-string lang-id="MOD_MP_CHARITY_INFO_PICK_PREFIX"></lang-string><strong><lang-string lang-id="MOD_MP_CHARITY_INFO_CURRENT_BALANCE"></lang-string></strong><lang-string lang-id="MOD_MP_CHARITY_INFO_CURRENCY_SUFFIX"></lang-string></li>
+								<li><lang-string lang-id="MOD_MP_CHARITY_INFO_LARGE_STACK"></lang-string></li>
+								<li><lang-string lang-id="MOD_MP_CHARITY_INFO_NEW_PREFIX"></lang-string><lang-string lang-id="MOD_MP_CHARITY_INFO_NEW" style="border-radius: 5px;outline: 2px solid rgb(45 210 75);box-shadow: 0 0 8px 2px rgb(45 210 75 / 75%);padding: 0 .25rem;"></lang-string><lang-string lang-id="MOD_MP_CHARITY_INFO_NEW_SUFFIX"></lang-string></li>
+								<li><lang-string lang-id="MOD_MP_CHARITY_INFO_LEAVES"></lang-string></li>
+								<li><lang-string lang-id="MOD_MP_CHARITY_INFO_DECAY_PREFIX"></lang-string><strong><lang-string lang-id="MOD_MP_CHARITY_INFO_FOUR_DAYS"></lang-string></strong><lang-string lang-id="MOD_MP_CHARITY_INFO_DECAY_SUFFIX"></lang-string></li>
+							</ul>
 							<div class="mt-2 font-w600 text-success" v-show="state.can_take_charity">
 								<lang-string lang-id="MOD_MP_CHARITY_OPPORTUNITY_READY"></lang-string>
 							</div>
@@ -1722,21 +1731,14 @@
 					</div>
 				</div>
 			</div>
-			<div class="block block-rounded block-link-pop w-100" v-if="state.charity_bonus_unlocked">
-				<div class="row row-deck gutters-tiny">
-					<div class="p-3 mp-transfer-info">
-						<img class="skill-icon-xxs mr-1" :src="state.get_svg('pet_charity_spirit')">
-						<lang-string lang-id="MOD_MP_CHARITY_PET_INFO"></lang-string>
-					</div>
-				</div>
-			</div>
 			<div class="block tabbable w-100 mp-col">
 				<template v-if="state.charity_tree_inventory.length > 0 && !state.charity_tree_loading">
 					<div class="block-content">
 						<div class="pb-4 row">
-							<mp-item-icon v-for="item of state.charity_tree_inventory" class="bank-item pointer-enabled m-2" :class="{ 'mp-charitree-new-item': !state.is_charity_item_discovered(item.id) }" :data-item-id="item.id" :key="item.id" @click="state.selected_charity_item_id = item.id">
+							<template v-for="item of state.charity_tree_inventory">
+							<mp-item-icon v-if="!state.get_charity_leaf_coverage(item).covered" class="bank-item pointer-enabled m-2 mp-charitree-item" :class="{ 'mp-charitree-new-item': !state.is_charity_item_discovered(item.id) }" :data-item-id="item.id" @click="state.selected_charity_item_id = item.id">
 								<a role="button">
-									<img class="bank-img p-3" :src="state.get_item_icon(item.id)" :class="{ 'border border-4x border-success': state.selected_charity_item_id === item.id }">
+									<img class="bank-img mp-charitree-img" :src="state.get_item_icon(item.id)" :class="{ 'mp-charitree-border': state.selected_charity_item_id === item.id }">
 									<div class="font-size-sm text-white text-center in-bank">
 										<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
 									</div>
@@ -1744,11 +1746,25 @@
 									<div class="mp-charitree-lock" v-show="state.get_charity_take_block(item) === 'value_limit'"><i class="fa fa-lock" aria-hidden="true"></i></div>
 								</a>
 							</mp-item-icon>
+							<div v-else class="bank-item pointer-enabled m-2 mp-charitree-item mp-charitree-leaf" :class="[`mp-charitree-leaf-coverage-${state.get_charity_leaf_coverage(item).percentage}`, { 'mp-charitree-new-item': !state.is_charity_item_discovered(item.id) }]" @click="state.selected_charity_item_id = item.id">
+								<a role="button">
+									<img class="bank-img mp-charitree-img" src="https://cdn2-main.melvor.net/assets/media/bank/Golden_Leaf.png" :class="{ 'mp-charitree-border': state.selected_charity_item_id === item.id }">
+									<div class="font-size-sm text-white text-center in-bank">
+										<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
+									</div>
+									<div class="mp-charitree-timer"><mp-lang-string-f lang-id="MOD_MP_CHARITY_EXPIRES_IN" :lang-arg-1="state.format_charity_expiry(item.expires_at)"></mp-lang-string-f></div>
+									<div class="mp-charitree-lock" v-show="state.get_charity_take_block(item) === 'value_limit'"><i class="fa fa-lock" aria-hidden="true"></i></div>
+								</a>
+							</div>
+							</template>
 						</div>
 					</div>
 					<div class="p-3 mp-transfer-buttons">
 						<div class="text-danger mb-2" v-if="state.selected_charity_take_block">{{ state.get_charity_take_block_text(state.selected_charity_take_block) }}</div>
 						<div class="text-warning mb-2" v-if="state.selected_charity_take_warning">{{ state.selected_charity_take_warning }}</div>
+						<div class="mp-charitree-take-amount mb-2" v-if="state.selected_charity_item_id && state.selected_charity_take_block === null">
+							<mp-lang-string-f lang-id="MOD_MP_CHARITY_TAKE_AMOUNT" :lang-arg-1="state.selected_charity_take_amount"></mp-lang-string-f>
+						</div>
 						<button type="button" class="btn btn-success m-1" v-if="state.can_take_charity" :disabled="state.selected_charity_take_block !== null" @click="state.charity_take_item($event)">
 							<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 							<lang-string lang-id="MOD_MP_BUTTON_TAKE_SELECTED"></lang-string>

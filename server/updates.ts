@@ -9,7 +9,7 @@ const UPDATES_SECTIONS: UpdatesSection[] = [
 		id: 'dev-message',
 		title: 'Dev note',
 		paragraphs: [
-			"With the addition of the new Social Only Multiplayer experience, we're curious to see if anyone will actually prefer using it 🤔"
+			"It's a tree - it's gonna have leaves. 🍃"
 		]
 	},
 	{

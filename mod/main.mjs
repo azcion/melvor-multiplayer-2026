@@ -7,8 +7,6 @@ const UPDATES_LAST_SEEN_MOD_VERSION_KEY = 'updates_last_seen_mod_version';
 const LOCAL_MOD_CHARACTER_STORAGE_PREFIX = 'mp:local-character:';
 const LEGACY_LOCAL_MOD_CHARACTER_STORAGE_PREFIX = 'kru-melvor-multiplayer:local-character:';
 const SERVER_SCOPED_LEGACY_STORAGE_KEYS = [
-	'charity_timeout',
-	'charity_bonus_timeout',
 	'pending_banishment_guild_name',
 	'processed_banishment_claim_ids',
 	'processed_inbox_claim_ids',
@@ -36,8 +34,8 @@ const TRANSFER_INVENTORY_MAX_LIMIT = 6;
 const ECONOMY_RECEIPT_PAGE_SIZE = 64;
 const GIFT_FLAG_RETURNED = 1 << 0;
 
-const CHARITY_TIMEOUT = 1000 * 60 * 60 * 24; // 24 hours
 const CHARITY_CHECK_TIMEOUT = 10 * 1000; // 10 seconds
+const CHARITY_CLOCK_INTERVAL = 30 * 1000; // 30 seconds
 
 const MARKET_ITEMS_PER_PAGE = 30;
 const MARKET_FILTER_ITEMS_LIMIT = 24;
@@ -180,7 +178,7 @@ let charity_page_visible = false;
 let has_sorted_market_filter_items = false;
 let has_done_first_market_search = false;
 
-const skill_pets = new Map();
+const multiplayer_pet_flare = new Map();
 let active_mod_names = [];
 let loaded_game_mode_id = null;
 // #endregion
@@ -290,9 +288,12 @@ const state = ui.createStore({
 
 	charity_tree_inventory: [],
 	selected_charity_item_id: '',
-	charity_timeout: 0,
-	charity_bonus_timeout: 0,
-	charity_bonus_unlocked: false,
+	charity_server_supported: false,
+	charity_enabled: false,
+	charity_eligible: false,
+	charity_next_opportunity_timestamp: 0,
+	server_owned_pets: false,
+	owned_pet_ids: [],
 	charity_update_time: Date.now(),
 	charity_tree_loading: false,
 
@@ -443,12 +444,38 @@ const state = ui.createStore({
 				total_value += entry.qty;
 			} else if (!transfer_currency_support?.is_transfer_currency(game, entry.id)) {
 				const item = game.items.getObjectByID(entry.id);
-				if (item?.sellsFor.currency === game.gp)
-					total_value += game.bank.getItemSalePrice(item, entry.qty);
+				if (item?.sellsFor?.currency === game.gp) {
+					const value = game.bank.getItemSalePrice(item, entry.qty);
+					if (value > 0)
+						total_value += value;
+				}
 			}
 		}
 
 		return total_value;
+	},
+
+	get transfer_inventory_zero_gp_count() {
+		let count = 0;
+		for (const entry of this.transfer_inventory) {
+			if (entry.id === 'melvorD:GP' || transfer_currency_support?.is_transfer_currency(game, entry.id))
+				continue;
+			const item = game.items.getObjectByID(entry.id);
+			if (item !== undefined && !item.id.includes(':Summoning_Familiar_') &&
+				(item.sellsFor?.currency !== game.gp || game.bank.getItemSalePrice(item, entry.qty) <= 0))
+				count += entry.qty;
+		}
+		return count;
+	},
+
+	get transfer_inventory_currency_count() {
+		return this.transfer_inventory
+			.filter(entry => transfer_currency_support?.is_transfer_currency(game, entry.id))
+			.reduce((total, entry) => total + entry.qty, 0);
+	},
+
+	get transfer_inventory_donation_value() {
+		return this.transfer_inventory_value_raw + this.transfer_inventory_zero_gp_count + this.transfer_inventory_currency_count;
 	},
 
 	get transfer_inventory_value() {
@@ -679,24 +706,20 @@ const state = ui.createStore({
 	},
 
 	get is_charity_ready() {
-		return state.charity_timeout + CHARITY_TIMEOUT < state.charity_update_time;
+		return state.charity_enabled && (state.charity_eligible ||
+			(state.charity_next_opportunity_timestamp > 0 && state.charity_next_opportunity_timestamp <= state.charity_update_time));
 	},
 
 	get is_charity_bonus_ready() {
-		return state.charity_bonus_timeout + CHARITY_TIMEOUT < state.charity_update_time;
+		return false;
 	},
 
 	get can_take_charity() {
-		return this.is_charity_ready || (this.charity_bonus_unlocked && this.is_charity_bonus_ready);
+		return this.is_charity_ready;
 	},
 
 	get charity_next_opportunity_at() {
-		return charitree_rules.get_charitree_next_opportunity(
-			this.charity_timeout,
-			this.charity_bonus_timeout,
-			this.charity_bonus_unlocked,
-			CHARITY_TIMEOUT
-		);
+		return state.charity_next_opportunity_timestamp;
 	},
 
 	get charity_next_opportunity_formatted() {
@@ -709,6 +732,18 @@ const state = ui.createStore({
 	get selected_charity_take_block() {
 		const item = this.charity_tree_inventory.find(entry => entry.id === this.selected_charity_item_id);
 		return item === undefined ? null : this.get_charity_take_block(item);
+	},
+
+	get selected_charity_take_quantity() {
+		const item = this.charity_tree_inventory.find(entry => entry.id === this.selected_charity_item_id);
+		return item === undefined ? 0 : this.get_charity_take_quantity(item);
+	},
+
+	get selected_charity_take_amount() {
+		const item = this.charity_tree_inventory.find(entry => entry.id === this.selected_charity_item_id);
+		return item !== undefined && this.get_charity_take_quantity(item) === item.qty
+			? getLangString('MOD_MP_CHARITY_ENTIRE_STACK')
+			: formatNumber(this.selected_charity_take_quantity);
 	},
 
 	get selected_charity_take_warning() {
@@ -852,16 +887,19 @@ function create_action_runtime() {
 		GIFT_FLAG_RETURNED,
 		MARKET_ITEMS_PER_PAGE,
 		TRANSFER_INVENTORY_MAX_LIMIT,
+		multiplayer_pet_flare,
 		is_social_only: () => state.is_social_only,
 		game_mode_sharing,
 		client_runtime,
 		charitree_rules,
 		trade_returns,
+		transfer_currency_support,
 		transfer_inventory,
 		api_get,
 		api_post,
 		add_currency_to_transfer,
 		add_gp_to_transfer,
+		apply_charity_state,
 		is_transfer_currency: currency_id => transfer_currency_support?.is_transfer_currency(game, currency_id) === true,
 		claim_inbox,
 		capture_equipment_snapshot,
@@ -907,7 +945,6 @@ function create_action_runtime() {
 		return_selected_transfer_inventory,
 		schedule_equipment_sync,
 		schedule_status_sync,
-		set_instance_storage_item,
 		setup_guild_icons,
 		setup_icons,
 		show_button_spinner,
@@ -1666,6 +1703,25 @@ function set_instance_storage_item(key, value) {
 	set_character_storage_item(server_instance_storage_prefix + key, value);
 }
 
+function apply_charity_state(charity) {
+	if (charity === null || typeof charity !== 'object' || Array.isArray(charity) ||
+		typeof charity.enabled !== 'boolean' || typeof charity.eligible !== 'boolean' ||
+		!Number.isSafeInteger(charity.next_opportunity_at) || charity.next_opportunity_at < 0) {
+		state.charity_server_supported = false;
+		state.charity_enabled = false;
+		state.charity_eligible = false;
+		state.charity_next_opportunity_timestamp = 0;
+		state.charity_update_time = Date.now();
+		return;
+	}
+	state.charity_server_supported = true;
+	state.charity_enabled = charity.enabled === true;
+	state.charity_eligible = charity.eligible === true;
+	state.charity_next_opportunity_timestamp = Number.isSafeInteger(charity.next_opportunity_at) &&
+		charity.next_opportunity_at >= 0 ? charity.next_opportunity_at : 0;
+	state.charity_update_time = Date.now();
+}
+
 function remove_instance_storage_item(key) {
 	remove_character_storage_item(server_instance_storage_prefix + key);
 }
@@ -2007,6 +2063,8 @@ async function update_campaign_info(force_reload = false) {
 			state.campaign_has_data = true;
 			state.campaign_history = res.history;
 			state.campaign_rankings = res.rankings;
+			if (Array.isArray(res.owned_pet_ids))
+				state.owned_pet_ids = res.owned_pet_ids;
 
 			if (res.active) {
 				state.campaign_id = res.campaign_id;
@@ -2018,25 +2076,11 @@ async function update_campaign_info(force_reload = false) {
 				state.campaign_next_timestamp = res.next_campaign;
 			}
 
-			check_campaign_pets();
 		} else {
 			notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 		}
 	} finally {
 		state.campaign_loading = false;
-	}
-}
-
-function check_campaign_pets() {
-	for (const [campaign_id, ranking] of Object.entries(state.campaign_rankings)) {
-		if (ranking < 4)
-			continue;
-
-		const campaign_data = state.campaign_data[campaign_id];
-		const pet = game.pets.getObjectByID(campaign_data.pet);
-
-		if (!game.petManager.unlocked.has(pet))
-			game.petManager.unlockPetByID(campaign_data.pet);
 	}
 }
 
@@ -2186,26 +2230,8 @@ function update_multiplayer_nav() {
 // #region PET FUNCTIONS
 async function load_pets(ctx) {
 	const pets = await ctx.loadData('data/pets.json');
-	
-	ctx.gameData.buildPackage(pkg => {
-		for (const pet of pets) {
-			pet.name = getLangString(pet.name);
-			pet.hint = getLangString(pet.hint);
-
-			pkg.pets.add(pet);
-		}
-	}).add();
-
-	// Providing customDescription to pets does not appear to work, so we hack it in.
-	for (const pet of pets) {
-		const pet_obj = game.pets.getObjectByID('multiplayer:' + pet.id);
-		pet_obj._customDescription = getLangString(pet.customDescription);
-		skill_pets.set(pet.id, pet_obj);
-	}
-}
-
-function has_pet_by_id(pet_id) {
-	return game.petManager.unlocked.has(skill_pets.get(pet_id));
+	for (const pet of pets)
+		multiplayer_pet_flare.set(pet.id, { ...pet });
 }
 // #endregion
 
@@ -2256,7 +2282,7 @@ function set_charity_page_visible(is_visible) {
 	if (!charity_page_visible)
 		return;
 	update_charity_clock();
-	charity_clock_timer = setInterval(update_charity_clock, 1000);
+	charity_clock_timer = setInterval(update_charity_clock, CHARITY_CLOCK_INTERVAL);
 }
 // #endregion
 
@@ -3251,6 +3277,7 @@ async function refresh_guild_state_request() {
 		}
 
 		state.guild_state = res;
+		apply_charity_state(res.charity);
 		guild_state_refreshed_at = Date.now();
 		state.guild_state_loaded = true;
 		state.guild_client_id = res.current_client_id ?? null;
@@ -3854,10 +3881,6 @@ export async function setup(ctx) {
 		start_multiplayer_session();
 		load_transfer_inventory();
 
-		state.charity_timeout = get_instance_storage_item('charity_timeout') ?? 0;
-		state.charity_bonus_timeout = get_instance_storage_item('charity_bonus_timeout') ?? 0;
-
-		state.charity_bonus_unlocked = has_pet_by_id('Multiplayer_Pet_Charity');
 	});
 	ctx.onCharacterSelectionLoaded(() => {
 		set_charity_page_visible(false);
@@ -4070,7 +4093,6 @@ function setup_icons() {
 		const icon_objects = [
 			...get_icon_objects(game.monsters).map(icon => ({ icon, allow_multiplayer: false })),
 			...get_icon_objects(game.thieving?.actions).map(icon => ({ icon, allow_multiplayer: false })),
-			...get_icon_objects(game.pets).map(icon => ({ icon, allow_multiplayer: true }))
 		];
 		const seen = new Set();
 		state.available_icons = icon_objects
@@ -4399,6 +4421,13 @@ function activate_multiplayer_identity(response) {
 	state.guilds = [];
 	state.profile_display_name = response.display_name;
 	state.profile_icon = response.icon_id;
+	state.server_owned_pets = response.server_owned_pets === true;
+	state.owned_pet_ids = Array.isArray(response.owned_pet_ids) ? response.owned_pet_ids : [];
+	state.charity_enabled = false;
+	state.charity_eligible = false;
+	state.charity_next_opportunity_timestamp = 0;
+	state.charity_server_supported = false;
+	apply_charity_state(response.charity);
 	state.social_mode = social_mode.normalize_social_mode(response.social_mode);
 	set_instance_storage_item('social_mode', state.social_mode);
 	state.equipment_visible = response.equipment_visible !== false;

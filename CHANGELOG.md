@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.5.3
+
+- Moved Multiplayer pets out of Melvor's native Pets and Completion systems into server-owned, per-identity Multiplayer presentation.
+- Recalculated Campaign pet ownership from four completed Campaigns and moved Campaign rewards to server-side 10x or 15x calculations.
+- Reset Charitree pet ownership, moved future Charitree rolls server-side without a current bonus, and disabled the second daily take flow for updated clients.
+- Combined GP, supported currency, and eligible zero-GP donation values client-side before sending Charitree donations.
+- Fixed supported non-GP currencies, including Slayer Coins, being treated as new Charitree items and limited to a single claimed currency.
+- Simplified Charitree value limits to automatically claim up to half the player's current balance, with the selected quantity shown before claiming and new items limited to one.
+- Clarified that Charitree claims no longer mark items as discovered; items remain limited to one until discovered through a normal in-game source.
+- Applied Charitree value limits to supported non-GP currencies using the player's balance of the donated currency.
+- Added age-based mystery to Charitree offerings: leaves always conceal undiscovered items and can deterministically conceal discovered non-currency items, become less likely and change color as expiry approaches, and refresh the countdown only every 30 seconds.
+- Reduced the Charitree taking cooldown from 24 hours to 20 hours and the direct-join newcomer lock from 24 hours to 4 hours.
+- Clarified that leaves may conceal any item while it is far from expiring.
+
 ## 1.5.2
 
 - Added Marketplace Haggles for reserved Buy and Sell listing quantities, alternating GP-per-item counteroffers, 72-hour offer expiry, fully escrowed acceptance, and source-labelled claims that move settled or returned value into the Transfers Inbox.

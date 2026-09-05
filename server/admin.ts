@@ -32,8 +32,11 @@ function usage(output: AdminOutput): number {
   bun run admin.ts release-version VERSION|clear
   bun run admin.ts installation revoke CLIENT_ID INSTALLATION_ID
   bun run admin.ts guild inspect GUILD_ID
+  bun run admin.ts identity find DISPLAY_NAME
   bun run admin.ts identity inspect CLIENT_ID
-  bun run admin.ts identity enable|disable CLIENT_ID`);
+  bun run admin.ts identity enable|disable CLIENT_ID
+  bun run admin.ts charity reset CLIENT_ID
+  bun run admin.ts charity reset-all`);
 	return 2;
 }
 
@@ -195,6 +198,85 @@ function inspect_guild(guild_id: number, output: AdminOutput): number {
 	return 0;
 }
 
+function find_identities(display_name: string, output: AdminOutput): number {
+	const identities = db.query<{
+		id: number;
+		display_name: string;
+		guild_id: number | null;
+		guild_name: string | null;
+	}, [string]>(
+		'SELECT c.`id`, c.`display_name`, m.`guild_id`, g.`name` AS `guild_name` ' +
+		'FROM `clients` AS c ' +
+		'LEFT JOIN `guild_memberships` AS m ON m.`client_id` = c.`id` ' +
+		'LEFT JOIN `guilds` AS g ON g.`id` = m.`guild_id` ' +
+		'WHERE c.`display_name` = ? ORDER BY c.`id` LIMIT 32'
+	).all(display_name);
+	output.log(`identities=${JSON.stringify(identities.map(identity => ({
+		id: identity.id,
+		display_name: identity.display_name,
+		guild_id: identity.guild_id,
+		guild_name: identity.guild_name
+	})))}`);
+	return 0;
+}
+
+function reset_charity_timers(client_id: number, output: AdminOutput): number {
+	const result = db.transaction(() => {
+		const identity = db.query<{
+			id: number;
+			display_name: string;
+			last_charity: number;
+			last_bonus_charity: number;
+			charitree_take_available_at: number | null;
+		}, [number]>(
+			'SELECT c.`id`, c.`display_name`, c.`last_charity`, c.`last_bonus_charity`, ' +
+			'm.`charitree_take_available_at` ' +
+			'FROM `clients` AS c LEFT JOIN `guild_memberships` AS m ON m.`client_id` = c.`id` ' +
+			'WHERE c.`id` = ? LIMIT 1'
+		).get(client_id);
+		if (identity === null)
+			return null;
+
+		db.query('UPDATE `clients` SET `last_charity` = 0, `last_bonus_charity` = 0 WHERE `id` = ?').run(client_id);
+		db.query('UPDATE `guild_memberships` SET `charitree_take_available_at` = 0 WHERE `client_id` = ?').run(client_id);
+		return identity;
+	}).immediate();
+
+	if (result === null) {
+		output.error(`Multiplayer identity ${client_id} does not exist.`);
+		return 1;
+	}
+
+	output.log(`identity_id=${result.id}`);
+	output.log(`display_name=${JSON.stringify(result.display_name)}`);
+	output.log(`previous_last_charity=${result.last_charity}`);
+	output.log(`previous_last_bonus_charity=${result.last_bonus_charity}`);
+	output.log(`previous_charitree_take_available_at=${result.charitree_take_available_at ?? 'none'}`);
+	output.log('last_charity=0');
+	output.log('last_bonus_charity=0');
+	output.log('charitree_take_available_at=0');
+	return 0;
+}
+
+function reset_all_charity_timers(output: AdminOutput): number {
+	const result = db.transaction(() => {
+		const client_count = db.query<{ count: number }, []>(
+			' SELECT COUNT(*) AS `count` FROM `clients`'
+		).get()?.count ?? 0;
+		const membership_count = db.query<{ count: number }, []>(
+			' SELECT COUNT(*) AS `count` FROM `guild_memberships`'
+		).get()?.count ?? 0;
+
+		db.query('UPDATE `clients` SET `last_charity` = 0, `last_bonus_charity` = 0').run();
+		db.query('UPDATE `guild_memberships` SET `charitree_take_available_at` = 0').run();
+		return { client_count, membership_count };
+	}).immediate();
+
+	output.log(`charity_clients_reset=${result.client_count}`);
+	output.log(`charity_memberships_reset=${result.membership_count}`);
+	return 0;
+}
+
 export function run_admin(args: string[], output: AdminOutput = console_output): number {
 	const [command, action, argument] = args;
 
@@ -271,9 +353,24 @@ export function run_admin(args: string[], output: AdminOutput = console_output):
 			const guild_id = parse_positive_integer(argument);
 			return guild_id === null ? usage(output) : inspect_guild(guild_id, output);
 		}
-		case 'identity': {
-			if (args.length !== 3 || !['inspect', 'enable', 'disable'].includes(action ?? ''))
+		case 'charity': {
+			if (action === 'reset-all' && args.length === 2)
+				return reset_all_charity_timers(output);
+			if (action !== 'reset' || args.length !== 3)
 				return usage(output);
+			const client_id = parse_positive_integer(argument);
+			return client_id === null ? usage(output) : reset_charity_timers(client_id, output);
+		}
+		case 'identity': {
+			if (args.length !== 3 || !['find', 'inspect', 'enable', 'disable'].includes(action ?? ''))
+				return usage(output);
+
+			if (action === 'find') {
+				if (typeof argument !== 'string' || argument.length === 0 || argument.length > 20)
+					return usage(output);
+				return find_identities(argument, output);
+			}
+
 			const client_id = parse_positive_integer(argument);
 			if (client_id === null)
 				return usage(output);

@@ -49,10 +49,24 @@ import { create_shutdown_handler } from './shutdown';
 import { is_shadowed, shadowed_cutoff } from './shadowed';
 import { AVAILABLE_CAMPAIGNS } from './campaign_data';
 import type { CampaignData, CampaignItemData } from './campaign_data';
+import { get_campaign_item_gp_value, get_campaign_item_gp_values } from './campaign_item_values';
 import { record_guild_activity } from './guild-activity';
 import type * as db_row from './db/types/db_types';
 import { BACKEND_VERSION } from './version';
 import { legacy_client_compatibility_response } from './legacy-client-compatibility';
+import { is_server_owned_pets_client } from './pet-compatibility';
+import {
+	CHARITY_PET_ID,
+	CAMPAIGN_PET_IDS,
+	MULTIPLAYER_PET_IDS,
+	get_campaign_pet_id,
+	get_owned_pet_ids,
+	grant_campaign_pet_if_eligible,
+	grant_charity_pet_if_rolled,
+	grant_pet,
+	get_charity_pet_chance,
+	has_owned_pet
+} from './pets';
 import {
 	CHAT_BUDGET_ENABLED,
 	CHAT_BUDGET_ERROR,
@@ -126,6 +140,7 @@ export { load_auth_response_delay, load_request_limit_configuration, RequestLimi
 export { create_shutdown_handler } from './shutdown';
 export { is_shadowed, shadowed_cutoff } from './shadowed';
 export { AVAILABLE_CAMPAIGNS } from './campaign_data';
+export { get_campaign_item_gp_value, get_campaign_item_gp_values } from './campaign_item_values';
 export { CHAT_BUDGET_ENABLED, CHAT_BUDGET_ERROR, CHAT_PRIVACY_ERROR, delete_conversation, delete_message, get_chat_state, get_unread_chat_count, list_conversations, list_messages, send_message, set_block, set_messaging_enabled, start_conversation } from './chat';
 export { get_support_unread_count, list_support_conversations, list_support_messages, reconcile_support_memberships, reconcile_support_team_memberships, send_support_message } from './support_chat';
 export { get_guild_chat_inbox, get_guild_chat_unread_count, has_guild_chat_capability, list_guild_chat_messages, send_guild_chat_message, set_guild_chat_enabled } from './guild_chat';
@@ -133,6 +148,19 @@ export { acknowledge_deletion_return_claim, associate_client_with_melvor_account
 export { acknowledge_economy_receipt, economy_item_effects, pending_economy_receipts, run_economy_command } from './economy';
 export { acknowledge_victory_cache, abandon_assault, activate_raid, get_raid_state, get_victory_cache, reserve_assault, settle_assault } from './raid';
 export { BACKEND_VERSION } from './version';
+export { is_server_owned_pets_client } from './pet-compatibility';
+export {
+	CHARITY_PET_ID,
+	CAMPAIGN_PET_IDS,
+	MULTIPLAYER_PET_IDS,
+	get_campaign_pet_id,
+	get_owned_pet_ids,
+	grant_campaign_pet_if_eligible,
+	grant_charity_pet_if_rolled,
+	grant_pet,
+	get_charity_pet_chance,
+	has_owned_pet
+} from './pets';
 
 
 // #region TYPES
@@ -274,7 +302,7 @@ export type GuildCapabilities = {
 export const FREE_FELLOWSHIP_TYPE: GuildType = 'free_fellowship';
 export const PUBLIC_GUILD_TYPE: GuildType = 'public';
 export const GUILD_MEMBER_PAGE_SIZE = 50;
-export const DIRECT_JOIN_CHARITREE_LOCK = 1000 * 60 * 60 * 24;
+export const DIRECT_JOIN_CHARITREE_LOCK = 1000 * 60 * 60 * 4;
 
 export const GUILD_CAPABILITIES: Record<GuildType, GuildCapabilities> = {
 	private: {
@@ -393,9 +421,78 @@ export const CACHE_RESET_INTERVAL = 1000 * 60 * 60 * 24; // 24 hours
 export const CLIENT_ACTIVITY_WRITE_INTERVAL = 1000 * 60 * 5; // 5 minutes
 
 // time between players taking charity items
-export const CHARITY_TIMEOUT = 1000 * 60 * 60 * 24; // 24 hours
+export const CHARITY_TIMEOUT = 1000 * 60 * 60 * 20; // 20 hours
 export const CHARITY_ITEM_LIFETIME = 1000 * 60 * 60 * 24 * 4; // 4 days
 export const CHARITY_MAINTENANCE_INTERVAL = 1000 * 60 * 60; // 1 hour
+
+export type CharityState = {
+	enabled: boolean;
+	eligible: boolean;
+	next_opportunity_at: number;
+};
+
+export function charity_state_from_values({
+	charitree_enabled,
+	social_only,
+	charitree_take_available_at,
+	last_charity,
+	last_bonus_charity,
+	server_owned_pets,
+	now = Date.now()
+}: {
+	charitree_enabled: boolean;
+	social_only: boolean;
+	charitree_take_available_at: number;
+	last_charity: number;
+	last_bonus_charity: number;
+	server_owned_pets: boolean;
+	now?: number;
+}): CharityState {
+	if (!charitree_enabled || social_only)
+		return { enabled: false, eligible: false, next_opportunity_at: 0 };
+
+	const normal_opportunity_at = last_charity + CHARITY_TIMEOUT;
+	const bonus_opportunity_at = server_owned_pets ? Number.POSITIVE_INFINITY : last_bonus_charity + CHARITY_TIMEOUT;
+	const next_opportunity_at = Math.max(
+		charitree_take_available_at,
+		Math.min(normal_opportunity_at, bonus_opportunity_at)
+	);
+	return {
+		enabled: true,
+		eligible: next_opportunity_at <= now,
+		next_opportunity_at: next_opportunity_at <= now ? 0 : next_opportunity_at
+	};
+}
+
+export async function get_client_charity_state(client_id: number, mod_version: string | null | undefined, now = Date.now()): Promise<CharityState> {
+	const row = await db_get_single(
+		' SELECT membership.`charitree_take_available_at`, guild.`charitree_enabled`, ' +
+		'client.`social_mode`, client.`last_charity`, client.`last_bonus_charity` ' +
+		'FROM `guild_memberships` AS membership ' +
+		'JOIN `guilds` AS guild ON guild.`id` = membership.`guild_id` ' +
+		'JOIN `clients` AS client ON client.`id` = membership.`client_id` ' +
+		'WHERE membership.`client_id` = ? LIMIT 1',
+		[client_id]
+	) as {
+		charitree_take_available_at: number;
+		charitree_enabled: number;
+		social_mode: SocialMode;
+		last_charity: number;
+		last_bonus_charity: number;
+	} | null;
+	if (row === null)
+		return { enabled: false, eligible: false, next_opportunity_at: 0 };
+
+	return charity_state_from_values({
+		charitree_enabled: row.charitree_enabled === 1,
+		social_only: row.social_mode === 'social',
+		charitree_take_available_at: row.charitree_take_available_at,
+		last_charity: row.last_charity,
+		last_bonus_charity: row.last_bonus_charity,
+		server_owned_pets: is_server_owned_pets_client(mod_version),
+		now
+	});
+}
 
 export const CAMPAIGN_RESTART_TIMER = 1000 * 60 * 60 * 12; // 12 hours
 
@@ -1006,8 +1103,8 @@ export function apply_banishment_target(
 			if (haggle.listing_id !== null)
 				db.query(
 					'UPDATE `market_items` SET `available` = `available` + ?, `reserved` = `reserved` - ?, ' +
-					'`escrow_gp` = `escrow_gp` + ? WHERE `id` = ?'
-				).run(haggle.item_qty, haggle.item_qty, haggle.listing_reserved_gp, haggle.listing_id);
+					'`escrow_gp` = `escrow_gp` + ?, `updated_at` = ? WHERE `id` = ?'
+				).run(haggle.item_qty, haggle.item_qty, haggle.listing_reserved_gp, now, haggle.listing_id);
 			if (haggle.direction === 'sell')
 				db.query('INSERT OR IGNORE INTO `market_haggle_claims` (`haggle_id`, `client_id`, `gp`) VALUES(?, ?, ?)')
 					.run(haggle.id, haggle.initiator_id, haggle.payer_escrow_gp);
@@ -1285,11 +1382,12 @@ maintain_client_deletions();
 
 // #region MARKET
 export async function market_list_item(guild_id: number, client_id: number, item_id: string, item_qty: number, item_sell_price: number) {
+	const updated_at = Date.now();
 	const lot = await db_get_single(
-		'INSERT INTO `market_items` (`guild_id`, `client_id`, `direction`, `item_id`, `qty`, `price`, `available`, `published_at`) VALUES(?, ?, \'sell\', ?, ?, ?, ?, ?) ' +
+		'INSERT INTO `market_items` (`guild_id`, `client_id`, `direction`, `item_id`, `qty`, `price`, `available`, `published_at`, `updated_at`) VALUES(?, ?, \'sell\', ?, ?, ?, ?, ?, ?) ' +
 		'ON CONFLICT (`guild_id`, `client_id`, `direction`, `item_id`, `price`) DO UPDATE SET `qty` = `qty` + excluded.`qty`, ' +
-		'`available` = `available` + excluded.`available` RETURNING `id`',
-		[guild_id, client_id, item_id, item_qty, item_sell_price, item_qty, Date.now()]
+		'`available` = `available` + excluded.`available`, `updated_at` = excluded.`updated_at` RETURNING `id`',
+		[guild_id, client_id, item_id, item_qty, item_sell_price, item_qty, updated_at, updated_at]
 	) as db_row.market_items;
 
 	if (lot !== null)
@@ -1417,7 +1515,8 @@ export function persist_campaign_completion(campaign: GuildCampaign): number | n
 	if (completed_id === 0)
 		return null;
 
-	const next_active_timestamp = Date.now() + CAMPAIGN_RESTART_TIMER;
+	const completed_at = Date.now();
+	const next_active_timestamp = completed_at + CAMPAIGN_RESTART_TIMER;
 	const completed = db.query(
 		'UPDATE `campaign_state` SET `complete` = 1, `campaign_next` = ? ' +
 		'WHERE `id` = ? AND `guild_id` = ? AND `complete` = 0 RETURNING `id`'
@@ -1427,14 +1526,19 @@ export function persist_campaign_completion(campaign: GuildCampaign): number | n
 
 	db.query(
 		'INSERT INTO `campaign_completions` ' +
-		'(`source_campaign_state_id`, `source_guild_id`, `client_id`, `campaign_id`, `item_id`, `item_amount`, `taken`) ' +
+		'(`source_campaign_state_id`, `source_guild_id`, `client_id`, `campaign_id`, `item_id`, `item_amount`, `taken`, `created_at`, `updated_at`) ' +
 		'SELECT state.`id`, state.`guild_id`, contribution.`client_id`, state.`campaign_id`, state.`item_id`, ' +
-		'contribution.`item_amount`, contribution.`taken` ' +
+		'contribution.`item_amount`, contribution.`taken`, ?, ? ' +
 		'FROM `campaign_contributions` AS contribution ' +
 		'JOIN `campaign_state` AS state ON state.`id` = contribution.`campaign_id` ' +
 		'WHERE state.`id` = ? AND state.`complete` = 1 ' +
 		'ON CONFLICT (`source_campaign_state_id`, `client_id`) DO NOTHING'
-	).run(completed_id);
+	).run(completed_at, completed_at, completed_id);
+	for (const row of db.query<{ client_id: number; campaign_id: string }, [number]>(
+		'SELECT `client_id`, `campaign_id` FROM `campaign_completions` ' +
+		'WHERE `source_campaign_state_id` = ?'
+	).all(completed_id))
+		grant_campaign_pet_if_eligible(row.client_id, row.campaign_id, completed_at);
 
 	return next_active_timestamp;
 }
@@ -2304,8 +2408,8 @@ export async function return_gift(gift: db_row.gifts) {
 	gift_cache.get(gift.sender_id)?.push(gift.gift_id);
 
 	await db_execute(
-		'UPDATE `gifts` SET `client_id` = ?, `sender_id` = ?, `flags` = `flags` | ? WHERE `gift_id` = ?',
-		[gift.sender_id, gift.client_id, GiftFlags.Returned, gift.gift_id]
+		'UPDATE `gifts` SET `client_id` = ?, `sender_id` = ?, `flags` = `flags` | ?, `updated_at` = ? WHERE `gift_id` = ?',
+		[gift.sender_id, gift.client_id, GiftFlags.Returned, Date.now(), gift.gift_id]
 	);
 }
 // #endregion
@@ -2351,8 +2455,8 @@ export async function get_trade_items(trade_id: number) {
 
 export async function create_resolved_trade(trade_id: number, client_id: number, sender_id: number, declined: boolean) {
 	await db_execute(
-		'INSERT INTO `resolved_trade_offers` (trade_id, client_id, sender_id, declined) VALUES(?, ?, ?, ?)',
-		[trade_id, client_id, sender_id, declined ? 1 : 0]
+		'INSERT INTO `resolved_trade_offers` (trade_id, client_id, sender_id, declined, created_at) VALUES(?, ?, ?, ?, ?)',
+		[trade_id, client_id, sender_id, declined ? 1 : 0, Date.now()]
 	);
 
 	resolved_trade_cache.get(client_id)?.push(trade_id);

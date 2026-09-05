@@ -23,6 +23,31 @@ async function get_charity_contents(session_token: string): Promise<CharityConte
 }
 
 describe('charity API', () => {
+	test('returns server-authoritative Charitree eligibility during save-load authentication and Guild refresh', async () => {
+		const client = await register_guild_client('Charity State', 'Charity State Guild', '1.5.3');
+		const last_charity = Date.now();
+		await db_run('UPDATE `clients` SET `last_charity` = ? WHERE `id` = ?', [last_charity, client.client_id]);
+
+		const authenticated = await post_json<{
+			session_token: string;
+			charity: { enabled: boolean; eligible: boolean; next_opportunity_at: number };
+		}>('/api/authenticate', {
+			client_identifier: client.client_identifier,
+			client_key: client.client_key,
+			client_runtime: { mod_version: '1.5.3', active_mods: [] }
+		});
+		expect(authenticated.response.status).toBe(200);
+		expect(authenticated.json.charity.enabled).toBe(true);
+		expect(authenticated.json.charity.eligible).toBe(false);
+		expect(authenticated.json.charity.next_opportunity_at).toBeGreaterThan(last_charity);
+		expect(authenticated.json.charity.next_opportunity_at - last_charity).toBe(20 * 60 * 60 * 1000);
+
+		const guild_state = await get_json_with_session<{
+			charity: { enabled: boolean; eligible: boolean; next_opportunity_at: number };
+		}>('/api/guilds/state', authenticated.json.session_token);
+		expect(guild_state.json.charity).toEqual(authenticated.json.charity);
+	});
+
 	test('rejects invalid donations and accepts modded donations', async () => {
 		const client = await register_guild_client('Charity Validation');
 		const invalid_quantity = await post('/api/charity/donate', {
@@ -49,7 +74,7 @@ describe('charity API', () => {
 	});
 
 	test('merges positive integer donations', async () => {
-		const client = await register_guild_client('Charity Donor');
+		const client = await register_guild_client('Charity Donor', 'Test Guild', '1.5.2');
 		await post_json('/api/charity/donate', {
 			items: [
 				{ id: 'melvorD:Charity_Test_A', qty: 10 },
@@ -227,5 +252,46 @@ describe('charity API', () => {
 			qty: 17
 		}));
 		expect((await get_charity_contents(second.session_token)).items).toEqual([]);
+	});
+
+	test('uses the 1.5.3 server-owned flow and disables the second daily take', async () => {
+		const client = await register_guild_client('Pet Charity', 'Pet Charity Guild', '1.5.3');
+		const empty_donation = await post('/api/charity/donate', {
+			items: [],
+			donation_value: 0,
+			command_id: crypto.randomUUID()
+		}, client.session_token);
+		expect(empty_donation.status).toBe(400);
+
+		const missing_value = await post('/api/charity/donate', {
+			items: [{ id: 'melvorD:Charity_Server_Owned', qty: 1 }],
+			command_id: crypto.randomUUID()
+		}, client.session_token);
+		expect(missing_value.status).toBe(400);
+
+		const command_id = crypto.randomUUID();
+		const donation = await post_json<{
+			success: boolean;
+			receipt: { id: string; kind: string; effects: Array<Record<string, unknown>> };
+		}>('/api/charity/donate', {
+			items: [{ id: 'melvorD:Charity_Server_Owned', qty: 1 }],
+			donation_value: 200,
+			command_id
+		}, client.session_token);
+		expect(donation.json.success).toBe(true);
+		expect(donation.json.receipt).toMatchObject({ id: command_id, kind: 'charity-donate' });
+		const replay = await post_json<typeof donation.json>('/api/charity/donate', {
+			items: [{ id: 'melvorD:Charity_Server_Owned', qty: 1 }],
+			donation_value: 200,
+			command_id
+		}, client.session_token);
+		expect(replay.json).toEqual(donation.json);
+
+		await db_run('UPDATE `clients` SET `last_charity` = ? WHERE `id` = ?', [Date.now(), client.client_id]);
+		const take = await post_json<{ error_lang: string }>('/api/charity/take', {
+			item_id: 'melvorD:Charity_Server_Owned',
+			command_id: crypto.randomUUID()
+		}, client.session_token);
+		expect(take.json.error_lang).toBe('MOD_MP_CHARITY_TIMEOUT');
 	});
 });

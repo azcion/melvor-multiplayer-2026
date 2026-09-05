@@ -5,9 +5,8 @@ import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
 import type { PetitionType } from '../council';
 import { record_guild_activity } from '../guild-activity';
 import { add_inbox_items } from '../inbox';
-import { is_legacy_transfer_request } from '../transfer-compatibility';
 
-const { CHARITY_ITEM_LIFETIME, CHARITY_TIMEOUT, db, db_get_all, db_get_single, economy_item_effects, expire_charity_items, get_client_guild_id, is_social_only_client, is_valid_item_id, parse_transfer_items, run_economy_command, session_get_route, session_post_route } = runtime;
+const { CHARITY_ITEM_LIFETIME, CHARITY_TIMEOUT, charity_state_from_values, db, db_get_all, db_get_single, economy_item_effects, expire_charity_items, get_client_guild_id, get_request_mod_version, grant_charity_pet_if_rolled, is_server_owned_pets_client, is_social_only_client, is_valid_item_id, parse_transfer_items, run_economy_command, session_get_route, session_post_route } = runtime;
 
 export function register_charity_routes(): void {
 	session_get_route('/api/charity/contents', async (req, url, client_id): Promise<HandlerResult> => {
@@ -33,7 +32,7 @@ export function register_charity_routes(): void {
 		};
 	});
 
-	session_post_route('/api/charity/take', async (req, url, client_id, json) => {
+	session_post_route('/api/charity/take', async (req, url, client_id, json): Promise<HandlerResult> => {
 		const membership = await db_get_single(
 			'SELECT `guild_id`, `charitree_take_available_at` FROM `guild_memberships` WHERE `client_id` = ? LIMIT 1',
 			[client_id]
@@ -54,7 +53,12 @@ export function register_charity_routes(): void {
 		if (membership.charitree_take_available_at > current_time)
 			return {
 				error_lang: 'MOD_MP_CHARITY_JOIN_LOCK',
-				available_at: membership.charitree_take_available_at
+				available_at: membership.charitree_take_available_at,
+				charity: {
+					enabled: true,
+					eligible: false,
+					next_opportunity_at: membership.charitree_take_available_at
+				}
 			};
 		expire_charity_items(current_time, guild_id);
 		const guild = await db_get_single('SELECT `charitree_enabled` FROM `guilds` WHERE `id` = ? LIMIT 1', [guild_id]) as {
@@ -66,11 +70,27 @@ export function register_charity_routes(): void {
 		if (client_row === null)
 			return 400; // Bad Request
 
+		const server_owned_pets = is_server_owned_pets_client(get_request_mod_version(req));
+		const charity = charity_state_from_values({
+			charitree_enabled: guild?.charitree_enabled === 1,
+			social_only: is_social_only_client(client_id),
+			charitree_take_available_at: membership.charitree_take_available_at,
+			last_charity: client_row.last_charity,
+			last_bonus_charity: client_row.last_bonus_charity,
+			server_owned_pets,
+			now: current_time
+		});
+		if (is_social_only_client(client_id))
+			return { error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED', charity };
 		const last_charity_cooling_down = client_row.last_charity + CHARITY_TIMEOUT > current_time;
-		const last_charity_bonus_cooling_down = client_row.last_bonus_charity + CHARITY_TIMEOUT > current_time;
 
-		if (last_charity_cooling_down && last_charity_bonus_cooling_down)
-			return { error_lang: 'MOD_MP_CHARITY_TIMEOUT', timeout: client_row.last_charity, timeout_bonus: client_row.last_bonus_charity };
+		if (!charity.eligible)
+			return {
+				error_lang: 'MOD_MP_CHARITY_TIMEOUT',
+				timeout: client_row.last_charity,
+				timeout_bonus: server_owned_pets ? 0 : client_row.last_bonus_charity,
+				charity
+			};
 
 		const result = run_economy_command(client_id, json.command_id, 'charity-take', () => {
 			if (is_social_only_client(client_id))
@@ -100,7 +120,7 @@ export function register_charity_routes(): void {
 				).run(item_remaining_qty, item_expires_at, guild_id, item_id);
 			}
 
-			if (last_charity_cooling_down) {
+			if (last_charity_cooling_down && !server_owned_pets) {
 				db.query('UPDATE `clients` SET `last_bonus_charity` = ? WHERE `id` = ?').run(current_time, client_id);
 				client_row.last_bonus_charity = current_time;
 			} else {
@@ -108,17 +128,24 @@ export function register_charity_routes(): void {
 				client_row.last_charity = current_time;
 			}
 
-			const legacy = is_legacy_transfer_request(req);
-			if (!legacy)
-				add_inbox_items(client_id, [{ item_id, qty: item_qty }]);
+			add_inbox_items(client_id, [{ item_id, qty: item_qty }]);
 			return {
 				success: true,
 				item_qty,
 				item_remaining_qty,
 				item_expires_at,
 				timeout: client_row.last_charity,
-				timeout_bonus: client_row.last_bonus_charity,
-				effects: legacy ? economy_item_effects([{ id: item_id, qty: item_qty }], 'bank') : []
+				timeout_bonus: server_owned_pets ? 0 : client_row.last_bonus_charity,
+				charity: charity_state_from_values({
+					charitree_enabled: true,
+					social_only: false,
+					charitree_take_available_at: membership.charitree_take_available_at,
+					last_charity: client_row.last_charity,
+					last_bonus_charity: client_row.last_bonus_charity,
+					server_owned_pets,
+					now: current_time
+				}),
+				effects: []
 			};
 		});
 		return result ?? 400;
@@ -130,7 +157,11 @@ export function register_charity_routes(): void {
 			return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
 
 		const items = parse_transfer_items(json.items);
-		if (items === null)
+		if (items === null || items.length === 0)
+			return 400; // Bad Request
+		const server_owned_pets = is_server_owned_pets_client(get_request_mod_version(req));
+		const donation_value = json.donation_value;
+		if (server_owned_pets && (typeof donation_value !== 'number' || !Number.isSafeInteger(donation_value) || donation_value < 0))
 			return 400; // Bad Request
 
 		const result = run_economy_command(client_id, json.command_id, 'charity-donate', () => {
@@ -156,7 +187,12 @@ export function register_charity_routes(): void {
 				).run(guild_id, item.id, item.qty, expires_at);
 			record_guild_activity({ guild_id, event_type: 'charitree_donated', actor_client_id: client_id,
 				source_key: `charitree-donation:${json.command_id}`, created_at: now, throttled: true });
-			return { success: true, effects: economy_item_effects(items, 'transfer', -1) };
+			const pet_granted = server_owned_pets && grant_charity_pet_if_rolled(client_id, donation_value as number, Math.random(), now);
+			return {
+				success: true,
+				...(pet_granted ? { pet_id: 'Multiplayer_Pet_Charity' } : {}),
+				effects: economy_item_effects(items, 'transfer', -1)
+			};
 		});
 		return result ?? 400;
 	});

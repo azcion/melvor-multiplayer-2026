@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { make_guildmates } from '../support/fixtures';
 import { get_json_with_session, post_json } from '../support/http';
+import { db_all, db_run } from '../support/persistence';
 
 type Inbox = {
 	items: Array<{ item_id: string; qty: number }>;
@@ -43,11 +44,19 @@ describe('inbox API', () => {
 			{ id: 'melvorD:GP', qty: 5 }
 		]);
 		await accept_next_gift(pair.second.session_token);
+		await db_run(
+			'UPDATE `inbox_items` SET `created_at` = 1, `updated_at` = 1 WHERE `client_id` = ? AND `item_id` = ?',
+			[pair.second_id, 'melvorD:Logs']
+		);
 		await send_gift(pair.first.session_token, pair.second_id, [
 			{ id: 'melvorD:Logs', qty: 3 },
 			{ id: 'melvorD:GP', qty: 7 }
 		]);
 		await accept_next_gift(pair.second.session_token);
+		const stored = await db_all<{ created_at: number | null; updated_at: number | null }>(
+			'SELECT `created_at`, `updated_at` FROM `inbox_items` WHERE `client_id` = ? AND `item_id` = ?',
+			[pair.second_id, 'melvorD:Logs']
+		);
 
 		expect((await get_inbox(pair.second.session_token)).json).toEqual({
 			items: [
@@ -56,6 +65,8 @@ describe('inbox API', () => {
 			],
 			pending_claim: false
 		});
+		expect(stored[0]?.created_at).toBe(1);
+		expect(stored[0]?.updated_at).toBeGreaterThan(1);
 	});
 
 	test('does not duplicate an Inbox delivery when its source command is replayed', async () => {

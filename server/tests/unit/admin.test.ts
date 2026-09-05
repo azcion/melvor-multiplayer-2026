@@ -155,4 +155,67 @@ describe('administration CLI', () => {
 		expect(result.stdout).toBe('');
 		expect(result.stderr).toBe('Multiplayer identity 999 does not exist.\n');
 	});
+
+	test('finds an identity by exact display name and resets its Charitree timers', async () => {
+		const database_path = fixture_database();
+		const database = new Database(database_path, { strict: true });
+		database.query('UPDATE `clients` SET `display_name` = ?, `last_charity` = ?, `last_bonus_charity` = ? WHERE `id` = 1')
+			.run('Briar', 1700000000000, 1700000001000);
+		database.query('UPDATE `guild_memberships` SET `charitree_take_available_at` = ? WHERE `client_id` = 1')
+			.run(1700000002000);
+		database.close();
+
+		const found = await run_admin(database_path, 'identity', 'find', 'Briar');
+		const reset = await run_admin(database_path, 'charity', 'reset', '1');
+		expect(found.exit_code).toBe(0);
+		expect(found.stdout).toContain('"id":1');
+		expect(found.stdout).toContain('"display_name":"Briar"');
+		expect(reset.exit_code).toBe(0);
+		expect(reset.stdout).toContain('previous_last_charity=1700000000000\n');
+		expect(reset.stdout).toContain('previous_last_bonus_charity=1700000001000\n');
+		expect(reset.stdout).toContain('previous_charitree_take_available_at=1700000002000\n');
+		expect(reset.stdout).toContain('last_charity=0\n');
+		expect(reset.stdout).toContain('last_bonus_charity=0\n');
+		expect(reset.stdout).toContain('charitree_take_available_at=0\n');
+
+		const verification = new Database(database_path, { readonly: true, strict: true });
+		expect(verification.query(
+			'SELECT `last_charity`, `last_bonus_charity` FROM `clients` WHERE `id` = 1'
+		).get()).toEqual({ last_charity: 0, last_bonus_charity: 0 });
+		expect(verification.query(
+			'SELECT `charitree_take_available_at` FROM `guild_memberships` WHERE `client_id` = 1'
+		).get()).toEqual({ charitree_take_available_at: 0 });
+		verification.close();
+	});
+
+	test('resets every identity cooldown and membership lock in one transaction', async () => {
+		const database_path = fixture_database();
+		const database = new Database(database_path, { strict: true });
+		database.query(
+			'INSERT INTO `clients` (`client_identifier`, `client_key`, `friend_code`, `display_name`, `icon_id`, ' +
+			'`last_charity`, `last_bonus_charity`) VALUES (?, ?, ?, ?, ?, ?, ?)'
+		).run(crypto.randomUUID(), crypto.randomUUID(), '987-654-321', 'Second Idler', 'melvorD:Plant',
+			1700000010000, 1700000011000);
+		database.query('INSERT INTO `guild_memberships` (`client_id`, `guild_id`, `charitree_take_available_at`) VALUES (?, ?, ?)')
+			.run(2, 2, 1700000012000);
+		database.query('UPDATE `guild_memberships` SET `charitree_take_available_at` = ? WHERE `client_id` = 1')
+			.run(1700000013000);
+		database.query('UPDATE `clients` SET `last_charity` = ?, `last_bonus_charity` = ? WHERE `id` = 1')
+			.run(1700000014000, 1700000015000);
+		database.close();
+
+		const reset = await run_admin(database_path, 'charity', 'reset-all');
+		expect(reset.exit_code).toBe(0);
+		expect(reset.stdout).toBe('charity_clients_reset=2\ncharity_memberships_reset=2\n');
+		expect(reset.stderr).toBe('');
+
+		const verification = new Database(database_path, { readonly: true, strict: true });
+		expect(verification.query(
+			'SELECT COUNT(*) AS `count` FROM `clients` WHERE `last_charity` <> 0 OR `last_bonus_charity` <> 0'
+		).get()).toEqual({ count: 0 });
+		expect(verification.query(
+			'SELECT COUNT(*) AS `count` FROM `guild_memberships` WHERE `charitree_take_available_at` <> 0'
+		).get()).toEqual({ count: 0 });
+		verification.close();
+	});
 });

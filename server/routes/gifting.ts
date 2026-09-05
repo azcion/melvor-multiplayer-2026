@@ -4,7 +4,7 @@ import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
 import type { PetitionType } from '../council';
 import { add_inbox_items } from '../inbox';
-import { client_uses_legacy_transfer_protocol, is_legacy_transfer_request } from '../transfer-compatibility';
+import { client_uses_legacy_transfer_protocol } from '../transfer-compatibility';
 
 const { GiftFlags, db, economy_item_effects, get_gift, gift_cache, guild_membership_exists, is_social_only_client, parse_transfer_items, remove_player_cache_entry, run_economy_command, session_post_route } = runtime;
 
@@ -15,24 +15,6 @@ export function register_gifting_routes(): void {
 		const gift_id = json.gift_id;
 		if (typeof gift_id !== 'number')
 			return 400; // Bad Request
-
-		if (is_legacy_transfer_request(req)) {
-			const result = run_economy_command(client_id, json.command_id, 'gift-accept', () => {
-				if (is_social_only_client(client_id))
-					return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
-				const gift = db.query('SELECT * FROM `gifts` WHERE `gift_id` = ? LIMIT 1').get(gift_id) as db_row.gifts;
-				if (gift?.client_id !== client_id)
-					return { success: false };
-				const items = db.query(
-					'SELECT `item_id`, `qty` FROM `gift_items` WHERE `gift_id` = ?'
-				).all(gift_id) as Array<{ item_id: string; qty: number }>;
-				db.query('DELETE FROM `gifts` WHERE `gift_id` = ?').run(gift_id);
-				db.query('DELETE FROM `gift_items` WHERE `gift_id` = ?').run(gift_id);
-				remove_player_cache_entry(gift_cache, client_id, gift_id);
-				return { success: true, effects: economy_item_effects(items, 'bank') };
-			});
-			return result?.success === true || result?.error_lang !== undefined ? result : 400;
-		}
 
 		const result = run_economy_command(client_id, json.command_id, 'gift-accept', () => {
 			if (is_social_only_client(client_id))
@@ -67,16 +49,17 @@ export function register_gifting_routes(): void {
 		if ((gift.flags & GiftFlags.Returned) === GiftFlags.Returned)
 			return 400; // Bad Request
 
-		if (is_legacy_transfer_request(req) || client_uses_legacy_transfer_protocol(gift.sender_id)) {
+		if (client_uses_legacy_transfer_protocol(gift.sender_id)) {
 			const returned = db.transaction(() => {
 				if (is_social_only_client(client_id))
 					return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' } as const;
 				const current = db.query('SELECT * FROM `gifts` WHERE `gift_id` = ? LIMIT 1').get(gift_id) as db_row.gifts;
 				if (current?.client_id !== client_id || (current.flags & GiftFlags.Returned) === GiftFlags.Returned)
 					return null;
+				const updated_at = Date.now();
 				db.query(
-					'UPDATE `gifts` SET `client_id` = ?, `sender_id` = ?, `flags` = `flags` | ? WHERE `gift_id` = ?'
-				).run(current.sender_id, current.client_id, GiftFlags.Returned, current.gift_id);
+					'UPDATE `gifts` SET `client_id` = ?, `sender_id` = ?, `flags` = `flags` | ?, `updated_at` = ? WHERE `gift_id` = ?'
+				).run(current.sender_id, current.client_id, GiftFlags.Returned, updated_at, current.gift_id);
 				return { success: true, gift: current } as const;
 			}).immediate();
 			if (returned === null)
@@ -151,9 +134,10 @@ export function register_gifting_routes(): void {
 			).get(recipient_id, client_id);
 			if (pending !== null)
 				return { success: false, error_lang: 'MOD_MP_PENDING_GIFT' };
+			const created_at = Date.now();
 			const inserted = db.query(
-				'INSERT INTO `gifts` (`client_id`, `sender_id`) VALUES(?, ?) RETURNING `gift_id`'
-			).get(recipient_id, client_id) as { gift_id: number };
+				'INSERT INTO `gifts` (`client_id`, `sender_id`, `created_at`, `updated_at`) VALUES(?, ?, ?, ?) RETURNING `gift_id`'
+			).get(recipient_id, client_id, created_at, created_at) as { gift_id: number };
 			for (const item of items)
 				db.query(
 					'INSERT INTO `gift_items` (`gift_id`, `item_id`, `qty`) VALUES(?, ?, ?)'

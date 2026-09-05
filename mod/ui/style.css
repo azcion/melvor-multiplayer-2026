@@ -705,17 +705,6 @@ input.form-control[type="number"] {
 	min-height: calc(100vh - 235px);
 }
 
-#mp-chat-page,
-#mp-guild-page,
-#mp-transfer-page,
-#mp-market-page,
-#mp-charity-page,
-#mp-campaign-page,
-#mp-raid-page,
-#mp-updates-page {
-	padding-bottom: 0 !important;
-}
-
 .mp-guild-summary,
 .mp-guild-application {
 	display: flex;
@@ -1358,6 +1347,11 @@ input.form-control[type="number"] {
 	padding-top: 0 !important;
 }
 
+.mp-charitree-take-amount {
+	color: #adb5bd;
+	font-size: 0.9rem;
+}
+
 .mp-dual-trade {
 	display: grid;
 	grid-template-columns: 1fr 1px 1fr;
@@ -1431,8 +1425,12 @@ mp-item-slider .noUi-target * {
 div.mp-charitree-timer {
 	all: unset;
 	position: absolute;
-	top: 0;
-	left: 2px;
+	top: -2px;
+	left: -2px;
+	background: #424242;
+	border-radius: .25rem;
+	outline: 1px solid #adadad;
+	padding: 0 .125rem;
 	font-size: 9px;
 }
 
@@ -1445,10 +1443,71 @@ div.mp-charitree-lock {
 	color: #e56767;
 }
 
-mp-item-icon.mp-charitree-new-item {
-	border-radius: 5px;
+.mp-charitree-new-item {
+	border-radius: 6.5px;
 	outline: 2px solid rgb(45 210 75);
 	box-shadow: 0 0 8px 2px rgb(45 210 75 / 75%);
+}
+
+.mp-charitree-item .mp-charitree-img {
+	padding: 1rem;
+	border: 0 solid #46c37b;
+	border-radius: 6px;
+}
+
+.mp-charitree-item .mp-charitree-border {
+	padding: .75rem;
+	border-width: .25rem;
+}
+
+.mp-charitree-item.mp-charitree-leaf .mp-charitree-img {
+	transform: scaleX(-100%) rotate(90deg);
+	padding: .5rem;
+}
+
+.mp-charitree-item.mp-charitree-leaf .mp-charitree-border {
+	padding: .25rem;
+	border-width: .25rem;
+}
+
+.mp-charitree-item.mp-charitree-leaf.mp-charitree-leaf-coverage-0 .mp-charitree-img {
+	filter: hue-rotate(-80deg);
+}
+
+.mp-charitree-item.mp-charitree-leaf.mp-charitree-leaf-coverage-5 .mp-charitree-img {
+	filter: hue-rotate(-50deg);
+}
+
+.mp-charitree-item.mp-charitree-leaf.mp-charitree-leaf-coverage-15 .mp-charitree-img {
+	filter: hue-rotate(-20deg);
+}
+
+.mp-charitree-item.mp-charitree-leaf.mp-charitree-leaf-coverage-30 .mp-charitree-img {
+	filter: hue-rotate(-10deg);
+}
+
+.mp-charitree-item.mp-charitree-leaf.mp-charitree-leaf-coverage-50 .mp-charitree-img {
+	filter: hue-rotate(0deg);
+}
+
+.mp-charitree-item.mp-charitree-leaf.mp-charitree-leaf-coverage-70 .mp-charitree-img {
+	filter: hue-rotate(10deg);
+}
+
+.mp-charitree-item.mp-charitree-leaf.mp-charitree-leaf-coverage-85 .mp-charitree-img {
+	filter: hue-rotate(50deg);
+}
+
+.mp-charitree-item.mp-charitree-leaf.mp-charitree-leaf-coverage-95 .mp-charitree-img {
+	filter: hue-rotate(60deg);
+}
+
+.mp-charitree-item.mp-charitree-leaf.mp-charitree-leaf-coverage-100 .mp-charitree-img {
+	filter: hue-rotate(80deg);
+}
+
+.mp-charitree-item.mp-charitree-leaf.mp-charitree-new-item .mp-charitree-img {
+	filter: hue-rotate(-130deg);
 }
 
 .mp-campaign-bg {

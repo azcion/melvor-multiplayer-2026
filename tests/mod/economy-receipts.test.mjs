@@ -188,7 +188,7 @@ test('hydrates Campaign event state before a blocked receipt can stop event reco
 		events.indexOf('reconcile_economy_receipts(pending_economy_receipts'));
 });
 
-test('rounds and validates Campaign rewards before submitting a claim', async () => {
+test('submits Campaign claims without client-calculated rewards', async () => {
 	const actions = await readFile(
 		new URL('../../mod/client-actions-market-campaign-charity.mjs', import.meta.url),
 		'utf8'
@@ -198,7 +198,9 @@ test('rounds and validates Campaign rewards before submitting a claim', async ()
 		actions.indexOf('// #endregion', actions.indexOf('async claim_campaign_reward'))
 	);
 
-	assert.match(claim, /const reward_value = Math\.round\(/);
-	assert.match(claim, /!Number\.isSafeInteger\(reward_value\) \|\| reward_value <= 0/);
-	assert.ok(claim.indexOf('Number.isSafeInteger(reward_value)') < claim.indexOf("api_post('/api/campaign/claim'"));
+	assert.doesNotMatch(claim, /const reward_value/);
+	assert.doesNotMatch(claim, /game\.petManager/);
+	assert.match(claim, /api_post\('\/api\/campaign\/claim', \{[\s\S]*campaign_id: campaign\.id,[\s\S]*command_id: crypto\.randomUUID\(\)/);
+	assert.doesNotMatch(claim, /value:/);
+	assert.match(claim, /campaign\.taken = res\.reward_value/);
 });

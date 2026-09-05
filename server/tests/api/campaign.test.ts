@@ -3,7 +3,7 @@ import { round_campaign_estimate } from '../../campaign';
 import { AVAILABLE_CAMPAIGNS } from '../../campaign_data';
 import { get_events, make_guild_group, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post, post_json, register_client } from '../support/http';
-import { db_count, db_run } from '../support/persistence';
+import { db_all, db_count, db_run } from '../support/persistence';
 import { SHADOWED_AFTER } from '../../shadowed';
 
 type CampaignHistory = {
@@ -236,6 +236,11 @@ describe('campaign API', () => {
 		}]);
 		expect(completed.rankings).toEqual({ [campaign.campaign_id]: 1 });
 		const completion_id = completed.history[0].id;
+		const completion_rows = await db_all<{ created_at: number | null }>(
+			'SELECT `created_at` FROM `campaign_completions` WHERE `source_campaign_state_id` = ? AND `client_id` = ?',
+			[completion_id, contributor.client_id]
+		);
+		expect(completion_rows[0]?.created_at).toBeGreaterThan(0);
 
 		const newcomer = await register_client('History Newcomer');
 		await post_json('/api/guilds/apply', { guild_id: contributor.guild_id }, newcomer.session_token);
@@ -280,6 +285,11 @@ describe('campaign API', () => {
 		}, contributor.session_token);
 		expect(legacy_claim.json).toEqual({ success: true });
 		expect((await get_campaign_info(contributor.session_token)).history[0].taken).toBe(123);
+		const claimed_timestamps = await db_all<{ created_at: number | null; updated_at: number | null }>(
+			'SELECT `created_at`, `updated_at` FROM `campaign_completions` ' +
+			'WHERE `source_campaign_state_id` = ? AND `client_id` = ?', [completion_id, contributor.client_id]
+		);
+		expect(claimed_timestamps[0]?.updated_at).toBeGreaterThan(claimed_timestamps[0]?.created_at ?? 0);
 	});
 
 	test('does not carry an incomplete contribution into a different Guild', async () => {
@@ -302,7 +312,7 @@ describe('campaign API', () => {
 	});
 
 	test('delivers an identity-owned completed reward through one durable receipt', async () => {
-		const contributor = await register_guild_client('Receipt Contributor', 'Receipt Guild');
+		const contributor = await register_guild_client('Receipt Contributor', 'Receipt Guild', '1.5.2');
 		const campaign = await get_campaign_info(contributor.session_token);
 		await post_json('/api/campaign/contribute', {
 			item_amount: campaign.item_total
@@ -334,5 +344,41 @@ describe('campaign API', () => {
 		expect((await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
 			'/api/inbox', contributor.session_token
 		)).json.items).toEqual([{ item_id: 'melvorD:GP', qty: 456 }]);
+	});
+
+	test('calculates server-owned campaign claims from fixed item values and pet ownership', async () => {
+		const contributor = await register_guild_client('Pet Campaign', 'Pet Campaign Guild', '1.5.3');
+		const state = (await db_all<{ id: number }>(
+			'SELECT `id` FROM `campaign_state` WHERE `guild_id` = ? ORDER BY `id` DESC LIMIT 1',
+			[contributor.guild_id]
+		))[0];
+		if (state === undefined)
+			throw new Error('Campaign state fixture is missing');
+
+		await db_run(
+			'INSERT INTO `campaign_completions` ' +
+			'(`source_campaign_state_id`, `source_guild_id`, `client_id`, `campaign_id`, `item_id`, `item_amount`, `taken`, `created_at`) ' +
+			"VALUES (?, ?, ?, 'campaign_desert', 'melvorD:Topaz', 4, 0, ?)",
+			[state.id, contributor.guild_id, contributor.client_id, Date.now()]
+		);
+		await db_run(
+			'INSERT INTO `multiplayer_pet_ownership` (`client_id`, `pet_id`, `created_at`, `updated_at`) VALUES (?, ?, ?, ?)',
+			[contributor.client_id, 'Multiplayer_Pet_Campaign_Desert', Date.now(), Date.now()]
+		);
+
+		const command_id = crypto.randomUUID();
+		const claim = await post_json<{
+			success: boolean;
+			reward_value: number;
+			receipt: { effects: Array<Record<string, unknown>> };
+		}>('/api/campaign/claim', { campaign_id: state.id, command_id }, contributor.session_token);
+
+		expect(claim.response.ok).toBe(true);
+		expect(claim.json.reward_value).toBe(225 * 4 * 15);
+		expect(claim.json.receipt.effects).toEqual([]);
+		expect((await get_json_with_session<{ owned_pet_ids: string[] }>(
+			'/api/campaign/info', contributor.session_token
+		)).json.owned_pet_ids).toContain('Multiplayer_Pet_Campaign_Desert');
+		expect((await post('/api/campaign/claim', { campaign_id: state.id, value: 1 }, contributor.session_token)).status).toBe(400);
 	});
 });

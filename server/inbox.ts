@@ -18,13 +18,16 @@ export function parse_inbox_existing_item_ids(value: unknown): string[] | null {
 
 export function add_inbox_items(client_id: number, items: readonly InboxItem[]): void {
 	let added = false;
+	const created_at = Date.now();
 	for (const item of items) {
 		if (item.qty <= 0)
 			continue;
 		db.query(
-			'INSERT INTO `inbox_items` (`client_id`, `item_id`, `qty`) VALUES(?, ?, ?) ' +
-			'ON CONFLICT (`client_id`, `item_id`) DO UPDATE SET `qty` = `qty` + excluded.`qty`'
-		).run(client_id, item.item_id, item.qty);
+			'INSERT INTO `inbox_items` (`client_id`, `item_id`, `qty`, `created_at`, `updated_at`) VALUES(?, ?, ?, ?, ?) ' +
+			'ON CONFLICT (`client_id`, `item_id`) DO UPDATE SET `qty` = `qty` + excluded.`qty`, ' +
+			'`created_at` = COALESCE(`inbox_items`.`created_at`, excluded.`created_at`), ' +
+			'`updated_at` = excluded.`updated_at`'
+		).run(client_id, item.item_id, item.qty, created_at, created_at);
 		added = true;
 	}
 	if (added)

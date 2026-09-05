@@ -6,6 +6,7 @@ export function install_market_campaign_charity_actions(runtime) {
 		api_get,
 		api_post,
 		add_gp_to_transfer,
+		apply_charity_state,
 		capture_equipment_snapshot,
 		capture_status_snapshot,
 		charitree_rules,
@@ -20,6 +21,7 @@ export function install_market_campaign_charity_actions(runtime) {
 		get_client_events,
 		getLangString,
 		is_social_only,
+		is_transfer_currency,
 		has_local_unresolved_item,
 		hide_button_spinner,
 		is_button_spinning,
@@ -40,12 +42,12 @@ export function install_market_campaign_charity_actions(runtime) {
 		return_selected_transfer_inventory,
 		schedule_equipment_sync,
 		schedule_status_sync,
-		set_instance_storage_item,
 		show_button_spinner,
 		show_modal_error,
 		start_status_observer,
 		stop_status_observer,
 		trade_returns,
+		transfer_currency_support,
 		transfer_inventory,
 		update_campaign_nav,
 		update_charitree_nav,
@@ -55,6 +57,16 @@ export function install_market_campaign_charity_actions(runtime) {
 		update_market_search,
 		update_transfer_contents,
 	} = runtime;
+	const get_charity_rule_options = function () {
+		return {
+			get_currency: item_id => transfer_currency_support?.get_transfer_currency(game, item_id)?.currency ?? null,
+			get_supported_currency: currency => transfer_currency_support?.get_transfer_currency_for_currency(game, currency)?.currency ?? null,
+			get_currency_amount: currency => currency?.amount,
+			get_item: item_id => game.items.getObjectByID(item_id),
+			get_sale_price: (game_item, qty) => game.bank.getItemSalePrice(game_item, qty),
+			is_discovered: item_id => this.is_charity_item_discovered(item_id)
+		};
+	};
 
 	return {
 		clear_market_filter() {
@@ -534,27 +546,12 @@ export function install_market_campaign_charity_actions(runtime) {
 
 			show_button_spinner($button);
 
-			let reward_mod = 1.6;
-
-			const campaign_pet = game.pets.getObjectByID(campaign.pet);
-			if (game.petManager.unlocked.has(campaign_pet))
-				reward_mod += 0.1;
-
-			const reward_item = game.items.getObjectByID(campaign.item_id);
-			const reward_value = Math.round((reward_item.sellsFor.quantity * campaign.item_amount) * reward_mod);
-			if (!Number.isSafeInteger(reward_value) || reward_value <= 0) {
-				notify_error('MOD_MP_GENERIC_ERR');
-				hide_button_spinner($button);
-				return;
-			}
-
 			const res = await api_post('/api/campaign/claim', {
 				campaign_id: campaign.id,
-				value: reward_value,
 				command_id: crypto.randomUUID()
 			});
 			if (res?.success && await reconcile_economy_receipts([res.receipt])) {
-				campaign.taken = reward_value;
+				campaign.taken = res.reward_value;
 			} else {
 				notify_error('MOD_MP_GENERIC_ERR');
 			}
@@ -603,35 +600,30 @@ export function install_market_campaign_charity_actions(runtime) {
 				notify_error(res?.error_lang ?? 'MOD_MP_CHARITY_TAKEN');
 			}
 
-			if (res?.timeout !== undefined) {
-				state.charity_timeout = res.timeout;
-				set_instance_storage_item('charity_timeout', res.timeout);
-			}
-
-			if (res?.timeout_bonus !== undefined) {
-				state.charity_bonus_timeout = res.timeout_bonus;
-				set_instance_storage_item('charity_bonus_timeout', res.timeout_bonus);
-			}
+			apply_charity_state(res?.charity);
 			update_charitree_nav();
 
 			hide_button_spinner($button);
 		},
 
 		is_charity_item_discovered(item_id) {
-			if (item_id === 'melvorD:GP')
+			if (item_id === 'melvorD:GP' || is_transfer_currency(item_id))
 				return true;
 			const item = game.items.getObjectByID(item_id);
 			return item !== undefined && game.stats.itemFindCount(item) > 0;
 		},
 
+		get_charity_leaf_coverage(item) {
+			return charitree_rules.get_charitree_leaf_coverage(
+				item,
+				this.charity_update_time,
+				item_id => item_id === 'melvorD:GP' || is_transfer_currency(item_id),
+				item_id => this.is_charity_item_discovered(item_id)
+			);
+		},
+
 		get_charity_take_block(item) {
-			return charitree_rules.get_charitree_take_block(item, {
-				current_gp: game.gp.amount,
-				gp_currency: game.gp,
-				get_item: item_id => game.items.getObjectByID(item_id),
-				get_sale_price: (game_item, qty) => game.bank.getItemSalePrice(game_item, qty),
-				is_discovered: item_id => this.is_charity_item_discovered(item_id)
-			});
+			return charitree_rules.get_charitree_take_block(item, get_charity_rule_options.call(this));
 		},
 
 		get_charity_take_block_lang(block) {
@@ -643,9 +635,7 @@ export function install_market_campaign_charity_actions(runtime) {
 		},
 
 		get_charity_take_quantity(item) {
-			return charitree_rules.get_charitree_take_quantity(item, {
-				is_discovered: item_id => this.is_charity_item_discovered(item_id)
-			});
+			return charitree_rules.get_charitree_take_quantity(item, get_charity_rule_options.call(this));
 		},
 
 		format_charity_expiry(expires_at) {
@@ -659,7 +649,7 @@ export function install_market_campaign_charity_actions(runtime) {
 				return notify_error('MOD_MP_TRANSFER_DESTROY_ITEM_FIRST');
 
 			const items = state.transfer_inventory;
-			const donation_value = state.transfer_inventory_value_raw;
+			const donation_value = state.transfer_inventory_donation_value;
 
 			if (items.length === 0)
 				return notify_error('MOD_MP_CHARITY_NO_SELECTION');
@@ -675,17 +665,14 @@ export function install_market_campaign_charity_actions(runtime) {
 
 			show_button_spinner($button);
 
-			const res = await api_post('/api/charity/donate', { items, command_id: crypto.randomUUID() });
+			const res = await api_post('/api/charity/donate', { items, donation_value, command_id: crypto.randomUUID() });
 			if (res?.success && await reconcile_economy_receipts([res.receipt])) {
 				runtime.last_charity_check = 0;
 
 				notify('MOD_MP_CHARITY_DONATED');
 
-				const pet_pct = charitree_rules.get_charitree_pet_chance(donation_value);
-				if (Math.random() < pet_pct) {
-					state.charity_bonus_unlocked = true;
-					game.petManager.unlockPetByID('multiplayer:Multiplayer_Pet_Charity');
-				}
+				if (typeof res.pet_id === 'string' && !state.owned_pet_ids.includes(res.pet_id))
+					state.owned_pet_ids = [...state.owned_pet_ids, res.pet_id];
 				update_charitree_nav();
 			} else
 				notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');

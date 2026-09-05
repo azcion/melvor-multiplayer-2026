@@ -8,6 +8,7 @@ import {
 	remove_sold_out_market_result
 } from '../../mod/market-results.mjs';
 import { install_market_campaign_charity_actions } from '../../mod/client-actions-market-campaign-charity.mjs';
+import * as charitree_rules from '../../mod/charitree-rules.mjs';
 
 test('removes a sold-out result and updates buyer pagination', () => {
 	const state = {
@@ -708,4 +709,28 @@ test('counter affordability uses the current balance when the offer modal is sub
 		direction: 'buy', is_initiator: false, item_qty: 5, offer_price: 5, payer_escrow_gp: 25
 	}, 'counter', true);
 	assert.deepEqual(errors, ['MOD_MP_MARKET_INSUFFICIENT_GP']);
+});
+
+test('passes currency support into the Charitree action module', () => {
+	const currency = { amount: 10_000 };
+	const game = {
+		gp: currency,
+		items: { getObjectByID: () => undefined },
+		bank: { getItemSalePrice: () => 0 }
+	};
+	const state = {};
+	const actions = install_market_campaign_charity_actions({
+		state,
+		game,
+		charitree_rules,
+		is_transfer_currency: item_id => item_id === 'test:currency',
+		transfer_currency_support: {
+			get_transfer_currency: (_game, item_id) => item_id === 'test:currency' ? { currency } : null,
+			get_transfer_currency_for_currency: () => null
+		}
+	});
+	Object.assign(state, actions);
+
+	assert.equal(state.get_charity_take_quantity({ id: 'test:currency', qty: 33_000 }), 5_000);
+	assert.equal(state.get_charity_take_block({ id: 'test:currency', qty: 33_000 }), null);
 });

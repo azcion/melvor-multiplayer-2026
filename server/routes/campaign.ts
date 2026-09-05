@@ -5,9 +5,8 @@ import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
 import type { PetitionType } from '../council';
 import { record_guild_activity } from '../guild-activity';
 import { add_inbox_gp } from '../inbox';
-import { is_legacy_transfer_request } from '../transfer-compatibility';
 
-const { apply_campaign_completion, db, db_get_single, ensure_guild_campaign, get_campaign_history, get_campaign_rankings, get_client_guild_id, is_social_only_client, persist_campaign_completion, run_economy_command, session_get_route, session_post_route } = runtime;
+const { apply_campaign_completion, db, db_get_single, ensure_guild_campaign, get_campaign_history, get_campaign_item_gp_value, get_campaign_pet_id, get_campaign_rankings, get_client_guild_id, get_owned_pet_ids, get_request_mod_version, has_owned_pet, is_server_owned_pets_client, is_social_only_client, persist_campaign_completion, run_economy_command, session_get_route, session_post_route } = runtime;
 
 export function register_campaign_routes(): void {
 	session_get_route('/api/campaign/info', async (req, url, client_id): Promise<HandlerResult> => {
@@ -31,6 +30,7 @@ export function register_campaign_routes(): void {
 			return {
 				active: true,
 				history, rankings,
+				owned_pet_ids: get_owned_pet_ids(client_id),
 				campaign_id: campaign.campaign_id,
 				contribution: contribution?.item_amount ?? 0,
 				item_id: campaign.item_id,
@@ -41,6 +41,7 @@ export function register_campaign_routes(): void {
 			return {
 				active: false,
 				history, rankings,
+				owned_pet_ids: get_owned_pet_ids(client_id),
 				next_campaign: campaign.next_active_timestamp
 			} as JsonSerializable;
 		}
@@ -55,27 +56,49 @@ export function register_campaign_routes(): void {
 		if (typeof campaign_id !== 'number')
 			return 400; // Bad Request
 
+		const server_owned_pets = is_server_owned_pets_client(get_request_mod_version(req));
 		const value = json.value;
-		if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0)
+		if (server_owned_pets && value !== undefined)
+			return 400; // Bad Request
+		if (!server_owned_pets && (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0))
 			return 400; // Bad Request
 
 		const result = run_economy_command(client_id, json.command_id, 'campaign-claim', () => {
 			if (is_social_only_client(client_id))
 				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 			const completion = db.query(
-				'UPDATE `campaign_completions` SET `taken` = ? ' +
-				'WHERE `source_campaign_state_id` = ? AND `client_id` = ? AND `taken` = 0 ' +
-				'RETURNING `source_campaign_state_id`'
-			).get(value, campaign_id, client_id) as Pick<db_row.campaign_completions, 'source_campaign_state_id'> | null;
+				'SELECT `source_campaign_state_id`, `campaign_id`, `item_id`, `item_amount` ' +
+				'FROM `campaign_completions` WHERE `source_campaign_state_id` = ? AND `client_id` = ? AND `taken` = 0'
+			).get(campaign_id, client_id) as Pick<db_row.campaign_completions, 'source_campaign_state_id' | 'campaign_id' | 'item_id' | 'item_amount'> | null;
 			if (completion === null)
 				return { success: false };
+
+			let reward_value = value as number;
+			if (server_owned_pets) {
+				const item_gp_value = get_campaign_item_gp_value(completion.item_id);
+				if (item_gp_value === null)
+					return { success: false };
+				const reward_multiplier = get_campaign_pet_id(completion.campaign_id) !== null &&
+					has_owned_pet(client_id, get_campaign_pet_id(completion.campaign_id)!) ? 15 : 10;
+				reward_value = item_gp_value * completion.item_amount * reward_multiplier;
+				if (!Number.isSafeInteger(reward_value) || reward_value <= 0)
+					return { success: false };
+			}
+
+			const updated_at = Date.now();
+			db.query(
+				'UPDATE `campaign_completions` SET `taken` = ?, `updated_at` = ? ' +
+				'WHERE `source_campaign_state_id` = ? AND `client_id` = ? AND `taken` = 0'
+			).run(reward_value, updated_at, completion.source_campaign_state_id, client_id);
 			db.query(
 				'UPDATE `campaign_contributions` SET `taken` = ? WHERE `client_id` = ? AND `campaign_id` = ?'
-			).run(value, client_id, completion.source_campaign_state_id);
-			const legacy = is_legacy_transfer_request(req);
-			if (!legacy)
-				add_inbox_gp(client_id, value);
-			return { success: true, effects: legacy ? [{ storage: 'gp', qty: value }] : [] };
+			).run(reward_value, client_id, completion.source_campaign_state_id);
+			add_inbox_gp(client_id, reward_value);
+			return {
+				success: true,
+				...(server_owned_pets ? { reward_value } : {}),
+				effects: []
+			};
 		});
 		return result?.success === true || result?.error_lang !== undefined ? result : 400;
 	});

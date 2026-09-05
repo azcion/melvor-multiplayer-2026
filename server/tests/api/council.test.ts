@@ -292,6 +292,7 @@ describe('Council API', () => {
 			guilds: Array<{ guild_id: number; is_public?: boolean }>;
 		}>('/api/guilds/list', newcomer.session_token);
 		expect(listing.json.guilds.find(guild => guild.guild_id === owner.guild_id)?.is_public).toBe(true);
+		const join_started_at = Date.now();
 		const joined = await post_json<{ success: boolean }>('/api/guilds/join', {
 			guild_id: owner.guild_id
 		}, newcomer.session_token);
@@ -303,6 +304,8 @@ describe('Council API', () => {
 		}, newcomer.session_token);
 		expect(locked_take.json.error_lang).toBe('MOD_MP_CHARITY_JOIN_LOCK');
 		expect(locked_take.json.available_at).toBeGreaterThan(Date.now());
+		expect(locked_take.json.available_at - join_started_at).toBeGreaterThanOrEqual(4 * 60 * 60 * 1000);
+		expect(locked_take.json.available_at - join_started_at).toBeLessThan(4 * 60 * 60 * 1000 + 10_000);
 		const donation = await post_json<{ success: boolean }>('/api/charity/donate', {
 			items: [{ id: 'melvorD:Newcomer_Offering', qty: 1 }]
 		}, newcomer.session_token);

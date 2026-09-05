@@ -59,7 +59,7 @@ test('wires Council petition controls, resolved-history toggle, and action descr
 	assert.equal(language.MOD_MP_COUNCIL_TYPE_CHARITREE_BENEFICENCE, 'Petition of Beneficence');
 	assert.equal(language.MOD_MP_COUNCIL_TYPE_FELLOWSHIP, 'Petition of Fellowship');
 	assert.equal(language.MOD_MP_COUNCIL_TYPE_ENCLOSURE, 'Petition of Enclosure');
-	assert.match(language.MOD_MP_COUNCIL_FELLOWSHIP_CONFIRM, /wait 24 hours/);
+	assert.match(language.MOD_MP_COUNCIL_FELLOWSHIP_CONFIRM, /wait 4 hours/);
 	assert.match(language.MOD_MP_COUNCIL_ENCLOSURE_DESCRIPTION, /close its gates/);
 	assert.equal(language.MOD_MP_COUNCIL_APPELLATION_DESCRIPTION, 'Call for the Guild to take a new name.');
 	assert.equal(language.MOD_MP_COUNCIL_HERALDRY_DESCRIPTION, 'Call for the Guild to bear a new emblem.');
@@ -91,11 +91,13 @@ test('hides the felled Charitree and its donation action until restored', async 
 	assert.match(main, /state\.is_charitree_enabled && state\.can_take_charity/);
 	assert.doesNotMatch(main, /nav_item\.(hide|show)\(\)/);
 	assert.match(main, /state\.events\.guild_applicants = state\.guild_applicants;\s*update_multiplayer_nav\(\);/);
-	assert.match(charitree_page, /v-show="state\.is_guild_member && !state\.is_charitree_enabled"/);
+	assert.match(charitree_page, /v-show="state\.is_guild_member && !state\.charity_server_supported"/);
+	assert.match(charitree_page, /MOD_MP_CHARITY_SERVER_UNSUPPORTED/);
 	assert.match(charitree_page, /MOD_MP_CHARITY_DISABLED_INFO/);
-	assert.match(charitree_page, /v-show="state\.is_charitree_enabled"/);
+	assert.match(charitree_page, /v-show="state\.is_guild_member && state\.charity_server_supported && !state\.is_charitree_enabled"/);
+	assert.match(charitree_page, /v-show="state\.charity_server_supported && state\.is_charitree_enabled"/);
 	assert.match(charitree_page, /<div class="mp-charitree-timer"><mp-lang-string-f lang-id="MOD_MP_CHARITY_EXPIRES_IN" :lang-arg-1="state\.format_charity_expiry\(item\.expires_at\)"><\/mp-lang-string-f><\/div>/);
-	assert.match(style, /div\.mp-charitree-timer\s*\{\s*all: unset;\s*position: absolute;\s*top: 0;\s*left: 2px;\s*font-size: 9px;\s*\}/);
+	assert.match(style, /div\.mp-charitree-timer\s*\{\s*all: unset;\s*position: absolute;\s*top: -2px;\s*left: -2px;\s*background: #424242;[\s\S]*font-size: 9px;\s*\}/);
 	assert.match(style, /\.mp-charity-nav[\s\S]*background-color: #28a745/);
 	assert.equal(language.MOD_MP_CHARITY_EXPIRES_IN, '%s');
 	assert.equal(language.MOD_MP_SIDEBAR_CHARITY_READY, 'ready');

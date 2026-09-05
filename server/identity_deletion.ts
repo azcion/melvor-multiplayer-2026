@@ -43,8 +43,8 @@ function cancel_deleted_client_haggles(database: Database, client_id: number, no
 		if (haggle.listing_id !== null)
 			database.query(
 				'UPDATE `market_items` SET `available` = `available` + ?, `reserved` = `reserved` - ?, ' +
-				'`escrow_gp` = `escrow_gp` + ? WHERE `id` = ?'
-			).run(haggle.item_qty, haggle.item_qty, haggle.listing_reserved_gp, haggle.listing_id);
+				'`escrow_gp` = `escrow_gp` + ?, `updated_at` = ? WHERE `id` = ?'
+			).run(haggle.item_qty, haggle.item_qty, haggle.listing_reserved_gp, now, haggle.listing_id);
 		if (haggle.direction === 'sell')
 			database.query('INSERT OR IGNORE INTO `market_haggle_claims` (`haggle_id`, `client_id`, `gp`) VALUES(?, ?, ?)')
 				.run(haggle.id, haggle.initiator_id, haggle.payer_escrow_gp);

@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
 	get_available_transfer_currencies,
 	get_transfer_currency,
+	get_transfer_currency_for_currency,
 	get_transfer_currencies,
 	is_transfer_currency
 } from '../../mod/transfer-currencies.mjs';
@@ -38,4 +39,12 @@ test('only offers currencies with a positive balance and ignores unavailable exp
 	]);
 	assert.equal(get_transfer_currency(game, 'melvorD:SlayerCoins').currency.amount, 0);
 	assert.equal(is_transfer_currency(game, 'melvorItA:AbyssalSlayerCoins'), false);
+});
+
+test('resolves supported currencies by the game currency objects used for sale values', () => {
+	const game = game_with_currencies({ gp: 10, sc: 20, ap: 30, asc: 40 });
+
+	assert.equal(get_transfer_currency_for_currency(game, game.slayerCoins).id, 'melvorD:SlayerCoins');
+	assert.equal(get_transfer_currency_for_currency(game, game.abyssalPieces).id, 'melvorItA:AbyssalPieces');
+	assert.equal(get_transfer_currency_for_currency(game, {}), null);
 });

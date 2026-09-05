@@ -195,5 +195,87 @@ export const migrations_051_060: Migration[] = [
 				UPDATE clients SET event_revision = event_revision + 1 WHERE id = NEW.client_id;
 			END;
 		`
+	}, {
+		version: 57,
+		sql: `
+			ALTER TABLE gifts ADD COLUMN created_at INTEGER
+				CHECK (created_at IS NULL OR created_at >= 0);
+			ALTER TABLE trade_offers ADD COLUMN created_at INTEGER
+				CHECK (created_at IS NULL OR created_at >= 0);
+			ALTER TABLE resolved_trade_offers ADD COLUMN created_at INTEGER
+				CHECK (created_at IS NULL OR created_at >= 0);
+			ALTER TABLE campaign_completions ADD COLUMN created_at INTEGER
+				CHECK (created_at IS NULL OR created_at >= 0);
+			ALTER TABLE inbox_items ADD COLUMN created_at INTEGER
+				CHECK (created_at IS NULL OR created_at >= 0);
+
+			CREATE INDEX idx_gifts_pending_created ON gifts (created_at, gift_id);
+			CREATE INDEX idx_trade_offers_pending_created ON trade_offers (created_at, trade_id);
+			CREATE INDEX idx_resolved_trade_pending_created ON resolved_trade_offers (created_at, trade_id);
+			CREATE INDEX idx_campaign_completions_pending_created
+				ON campaign_completions (created_at, source_campaign_state_id, client_id);
+			CREATE INDEX idx_inbox_items_pending_created ON inbox_items (created_at, client_id, item_id);
+		`
+	}, {
+		version: 58,
+		sql: `
+			CREATE TABLE multiplayer_pet_ownership (
+				client_id INTEGER NOT NULL,
+				pet_id TEXT NOT NULL CHECK (pet_id IN (
+					'Multiplayer_Pet_Charity',
+					'Multiplayer_Pet_Campaign_Jungle', 'Multiplayer_Pet_Campaign_Desert',
+					'Multiplayer_Pet_Campaign_Snow', 'Multiplayer_Pet_Campaign_Volcanic',
+					'Multiplayer_Pet_Campaign_Forsaken', 'Multiplayer_Pet_Campaign_Forest'
+				)),
+				created_at INTEGER NOT NULL CHECK (created_at >= 0),
+				updated_at INTEGER NOT NULL CHECK (updated_at >= created_at),
+				PRIMARY KEY (client_id, pet_id),
+				FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
+			);
+			CREATE INDEX idx_multiplayer_pet_ownership_client
+				ON multiplayer_pet_ownership (client_id, pet_id);
+
+			INSERT INTO multiplayer_pet_ownership (client_id, pet_id, created_at, updated_at)
+			SELECT client_id,
+				CASE campaign_id
+					WHEN 'campaign_jungle' THEN 'Multiplayer_Pet_Campaign_Jungle'
+					WHEN 'campaign_desert' THEN 'Multiplayer_Pet_Campaign_Desert'
+					WHEN 'campaign_snow' THEN 'Multiplayer_Pet_Campaign_Snow'
+					WHEN 'campaign_volcanic' THEN 'Multiplayer_Pet_Campaign_Volcanic'
+					WHEN 'campaign_forsaken' THEN 'Multiplayer_Pet_Campaign_Forsaken'
+					WHEN 'campaign_forest' THEN 'Multiplayer_Pet_Campaign_Forest'
+				END,
+				MIN(COALESCE(created_at, CAST(strftime('%s', 'now') AS INTEGER) * 1000)),
+				MAX(COALESCE(created_at, CAST(strftime('%s', 'now') AS INTEGER) * 1000))
+			FROM campaign_completions
+			WHERE campaign_id IN (
+				'campaign_jungle', 'campaign_desert', 'campaign_snow',
+				'campaign_volcanic', 'campaign_forsaken', 'campaign_forest'
+			)
+			GROUP BY client_id, campaign_id
+			HAVING COUNT(*) >= 4;
+		`
+	}, {
+		version: 59,
+		sql: `
+			ALTER TABLE gifts ADD COLUMN updated_at INTEGER
+				CHECK (updated_at IS NULL OR updated_at >= 0);
+			ALTER TABLE trade_offers ADD COLUMN updated_at INTEGER
+				CHECK (updated_at IS NULL OR updated_at >= 0);
+			ALTER TABLE campaign_completions ADD COLUMN updated_at INTEGER
+				CHECK (updated_at IS NULL OR updated_at >= 0);
+			ALTER TABLE inbox_items ADD COLUMN updated_at INTEGER
+				CHECK (updated_at IS NULL OR updated_at >= 0);
+
+			CREATE INDEX idx_gifts_pending_updated ON gifts (updated_at, gift_id);
+			CREATE INDEX idx_trade_offers_pending_updated ON trade_offers (updated_at, trade_id);
+			CREATE INDEX idx_campaign_completions_pending_updated
+				ON campaign_completions (updated_at, source_campaign_state_id, client_id);
+			CREATE INDEX idx_inbox_items_pending_updated ON inbox_items (updated_at, client_id, item_id);
+			ALTER TABLE market_items ADD COLUMN updated_at INTEGER
+				CHECK (updated_at IS NULL OR updated_at >= 0);
+			CREATE INDEX idx_market_items_guild_direction_updated
+				ON market_items (guild_id, direction, updated_at DESC, id DESC);
+		`
 	}
 ];

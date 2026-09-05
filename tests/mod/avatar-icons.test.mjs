@@ -5,7 +5,7 @@ import { read_client_source } from './source.mjs';
 
 const root = new URL('../../', import.meta.url);
 
-test('builds avatar choices from official monsters, pickpocketing targets, and pets', async () => {
+test('builds avatar choices from official monsters and pickpocketing targets', async () => {
 	const main = await read_client_source(root);
 
 	for (const namespace of ['melvorD', 'melvorF', 'melvorAoD', 'melvorTotH', 'melvorItA'])
@@ -13,13 +13,14 @@ test('builds avatar choices from official monsters, pickpocketing targets, and p
 	const setup_icons = main.slice(main.indexOf('function setup_icons()'), main.indexOf('function setup_guild_icons()'));
 	assert.match(setup_icons, /get_icon_objects\(game\.monsters\)/);
 	assert.match(setup_icons, /get_icon_objects\(game\.thieving\?\.actions\)/);
-	assert.match(setup_icons, /get_icon_objects\(game\.pets\)/);
 	assert.match(main, /get_icon_object_by_id\(game\.thieving\?\.actions, id\)/);
-	assert.match(main, /get_icon_object_by_id\(game\.pets, id\)/);
+	assert.doesNotMatch(setup_icons, /game\.pets/);
+	assert.doesNotMatch(main, /get_icon_object_by_id\(game\.pets, id\)/);
+	assert.match(main, /get_pet_icon\(id\) \{[\s\S]*multiplayer_pet_flare\.get/);
 	assert.match(main, /search_name: icon_object\.name\.toLowerCase\(\)/);
 	assert.doesNotMatch(setup_icons, /id\.startsWith\('melvorF:'\) \|\| icon\.id\.startsWith\('melvorD:'\)/);
 	assert.match(main, /MULTIPLAYER_GAME_NAMESPACE = 'multiplayer'/);
-	assert.match(setup_icons, /allow_multiplayer: true/);
+	assert.doesNotMatch(setup_icons, /allow_multiplayer: true/);
 });
 
 test('shows every matching avatar in a bounded scrolling selector', async () => {

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { get_events, make_guildmates } from '../support/fixtures';
 import { get_json_with_session, post, post_json, register_client } from '../support/http';
+import { db_all, db_run } from '../support/persistence';
 
 type TradeContents = {
 	gifts: Record<string, unknown>;
@@ -107,6 +108,9 @@ describe('trade API', () => {
 			{ id: 'exampleMod:Trade_Item', qty: 2 }
 		]);
 		const trade_id = offered.json.trade_id;
+		const stored = await db_all<{ created_at: number | null; updated_at: number | null }>(
+			'SELECT `created_at`, `updated_at` FROM `trade_offers` WHERE `trade_id` = ?', [trade_id]
+		);
 		const sender_events = await get_events(pair.first);
 		const recipient_events = await get_events(pair.second);
 		const sender_contents = await get_trade_contents(pair.first.session_token, [trade_id]);
@@ -117,6 +121,8 @@ describe('trade API', () => {
 		}, pair.first.session_token);
 
 		expect(offered.json.success).toBe(true);
+		expect(stored[0]?.created_at).toBeGreaterThan(0);
+		expect(stored[0]?.updated_at).toBe(stored[0]?.created_at);
 		expect(sender_events.trades).toEqual([{ trade_id, attending: false, state: 0 }]);
 		expect(recipient_events.trades).toEqual([{ trade_id, attending: true, state: 0 }]);
 		expect(sender_contents.json.trades[String(trade_id)]).toMatchObject({
@@ -135,6 +141,7 @@ describe('trade API', () => {
 		});
 		expect(outsider_contents.json.trades).toEqual({});
 		expect(premature_accept.status).toBe(400);
+		await db_run('UPDATE `trade_offers` SET `created_at` = 1, `updated_at` = 1 WHERE `trade_id` = ?', [trade_id]);
 
 		const countered = await post_json<{ success: boolean }>('/api/trade/counter', {
 			trade_id,
@@ -143,8 +150,13 @@ describe('trade API', () => {
 		const sender_counter_events = await get_events(pair.first);
 		const recipient_counter_events = await get_events(pair.second);
 		const counter_contents = await get_trade_contents(pair.first.session_token, [trade_id]);
+		const counter_timestamps = await db_all<{ created_at: number | null; updated_at: number | null }>(
+			'SELECT `created_at`, `updated_at` FROM `trade_offers` WHERE `trade_id` = ?', [trade_id]
+		);
 
 		expect(countered.json.success).toBe(true);
+		expect(counter_timestamps[0]?.created_at).toBe(1);
+		expect(counter_timestamps[0]?.updated_at).toBeGreaterThan(1);
 		expect(sender_counter_events.trades).toEqual([{ trade_id, attending: true, state: 1 }]);
 		expect(recipient_counter_events.trades).toEqual([{ trade_id, attending: false, state: 1 }]);
 		expect(counter_contents.json.trades[String(trade_id)].items).toEqual([

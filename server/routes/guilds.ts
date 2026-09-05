@@ -8,7 +8,7 @@ import { get_guild_activity, parse_guild_activity_cursor } from '../guild-activi
 import { record_guild_activity } from '../guild-activity';
 import { cancel_client_haggles } from './haggle';
 
-const { DIRECT_JOIN_CHARITREE_LOCK, FREE_FELLOWSHIP_TYPE, GiftFlags, PETITION_LIFETIME, PUBLIC_GUILD_TYPE, db, db_get_all, db_get_single, db_run, ensure_guild_campaign, expire_charity_items, expire_petitions, forget_guild_campaign, get_client_display, get_client_guild_id, get_council_petitions, get_guild_applicants, get_guild_capabilities, get_guild_member_directory, get_guild_members, get_guild_summary, get_guild_type, get_petition_conflict_subject, get_petition_resolution, guild_summary_from_row, has_guild_departure_blocker, is_petition_choice, is_petition_type, is_valid_guild_icon_id, parse_guild_name, process_council_actions, resize_unprogressed_campaign, session_get_route, session_post_route, shadowed_cutoff, unlock_winnowing_targets } = runtime;
+const { DIRECT_JOIN_CHARITREE_LOCK, FREE_FELLOWSHIP_TYPE, GiftFlags, PETITION_LIFETIME, PUBLIC_GUILD_TYPE, db, db_get_all, db_get_single, db_run, ensure_guild_campaign, expire_charity_items, expire_petitions, forget_guild_campaign, get_client_charity_state, get_client_display, get_client_guild_id, get_council_petitions, get_guild_applicants, get_guild_capabilities, get_guild_member_directory, get_guild_members, get_guild_summary, get_guild_type, get_petition_conflict_subject, get_petition_resolution, guild_summary_from_row, has_guild_departure_blocker, is_petition_choice, is_petition_type, is_valid_guild_icon_id, parse_guild_name, process_council_actions, resize_unprogressed_campaign, session_get_route, session_post_route, shadowed_cutoff, unlock_winnowing_targets } = runtime;
 
 export function register_guilds_routes(): void {
 	session_get_route('/api/guilds/activity', async (req, url, client_id): Promise<HandlerResult> => {
@@ -418,6 +418,7 @@ export function register_guilds_routes(): void {
 			return {
 				affiliation: 'member',
 				current_client_id: client_id,
+				charity: await get_client_charity_state(client_id, runtime.get_request_mod_version(req)),
 				guild: {
 					...guild,
 					charitree_enabled: charitree?.charitree_enabled === 1,

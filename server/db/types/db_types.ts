@@ -19,6 +19,8 @@ export type campaign_completions = {
 	item_id: string;
 	item_amount: number;
 	taken: number;
+	created_at: number | null;
+	updated_at: number | null;
 };
 
 export type charity_items = {
@@ -26,6 +28,13 @@ export type charity_items = {
 	item_id: string;
 	qty: number;
 	expires_at: number;
+};
+
+export type multiplayer_pet_ownership = {
+	client_id: number;
+	pet_id: string;
+	created_at: number;
+	updated_at: number;
 };
 
 export type client_sessions = {
@@ -307,6 +316,8 @@ export type gifts = {
 	client_id: number;
 	sender_id: number;
 	flags: number;
+	created_at: number | null;
+	updated_at: number | null;
 };
 
 export type guilds = {
@@ -395,6 +406,7 @@ export type resolved_trade_offers = {
 	client_id: number;
 	sender_id: number;
 	declined: number;
+	created_at: number | null;
 };
 
 export type trade_items = {
@@ -411,6 +423,8 @@ export type trade_offers = {
 	recipient_id: number;
 	attending_id: number;
 	state: number;
+	created_at: number | null;
+	updated_at: number | null;
 };
 
 export type campaign_contributions = {
@@ -434,6 +448,7 @@ export type market_items = {
 	payout: number;
 	escrow_gp: number;
 	published_at: number;
+	updated_at: number | null;
 };
 
 export type banishment_returns = {
@@ -474,6 +489,8 @@ export type inbox_items = {
 	client_id: number;
 	item_id: string;
 	qty: number;
+	created_at: number | null;
+	updated_at: number | null;
 };
 
 export type inbox_claims = {

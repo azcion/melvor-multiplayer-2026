@@ -184,10 +184,11 @@ export async function make_guildmates(
 
 export async function register_guild_client(
 	display_name = 'Guild Test Idler',
-	guild_name = 'Test Guild'
+	guild_name = 'Test Guild',
+	mod_version?: string
 ): Promise<RegisteredGuildClient> {
 	validate_fixture_guild_name(guild_name);
-	const client = await register_client(display_name);
+	const client = await register_client(display_name, undefined, mod_version);
 	const created = await post_json<{
 		success: boolean;
 		guild: { guild_id: number };
