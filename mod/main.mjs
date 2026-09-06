@@ -45,6 +45,8 @@ const STATUS_MIN_SYNC_INTERVAL = 10 * 1000;
 const STATUS_OBSERVER_INTERVAL = 1000;
 const GUILD_STATE_FRESHNESS = 15 * 1000;
 const GUILD_CHAT_CAPABILITY = 'guild-chat-v1';
+const GLOBAL_CHAT_CAPABILITY = 'global-chat-v1';
+const CHAT_CAPABILITIES = GUILD_CHAT_CAPABILITY + ',' + GLOBAL_CHAT_CAPABILITY;
 const SUPPORT_TEAM_ICON_ASSETS = Object.freeze({
 	multiplayer: 'multiplayer.svg',
 	sae_support: 'sae_support.png'
@@ -244,6 +246,9 @@ const state = ui.createStore({
 	active_mods_visibility_pending: false,
 	messaging_enabled: true,
 	chat_privacy_pending: false,
+	global_chat_enabled: true,
+	global_chat_participation_pending: false,
+	global_chat_cooling_down: false,
 	guild_chat_enabled: true,
 	guild_chat_participation_pending: false,
 	guild_chat_state: { affiliated: false, enabled: true },
@@ -620,6 +625,7 @@ const state = ui.createStore({
 	get chat_can_send() {
 		const kind = this.selected_chat_conversation?.conversation_kind ?? 'private';
 		return (kind !== 'private' || (this.messaging_enabled && (!this.chat_budget_enabled || this.chat_budget.credits > 0))) &&
+			(kind !== 'global' || !this.global_chat_cooling_down) &&
 			this.chat_draft.trim().length > 0 &&
 			!this.chat_sending;
 	},
@@ -653,6 +659,10 @@ const state = ui.createStore({
 
 	get personal_chat_conversations() {
 		return this.chat_conversations.filter(conversation => (conversation.conversation_kind ?? 'private') === 'private');
+	},
+
+	get global_chat_conversations() {
+		return this.chat_conversations.filter(conversation => conversation.conversation_kind === 'global');
 	},
 
 	get guild_chat_conversations() {
@@ -880,6 +890,7 @@ function create_action_runtime() {
 		changePage: navigate_page,
 		Swal,
 		document,
+		next_tick: () => PetiteVue.nextTick(),
 		$,
 		nativeManager: typeof nativeManager === 'undefined' ? undefined : nativeManager,
 		crypto,
@@ -2178,6 +2189,11 @@ function localize_multiplayer_page_names() {
 	localization.localize_multiplayer_page_names({ game, sidebar, getLangString, createElement });
 }
 
+function watch_chat_nav() {
+	const nav_item = sidebar.category('Multiplayer').item('multiplayer:Chat');
+	nav_item.rootEl?.addEventListener('click', () => state.close_chat_conversation(), true);
+}
+
 function update_charitree_nav() {
 	const nav_item = sidebar.category('Multiplayer').item('multiplayer:Charity_Tree');
 	nav_item.rootEl?.classList.toggle('mp-nav-unavailable', !state.is_charitree_enabled);
@@ -2952,6 +2968,7 @@ const EVENT_AFFECTING_MUTATIONS = new Set([
 	'/api/chat/block',
 	'/api/chat/conversations/delete',
 	'/api/chat/conversations/start',
+	'/api/chat/global-participation',
 	'/api/chat/guild-participation',
 	'/api/chat/messages/delete',
 	'/api/chat/messages/send',
@@ -2995,7 +3012,7 @@ const EVENT_AFFECTING_MUTATIONS = new Set([
 ]);
 
 function is_event_affecting_mutation(endpoint) {
-	return EVENT_AFFECTING_MUTATIONS.has(endpoint);
+	return EVENT_AFFECTING_MUTATIONS.has(endpoint.split('?')[0]);
 }
 
 async function refresh_identities() {
@@ -3071,6 +3088,7 @@ async function refresh_chat_state() {
 	if (res === null)
 		return;
 	state.messaging_enabled = res.messaging_enabled !== false;
+	state.global_chat_enabled = res.global_chat_enabled !== false;
 	state.guild_chat_enabled = res.guild_chat_enabled !== false;
 	state.chat_client_id = res.client_id;
 	state.chat_budget_enabled = res.budget_enabled !== false;
@@ -3080,10 +3098,11 @@ async function refresh_chat_state() {
 
 async function refresh_chat_conversations() {
 	const selected = state.selected_chat_conversation;
-	const res = await api_get('/api/chat/conversations?capabilities=' + GUILD_CHAT_CAPABILITY);
+	const res = await api_get('/api/chat/conversations?capabilities=' + CHAT_CAPABILITIES);
 	if (!Array.isArray(res?.conversations))
 		return;
 	state.chat_conversations = res.conversations;
+	state.global_chat_enabled = res.global_chat?.enabled !== false;
 	state.guild_chat_state = res.guild_chat ?? { affiliated: false, enabled: state.guild_chat_enabled };
 	state.guild_chat_enabled = state.guild_chat_state.enabled !== false;
 	state.chat_unread = res.conversations.reduce((total, conversation) => total + conversation.unread_count, 0);
@@ -3096,7 +3115,7 @@ async function refresh_chat_conversations() {
 			conversation.support_team_id === selected.support_team_id
 		);
 		if (current) {
-			const moderation_changed = current.conversation_kind === 'guild' &&
+			const moderation_changed = (current.conversation_kind === 'guild' || current.conversation_kind === 'global') &&
 				Number.isSafeInteger(selected.moderation_count) &&
 				Number.isSafeInteger(current.moderation_count) &&
 				current.moderation_count !== selected.moderation_count;
@@ -3105,7 +3124,7 @@ async function refresh_chat_conversations() {
 				state.close_chat_conversation();
 				await state.open_chat_conversation(current);
 			}
-		} else if (selected.conversation_kind === 'guild') {
+		} else if (selected.conversation_kind === 'guild' || selected.conversation_kind === 'global') {
 			state.close_chat_conversation();
 		}
 	}
@@ -3154,7 +3173,9 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 			? '' : '&conversation_id=' + conversation.conversation_id;
 		const team_parameter = conversation.support_team_id === undefined
 			? '' : '&support_team_id=' + conversation.support_team_id;
-		res = await api_get('/api/chat/messages?conversation_kind=' + kind + conversation_parameter + team_parameter + cursor);
+		const capability_parameter = kind === 'global' ? '&capabilities=' + GLOBAL_CHAT_CAPABILITY : '';
+		res = await api_get('/api/chat/messages?conversation_kind=' + kind + conversation_parameter + team_parameter +
+			cursor + capability_parameter);
 		if (view_generation !== chat_view_generation ||
 			state.selected_chat_conversation?.conversation_id !== conversation_id ||
 			state.selected_chat_conversation?.support_team_id !== conversation.support_team_id)
@@ -3191,6 +3212,8 @@ async function refresh_chat_page() {
 		await Promise.all([refresh_chat_state(), refresh_chat_conversations()]);
 		if (state.selected_chat_conversation)
 			await refresh_chat_messages('', false, false, view_generation);
+		if (state.selected_chat_conversation && view_generation === chat_view_generation)
+			await state.scroll_chat_messages_to_bottom();
 	} finally {
 		if (view_generation === chat_view_generation) {
 			state.chat_loading = false;
@@ -3607,7 +3630,7 @@ function reconcile_campaign_event(campaign) {
 }
 
 async function get_client_events_request(reconcile_gifts, request_generation) {
-	const res = await api_get('/api/events?revision=' + client_event_revision + '&capabilities=' + GUILD_CHAT_CAPABILITY);
+	const res = await api_get('/api/events?revision=' + client_event_revision + '&capabilities=' + CHAT_CAPABILITIES);
 	if (res !== null && request_generation === session_generation) {
 		if (res.unchanged === true)
 			return res;
@@ -3899,6 +3922,7 @@ export async function setup(ctx) {
 		interface_ready = true;
 		const setup_interface = $main_container => {
 			setup_account_menu();
+			watch_chat_nav();
 			setup_mobile_sidebar_unread();
 			update_chat_nav();
 			update_transfer_inventory_nav();
@@ -4440,6 +4464,7 @@ function activate_multiplayer_identity(response) {
 	state.game_mode_visible = response.game_mode_visible !== false;
 	state.active_mods_visible = response.active_mods_visible !== false;
 	state.messaging_enabled = response.chat?.messaging_enabled !== false;
+	state.global_chat_enabled = response.chat?.global_chat_enabled !== false;
 	state.guild_chat_enabled = response.chat?.guild_chat_enabled !== false;
 	state.guild_chat_state = { affiliated: false, enabled: state.guild_chat_enabled };
 	state.chat_client_id = response.chat?.client_id ?? null;

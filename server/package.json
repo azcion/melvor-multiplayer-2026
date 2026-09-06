@@ -5,6 +5,7 @@
 	"scripts": {
 		"admin": "bun run admin.ts",
 		"backup": "bun run backup.ts",
+		"sql-console": "bun run sql-console.ts",
 		"test": "bun test --timeout 15000 tests",
 		"typecheck": "tsc --noEmit"
 	},

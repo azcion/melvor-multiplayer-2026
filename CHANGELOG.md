@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.5.4
+
+- Increased Chat history pages from five to 20 messages while preserving older-history pagination.
+- Made the Chat sidebar entry always open the Chat home list instead of reopening the last conversation.
+- Added an independent server-wide Global Chat for every multiplayer identity, including Guildless players, with unread counts, retained history, and a separate default-on opt-out in Multiplayer Options.
+- Reordered Chat into Global, Guild, Private, and Support categories.
+- Added host-controlled server-wide and per-player Global Chat message limits that can be changed without a client update; delayed sends preserve the draft and quietly keep Send unavailable until the server-provided delay expires.
+- Added Global Chat message moderation and persistent throttle controls to the host-local Service Console and administration CLI.
+- Added avatars beside every sent and received Chat message, including messages in Global Chat.
+- Made Chat message avatars and usernames open the sender's member-info modal.
+- Fixed Chat opening and sending to scroll to the newest messages, while loading older messages preserves the current viewport position.
+
 ## 1.5.3
 
 - Moved Multiplayer pets out of Melvor's native Pets and Completion systems into server-owned, per-identity Multiplayer presentation.

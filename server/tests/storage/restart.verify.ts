@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { get_events } from '../support/fixtures';
 import { get_json_with_session, post_json } from '../support/http';
 import { read_restart_state } from '../support/restart-state';
+import { db_all } from '../support/persistence';
 
 test('rebuilds caches and preserves API state after a server restart', async () => {
 	const state = await read_restart_state();
@@ -80,6 +81,7 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	}>(`/api/chat/messages?conversation_id=${state.chat_conversation_id}`, state.second.session_token);
 	const chat_state = await get_json_with_session<{
 		messaging_enabled: boolean;
+		global_chat_enabled: boolean;
 		guild_chat_enabled: boolean;
 		budget_enabled: boolean;
 		budget: { credits: number };
@@ -91,6 +93,14 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	const guild_messages = await get_json_with_session<{
 		messages: Array<{ message_id: number; content: string }>;
 	}>(`/api/chat/messages?conversation_kind=guild&conversation_id=${state.guild_id}`,
+		state.second.session_token);
+	const global_inbox = await get_json_with_session<{
+		global_chat: { enabled: boolean };
+		conversations: Array<{ conversation_kind: string }>;
+	}>('/api/chat/conversations?capabilities=global-chat-v1', state.first.session_token);
+	const global_messages = await get_json_with_session<{
+		messages: Array<{ message_id: number; content: string }>;
+	}>('/api/chat/messages?conversation_kind=global&conversation_id=1&capabilities=global-chat-v1',
 		state.second.session_token);
 	const support_inbox = await get_json_with_session<{
 		conversations: Array<{ conversation_kind: string; conversation_id: number; participant: { display_name: string } }>;
@@ -187,6 +197,7 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	}));
 	expect(chat_state.json.messaging_enabled).toBe(false);
 	expect(chat_state.json.guild_chat_enabled).toBe(false);
+	expect(chat_state.json.global_chat_enabled).toBe(false);
 	expect(chat_state.json.budget_enabled).toBe(false);
 	expect(chat_state.json.budget.credits).toBe(5);
 	expect(guild_inbox.json.guild_chat).toEqual({ affiliated: true, enabled: false });
@@ -195,6 +206,19 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 		message_id: state.guild_chat_message_id,
 		content: 'Restart-safe Guild Message'
 	}));
+	expect(global_inbox.json.global_chat).toEqual({ enabled: false });
+	expect(global_inbox.json.conversations.some(conversation => conversation.conversation_kind === 'global')).toBe(false);
+	expect(global_messages.json.messages).toContainEqual(expect.objectContaining({
+		message_id: state.global_chat_message_id,
+		content: 'Restart-safe Global Message'
+	}));
+	expect(await db_all('SELECT `max_messages`, `window_seconds` FROM `global_chat_server_throttle`')).toEqual([
+		{ max_messages: 4, window_seconds: 30 }
+	]);
+	expect(await db_all(
+		'SELECT `client_id`, `max_messages`, `window_seconds` FROM `global_chat_client_throttles` WHERE `client_id` = ?',
+		[state.first_id]
+	)).toEqual([{ client_id: state.first_id, max_messages: 2, window_seconds: 10 }]);
 	expect(support_inbox.json.conversations).toContainEqual(expect.objectContaining({
 		conversation_kind: 'support', conversation_id: state.support_conversation_id,
 		participant: expect.objectContaining({ display_name: 'Restart Player @mp' })

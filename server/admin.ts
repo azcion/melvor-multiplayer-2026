@@ -35,6 +35,8 @@ function usage(output: AdminOutput): number {
   bun run admin.ts identity find DISPLAY_NAME
   bun run admin.ts identity inspect CLIENT_ID
   bun run admin.ts identity enable|disable CLIENT_ID
+  bun run admin.ts global-chat-throttle server clear|MAX_MESSAGES WINDOW_SECONDS
+  bun run admin.ts global-chat-throttle client CLIENT_ID clear|MAX_MESSAGES WINDOW_SECONDS
   bun run admin.ts charity reset CLIENT_ID
   bun run admin.ts charity reset-all`);
 	return 2;
@@ -277,10 +279,54 @@ function reset_all_charity_timers(output: AdminOutput): number {
 	return 0;
 }
 
+function set_global_chat_throttle(args: string[], output: AdminOutput): number {
+	const scope = args[1];
+	const client_id = scope === 'client' ? parse_positive_integer(args[2]) : null;
+	const value_offset = scope === 'client' ? 3 : 2;
+	if ((scope !== 'server' && scope !== 'client') || (scope === 'client' && client_id === null))
+		return usage(output);
+	const clear = args[value_offset] === 'clear';
+	const max_messages = parse_positive_integer(args[value_offset]);
+	const window_seconds = parse_positive_integer(args[value_offset + 1]);
+	if ((clear && args.length !== value_offset + 1) ||
+		(!clear && (args.length !== value_offset + 2 || max_messages === null || max_messages > 1000 ||
+			window_seconds === null || window_seconds > 86400)))
+		return usage(output);
+	if (scope === 'server') {
+		if (clear)
+			db.query('DELETE FROM `global_chat_server_throttle` WHERE `id` = 1').run();
+		else
+			db.query(
+				'INSERT INTO `global_chat_server_throttle` (`id`, `max_messages`, `window_seconds`) VALUES(1, ?, ?) ' +
+				'ON CONFLICT (`id`) DO UPDATE SET `max_messages` = excluded.`max_messages`, ' +
+				'`window_seconds` = excluded.`window_seconds`'
+			).run(max_messages as number, window_seconds as number);
+	} else {
+		if (db.query<{ found: number }, [number]>('SELECT 1 AS `found` FROM `clients` WHERE `id` = ?')
+			.get(client_id as number) === null) {
+			output.error(`Multiplayer identity ${client_id} does not exist.`);
+			return 1;
+		}
+		if (clear)
+			db.query('DELETE FROM `global_chat_client_throttles` WHERE `client_id` = ?').run(client_id as number);
+		else
+			db.query(
+				'INSERT INTO `global_chat_client_throttles` (`client_id`, `max_messages`, `window_seconds`) VALUES(?, ?, ?) ' +
+				'ON CONFLICT (`client_id`) DO UPDATE SET `max_messages` = excluded.`max_messages`, ' +
+				'`window_seconds` = excluded.`window_seconds`'
+			).run(client_id as number, max_messages as number, window_seconds as number);
+	}
+	output.log(clear ? `Global Chat ${scope} throttle cleared.` :
+		`Global Chat ${scope} throttle set to ${max_messages} messages per ${window_seconds} seconds.`);
+	return 0;
+}
+
 export function run_admin(args: string[], output: AdminOutput = console_output): number {
 	const [command, action, argument] = args;
 
 	switch (command) {
+		case 'global-chat-throttle':
+			return set_global_chat_throttle(args, output);
 		case 'status': {
 			if (args.length !== 1)
 				return usage(output);

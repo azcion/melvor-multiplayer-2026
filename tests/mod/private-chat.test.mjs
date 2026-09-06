@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { install_chat_actions } from '../../mod/client-actions-chat.mjs';
 import { read_client_source } from './source.mjs';
 
 const root = new URL('../../', import.meta.url);
@@ -48,6 +49,29 @@ test('adds a first-class Chat page, inbox, unread indicators, and Guild-roster i
 	assert.equal(language.MOD_MP_MENU_VIEW_CHAT, 'Open Chat');
 	assert.doesNotMatch(templates, /MOD_MP_CHAT_INBOX/);
 	assert.equal(language.MOD_MP_CHAT_CATEGORY_PERSONAL_INFO, 'These stay with you across Guilds.');
+});
+
+test('returns to the Chat home list when the sidebar entry is clicked', async () => {
+	const main = await read_client_source(root);
+	const watch_start = main.indexOf('function watch_chat_nav');
+	const watch_end = main.indexOf('\nfunction update_charitree_nav', watch_start);
+	const navigation = main.slice(watch_start, watch_end);
+	const state = { close_count: 0, close_chat_conversation() { this.close_count++; } };
+	let click_handler = null;
+	let capture = false;
+	const sidebar = { category: () => ({ item: () => ({ rootEl: {
+		addEventListener(type, handler, use_capture) {
+			assert.equal(type, 'click');
+			click_handler = handler;
+			capture = use_capture;
+		}
+	} }) }) };
+	new Function('sidebar', 'state', `${navigation}; return watch_chat_nav;`)(sidebar, state)();
+	assert.equal(capture, true);
+	click_handler();
+	assert.equal(state.close_count, 1);
+	const interface_ready = main.slice(main.indexOf('ctx.onInterfaceReady(() => {'), main.indexOf('\n\t});', main.indexOf('ctx.onInterfaceReady(() => {')));
+	assert.match(interface_ready, /watch_chat_nav\(\);/);
 });
 
 test('mirrors the shared unread count on the mobile sidebar button without duplicating the badge', async () => {
@@ -121,6 +145,33 @@ test('implements jittered foreground conversation polling and cursor-based histo
 	assert.match(templates, /role="log" aria-live="polite"/);
 });
 
+test('keeps Chat at the bottom when opening or sending and anchors the viewport when loading older messages', async () => {
+	const { main } = await sources();
+	const chat_actions = main.slice(main.indexOf('export function install_chat_actions'));
+
+	assert.match(chat_actions, /await this\.scroll_chat_messages_to_bottom\(\);[\s\S]*start_chat_polling\(\);/);
+	assert.match(chat_actions, /this\.chat_messages\.push\(res\.message\);[\s\S]*await this\.scroll_chat_messages_to_bottom\(\);/);
+	assert.match(chat_actions, /const previous_scroll_top = \$messages\?\.scrollTop \?\? 0;/);
+	assert.match(chat_actions, /const previous_scroll_height = \$messages\?\.scrollHeight \?\? 0;/);
+	assert.match(chat_actions, /\$messages\.scrollTop = previous_scroll_top \+ \$messages\.scrollHeight - previous_scroll_height;/);
+	assert.match(main, /await refresh_chat_messages\('', false, false, view_generation\);[\s\S]*await state\.scroll_chat_messages_to_bottom\(\);/);
+
+	const container = { scrollHeight: 1600, scrollTop: 140 };
+	const actions = install_chat_actions({
+		document: { querySelector: () => container },
+		next_tick: async () => {},
+		refresh_chat_messages: async () => {
+			container.scrollHeight = 3200;
+		}
+	});
+	await actions.scroll_chat_messages_to_bottom.call({});
+	assert.equal(container.scrollTop, 1600);
+	container.scrollHeight = 2400;
+	container.scrollTop = 140;
+	await actions.load_older_chat_messages.call({ chat_before_cursor: 20 });
+	assert.equal(container.scrollTop, 940);
+});
+
 test('moves conversation actions behind the participant header and confirms them', async () => {
 	const { main, templates, language } = await sources();
 	const chat_view = templates.slice(
@@ -166,6 +217,32 @@ test('opens message actions from timestamps with copy and confirmed deletion', a
 	assert.match(style, /\.mp-chat-message-timestamp[\s\S]*cursor: pointer/);
 	assert.equal(language.MOD_MP_CHAT_COPY, 'Copy');
 	assert.equal(language.MOD_MP_CHAT_DELETE_MESSAGE_CONFIRM_TITLE, 'Delete this Message?');
+});
+
+test('renders the sender avatar for every Chat message, including Global and Support messages', async () => {
+	const { main, templates, style } = await sources();
+	const chat_view = templates.slice(
+		templates.indexOf('<template id="template-mp-chat-page">'),
+		templates.indexOf('<template id="template-mp-profile-modal">')
+	);
+
+	assert.match(chat_view, /class="mp-chat-message-author"[\s\S]*class="mp-chat-message-avatar"[\s\S]*state\.get_chat_message_icon\(message\)[\s\S]*message\.sender\.display_name/);
+	assert.match(main, /get_chat_message_icon\(message\)[\s\S]*SUPPORT_TEAM_ICON_ASSETS/);
+	assert.match(style, /\.mp-chat-message-author\s*\{[\s\S]*display: flex[\s\S]*align-items: center[\s\S]*gap: 2px/);
+	assert.match(style, /\.mp-chat-message-avatar\s*\{[\s\S]*margin: 0 2px 0 0;[\s\S]*width: 20px;[\s\S]*height: 20px;/);
+});
+
+test('opens the sender member-info modal from Chat message authors', async () => {
+	const { main, templates, style } = await sources();
+	const chat_view = templates.slice(
+		templates.indexOf('<template id="template-mp-chat-page">'),
+		templates.indexOf('<template id="template-mp-profile-modal">')
+	);
+
+	assert.match(chat_view, /class="mp-chat-message-author"[^>]*@click="state\.show_chat_message_member\(message\)"/);
+	assert.match(chat_view, /class="mp-chat-message-timestamp"[^>]*@click="state\.show_chat_message_actions\(message\)"/);
+	assert.match(main, /show_chat_message_member\(message\)[\s\S]*this\.guild_members\.find\(entry => entry\.client_id === sender_id\)[\s\S]*this\.show_member_actions\(/);
+	assert.match(style, /\.mp-chat-message-author:hover,[\s\S]*\.mp-chat-message-author:focus-visible/);
 });
 
 test('disables Message capacity while preserving its dormant UI and rollback compatibility', async () => {

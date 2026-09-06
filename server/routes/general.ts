@@ -5,7 +5,7 @@ import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
 import type { PetitionType } from '../council';
 import { has_pending_inbox } from '../inbox';
 
-const { acknowledge_economy_receipt, db, db_execute, db_exists, display_name_cache, friend_request_cache, get_campaign_progress, get_client_gifts, get_client_resolved_trades, get_client_trades, get_friend_requests, get_guild_applicants, get_guild_chat_unread_count, get_guild_member_social_modes, get_market_completed, get_support_unread_count, get_trade_offer_meta, get_unread_chat_count, has_deletion_returns, has_guild_chat_capability, is_valid_avatar_icon_id, parse_display_name, pending_economy_receipts, session_get_route, session_post_route } = runtime;
+const { acknowledge_economy_receipt, db, db_execute, db_exists, display_name_cache, friend_request_cache, get_campaign_progress, get_client_gifts, get_client_resolved_trades, get_client_trades, get_friend_requests, get_global_chat_unread_count, get_guild_applicants, get_guild_chat_unread_count, get_guild_member_social_modes, get_market_completed, get_support_unread_count, get_trade_offer_meta, get_unread_chat_count, has_deletion_returns, has_global_chat_capability, has_guild_chat_capability, is_valid_avatar_icon_id, parse_display_name, pending_economy_receipts, session_get_route, session_post_route } = runtime;
 
 export function register_general_routes(): void {
 	session_get_route('/api/events', async (req, url, client_id): Promise<HandlerResult> => {
@@ -54,6 +54,7 @@ export function register_general_routes(): void {
 			) || has_deletion_returns(client_id),
 			inbox_pending: has_pending_inbox(client_id),
 			chat_unread: get_unread_chat_count(client_id) + get_support_unread_count(client_id) +
+				(has_global_chat_capability(url) ? get_global_chat_unread_count(client_id) : 0) +
 				(has_guild_chat_capability(url) ? get_guild_chat_unread_count(client_id) : 0)
 		};
 	});

@@ -113,6 +113,23 @@ test('creates representative state before a server restart', async () => {
 		content: 'Restart-safe Guild Message'
 	}, pair.first.session_token);
 	await post_json('/api/chat/guild-participation', { enabled: false }, pair.first.session_token);
+	await db_run(
+		'INSERT INTO `global_chat_server_throttle` (`id`, `max_messages`, `window_seconds`) VALUES(1, 1000, 30) ' +
+		'ON CONFLICT (`id`) DO UPDATE SET `max_messages` = 1000, `window_seconds` = 30'
+	);
+	const global_chat_message = await post_json<{ message: { message_id: number } }>(
+		'/api/chat/messages/send?capabilities=global-chat-v1', {
+			conversation_kind: 'global', conversation_id: 1, idempotency_key: crypto.randomUUID(),
+			content: 'Restart-safe Global Message'
+		}, pair.first.session_token
+	);
+	await post_json('/api/chat/global-participation?capabilities=global-chat-v1',
+		{ enabled: false }, pair.first.session_token);
+	await db_run('UPDATE `global_chat_server_throttle` SET `max_messages` = 4 WHERE `id` = 1');
+	await db_run(
+		'INSERT INTO `global_chat_client_throttles` (`client_id`, `max_messages`, `window_seconds`) VALUES(?, 2, 10)',
+		[pair.first_id]
+	);
 	const support_player = await register_client('Restart Support Player');
 	const support_profile = await post_json('/api/client/set_display_name', {
 		display_name: 'Restart Player'
@@ -220,6 +237,7 @@ test('creates representative state before a server restart', async () => {
 		chat_message_id: chat_message.json.message.message_id,
 		guild_id: pair.guild_id,
 		guild_chat_message_id: guild_chat_message.json.message.message_id,
+		global_chat_message_id: global_chat_message.json.message.message_id,
 		active_petition_id: active_petition.json.petition_id,
 		retry_petition_id: retry_petition.json.petition_id,
 		banished,
@@ -241,6 +259,7 @@ test('creates representative state before a server restart', async () => {
 	expect(retry_petition.json.petition_id).toBeNumber();
 	expect(chat_message.json.message.message_id).toBeNumber();
 	expect(guild_chat_message.json.message.message_id).toBeNumber();
+	expect(global_chat_message.json.message.message_id).toBeNumber();
 	expect(banishment.json.petition_id).toBeNumber();
 	expect(raid_assault.json.assault_id).toBeString();
 });

@@ -48,6 +48,7 @@ test('reports are bounded, strip queries and unknown routes, and reconstruct an 
 	assert.ok(!report.includes('private-host'));
 	assert.equal(diagnostic_route('/api/SECRET'), 'other');
 	assert.equal(diagnostic_route('/api/events?secret=SECRET'), '/api/events');
+	assert.equal(diagnostic_route('/api/chat/global-participation?capabilities=global-chat-v1'), '/api/chat/global-participation');
 });
 test('request observations separate HTTP, transport, response-body, and timeout failures without changing results', async () => {
 	const seen = [];

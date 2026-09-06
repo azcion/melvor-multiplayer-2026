@@ -31,6 +31,7 @@ export type RestartState = {
 	chat_message_id: number;
 	guild_id: number;
 	guild_chat_message_id: number;
+	global_chat_message_id: number;
 	active_petition_id: number;
 	retry_petition_id: number;
 	banished: RegisteredClient;

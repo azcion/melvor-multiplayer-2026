@@ -95,9 +95,19 @@ import {
 	get_guild_chat_unread_count,
 	has_guild_chat_capability,
 	list_guild_chat_messages,
+	moderate_guild_chat_message,
 	send_guild_chat_message,
 	set_guild_chat_enabled
 } from './guild_chat';
+import {
+	get_global_chat_inbox,
+	get_global_chat_unread_count,
+	has_global_chat_capability,
+	list_global_chat_messages,
+	moderate_global_chat_message,
+	send_global_chat_message,
+	set_global_chat_enabled
+} from './global_chat';
 import {
 	acknowledge_deletion_return_claim,
 	associate_client_with_melvor_account,
@@ -143,7 +153,8 @@ export { AVAILABLE_CAMPAIGNS } from './campaign_data';
 export { get_campaign_item_gp_value, get_campaign_item_gp_values } from './campaign_item_values';
 export { CHAT_BUDGET_ENABLED, CHAT_BUDGET_ERROR, CHAT_PRIVACY_ERROR, delete_conversation, delete_message, get_chat_state, get_unread_chat_count, list_conversations, list_messages, send_message, set_block, set_messaging_enabled, start_conversation } from './chat';
 export { get_support_unread_count, list_support_conversations, list_support_messages, reconcile_support_memberships, reconcile_support_team_memberships, send_support_message } from './support_chat';
-export { get_guild_chat_inbox, get_guild_chat_unread_count, has_guild_chat_capability, list_guild_chat_messages, send_guild_chat_message, set_guild_chat_enabled } from './guild_chat';
+export { get_guild_chat_inbox, get_guild_chat_unread_count, has_guild_chat_capability, list_guild_chat_messages, moderate_guild_chat_message, send_guild_chat_message, set_guild_chat_enabled } from './guild_chat';
+export { get_global_chat_inbox, get_global_chat_unread_count, has_global_chat_capability, list_global_chat_messages, moderate_global_chat_message, send_global_chat_message, set_global_chat_enabled } from './global_chat';
 export { acknowledge_deletion_return_claim, associate_client_with_melvor_account, cancel_deletion_on_authentication, cancel_scheduled_client_deletion, CLIENT_DELETION_MAINTENANCE_INTERVAL, create_deletion_return_claim, get_client_deletion_status, get_deletion_claim_view, has_deletion_returns, list_sibling_identities, parse_melvor_account, process_due_client_deletions, recover_deleted_client, schedule_client_deletion } from './identity';
 export { acknowledge_economy_receipt, economy_item_effects, pending_economy_receipts, run_economy_command } from './economy';
 export { acknowledge_victory_cache, abandon_assault, activate_raid, get_raid_state, get_victory_cache, reserve_assault, settle_assault } from './raid';

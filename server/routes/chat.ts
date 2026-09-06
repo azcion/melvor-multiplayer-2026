@@ -4,7 +4,7 @@ import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
 import type { PetitionType } from '../council';
 
-const { CHAT_BUDGET_ENABLED, CHAT_BUDGET_ERROR, CHAT_PRIVACY_ERROR, delete_conversation, delete_message, get_chat_state, get_guild_chat_inbox, has_guild_chat_capability, list_conversations, list_guild_chat_messages, list_messages, list_support_conversations, list_support_messages, send_guild_chat_message, send_message, send_support_message, session_get_route, session_post_route, set_block, set_guild_chat_enabled, set_messaging_enabled, start_conversation } = runtime;
+const { CHAT_BUDGET_ENABLED, CHAT_BUDGET_ERROR, CHAT_PRIVACY_ERROR, delete_conversation, delete_message, get_chat_state, get_global_chat_inbox, get_guild_chat_inbox, has_global_chat_capability, has_guild_chat_capability, list_conversations, list_global_chat_messages, list_guild_chat_messages, list_messages, list_support_conversations, list_support_messages, moderate_global_chat_message, moderate_guild_chat_message, send_global_chat_message, send_guild_chat_message, send_message, send_support_message, session_get_route, session_post_route, set_block, set_global_chat_enabled, set_guild_chat_enabled, set_messaging_enabled, start_conversation } = runtime;
 
 export function register_chat_routes(): void {
 	function chat_error(status: 'bad_request' | 'missing' | 'privacy' | 'budget') {
@@ -20,15 +20,18 @@ export function register_chat_routes(): void {
 	session_get_route('/api/chat/state', async (req, url, client_id) => get_chat_state(client_id));
 
 	session_get_route('/api/chat/conversations', async (req, url, client_id) => {
+		const global_chat = has_global_chat_capability(url) ? get_global_chat_inbox(client_id) : null;
 		const guild_chat = has_guild_chat_capability(url) ? get_guild_chat_inbox(client_id) : null;
 		const conversations = [
 			...list_conversations(client_id),
+			...(global_chat?.conversation === null || global_chat === null ? [] : [global_chat.conversation]),
 			...(guild_chat?.conversation === null || guild_chat === null ? [] : [guild_chat.conversation]),
 			...list_support_conversations(client_id)
 		].sort((a, b) => (b.latest_message?.created_at ?? b.created_at) -
 			(a.latest_message?.created_at ?? a.created_at));
 		return {
 			conversations,
+			...(global_chat === null ? {} : { global_chat: global_chat.state }),
 			...(guild_chat === null ? {} : { guild_chat: guild_chat.state })
 		};
 	});
@@ -52,25 +55,35 @@ export function register_chat_routes(): void {
 		const after_parameter = url.searchParams.get('after');
 		const before = before_parameter === null ? null : Number(before_parameter);
 		const after = after_parameter === null ? null : Number(after_parameter);
-		if (kind !== 'private' && kind !== 'support' && kind !== 'guild')
+		if (kind !== 'private' && kind !== 'support' && kind !== 'guild' && kind !== 'global')
 			return 400;
+		if (kind === 'global' && !has_global_chat_capability(url))
+			return 404;
 		const result = kind === 'support'
 			? list_support_messages(client_id, conversation_id, team_id, before, after)
 			: kind === 'guild'
 				? conversation_id === null ? { status: 'bad_request' as const }
 					: list_guild_chat_messages(client_id, conversation_id, before, after)
+				: kind === 'global'
+					? conversation_id === null ? { status: 'bad_request' as const }
+						: list_global_chat_messages(client_id, conversation_id, before, after)
 				: conversation_id === null ? { status: 'bad_request' as const }
 				: list_messages(client_id, conversation_id, before, after);
+		if (result.status === 'throttled')
+			return 500;
 		return result.status === 'ok' ? result.value : chat_error(result.status);
 	});
 
 	session_post_route('/api/chat/messages/send', async (req, url, client_id, json) => {
 		const kind = json.conversation_kind ?? 'private';
-		if (kind !== 'private' && kind !== 'support' && kind !== 'guild')
+		if (kind !== 'private' && kind !== 'support' && kind !== 'guild' && kind !== 'global')
 			return 400;
+		if (kind === 'global' && !has_global_chat_capability(url))
+			return 404;
 		if ((json.conversation_id !== null && typeof json.conversation_id !== 'number') ||
 			(json.conversation_id === null && kind === 'private' && typeof json.client_id !== 'number') ||
 			(kind === 'guild' && typeof json.conversation_id !== 'number') ||
+			(kind === 'global' && typeof json.conversation_id !== 'number') ||
 			(kind === 'support' && typeof json.support_team_id !== 'number') ||
 			typeof json.idempotency_key !== 'string' ||
 			typeof json.content !== 'string')
@@ -86,6 +99,11 @@ export function register_chat_routes(): void {
 			json.conversation_id as number,
 			json.idempotency_key,
 			json.content
+		) : kind === 'global' ? send_global_chat_message(
+			client_id,
+			json.conversation_id as number,
+			json.idempotency_key,
+			json.content
 		) : send_message(
 			client_id,
 			json.conversation_id,
@@ -93,8 +111,26 @@ export function register_chat_routes(): void {
 			json.idempotency_key,
 			json.content
 		);
-		return result.status === 'ok' ? { success: true, ...result.value, budget_enabled: CHAT_BUDGET_ENABLED,
-			...(kind === 'support' ? { budget: get_chat_state(client_id).budget } : {}) } : chat_error(result.status);
+		if (result.status === 'throttled')
+			return { success: false, retry_after_ms: result.retry_after_ms };
+		if (result.status !== 'ok')
+			return chat_error(result.status);
+		const response: JsonObject = {
+			success: true,
+			budget_enabled: CHAT_BUDGET_ENABLED
+		};
+		Object.assign(response, result.value as JsonObject);
+		if (kind === 'support')
+			response.budget = get_chat_state(client_id).budget;
+		return response;
+	});
+
+	session_post_route('/api/chat/global-participation', async (req, url, client_id, json) => {
+		if (!has_global_chat_capability(url))
+			return 404;
+		if (typeof json.enabled !== 'boolean')
+			return 400;
+		return { success: true, ...set_global_chat_enabled(client_id, json.enabled) };
 	});
 
 	session_post_route('/api/chat/guild-participation', async (req, url, client_id, json) => {
@@ -107,6 +143,16 @@ export function register_chat_routes(): void {
 		if (typeof json.message_id !== 'number')
 			return 400;
 		const result = delete_message(client_id, json.message_id);
+		return result.status === 'ok' ? { success: true, ...result.value } : chat_error(result.status);
+	});
+
+	session_post_route('/api/chat/messages/delete-for-all', async (req, url, client_id, json) => {
+		if (typeof json.message_id !== 'number' ||
+			(json.conversation_kind !== 'global' && json.conversation_kind !== 'guild'))
+			return 400;
+		const result = json.conversation_kind === 'global'
+			? moderate_global_chat_message(client_id, json.message_id)
+			: moderate_guild_chat_message(client_id, json.message_id);
 		return result.status === 'ok' ? { success: true, ...result.value } : chat_error(result.status);
 	});
 

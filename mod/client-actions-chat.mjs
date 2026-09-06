@@ -1,5 +1,6 @@
 export function install_chat_actions(runtime) {
 	const {
+		document,
 		state,
 		api_post,
 		changePage,
@@ -12,6 +13,7 @@ export function install_chat_actions(runtime) {
 		is_button_spinning,
 		log,
 		nativeManager,
+		next_tick = () => Promise.resolve(),
 		notify,
 		queue_modal,
 		refresh_chat_conversations,
@@ -22,7 +24,22 @@ export function install_chat_actions(runtime) {
 		stop_chat_polling,
 	} = runtime;
 
+	const get_chat_messages_element = () => document.querySelector('.mp-chat-messages');
+	const scroll_chat_messages_to_bottom = () => {
+		const $messages = get_chat_messages_element();
+		if ($messages)
+			$messages.scrollTop = $messages.scrollHeight;
+	};
+	const wait_and_scroll_chat_messages_to_bottom = async () => {
+		await next_tick();
+		scroll_chat_messages_to_bottom();
+	};
+
 	return {
+		async scroll_chat_messages_to_bottom() {
+			await wait_and_scroll_chat_messages_to_bottom();
+		},
+
 		open_chat_page() {
 			this.close_account_dropdown();
 			changePage(game.pages.getObjectByID('multiplayer:Chat'));
@@ -70,6 +87,7 @@ export function install_chat_actions(runtime) {
 				this.selected_chat_conversation?.conversation_id !== conversation.conversation_id ||
 				this.selected_chat_conversation?.support_team_id !== conversation.support_team_id)
 				return;
+			await this.scroll_chat_messages_to_bottom();
 			start_chat_polling();
 		},
 
@@ -129,11 +147,33 @@ export function install_chat_actions(runtime) {
 			}, true, false);
 		},
 
+		show_chat_message_member(message) {
+			const sender_id = message?.sender_id;
+			if (!Number.isSafeInteger(sender_id) || sender_id < 1 || !message?.sender)
+				return;
+			const member = this.guild_members.find(entry => entry.client_id === sender_id);
+			this.show_member_actions({
+				...(member ?? {}),
+				client_id: sender_id,
+				display_name: message.sender.display_name,
+				icon_id: message.sender.icon_id
+			});
+		},
+
 		show_chat_message_delete_confirmation() {
 			if (!this.selected_chat_message)
 				return;
 			this.close_modal();
 			setTimeout(() => queue_modal('MOD_MP_CHAT_DELETE_MESSAGE_CONFIRM_TITLE', 'chat-message-delete-confirm-modal', this.get_avatar_icon(this.selected_chat_conversation?.participant.icon_id), {
+				showConfirmButton: false
+			}, true, false), 0);
+		},
+
+		show_chat_message_delete_for_all_confirmation() {
+			if (!this.selected_chat_message || !this.can_moderate_chat_messages())
+				return;
+			this.close_modal();
+			setTimeout(() => queue_modal('MOD_MP_CHAT_DELETE_MESSAGE_FOR_ALL_CONFIRM_TITLE', 'chat-message-delete-for-all-confirm-modal', this.get_chat_participant_icon(), {
 				showConfirmButton: false
 			}, true, false), 0);
 		},
@@ -159,7 +199,14 @@ export function install_chat_actions(runtime) {
 		async load_older_chat_messages() {
 			if (this.chat_before_cursor === null)
 				return;
+			const $messages = get_chat_messages_element();
+			const previous_scroll_top = $messages?.scrollTop ?? 0;
+			const previous_scroll_height = $messages?.scrollHeight ?? 0;
 			await refresh_chat_messages('&before=' + this.chat_before_cursor, true);
+			if ($messages) {
+				await next_tick();
+				$messages.scrollTop = previous_scroll_top + $messages.scrollHeight - previous_scroll_height;
+			}
 		},
 
 		select_chat_support_prompt(lang_id) {
@@ -205,7 +252,10 @@ export function install_chat_actions(runtime) {
 			};
 			let res = null;
 			try {
-				res = await api_post('/api/chat/messages/send', {
+				const endpoint = conversation_kind === 'global'
+					? '/api/chat/messages/send?capabilities=global-chat-v1'
+					: '/api/chat/messages/send';
+				res = await api_post(endpoint, {
 					conversation_kind,
 					conversation_id: conversation.conversation_id,
 					support_team_id: conversation.support_team_id,
@@ -221,10 +271,19 @@ export function install_chat_actions(runtime) {
 			const is_current_view = () => view_generation === runtime.chat_view_generation &&
 				get_chat_conversation_key(this.selected_chat_conversation) === conversation_key;
 			try {
+				if (conversation_kind === 'global' && Number.isFinite(res?.retry_after_ms) && res.retry_after_ms > 0) {
+					clearTimeout(runtime.global_chat_cooldown_timer);
+					this.global_chat_cooling_down = true;
+					runtime.global_chat_cooldown_timer = setTimeout(() => {
+						state.global_chat_cooling_down = false;
+					}, res.retry_after_ms);
+				}
 				if (res?.success) {
 					conversation.conversation_id = res.message.conversation_id;
 					if (is_current_view() && !this.chat_messages.some(message => message.message_id === res.message.message_id))
 						this.chat_messages.push(res.message);
+					if (is_current_view())
+						await this.scroll_chat_messages_to_bottom();
 					if (res.budget)
 						this.chat_budget = res.budget;
 					this.chat_budget_enabled = res.budget_enabled !== false;
@@ -233,7 +292,7 @@ export function install_chat_actions(runtime) {
 					await refresh_chat_conversations();
 					if (is_current_view())
 						start_chat_polling();
-				} else if (is_current_view()) {
+				} else if (is_current_view() && !(conversation_kind === 'global' && Number.isFinite(res?.retry_after_ms))) {
 					this.chat_error = getLangString(res?.error_lang ?? 'MOD_MP_CHAT_SEND_FAILED');
 				}
 			} finally {
@@ -250,6 +309,29 @@ export function install_chat_actions(runtime) {
 				return;
 			show_button_spinner($button);
 			const res = await api_post('/api/chat/messages/delete', { message_id: message.message_id });
+			if (!res?.success) {
+				hide_button_spinner($button);
+				return show_modal_error(getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR'));
+			}
+			this.chat_messages = this.chat_messages.filter(entry => entry.message_id !== message.message_id);
+			this.selected_chat_message = null;
+			this.close_modal();
+			await refresh_chat_conversations();
+		},
+
+		async delete_chat_message_for_all(event) {
+			const message = this.selected_chat_message;
+			const conversation = this.selected_chat_conversation;
+			if (!message || !conversation || !this.can_moderate_chat_messages())
+				return;
+			const $button = event.currentTarget;
+			if (is_button_spinning($button))
+				return;
+			show_button_spinner($button);
+			const res = await api_post('/api/chat/messages/delete-for-all', {
+				conversation_kind: conversation.conversation_kind,
+				message_id: message.message_id
+			});
 			if (!res?.success) {
 				hide_button_spinner($button);
 				return show_modal_error(getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR'));
@@ -340,6 +422,25 @@ export function install_chat_actions(runtime) {
 				this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 			}
 			this.guild_chat_participation_pending = false;
+		},
+
+		async set_global_chat_enabled(event) {
+			if (this.global_chat_participation_pending)
+				return;
+			event.preventDefault();
+			this.global_chat_participation_pending = true;
+			this.member_actions_error = '';
+			const desired = !this.global_chat_enabled;
+			const res = await api_post('/api/chat/global-participation?capabilities=global-chat-v1', { enabled: desired });
+			if (res?.success) {
+				this.global_chat_enabled = res.enabled;
+				if (!res.enabled && this.selected_chat_conversation?.conversation_kind === 'global')
+					this.close_chat_conversation();
+				await refresh_chat_conversations();
+			} else {
+				this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+			}
+			this.global_chat_participation_pending = false;
 		},
 	};
 }

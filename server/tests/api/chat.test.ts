@@ -4,12 +4,13 @@ import { get_json_with_session, post, post_json, register_client } from '../supp
 import { db_count, db_run } from '../support/persistence';
 
 type Conversation = {
-	conversation_kind?: 'private' | 'guild' | 'support';
+	conversation_kind?: 'private' | 'global' | 'guild' | 'support';
 	conversation_id: number | null;
 	participant: { client_id: number | null; display_name: string; icon_id: string };
 	latest_message?: Message | null;
 	unread_count?: number;
 	moderation_count?: number;
+	can_moderate?: boolean;
 	blocked?: boolean;
 };
 
@@ -58,6 +59,43 @@ async function messages(session_token: string, conversation_id: number, cursor =
 }
 
 const GUILD_CHAT_CAPABILITY = 'capabilities=guild-chat-v1';
+const GLOBAL_CHAT_CAPABILITY = 'capabilities=global-chat-v1';
+
+async function global_inbox(session_token: string) {
+	return get_json_with_session<{
+		conversations: Conversation[];
+		global_chat: { enabled: boolean };
+	}>(`/api/chat/conversations?${GLOBAL_CHAT_CAPABILITY}`, session_token);
+}
+
+async function global_events(session_token: string) {
+	return get_json_with_session<{ chat_unread: number }>(`/api/events?${GLOBAL_CHAT_CAPABILITY}`, session_token);
+}
+
+async function global_messages(session_token: string, cursor = '') {
+	return get_json_with_session<{ messages: Message[]; has_more: boolean }>(
+		`/api/chat/messages?conversation_kind=global&conversation_id=1&${GLOBAL_CHAT_CAPABILITY}${cursor}`,
+		session_token
+	);
+}
+
+async function send_global_message(
+	session_token: string,
+	content: string,
+	idempotency_key = crypto.randomUUID()
+) {
+	return post_json<{
+		success?: boolean;
+		message?: Message;
+		retry_after_ms?: number;
+		error_lang?: string;
+	}>(`/api/chat/messages/send?${GLOBAL_CHAT_CAPABILITY}`, {
+		conversation_kind: 'global',
+		conversation_id: 1,
+		idempotency_key,
+		content
+	}, session_token);
+}
 
 async function guild_inbox(session_token: string) {
 	return get_json_with_session<{
@@ -158,7 +196,7 @@ describe('Private Chat API', () => {
 		}, pair.first.session_token)).status).toBe(400);
 	});
 
-	test('loads five newest messages, paginates older history, and acknowledges only returned messages', async () => {
+	test('loads twenty newest messages, paginates older history, and acknowledges only returned messages', async () => {
 		const pair = await make_guildmates('Chat Pager', 'Chat Page Reader');
 		const support_welcome = (await conversations(pair.second.session_token)).json.conversations.find(entry =>
 			(entry as Conversation & { conversation_kind?: string }).conversation_kind === 'support'
@@ -170,8 +208,8 @@ describe('Private Chat API', () => {
 		await start_chat(pair.first.session_token, pair.second_id);
 		const first = await send_chat(pair.first.session_token, null, 'Message 1', undefined, pair.second_id);
 		const conversation_id = first.json.message?.conversation_id as number;
-		for (let index = 2; index <= 6; index++) {
-			if (index === 6)
+		for (let index = 2; index <= 21; index++) {
+			if (index === 21)
 				await db_run(
 					'UPDATE `clients` SET `messaging_refill_at` = ? WHERE `id` = ?',
 					[Date.now() - 1, pair.first_id]
@@ -179,11 +217,12 @@ describe('Private Chat API', () => {
 			await send_chat(pair.first.session_token, conversation_id, `Message ${index}`);
 		}
 
-		expect((await get_events(pair.second)).chat_unread).toBe(6);
+		expect((await get_events(pair.second)).chat_unread).toBe(21);
 		const newest = await messages(pair.second.session_token, conversation_id);
-		expect(newest.json.messages.map(message => message.content)).toEqual([
-			'Message 2', 'Message 3', 'Message 4', 'Message 5', 'Message 6'
-		]);
+		expect(newest.json.messages).toHaveLength(20);
+		expect(newest.json.messages.map(message => message.content)).toEqual(
+		Array.from({ length: 20 }, (_, index) => `Message ${index + 2}`)
+	);
 		expect(newest.json.has_more).toBe(true);
 		expect((await get_events(pair.second)).chat_unread).toBe(1);
 		const older = await messages(
@@ -290,6 +329,98 @@ describe('Private Chat API', () => {
 	});
 });
 
+describe('Global Chat API', () => {
+	test('capability-gates one server-wide conversation for Guildless clients', async () => {
+		const sender = await register_client('Global Sender');
+		const reader = await register_client('Global Reader');
+		const legacy = await conversations(reader.session_token);
+		const capable = await global_inbox(reader.session_token);
+		const global = capable.json.conversations.find(entry => entry.conversation_kind === 'global');
+
+		expect(legacy.json.conversations.some(entry => entry.conversation_kind === 'global')).toBe(false);
+		expect(capable.json.global_chat).toEqual({ enabled: true });
+		expect(global).toMatchObject({
+			conversation_kind: 'global',
+			conversation_id: 1,
+			participant: { client_id: null, display_name: 'Global' },
+			unread_count: 0,
+			moderation_count: 0,
+			latest_message: null
+		});
+
+		const key = crypto.randomUUID();
+		const sent = await send_global_message(sender.session_token, '  Hello, server  ', key);
+		const retry = await send_global_message(sender.session_token, 'Hello, server', key);
+		expect(sent.json.message?.content).toBe('Hello, server');
+		expect(sent.json.message?.sender).toEqual({ display_name: 'Global Sender', icon_id: 'melvorD:Plant' });
+		expect(retry.json.message?.message_id).toBe(sent.json.message?.message_id);
+		expect((await global_inbox(reader.session_token)).json.conversations.find(
+			entry => entry.conversation_kind === 'global'
+		)?.unread_count).toBe(1);
+		const reader_messages = (await global_messages(reader.session_token)).json.messages;
+		expect(reader_messages.map(message => message.content)).toEqual(['Hello, server']);
+		expect(reader_messages[0]?.sender).toEqual({ display_name: 'Global Sender', icon_id: 'melvorD:Plant' });
+		expect((await global_events(reader.session_token)).json.chat_unread).toBe(1);
+
+		const later = await register_client('Later Global Reader');
+		expect((await global_inbox(later.session_token)).json.conversations.find(
+			entry => entry.conversation_kind === 'global'
+		)?.unread_count).toBe(0);
+		expect((await global_messages(later.session_token)).json.messages.map(message => message.content))
+			.toEqual(['Hello, server']);
+	});
+
+	test('suspends unread state while opted out and baselines on re-enable', async () => {
+		const sender = await register_client('Global Opt-out Sender');
+		const reader = await register_client('Global Opt-out Reader');
+		await send_global_message(sender.session_token, 'Before opt-out');
+		expect((await global_inbox(reader.session_token)).json.conversations.find(
+			entry => entry.conversation_kind === 'global'
+		)?.unread_count).toBe(1);
+
+		await post_json(`/api/chat/global-participation?${GLOBAL_CHAT_CAPABILITY}`, { enabled: false }, reader.session_token);
+		const opted_out = await global_inbox(reader.session_token);
+		expect(opted_out.json.global_chat).toEqual({ enabled: false });
+		expect(opted_out.json.conversations.some(entry => entry.conversation_kind === 'global')).toBe(false);
+		expect((await send_global_message(reader.session_token, 'Not allowed')).json.error_lang)
+			.toBe('MOD_MP_CHAT_CONVERSATION_MISSING');
+		await send_global_message(sender.session_token, 'While opted out');
+		await post_json(`/api/chat/global-participation?${GLOBAL_CHAT_CAPABILITY}`, { enabled: true }, reader.session_token);
+		expect((await global_inbox(reader.session_token)).json.conversations.find(
+			entry => entry.conversation_kind === 'global'
+		)?.unread_count).toBe(0);
+		expect((await global_messages(reader.session_token)).json.messages.at(-1)?.content).toBe('While opted out');
+	});
+
+	test('enforces persistent client and server rolling-window throttles without rejecting retries', async () => {
+		const limited = await register_client('Globally Limited');
+		const other = await register_client('Server Limited');
+		await db_run(
+			'INSERT INTO `global_chat_client_throttles` (`client_id`, `max_messages`, `window_seconds`) VALUES(?, 2, 10)',
+			[limited.client_id]
+		);
+		const first_key = crypto.randomUUID();
+		const first = await send_global_message(limited.session_token, 'Client one', first_key);
+		const second = await send_global_message(limited.session_token, 'Client two');
+		const third = await send_global_message(limited.session_token, 'Client three');
+		expect(first.json.success).toBe(true);
+		expect(second.json.success).toBe(true);
+		expect(second.json.retry_after_ms).toBeGreaterThan(0);
+		expect(third.json).toMatchObject({ success: false });
+		expect(third.json.retry_after_ms).toBeGreaterThan(0);
+		expect((await send_global_message(limited.session_token, 'Client one', first_key)).json.message?.message_id)
+			.toBe(first.json.message?.message_id);
+
+		await db_run(
+			'INSERT INTO `global_chat_server_throttle` (`id`, `max_messages`, `window_seconds`) VALUES(1, 1, 10)',
+			[]
+		);
+		const server_limited = await send_global_message(other.session_token, 'Server blocked');
+		expect(server_limited.json).toMatchObject({ success: false });
+		expect(server_limited.json.retry_after_ms).toBeGreaterThan(0);
+	});
+});
+
 describe('Guild Chat API', () => {
 	test('capability-gates one canonical Guild conversation and admits later members with read history', async () => {
 		const owner = await register_guild_client('Guild Chat Owner', 'Canonical Chat Guild');
@@ -366,14 +497,15 @@ describe('Guild Chat API', () => {
 
 	test('uses a newest-page high-water mark and suspends unread state while opted out', async () => {
 		const pair = await make_guildmates('Guild Chat Sender', 'Guild Chat Reader', 'Unread Guild Chat');
-		for (let index = 1; index <= 6; index++)
+		for (let index = 1; index <= 21; index++)
 			await send_guild_message(pair.first.session_token, pair.guild_id, `Guild Message ${index}`);
 
-		expect((await guild_events(pair.second.session_token)).json.chat_unread).toBe(7);
+		expect((await guild_events(pair.second.session_token)).json.chat_unread).toBe(22);
 		const newest = await guild_messages(pair.second.session_token, pair.guild_id);
-		expect(newest.json.messages.map(message => message.content)).toEqual([
-			'Guild Message 2', 'Guild Message 3', 'Guild Message 4', 'Guild Message 5', 'Guild Message 6'
-		]);
+		expect(newest.json.messages).toHaveLength(20);
+		expect(newest.json.messages.map(message => message.content)).toEqual(
+		Array.from({ length: 20 }, (_, index) => `Guild Message ${index + 2}`)
+	);
 		expect(newest.json.has_more).toBe(true);
 		expect((await guild_events(pair.second.session_token)).json.chat_unread).toBe(1);
 		const older = await guild_messages(
@@ -417,6 +549,69 @@ describe('Guild Chat API', () => {
 			[ordinary.guild_id])).toBe(0);
 		expect(await db_count('SELECT COUNT(*) AS `count` FROM `guild_chat_read_state` WHERE `guild_id` = ?',
 			[ordinary.guild_id])).toBe(0);
+	});
+});
+
+describe('Chat moderation API', () => {
+	test('allows configured identities to delete visible Global and Guild messages for everyone only', async () => {
+		const global_moderator = await register_client('Configured Chat Moderator');
+		const global_sender = await register_client('Configured Chat Sender');
+		await db_run('UPDATE `clients` SET `client_identifier` = ? WHERE `id` = ?',
+			['RESTART-CHAT-MODERATOR', global_moderator.client_id]);
+		await db_run('DELETE FROM `global_chat_server_throttle`');
+
+		const global_message = await send_global_message(global_sender.session_token, 'Moderate this Global Message');
+		const global_message_id = global_message.json.message?.message_id;
+		if (typeof global_message_id !== 'number')
+			throw new Error('Global Message was not created');
+		const moderator_global_inbox = await global_inbox(global_moderator.session_token);
+		const non_moderator_global_inbox = await global_inbox(global_sender.session_token);
+		expect(moderator_global_inbox.json.conversations.find(entry => entry.conversation_kind === 'global')?.can_moderate)
+			.toBe(true);
+		expect(non_moderator_global_inbox.json.conversations.find(entry => entry.conversation_kind === 'global')?.can_moderate)
+			.toBe(false);
+		const deleted_global = await post_json<{ success?: boolean; error_lang?: string }>(
+			'/api/chat/messages/delete-for-all',
+			{ conversation_kind: 'global', message_id: global_message_id }, global_moderator.session_token
+		);
+		expect(deleted_global.json.success).toBe(true);
+		expect((await global_messages(global_sender.session_token)).json.messages.some(
+			message => message.message_id === global_message_id
+		)).toBe(false);
+
+		const guild_pair = await make_guildmates('Configured Guild Moderator', 'Guild Message Author', 'Moderated Guild');
+		await db_run('UPDATE `clients` SET `client_identifier` = ? WHERE `id` = ?',
+			['RESTART-CHAT-MODERATOR-2', guild_pair.first_id]);
+		const guild_message = await send_guild_message(
+			guild_pair.second.session_token, guild_pair.guild_id, 'Moderate this Guild Message'
+		);
+		const guild_message_id = guild_message.json.message?.message_id;
+		if (typeof guild_message_id !== 'number')
+			throw new Error('Guild Message was not created');
+		const moderator_guild_inbox = await guild_inbox(guild_pair.first.session_token);
+		expect(moderator_guild_inbox.json.conversations.find(entry => entry.conversation_kind === 'guild')?.can_moderate)
+			.toBe(true);
+		const deleted_guild = await post_json<{ success?: boolean; error_lang?: string }>(
+			'/api/chat/messages/delete-for-all',
+			{ conversation_kind: 'guild', message_id: guild_message_id }, guild_pair.first.session_token
+		);
+		expect(deleted_guild.json.success).toBe(true);
+		expect((await guild_messages(guild_pair.second.session_token, guild_pair.guild_id)).json.messages).toEqual([]);
+
+		const other_guild = await register_guild_client('Other Guild Author', 'Other Guild');
+		const other_message = await send_guild_message(
+			other_guild.session_token, other_guild.guild_id, 'Not visible to the moderator'
+		);
+		const other_message_id = other_message.json.message?.message_id;
+		if (typeof other_message_id !== 'number')
+			throw new Error('Other Guild Message was not created');
+		const denied = await post_json<{ success?: boolean; error_lang?: string }>(
+			'/api/chat/messages/delete-for-all',
+			{ conversation_kind: 'guild', message_id: other_message_id }, guild_pair.first.session_token
+		);
+		expect(denied.json).toEqual({ error_lang: 'MOD_MP_CHAT_CONVERSATION_MISSING' });
+		expect((await guild_messages(other_guild.session_token, other_guild.guild_id)).json.messages.map(message => message.content))
+			.toEqual(['Not visible to the moderator']);
 	});
 });
 

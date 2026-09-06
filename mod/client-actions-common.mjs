@@ -210,6 +210,8 @@ export function install_common_actions(runtime) {
 		},
 
 		get_chat_participant_icon(conversation = this.selected_chat_conversation) {
+			if (conversation?.conversation_kind === 'global')
+				return ctx.getResourceUrl('assets/multiplayer.svg');
 			if (conversation?.conversation_kind === 'guild')
 				return this.get_guild_icon(conversation.participant?.icon_id);
 			if (conversation?.conversation_kind === 'support' && conversation.viewer_side === 'player') {
@@ -219,6 +221,19 @@ export function install_common_actions(runtime) {
 			return this.get_avatar_icon(conversation?.participant?.icon_id);
 		},
 
+		get_chat_message_icon(message) {
+			const asset = SUPPORT_TEAM_ICON_ASSETS[message?.sender?.icon_id];
+			return asset === undefined
+				? this.get_avatar_icon(message?.sender?.icon_id)
+				: ctx.getResourceUrl('assets/' + asset);
+		},
+
+		get_chat_participant_name(conversation = this.selected_chat_conversation) {
+			return conversation?.conversation_kind === 'global'
+				? getLangString('MOD_MP_CHAT_CATEGORY_GLOBAL')
+				: conversation?.participant?.display_name ?? '';
+		},
+
 		get_chat_block_label() {
 			return getLangString(this.selected_chat_conversation?.blocked ? 'MOD_MP_CHAT_UNBLOCK' : 'MOD_MP_CHAT_BLOCK');
 		},
@@ -226,6 +241,11 @@ export function install_common_actions(runtime) {
 		get_chat_block_confirmation_info() {
 			return getLangString(this.selected_chat_conversation?.blocked
 				? 'MOD_MP_CHAT_UNBLOCK_CONFIRM_INFO' : 'MOD_MP_CHAT_BLOCK_CONFIRM_INFO');
+		},
+
+		can_moderate_chat_messages() {
+			const kind = this.selected_chat_conversation?.conversation_kind;
+			return (kind === 'global' || kind === 'guild') && this.selected_chat_conversation?.can_moderate === true;
 		},
 
 		get_pet_icon(id) {

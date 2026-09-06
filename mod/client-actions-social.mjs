@@ -181,7 +181,8 @@ export function install_social_actions(runtime) {
 			this.shadowed_members = [];
 			await refresh_shadowed_members();
 			queue_modal('MOD_MP_GUILD_SHADOWED_MEMBERS', 'shadowed-members-modal', 'assets/single_user.svg', {
-				showConfirmButton: false
+				showConfirmButton: false,
+				customClass: { popup: 'mp-shadowed-members-modal-popup' }
 			});
 		},
 

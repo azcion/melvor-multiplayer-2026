@@ -150,10 +150,15 @@ export function register_client(
 			'INSERT INTO `clients` (`client_identifier`, `client_key`, `friend_code`, `display_name`, `icon_id`, ' +
 			'`melvor_account_id`) VALUES(?, ?, ?, ?, ?, ?)'
 		).run(client_identifier, client_key, friend_code, display_name, icon_id, melvor_account_id);
+		const client_id = Number(result.lastInsertRowid);
+		db.query(
+			'INSERT INTO `global_chat_read_state` (`client_id`, `last_read_message_id`) ' +
+			'SELECT ?, COALESCE(MAX(`id`), 0) FROM `global_chat_messages`'
+		).run(client_id);
 
 		return {
 			status: 'created',
-			client_id: Number(result.lastInsertRowid)
+			client_id
 		};
 	});
 

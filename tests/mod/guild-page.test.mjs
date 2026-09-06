@@ -297,21 +297,26 @@ test('renders each loaded member activity as a right-aligned icon', async () => 
 });
 
 test('tucks Shadowed members behind a normal-action modal at the bottom of the Guild page', async () => {
-	const [templates, main, language_text] = await Promise.all([
+	const [templates, main, language_text, style] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
 		read_client_source(root),
-		readFile(new URL('mod/data/lang/en.json', root), 'utf8')
+		readFile(new URL('mod/data/lang/en.json', root), 'utf8'),
+		readFile(new URL('mod/ui/style.css', root), 'utf8')
 	]);
 	const language = JSON.parse(language_text);
 	const guild_page = templates.slice(templates.indexOf('<template id="template-mp-guild-page">'));
 	const member_view = guild_page.slice(0, guild_page.indexOf('<div v-show="state.guild_page_view === \'applicant\'">'));
 
 	assert.match(templates, /template-mp-shadowed-members-modal/);
-	assert.match(templates, /v-for="member in state\.shadowed_members"/);
+	assert.match(templates, /class="mp-council-target-list mt-3"[\s\S]*?@touchmove="state\.stop_icon_scroll_propagation\(\$event\)"[\s\S]*v-for="member in state\.shadowed_members"/);
 	assert.match(templates, /state\.open_shadowed_member_actions\(member\)/);
 	assert.match(main, /api_get\('\/api\/guilds\/members\/shadowed\?page='/);
 	assert.match(main, /state\.shadowed_member_count = Number\.isSafeInteger\(res\.total\)/);
 	assert.match(main, /open_shadowed_member_actions\(member\)[\s\S]*this\.show_member_actions\(member\)/);
+	assert.match(main, /queue_modal\('MOD_MP_GUILD_SHADOWED_MEMBERS'[\s\S]*customClass: \{ popup: 'mp-shadowed-members-modal-popup' \}/);
+	assert.match(main, /stop_icon_scroll_propagation\(event\) \{\s*event\.stopPropagation\(\);/);
+	assert.match(style, /\.mp-council-target-list \{[\s\S]*overflow-y: scroll;[\s\S]*-webkit-overflow-scrolling: touch;[\s\S]*touch-action: pan-y;[\s\S]*overscroll-behavior-y: contain;/);
+	assert.match(style, /\.mp-shadowed-members-modal-popup \.swal2-html-container \{[\s\S]*overflow: hidden;/);
 	assert.match(member_view, /mp-shadowed-members-entry" v-show="state\.shadowed_member_count > 0"[\s\S]*MOD_MP_GUILD_VIEW_SHADOWED_MEMBERS/);
 	assert.ok(member_view.lastIndexOf('mp-shadowed-members-entry') > member_view.lastIndexOf('mp-council'));
 	assert.equal(language.MOD_MP_GUILD_SHADOWED, 'Shadowed');

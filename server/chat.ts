@@ -1,6 +1,6 @@
 import { db } from './db';
 
-export const CHAT_MESSAGE_PAGE_SIZE = 5;
+export const CHAT_MESSAGE_PAGE_SIZE = 20;
 export const CHAT_MESSAGE_MAX_LENGTH = 1000;
 export const CHAT_PRIVACY_ERROR = 'MOD_MP_CHAT_RECIPIENT_UNAVAILABLE';
 export const CHAT_BUDGET_ERROR = 'MOD_MP_CHAT_BUDGET_EMPTY';
@@ -46,6 +46,7 @@ type ChatClientRow = {
 	id: number;
 	messaging_enabled: number;
 	guild_chat_enabled: number;
+	global_chat_enabled: number;
 	messaging_credits: number;
 	messaging_refill_at: number;
 };
@@ -178,13 +179,14 @@ function get_message(message_id: number): MessageRow | null {
 }
 
 export function get_chat_state(client_id: number, now = Date.now()) {
-	const client = db.query<Pick<ChatClientRow, 'messaging_enabled' | 'guild_chat_enabled'>, [number]>(
-		'SELECT `messaging_enabled`, `guild_chat_enabled` FROM `clients` WHERE `id` = ? LIMIT 1'
-	).get(client_id) as Pick<ChatClientRow, 'messaging_enabled' | 'guild_chat_enabled'>;
+	const client = db.query<Pick<ChatClientRow, 'messaging_enabled' | 'guild_chat_enabled' | 'global_chat_enabled'>, [number]>(
+		'SELECT `messaging_enabled`, `guild_chat_enabled`, `global_chat_enabled` FROM `clients` WHERE `id` = ? LIMIT 1'
+	).get(client_id) as Pick<ChatClientRow, 'messaging_enabled' | 'guild_chat_enabled' | 'global_chat_enabled'>;
 	return {
 		client_id,
 		messaging_enabled: client.messaging_enabled === 1,
 		guild_chat_enabled: client.guild_chat_enabled === 1,
+		global_chat_enabled: client.global_chat_enabled === 1,
 		budget_enabled: CHAT_BUDGET_ENABLED,
 		budget: CHAT_BUDGET_ENABLED
 			? db.transaction(() => refresh_budget(client_id, now)).immediate()

@@ -114,6 +114,22 @@ describe('administration CLI', () => {
 		expect(invalid.exit_code).toBe(2);
 	});
 
+	test('sets and clears Global Chat throttles for the server and one identity', async () => {
+		const database_path = fixture_database();
+		expect((await run_admin(database_path, 'global-chat-throttle', 'server', '2', '10')).exit_code).toBe(0);
+		expect((await run_admin(database_path, 'global-chat-throttle', 'client', '1', '3', '20')).exit_code).toBe(0);
+		const database = new Database(database_path, { readonly: true, strict: true });
+		expect(database.query('SELECT `max_messages`, `window_seconds` FROM `global_chat_server_throttle`').get())
+			.toEqual({ max_messages: 2, window_seconds: 10 });
+		expect(database.query('SELECT `max_messages`, `window_seconds` FROM `global_chat_client_throttles`').get())
+			.toEqual({ max_messages: 3, window_seconds: 20 });
+		database.close();
+		expect((await run_admin(database_path, 'global-chat-throttle', 'client', '1', 'clear')).exit_code).toBe(0);
+		expect((await run_admin(database_path, 'global-chat-throttle', 'server', 'clear')).exit_code).toBe(0);
+		expect((await run_admin(database_path, 'global-chat-throttle', 'server', '0', '10')).exit_code).toBe(2);
+		expect((await run_admin(database_path, 'global-chat-throttle', 'client', '999', '2', '10')).exit_code).toBe(1);
+	});
+
 	test('inspects one identity without exposing credentials', async () => {
 		const result = await run_admin(fixture_database(), 'identity', 'inspect', '1');
 

@@ -1,5 +1,6 @@
 import { db } from './db';
 import { CHAT_MESSAGE_MAX_LENGTH, CHAT_MESSAGE_PAGE_SIZE } from './chat';
+import { is_chat_moderator } from './chat_moderation';
 
 export const GUILD_CHAT_CAPABILITY = 'guild-chat-v1';
 
@@ -116,6 +117,7 @@ export function get_guild_chat_inbox(client_id: number) {
 			latest_message: latest === null ? null : message_view(latest),
 			unread_count,
 			moderation_count,
+			can_moderate: is_chat_moderator(client_id),
 			blocked: false
 		}
 	};
@@ -212,6 +214,24 @@ export function send_guild_chat_message(
 	if (result.status !== 'ok')
 		return result;
 	return { status: 'ok', value: { message: message_view(get_message(result.value.message_id) as GuildChatMessage) } };
+}
+
+export function moderate_guild_chat_message(client_id: number, message_id: number, now = Date.now()) {
+	if (!Number.isSafeInteger(message_id) || message_id < 1 || !is_chat_moderator(client_id))
+		return { status: 'missing' as const };
+	const access = current_access(client_id);
+	if (access === null || access.guild_chat_enabled !== 1)
+		return { status: 'missing' as const };
+	const message = db.query<{ id: number }, [number, number]>(
+		' SELECT `id` FROM `guild_chat_messages` WHERE `id` = ? AND `guild_id` = ? LIMIT 1'
+	).get(message_id, access.guild_id);
+	if (message === null)
+		return { status: 'missing' as const };
+	db.query(
+		'INSERT INTO `guild_chat_message_moderation` (`message_id`, `deleted_at`) VALUES(?, ?) ' +
+		'ON CONFLICT DO NOTHING'
+	).run(message_id, now);
+	return { status: 'ok' as const, value: { deleted: true as const } };
 }
 
 export function set_guild_chat_enabled(client_id: number, enabled: boolean): { enabled: boolean } {

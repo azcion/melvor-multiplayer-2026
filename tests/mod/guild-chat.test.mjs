@@ -15,15 +15,17 @@ async function sources() {
 	return { main, templates, style, language: JSON.parse(language_text) };
 }
 
-test('renders non-empty Chat categories in Guild, Personal, Support order', async () => {
+test('renders Chat categories in Global, Guild, Private, Support order', async () => {
 	const { main, templates, style, language } = await sources();
 	const chat = templates.slice(templates.indexOf('<template id="template-mp-chat-page">'),
 		templates.indexOf('<template id="template-mp-chat-budget-info-modal">'));
-	const personal = chat.indexOf('MOD_MP_CHAT_CATEGORY_PERSONAL');
+	const global = chat.indexOf('MOD_MP_CHAT_CATEGORY_GLOBAL');
+	const personal = chat.indexOf('MOD_MP_CHAT_CATEGORY_PRIVATE');
 	const guild = chat.indexOf('MOD_MP_CHAT_CATEGORY_GUILD');
 	const support = chat.indexOf('MOD_MP_CHAT_CATEGORY_SUPPORT');
 
-	assert.ok(guild > 0 && guild < personal && personal < support);
+	assert.ok(global > 0 && global < guild && guild < personal && personal < support);
+	assert.match(main, /get global_chat_conversations\(\)/);
 	assert.match(main, /get personal_chat_conversations\(\)/);
 	assert.match(main, /get guild_chat_conversations\(\)/);
 	assert.match(main, /get support_chat_conversations\(\)/);
@@ -31,7 +33,8 @@ test('renders non-empty Chat categories in Guild, Personal, Support order', asyn
 	assert.match(chat, /v-if="state\.show_guild_chat_category"/);
 	assert.match(chat, /v-if="state\.support_chat_conversations\.length > 0"/);
 	assert.match(style, /\.mp-chat-category \+ \.mp-chat-category/);
-	assert.equal(language.MOD_MP_CHAT_CATEGORY_PERSONAL, 'Personal');
+	assert.equal(language.MOD_MP_CHAT_CATEGORY_GLOBAL, 'Global');
+	assert.equal(language.MOD_MP_CHAT_CATEGORY_PRIVATE, 'Private');
 	assert.equal(language.MOD_MP_CHAT_CATEGORY_GUILD, 'Guild');
 	assert.equal(language.MOD_MP_CHAT_CATEGORY_SUPPORT, 'Support');
 	assert.doesNotMatch(chat, /MOD_MP_CHAT_CATEGORY_(GUILD|SUPPORT)_INFO/);
@@ -51,12 +54,13 @@ test('opts an identity into Guild Chat by default and exposes a reversible toggl
 	assert.match(language.MOD_MP_GUILD_CHAT_OPTED_OUT, /Multiplayer Options/);
 });
 
-test('advertises Guild Chat capability and includes its unread count in shared Chat state', async () => {
+test('advertises Chat capabilities and includes unread counts in shared Chat state', async () => {
 	const { main } = await sources();
 
 	assert.match(main, /const GUILD_CHAT_CAPABILITY = 'guild-chat-v1'/);
-	assert.match(main, /\/api\/chat\/conversations\?capabilities=' \+ GUILD_CHAT_CAPABILITY/);
-	assert.match(main, /\/api\/events\?revision=' \+ client_event_revision \+ '&capabilities=' \+ GUILD_CHAT_CAPABILITY/);
+	assert.match(main, /const GLOBAL_CHAT_CAPABILITY = 'global-chat-v1'/);
+	assert.match(main, /\/api\/chat\/conversations\?capabilities=' \+ CHAT_CAPABILITIES/);
+	assert.match(main, /\/api\/events\?revision=' \+ client_event_revision \+ '&capabilities=' \+ CHAT_CAPABILITIES/);
 	assert.match(main, /state\.chat_unread = res\.conversations\.reduce/);
 	assert.match(main, /state\.guild_chat_state = res\.guild_chat/);
 });
@@ -76,10 +80,24 @@ test('uses Guild identity and keeps private-only controls out of Guild Chat', as
 	assert.match(main, /chat-message-actions-modal', this\.get_chat_participant_icon\(\)/);
 });
 
+test('exposes configured Delete For All moderation only for Global and Guild conversations', async () => {
+	const { main, templates, language } = await sources();
+	const actions = templates.slice(templates.indexOf('<template id="template-mp-chat-message-actions-modal">'),
+		templates.indexOf('<template id="template-mp-chat-actions-modal">'));
+
+	assert.match(main, /can_moderate_chat_messages\(\)/);
+	assert.match(main, /conversation_kind: conversation\.conversation_kind/);
+	assert.match(main, /api_post\('\/api\/chat\/messages\/delete-for-all'/);
+	assert.match(actions, /v-if="state\.can_moderate_chat_messages\(\)"/);
+	assert.match(actions, /MOD_MP_CHAT_DELETE_MESSAGE_FOR_ALL/);
+	assert.match(templates, /template-mp-chat-message-delete-for-all-confirm-modal/);
+	assert.equal(language.MOD_MP_CHAT_DELETE_MESSAGE_FOR_ALL, 'Delete For All');
+});
+
 test('closes inaccessible Guild conversations and reloads cached Messages after moderation', async () => {
 	const { main } = await sources();
 
-	assert.match(main, /else if \(selected\.conversation_kind === 'guild'\) \{\s*state\.close_chat_conversation\(\)/);
+	assert.match(main, /selected\.conversation_kind === 'guild' \|\| selected\.conversation_kind === 'global'/);
 	assert.match(main, /current\.moderation_count !== selected\.moderation_count/);
 	assert.match(main, /if \(moderation_changed\) \{\s*state\.close_chat_conversation\(\);\s*await state\.open_chat_conversation\(current\)/);
 	assert.match(main, /if \(chat_page_visible\)\s*await refresh_chat_conversations\(\)/);

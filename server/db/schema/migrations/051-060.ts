@@ -277,5 +277,73 @@ export const migrations_051_060: Migration[] = [
 			CREATE INDEX idx_market_items_guild_direction_updated
 				ON market_items (guild_id, direction, updated_at DESC, id DESC);
 		`
+	}, {
+		version: 60,
+		sql: `
+			ALTER TABLE clients ADD COLUMN global_chat_enabled INTEGER NOT NULL DEFAULT 1
+				CHECK (global_chat_enabled IN (0, 1));
+
+			CREATE TABLE global_chat_messages (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				sender_id INTEGER NOT NULL,
+				idempotency_key TEXT NOT NULL,
+				content TEXT NOT NULL CHECK (length(content) BETWEEN 1 AND 1000),
+				created_at INTEGER NOT NULL CHECK (created_at >= 0),
+				UNIQUE (sender_id, idempotency_key),
+				FOREIGN KEY (sender_id) REFERENCES clients (id)
+			);
+			CREATE INDEX idx_global_chat_messages_created
+				ON global_chat_messages (created_at DESC, id DESC);
+			CREATE INDEX idx_global_chat_messages_sender_created
+				ON global_chat_messages (sender_id, created_at DESC, id DESC);
+
+			CREATE TABLE global_chat_read_state (
+				client_id INTEGER PRIMARY KEY,
+				last_read_message_id INTEGER NOT NULL DEFAULT 0 CHECK (last_read_message_id >= 0),
+				FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
+			);
+
+			CREATE TABLE global_chat_message_moderation (
+				message_id INTEGER PRIMARY KEY,
+				deleted_at INTEGER NOT NULL CHECK (deleted_at >= 0),
+				FOREIGN KEY (message_id) REFERENCES global_chat_messages (id) ON DELETE CASCADE
+			);
+
+			CREATE TABLE global_chat_server_throttle (
+				id INTEGER PRIMARY KEY CHECK (id = 1),
+				max_messages INTEGER NOT NULL CHECK (max_messages BETWEEN 1 AND 1000),
+				window_seconds INTEGER NOT NULL CHECK (window_seconds BETWEEN 1 AND 86400)
+			);
+
+			CREATE TABLE global_chat_client_throttles (
+				client_id INTEGER PRIMARY KEY,
+				max_messages INTEGER NOT NULL CHECK (max_messages BETWEEN 1 AND 1000),
+				window_seconds INTEGER NOT NULL CHECK (window_seconds BETWEEN 1 AND 86400),
+				FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE
+			);
+
+			INSERT INTO global_chat_read_state (client_id, last_read_message_id)
+				SELECT id, 0 FROM clients;
+
+			CREATE TRIGGER event_global_chat_message_insert AFTER INSERT ON global_chat_messages BEGIN
+				UPDATE clients SET event_revision = event_revision + 1
+				WHERE global_chat_enabled = 1 AND deleted_at IS NULL;
+			END;
+			CREATE TRIGGER event_global_chat_read_insert AFTER INSERT ON global_chat_read_state BEGIN
+				UPDATE clients SET event_revision = event_revision + 1 WHERE id = NEW.client_id;
+			END;
+			CREATE TRIGGER event_global_chat_read_update AFTER UPDATE OF last_read_message_id ON global_chat_read_state
+			WHEN NEW.last_read_message_id != OLD.last_read_message_id BEGIN
+				UPDATE clients SET event_revision = event_revision + 1 WHERE id = NEW.client_id;
+			END;
+			CREATE TRIGGER event_global_chat_moderation_insert AFTER INSERT ON global_chat_message_moderation BEGIN
+				UPDATE clients SET event_revision = event_revision + 1
+				WHERE global_chat_enabled = 1 AND deleted_at IS NULL;
+			END;
+			CREATE TRIGGER event_global_chat_participation_update AFTER UPDATE OF global_chat_enabled ON clients
+			WHEN NEW.global_chat_enabled != OLD.global_chat_enabled BEGIN
+				UPDATE clients SET event_revision = event_revision + 1 WHERE id = NEW.id;
+			END;
+		`
 	}
 ];

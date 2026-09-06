@@ -608,6 +608,36 @@ input.form-control[type="number"] {
 	color: #a9a9a9;
 }
 
+.mp-chat-message-author {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+	gap: 2px;
+}
+
+.mp-chat-message-avatar {
+	flex: 0 0 auto;
+	margin: 0 2px 0 0;
+	width: 20px;
+	height: 20px;
+}
+
+.mp-chat-message-author:hover,
+.mp-chat-message-author:focus-visible {
+	color: #fff;
+}
+
+.mp-chat-message-author:disabled {
+	cursor: default;
+}
+
 .mp-chat-message-timestamp {
 	padding: 0;
 	border: 0;
@@ -1328,7 +1358,14 @@ input.form-control[type="number"] {
 
 .mp-council-target-list {
 	max-height: 330px;
-	overflow-y: auto;
+	overflow-y: scroll;
+	-webkit-overflow-scrolling: touch;
+	touch-action: pan-y;
+	overscroll-behavior-y: contain;
+}
+
+.mp-shadowed-members-modal-popup .swal2-html-container {
+	overflow: hidden;
 }
 
 .mp-council-target-list .mp-guild-person {

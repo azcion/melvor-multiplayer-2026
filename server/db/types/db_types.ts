@@ -77,6 +77,7 @@ export type clients = {
 	messaging_credits: number,
 	messaging_refill_at: number,
 	guild_chat_enabled: number,
+	global_chat_enabled: number,
 	melvor_account_id: number | null,
 	manual_melvor_account_link: number,
 	deleted_at: number | null,
