@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.5.6
+
+- Added Charitree decay recovery: expired offerings with GP value become Weird Gloop, which appears first and can be claimed or donated like any other offering without a timer or leaf cover.
+- Added a one-time prompt after Multiplayer experience selection for players still using the default avatar, with the existing avatar picker ready for choosing a new icon.
+- Replaced the inline bank Transfer and Marketplace panels with a single Multiplayer Actions entry for Transfer, Marketplace, and Charitree quantity actions.
+- Buffed Charitree leaf visibility after shuffling: each shuffle lowers every offering's coverage chance by five percentage points for seven days, including 100% and undiscovered offerings, shared across every character belonging to the same user and capped at zero coverage.
+- Grouped Inbox deliveries under source titles, aggregating repeated Marketplace counterparties and other matching events while retaining one Claim action for everything.
+- Moved Marketplace sell proceeds into the Inbox automatically as purchases complete and removed manual payout claiming from Sell Listings.
+- Marketplace listings now expire after 14 days without activity, returning remaining items or GP to the Inbox under “Expired Marketplace listing”.
+- Fixed avatar-picker and display-name input modal outlines being clipped by SweetAlert's HTML-container overflow.
+
+## 1.5.5
+
+- Added Shuffle Leaves to the Charitree: offer the requested currency to stir its leaves for your characters. The offering joins the tree, and your characters cannot claim that currency from it for four hours. Background updates preserve the page position, and confirming an offering safely closes the modal before applying its payment.
+- Moved updated clients to versioned multiplayer APIs while keeping existing 1.5.1–1.5.4 clients supported.
+- Made pending item and GP transactions recover after lost responses and reloads without submitting the same transaction twice.
+- Preserved automatic returns of unavailable Gift items across connection failures and reloads.
+- Fixed incoming Gifts failing to appear when an unrelated Economy Receipt is waiting to apply.
+- Prevented repeated Charitree donation confirmations from submitting the same donation twice.
+- Fixed cleared player activities remaining visible to older clients.
+
 ## 1.5.4
 
 - Increased Chat history pages from five to 20 messages while preserving older-history pagination.

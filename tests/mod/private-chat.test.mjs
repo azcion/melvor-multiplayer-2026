@@ -362,7 +362,7 @@ test('does not poll an empty or background Chat inbox and refreshes visible meta
 	assert.match(scheduler, /!polling\.is_foreground\(document\)/);
 	assert.doesNotMatch(polling, /refresh_chat_state\(\)/);
 	assert.match(polling, /state\.selected_chat_conversation && polling\.is_foreground\(document\)/);
-	assert.match(events, /if \(res\.unchanged === true\)\s*return res;[\s\S]*if \(chat_page_visible\)\s*await refresh_chat_conversations\(\)/);
+	assert.match(events, /if \(res\.unchanged === true\) \{\s*void economy_command_journal\?\.recover\(\);\s*return res;[\s\S]*if \(chat_page_visible\)\s*await refresh_chat_conversations\(\)/);
 });
 
 test('renders Support Chat identity, alignment, virtual welcomes, and restricted actions', async () => {

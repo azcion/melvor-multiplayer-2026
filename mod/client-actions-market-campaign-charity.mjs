@@ -17,6 +17,7 @@ export function install_market_campaign_charity_actions(runtime) {
 		destroy_selected_transfer_inventory,
 		document,
 		formatNumber,
+		get_charity_item_valuation,
 		game,
 		get_client_events,
 		getLangString,
@@ -34,6 +35,8 @@ export function install_market_campaign_charity_actions(runtime) {
 		open_transfer_page,
 		queue_modal,
 		reconcile_economy_receipts,
+		run_pending_economy_action,
+		request_charity_tree_contents,
 		refresh_guild_state,
 		refresh_identities,
 		refresh_raid_state,
@@ -67,6 +70,7 @@ export function install_market_campaign_charity_actions(runtime) {
 			is_discovered: item_id => this.is_charity_item_discovered(item_id)
 		};
 	};
+	let charity_shuffle_confirming = false;
 
 	return {
 		clear_market_filter() {
@@ -565,6 +569,52 @@ export function install_market_campaign_charity_actions(runtime) {
 		// #endregion
 
 		// #region CHARITY ACTIONS
+		charity_shuffle_price() {
+			return numberWithCommas(state.charity_shuffle_offer?.qty ?? 0);
+		},
+
+		charity_shuffle_currency() {
+			return transfer_currency_support.get_transfer_currency(game, state.charity_shuffle_offer?.currency_id) ?? null;
+		},
+
+		charity_shuffle_bonus() {
+			const count = state.charity_shuffle_count;
+			return Number.isSafeInteger(count) && count > 0 ? Math.min(20, count) : 0;
+		},
+
+		show_charity_shuffle() {
+			if (is_social_only()) return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
+			if (state.charity_shuffle_offer !== null) return;
+			state.charity_shuffle_offer = charitree_rules.get_charitree_shuffle_offer(
+				transfer_currency_support.get_transfer_currencies(game));
+			queue_modal('MOD_MP_CHARITY_SHUFFLE', 'charity-shuffle-modal', 'assets/charity_tree.svg', {
+				showConfirmButton: false,
+				didClose: () => { state.charity_shuffle_offer = null; }
+			});
+		},
+
+		async confirm_charity_shuffle(event) {
+			const offer = state.charity_shuffle_offer;
+			if (offer === null || charity_shuffle_confirming) return;
+			charity_shuffle_confirming = true;
+			try {
+				await close_modal_and_wait('charity-shuffle-modal');
+				const currency = transfer_currency_support.get_transfer_currency(game, offer.currency_id)?.currency;
+				if (!currency || currency.amount < offer.qty) return notify_error('MOD_MP_CHARITY_SHUFFLE_POOR');
+				const res = await run_pending_economy_action('charity_shuffle', '/api/charity/shuffle', {
+					currency_id: offer.currency_id, balance: offer.balance
+				});
+				if (res?.success) {
+					if (typeof res.pet_id === 'string' && !state.owned_pet_ids.includes(res.pet_id))
+						state.owned_pet_ids = [...state.owned_pet_ids, res.pet_id];
+					notify('MOD_MP_CHARITY_SHUFFLED');
+					await request_charity_tree_contents(true, false);
+				} else notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+			} finally {
+				charity_shuffle_confirming = false;
+			}
+		},
+
 		async charity_take_item(event) {
 			if (is_social_only())
 				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
@@ -618,16 +668,20 @@ export function install_market_campaign_charity_actions(runtime) {
 				item,
 				this.charity_update_time,
 				item_id => item_id === 'melvorD:GP' || is_transfer_currency(item_id),
-				item_id => this.is_charity_item_discovered(item_id)
+				item_id => this.is_charity_item_discovered(item_id),
+				this.charity_shuffled_at,
+				this.charity_shuffle_count
 			);
 		},
 
 		get_charity_take_block(item) {
+			if (this.charity_currency_locks?.some(lock => lock.currency_id === item.id && lock.locked_until > this.charity_update_time))
+				return 'shuffle_lock';
 			return charitree_rules.get_charitree_take_block(item, get_charity_rule_options.call(this));
 		},
 
 		get_charity_take_block_lang(block) {
-			return 'MOD_MP_CHARITY_VALUE_LIMIT';
+			return block === 'shuffle_lock' ? 'MOD_MP_CHARITY_SHUFFLE_LOCK' : 'MOD_MP_CHARITY_VALUE_LIMIT';
 		},
 
 		get_charity_take_block_text(block) {
@@ -648,7 +702,10 @@ export function install_market_campaign_charity_actions(runtime) {
 			if (this.has_destroyable_transfer_items)
 				return notify_error('MOD_MP_TRANSFER_DESTROY_ITEM_FIRST');
 
-			const items = state.transfer_inventory;
+			const items = state.transfer_inventory.map(item => ({
+				...item,
+				...get_charity_item_valuation(item.id)
+			}));
 			const donation_value = state.transfer_inventory_donation_value;
 
 			if (items.length === 0)
@@ -665,8 +722,8 @@ export function install_market_campaign_charity_actions(runtime) {
 
 			show_button_spinner($button);
 
-			const res = await api_post('/api/charity/donate', { items, donation_value, command_id: crypto.randomUUID() });
-			if (res?.success && await reconcile_economy_receipts([res.receipt])) {
+			const res = await run_pending_economy_action('charity_donate', '/api/charity/donate', { items, donation_value });
+			if (res?.success) {
 				runtime.last_charity_check = 0;
 
 				notify('MOD_MP_CHARITY_DONATED');

@@ -56,6 +56,19 @@ function receipt_response(id: string, kind: string, response: EconomyResponse): 
 	return { ...value, receipt: { id, kind, effects } satisfies EconomyReceipt };
 }
 
+// Replays remain readable after runtime metadata, Guild membership, or request schemas change.
+// Only the original authenticated owner and command kind may recover this immutable result.
+export function replay_economy_command(client_id: number, command_id: unknown, kind: string): JsonObject | null | undefined {
+	if (!valid_command_id(command_id)) return null;
+	const existing = db.query<StoredReceipt, [string]>(
+		'SELECT `client_id`, `kind`, `response_json`, `acknowledged_at` FROM `economy_receipts` WHERE `id` = ?'
+	).get(command_id);
+	if (existing === null) return undefined;
+	if (existing.client_id !== client_id || existing.kind !== kind) return null;
+	const response = JSON.parse(existing.response_json) as JsonObject;
+	return existing.acknowledged_at === null ? response : { ...response, receipt: null };
+}
+
 export function run_economy_command(
 	client_id: number,
 	command_id: unknown,
@@ -71,15 +84,8 @@ export function run_economy_command(
 		return null;
 
 	const execute = db.transaction(() => {
-		const existing = db.query<StoredReceipt, [string]>(
-			'SELECT `client_id`, `kind`, `response_json`, `acknowledged_at` FROM `economy_receipts` WHERE `id` = ?'
-		).get(command_id);
-		if (existing !== null) {
-			if (existing.client_id !== client_id || existing.kind !== kind)
-				return null;
-			const response = JSON.parse(existing.response_json) as JsonObject;
-			return existing.acknowledged_at === null ? response : { ...response, receipt: null };
-		}
+		const replay = replay_economy_command(client_id, command_id, kind);
+		if (replay !== undefined) return replay;
 
 		const result = operation();
 		if (result.success !== true)

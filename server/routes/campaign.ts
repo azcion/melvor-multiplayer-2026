@@ -1,3 +1,4 @@
+import { request_uses_server_owned_pets } from '../api-contract';
 import * as runtime from '../app-runtime';
 import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
@@ -56,7 +57,7 @@ export function register_campaign_routes(): void {
 		if (typeof campaign_id !== 'number')
 			return 400; // Bad Request
 
-		const server_owned_pets = is_server_owned_pets_client(get_request_mod_version(req));
+		const server_owned_pets = request_uses_server_owned_pets(req);
 		const value = json.value;
 		if (server_owned_pets && value !== undefined)
 			return 400; // Bad Request
@@ -93,7 +94,7 @@ export function register_campaign_routes(): void {
 			db.query(
 				'UPDATE `campaign_contributions` SET `taken` = ? WHERE `client_id` = ? AND `campaign_id` = ?'
 			).run(reward_value, client_id, completion.source_campaign_state_id);
-			add_inbox_gp(client_id, reward_value);
+			add_inbox_gp(client_id, reward_value, { type: 'campaign' });
 			return {
 				success: true,
 				...(server_owned_pets ? { reward_value } : {}),

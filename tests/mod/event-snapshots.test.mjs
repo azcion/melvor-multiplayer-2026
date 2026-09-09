@@ -58,3 +58,25 @@ test('creates missing transfers and invalidates loaded content when trade metada
 		{ trade_id: 6, data: null }
 	]);
 });
+
+test('a blocked receipt still hydrates incoming Gifts without advancing the recovery revision', async () => {
+	const { readFile } = await import('node:fs/promises');
+	const { runInNewContext } = await import('node:vm');
+	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const source = main.slice(main.indexOf('async function get_client_events_request('), main.indexOf('\nfunction start_client_event_polling('));
+	let contents = 0;
+	const state = { events: {}, gifts: [], trades: [], resolved_trades: [], inbox_items: [] };
+	const context = {
+		state, client_events_hydrated: true, economy_command_journal: null, session_generation: 1, client_event_revision: 4, CHAT_CAPABILITIES: '', chat_page_visible: false,
+		polling: { has_pending_events: () => true }, event_snapshots: { reconcile_event_transfers },
+		api_get: async () => ({ revision: 5, gifts: [42], economy_receipts: [{ id: 'blocked' }] }),
+		reconcile_economy_receipts: async () => false,
+		reconcile_campaign_event() {}, invalidate_guild_state() {}, update_chat_nav() {},
+		reconcile_guild_member_social_modes() {}, update_transfer_inventory_nav() {}, update_multiplayer_nav() {},
+		reconcile_pending_gifts: async () => { contents++; }
+	};
+	await runInNewContext(source + '\nget_client_events_request(true, 1)', context);
+	assert.equal(state.gifts[0].id, 42);
+	assert.equal(contents, 1);
+	assert.equal(context.client_event_revision, 4);
+});

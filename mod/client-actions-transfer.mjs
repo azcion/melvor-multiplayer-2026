@@ -145,6 +145,27 @@ export function install_transfer_actions(runtime) {
 			return claim_inbox(event);
 		},
 
+		get_inbox_group_title(group) {
+			const lang_ids = {
+				market_bought: 'MOD_MP_INBOX_SOURCE_MARKET_BOUGHT',
+				market_sold: 'MOD_MP_INBOX_SOURCE_MARKET_SOLD',
+				market_fulfilled: 'MOD_MP_INBOX_SOURCE_MARKET_FULFILLED',
+				market_cancelled: 'MOD_MP_INBOX_SOURCE_MARKET_CANCELLED',
+				market_expired: 'MOD_MP_INBOX_SOURCE_MARKET_EXPIRED',
+				market_haggle_cancelled: 'MOD_MP_INBOX_SOURCE_HAGGLE_CANCELLED',
+				charitree: 'MOD_MP_INBOX_SOURCE_CHARITREE',
+				raid_victory_cache: 'MOD_MP_INBOX_SOURCE_RAID',
+				campaign: 'MOD_MP_INBOX_SOURCE_CAMPAIGN',
+				gift_received: 'MOD_MP_INBOX_SOURCE_GIFT_RECEIVED',
+				gift_returned: 'MOD_MP_INBOX_SOURCE_GIFT_RETURNED',
+				trade_completed: 'MOD_MP_INBOX_SOURCE_TRADE_COMPLETED',
+				trade_cancelled: 'MOD_MP_INBOX_SOURCE_TRADE_CANCELLED',
+				other: 'MOD_MP_INBOX_SOURCE_OTHER'
+			};
+			const title = getLangString(lang_ids[group?.source_type] ?? lang_ids.other);
+			return title.replace('%s', group?.source_name || getLangString('MOD_MP_INBOX_SOURCE_UNKNOWN_PLAYER'));
+		},
+
 		get_transfer_value(transfer) {
 			if (transfer.data === null)
 				return '...';

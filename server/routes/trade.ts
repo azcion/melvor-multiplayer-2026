@@ -4,7 +4,7 @@ import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
 import type { PetitionType } from '../council';
-import { add_inbox_items } from '../inbox';
+import { add_inbox_items, get_inbox_source_name } from '../inbox';
 import { participants_use_legacy_trade_protocol } from '../transfer-compatibility';
 
 const { db, economy_item_effects, guild_membership_exists, is_social_only_client, parse_transfer_items, remove_player_cache_entry, resolved_trade_cache, run_economy_command, session_post_route, trade_cache, trade_player_cache } = runtime;
@@ -51,7 +51,8 @@ export function register_trade_routes(): void {
 			const items = db.query(
 				'SELECT `item_id`, `qty` FROM `trade_items` WHERE `trade_id` = ?'
 			).all(trade_id) as Array<{ item_id: string; qty: number }>;
-			add_inbox_items(client_id, items);
+			add_inbox_items(client_id, items,
+				{ type: trade.declined === 1 ? 'trade_cancelled' : 'trade_completed', name: get_inbox_source_name(trade.sender_id) });
 			db.query('DELETE FROM `resolved_trade_offers` WHERE `trade_id` = ?').run(trade_id);
 			db.query('DELETE FROM `trade_items` WHERE `trade_id` = ?').run(trade_id);
 			remove_player_cache_entry(resolved_trade_cache, client_id, trade_id);
@@ -149,8 +150,10 @@ export function register_trade_routes(): void {
 			const incoming = db.query(
 				'SELECT `item_id`, `qty` FROM `trade_items` WHERE `trade_id` = ? AND `counter` = 0'
 			).all(trade_id) as Array<{ item_id: string; qty: number }>;
-			add_inbox_items(client_id, items);
-			add_inbox_items(trade.recipient_id, incoming);
+			add_inbox_items(client_id, items,
+				{ type: 'trade_completed', name: get_inbox_source_name(trade.recipient_id) });
+			add_inbox_items(trade.recipient_id, incoming,
+				{ type: 'trade_completed', name: get_inbox_source_name(client_id) });
 			db.query('DELETE FROM `trade_items` WHERE `trade_id` = ?').run(trade_id);
 			db.query('DELETE FROM `trade_offers` WHERE `trade_id` = ?').run(trade_id);
 			trade_cache.delete(trade_id);
@@ -215,9 +218,11 @@ export function register_trade_routes(): void {
 			const items = db.query(
 				'SELECT `item_id`, `qty`, `counter` FROM `trade_items` WHERE `trade_id` = ?'
 			).all(trade_id) as Array<{ item_id: string; qty: number; counter: number }>;
-			add_inbox_items(trade.sender_id, items.filter(item => item.counter === 0));
+			add_inbox_items(trade.sender_id, items.filter(item => item.counter === 0),
+				{ type: 'trade_cancelled', name: get_inbox_source_name(trade.recipient_id) });
 			if (trade.state === 1)
-				add_inbox_items(trade.recipient_id, items.filter(item => item.counter === 1));
+				add_inbox_items(trade.recipient_id, items.filter(item => item.counter === 1),
+					{ type: 'trade_cancelled', name: get_inbox_source_name(trade.sender_id) });
 			db.query('DELETE FROM `trade_items` WHERE `trade_id` = ?').run(trade_id);
 			db.query('DELETE FROM `trade_offers` WHERE `trade_id` = ?').run(trade_id);
 			return { success: true, sender_id: trade.sender_id, recipient_id: trade.recipient_id, effects: [] };
@@ -282,9 +287,11 @@ export function register_trade_routes(): void {
 			const items = db.query(
 				'SELECT `item_id`, `qty`, `counter` FROM `trade_items` WHERE `trade_id` = ?'
 			).all(trade_id) as Array<{ item_id: string; qty: number; counter: number }>;
-			add_inbox_items(trade.sender_id, items.filter(item => item.counter === 0));
+			add_inbox_items(trade.sender_id, items.filter(item => item.counter === 0),
+				{ type: 'trade_cancelled', name: get_inbox_source_name(trade.recipient_id) });
 			if (trade.state === 1)
-				add_inbox_items(trade.recipient_id, items.filter(item => item.counter === 1));
+				add_inbox_items(trade.recipient_id, items.filter(item => item.counter === 1),
+					{ type: 'trade_cancelled', name: get_inbox_source_name(trade.sender_id) });
 			db.query('DELETE FROM `trade_items` WHERE `trade_id` = ?').run(trade_id);
 			db.query('DELETE FROM `trade_offers` WHERE `trade_id` = ?').run(trade_id);
 			return { success: true, sender_id: trade.sender_id, recipient_id: trade.recipient_id, effects: [] };

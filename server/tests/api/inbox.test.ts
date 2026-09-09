@@ -5,6 +5,11 @@ import { db_all, db_run } from '../support/persistence';
 
 type Inbox = {
 	items: Array<{ item_id: string; qty: number }>;
+	groups: Array<{
+		source_type: string;
+		source_name: string;
+		items: Array<{ item_id: string; qty: number }>;
+	}>;
 	pending_claim: boolean;
 };
 
@@ -59,6 +64,14 @@ describe('inbox API', () => {
 		);
 
 		expect((await get_inbox(pair.second.session_token)).json).toEqual({
+			groups: [{
+				source_type: 'gift_received',
+				source_name: 'Inbox Gift Sender',
+				items: [
+					{ item_id: 'melvorD:Logs', qty: 5 },
+					{ item_id: 'melvorD:GP', qty: 12 }
+				]
+			}],
 			items: [
 				{ item_id: 'melvorD:GP', qty: 12 },
 				{ item_id: 'melvorD:Logs', qty: 5 }
@@ -110,6 +123,11 @@ describe('inbox API', () => {
 		]);
 		expect(replay.json.claim).toEqual(first.json.claim);
 		expect((await get_inbox(pair.second.session_token)).json).toEqual({
+			groups: [{
+				source_type: 'gift_received',
+				source_name: 'Inbox Claim Sender',
+				items: [{ item_id: 'melvorD:Logs', qty: 9 }]
+			}],
 			items: [{ item_id: 'melvorD:Logs', qty: 9 }],
 			pending_claim: true
 		});
@@ -125,7 +143,49 @@ describe('inbox API', () => {
 		await post_json('/api/inbox/acknowledge', {
 			claim_id: second.json.claim.claim_id
 		}, pair.second.session_token);
-		expect((await get_inbox(pair.second.session_token)).json).toEqual({ items: [], pending_claim: false });
+		expect((await get_inbox(pair.second.session_token)).json).toEqual({ items: [], groups: [], pending_claim: false });
+	});
+
+	test('keeps matching sources together while the flat compatibility view aggregates by item', async () => {
+		const pair = await make_guildmates('Inbox Source Seller', 'Inbox Source Buyer');
+		await db_run(
+			'INSERT INTO `inbox_items` (`client_id`, `source_type`, `source_name`, `item_id`, `qty`) VALUES ' +
+			'(?, ?, ?, ?, ?), (?, ?, ?, ?, ?), (?, ?, ?, ?, ?)',
+			[
+				pair.second_id, 'market_bought', pair.first.display_name, 'melvorD:Logs', 2,
+				pair.second_id, 'market_bought', pair.first.display_name, 'melvorD:GP', 5,
+				pair.second_id, 'charitree', '', 'melvorD:Logs', 3
+			]
+		);
+
+		const inbox = (await get_inbox(pair.second.session_token)).json;
+		expect(inbox.items).toEqual([
+			{ item_id: 'melvorD:GP', qty: 5 },
+			{ item_id: 'melvorD:Logs', qty: 5 }
+		]);
+		expect(inbox.groups).toEqual([
+			{ source_type: 'charitree', source_name: '', items: [{ item_id: 'melvorD:Logs', qty: 3 }] },
+			{ source_type: 'market_bought', source_name: 'Inbox Source Seller', items: [
+				{ item_id: 'melvorD:GP', qty: 5 }, { item_id: 'melvorD:Logs', qty: 2 }
+			] }
+		]);
+	});
+
+	test('renders unattributed legacy rows after categorized source groups', async () => {
+		const pair = await make_guildmates('Inbox Legacy Seller', 'Inbox Legacy Buyer');
+		await db_run(
+			'INSERT INTO `inbox_items` (`client_id`, `source_type`, `source_name`, `item_id`, `qty`) VALUES ' +
+			'(?, ?, ?, ?, ?), (?, ?, ?, ?, ?)',
+			[
+				pair.second_id, 'other', '', 'melvorD:Logs', 1,
+				pair.second_id, 'charitree', '', 'melvorD:Ore', 1
+			]
+		);
+
+		expect((await get_inbox(pair.second.session_token)).json.groups).toEqual([
+			{ source_type: 'charitree', source_name: '', items: [{ item_id: 'melvorD:Ore', qty: 1 }] },
+			{ source_type: 'other', source_name: '', items: [{ item_id: 'melvorD:Logs', qty: 1 }] }
+		]);
 	});
 
 	test('accepts a currency-only claim when the client has more than 512 free bank slots', async () => {

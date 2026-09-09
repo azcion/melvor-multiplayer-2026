@@ -37,3 +37,7 @@ export async function db_run(sql: string, values: SQLQueryBindings[] = []): Prom
 		database.close();
 	}
 }
+
+export async function clear_global_chat_throttle(): Promise<void> {
+	await db_run('DELETE FROM `global_chat_server_throttle`');
+}

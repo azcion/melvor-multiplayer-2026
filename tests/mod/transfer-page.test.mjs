@@ -83,10 +83,12 @@ test('hides the empty Transfer Inventory sidebar count', async () => {
 });
 
 test('keeps three Transfers panels mounted with mobile-only tab visibility', async () => {
-	const [main, templates, style] = await Promise.all([
+	const [main, actions, templates, style, english] = await Promise.all([
 		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		readFile(new URL('mod/client-actions-transfer.mjs', root), 'utf8'),
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/ui/style.css', root), 'utf8')
+		readFile(new URL('mod/ui/style.css', root), 'utf8'),
+		readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse)
 	]);
 	const page = templates.slice(templates.indexOf('<template id="template-mp-transfer-page">'), templates.indexOf('<template id="template-mp-gift-friend-modal">'));
 	assert.match(main, /transfers_mobile_tab: 'inbox'/);
@@ -106,6 +108,15 @@ test('keeps three Transfers panels mounted with mobile-only tab visibility', asy
 	assert.match(style, /\.mp-transfer-tab-badge-pending \{[\s\S]*background-color: #ff4545;[\s\S]*border: 0;/);
 	assert.match(style, /\.mp-transfers-inbox \.mp-inbox-claim \.btn \{[\s\S]*flex: 0 0 50%;[\s\S]*margin-left: auto !important;/);
 	assert.match(page, /mp-inbox-claim/);
+	assert.match(page, /v-for="\(group, group_index\) of state\.inbox_groups"/);
+	assert.match(page, /state\.get_inbox_group_title\(group\)/);
+	assert.match(style, /\.mp-inbox-group-title \{/);
+	assert.match(main, /claim_legacy_market_payouts/);
+	assert.match(actions, /market_expired: 'MOD_MP_INBOX_SOURCE_MARKET_EXPIRED'/);
+	assert.equal(english.MOD_MP_INBOX_SOURCE_MARKET_EXPIRED, 'Expired Marketplace listing');
+	assert.match(main, /legacy_market_payout_migration_1_5_6/);
+	assert.match(main, /get_instance_storage_item\(LEGACY_MARKET_PAYOUT_MIGRATION_KEY\)/);
+	assert.match(main, /set_instance_storage_item\(LEGACY_MARKET_PAYOUT_MIGRATION_KEY, true\)/);
 	assert.match(style, /\.mp-transfers-outbox \.mp-transfer-buttons\.mp-transfer-buttons-single \.btn \{[\s\S]*grid-column: 2;/);
 	assert.match(page, /class="p-3 mp-transfer-buttons" :class="\{ 'mp-transfer-buttons-single': state\.transfer_inventory\.length === 0 \}/);
 	assert.doesNotMatch(style, /\.mp-transfers-inbox \{\s*min-height: 60vh;/);

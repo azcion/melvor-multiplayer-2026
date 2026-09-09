@@ -1,13 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 import { make_guild_group, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post, post_json } from '../support/http';
-import { db_count, db_run } from '../support/persistence';
+import { db_all, db_count, db_run } from '../support/persistence';
 
 type CharityContents = {
 	items: Array<{
 		id: string;
 		qty: number;
 		expires_at: number;
+		donated_at: number;
 	}>;
 };
 
@@ -59,6 +60,12 @@ describe('charity API', () => {
 		const malformed_id = await post('/api/charity/donate', {
 			items: [{ id: 'exampleMod', qty: 1 }]
 		}, client.session_token);
+		const incomplete_value = await post('/api/charity/donate', {
+			items: [{ id: 'melvorD:Coal_Ore', qty: 1, value_per_item: 10 }]
+		}, client.session_token);
+		const malformed_value = await post('/api/charity/donate', {
+			items: [{ id: 'melvorD:Coal_Ore', qty: 1, value_currency_id: 'melvorD:GP', value_per_item: -1 }]
+		}, client.session_token);
 		const modded = await post_json<{ success: boolean }>('/api/charity/donate', {
 			items: [{ id: 'exampleMod:Coal_Ore', qty: 1 }]
 		}, client.session_token);
@@ -66,11 +73,91 @@ describe('charity API', () => {
 		expect(invalid_quantity.status).toBe(400);
 		expect(fractional_quantity.status).toBe(400);
 		expect(malformed_id.status).toBe(400);
+		expect(incomplete_value.status).toBe(400);
+		expect(malformed_value.status).toBe(400);
 		expect(modded.json.success).toBe(true);
 		const contents = await get_charity_contents(client.session_token);
 		expect(contents.items).toHaveLength(1);
 		expect(contents.items[0]).toMatchObject({ id: 'exampleMod:Coal_Ore', qty: 1 });
 		expect(contents.items[0].expires_at).toBeGreaterThan(Date.now() + 3 * 24 * 60 * 60 * 1000);
+	});
+
+	test('learns one stack valuation and ignores later client valuation changes', async () => {
+		const client = await register_guild_client('Charity Valuation');
+		const item_id = 'melvorD:Charity_Valued_Leaf';
+		await post_json('/api/charity/donate', {
+			items: [{ id: item_id, qty: 5 }]
+		}, client.session_token);
+		await post_json('/api/charity/donate', {
+			items: [{ id: item_id, qty: 1, value_currency_id: 'melvorD:GP', value_per_item: 50 }]
+		}, client.session_token);
+		let rows = await db_all<{ qty: number; value_currency_id: string | null; value_per_item: number | null }>(
+			'SELECT `qty`, `value_currency_id`, `value_per_item` FROM `charity_items` WHERE `guild_id` = ? AND `item_id` = ?',
+			[client.guild_id, item_id]
+		);
+		expect(rows).toEqual([{ qty: 6, value_currency_id: 'melvorD:GP', value_per_item: 50 }]);
+
+		await post_json('/api/charity/donate', {
+			items: [{ id: item_id, qty: 1, value_currency_id: 'melvorItA:AbyssalPieces', value_per_item: 999 }]
+		}, client.session_token);
+		rows = await db_all<{ qty: number; value_currency_id: string | null; value_per_item: number | null }>(
+			'SELECT `qty`, `value_currency_id`, `value_per_item` FROM `charity_items` WHERE `guild_id` = ? AND `item_id` = ?',
+			[client.guild_id, item_id]
+		);
+		expect(rows).toEqual([{ qty: 7, value_currency_id: 'melvorD:GP', value_per_item: 50 }]);
+	});
+
+	test('uses server-known valuations for transfer currencies', async () => {
+		const client = await register_guild_client('Charity Currency Valuation');
+		await post_json('/api/charity/donate', {
+			items: [
+				{ id: 'melvorD:GP', qty: 2, value_currency_id: 'melvorItA:AbyssalPieces', value_per_item: 999 },
+				{ id: 'melvorD:SlayerCoins', qty: 3 },
+				{ id: 'melvorItA:AbyssalPieces', qty: 4 },
+				{ id: 'melvorItA:AbyssalSlayerCoins', qty: 5 }
+			]
+		}, client.session_token);
+		expect(await db_all<{ item_id: string; value_currency_id: string | null; value_per_item: number | null }>(
+			'SELECT `item_id`, `value_currency_id`, `value_per_item` FROM `charity_items` WHERE `guild_id` = ? ORDER BY `item_id`',
+			[client.guild_id]
+		)).toEqual([
+			{ item_id: 'melvorD:GP', value_currency_id: 'melvorD:GP', value_per_item: 1 },
+			{ item_id: 'melvorD:SlayerCoins', value_currency_id: 'melvorD:GP', value_per_item: 1 },
+			{ item_id: 'melvorItA:AbyssalPieces', value_currency_id: 'melvorItA:AbyssalPieces', value_per_item: 1 },
+			{ item_id: 'melvorItA:AbyssalSlayerCoins', value_currency_id: 'melvorItA:AbyssalPieces', value_per_item: 1 }
+		]);
+	});
+
+	test('returns Bank effects for bank-originated donations and Transfer effects by default', async () => {
+		const client = await register_guild_client('Bank Charity Donor');
+		const item_id = 'melvorD:Bank_Charity_Item';
+		const bank_command_id = crypto.randomUUID();
+		const bank_donation = await post_json<{
+			success: boolean;
+			receipt: { effects: Array<Record<string, unknown>> };
+		}>('/api/v2/charity/donate', {
+			items: [{ id: item_id, qty: 2 }],
+			source: 'bank',
+			donation_value: 0,
+			command_id: bank_command_id
+		}, client.session_token);
+		const transfer_donation = await post_json<{
+			success: boolean;
+			receipt: { effects: Array<Record<string, unknown>> };
+		}>('/api/v2/charity/donate', {
+			items: [{ id: item_id, qty: 1 }],
+			donation_value: 0,
+			command_id: crypto.randomUUID()
+		}, client.session_token);
+
+		expect(bank_donation.json).toMatchObject({
+			success: true,
+			receipt: { id: bank_command_id, effects: [{ storage: 'bank', item_id, qty: -2 }] }
+		});
+		expect(transfer_donation.json).toMatchObject({
+			success: true,
+			receipt: { effects: [{ storage: 'transfer', item_id, qty: -1 }] }
+		});
 	});
 
 	test('merges positive integer donations', async () => {
@@ -133,6 +220,44 @@ describe('charity API', () => {
 			'SELECT COUNT(*) AS `count` FROM `charity_items` WHERE `guild_id` = ?',
 			[client.guild_id]
 		)).toBe(0);
+	});
+
+	test('converts expiring GP value into permanent Weird Gloop and claims it normally', async () => {
+		const client = await register_guild_client('Charity Gloop');
+		const gloop_id = 'melvorD:Weird_Gloop';
+		await post_json('/api/charity/donate', {
+			items: [
+				{ id: 'melvorD:Charity_Gloop_1000', qty: 1, value_currency_id: 'melvorD:GP', value_per_item: 1000 },
+				{ id: 'melvorD:Charity_Gloop_1001', qty: 1, value_currency_id: 'melvorD:GP', value_per_item: 1001 },
+				{ id: 'melvorD:Charity_Gloop_No_Value', qty: 1, value_currency_id: 'melvorD:GP', value_per_item: 0 },
+				{ id: 'melvorD:Charity_Gloop_AP_Value', qty: 1, value_currency_id: 'melvorItA:AbyssalPieces', value_per_item: 999999 },
+				{ id: gloop_id, qty: 2, value_currency_id: 'melvorItA:AbyssalPieces', value_per_item: 7 }
+			]
+		}, client.session_token);
+		await db_run(
+			'UPDATE `charity_items` SET `expires_at` = ? WHERE `guild_id` = ? AND `item_id` != ?',
+			[Date.now() - 1, client.guild_id, gloop_id]
+		);
+
+		const contents = await get_charity_contents(client.session_token);
+		expect(contents.items[0]).toMatchObject({ id: gloop_id, qty: 5, expires_at: 0 });
+		expect(contents.items.find(item => item.id === 'melvorD:Charity_Gloop_1000')).toBeUndefined();
+		expect(contents.items.find(item => item.id === 'melvorD:Charity_Gloop_1001')).toBeUndefined();
+		expect(contents.items.find(item => item.id === 'melvorD:Charity_Gloop_No_Value')).toBeUndefined();
+		expect(contents.items.find(item => item.id === 'melvorD:Charity_Gloop_AP_Value')).toBeUndefined();
+		expect(await db_all<{ value_currency_id: string | null; value_per_item: number | null }>(
+			'SELECT `value_currency_id`, `value_per_item` FROM `charity_items` WHERE `guild_id` = ? AND `item_id` = ?',
+			[client.guild_id, gloop_id]
+		)).toEqual([{ value_currency_id: 'melvorItA:AbyssalPieces', value_per_item: 7 }]);
+
+		const claim = await post_json<{ success: boolean; item_qty: number; item_remaining_qty: number; item_expires_at: number }>(
+			'/api/charity/take', { item_id: gloop_id, command_id: crypto.randomUUID() }, client.session_token
+		);
+		expect(claim.json).toMatchObject({ success: true, item_qty: 5, item_remaining_qty: 0, item_expires_at: 0 });
+		expect((await get_charity_contents(client.session_token)).items).toEqual([]);
+		expect((await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
+			'/api/inbox', client.session_token
+		)).json.items).toEqual([{ item_id: gloop_id, qty: 5 }]);
 	});
 
 	test('uses normal and bonus cooldown slots before rejecting another take', async () => {
@@ -209,7 +334,7 @@ describe('charity API', () => {
 		]);
 		const item_id = 'melvorD:Charity_Partial_Take';
 		await post_json('/api/charity/donate', {
-			items: [{ id: item_id, qty: 3 }]
+			items: [{ id: item_id, qty: 3, value_currency_id: 'melvorD:GP', value_per_item: 1000 }]
 		}, donor.session_token);
 		await db_run(
 			'UPDATE `charity_items` SET `expires_at` = ? WHERE `guild_id` = ? AND `item_id` = ?',
@@ -230,11 +355,21 @@ describe('charity API', () => {
 			item_remaining_qty: 2
 		});
 		expect(taken.json.item_expires_at).toBeGreaterThan(Date.now() + 3 * 24 * 60 * 60 * 1000);
-		expect((await get_charity_contents(taker.session_token)).items).toContainEqual({
+		expect((await get_charity_contents(taker.session_token)).items).toContainEqual(expect.objectContaining({
 			id: item_id,
 			qty: 2,
 			expires_at: taken.json.item_expires_at
-		});
+		}));
+		await db_run(
+			'UPDATE `charity_items` SET `expires_at` = ? WHERE `guild_id` = ? AND `item_id` = ?',
+			[Date.now() - 1, donor.guild_id, item_id]
+		);
+		expect((await get_charity_contents(taker.session_token)).items).toEqual([{
+			id: 'melvorD:Weird_Gloop',
+			qty: 2,
+			expires_at: 0,
+			donated_at: 0
+		}]);
 		expect((await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
 			'/api/inbox', taker.session_token
 		)).json.items).toEqual([{ item_id, qty: 1 }]);

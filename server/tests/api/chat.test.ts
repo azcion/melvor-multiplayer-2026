@@ -1,7 +1,7 @@
-import { describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'bun:test';
 import { attach_to_free_fellowship, get_events, make_guildmates, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post, post_json, register_client } from '../support/http';
-import { db_count, db_run } from '../support/persistence';
+import { clear_global_chat_throttle, db_count, db_run } from '../support/persistence';
 
 type Conversation = {
 	conversation_kind?: 'private' | 'global' | 'guild' | 'support';
@@ -553,12 +553,13 @@ describe('Guild Chat API', () => {
 });
 
 describe('Chat moderation API', () => {
+	beforeEach(clear_global_chat_throttle);
+
 	test('allows configured identities to delete visible Global and Guild messages for everyone only', async () => {
 		const global_moderator = await register_client('Configured Chat Moderator');
 		const global_sender = await register_client('Configured Chat Sender');
 		await db_run('UPDATE `clients` SET `client_identifier` = ? WHERE `id` = ?',
 			['RESTART-CHAT-MODERATOR', global_moderator.client_id]);
-		await db_run('DELETE FROM `global_chat_server_throttle`');
 
 		const global_message = await send_global_message(global_sender.session_token, 'Moderate this Global Message');
 		const global_message_id = global_message.json.message?.message_id;

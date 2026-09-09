@@ -39,19 +39,20 @@ function cancel_owned_exchanges(client_id: number): Omit<ModeChange, 'success' |
 	).all(client_id);
 	for (const claim of haggle_claims) {
 		if (claim.item_id !== null)
-			add_inbox_items(client_id, [{ item_id: claim.item_id, qty: claim.item_qty }]);
+			add_inbox_items(client_id, [{ item_id: claim.item_id, qty: claim.item_qty }], { type: 'market_haggle_cancelled' });
 		if (claim.gp > 0)
-			add_inbox_gp(client_id, claim.gp);
+			add_inbox_gp(client_id, claim.gp, { type: 'market_haggle_cancelled' });
 		db.query('UPDATE `market_haggle_claims` SET `claimed_at` = ? WHERE `haggle_id` = ? AND `client_id` = ?')
 			.run(Date.now(), claim.haggle_id, client_id);
 	}
 	const market_items = db.query('SELECT * FROM `market_items` WHERE `client_id` = ?').all(client_id) as db_row.market_items[];
 	for (const lot of market_items) {
 		if (lot.direction === 'buy') {
-			add_inbox_gp(client_id, lot.escrow_gp);
+			add_inbox_gp(client_id, lot.escrow_gp, { type: 'market_cancelled' });
 		} else {
-			add_inbox_items(client_id, [{ item_id: lot.item_id, qty: lot.available }]);
-			add_inbox_gp(client_id, (lot.qty - lot.available - lot.reserved - lot.haggled) * lot.price - lot.payout);
+			add_inbox_items(client_id, [{ item_id: lot.item_id, qty: lot.available }], { type: 'market_cancelled' });
+			add_inbox_gp(client_id, (lot.qty - lot.available - lot.reserved - lot.haggled) * lot.price - lot.payout,
+				{ type: 'market_cancelled' });
 		}
 		remove_player_cache_entry(market_completed_cached, client_id, lot.id);
 	}
@@ -65,7 +66,7 @@ function cancel_owned_exchanges(client_id: number): Omit<ModeChange, 'success' |
 		const recipient = gift.sender_id === client_id ||
 			(gift.client_id === client_id && (gift.flags & GiftFlags.Returned) !== 0)
 			? client_id : gift.sender_id;
-		add_inbox_items(recipient, items);
+		add_inbox_items(recipient, items, { type: 'gift_returned' });
 		db.query('DELETE FROM `gift_items` WHERE `gift_id` = ?').run(gift.gift_id);
 		db.query('DELETE FROM `gifts` WHERE `gift_id` = ?').run(gift.gift_id);
 		remove_player_cache_entry(gift_cache, gift.client_id, gift.gift_id);
@@ -75,9 +76,9 @@ function cancel_owned_exchanges(client_id: number): Omit<ModeChange, 'success' |
 	const trades = db.query('SELECT * FROM `trade_offers` WHERE `sender_id` = ? OR `recipient_id` = ?').all(client_id, client_id) as db_row.trade_offers[];
 	for (const trade of trades) {
 		const items = db.query('SELECT `item_id`, `qty`, `counter` FROM `trade_items` WHERE `trade_id` = ?').all(trade.trade_id) as Array<{ item_id: string; qty: number; counter: number }>;
-		add_inbox_items(trade.sender_id, items.filter(item => item.counter === 0));
+		add_inbox_items(trade.sender_id, items.filter(item => item.counter === 0), { type: 'trade_cancelled' });
 		if (trade.state === 1)
-			add_inbox_items(trade.recipient_id, items.filter(item => item.counter === 1));
+			add_inbox_items(trade.recipient_id, items.filter(item => item.counter === 1), { type: 'trade_cancelled' });
 		db.query('DELETE FROM `trade_items` WHERE `trade_id` = ?').run(trade.trade_id);
 		db.query('DELETE FROM `trade_offers` WHERE `trade_id` = ?').run(trade.trade_id);
 		trade_cache.delete(trade.trade_id);
@@ -88,7 +89,7 @@ function cancel_owned_exchanges(client_id: number): Omit<ModeChange, 'success' |
 	const resolved_trades = db.query('SELECT * FROM `resolved_trade_offers` WHERE `client_id` = ?').all(client_id) as db_row.resolved_trade_offers[];
 	for (const trade of resolved_trades) {
 		const items = db.query('SELECT `item_id`, `qty` FROM `trade_items` WHERE `trade_id` = ?').all(trade.trade_id) as Array<{ item_id: string; qty: number }>;
-		add_inbox_items(client_id, items);
+		add_inbox_items(client_id, items, { type: trade.declined === 1 ? 'trade_cancelled' : 'trade_completed' });
 		db.query('DELETE FROM `trade_items` WHERE `trade_id` = ?').run(trade.trade_id);
 		db.query('DELETE FROM `resolved_trade_offers` WHERE `trade_id` = ?').run(trade.trade_id);
 		remove_player_cache_entry(resolved_trade_cache, client_id, trade.trade_id);

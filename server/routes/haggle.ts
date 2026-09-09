@@ -1,7 +1,7 @@
 import * as runtime from '../app-runtime';
 import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonSerializable } from '../http';
-import { add_inbox_gp, add_inbox_items } from '../inbox';
+import { add_inbox_gp, add_inbox_items, get_inbox_source_name } from '../inbox';
 
 const { db, get_client_guild_id, is_social_only_client, is_valid_uuid, run_economy_command,
 	market_completed_cached, session_get_route, session_post_route } = runtime;
@@ -234,9 +234,16 @@ export function register_haggle_routes(): void {
 			).run(top_up, now, now, haggle.id, haggle.revision);
 			if (changed.changes === 0)
 				return { success: false, error_lang: 'MOD_MP_MARKET_HAGGLE_STALE' };
-			if (haggle.listing_id !== null)
-				db.query('UPDATE `market_items` SET `reserved` = `reserved` - ?, `haggled` = `haggled` + ?, `updated_at` = ? WHERE `id` = ?')
-					.run(haggle.item_qty, haggle.item_qty, now, haggle.listing_id);
+			if (haggle.listing_id !== null) {
+				const listing = db.query<Pick<db_row.market_items, 'available' | 'reserved'>, [number]>(
+					'SELECT `available`, `reserved` FROM `market_items` WHERE `id` = ?'
+				).get(haggle.listing_id);
+				if (listing?.available === 0 && listing.reserved === haggle.item_qty)
+					db.query('DELETE FROM `market_items` WHERE `id` = ?').run(haggle.listing_id);
+				else
+					db.query('UPDATE `market_items` SET `reserved` = `reserved` - ?, `haggled` = `haggled` + ?, `updated_at` = ? WHERE `id` = ?')
+						.run(haggle.item_qty, haggle.item_qty, now, haggle.listing_id);
+			}
 			market_completed_cached.delete(haggle.owner_id);
 			const buyer_id = haggle.direction === 'sell' ? haggle.initiator_id : haggle.owner_id;
 			const seller_id = haggle.direction === 'sell' ? haggle.owner_id : haggle.initiator_id;
@@ -277,10 +284,23 @@ export function register_haggle_routes(): void {
 			).get(haggle_id, client_id);
 			if (claim === null || claim.claimed_at !== null)
 				return { success: false, error_lang: 'MOD_MP_MARKET_HAGGLE_CLAIMED' };
+			const haggle = db.query<db_row.market_haggles, [string]>(
+				'SELECT * FROM `market_haggles` WHERE `id` = ?'
+			).get(haggle_id);
+			if (haggle === null)
+				return { success: false, error_lang: 'MOD_MP_MARKET_HAGGLE_CLAIMED' };
+			const buyer_id = haggle.direction === 'sell' ? haggle.initiator_id : haggle.owner_id;
+			const seller_id = haggle.direction === 'sell' ? haggle.owner_id : haggle.initiator_id;
+			const source = haggle.status === 'accepted'
+				? client_id === buyer_id
+					? { type: haggle.direction === 'buy' ? 'market_fulfilled' : 'market_bought',
+						name: get_inbox_source_name(seller_id) }
+					: { type: 'market_sold', name: get_inbox_source_name(buyer_id) }
+				: { type: 'market_haggle_cancelled' };
 			if (claim.item_id !== null && claim.item_qty > 0)
-				add_inbox_items(client_id, [{ item_id: claim.item_id, qty: claim.item_qty }]);
+				add_inbox_items(client_id, [{ item_id: claim.item_id, qty: claim.item_qty }], source);
 			if (claim.gp > 0)
-				add_inbox_gp(client_id, claim.gp);
+				add_inbox_gp(client_id, claim.gp, source);
 			db.query('UPDATE `market_haggle_claims` SET `claimed_at` = ? WHERE `haggle_id` = ? AND `client_id` = ?')
 				.run(Date.now(), claim.haggle_id, client_id);
 			return { success: true, effects: [] };

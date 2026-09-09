@@ -1,5 +1,6 @@
 export const CHARITREE_VALUE_LIMIT_RATIO = 0.5;
 export const CHARITREE_LEAF_COVERAGE_PERCENTAGES = Object.freeze([0, 5, 15, 30, 50, 70, 85, 95, 100]);
+export const CHARITREE_WEIRD_GLOOP_ID = 'melvorD:Weird_Gloop';
 
 const HOUR_MS = 60 * 60 * 1000;
 const FNV_OFFSET_BASIS = 2166136261;
@@ -11,6 +12,14 @@ export function get_charitree_whole_hours_remaining(expires_at, now) {
 	if (!Number.isSafeInteger(expires_at) || expires_at < 0 || !Number.isSafeInteger(now) || now < 0)
 		return null;
 	return Math.floor(Math.max(0, expires_at - now) / HOUR_MS);
+}
+
+function get_active_charitree_shuffle_count(shuffle_count) {
+	return Number.isSafeInteger(shuffle_count) && shuffle_count > 0 ? Math.min(20, shuffle_count) : 0;
+}
+
+function apply_charitree_shuffle_bonus(percentage, shuffle_count) {
+	return Math.max(0, percentage - get_active_charitree_shuffle_count(shuffle_count) * 5);
 }
 
 export function get_charitree_leaf_coverage_percentage(whole_hours_remaining) {
@@ -35,30 +44,36 @@ export function get_charitree_leaf_coverage_percentage(whole_hours_remaining) {
 	return 100;
 }
 
-export function get_charitree_leaf_roll(item_id, quantity, whole_hours_remaining) {
+export function get_charitree_leaf_roll(item_id, quantity, whole_hours_remaining, shuffled_at = null) {
 	if (typeof item_id !== 'string' || item_id.length === 0 || !Number.isSafeInteger(quantity) || quantity < 1 ||
 		!Number.isSafeInteger(whole_hours_remaining) || whole_hours_remaining < 0)
 		return null;
 
 	let hash = FNV_OFFSET_BASIS;
-	for (const byte of text_encoder.encode(`${item_id}\0${quantity}\0${whole_hours_remaining}`)) {
+	const seed = `${item_id}\0${quantity}\0${whole_hours_remaining}` +
+		(Number.isSafeInteger(shuffled_at) && shuffled_at > 0 ? `\0${shuffled_at}` : '');
+	for (const byte of text_encoder.encode(seed)) {
 		hash ^= byte;
 		hash = Math.imul(hash, FNV_PRIME);
 	}
 	return Math.floor((hash >>> 0) / UINT32_RANGE * 100);
 }
 
-export function get_charitree_leaf_coverage(item, now, is_currency = () => false, is_discovered = () => true) {
-	if (item === null || typeof item !== 'object' || is_currency(item.id) === true)
+export function get_charitree_leaf_coverage(item, now, is_currency = () => false, is_discovered = () => true, shuffled_at = null, shuffle_count = 0) {
+	if (item === null || typeof item !== 'object' || item.id === CHARITREE_WEIRD_GLOOP_ID || is_currency(item.id) === true)
 		return { covered: false, percentage: 0 };
 
 	const whole_hours_remaining = get_charitree_whole_hours_remaining(item.expires_at, now);
 	if (whole_hours_remaining === null)
 		return { covered: false, percentage: 0 };
+	const active_shuffle_count = get_active_charitree_shuffle_count(shuffle_count);
 	const percentage = get_charitree_leaf_coverage_percentage(whole_hours_remaining);
-	const roll = get_charitree_leaf_roll(item.id, item.qty, whole_hours_remaining);
+	const roll = get_charitree_leaf_roll(item.id, item.qty, whole_hours_remaining,
+		Number.isSafeInteger(item.donated_at) && item.donated_at < shuffled_at ? shuffled_at : null);
+	const undiscovered = is_discovered(item.id) !== true;
+	const coverage_chance = apply_charitree_shuffle_bonus(undiscovered ? 100 : percentage, active_shuffle_count);
 	return {
-		covered: roll !== null && (is_discovered(item.id) !== true || roll < percentage),
+		covered: roll !== null && roll < coverage_chance,
 		percentage
 	};
 }
@@ -139,4 +154,11 @@ export function format_charitree_remaining(expires_at, now) {
 	if (hours > 0)
 		return `${hours}h ${minutes}m`;
 	return `${minutes}m`;
+}
+
+export function get_charitree_shuffle_offer(currencies, random = Math.random) {
+	const eligible = currencies.filter(({ currency }) => Number.isFinite(currency?.amount) && currency.amount > 1000 && currency.amount <= Number.MAX_SAFE_INTEGER);
+	if (eligible.length === 0) return null;
+	const selected = eligible[Math.min(eligible.length - 1, Math.floor(random() * eligible.length))];
+	return { currency_id: selected.id, balance: selected.currency.amount, qty: Math.floor(selected.currency.amount / 1000) };
 }

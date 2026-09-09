@@ -1,5 +1,6 @@
 import { revoke_installation } from './installations';
 import { db, get_service_setting } from './db';
+import { CHARITY_KNOWN_CURRENCY_VALUATIONS } from './charity-values';
 import {
 	ICON_CATALOG_SETTING_KEYS,
 	MAX_ICON_CATALOG_BYTES,
@@ -21,6 +22,9 @@ const console_output: AdminOutput = {
 const MAX_GUILD_DIAGNOSTIC_MEMBERS = 512;
 const MAX_GUILD_DIAGNOSTIC_CONTRIBUTIONS = 512;
 const MAX_GUILD_DIAGNOSTIC_ACTIVITY = 20;
+const MAX_CHARITREE_VALUE_CATALOG_BYTES = 4 * 1024 * 1024;
+const MAX_CHARITREE_VALUE_CATALOG_ITEMS = 100000;
+const MAX_CHARITREE_EXPIRY_SECONDS = 31 * 24 * 60 * 60;
 
 function usage(output: AdminOutput): number {
 	output.error(`Usage:
@@ -38,8 +42,94 @@ function usage(output: AdminOutput): number {
   bun run admin.ts global-chat-throttle server clear|MAX_MESSAGES WINDOW_SECONDS
   bun run admin.ts global-chat-throttle client CLIENT_ID clear|MAX_MESSAGES WINDOW_SECONDS
   bun run admin.ts charity reset CLIENT_ID
-  bun run admin.ts charity reset-all`);
+  bun run admin.ts charity reset-all
+  bun run admin.ts charity repair-bank-receipt CLIENT_ID RECEIPT_ID ITEM_ID QTY confirm
+  bun run admin.ts charity set-expiry GUILD_ID ITEM_ID EXPECTED_QTY SECONDS confirm
+  bun run admin.ts charity backfill-values < charitree-item-values.json
+  bun run admin.ts economy-receipt rollback-duplicate-charity CLIENT_ID RECEIPT_ID confirm`);
 	return 2;
+}
+
+type CharitreeValueCatalogEntry = {
+	id: string;
+	value_currency_id: string | null;
+	value_per_item: number;
+};
+
+function is_namespaced_id(value: unknown): value is string {
+	return typeof value === 'string' && value.length > 0 && value.length <= 256 &&
+		/^[A-Za-z0-9_-]+:[A-Za-z0-9_-]+$/.test(value);
+}
+
+function parse_charitree_value_catalog(input: string): CharitreeValueCatalogEntry[] | null {
+	if (Buffer.byteLength(input, 'utf8') > MAX_CHARITREE_VALUE_CATALOG_BYTES)
+		return null;
+	let value: unknown;
+	try {
+		value = JSON.parse(input);
+	} catch {
+		return null;
+	}
+	if (!Array.isArray(value) || value.length > MAX_CHARITREE_VALUE_CATALOG_ITEMS)
+		return null;
+	const entries: CharitreeValueCatalogEntry[] = [];
+	const item_ids = new Set<string>();
+	for (const row of value) {
+		if (typeof row !== 'object' || row === null || Array.isArray(row))
+			return null;
+		const record = row as Record<string, unknown>;
+		const id = record.id;
+		const value_currency_id = record.value_currency_id;
+		const value_per_item = record.value_per_item;
+		if (!is_namespaced_id(id) || item_ids.has(id) ||
+			(value_currency_id !== null && !is_namespaced_id(value_currency_id)) ||
+			typeof value_per_item !== 'number' || !Number.isSafeInteger(value_per_item) || value_per_item < 0 ||
+			(value_per_item > 0 && value_currency_id === null))
+			return null;
+		item_ids.add(id);
+		entries.push({ id, value_currency_id, value_per_item });
+	}
+	return entries;
+}
+
+export function backfill_charitree_values(input: string, output: AdminOutput = console_output): number {
+	const entries = parse_charitree_value_catalog(input);
+	if (entries === null) {
+		output.error('Invalid Charitree item-value catalog.');
+		return 1;
+	}
+	const updated = db.transaction(() => {
+		let changes = 0;
+		const statement = db.query(
+			'UPDATE `charity_items` SET `value_currency_id` = ?, `value_per_item` = ? ' +
+			'WHERE `item_id` = ? AND `value_per_item` IS NULL'
+		);
+		for (const [item_id, valuation] of Object.entries(CHARITY_KNOWN_CURRENCY_VALUATIONS))
+			changes += statement.run(valuation.value_currency_id, valuation.value_per_item, item_id).changes;
+		for (const entry of entries)
+			changes += statement.run(entry.value_currency_id, entry.value_per_item, entry.id).changes;
+		const remaining_unknown = db.query<{ count: number }, []>(
+			' SELECT COUNT(*) AS `count` FROM `charity_items` WHERE `value_per_item` IS NULL'
+		).get()?.count ?? 0;
+		if (entries.length === 0 && remaining_unknown > 0)
+			return null;
+		db.query(
+			"UPDATE `service_settings` SET `value` = '0' WHERE `key` = 'charity_value_backfill_pending'"
+		).run();
+		return changes;
+	}).immediate();
+	if (updated === null) {
+		output.error('The Charitree item-value catalog is empty while unknown stacks remain.');
+		return 1;
+	}
+	const remaining = db.query<{ count: number }, []>(
+		'SELECT COUNT(*) AS `count` FROM `charity_items` WHERE `value_per_item` IS NULL'
+	).get()?.count ?? 0;
+	output.log(`catalog_items=${entries.length}`);
+	output.log(`charitree_stacks_updated=${updated}`);
+	output.log(`charitree_stacks_remaining_unknown=${remaining}`);
+	output.log('charitree_value_backfill_pending=0');
+	return 0;
 }
 
 function parse_positive_integer(value: string | undefined): number | null {
@@ -279,6 +369,251 @@ function reset_all_charity_timers(output: AdminOutput): number {
 	return 0;
 }
 
+function set_charitree_expiry(
+	guild_id: number,
+	item_id: string,
+	expected_qty: number,
+	seconds: number,
+	output: AdminOutput
+): number {
+	const result = db.transaction(() => {
+		const guild = db.query<{ name: string; charitree_enabled: number }, [number]>(
+			' SELECT `name`, `charitree_enabled` FROM `guilds` WHERE `id` = ? LIMIT 1'
+		).get(guild_id);
+		if (guild === null)
+			return { error: 'Guild does not exist.' } as const;
+		if (guild.charitree_enabled !== 1)
+			return { error: 'Charitree is disabled for this Guild.' } as const;
+		if (item_id === 'melvorD:Weird_Gloop')
+			return { error: 'Weird Gloop does not expire.' } as const;
+
+		const item = db.query<{ qty: number; expires_at: number }, [number, string]>(
+			' SELECT `qty`, `expires_at` FROM `charity_items` WHERE `guild_id` = ? AND `item_id` = ? LIMIT 1'
+		).get(guild_id, item_id);
+		if (item === null)
+			return { error: 'Charitree item stack does not exist.' } as const;
+		if (item.qty !== expected_qty)
+			return { error: `Charitree item quantity changed; expected ${expected_qty}, found ${item.qty}.` } as const;
+
+		const now = Date.now();
+		const expires_at = now + seconds * 1000;
+		if (!Number.isSafeInteger(expires_at))
+			return { error: 'Requested expiry is outside the safe timestamp range.' } as const;
+		db.query('UPDATE `charity_items` SET `expires_at` = ? WHERE `guild_id` = ? AND `item_id` = ?')
+			.run(expires_at, guild_id, item_id);
+		return { guild_name: guild.name, previous_expires_at: item.expires_at, expires_at } as const;
+	}).immediate();
+
+	if ('error' in result) {
+		output.error(result.error);
+		return 1;
+	}
+	output.log(`guild_id=${guild_id}`);
+	output.log(`guild_name=${JSON.stringify(result.guild_name)}`);
+	output.log(`item_id=${item_id}`);
+	output.log(`qty=${expected_qty}`);
+	output.log(`previous_expires_at=${result.previous_expires_at}`);
+	output.log(`expires_at=${result.expires_at}`);
+	output.log(`expires_in_seconds=${seconds}`);
+	return 0;
+}
+
+type CharityReceiptEffect = { item_id: string; qty: number };
+
+function parse_charity_receipt_effects(response_json: string, receipt_id: string): CharityReceiptEffect[] | null {
+	let response: unknown;
+	try {
+		response = JSON.parse(response_json);
+	} catch {
+		return null;
+	}
+	if (typeof response !== 'object' || response === null || Array.isArray(response))
+		return null;
+	const receipt = (response as { receipt?: unknown }).receipt;
+	if (typeof receipt !== 'object' || receipt === null || Array.isArray(receipt))
+		return null;
+	const value = receipt as { id?: unknown; kind?: unknown; effects?: unknown };
+	if (value.id !== receipt_id || value.kind !== 'charity-donate' || !Array.isArray(value.effects) || value.effects.length === 0)
+		return null;
+	const effects: CharityReceiptEffect[] = [];
+	for (const effect of value.effects) {
+		if (typeof effect !== 'object' || effect === null || Array.isArray(effect))
+			return null;
+		const item = effect as { storage?: unknown; item_id?: unknown; qty?: unknown; destroyable?: unknown };
+		if (item.storage !== 'transfer' || typeof item.item_id !== 'string' || item.item_id.length === 0 ||
+			typeof item.qty !== 'number' || !Number.isSafeInteger(item.qty) || item.qty >= 0 || item.destroyable !== undefined ||
+			effects.some(existing => existing.item_id === item.item_id))
+			return null;
+		effects.push({ item_id: item.item_id, qty: item.qty });
+	}
+	return effects;
+}
+
+function same_charity_receipt_effects(left: CharityReceiptEffect[], right: CharityReceiptEffect[]): boolean {
+	if (left.length !== right.length)
+		return false;
+	const normalized = (effects: CharityReceiptEffect[]) => effects
+		.map(effect => `${effect.item_id}\u0000${effect.qty}`)
+		.sort()
+		.join('\u0001');
+	return normalized(left) === normalized(right);
+}
+
+function repair_bank_charity_receipt(
+	client_id: number,
+	receipt_id: string,
+	item_id: string,
+	qty: number,
+	output: AdminOutput
+): number {
+	const result = db.transaction(() => {
+		const pending = db.query<{
+			response_json: string;
+			acknowledged_at: number | null;
+		}, [string, number]>(
+			'SELECT `response_json`, `acknowledged_at` FROM `economy_receipts` ' +
+			'WHERE `id` = ? AND `client_id` = ? AND `kind` = \'charity-donate\' LIMIT 1'
+		).get(receipt_id, client_id);
+		if (pending === null || pending.acknowledged_at !== null)
+			return { error: 'Receipt is not a pending Charity donation for this identity.' } as const;
+
+		let response: unknown;
+		try {
+			response = JSON.parse(pending.response_json);
+		} catch {
+			return { error: 'Receipt response is not valid JSON.' } as const;
+		}
+		if (typeof response !== 'object' || response === null || Array.isArray(response))
+			return { error: 'Receipt response has an invalid shape.' } as const;
+		const receipt = (response as { receipt?: unknown }).receipt;
+		if (typeof receipt !== 'object' || receipt === null || Array.isArray(receipt))
+			return { error: 'Receipt response has an invalid receipt.' } as const;
+		const effects = (receipt as { effects?: unknown }).effects;
+		if (!Array.isArray(effects) || effects.length !== 1)
+			return { error: 'Receipt is not a single-item bank Charity donation.' } as const;
+		const effect = effects[0];
+		if (typeof effect !== 'object' || effect === null || Array.isArray(effect))
+			return { error: 'Receipt has an invalid effect.' } as const;
+		const stored_effect = effect as { storage?: unknown; item_id?: unknown; qty?: unknown; destroyable?: unknown };
+		if (stored_effect.storage !== 'transfer' || stored_effect.item_id !== item_id || stored_effect.qty !== -qty ||
+			stored_effect.destroyable !== undefined)
+			return { error: 'Receipt does not match the requested blocked bank donation.' } as const;
+
+		const membership = db.query<{ guild_id: number }, [number]>(
+			'SELECT `guild_id` FROM `guild_memberships` WHERE `client_id` = ? LIMIT 1'
+		).get(client_id);
+		if (membership === null)
+			return { error: 'Identity has no active Guild for Charity repair.' } as const;
+		const stock = db.query<{ qty: number }, [number, string]>(
+			'SELECT `qty` FROM `charity_items` WHERE `guild_id` = ? AND `item_id` = ? LIMIT 1'
+		).get(membership.guild_id, item_id);
+		if (stock === null || stock.qty < qty)
+			return { error: 'Charity stock does not contain the committed donation.' } as const;
+
+		const next_receipt = {
+			...(receipt as Record<string, unknown>),
+			effects: [{ storage: 'bank', item_id, qty: -qty }]
+		};
+		const next_response = { ...(response as Record<string, unknown>), receipt: next_receipt };
+		db.query('UPDATE `economy_receipts` SET `response_json` = ? WHERE `id` = ? AND `client_id` = ?')
+			.run(JSON.stringify(next_response), receipt_id, client_id);
+		db.query('UPDATE `clients` SET `event_revision` = `event_revision` + 1 WHERE `id` = ?').run(client_id);
+		return { guild_id: membership.guild_id } as const;
+	}).immediate();
+
+	if ('error' in result) {
+		output.error(result.error);
+		return 1;
+	}
+	output.log(`client_id=${client_id}`);
+	output.log(`receipt_id=${receipt_id}`);
+	output.log(`guild_id=${result.guild_id}`);
+	output.log(`item_id=${item_id}`);
+	output.log(`qty=${qty}`);
+	output.log('receipt_effect_storage=bank');
+	output.log('receipt_acknowledged=no');
+	return 0;
+}
+
+function rollback_duplicate_charity_receipt(client_id: number, receipt_id: string, output: AdminOutput): number {
+	const result = db.transaction(() => {
+		const pending = db.query<{
+			kind: string;
+			response_json: string;
+			created_at: number;
+			acknowledged_at: number | null;
+		}, [string, number]>(
+			'SELECT `kind`, `response_json`, `created_at`, `acknowledged_at` FROM `economy_receipts` ' +
+			'WHERE `id` = ? AND `client_id` = ? LIMIT 1'
+		).get(receipt_id, client_id);
+		if (pending === null || pending.kind !== 'charity-donate' || pending.acknowledged_at !== null)
+			return { error: 'Receipt is not a pending Charity donation for this identity.' } as const;
+		const pending_effects = parse_charity_receipt_effects(pending.response_json, receipt_id);
+		if (pending_effects === null)
+			return { error: 'Receipt shape is not an eligible Charity donation duplicate.' } as const;
+
+		const acknowledged_candidates = db.query<{
+			id: string;
+			response_json: string;
+		}, [number, number, number]>(
+			'SELECT `id`, `response_json` FROM `economy_receipts` WHERE `client_id` = ? AND `kind` = \'charity-donate\' ' +
+			'AND `acknowledged_at` IS NOT NULL AND `created_at` BETWEEN ? AND ? ORDER BY `created_at`, `id`'
+		).all(client_id, pending.created_at - 1000, pending.created_at + 1000)
+			.map(candidate => ({
+				...candidate,
+				effects: parse_charity_receipt_effects(candidate.response_json, candidate.id)
+			}))
+			.filter((candidate): candidate is { id: string; response_json: string; effects: CharityReceiptEffect[] } =>
+				candidate.effects !== null && same_charity_receipt_effects(pending_effects, candidate.effects));
+		if (acknowledged_candidates.length !== 1)
+			return { error: `Expected exactly one acknowledged duplicate receipt; found ${acknowledged_candidates.length}.` } as const;
+
+		const membership = db.query<{ guild_id: number }, [number]>(
+			'SELECT `guild_id` FROM `guild_memberships` WHERE `client_id` = ? LIMIT 1'
+		).get(client_id);
+		if (membership === null)
+			return { error: 'Identity has no active Guild for Charity rollback.' } as const;
+
+		for (const effect of pending_effects) {
+			const item = db.query<{ qty: number }, [number, string]>(
+				'SELECT `qty` FROM `charity_items` WHERE `guild_id` = ? AND `item_id` = ? LIMIT 1'
+			).get(membership.guild_id, effect.item_id);
+			if (item === null || item.qty < -effect.qty)
+				return { error: `Charity stock is insufficient to roll back ${effect.item_id}.` } as const;
+		}
+
+		for (const effect of pending_effects) {
+			const item = db.query<{ qty: number }, [number, string]>(
+				'SELECT `qty` FROM `charity_items` WHERE `guild_id` = ? AND `item_id` = ? LIMIT 1'
+			).get(membership.guild_id, effect.item_id);
+			if (item?.qty === -effect.qty)
+				db.query('DELETE FROM `charity_items` WHERE `guild_id` = ? AND `item_id` = ?').run(membership.guild_id, effect.item_id);
+			else
+				db.query('UPDATE `charity_items` SET `qty` = `qty` + ? WHERE `guild_id` = ? AND `item_id` = ?')
+					.run(effect.qty, membership.guild_id, effect.item_id);
+		}
+		db.query('UPDATE `economy_receipts` SET `acknowledged_at` = ? WHERE `id` = ?').run(Date.now(), receipt_id);
+		db.query('UPDATE `clients` SET `event_revision` = `event_revision` + 1 WHERE `id` = ?').run(client_id);
+		return {
+			guild_id: membership.guild_id,
+			duplicate_receipt_id: acknowledged_candidates[0].id,
+			effects: pending_effects
+		} as const;
+	}).immediate();
+
+	if ('error' in result && typeof result.error === 'string') {
+		output.error(result.error);
+		return 1;
+	}
+	output.log(`client_id=${client_id}`);
+	output.log(`receipt_id=${receipt_id}`);
+	output.log(`duplicate_receipt_id=${result.duplicate_receipt_id}`);
+	output.log(`guild_id=${result.guild_id}`);
+	output.log(`rolled_back_effects=${JSON.stringify(result.effects)}`);
+	output.log('receipt_acknowledged=yes');
+	return 0;
+}
+
 function set_global_chat_throttle(args: string[], output: AdminOutput): number {
 	const scope = args[1];
 	const client_id = scope === 'client' ? parse_positive_integer(args[2]) : null;
@@ -346,6 +681,7 @@ export function run_admin(args: string[], output: AdminOutput = console_output):
 			output.log(`icon_collection_max_catalog_bytes=${get_service_setting(ICON_CATALOG_SETTING_KEYS.max_catalog_bytes)}`);
 			output.log(`icon_collection_max_observations=${get_service_setting(ICON_CATALOG_SETTING_KEYS.max_observations)}`);
 			output.log(`released_mod_version=${get_service_setting('released_mod_version') || 'none'}`);
+			output.log(`charitree_value_backfill_pending=${get_service_setting('charity_value_backfill_pending') ?? '0'}`);
 			output.log(`identities=${identity_count}`);
 			output.log(`disabled_identities=${disabled_count}`);
 			return 0;
@@ -402,10 +738,37 @@ export function run_admin(args: string[], output: AdminOutput = console_output):
 		case 'charity': {
 			if (action === 'reset-all' && args.length === 2)
 				return reset_all_charity_timers(output);
+			if (action === 'set-expiry' && args.length === 7 && args[6] === 'confirm') {
+				const guild_id = parse_positive_integer(args[2]);
+				const item_id = args[3];
+				const expected_qty = parse_positive_integer(args[4]);
+				const seconds = parse_positive_integer(args[5]);
+				if (guild_id === null || !is_namespaced_id(item_id) || expected_qty === null || seconds === null ||
+					seconds > MAX_CHARITREE_EXPIRY_SECONDS)
+					return usage(output);
+				return set_charitree_expiry(guild_id, item_id, expected_qty, seconds, output);
+			}
+			if (action === 'repair-bank-receipt' && args.length === 7 && args[6] === 'confirm') {
+				const client_id = parse_positive_integer(args[2]);
+				const receipt_id = args[3];
+				const item_id = args[4];
+				const qty = parse_positive_integer(args[5]);
+				if (client_id === null || typeof receipt_id !== 'string' || !/^[0-9a-f-]{36}$/.test(receipt_id) ||
+					!is_namespaced_id(item_id) || qty === null)
+					return usage(output);
+				return repair_bank_charity_receipt(client_id, receipt_id, item_id, qty, output);
+			}
 			if (action !== 'reset' || args.length !== 3)
 				return usage(output);
 			const client_id = parse_positive_integer(argument);
 			return client_id === null ? usage(output) : reset_charity_timers(client_id, output);
+		}
+		case 'economy-receipt': {
+			const client_id = parse_positive_integer(argument);
+			if (action !== 'rollback-duplicate-charity' || args.length !== 5 || args[4] !== 'confirm' ||
+				client_id === null || typeof args[3] !== 'string' || !/^[0-9a-f-]{36}$/.test(args[3]))
+				return usage(output);
+			return rollback_duplicate_charity_receipt(client_id, args[3], output);
 		}
 		case 'identity': {
 			if (args.length !== 3 || !['find', 'inspect', 'enable', 'disable'].includes(action ?? ''))
@@ -494,6 +857,9 @@ export function run_admin(args: string[], output: AdminOutput = console_output):
 }
 
 if (import.meta.main) {
-	process.exitCode = run_admin(Bun.argv.slice(2));
+	const args = Bun.argv.slice(2);
+	process.exitCode = args.length === 2 && args[0] === 'charity' && args[1] === 'backfill-values'
+		? backfill_charitree_values(await Bun.stdin.text())
+		: run_admin(args);
 	db.close();
 }

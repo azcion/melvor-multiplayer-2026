@@ -15,6 +15,7 @@ export function install_social_actions(runtime) {
 		get_friends,
 		getLangString,
 		get_instance_storage_item,
+		set_instance_storage_item,
 		is_social_only,
 		hide_button_spinner,
 		hide_modal_error,
@@ -71,7 +72,8 @@ export function install_social_actions(runtime) {
 			this.display_name_input = this.profile_display_name;
 
 			queue_modal('MOD_MP_TITLE_DISPLAY_NAME', 'change-display-name-modal', this.get_avatar_icon(this.profile_icon), {
-				showConfirmButton: false
+				showConfirmButton: false,
+				customClass: { popup: 'mp-name-input-modal-popup' }
 			}, true, false);
 		},
 		// #endregion
@@ -112,15 +114,21 @@ export function install_social_actions(runtime) {
 			this.close_modal();
 		},
 
-		show_icon_modal() {
+		show_icon_modal(show_default_avatar_prompt = false) {
 			this.close_account_dropdown();
 			setup_icons();
 
 			state.picked_icon = '';
+			state.show_icon_prompt_info = show_default_avatar_prompt;
 
 			queue_modal(game.characterName, 'change-icon-modal', this.get_avatar_icon(state.profile_icon), {
 				showConfirmButton: false,
-				customClass: { popup: 'mp-icon-picker-modal-popup' }
+				customClass: { popup: 'mp-icon-picker-modal-popup' },
+				didClose: () => {
+					if (show_default_avatar_prompt)
+						set_instance_storage_item('default_avatar_prompt_shown', true);
+					state.show_icon_prompt_info = false;
+				}
 			}, false, false);
 		},
 		// #endregion

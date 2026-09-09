@@ -1150,9 +1150,6 @@
 		<lang-string lang-id="MOD_MP_MODAL_DESC_DISPLAY_NAME"></lang-string>
 		<span id="mp-modal-error" class="d-none text-danger"></span>
 	</div>
-	<label for="mp-display-name-modal-field">
-		<lang-string lang-id="MOD_MP_LABEL_DISPLAY_NAME"></lang-string>
-	</label>
 	<input class="form-control text-center" type="text" id="mp-display-name-modal-field" v-model="state.display_name_input" maxlength="20"/>
 	<div class="mp-button-tray">
 		<button type="button" class="btn btn-success" @click="state.confirm_display_name($event)">
@@ -1165,6 +1162,7 @@
 	</div>
 </template>
 <template id="template-mp-change-icon-modal">
+	<div class="mp-modal-text mb-3" v-if="state.show_icon_prompt_info"><lang-string lang-id="MOD_MP_DEFAULT_AVATAR_PROMPT"></lang-string></div>
 	<input class="form-control" type="text" v-model="state.icon_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_ICON')"/>
 	<div class="mp-icon-selector" v-if="state.filtered_icons.length > 0" @touchmove="state.stop_icon_scroll_propagation($event)">
 		<div class="bank-item no-bg btn-light pointer-enabled m-1 resize-48" :class="{ 'mp-icon-picked': icon.id == state.picked_icon }" v-for="icon in state.filtered_icons" @click="state.pick_icon(icon)">
@@ -1184,90 +1182,57 @@
 		</button>
 	</div>
 </template>
-<template id="template-mp-bank-market-container">
+<template id="template-mp-bank-actions-container">
 	<div class="col-12" :class="{ 'd-none': !state.is_guild_member }">
-		<div class="block block-rounded-double bg-combat-inner-dark">
-		<div class="block-header block-header-default bg-dark-bank-block-header px-3 py-1">
-			<h5 class="font-size-sm font-w600 mb-0">
-				<img class="skill-icon-xs mr-1" :src="state.get_svg('market')">
-				<lang-string lang-id="MOD_MP_MARKET_BANK_HEADER"></lang-string>
-			</h5>
-		</div>
-		<div class="col-12 pt-2">
-			<div class="form-group">
-				<input type="text" id="mp-market-slider">
-			</div>
-			<div class="row no-gutters p-2">
-				<div class="mp-bank-market-fields">
-					<div>
-						<lang-string lang-id="MOD_MP_MARKET_BANK_QTY"></lang-string>
-						<input type="number" min="0" class="form-control m-1" id="mp-market-sell-amount" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SELL_QUANTITY')">
-					</div>
-					<div>
-						<img class="skill-icon-xxs ml-1 mr-1" src="assets/media/main/coins.svg">
-						<lang-string lang-id="MOD_MP_MARKET_BANK_PPI"></lang-string>
-						<input type="number" min="0" class="form-control m-1" id="mp-market-sell-price" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SELL_PRICE')">
-					</div>
-				</div>
-				<div class="col-12">
-					<div class="dropdown-divider"></div>
-				</div>
-				<div class="col-12 text-center">
-					<button role="button" class="btn btn-danger m-1 w-75" id="mp-market-sell-button">
-						<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-						<lang-string lang-id="MOD_MP_BUTTON_SELL_ON_MARKET"></lang-string>
-					</button><br>
-				</div>
-			</div>
-		</div>
-		<div class="block-header block-header-default bg-dark-bank-block-header px-3 py-1 text-center">
-			<h5 class="font-w600 font-size-sm text-combat-smoke m-1 w-100">
-				<img class="skill-icon-xxs ml-1 mr-1" src="assets/media/main/coins.svg">
-				<span id="mp-market-sell-value"></span>
-			</h5>
-		</div>
+		<button type="button" class="mp-bank-actions-entry" @click="state.show_bank_actions_modal()">
+			<img class="skill-icon-lg" :src="state.get_svg('multiplayer')" alt="">
+			<span class="mp-bank-actions-entry-title"><lang-string lang-id="MOD_MP_BANK_ACTIONS_TITLE"></lang-string></span>
+			<span class="mp-bank-actions-entry-chevron" aria-hidden="true">›</span>
+		</button>
 	</div>
 </template>
-<template id="template-mp-bank-container">
-	<div class="col-12" :class="{ 'd-none': !state.is_guild_member }">
-		<div class="block block-rounded-double bg-combat-inner-dark">
-		<div class="block-header block-header-default bg-dark-bank-block-header px-3 py-1">
-			<h5 class="font-size-sm font-w600 mb-0">
-				<img class="skill-icon-xs mr-1" :src="state.get_svg('multiplayer')">
-				<lang-string lang-id="MOD_MP_TITLE_TRANSFER_ITEM"></lang-string>
-			</h5>
+<template id="template-mp-bank-actions-modal">
+	<div class="mp-bank-actions-modal">
+		<div v-show="state.bank_action_mode === ''" class="mp-bank-actions-choices">
+			<button type="button" class="btn btn-primary" @click="state.set_bank_action_mode('transfer')">
+				<lang-string lang-id="MOD_MP_BANK_ACTION_TRANSFER"></lang-string>
+			</button>
+			<button type="button" class="btn btn-success" @click="state.set_bank_action_mode('market')">
+				<lang-string lang-id="MOD_MP_BANK_ACTION_MARKET"></lang-string>
+			</button>
+			<button type="button" class="btn btn-warning" @click="state.set_bank_action_mode('charity')">
+				<lang-string lang-id="MOD_MP_BANK_ACTION_CHARITY"></lang-string>
+			</button>
 		</div>
-		<div class="col-12 pt-2">
-			<div class="form-group">
-				<input type="text" id="mp-transfer-slider">
-			</div>
-			<div class="row no-gutters p-2">
-				<div class="col-12 col-xl-5">
-					<input type="number" min="0" class="form-control m-1" id="mp-transfer-amount" :placeholder="getLangString('MOD_MP_PLACEHOLDER_TRANSFER_QUANTITY')">
+		<div v-show="state.bank_action_mode !== ''" class="mp-bank-action-form">
+			<div class="mp-bank-action-item-name">{{ state.bank_action_item_name }}</div>
+			<div class="form-group mp-gp-group">
+				<mp-item-slider :data-item-id="state.bank_action_item_id" :data-min="1" :data-max="state.bank_action_item_owned_qty"></mp-item-slider>
+				<div class="text-center mt-2">
+					<mp-lang-string-f lang-id="MOD_MP_CAMPAIGN_ITEM_OWNED" :lang-arg-1="numberWithCommas(state.bank_action_item_owned_qty)"></mp-lang-string-f>
 				</div>
-				<div class="col-12 col-xl-7 text-right">
-					<button role="button" class="btn btn-info m-1" id="mp-transfer-all-but-1">
-						<lang-string lang-id="BANK_STRING_21"></lang-string>
-					</button>
-					<button role="button" class="btn btn-info m-1" id="mp-transfer-all">
-						<lang-string lang-id="BANK_STRING_20"></lang-string>
-					</button>
+				<div class="text-center mt-2">
+					<mp-lang-string-f lang-id="MOD_MP_BANK_ACTION_ITEM_VALUE" :lang-arg-1="state.bank_action_item_value_formatted"></mp-lang-string-f>
 				</div>
-				<div class="col-12">
-					<div class="dropdown-divider"></div>
-				</div>
-				<div class="col-12 text-center">
-					<button role="button" class="btn btn-danger m-1 w-75" id="mp-transfer-button">
-						<lang-string lang-id="MOD_MP_BUTTON_TRANSFER_ITEM"></lang-string>
-					</button><br>
+				<div class="mp-bank-action-market-price" v-show="state.bank_action_mode === 'market'">
+					<label><lang-string lang-id="MOD_MP_MARKET_BANK_PPI"></lang-string></label>
+					<input type="number" min="1" step="1" class="form-control" v-model.number="state.bank_action_market_price">
 				</div>
 			</div>
-		</div>
-		<div class="block-header block-header-default bg-dark-bank-block-header px-3 py-1 text-center">
-			<h5 class="font-w600 font-size-sm text-combat-smoke m-1 w-100">
-				<img class="skill-icon-xxs ml-1 mr-1" src="assets/media/main/coins.svg">
-				<span id="mp-transfer-value"></span>
-			</h5>
+			<div class="mp-button-tray">
+				<button type="button" class="btn btn-primary" @click="state.set_item_slider_max()">
+					<lang-string lang-id="MOD_MP_BUTTON_MAX"></lang-string>
+				</button>
+				<button type="button" class="btn btn-success" @click="state.submit_bank_action($event)">
+					<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+					<span v-if="state.bank_action_mode === 'transfer'"><lang-string lang-id="MOD_MP_BUTTON_TRANSFER_ITEM"></lang-string></span>
+					<span v-else-if="state.bank_action_mode === 'market'"><lang-string lang-id="MOD_MP_BUTTON_MARKET_FULFILL"></lang-string> <img class="skill-icon-xxs ml-1 mr-1" src="assets/media/main/coins.svg"><span>{{ state.bank_action_market_total_formatted }}</span></span>
+					<span v-else><lang-string lang-id="MOD_MP_TRANSFER_CONFIRM_DONATE_ACTION"></lang-string></span>
+				</button>
+				<button type="button" class="btn btn-danger" @click="state.set_bank_action_mode('')">
+					<lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string>
+				</button>
+			</div>
 		</div>
 	</div>
 </template>
@@ -1549,10 +1514,6 @@
 							<span class="mp-market-item-value mp-market-item-gp"><span>{{ numberWithCommas(item.price) }}</span><img class="skill-icon-xxs" src="assets/media/main/coins.svg"></span>
 						</div>
 						<div class="mp-market-item-col">
-							<lang-string lang-id="MOD_MP_MARKET_PROFIT" class="mp-market-item-label"></lang-string>
-							<span class="mp-market-item-value text-success mp-market-item-gp"><span>{{ numberWithCommas((item.price * (item.qty - item.available - item.reserved - (item.haggled ?? 0))) - item.payout) }}</span><img class="skill-icon-xxs" src="assets/media/main/coins.svg"></span>
-						</div>
-						<div class="mp-market-item-col">
 							<template v-if="item.unresolved">
 								<button type="button" class="btn btn-danger m-1" @click="state.resolve_market_listing($event, item, 'destroy')">
 									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
@@ -1560,10 +1521,6 @@
 								</button>
 							</template>
 							<template v-else>
-								<button type="button" class="btn btn-success m-1" @click="state.resolve_market_listing($event, item, 'payout')" :class="{ disabled: ((item.price * (item.qty - item.available - item.reserved - (item.haggled ?? 0))) - item.payout) <= 0 }">
-									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-									<lang-string lang-id="MOD_MP_BUTTON_MARKET_CLAIM_PAYOUT"></lang-string>
-								</button>
 								<button type="button" class="btn btn-danger m-1" @click="state.resolve_market_listing($event, item, 'cancel')">
 									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 									<lang-string lang-id="MOD_MP_BUTTON_MARKET_CANCEL"></lang-string>
@@ -1746,12 +1703,21 @@
 								<li><lang-string lang-id="MOD_MP_CHARITY_INFO_NEW_PREFIX"></lang-string><lang-string lang-id="MOD_MP_CHARITY_INFO_NEW" style="border-radius: 5px;outline: 2px solid rgb(45 210 75);box-shadow: 0 0 8px 2px rgb(45 210 75 / 75%);padding: 0 .25rem;"></lang-string><lang-string lang-id="MOD_MP_CHARITY_INFO_NEW_SUFFIX"></lang-string></li>
 								<li><lang-string lang-id="MOD_MP_CHARITY_INFO_LEAVES"></lang-string></li>
 								<li><lang-string lang-id="MOD_MP_CHARITY_INFO_DECAY_PREFIX"></lang-string><strong><lang-string lang-id="MOD_MP_CHARITY_INFO_FOUR_DAYS"></lang-string></strong><lang-string lang-id="MOD_MP_CHARITY_INFO_DECAY_SUFFIX"></lang-string></li>
+								<li><lang-string lang-id="MOD_MP_CHARITY_INFO_SHUFFLE"></lang-string></li>
+								<li><lang-string lang-id="MOD_MP_CHARITY_INFO_SHUFFLE_BONUS"></lang-string></li>
+								<li><lang-string lang-id="MOD_MP_CHARITY_INFO_SHUFFLE_DURATION"></lang-string></li>
 							</ul>
 							<div class="mt-2 font-w600 text-success" v-show="state.can_take_charity">
 								<lang-string lang-id="MOD_MP_CHARITY_OPPORTUNITY_READY"></lang-string>
 							</div>
 							<div class="mt-2 font-w600 text-info" v-show="!state.can_take_charity" role="timer">
 								<mp-lang-string-f lang-id="MOD_MP_CHARITY_NEXT_OPPORTUNITY" :lang-arg-1="state.charity_next_opportunity_formatted"></mp-lang-string-f>
+							</div>
+							<div class="pt-3 pb-1 d-flex align-items-center" v-if="state.charity_shuffle_supported">
+								<button type="button" class="btn btn-success" @click="state.show_charity_shuffle()">
+									<lang-string lang-id="MOD_MP_CHARITY_SHUFFLE"></lang-string>
+								</button>
+								<span class="ml-2 font-w600 text-info"><mp-lang-string-f lang-id="MOD_MP_CHARITY_SHUFFLE_BONUS_LABEL" :lang-arg-1="state.charity_shuffle_bonus()"></mp-lang-string-f></span>
 							</div>
 						</div>
 					</div>
@@ -1762,14 +1728,21 @@
 					<div class="block-content">
 						<div class="pb-4 row">
 							<template v-for="item of state.charity_tree_inventory">
-							<mp-item-icon v-if="!state.get_charity_leaf_coverage(item).covered" class="bank-item pointer-enabled m-2 mp-charitree-item" :class="{ 'mp-charitree-new-item': !state.is_charity_item_discovered(item.id) }" :data-item-id="item.id" @click="state.selected_charity_item_id = item.id">
+							<mp-item-icon v-if="item.id === 'melvorD:Weird_Gloop' && item.qty > 0" class="bank-item pointer-enabled m-2 mp-charitree-item" :class="{ 'mp-charitree-new-item': !state.is_charity_item_discovered(item.id) }" :data-item-id="item.id" @click="state.selected_charity_item_id = item.id">
+								<a role="button">
+									<img class="bank-img mp-charitree-img" :src="state.get_item_icon(item.id)" :class="{ 'mp-charitree-border': state.selected_charity_item_id === item.id }">
+									<div class="font-size-sm text-white text-center in-bank"><small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small></div>
+									<div class="mp-charitree-lock" v-show="state.get_charity_take_block(item) !== null"><i class="fa fa-lock" aria-hidden="true"></i></div>
+								</a>
+							</mp-item-icon>
+							<mp-item-icon v-else-if="!state.get_charity_leaf_coverage(item).covered" class="bank-item pointer-enabled m-2 mp-charitree-item" :class="{ 'mp-charitree-new-item': !state.is_charity_item_discovered(item.id) }" :data-item-id="item.id" @click="state.selected_charity_item_id = item.id">
 								<a role="button">
 									<img class="bank-img mp-charitree-img" :src="state.get_item_icon(item.id)" :class="{ 'mp-charitree-border': state.selected_charity_item_id === item.id }">
 									<div class="font-size-sm text-white text-center in-bank">
 										<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
 									</div>
 									<div class="mp-charitree-timer"><mp-lang-string-f lang-id="MOD_MP_CHARITY_EXPIRES_IN" :lang-arg-1="state.format_charity_expiry(item.expires_at)"></mp-lang-string-f></div>
-									<div class="mp-charitree-lock" v-show="state.get_charity_take_block(item) === 'value_limit'"><i class="fa fa-lock" aria-hidden="true"></i></div>
+									<div class="mp-charitree-lock" v-show="state.get_charity_take_block(item) !== null"><i class="fa fa-lock" aria-hidden="true"></i></div>
 								</a>
 							</mp-item-icon>
 							<div v-else class="bank-item pointer-enabled m-2 mp-charitree-item mp-charitree-leaf" :class="[`mp-charitree-leaf-coverage-${state.get_charity_leaf_coverage(item).percentage}`, { 'mp-charitree-new-item': !state.is_charity_item_discovered(item.id) }]" @click="state.selected_charity_item_id = item.id">
@@ -1779,7 +1752,7 @@
 										<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
 									</div>
 									<div class="mp-charitree-timer"><mp-lang-string-f lang-id="MOD_MP_CHARITY_EXPIRES_IN" :lang-arg-1="state.format_charity_expiry(item.expires_at)"></mp-lang-string-f></div>
-									<div class="mp-charitree-lock" v-show="state.get_charity_take_block(item) === 'value_limit'"><i class="fa fa-lock" aria-hidden="true"></i></div>
+									<div class="mp-charitree-lock" v-show="state.get_charity_take_block(item) !== null"><i class="fa fa-lock" aria-hidden="true"></i></div>
 								</a>
 							</div>
 							</template>
@@ -1819,16 +1792,19 @@
 		<div class="mp-transfers-layout">
 			<section id="mp-transfers-inbox" class="block block-rounded mp-transfers-panel mp-transfers-inbox" :class="{ 'mp-transfers-mobile-hidden': state.transfers_mobile_tab !== 'inbox' }">
 				<div class="block-header block-header-default mp-transfer-panel-header"><h3 class="block-title"><lang-string lang-id="MOD_MP_INBOX_TITLE"></lang-string></h3><span>{{ formatNumber(state.inbox_items.length) }}</span></div>
-				<div class="block-content" v-if="state.inbox_items.length > 0">
-					<div class="pb-4 row">
-						<mp-item-icon v-for="item of state.inbox_items" class="bank-item m-2" :data-item-id="item.item_id" :key="item.item_id">
-							<a role="button">
-								<img class="bank-img p-3" :src="state.get_item_icon(item.item_id)">
-								<div class="font-size-sm text-white text-center in-bank">
-									<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
-								</div>
-							</a>
-						</mp-item-icon>
+				<div class="block-content mp-inbox-groups" v-if="state.inbox_groups.length > 0">
+					<div class="mp-inbox-group" v-for="(group, group_index) of state.inbox_groups" :key="group.source_type + ':' + group.source_name">
+						<h4 class="mp-inbox-group-title">{{ state.get_inbox_group_title(group) }}</h4>
+						<div class="row mp-inbox-group-items">
+							<mp-item-icon v-for="item of group.items" class="bank-item m-2" :data-item-id="item.item_id" :key="item.item_id">
+								<a role="button">
+									<img class="bank-img p-3" :src="state.get_item_icon(item.item_id)">
+									<div class="font-size-sm text-white text-center in-bank">
+										<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
+									</div>
+								</a>
+							</mp-item-icon>
+						</div>
 					</div>
 				</div>
 				<div class="p-4" v-else>
@@ -2286,4 +2262,19 @@
 	<button type="button" class="btn btn-danger" @click="state.close_modal()">
 		<lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string>
 	</button>
+</template>
+
+<template id="template-mp-charity-shuffle-modal">
+	<div class="mp-modal-text" v-if="state.charity_shuffle_offer">
+		<p class="mb-2"><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_INTRO"></lang-string></p>
+		<p class="mb-2"><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_PRICE"></lang-string> <img class="skill-icon-sm mx-1" :src="state.charity_shuffle_currency()?.currency?.media" :alt="state.charity_shuffle_currency()?.currency?.name || ''"> <strong>{{ state.charity_shuffle_price() }} {{ state.charity_shuffle_currency()?.shorthand || '' }}</strong></p>
+		<p class="mb-2 font-w600 text-info"><mp-lang-string-f lang-id="MOD_MP_CHARITY_SHUFFLE_BONUS" :lang-arg-1="state.charity_shuffle_bonus()"></mp-lang-string-f></p>
+		<p class="mb-2"><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_COVERAGE"></lang-string></p>
+		<p class="mb-0"><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_INFO"></lang-string></p>
+	</div>
+	<div class="mp-modal-text" v-else><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_POOR"></lang-string></div>
+	<div class="mp-button-tray">
+		<button type="button" class="btn btn-success" v-if="state.charity_shuffle_offer" @click="state.confirm_charity_shuffle($event)"><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE"></lang-string></button>
+		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
+	</div>
 </template>

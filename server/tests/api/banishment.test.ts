@@ -125,14 +125,14 @@ describe('Banishment execution and returns', () => {
 			first_claim.json.claim?.claim_id as string
 		)).json.success).toBe(true);
 
-		const gp_claim = await claim_return(target.session_token, [], 1);
-		expect(gp_claim.json.claim).toMatchObject({ items: [], gp: 20, banished: null });
-		await acknowledge_return(target.session_token, gp_claim.json.claim?.claim_id as string);
 		const market_claim = await claim_return(target.session_token, [], 1);
 		expect(market_claim.json.claim).toMatchObject({
 			items: [{ id: 'melvorD:Banish_Market', qty: 6 }],
 			gp: 0
 		});
+		expect((await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
+			'/api/inbox', target.session_token
+		)).json.items).toContainEqual({ item_id: 'melvorD:GP', qty: 20 });
 
 		const counter_claim = await claim_return(counterpart.session_token, [], 1);
 		expect(counter_claim.json.claim).toMatchObject({

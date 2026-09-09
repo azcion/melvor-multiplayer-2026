@@ -19,6 +19,7 @@ import { register_auth_routes } from './routes/auth';
 import { register_updates_routes } from './routes/updates';
 import { register_social_mode_routes } from './routes/social_mode';
 import { register_haggle_routes } from './routes/haggle';
+import { maintain_market_listings } from './market-expiry';
 import { default_handler, flush_logs, report_error, server } from './app-runtime';
 import { create_shutdown_handler } from './shutdown';
 
@@ -43,6 +44,7 @@ register_auth_routes();
 register_updates_routes();
 register_social_mode_routes();
 register_haggle_routes();
+maintain_market_listings();
 
 server.error((err: Error) => {
 	report_error('unhandled request error', err);

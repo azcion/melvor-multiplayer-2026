@@ -1,0 +1,1261 @@
+[
+  {
+    "path": "/api/authenticate",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/auth.ts",
+    "authentication": "bootstrap/public",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/banishment/returns/acknowledge",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/banishment_returns.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/banishment/returns/claim",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/banishment_returns.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/campaign/claim",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/campaign.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "campaign-claim"
+    ]
+  },
+  {
+    "path": "/api/campaign/contribute",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/campaign.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "campaign-contribute"
+    ]
+  },
+  {
+    "path": "/api/campaign/info",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/campaign.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/charity/contents",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/charity.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/charity/donate",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/charity.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "charity-donate"
+    ]
+  },
+  {
+    "path": "/api/charity/shuffle",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/charity.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "charity-shuffle"
+    ]
+  },
+  {
+    "path": "/api/charity/take",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/charity.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "charity-take"
+    ]
+  },
+  {
+    "path": "/api/chat/block",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/chat.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/chat/conversations",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/chat.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/chat/conversations/delete",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/chat.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/chat/conversations/start",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/chat.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/chat/global-participation",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/chat.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/chat/guild-participation",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/chat.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/chat/messages",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/chat.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/chat/messages/delete",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/chat.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/chat/messages/delete-for-all",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/chat.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/chat/messages/send",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/chat.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/chat/privacy",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/chat.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/chat/state",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/chat.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/client/active-mods/visibility",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/player_status.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/client/activity/visibility",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/player_status.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/client/equipment/sync",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/equipment.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/client/equipment/visibility",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/equipment.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/client/game-mode/visibility",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/player_status.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/client/gp/visibility",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/player_status.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/client/icon-catalog/check",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/icon_catalog.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/client/icon-catalog/upload",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/icon_catalog.ts",
+    "authentication": "session",
+    "body": "binary",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/client/set_display_name",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/general.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/client/set_icon",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/general.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/client/skills/visibility",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/player_status.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/client/status/sync",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/player_status.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/client/status/visibility",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/player_status.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/economy/receipts/acknowledge",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/general.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/events",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/general.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/friends/accept",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/friends.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/friends/add",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/friends.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/friends/get",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/friends.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/friends/ignore",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/friends.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/friends/remove",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/friends.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/gift/accept",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/gifting.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "gift-accept"
+    ]
+  },
+  {
+    "path": "/api/gift/decline",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/gifting.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "gift-decline"
+    ]
+  },
+  {
+    "path": "/api/gift/discard",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/gifting.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "gift-discard"
+    ]
+  },
+  {
+    "path": "/api/gift/send",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/gifting.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "gift-send"
+    ]
+  },
+  {
+    "path": "/api/guilds/active-mods",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/player_status.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/guilds/activity",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/guilds.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/guilds/application/decide",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/guilds.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/guilds/apply",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/guilds.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/guilds/council",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/guilds.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/guilds/create",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/guilds.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/guilds/equipment",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/equipment.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/guilds/join",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/guilds.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/guilds/join-free",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/guilds.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/guilds/leave",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/guilds.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/guilds/list",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/guilds.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/guilds/members",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/guilds.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/guilds/members/shadowed",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/guilds.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/guilds/petitions/raise",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/guilds.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/guilds/petitions/vote",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/guilds.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/guilds/petitions/withdraw",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/guilds.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/guilds/state",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/guilds.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/guilds/status",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/player_status.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/guilds/withdraw",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/guilds.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/identities",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/identities.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/identities/delete",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/identities.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/identities/delete/cancel",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/identities.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/inbox",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/inbox.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/inbox/acknowledge",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/inbox.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/inbox/claim",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/inbox.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/installations/enroll",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/auth.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/market/buy",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/market.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "market-buy"
+    ]
+  },
+  {
+    "path": "/api/market/buy-order",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/market.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "market-buy-order"
+    ]
+  },
+  {
+    "path": "/api/market/cancel",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/market.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "market-cancel"
+    ]
+  },
+  {
+    "path": "/api/market/catalog",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/market.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/market/claim-legacy-payouts",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/market.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "market-claim-legacy-payouts"
+    ]
+  },
+  {
+    "path": "/api/market/destroy",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/market.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "market-destroy"
+    ]
+  },
+  {
+    "path": "/api/market/fulfill",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/market.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "market-fulfill"
+    ]
+  },
+  {
+    "path": "/api/market/haggle",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/haggle.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "market-haggle"
+    ]
+  },
+  {
+    "path": "/api/market/haggle/accept",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/haggle.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "market-haggle-accept"
+    ]
+  },
+  {
+    "path": "/api/market/haggle/claim",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/haggle.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "market-haggle-claim"
+    ]
+  },
+  {
+    "path": "/api/market/haggle/counter",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/haggle.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "market-haggle-counter"
+    ]
+  },
+  {
+    "path": "/api/market/haggle/terminate",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/haggle.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "market-haggle-terminate"
+    ]
+  },
+  {
+    "path": "/api/market/haggles",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/haggle.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/market/listings",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/market.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/market/payout",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/market.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "market-payout"
+    ]
+  },
+  {
+    "path": "/api/market/search",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/market.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/market/sell",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/market.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "market-sell"
+    ]
+  },
+  {
+    "path": "/api/raids/activate",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/raids.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/raids/assaults/abandon",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/raids.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/raids/assaults/reserve",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/raids.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/raids/assaults/settle",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/raids.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/raids/cache",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/raids.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/raids/cache/acknowledge",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/raids.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/raids/state",
+    "methods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/raids.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/register",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/auth.ts",
+    "authentication": "bootstrap/public",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/social-mode/cancel",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/social_mode.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "social-mode-cancel"
+    ]
+  },
+  {
+    "path": "/api/social-mode/set",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/social_mode.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "social-mode-set"
+    ]
+  },
+  {
+    "path": "/api/trade/accept",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/trade.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "trade-accept"
+    ]
+  },
+  {
+    "path": "/api/trade/cancel",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/trade.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "trade-cancel"
+    ]
+  },
+  {
+    "path": "/api/trade/counter",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/trade.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "trade-counter"
+    ]
+  },
+  {
+    "path": "/api/trade/decline",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/trade.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "trade-decline"
+    ]
+  },
+  {
+    "path": "/api/trade/offer",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/trade.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "trade-offer"
+    ]
+  },
+  {
+    "path": "/api/trade/resolve",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/trade.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": [
+      "trade-resolve"
+    ]
+  },
+  {
+    "path": "/api/transfers/get_contents",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/transfer.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/updates",
+    "methods": [
+      "GET",
+      "OPTIONS"
+    ],
+    "source": "routes/updates.ts",
+    "authentication": "bootstrap/public",
+    "body": "none",
+    "command_kinds": []
+  }
+]

@@ -168,8 +168,8 @@ test('cache-busts authenticated GETs without using the Android-sensitive Fetch c
 		cache_bust_api_endpoint('/api/events?after=42'),
 		'/api/events?after=42&_mp_cache=runtime-nonce-2'
 	);
-	assert.match(api_get, /polling\.fetch_with_timeout\(fetch, server_host \+ cache_bust_api_endpoint\(endpoint\)/);
-	assert.match(api_get, /return res\.status === 200 \? await res\.json\(\) : null/);
+	assert.match(api_get, /polling\.fetch_with_timeout\(fetch, server_host \+ cache_bust_api_endpoint\(resolve_api_endpoint\(endpoint\)\)/);
+	assert.match(api_get, /const json = res\.status === 200 \? await res\.json\(\) : null/);
 	assert.doesNotMatch(api_get, /cache\s*:/);
 	assert.equal(lang.MOD_MP_GUILD_LOADING, 'Loading Guild...');
 	assert.equal(typeof lang.MOD_MP_GUILD_LOAD_FAILED, 'string');
@@ -201,6 +201,26 @@ test('refreshes the open Guild roster after changing the current profile', async
 
 	assert.match(display_name_action, /await this\.close_modal_and_wait\('change-display-name-modal'\);[\s\S]*await refresh_guild_state\(true\);/);
 	assert.match(icon_action, /await this\.close_modal_and_wait\('change-icon-modal'\);[\s\S]*await refresh_guild_state\(true\);/);
+});
+
+test('keeps the display-name input modal outline visible', async () => {
+	const [english, templates, main, style] = await Promise.all([
+		readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse),
+		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
+		read_client_source(root),
+		readFile(new URL('mod/ui/style.css', root), 'utf8')
+	]);
+	const display_name_modal = templates.slice(
+		templates.indexOf('<template id="template-mp-change-display-name-modal">'),
+		templates.indexOf('<template id="template-mp-change-icon-modal">')
+	);
+
+	assert.equal(english.MOD_MP_MODAL_DESC_DISPLAY_NAME, 'Choose the name shown to other players.');
+	assert.match(main, /queue_modal\('MOD_MP_TITLE_DISPLAY_NAME',[\s\S]*customClass: \{ popup: 'mp-name-input-modal-popup' \}/);
+	assert.match(style, /\.mp-name-input-modal-popup \.swal2-html-container \{[^}]*overflow:\s*visible/);
+	assert.match(style, /#mp-display-name-modal-field \{[^}]*margin-bottom:\s*1rem/);
+	assert.match(display_name_modal, /<input class="form-control text-center" type="text" id="mp-display-name-modal-field"/);
+	assert.doesNotMatch(display_name_modal, /<label[^>]*mp-display-name-modal-field|MOD_MP_LABEL_DISPLAY_NAME/);
 });
 
 test('does not structurally detach UI branches when Guild membership changes', async () => {

@@ -5,10 +5,12 @@ import { read_client_source } from './source.mjs';
 
 import {
 	CHARITREE_LEAF_COVERAGE_PERCENTAGES,
+	CHARITREE_WEIRD_GLOOP_ID,
 	format_charitree_remaining,
 	get_charitree_leaf_coverage,
 	get_charitree_leaf_coverage_percentage,
 	get_charitree_leaf_roll,
+	get_charitree_shuffle_offer,
 	get_charitree_next_opportunity,
 	get_charitree_stack_value,
 	get_charitree_take_block,
@@ -151,18 +153,30 @@ test('covers by the stable roll while revealing currencies and invalid inputs', 
 		{ covered: false, percentage: 0 });
 	assert.deepEqual(get_charitree_leaf_coverage({ ...item, qty: 0 }, now),
 		{ covered: false, percentage: 100 });
+	assert.deepEqual(get_charitree_leaf_coverage({ id: CHARITREE_WEIRD_GLOOP_ID, qty: 5, expires_at: 0 }, now),
+		{ covered: false, percentage: 0 });
 });
 
-test('always covers undiscovered items and returns them to normal odds after discovery', () => {
+test('always covers undiscovered items until a shuffle bonus lowers their coverage', () => {
 	const hour = 3_600_000;
 	const now = 10 * hour;
 	const expiring_item = { id: 'melvorD:Coal_Ore', qty: 25, expires_at: now + 5 * hour };
 	assert.deepEqual(get_charitree_leaf_coverage(expiring_item, now, () => false, () => false),
 		{ covered: true, percentage: 0 });
+	assert.deepEqual(get_charitree_leaf_coverage(expiring_item, now, () => false, () => false, null, 1),
+		{ covered: true, percentage: 0 });
 	assert.deepEqual(get_charitree_leaf_coverage(expiring_item, now, () => false, () => true),
 		{ covered: false, percentage: 0 });
 	assert.deepEqual(get_charitree_leaf_coverage(expiring_item, now, () => true, () => false),
 		{ covered: false, percentage: 0 });
+	const distant_item = { ...expiring_item, expires_at: now + 95 * hour };
+	assert.deepEqual(get_charitree_leaf_coverage(distant_item, now, () => false, () => false, null, 1),
+		{ covered: true, percentage: 100 });
+	assert.deepEqual(get_charitree_leaf_coverage(distant_item, now, () => false, () => true, null, 20),
+		{ covered: false, percentage: 100 });
+	assert.deepEqual(get_charitree_leaf_coverage(
+		{ ...expiring_item, expires_at: now + 90 * hour }, now, () => false, () => true, null, 1
+	), { covered: true, percentage: 95 });
 });
 
 test('finds the next Charitree opportunity from the chances available to the player', () => {
@@ -187,7 +201,7 @@ test('wires completion-log discovery, first-find receipt, and per-stack expiry i
 	assert.match(main, /item_remaining_qty/);
 	assert.match(main, /game\.bank\.addItemByID\(item_id, amount, false, found, true\)/);
 	assert.match(main, /const CHARITY_CLOCK_INTERVAL = 30 \* 1000;/);
-	assert.match(main, /setInterval\(update_charity_clock, CHARITY_CLOCK_INTERVAL\)/);
+	assert.match(main, /setInterval\(\(\) => \{[\s\S]*update_charity_clock\(\);[\s\S]*request_charity_tree_contents\(true, false\);[\s\S]*\}, CHARITY_CLOCK_INTERVAL\)/);
 	assert.doesNotMatch(main, /setInterval\(update_charity_clock, 1000\)/);
 	assert.match(main, /get charity_next_opportunity_at\(\)/);
 	assert.match(main, /charity_next_opportunity_timestamp: 0/);
@@ -199,11 +213,19 @@ test('wires completion-log discovery, first-find receipt, and per-stack expiry i
 	assert.doesNotMatch(main, /charity_timeout/);
 	assert.doesNotMatch(main, /charity_bonus_timeout/);
 	assert.match(main, /get transfer_inventory_donation_value\(\)/);
+	assert.match(main, /function get_charity_item_valuation\(item_id\)/);
+	assert.match(main, /value_currency_id, value_per_item/);
+	const charity_valuation_function = main.slice(
+		main.indexOf('function get_charity_item_valuation'),
+		main.indexOf('function update_bank_action_modal_header')
+	);
+	assert.doesNotMatch(charity_valuation_function, /get_transfer_currency/);
+	assert.match(main, /\.\.\.get_charity_item_valuation\(item.id\)/);
 	assert.match(main, /zero_gp_count/);
 	assert.match(main, /currency_count/);
 	assert.match(main, /sellsFor\?\.currency !== game\.gp/);
 	assert.match(main, /Summoning_Familiar_/);
-	assert.match(main, /api_post\('\/api\/charity\/donate', \{ items, donation_value, command_id: crypto\.randomUUID\(\) \}\)/);
+	assert.match(main, /run_pending_economy_action\('charity_donate', '\/api\/charity\/donate', \{ items, donation_value \}\)/);
 	assert.doesNotMatch(main, /charitree_rules\.get_charitree_pet_chance\(donation_value\)/);
 	assert.doesNotMatch(main, /game\.petManager/);
 	assert.match(templates, /state\.format_charity_expiry\(item\.expires_at\)/);
@@ -230,13 +252,16 @@ test('wires completion-log discovery, first-find receipt, and per-stack expiry i
 	assert.match(templates, /:lang-arg-1="state\.selected_charity_take_amount"/);
 	assert.match(main, /get selected_charity_take_amount\(\) \{[\s\S]*getLangString\('MOD_MP_CHARITY_ENTIRE_STACK'\)[\s\S]*formatNumber\(this\.selected_charity_take_quantity\)/);
 	assert.match(main, /get_charity_leaf_coverage\([\s\S]*item_id === 'melvorD:GP' \|\| is_transfer_currency\(item_id\),[\s\S]*this\.is_charity_item_discovered\(item_id\)/);
-	assert.match(charitree_page, /<template v-for="item of state\.charity_tree_inventory">[\s\S]*<mp-item-icon v-if="!state\.get_charity_leaf_coverage\(item\)\.covered" class="bank-item pointer-enabled m-2 mp-charitree-item"[\s\S]*:data-item-id="item\.id"/);
+	assert.match(main, /charity_shuffle_count/);
+	assert.match(main, /this\.charity_shuffle_count/);
+	assert.match(charitree_page, /<template v-for="item of state\.charity_tree_inventory">[\s\S]*<mp-item-icon v-else-if="!state\.get_charity_leaf_coverage\(item\)\.covered" class="bank-item pointer-enabled m-2 mp-charitree-item"[\s\S]*:data-item-id="item\.id"/);
+	assert.match(charitree_page, /item\.id === 'melvorD:Weird_Gloop' && item\.qty > 0/);
 	assert.match(charitree_page, /<img class="bank-img mp-charitree-img" :src="state\.get_item_icon\(item\.id\)" :class="\{ 'mp-charitree-border': state\.selected_charity_item_id === item\.id \}">/);
 	assert.match(charitree_page, /MOD_MP_CHARITY_INFO_NEW_PREFIX[\s\S]*<lang-string lang-id="MOD_MP_CHARITY_INFO_NEW" style="border-radius: 5px;outline: 2px solid rgb\(45 210 75\);box-shadow: 0 0 8px 2px rgb\(45 210 75 \/ 75%\);padding: 0 \.25rem;"><\/lang-string>[\s\S]*MOD_MP_CHARITY_INFO_NEW_SUFFIX/);
 	assert.match(charitree_page, /<div v-else class="bank-item pointer-enabled m-2 mp-charitree-item mp-charitree-leaf" :class="\[`mp-charitree-leaf-coverage-\$\{state\.get_charity_leaf_coverage\(item\)\.percentage\}`[\s\S]*<img class="bank-img mp-charitree-img" src="https:\/\/cdn2-main\.melvor\.net\/assets\/media\/bank\/Golden_Leaf\.png" :class="\{ 'mp-charitree-border': state\.selected_charity_item_id === item\.id \}">/);
 	assert.doesNotMatch(charitree_page, /<img class="bank-img p-3"/);
 	assert.doesNotMatch(charitree_page, /'border border-4x border-success'/);
-	assert.doesNotMatch(charitree_page, /v-else[\s\S]*:data-item-id="item\.id"/);
+	assert.doesNotMatch(charitree_page, /<div v-else[\s\S]*:data-item-id="item\.id"/);
 	assert.match(style, /\.mp-charitree-new-item \{/);
 	assert.match(style, /\.mp-charitree-item \.mp-charitree-border \{[\s\S]*padding: \.75rem;[\s\S]*border-width: \.25rem;/);
 	assert.match(style, /\.mp-charitree-item \.mp-charitree-img \{[\s\S]*padding: 1rem;[\s\S]*border: 0 solid #46c37b;[\s\S]*border-radius: 6px;/);
@@ -272,6 +297,7 @@ test('wires completion-log discovery, first-find receipt, and per-stack expiry i
 	assert.equal(language.MOD_MP_CHARITY_INFO_CURRENT_BALANCE, 'half of your current balance');
 	assert.equal(language.MOD_MP_CHARITY_INFO_LEAVES, 'Leaves may conceal any item while it is far from expiring.');
 	assert.equal(language.MOD_MP_CHARITY_INFO_FOUR_DAYS, '4 days');
+	assert.match(language.MOD_MP_CHARITY_INFO_DECAY_SUFFIX, /GP value then becomes Weird Gloop/);
 	assert.equal(language.MOD_MP_CHARITY_INFO_NEW, 'undiscovered');
 	assert.equal(language.MOD_MP_CHARITY_UNDISCOVERED_STACK,
 		'This offering is undiscovered. You may claim only one; the rest will remain upon the Charitree.');
@@ -302,4 +328,30 @@ test('clears Charitree state when the server omits the state payload', async () 
 	apply_charity_state({ enabled: true, eligible: false, next_opportunity_at: 456 });
 	assert.equal(state.charity_server_supported, true);
 	assert.equal(state.charity_next_opportunity_timestamp, 456);
+});
+
+
+test('shuffle prices select only eligible currencies and round down to whole units', () => {
+	const currencies = [1000, 1000.5, 1999, 10000].map((amount, index) => ({ id: `currency:${index}`, currency: { amount } }));
+	assert.equal(get_charitree_shuffle_offer(currencies.slice(0, 1)), null);
+	assert.deepEqual(get_charitree_shuffle_offer(currencies, () => 0), { currency_id: 'currency:1', balance: 1000.5, qty: 1 });
+	assert.deepEqual(get_charitree_shuffle_offer(currencies, () => 0.5), { currency_id: 'currency:2', balance: 1999, qty: 1 });
+	assert.deepEqual(get_charitree_shuffle_offer(currencies, () => 0.999), { currency_id: 'currency:3', balance: 10000, qty: 10 });
+});
+
+test('shuffle hash affects only older donations, preserves currency and undiscovered rules', () => {
+	const now = 100000;
+	let changed = 0;
+	for (let i = 0; i < 100; i++) {
+		const item = { id: `test:Leaf${i}`, qty: 5, donated_at: now - 2, expires_at: now + 55 * 3600000 };
+		const base = get_charitree_leaf_coverage(item, now);
+		const shuffled = get_charitree_leaf_coverage(item, now, () => false, () => true, now - 1);
+		if (base.covered !== shuffled.covered) changed++;
+		assert.deepEqual(get_charitree_leaf_coverage({ ...item, donated_at: now }, now, () => false, () => true, now - 1), base);
+		assert.deepEqual(get_charitree_leaf_coverage({ ...item, donated_at: now - 1 }, now, () => false, () => true, now - 1), base);
+		assert.equal(get_charitree_leaf_coverage(item, now, () => false, () => false, now - 1).covered, true);
+		assert.equal(get_charitree_leaf_coverage(item, now, () => true, () => true, now - 1).covered, false);
+		assert.deepEqual(get_charitree_leaf_coverage(item, now, () => false, () => true, now - 1), shuffled);
+	}
+	assert.ok(changed > 20 && changed < 80);
 });

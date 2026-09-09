@@ -1,3 +1,4 @@
+import { api_context } from '../api-contract';
 import * as runtime from '../app-runtime';
 import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
@@ -15,8 +16,10 @@ export function register_player_status_routes(): void {
 		const has_total_skill_level = Object.hasOwn(json, 'total_skill_level');
 		const has_gp = Object.hasOwn(json, 'gp');
 		const skills = has_skills ? parse_player_status_skills(json.skills) : null;
-		const activity = has_activity ? parse_player_status_activity(json.activity) : null;
 		const activities = has_activities ? parse_player_status_activities(json.activities) : null;
+		// Keep the persisted primary descriptor coherent for supported v1 readers after a v2 sync.
+		const activity = has_activity ? parse_player_status_activity(json.activity)
+			: api_context(req).api_major === 2 && activities !== null ? activities[0] ?? { type: 'idle' as const } : null;
 		const account_creation_date = has_account_creation_date ? parse_player_status_account_creation_date(json.account_creation_date) : null;
 		const total_skill_level = has_total_skill_level ? parse_player_status_total_skill_level(json.total_skill_level) : null;
 		const gp = has_gp && Number.isSafeInteger(json.gp) && (json.gp as number) >= 0 ? json.gp as number : null;

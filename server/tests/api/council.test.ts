@@ -476,10 +476,22 @@ describe('Council API', () => {
 			petition_id: beneficence.json.petition_id,
 			choice: 'aye'
 		}, member.session_token);
-		const enabled = await get_json_with_session<{ enabled: boolean; items: unknown[] }>(
+		const enabled = await get_json_with_session<{
+			enabled: boolean;
+			items: unknown[];
+			shuffled_at: number | null;
+			shuffle_count: number;
+			currency_locks: unknown[];
+		}>(
 			'/api/charity/contents', member.session_token
 		);
-		expect(enabled.json).toEqual({ enabled: true, items: [] });
+		expect(enabled.json).toEqual({
+			enabled: true,
+			items: [],
+			shuffled_at: null,
+			shuffle_count: 0,
+			currency_locks: []
+		});
 	});
 
 	test('keeps post-snapshot members ineligible and conceals the active tally', async () => {

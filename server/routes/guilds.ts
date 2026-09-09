@@ -1,3 +1,4 @@
+import { request_uses_server_owned_pets } from '../api-contract';
 import * as runtime from '../app-runtime';
 import type { GuildSummary, GuildType } from '../app-runtime';
 import type { SQLQueryBindings } from 'bun:sqlite';
@@ -418,7 +419,7 @@ export function register_guilds_routes(): void {
 			return {
 				affiliation: 'member',
 				current_client_id: client_id,
-				charity: await get_client_charity_state(client_id, runtime.get_request_mod_version(req)),
+				charity: await get_client_charity_state(client_id, runtime.get_request_mod_version(req), Date.now(), request_uses_server_owned_pets(req)),
 				guild: {
 					...guild,
 					charitree_enabled: charitree?.charitree_enabled === 1,

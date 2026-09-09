@@ -1,3 +1,5 @@
+import { request_uses_server_owned_pets } from '../api-contract';
+import { API_VERSIONS } from '../api-contract';
 import { authenticate_installation, enroll_installation } from '../installations';
 import { is_installation_id, parse_device_diagnostics } from '../diagnostics';
 import { mark_rejection } from '../diagnostics';
@@ -11,6 +13,9 @@ import { legacy_client_chat_state } from '../legacy-client-compatibility';
 const { AUTH_RESPONSE_DELAY_MS, BACKEND_VERSION, DEFAULT_USER_ICON_ID, allow_browser_access, associate_client_with_melvor_account, cancel_deletion_on_authentication, db_get_single, execute_due_client_deletions, generate_friend_code, generate_session_token, get_chat_state, get_client_charity_state, get_owned_pet_ids, get_released_mod_version, identify_request, is_server_owned_pets_client, is_valid_uuid, log, parse_client_runtime, parse_melvor_account, persist_client_runtime, recover_deleted_client, register_client, require_registration_capacity, require_service_available, require_source_capacity, server, temporary_unavailable, validate_display_name, validate_json_request } = runtime;
 
 export function register_auth_routes(): void {
+	server.route('/api/versions', allow_browser_access(require_source_capacity(require_service_available(() => ({
+		api_versions: API_VERSIONS, preferred_api_version: API_VERSIONS[API_VERSIONS.length - 1]
+	})))), ['GET', 'OPTIONS']);
 	server.route('/health', require_source_capacity(() => ({ status: 'ok', backend_version: BACKEND_VERSION })));
 
 	server.route('/api/authenticate', allow_browser_access(require_source_capacity(require_service_available(validate_json_request(async (req, url, json) => {
@@ -91,8 +96,8 @@ export function register_auth_routes(): void {
 			chat: legacy_client_chat_state(client_runtime?.mod_version, client_row.id) ?? get_chat_state(client_row.id),
 			read_post_supported: true,
 			installation_auth_supported: true, backend_version: BACKEND_VERSION,
-			server_owned_pets: is_server_owned_pets_client(client_runtime?.mod_version),
-			charity: await get_client_charity_state(client_row.id, client_runtime?.mod_version),
+			server_owned_pets: request_uses_server_owned_pets(req, client_runtime?.mod_version ?? null),
+			charity: await get_client_charity_state(client_row.id, client_runtime?.mod_version, Date.now(), request_uses_server_owned_pets(req, client_runtime?.mod_version ?? null)),
 			owned_pet_ids: get_owned_pet_ids(client_row.id),
 			released_mod_version: get_released_mod_version(),
 			deletion_cancelled, identity_recovered };
@@ -142,8 +147,8 @@ export function register_auth_routes(): void {
 			chat: legacy_client_chat_state(client_runtime?.mod_version, client_id) ?? get_chat_state(client_id),
 			read_post_supported: true,
 			installation_auth_supported: true, backend_version: BACKEND_VERSION,
-			server_owned_pets: is_server_owned_pets_client(client_runtime?.mod_version),
-			charity: await get_client_charity_state(client_id, client_runtime?.mod_version),
+			server_owned_pets: request_uses_server_owned_pets(req, client_runtime?.mod_version ?? null),
+			charity: await get_client_charity_state(client_id, client_runtime?.mod_version, Date.now(), request_uses_server_owned_pets(req, client_runtime?.mod_version ?? null)),
 			owned_pet_ids: get_owned_pet_ids(client_id),
 			released_mod_version: get_released_mod_version() };
 	}))))), ['POST', 'OPTIONS']);

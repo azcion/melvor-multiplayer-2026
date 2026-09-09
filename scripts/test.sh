@@ -6,7 +6,7 @@ repo_root="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 project_name="melvor-mp-test"
 server_port="${MELVOR_TEST_SERVER_PORT:-3001}"
 server_args_file=""
-mod_args_file=""
+node_args_file=""
 compose_owned=0
 serial_icon_test_path="./tests/api/icon-catalog.test.ts"
 serial_streaming_test_path="./tests/api/icon-catalog-streaming.test.ts"
@@ -29,8 +29,8 @@ cleanup() {
 	if [ -n "$server_args_file" ]; then
 		rm -f -- "$server_args_file"
 	fi
-	if [ -n "$mod_args_file" ]; then
-		rm -f -- "$mod_args_file"
+	if [ -n "$node_args_file" ]; then
+		rm -f -- "$node_args_file"
 	fi
 
 	if [ "$status" -ne 0 ] && [ "$compose_owned" -eq 1 ]; then
@@ -52,46 +52,46 @@ normalize_test_path() {
 	esac
 }
 
-append_mod_test_path() {
+append_node_test_path() {
 	normalized_argument="$1"
 	test_path="$repo_root/${normalized_argument#./}"
 	if [ ! -e "$test_path" ]; then
-		printf 'Focused mod test path does not exist: %s\n' "$normalized_argument" >&2
-		rm -f -- "$server_args_file" "$mod_args_file"
+		printf 'Focused Node test path does not exist: %s\n' "$normalized_argument" >&2
+		rm -f -- "$server_args_file" "$node_args_file"
 		exit 2
 	fi
 	if [ -d "$test_path" ]; then
 		discovered_files="$(find "$test_path" -type f -name '*.test.mjs' -print | sort)"
 		if [ -z "$discovered_files" ]; then
-			printf 'Focused mod test directory contains no .test.mjs files: %s\n' "$normalized_argument" >&2
-			rm -f -- "$server_args_file" "$mod_args_file"
+			printf 'Focused Node test directory contains no .test.mjs files: %s\n' "$normalized_argument" >&2
+			rm -f -- "$server_args_file" "$node_args_file"
 			exit 2
 		fi
-		printf '%s\n' "$discovered_files" >> "$mod_args_file"
+		printf '%s\n' "$discovered_files" >> "$node_args_file"
 		discovered_count="$(printf '%s\n' "$discovered_files" | wc -l | tr -d ' ')"
-		mod_test_count=$((mod_test_count + discovered_count))
+		node_test_count=$((node_test_count + discovered_count))
 		return
 	fi
-	printf '%s\n' "$normalized_argument" >> "$mod_args_file"
-	mod_test_count=$((mod_test_count + 1))
+	printf '%s\n' "$normalized_argument" >> "$node_args_file"
+	node_test_count=$((node_test_count + 1))
 }
 
 if [ "$#" -gt 0 ]; then
 	server_args_file="$(mktemp "${TMPDIR:-/tmp}/melvor-server-test-args.XXXXXX")"
-	mod_args_file="$(mktemp "${TMPDIR:-/tmp}/melvor-mod-test-args.XXXXXX")"
+	node_args_file="$(mktemp "${TMPDIR:-/tmp}/melvor-node-test-args.XXXXXX")"
 	server_test_count=0
-	mod_test_count=0
+	node_test_count=0
 	for test_argument in "$@"; do
 		normalized_argument="$(normalize_test_path "$test_argument")"
 		case "$normalized_argument" in
-			./tests/mod|./tests/mod/*)
-				append_mod_test_path "$normalized_argument"
+			./tests/mod|./tests/mod/*|./tests/operations|./tests/operations/*)
+				append_node_test_path "$normalized_argument"
 				continue
 				;;
 			./tests/*)
 				if [ ! -e "$repo_root/server/${normalized_argument#./}" ]; then
 					printf 'Focused test path does not exist under server/: %s\n' "$test_argument" >&2
-					rm -f -- "$server_args_file" "$mod_args_file"
+					rm -f -- "$server_args_file" "$node_args_file"
 					exit 2
 				fi
 				printf '%s\n' "$normalized_argument" >> "$server_args_file"
@@ -107,11 +107,11 @@ if [ "$#" -gt 0 ]; then
 	while IFS= read -r normalized_argument; do
 		set -- "$@" "$normalized_argument"
 	done < "$server_args_file"
-	if [ "$mod_test_count" -gt 0 ] && [ "$server_test_count" -eq 0 ]; then
+	if [ "$node_test_count" -gt 0 ] && [ "$server_test_count" -eq 0 ]; then
 		set --
 		while IFS= read -r normalized_argument; do
 			set -- "$@" "$normalized_argument"
-		done < "$mod_args_file"
+		done < "$node_args_file"
 		trap cleanup EXIT INT TERM
 		cd "$repo_root"
 		node --test --test-timeout=15000 "$@"
@@ -143,11 +143,11 @@ else
 		docker compose --project-name "$project_name" --profile test run --rm --no-deps test \
 			bun test --timeout 15000 "$@"
 	fi
-	if [ "$mod_test_count" -gt 0 ]; then
+	if [ "$node_test_count" -gt 0 ]; then
 		set --
 		while IFS= read -r normalized_argument; do
 			set -- "$@" "$normalized_argument"
-		done < "$mod_args_file"
+		done < "$node_args_file"
 		cd "$repo_root"
 		node --test --test-timeout=15000 "$@"
 	fi

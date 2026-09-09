@@ -66,7 +66,8 @@ test('removes Marketplace descriptions and progress bars', async () => {
 	assert.doesNotMatch(market_page, /mp-market-item-bar/);
 	assert.doesNotMatch(style, /mp-market-item-bar/);
 	assert.doesNotMatch(style, /mp-market-item-bar-fill/);
-	assert.match(style, /\.mp-market-listing-result \{\s*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\);/);
+	assert.match(style, /\.mp-market-listing-result \{\s*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/);
+	assert.match(style, /\.mp-market-listing-result \.mp-market-item-col:last-child \{\s*justify-content: flex-end;/);
 });
 
 test('captures Marketplace queries and ignores stale generations', async () => {
@@ -365,7 +366,7 @@ test('adds a shared Max control to item quantity modals', async () => {
 		assert.match(template, /class="btn btn-primary" @click="state\.set_item_slider_max\(\)"[\s\S]*MOD_MP_BUTTON_MAX/);
 	}
 
-	assert.equal((templates.match(/state\.set_item_slider_max\(\)/g) ?? []).length, 4);
+	assert.equal((templates.match(/state\.set_item_slider_max\(\)/g) ?? []).length, 5);
 	assert.match(english, /"MOD_MP_BUTTON_MAX": "Max"/);
 	assert.match(chinese, /"MOD_MP_BUTTON_MAX":/);
 });
@@ -684,15 +685,10 @@ test('routes Haggle cancellation and rejection through the shared confirmation m
 	assert.equal(rejected.requests[0].url, '/api/market/haggle/terminate');
 });
 
-test('the payout button excludes reserved and Haggle-settled value', async () => {
+test('Sell Listings no longer exposes a manual payout action', async () => {
 	const templates = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
-	const expression = templates.match(/resolve_market_listing\(\$event, item, 'payout'\)" :class="\{ disabled: (.*?) \}"/)[1];
-	const disabled = new Function('item', `return ${expression}`);
-	const item = { price: 10, qty: 5, available: 0, reserved: 5, haggled: 0, payout: 0 };
-	assert.equal(disabled(item), true);
-	assert.equal(disabled({ ...item, reserved: 0, haggled: 5 }), true);
-	assert.equal(disabled({ ...item, reserved: 2, haggled: 1 }), false);
-	assert.equal(disabled({ ...item, reserved: 2, haggled: 1, payout: 20 }), true);
+	assert.doesNotMatch(templates, /resolve_market_listing\(\$event, item, 'payout'\)/);
+	assert.doesNotMatch(templates, /MOD_MP_BUTTON_MARKET_CLAIM_PAYOUT/);
 });
 
 test('counter affordability uses the current balance when the offer modal is submitted', async () => {

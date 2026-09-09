@@ -3,7 +3,7 @@ import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
 import type { PetitionType } from '../council';
-import { add_inbox_items } from '../inbox';
+import { add_inbox_items, get_inbox_source_name } from '../inbox';
 import { client_uses_legacy_transfer_protocol } from '../transfer-compatibility';
 
 const { GiftFlags, db, economy_item_effects, get_gift, gift_cache, guild_membership_exists, is_social_only_client, parse_transfer_items, remove_player_cache_entry, run_economy_command, session_post_route } = runtime;
@@ -25,7 +25,8 @@ export function register_gifting_routes(): void {
 			const items = db.query(
 				'SELECT `item_id`, `qty` FROM `gift_items` WHERE `gift_id` = ?'
 			).all(gift_id) as Array<{ item_id: string; qty: number }>;
-			add_inbox_items(client_id, items);
+			add_inbox_items(client_id, items,
+				{ type: 'gift_received', name: get_inbox_source_name(gift.sender_id) });
 			db.query('DELETE FROM `gifts` WHERE `gift_id` = ?').run(gift_id);
 			db.query('DELETE FROM `gift_items` WHERE `gift_id` = ?').run(gift_id);
 			remove_player_cache_entry(gift_cache, client_id, gift_id);
@@ -80,7 +81,8 @@ export function register_gifting_routes(): void {
 			const items = db.query(
 				'SELECT `item_id`, `qty` FROM `gift_items` WHERE `gift_id` = ?'
 			).all(gift_id) as Array<{ item_id: string; qty: number }>;
-			add_inbox_items(current.sender_id, items);
+			add_inbox_items(current.sender_id, items,
+				{ type: 'gift_returned', name: get_inbox_source_name(client_id) });
 			db.query('DELETE FROM `gifts` WHERE `gift_id` = ?').run(gift_id);
 			db.query('DELETE FROM `gift_items` WHERE `gift_id` = ?').run(gift_id);
 			remove_player_cache_entry(gift_cache, client_id, gift_id);

@@ -1,3 +1,5 @@
+import { replay_economy_command } from './economy';
+import { create_api_server, validate_api_command, ECONOMY_COMMAND_KINDS, type ApiMajor } from './api-contract';
 import { createHash } from 'node:crypto';
 import { parse_device_diagnostics, mark_rejection, type DeviceDiagnostics } from './diagnostics';
 // #region IMPORTS
@@ -158,6 +160,7 @@ export { get_global_chat_inbox, get_global_chat_unread_count, has_global_chat_ca
 export { acknowledge_deletion_return_claim, associate_client_with_melvor_account, cancel_deletion_on_authentication, cancel_scheduled_client_deletion, CLIENT_DELETION_MAINTENANCE_INTERVAL, create_deletion_return_claim, get_client_deletion_status, get_deletion_claim_view, has_deletion_returns, list_sibling_identities, parse_melvor_account, process_due_client_deletions, recover_deleted_client, schedule_client_deletion } from './identity';
 export { acknowledge_economy_receipt, economy_item_effects, pending_economy_receipts, run_economy_command } from './economy';
 export { acknowledge_victory_cache, abandon_assault, activate_raid, get_raid_state, get_victory_cache, reserve_assault, settle_assault } from './raid';
+export { CHARITY_KNOWN_CURRENCY_VALUATIONS, get_charity_known_valuation } from './charity-values';
 export { BACKEND_VERSION } from './version';
 export { is_server_owned_pets_client } from './pet-compatibility';
 export {
@@ -435,6 +438,8 @@ export const CLIENT_ACTIVITY_WRITE_INTERVAL = 1000 * 60 * 5; // 5 minutes
 export const CHARITY_TIMEOUT = 1000 * 60 * 60 * 20; // 20 hours
 export const CHARITY_ITEM_LIFETIME = 1000 * 60 * 60 * 24 * 4; // 4 days
 export const CHARITY_MAINTENANCE_INTERVAL = 1000 * 60 * 60; // 1 hour
+export const CHARITY_WEIRD_GLOOP_ID = 'melvorD:Weird_Gloop';
+export const CHARITY_WEIRD_GLOOP_GP_VALUE = 1000;
 
 export type CharityState = {
 	enabled: boolean;
@@ -475,7 +480,7 @@ export function charity_state_from_values({
 	};
 }
 
-export async function get_client_charity_state(client_id: number, mod_version: string | null | undefined, now = Date.now()): Promise<CharityState> {
+export async function get_client_charity_state(client_id: number, mod_version: string | null | undefined, now = Date.now(), server_owned_pets = is_server_owned_pets_client(mod_version)): Promise<CharityState> {
 	const row = await db_get_single(
 		' SELECT membership.`charitree_take_available_at`, guild.`charitree_enabled`, ' +
 		'client.`social_mode`, client.`last_charity`, client.`last_bonus_charity` ' +
@@ -500,7 +505,7 @@ export async function get_client_charity_state(client_id: number, mod_version: s
 		charitree_take_available_at: row.charitree_take_available_at,
 		last_charity: row.last_charity,
 		last_bonus_charity: row.last_bonus_charity,
-		server_owned_pets: is_server_owned_pets_client(mod_version),
+		server_owned_pets,
 		now
 	});
 }
@@ -512,7 +517,7 @@ export const MARKET_ITEMS_PER_PAGE = 30;
 // #endregion
 
 // #region GLOBALS
-export const server = create_http_server(Number(process.env.SERVER_PORT));
+export const server = create_api_server(Number(process.env.SERVER_PORT));
 export const request_limits = new RequestLimitPolicy(load_request_limit_configuration());
 
 export const client_session_cache = new Map<string, CachedSession>();
@@ -1011,12 +1016,47 @@ export function unlock_winnowing_targets(petition_id: number) {
 	).run(petition_id);
 }
 
+export function expire_charity_items_now(now = Date.now(), guild_id?: number): number {
+	const preserve_unknown_values = get_service_setting('charity_value_backfill_pending') === '1' ? 1 : 0;
+	const expired = guild_id === undefined
+		? db.query<{ guild_id: number; item_id: string; qty: number; value_currency_id: string | null; value_per_item: number | null }, SQLQueryBindings[]>(
+			'SELECT `guild_id`, `item_id`, `qty`, `value_currency_id`, `value_per_item` FROM `charity_items` ' +
+			'WHERE `expires_at` <= ? AND `item_id` != ? AND (? = 0 OR `value_per_item` IS NOT NULL)'
+		).all(now, CHARITY_WEIRD_GLOOP_ID, preserve_unknown_values)
+		: db.query<{ guild_id: number; item_id: string; qty: number; value_currency_id: string | null; value_per_item: number | null }, SQLQueryBindings[]>(
+			'SELECT `guild_id`, `item_id`, `qty`, `value_currency_id`, `value_per_item` FROM `charity_items` ' +
+			'WHERE `guild_id` = ? AND `expires_at` <= ? AND `item_id` != ? AND (? = 0 OR `value_per_item` IS NOT NULL)'
+		).all(guild_id, now, CHARITY_WEIRD_GLOOP_ID, preserve_unknown_values);
+	for (const item of expired) {
+		let gloop_qty = 0;
+		if (item.value_currency_id === 'melvorD:GP' && item.value_per_item !== null && item.value_per_item > 0) {
+			const total_gp_value = BigInt(item.qty) * BigInt(item.value_per_item);
+			const converted = (total_gp_value + BigInt(CHARITY_WEIRD_GLOOP_GP_VALUE - 1)) /
+				BigInt(CHARITY_WEIRD_GLOOP_GP_VALUE);
+			if (converted > BigInt(Number.MAX_SAFE_INTEGER))
+				throw new Error(`Charitree Gloop conversion exceeds the safe integer range for guild ${item.guild_id}.`);
+			gloop_qty = Number(converted);
+		}
+		if (gloop_qty <= 0)
+			continue;
+		db.query(
+			'INSERT INTO `charity_items` (`guild_id`, `item_id`, `qty`, `expires_at`, `donated_at`, `value_currency_id`, `value_per_item`) ' +
+			'VALUES(?, ?, ?, 0, 0, NULL, NULL) ON CONFLICT (`guild_id`, `item_id`) DO UPDATE SET ' +
+			'`qty` = `qty` + excluded.`qty`, `expires_at` = 0, `donated_at` = 0'
+		).run(item.guild_id, CHARITY_WEIRD_GLOOP_ID, gloop_qty);
+	}
+	return guild_id === undefined
+		? db.query('DELETE FROM `charity_items` WHERE `expires_at` <= ? AND `item_id` != ? ' +
+			'AND (? = 0 OR `value_per_item` IS NOT NULL)')
+			.run(now, CHARITY_WEIRD_GLOOP_ID, preserve_unknown_values).changes
+		: db.query('DELETE FROM `charity_items` WHERE `guild_id` = ? AND `expires_at` <= ? AND `item_id` != ? ' +
+			'AND (? = 0 OR `value_per_item` IS NOT NULL)')
+			.run(guild_id, now, CHARITY_WEIRD_GLOOP_ID, preserve_unknown_values).changes;
+}
+
 export function expire_charity_items(now = Date.now(), guild_id?: number): number {
-	if (guild_id === undefined)
-		return db.query('DELETE FROM `charity_items` WHERE `expires_at` <= ?').run(now).changes;
-	return db.query(
-		'DELETE FROM `charity_items` WHERE `guild_id` = ? AND `expires_at` <= ?'
-	).run(guild_id, now).changes;
+	const expire = db.transaction(() => expire_charity_items_now(now, guild_id));
+	return expire.immediate();
 }
 
 export function claim_council_action(now = Date.now()): db_row.guild_petitions | null {
@@ -2616,6 +2656,7 @@ export function validate_session_request(handler: SessionRequestHandler, json_bo
 		const compatibility_response = legacy_client_compatibility_response(req, url, session.mod_version, client_id);
 		if (compatibility_response !== null)
 			return compatibility_response;
+		if (!validate_api_command(req, json)) return 400;
 		const limited = request_limits.limit_identity(client_id);
 		if (limited !== null) {
 			mark_rejection(req, 'identity_rate_limit');
@@ -2627,6 +2668,11 @@ export function validate_session_request(handler: SessionRequestHandler, json_bo
 			db.query('UPDATE `clients` SET `last_multiplayer_active_at` = ? WHERE `id` = ?')
 				.run(now, client_id);
 			client_activity_writes.set(client_id, now);
+		}
+		const command_kind = ECONOMY_COMMAND_KINDS[url.pathname];
+		if (req.method === 'POST' && command_kind && json?.command_id !== undefined) {
+			const replay = replay_economy_command(client_id, json.command_id, command_kind);
+			if (replay !== undefined) return replay ?? 400;
 		}
 		return handler(req, url, client_id, json as JsonObject);
 	};
@@ -2640,14 +2686,14 @@ export function session_get_route(route: string, handler: SessionRequestHandler)
 	);
 	// Android runtimes can fail authenticated GETs after a successful preflight.
 	// The POST alias uses the same read handler and all normal request guards.
-	session_post_route(route, handler);
+	session_post_route(route, handler, [1]);
 }
 
-export function session_post_route(route: string, handler: SessionRequestHandler) {
+export function session_post_route(route: string, handler: SessionRequestHandler, versions?: ApiMajor[]) {
 	server.route(
 		route,
 		allow_browser_access(require_source_capacity(require_service_available(validate_session_request(handler, true)))),
-		['POST', 'OPTIONS']
+		['POST', 'OPTIONS'], { versions }
 	);
 }
 

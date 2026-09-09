@@ -28,6 +28,15 @@ export type charity_items = {
 	item_id: string;
 	qty: number;
 	expires_at: number;
+	donated_at: number;
+	value_currency_id: string | null;
+	value_per_item: number | null;
+};
+
+export type charity_shuffle_events = {
+	id: number;
+	owner_key: string;
+	shuffled_at: number;
 };
 
 export type multiplayer_pet_ownership = {
@@ -488,6 +497,8 @@ export type banishment_return_claim_items = {
 
 export type inbox_items = {
 	client_id: number;
+	source_type: string;
+	source_name: string;
 	item_id: string;
 	qty: number;
 	created_at: number | null;

@@ -26,6 +26,10 @@ input.form-control[type="text"] {
 	outline: 1px solid white;
 }
 
+#mp-display-name-modal-field {
+	margin-bottom: 1rem;
+}
+
 input.form-control[type="number"] {
 	outline: 1px solid #fff7;
 }
@@ -210,8 +214,9 @@ input.form-control[type="number"] {
 	margin-bottom: 20px;
 }
 
-.mp-icon-picker-modal-popup .swal2-html-container {
-	overflow: hidden;
+.mp-icon-picker-modal-popup .swal2-html-container,
+.mp-name-input-modal-popup .swal2-html-container {
+	overflow: visible;
 }
 
 .mp-icon-picked {
@@ -267,6 +272,71 @@ input.form-control[type="number"] {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 24px;
+}
+
+.mp-bank-actions-entry {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	min-height: 58px;
+	margin-bottom: 6px;
+	padding: .65rem .75rem;
+	border: 1px solid rgba(255, 255, 255, .25);
+	border-radius: 6px;
+	background: linear-gradient(135deg, #273548, #1b2738);
+	color: #f4f6fa;
+	text-align: left;
+}
+
+.mp-bank-actions-entry > img {
+	width: 32px;
+	height: 32px;
+}
+
+.mp-bank-actions-entry:hover,
+.mp-bank-actions-entry:focus-visible {
+	border-color: rgba(255, 255, 255, .55);
+	background: linear-gradient(135deg, #31445d, #23344a);
+	color: #fff;
+}
+
+.mp-bank-actions-entry-title {
+	flex: 1;
+	margin-left: .75rem;
+	font-size: 1rem;
+	font-weight: 600;
+}
+
+.mp-bank-actions-entry-chevron {
+	margin-left: .5rem;
+	font-size: 2rem;
+	line-height: 1;
+}
+
+.mp-bank-actions-modal-popup .swal2-html-container {
+	overflow: visible;
+}
+
+.mp-bank-actions-choices {
+	display: flex;
+	flex-direction: column;
+	gap: .75rem;
+}
+
+.mp-bank-actions-choices .btn {
+	width: 100%;
+}
+
+.mp-bank-action-item-name {
+	margin-bottom: 1rem;
+	font-size: clamp(1.35rem, 3vw, 2rem);
+	font-weight: 700;
+	text-align: center;
+}
+
+.mp-bank-action-market-price {
+	margin-top: 1rem;
+	text-align: left;
 }
 
 .mp-social-mode-card {
@@ -1939,7 +2009,11 @@ div.mp-charitree-lock {
 }
 
 .mp-market-listing-result {
-	grid-template-columns: repeat(5, minmax(0, 1fr));
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.mp-market-listing-result .mp-market-item-col:last-child {
+	justify-content: flex-end;
 }
 
 .mp-market-item-icon {
@@ -2315,6 +2389,31 @@ div.mp-charitree-lock {
 .mp-transfers-inbox {
 	display: flex;
 	flex-direction: column;
+}
+
+.mp-inbox-groups {
+	display: grid;
+	gap: 16px;
+	padding-bottom: 20px;
+}
+
+.mp-inbox-group {
+	border: 1px solid rgba(128, 128, 128, .35);
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.mp-inbox-group-title {
+	margin: 0;
+	padding: 10px 14px;
+	background: rgba(128, 128, 128, .12);
+	font-size: .875rem;
+	font-weight: 600;
+}
+
+.mp-inbox-group-items {
+	margin: 0;
+	padding: 6px;
 }
 
 .mp-transfers-panel .mp-transfer-buttons {

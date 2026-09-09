@@ -40,10 +40,25 @@ test('shows every matching avatar in a bounded scrolling selector', async () => 
 	assert.match(icon_selector, /touch-action:\s*pan-y/);
 	assert.match(icon_selector, /overscroll-behavior-y:\s*contain/);
 	assert.match(main, /queue_modal\(game\.characterName, 'change-icon-modal'[^]*customClass: \{ popup: 'mp-icon-picker-modal-popup' \}/);
+	assert.match(main, /show_icon_modal\(show_default_avatar_prompt = false\)/);
+	assert.match(main, /state\.show_icon_prompt_info = show_default_avatar_prompt/);
+	assert.match(main, /default_avatar_prompt_shown/);
+	assert.match(main, /if \(show_default_avatar_prompt\)[\s\S]*set_instance_storage_item\('default_avatar_prompt_shown', true\)/);
 	assert.match(main, /stop_icon_scroll_propagation\(event\) \{\s*event\.stopPropagation\(\);/);
 	assert.doesNotMatch(main, /stop_icon_scroll_propagation\(event\) \{[^}]*preventDefault/);
-	assert.match(styles, /\.mp-icon-picker-modal-popup \.swal2-html-container \{[^}]*overflow:\s*hidden/);
+	assert.match(styles, /\.mp-icon-picker-modal-popup \.swal2-html-container,[\s\S]*\.mp-name-input-modal-popup \.swal2-html-container \{[^}]*overflow:\s*visible/);
 	assert.match(templates, /class="mp-icon-selector"[\s\S]*?@touchmove="state\.stop_icon_scroll_propagation\(\$event\)"/);
+	assert.match(templates, /state\.show_icon_prompt_info[\s\S]*MOD_MP_DEFAULT_AVATAR_PROMPT/);
 	assert.match(templates, /v-for="icon in state\.filtered_icons"[\s\S]*?<img[^>]+loading="lazy">/);
 	assert.match(templates, /<\/div>\s*<div class="mp-button-tray">/);
+});
+
+test('queues the one-time default-avatar prompt only after experience mode selection', async () => {
+	const main = await read_client_source(root);
+	const activation = main.slice(main.indexOf('function activate_multiplayer_identity'));
+	const mode_modal = main.slice(main.indexOf('function queue_social_mode_modal'), main.indexOf('function open_social_mode_picker'));
+
+	assert.match(activation, /if \(get_instance_storage_item\('social_mode_selected'\) !== true\)[\s\S]*queue_identity_notice\('social_mode_choice'\);[\s\S]*else[\s\S]*queue_default_avatar_notice\(\);/);
+	assert.match(mode_modal, /set_instance_storage_item\('social_mode_selected', true\);[\s\S]*queue_default_avatar_notice\(\);/);
+	assert.match(main, /state\.profile_icon === DEFAULT_AVATAR_ICON_ID[\s\S]*get_instance_storage_item\(DEFAULT_AVATAR_PROMPT_STORAGE_KEY\) !== true/);
 });

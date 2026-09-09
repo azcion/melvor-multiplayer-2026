@@ -112,7 +112,7 @@ function create_cache(raid_id: number, roster: Pick<RosterRow, 'membership_id' |
 			'(`id`, `raid_id`, `membership_id`, `client_id`, `created_at`, `acknowledged_at`) VALUES(?, ?, ?, ?, ?, ?)'
 		).run(crypto.randomUUID(), raid_id, roster.membership_id, roster.client_id, now, now);
 		if (inserted.changes === 1)
-			add_inbox_items(roster.client_id, RAID_VICTORY_CACHE);
+			add_inbox_items(roster.client_id, RAID_VICTORY_CACHE, { type: 'raid_victory_cache' });
 		return;
 	}
 	db.query(

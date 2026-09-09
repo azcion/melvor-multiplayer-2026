@@ -10,7 +10,7 @@ test('builds Guild icon choices from official base-game and DLC combat locations
 
 	for (const namespace of ['melvorD', 'melvorF', 'melvorAoD', 'melvorTotH', 'melvorItA'])
 		assert.match(main, new RegExp(`'${namespace}'`));
-	const setup_guild_icons = main.slice(main.indexOf('function setup_guild_icons()'), main.indexOf('function patch_bank_market()'));
+	const setup_guild_icons = main.slice(main.indexOf('function setup_guild_icons()'), main.indexOf('function patch_bank_actions()'));
 	assert.match(setup_guild_icons, /get_icon_objects\(game\.combatAreas\)/);
 	assert.match(setup_guild_icons, /is_official_game_id\(icon\.id\)/);
 	assert.doesNotMatch(setup_guild_icons, /game\.combatAreas\.registeredObjects/);

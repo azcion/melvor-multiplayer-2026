@@ -49,6 +49,7 @@ test('reports are bounded, strip queries and unknown routes, and reconstruct an 
 	assert.equal(diagnostic_route('/api/SECRET'), 'other');
 	assert.equal(diagnostic_route('/api/events?secret=SECRET'), '/api/events');
 	assert.equal(diagnostic_route('/api/chat/global-participation?capabilities=global-chat-v1'), '/api/chat/global-participation');
+	assert.equal(diagnostic_route('/api/market/claim-legacy-payouts'), '/api/market/claim-legacy-payouts');
 });
 test('request observations separate HTTP, transport, response-body, and timeout failures without changing results', async () => {
 	const seen = [];
@@ -107,4 +108,11 @@ test('diagnostics settings remain usable offline and select the report when clip
 		if (previous) Object.defineProperty(globalThis, 'document', previous);
 		else delete globalThis.document;
 	}
+});
+
+test('normalizes only supported version prefixes in redacted diagnostics', () => {
+	assert.equal(diagnostic_route('/api/v2/events?token=secret'), '/api/events');
+	assert.equal(diagnostic_route('/api/v1/authenticate'), '/api/authenticate');
+	assert.equal(diagnostic_route('/api/versions'), '/api/versions');
+	assert.equal(diagnostic_route('/api/v99/events'), 'other');
 });
