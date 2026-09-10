@@ -15,11 +15,11 @@ export function get_charitree_whole_hours_remaining(expires_at, now) {
 }
 
 function get_active_charitree_shuffle_count(shuffle_count) {
-	return Number.isSafeInteger(shuffle_count) && shuffle_count > 0 ? Math.min(20, shuffle_count) : 0;
+	return Number.isSafeInteger(shuffle_count) ? Math.max(-10, Math.min(20, shuffle_count)) : 0;
 }
 
 function apply_charitree_shuffle_bonus(percentage, shuffle_count) {
-	return Math.max(0, percentage - get_active_charitree_shuffle_count(shuffle_count) * 5);
+	return Math.min(100, Math.max(0, percentage - get_active_charitree_shuffle_count(shuffle_count) * 5));
 }
 
 export function get_charitree_leaf_coverage_percentage(whole_hours_remaining) {

@@ -3,9 +3,12 @@ import test from 'node:test';
 
 import {
 	get_available_transfer_currencies,
+	get_transfer_currency_cap,
 	get_transfer_currency,
 	get_transfer_currency_for_currency,
 	get_transfer_currencies,
+	get_transfer_currency_overages,
+	cap_transfer_items,
 	is_transfer_currency
 } from '../../mod/transfer-currencies.mjs';
 
@@ -47,4 +50,28 @@ test('resolves supported currencies by the game currency objects used for sale v
 	assert.equal(get_transfer_currency_for_currency(game, game.slayerCoins).id, 'melvorD:SlayerCoins');
 	assert.equal(get_transfer_currency_for_currency(game, game.abyssalPieces).id, 'melvorItA:AbyssalPieces');
 	assert.equal(get_transfer_currency_for_currency(game, {}), null);
+});
+
+test('caps each supported currency independently and leaves ordinary items unchanged', () => {
+	const game = game_with_currencies();
+	const items = cap_transfer_items(game, [
+		{ id: 'melvorD:GP', qty: 1_000_000_005 },
+		{ id: 'melvorD:SlayerCoins', qty: 1_000_005 },
+		{ id: 'melvorD:Coal_Ore', qty: 2 }
+	]);
+
+	assert.equal(get_transfer_currency_cap(game, 'melvorD:GP'), 1_000_000_000);
+	assert.equal(get_transfer_currency_cap(game, 'melvorD:SlayerCoins'), 1_000_000);
+	assert.deepEqual(items, [
+		{ id: 'melvorD:GP', qty: 1_000_000_000 },
+		{ id: 'melvorD:SlayerCoins', qty: 1_000_000 },
+		{ id: 'melvorD:Coal_Ore', qty: 2 }
+	]);
+	assert.deepEqual(get_transfer_currency_overages(game, [
+		{ id: 'melvorD:GP', qty: 1_000_000_005 },
+		{ id: 'melvorD:SlayerCoins', qty: 1_000_005 }
+	]).map(({ id, cap }) => [id, cap]), [
+		['melvorD:GP', 1_000_000_000],
+		['melvorD:SlayerCoins', 1_000_000]
+	]);
 });

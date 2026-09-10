@@ -62,8 +62,9 @@ export function install_common_actions(runtime) {
 
 		get_avatar_icon(id) {
 			const icon_object = get_icon_object_by_id(game.monsters, id) ??
-				get_icon_object_by_id(game.thieving?.actions, id);
-			return icon_object?.media ?? 'assets/media/main/question.png';
+				get_icon_object_by_id(game.thieving?.actions, id) ??
+				get_icon_object_by_id(game.pets, id);
+			return icon_object?.media ?? this.get_pet_icon(id);
 		},
 
 		get_shared_game_mode(member) {

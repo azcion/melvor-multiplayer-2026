@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.7
+
+- Added Charitree Wishes: request 1–100 discovered eligible items at no cost, wait four days, then ripen the Wish with value from decaying GP offerings before its owner picks the reward from the tree into the Inbox.
+- Added Guild-visible Wish progress, owner-only forsaking and picking, account-group-wide Wish limits and Shuffle Bonus penalties, plus Wish settlement for departures and destructive Charitree Petitions.
+- Fixed official base-game and DLC pet icons disappearing from the avatar picker and existing pet avatars rendering as question marks after Multiplayer pets moved out of Melvor's native pet system.
+- Restored Multiplayer pet icons to the avatar picker while keeping their server-owned pet mechanics separate from Melvor's native Pets and Completion systems.
+- Placed pet icons first in the avatar picker for quicker access.
+- Capped per-request GP transfers and donations at 1 billion GP and other supported currencies at 1 million, including Charitree donations, Shuffle Leaves, Gifts, Trades, and Marketplace haggles; excess currency remains available in Transfer inventory.
+- Fixed Max quantity selections being reset to one when a selected bank stack updates before a Transfer or Campaign contribution is submitted.
+
 ## 1.5.6
 
 - Added Charitree decay recovery: expired offerings with GP value become Weird Gloop, which appears first and can be claimed or donated like any other offering without a timer or leaf cover.

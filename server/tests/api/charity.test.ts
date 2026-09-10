@@ -128,6 +128,33 @@ describe('charity API', () => {
 		]);
 	});
 
+	test('caps each currency independently in Charitree donations', async () => {
+		const client = await register_guild_client('Charity Cap Donor');
+		const donation = await post_json<{ receipt: { effects: unknown[] } }>('/api/v2/charity/donate', {
+			items: [
+				{ id: 'melvorD:GP', qty: 1_000_000_005 },
+				{ id: 'melvorD:SlayerCoins', qty: 1_000_005 },
+				{ id: 'melvorD:Charity_Cap_Item', qty: 2 }
+			],
+			donation_value: 1_000_000_012,
+			command_id: crypto.randomUUID()
+		}, client.session_token);
+		const rows = await db_all<{ item_id: string; qty: number }>(
+			'SELECT `item_id`, `qty` FROM `charity_items` WHERE `guild_id` = ? ORDER BY `item_id`', [client.guild_id]
+		);
+
+		expect(donation.json.receipt.effects).toEqual([
+			{ storage: 'transfer', item_id: 'melvorD:GP', qty: -1_000_000_000 },
+			{ storage: 'transfer', item_id: 'melvorD:SlayerCoins', qty: -1_000_000 },
+			{ storage: 'transfer', item_id: 'melvorD:Charity_Cap_Item', qty: -2 }
+		]);
+		expect(rows).toEqual([
+			{ item_id: 'melvorD:Charity_Cap_Item', qty: 2 },
+			{ item_id: 'melvorD:GP', qty: 1_000_000_000 },
+			{ item_id: 'melvorD:SlayerCoins', qty: 1_000_000 }
+		]);
+	});
+
 	test('returns Bank effects for bank-originated donations and Transfer effects by default', async () => {
 		const client = await register_guild_client('Bank Charity Donor');
 		const item_id = 'melvorD:Bank_Charity_Item';

@@ -48,12 +48,18 @@ export const ECONOMY_COMMAND_KINDS: Readonly<Record<string, string>> = {
 	'/api/trade/resolve': 'trade-resolve',
 };
 export const ECONOMY_COMMAND_PATHS = new Set(Object.keys(ECONOMY_COMMAND_KINDS));
+export const REPLAY_COMMAND_PATHS = new Set([
+	...ECONOMY_COMMAND_PATHS,
+	'/api/charity/wish/make',
+	'/api/charity/wish/forsake',
+	'/api/charity/wish/pick'
+]);
 
 export function validate_api_command(req: Request, json: JsonObject | null): boolean {
 	const { api_major, logical_path } = api_context(req);
 	if (api_major !== 2) return true;
 	if (logical_path === '/api/client/status/sync' && json && Object.hasOwn(json, 'activity')) return false;
-	if (!ECONOMY_COMMAND_PATHS.has(logical_path)) return true;
+	if (!REPLAY_COMMAND_PATHS.has(logical_path)) return true;
 	return typeof json?.command_id === 'string' &&
 		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(json.command_id);
 }

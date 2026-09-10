@@ -404,7 +404,7 @@ function set_charitree_expiry(
 		return { guild_name: guild.name, previous_expires_at: item.expires_at, expires_at } as const;
 	}).immediate();
 
-	if ('error' in result) {
+	if ('error' in result && typeof result.error === 'string') {
 		output.error(result.error);
 		return 1;
 	}
@@ -521,7 +521,7 @@ function repair_bank_charity_receipt(
 		return { guild_id: membership.guild_id } as const;
 	}).immediate();
 
-	if ('error' in result) {
+	if ('error' in result && typeof result.error === 'string') {
 		output.error(result.error);
 		return 1;
 	}

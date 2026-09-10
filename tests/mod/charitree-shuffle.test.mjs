@@ -78,11 +78,11 @@ test('shuffle UI sits between the description and offerings and keeps pricing ru
 	]);
 	const page = html.slice(html.indexOf('<template id="template-mp-charity-page">'));
 	const modal_template = html.slice(html.indexOf('<template id="template-mp-charity-shuffle-modal">'));
-	assert.ok(page.indexOf('MOD_MP_CHARITY_INFO_INTRO') < page.indexOf('state.show_charity_shuffle()'));
-	assert.ok(page.indexOf('state.show_charity_shuffle()') < page.indexOf('v-for="item of state.charity_tree_inventory"'));
+	assert.ok(page.indexOf('<!-- Leaves -->') < page.indexOf('state.show_charity_shuffle()'));
+	assert.ok(page.indexOf('state.show_charity_shuffle()') < page.indexOf('v-for="item of state.charity_tree_entries"'));
 	const description = page.slice(page.indexOf('<div class="mp-charitree-window-copy">'), page.indexOf('<div class="block tabbable'));
-	assert.match(description, /text-info[\s\S]*<div class="pt-3 pb-1[^"]*"[\s\S]*state\.show_charity_shuffle\(\)/);
-	assert.match(description, /MOD_MP_CHARITY_INFO_DECAY_SUFFIX[\s\S]*MOD_MP_CHARITY_INFO_SHUFFLE[\s\S]*MOD_MP_CHARITY_INFO_SHUFFLE_BONUS[\s\S]*MOD_MP_CHARITY_INFO_SHUFFLE_DURATION/);
+	assert.match(description, /<!-- Leaves -->[\s\S]*<div class="pt-2 d-flex align-items-center"[\s\S]*state\.show_charity_shuffle\(\)/);
+	assert.match(description, /MOD_MP_CHARITY_INFO_OFFERINGS_DECAY_PREFIX[\s\S]*MOD_MP_CHARITY_INFO_LEAVES_CHANCE_PREFIX[\s\S]*MOD_MP_CHARITY_INFO_LEAVES_BONUS_EFFECT/);
 	assert.match(description, /MOD_MP_CHARITY_SHUFFLE[\s\S]*MOD_MP_CHARITY_SHUFFLE_BONUS_LABEL[\s\S]*state\.charity_shuffle_bonus\(\)/);
 	assert.match(modal_template, /MOD_MP_CHARITY_SHUFFLE_INTRO[\s\S]*MOD_MP_CHARITY_SHUFFLE_PRICE/);
 	assert.match(modal_template, /state\.charity_shuffle_currency\(\)\?\.currency\?\.media[\s\S]*state\.charity_shuffle_currency\(\)\?\.shorthand/);

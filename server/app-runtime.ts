@@ -142,6 +142,7 @@ import {
 	settle_assault,
 	type RaidOutcome
 } from './raid';
+import { add_charity_gloop, distribute_charity_wish_progress, settle_departing_charity_wish } from './charity-wishes';
 // #endregion
 export { db, db_get_single, db_execute, db_insert, db_exists, db_get_all, db_run, get_service_setting, register_client } from './db';
 export { CAMPAIGN_AUTO_ADVANCE_INTERVAL, CAMPAIGN_AUTO_CONTRIBUTION_CAP, CAMPAIGN_AUTO_PROGRESS_SQL, get_campaign_auto_advance, get_campaign_item_total, get_required_campaign_contributors } from './campaign';
@@ -162,6 +163,8 @@ export { acknowledge_economy_receipt, economy_item_effects, pending_economy_rece
 export { acknowledge_victory_cache, abandon_assault, activate_raid, get_raid_state, get_victory_cache, reserve_assault, settle_assault } from './raid';
 export { CHARITY_KNOWN_CURRENCY_VALUATIONS, get_charity_known_valuation } from './charity-values';
 export { BACKEND_VERSION } from './version';
+export { CHARITY_WISH_MATURING_MS, CHARITY_WISH_VALUES, get_charity_wish_account, is_charity_wish_client,
+	list_charity_wishes, run_charity_wish_command, settle_departing_charity_wish } from './charity-wishes';
 export { is_server_owned_pets_client } from './pet-compatibility';
 export {
 	CHARITY_PET_ID,
@@ -1027,23 +1030,14 @@ export function expire_charity_items_now(now = Date.now(), guild_id?: number): n
 			'SELECT `guild_id`, `item_id`, `qty`, `value_currency_id`, `value_per_item` FROM `charity_items` ' +
 			'WHERE `guild_id` = ? AND `expires_at` <= ? AND `item_id` != ? AND (? = 0 OR `value_per_item` IS NOT NULL)'
 		).all(guild_id, now, CHARITY_WEIRD_GLOOP_ID, preserve_unknown_values);
-	for (const item of expired) {
-		let gloop_qty = 0;
-		if (item.value_currency_id === 'melvorD:GP' && item.value_per_item !== null && item.value_per_item > 0) {
-			const total_gp_value = BigInt(item.qty) * BigInt(item.value_per_item);
-			const converted = (total_gp_value + BigInt(CHARITY_WEIRD_GLOOP_GP_VALUE - 1)) /
-				BigInt(CHARITY_WEIRD_GLOOP_GP_VALUE);
-			if (converted > BigInt(Number.MAX_SAFE_INTEGER))
-				throw new Error(`Charitree Gloop conversion exceeds the safe integer range for guild ${item.guild_id}.`);
-			gloop_qty = Number(converted);
-		}
-		if (gloop_qty <= 0)
-			continue;
-		db.query(
-			'INSERT INTO `charity_items` (`guild_id`, `item_id`, `qty`, `expires_at`, `donated_at`, `value_currency_id`, `value_per_item`) ' +
-			'VALUES(?, ?, ?, 0, 0, NULL, NULL) ON CONFLICT (`guild_id`, `item_id`) DO UPDATE SET ' +
-			'`qty` = `qty` + excluded.`qty`, `expires_at` = 0, `donated_at` = 0'
-		).run(item.guild_id, CHARITY_WEIRD_GLOOP_ID, gloop_qty);
+	const gp_by_guild = new Map<number, bigint>();
+	for (const item of expired)
+		if (item.value_currency_id === 'melvorD:GP' && item.value_per_item !== null && item.value_per_item > 0)
+			gp_by_guild.set(item.guild_id,
+				(gp_by_guild.get(item.guild_id) ?? 0n) + BigInt(item.qty) * BigInt(item.value_per_item));
+	for (const [expired_guild_id, total_gp] of gp_by_guild) {
+		const remainder = distribute_charity_wish_progress(expired_guild_id, total_gp, now);
+		add_charity_gloop(expired_guild_id, remainder);
 	}
 	return guild_id === undefined
 		? db.query('DELETE FROM `charity_items` WHERE `expires_at` <= ? AND `item_id` != ? ' +
@@ -1222,6 +1216,7 @@ export function apply_banishment_target(
 
 		record_guild_activity({ guild_id: petition.guild_id, event_type: 'banished', actor_client_id: target_client_id,
 			source_key: `petition:${petition.id}:membership:${membership.id}:banished`, created_at: now });
+		settle_departing_charity_wish(target_client_id, petition.guild_id, now);
 		db.query('DELETE FROM `guild_memberships` WHERE `id` = ?').run(membership.id);
 		const remaining = db.query(
 			'SELECT COUNT(*) AS `count` FROM `guild_memberships` WHERE `guild_id` = ?'
@@ -1319,10 +1314,17 @@ export function apply_council_guild_action(petition: db_row.guild_petitions): st
 		return updated.changes === 1 ? 'enclosed' : 'already_enclosed_or_absent';
 	}
 	if (petition.type === 'charitree_ingratitude') {
-		const removed = db.query(
-			'DELETE FROM `charity_items` WHERE `guild_id` = ? AND `expires_at` <= ?'
-		).run(petition.guild_id, petition.charitree_expires_before);
-		return removed.changes > 0 ? 'cleared' : 'already_empty';
+		const clear = db.transaction(() => {
+			const items = db.query(
+				'DELETE FROM `charity_items` WHERE `guild_id` = ? AND `expires_at` <= ?'
+			).run(petition.guild_id, petition.charitree_expires_before).changes;
+			const wishes = db.query(
+				'DELETE FROM `charity_wishes` WHERE `id` IN (' +
+				'SELECT `wish_id` FROM `guild_petition_charity_wishes` WHERE `petition_id` = ?)'
+			).run(petition.id).changes;
+			return items + wishes;
+		}).immediate();
+		return clear > 0 ? 'cleared' : 'already_empty';
 	}
 	if (petition.type === 'charitree_sacrilege') {
 		const disable = db.transaction(() => {
@@ -1330,7 +1332,8 @@ export function apply_council_guild_action(petition: db_row.guild_petitions): st
 				'UPDATE `guilds` SET `charitree_enabled` = 0 WHERE `id` = ? AND `charitree_enabled` = 1'
 			).run(petition.guild_id);
 			const removed = db.query('DELETE FROM `charity_items` WHERE `guild_id` = ?').run(petition.guild_id);
-			return { updated: updated.changes, removed: removed.changes };
+			const wishes = db.query('DELETE FROM `charity_wishes` WHERE `guild_id` = ?').run(petition.guild_id);
+			return { updated: updated.changes, removed: removed.changes + wishes.changes };
 		});
 		const result = disable.immediate();
 		if (result.updated === 0)
@@ -2198,13 +2201,14 @@ export async function get_council_petitions(guild_id: number, client_id: number,
 	) as CouncilPetitionRow[];
 
 	const guild = await db_get_single(
-		'SELECT g.`type`, g.`charitree_enabled`, EXISTS(SELECT 1 FROM `charity_items` WHERE `guild_id` = g.`id`) ' +
-			'AS `has_items`, EXISTS(SELECT 1 FROM `guild_memberships` AS membership ' +
+		'SELECT g.`type`, g.`charitree_enabled`, (EXISTS(SELECT 1 FROM `charity_items` WHERE `guild_id` = g.`id`) OR ' +
+			'EXISTS(SELECT 1 FROM `charity_wishes` WHERE `guild_id` = g.`id`)) AS `has_contents`, ' +
+			'EXISTS(SELECT 1 FROM `guild_memberships` AS membership ' +
 			'JOIN `clients` AS client ON client.`id` = membership.`client_id` ' +
 			'WHERE membership.`guild_id` = g.`id` AND client.`last_multiplayer_active_at` < ?) AS `has_shadowed` ' +
 			'FROM `guilds` AS g WHERE g.`id` = ? LIMIT 1',
 		[shadowed_cutoff(), guild_id]
-	) as { type: GuildType; charitree_enabled: number; has_items: number; has_shadowed: number } | null;
+	) as { type: GuildType; charitree_enabled: number; has_contents: number; has_shadowed: number } | null;
 	const available_petition_types: PetitionType[] = ['appellation', 'heraldry', 'banishment'];
 	if (guild?.has_shadowed === 1)
 		available_petition_types.push('winnowing');
@@ -2214,7 +2218,7 @@ export async function get_council_petitions(guild_id: number, client_id: number,
 		available_petition_types.push('enclosure');
 	if (guild?.charitree_enabled === 1) {
 		available_petition_types.push('charitree_sacrilege');
-		if (guild.has_items === 1)
+		if (guild.has_contents === 1)
 			available_petition_types.push('charitree_ingratitude');
 	} else if (guild?.charitree_enabled === 0) {
 		available_petition_types.push('charitree_beneficence');

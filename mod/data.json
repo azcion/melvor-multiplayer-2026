@@ -313,8 +313,8 @@
 					"categoryID": "Multiplayer",
 					"icon": "assets/charity_tree.svg",
 					"asideClass": "badge mp-charity-nav",
-					"aside": "ready",
-					"asideLangID": "MOD_MP_SIDEBAR_CHARITY_READY"
+					"aside": "pick",
+					"asideLangID": "MOD_MP_SIDEBAR_CHARITY_PICK"
 				}
 			},
 			{

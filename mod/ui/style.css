@@ -34,6 +34,142 @@ input.form-control[type="number"] {
 	outline: 1px solid #fff7;
 }
 
+#mp-charity-wish-search {
+	outline: 1px solid;
+}
+
+.mp-charity-wish-modal-popup .swal2-html-container {
+	overflow: visible;
+}
+
+.mp-charity-wish-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+	grid-auto-flow: row;
+	gap: 8px;
+	max-height: min(420px, 30vh);
+	border: 1px solid #fff5;
+	border-radius: .25rem;
+	overflow-y: scroll;
+	-webkit-overflow-scrolling: touch;
+	touch-action: pan-y;
+	overscroll-behavior-y: contain;
+	padding: 6px;
+}
+
+.mp-charity-wish-tile {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: flex-start;
+	min-width: 0;
+	min-height: 94px;
+	padding: 8px 4px 6px;
+	border: 1px solid rgba(255, 255, 255, .16);
+	border-radius: 6px;
+	background: rgba(0, 0, 0, .16);
+	color: inherit;
+	cursor: pointer;
+	text-align: center;
+}
+
+.mp-charity-wish-tile:hover,
+.mp-charity-wish-tile:focus-visible {
+	border-color: rgba(255, 255, 255, .6);
+	background: rgba(255, 255, 255, .08);
+	outline: 0;
+}
+
+.mp-charity-wish-tile-selected {
+	border-color: #46c37b;
+	box-shadow: 0 0 0 2px rgb(70 195 123 / 45%);
+}
+
+.mp-charity-wish-tile > img {
+	width: 56px;
+	height: 56px;
+	margin-bottom: 4px;
+	object-fit: contain;
+	-webkit-user-drag: none;
+	user-select: none;
+}
+
+.mp-charity-wish-tile-name {
+	width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: .8rem;
+}
+
+.mp-charity-wish-selected-item-name {
+	min-height: 1.5rem;
+	margin-bottom: 5px;
+	font-weight: 600;
+	text-align: center;
+}
+
+.mp-charity-wish-requirement {
+	margin-bottom: 0;
+}
+
+.mp-charity-wish-intro {
+	margin-bottom: 0;
+}
+
+.mp-charity-wish-quantity {
+	display: grid;
+	grid-template-columns: 36px minmax(0, 1fr) 36px;
+	gap: 5px;
+	height: 50px;
+	width: 180px;
+	margin: 0 auto;
+	padding: 5px;
+	border: 2px solid rgba(255, 255, 255, .22);
+	border-radius: 6px;
+	background: rgba(0, 0, 0, .14);
+}
+
+.mp-charity-wish-quantity-button {
+	border: 0;
+	border-radius: 5px;
+	background: rgba(120, 135, 150, .45);
+	color: #fff;
+	font-size: 1.5rem;
+	font-weight: 700;
+	line-height: 1;
+}
+
+.mp-charity-wish-quantity-button:hover,
+.mp-charity-wish-quantity-button:focus-visible {
+	background: rgba(145, 160, 175, .65);
+	outline: 0;
+}
+
+.mp-charity-wish-quantity-input {
+	min-width: 0;
+	border: 0;
+	background: transparent;
+	color: #fff;
+	font-size: 1.75rem;
+	font-weight: 600;
+	text-align: center;
+}
+
+.mp-charity-wish-quantity-input:focus {
+	outline: 0;
+}
+
+.mp-charity-wish-quantity-input::-webkit-outer-spin-button,
+.mp-charity-wish-quantity-input::-webkit-inner-spin-button {
+	margin: 0;
+	-webkit-appearance: none;
+}
+
+.mp-charity-wish-quantity-input {
+	-moz-appearance: textfield;
+}
+
 .mp-modal-tray {
 	display: flex;
 	justify-content: center;
@@ -327,6 +463,21 @@ input.form-control[type="number"] {
 	width: 100%;
 }
 
+.mp-actions-charitree {
+	background: #28a745;
+	color: white;
+}
+
+.mp-actions-marketplace {
+	background: #b96349;
+	color: white;
+}
+
+.mp-actions-outbox {
+	background: #1892ca;
+	color: white;
+}
+
 .mp-bank-action-item-name {
 	margin-bottom: 1rem;
 	font-size: clamp(1.35rem, 3vw, 2rem);
@@ -491,6 +642,14 @@ input.form-control[type="number"] {
 
 .mp-chat-layout {
 	min-height: calc(100vh - 235px);
+}
+
+.mp-chat-conversation-view {
+	color: white;
+	border: 5px solid #232a35;
+	border-radius: .5rem;
+	backdrop-filter: blur(8px);
+	background-color: #0004;
 }
 
 .mp-chat-visibility {
@@ -662,20 +821,25 @@ input.form-control[type="number"] {
 .mp-chat-message {
 	align-self: flex-start;
 	width: min(82%, 720px);
-	padding: 10px 12px;
-	border-radius: 8px;
-	background: rgba(0, 0, 0, 0.18);
+	background: none;
+	padding: .25rem 0;
 }
 
 .mp-chat-message-own {
 	align-self: flex-end;
-	background: rgba(91, 74, 161, 0.38);
+	background: none;
 }
 
 .mp-chat-message-meta {
-	justify-content: space-between;
+	gap: 1rem;
+	justify-content: start;
 	font-size: 0.75rem;
 	color: #a9a9a9;
+	margin: 0 .125rem;
+}
+
+.mp-chat-message-own .mp-chat-message-meta {
+	justify-content: end;
 }
 
 .mp-chat-message-author {
@@ -685,7 +849,7 @@ input.form-control[type="number"] {
 	padding: 0;
 	border: 0;
 	background: transparent;
-	color: inherit;
+	color: #fffe;
 	font: inherit;
 	text-align: left;
 	cursor: pointer;
@@ -726,6 +890,16 @@ input.form-control[type="number"] {
 .mp-chat-message-content {
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
+	background: rgba(0, 0, 0, 0.5);
+	border-radius: .5rem;
+	padding: .1rem .5rem .1rem;
+	margin: .25rem 0 0 0;
+	width: fit-content;
+}
+
+.mp-chat-message-own .mp-chat-message-content {
+	background: rgba(91, 74, 161, 0.38);
+	margin-left: auto;
 }
 
 .mp-chat-compose {
@@ -1455,8 +1629,18 @@ input.form-control[type="number"] {
 }
 
 .mp-charitree-take-amount {
+	color: #fff;
+}
+
+.mp-charitree-take-label,
+.mp-charitree-wisher-label,
+.mp-charitree-wish-progress-text {
 	color: #adb5bd;
-	font-size: 0.9rem;
+}
+
+.mp-charitree-take-value,
+.mp-charitree-wisher-value {
+	color: #fff;
 }
 
 .mp-dual-trade {
@@ -1529,6 +1713,36 @@ mp-item-slider .noUi-target * {
 	min-width: 0;
 }
 
+.mp-charitree-info-section summary {
+	display: flex;
+	align-items: center;
+	gap: .5rem;
+	width: 100%;
+	cursor: pointer;
+	list-style: none;
+}
+
+.mp-charitree-info-section summary::-webkit-details-marker {
+	display: none;
+}
+
+.mp-charitree-info-section summary:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 3px;
+}
+
+.mp-charitree-info-chevron-up {
+	display: none;
+}
+
+.mp-charitree-info-section[open] .mp-charitree-info-chevron-down {
+	display: none;
+}
+
+.mp-charitree-info-section[open] .mp-charitree-info-chevron-up {
+	display: inline-block;
+}
+
 div.mp-charitree-timer {
 	all: unset;
 	position: absolute;
@@ -1548,6 +1762,29 @@ div.mp-charitree-lock {
 	right: 2px;
 	font-size: 10px;
 	color: #e56767;
+}
+
+div.mp-charitree-wish-progress {
+	all: unset;
+	position: absolute;
+	top: -2px;
+	left: -2px;
+	background: #424242;
+	border-radius: 4px;
+	padding: 1px 4px;
+	font-size: 9px;
+}
+
+.mp-charitree-wish-ripe .mp-charitree-img {
+	border-radius: 5px;
+	outline: 2px solid rgb(255 196 45);
+	box-shadow: 0 0 8px 2px rgb(255 196 45 / 80%);
+}
+
+.mp-charitree-wish {
+	border-radius: 6.5px;
+	outline: 2px solid rgb(252, 231, 152);
+	box-shadow: 0 0 8px 2px rgb(252 231 152 / 75%);
 }
 
 .mp-charitree-new-item {

@@ -48,5 +48,10 @@ Independent event summaries and Gift content reads continue while an Economy Rec
 is never acknowledged or skipped, and the client does not advance its event revision past that receipt. Retrying a
 Charity confirmation reuses its saved snapshot rather than donating the current inventory again.
 
+Charitree Wish Make, Forsake, and Pick commands use UUIDs and a dedicated shared server journal on every API alias.
+They do not issue Economy Receipts: Make and Forsake move no character value, while Pick atomically places the reward
+in the server-owned Inbox, whose existing claim receipt handles later character-side delivery. Clients older than
+1.5.7 receive ordinary Charitree contents without Wish fields and cannot operate the Wish endpoints.
+
 Keep a backend serving both majors available after distributing v2 clients. Do not remove v1 while supported old
 clients remain, and do not delete historical value queues or journal rows as part of API retirement.

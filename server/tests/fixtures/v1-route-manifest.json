@@ -83,6 +83,39 @@
     "command_kinds": []
   },
   {
+    "path": "/api/charity/wish/forsake",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/charity.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/charity/wish/make",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/charity.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
+    "path": "/api/charity/wish/pick",
+    "methods": [
+      "POST",
+      "OPTIONS"
+    ],
+    "source": "routes/charity.ts",
+    "authentication": "session",
+    "body": "json",
+    "command_kinds": []
+  },
+  {
     "path": "/api/charity/donate",
     "methods": [
       "POST",

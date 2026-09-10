@@ -181,6 +181,29 @@ describe('trade API', () => {
 		]);
 	});
 
+	test('caps each currency independently in Trade offers', async () => {
+		const pair = await make_guildmates('Trade Cap Sender', 'Trade Cap Recipient');
+		const offered = await post_json<{ success: boolean; trade_id: number; receipt: { effects: unknown[] } }>(
+			'/api/v2/trade/offer', {
+				recipient_id: pair.second_id,
+				items: [
+					{ id: 'melvorD:GP', qty: 1_000_000_005 },
+					{ id: 'melvorItA:AbyssalPieces', qty: 1_000_005 }
+				],
+				command_id: crypto.randomUUID()
+			}, pair.first.session_token);
+		const contents = await get_trade_contents(pair.second.session_token, [offered.json.trade_id]);
+
+		expect(offered.json.receipt.effects).toEqual([
+			{ storage: 'transfer', item_id: 'melvorD:GP', qty: -1_000_000_000 },
+			{ storage: 'transfer', item_id: 'melvorItA:AbyssalPieces', qty: -1_000_000 }
+		]);
+		expect(contents.json.trades[String(offered.json.trade_id)].items).toEqual([
+			{ id: expect.any(Number), item_id: 'melvorD:GP', qty: 1_000_000_000, counter: 0 },
+			{ id: expect.any(Number), item_id: 'melvorItA:AbyssalPieces', qty: 1_000_000, counter: 0 }
+		]);
+	});
+
 	test('declines an offer and returns its items to the sender', async () => {
 		const pair = await make_guildmates('Declined Trade Sender', 'Declined Trade Recipient');
 		const offered = await offer_trade(pair.first.session_token, pair.second_id);

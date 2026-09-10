@@ -100,7 +100,7 @@ test('hides the felled Charitree and its donation action until restored', async 
 	assert.match(style, /div\.mp-charitree-timer\s*\{\s*all: unset;\s*position: absolute;\s*top: -2px;\s*left: -2px;\s*background: #424242;[\s\S]*font-size: 9px;\s*\}/);
 	assert.match(style, /\.mp-charity-nav[\s\S]*background-color: #28a745/);
 	assert.equal(language.MOD_MP_CHARITY_EXPIRES_IN, '%s');
-	assert.equal(language.MOD_MP_SIDEBAR_CHARITY_READY, 'ready');
+	assert.equal(language.MOD_MP_SIDEBAR_CHARITY_PICK, 'pick');
 	assert.match(templates, /state\.is_guild_member && state\.is_charitree_enabled && !state\.has_destroyable_transfer_items/);
 	assert.equal(language.MOD_MP_CHARITY_DISABLED, 'This Guild has forsaken the Charitree.');
 });

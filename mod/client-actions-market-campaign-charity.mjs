@@ -36,6 +36,7 @@ export function install_market_campaign_charity_actions(runtime) {
 		queue_modal,
 		reconcile_economy_receipts,
 		run_pending_economy_action,
+		run_pending_charity_wish_action,
 		request_charity_tree_contents,
 		refresh_guild_state,
 		refresh_identities,
@@ -360,13 +361,36 @@ export function install_market_campaign_charity_actions(runtime) {
 				this.get_item_icon(item.item_id), { showConfirmButton: false }, false, false);
 		},
 
+		get_market_haggle_cap_notice() {
+			const item = state.market_haggle_item;
+			const qty = Number(this.item_slider_value);
+			const price = Number(this.market_haggle_price);
+			const listing_price = Number.isSafeInteger(item?.price) && item.price > 0 ? item.price : price;
+			const cap = transfer_currency_support?.get_transfer_currency_cap(game, 'melvorD:GP') ?? 1_000_000_000;
+			return item && Number.isSafeInteger(qty) && qty > 0 && Number.isSafeInteger(price) && price > 0 &&
+				qty * Math.max(price, listing_price) > cap ? `GP: ${numberWithCommas(cap)}` : '';
+		},
+
+		get_market_haggle_counter_cap_notice() {
+			const haggle = state.market_haggle_counter;
+			const price = Number(this.market_haggle_price);
+			const cap = transfer_currency_support?.get_transfer_currency_cap(game, 'melvorD:GP') ?? 1_000_000_000;
+			return haggle && Number.isSafeInteger(price) && price > 0 && haggle.item_qty * price > cap
+				? `GP: ${numberWithCommas(cap)}` : '';
+		},
+
 		async create_market_haggle(event) {
 			const item = this.market_haggle_item;
-			const qty = this.item_slider_value;
+			const requested_qty = this.item_slider_value;
 			const price = Number(this.market_haggle_price);
-			if (!item || !Number.isSafeInteger(qty) || qty <= 0 || !Number.isSafeInteger(price) || price <= 0)
+			if (!item || !Number.isSafeInteger(requested_qty) || requested_qty <= 0 || !Number.isSafeInteger(price) || price <= 0)
 				return notify_error('MOD_MP_MARKET_HAGGLE_INVALID');
-			if (!Number.isSafeInteger(qty * price))
+			if (!Number.isSafeInteger(requested_qty * price))
+				return notify_error('MOD_MP_MARKET_VALUE_TOO_LARGE');
+			const cap = transfer_currency_support?.get_transfer_currency_cap(game, 'melvorD:GP') ?? 1_000_000_000;
+			const listing_price = Number.isSafeInteger(item.price) && item.price > 0 ? item.price : price;
+			const qty = Math.min(requested_qty, Math.floor(cap / Math.max(price, listing_price)));
+			if (qty < 1)
 				return notify_error('MOD_MP_MARKET_VALUE_TOO_LARGE');
 			const local_item = game.items.getObjectByID(item.item_id);
 			if (item.direction === 'sell' && game.gp.amount < qty * price)
@@ -412,10 +436,19 @@ export function install_market_campaign_charity_actions(runtime) {
 				}
 			}
 			if (action === 'counter' || action === 'accept') {
-				const total = haggle.item_qty * price;
+				let total = haggle.item_qty * price;
 				if (!Number.isSafeInteger(total)) {
 					hide_button_spinner($button);
 					return notify_error('MOD_MP_MARKET_VALUE_TOO_LARGE');
+				}
+				if (action === 'counter') {
+					const cap = transfer_currency_support?.get_transfer_currency_cap(game, 'melvorD:GP') ?? 1_000_000_000;
+					price = Math.min(price, Math.floor(cap / haggle.item_qty));
+					if (price < 1) {
+						hide_button_spinner($button);
+						return notify_error('MOD_MP_MARKET_VALUE_TOO_LARGE');
+					}
+					total = haggle.item_qty * price;
 				}
 				const is_payer = haggle.direction === 'sell' ? haggle.is_initiator : !haggle.is_initiator;
 				const top_up = Math.max(total - haggle.payer_escrow_gp, 0);
@@ -579,14 +612,98 @@ export function install_market_campaign_charity_actions(runtime) {
 
 		charity_shuffle_bonus() {
 			const count = state.charity_shuffle_count;
-			return Number.isSafeInteger(count) && count > 0 ? Math.min(20, count) : 0;
+			return Number.isSafeInteger(count) ? Math.max(-10, Math.min(20, count)) : 0;
+		},
+
+		select_charity_wish(wish) {
+			state.selected_charity_wish_id = wish.wish_id;
+			state.selected_charity_item_id = '';
+		},
+
+		select_charity_wish_item(item) {
+			if (this.eligible_charity_wish_items.some(entry => entry.id === item.id))
+				state.charity_wish_item_id = item.id;
+		},
+
+		adjust_charity_wish_qty(delta) {
+			const current_qty = Number(this.charity_wish_qty);
+			const qty = Number.isSafeInteger(current_qty) ? current_qty : 1;
+			this.charity_wish_qty = Math.min(100, Math.max(1, qty + delta));
+		},
+
+		select_charity_offering(item) {
+			state.selected_charity_item_id = item.id;
+			state.selected_charity_wish_id = 0;
+		},
+
+		show_charity_wish_modal() {
+			if (state.charity_active_wish) return notify_error('MOD_MP_CHARITY_WISH_ACTIVE');
+			const items = state.eligible_charity_wish_items;
+			if (items.length === 0) return notify_error('MOD_MP_CHARITY_WISH_NO_ITEMS');
+			state.charity_wish_item_id = items[0].id;
+			state.charity_wish_search = '';
+			state.charity_wish_qty = 1;
+			queue_modal('MOD_MP_CHARITY_WISH_MAKE', 'charity-wish-modal', 'assets/charity_tree.svg', {
+				showConfirmButton: false,
+				customClass: { popup: 'mp-charity-wish-modal-popup' }
+			});
+		},
+
+		async make_charity_wish(event) {
+			const qty = Number(state.charity_wish_qty);
+			if (!state.eligible_charity_wish_items.some(item => item.id === state.charity_wish_item_id) ||
+				!Number.isSafeInteger(qty) || qty < 1 || qty > 100)
+				return notify_error('MOD_MP_CHARITY_WISH_INVALID');
+			const $button = event.currentTarget;
+			show_button_spinner($button);
+			const res = await run_pending_charity_wish_action('make', '/api/charity/wish/make', {
+				item_id: state.charity_wish_item_id, qty
+			});
+			if (res?.success) {
+				await close_modal_and_wait('charity-wish-modal');
+				await request_charity_tree_contents(true, false);
+				notify('MOD_MP_CHARITY_WISH_MADE');
+			} else notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+			hide_button_spinner($button);
+		},
+
+		show_charity_wish_forsake_confirmation() {
+			queue_modal('MOD_MP_CHARITY_WISH_FORSAKE', 'charity-wish-forsake-confirm-modal', 'assets/charity_tree.svg', {
+				showConfirmButton: false
+			});
+		},
+
+		confirm_charity_wish_forsake(event) {
+			this.close_modal();
+			return this.resolve_charity_wish(event, 'forsake', true);
+		},
+
+		async resolve_charity_wish(event, action, confirmed = false) {
+			const wish = state.selected_charity_wish;
+			if (!wish?.owned || (action === 'forsake' && wish.phase !== 'maturing') ||
+				(action === 'pick' && wish.phase !== 'ripe')) return;
+			if (action === 'forsake' && !confirmed)
+				return this.show_charity_wish_forsake_confirmation();
+			const $button = event.currentTarget;
+			show_button_spinner($button);
+			const res = await run_pending_charity_wish_action(action, `/api/charity/wish/${action}`);
+			if (res?.success) {
+				state.selected_charity_wish_id = 0;
+				await request_charity_tree_contents(true, false);
+				notify(action === 'pick' ? 'MOD_MP_CHARITY_WISH_GRANTED' : 'MOD_MP_CHARITY_WISH_FORSAKEN');
+			} else notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+			hide_button_spinner($button);
 		},
 
 		show_charity_shuffle() {
 			if (is_social_only()) return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			if (state.charity_shuffle_offer !== null) return;
-			state.charity_shuffle_offer = charitree_rules.get_charitree_shuffle_offer(
+			const offer = charitree_rules.get_charitree_shuffle_offer(
 				transfer_currency_support.get_transfer_currencies(game));
+			state.charity_shuffle_offer = offer === null ? null : {
+				...offer,
+				qty: Math.min(offer.qty, transfer_currency_support.get_transfer_currency_cap(game, offer.currency_id))
+			};
 			queue_modal('MOD_MP_CHARITY_SHUFFLE', 'charity-shuffle-modal', 'assets/charity_tree.svg', {
 				showConfirmButton: false,
 				didClose: () => { state.charity_shuffle_offer = null; }
@@ -702,11 +819,13 @@ export function install_market_campaign_charity_actions(runtime) {
 			if (this.has_destroyable_transfer_items)
 				return notify_error('MOD_MP_TRANSFER_DESTROY_ITEM_FIRST');
 
-			const items = state.transfer_inventory.map(item => ({
+			const items = transfer_currency_support.cap_transfer_items(game, state.transfer_inventory.map(item => ({
 				...item,
 				...get_charity_item_valuation(item.id)
-			}));
-			const donation_value = state.transfer_inventory_donation_value;
+			})));
+			const donation_value = Math.max(0, state.transfer_inventory_donation_value -
+				transfer_currency_support.get_transfer_currency_overages(game, state.transfer_inventory)
+					.reduce((total, entry) => total + entry.overage, 0));
 
 			if (items.length === 0)
 				return notify_error('MOD_MP_CHARITY_NO_SELECTION');

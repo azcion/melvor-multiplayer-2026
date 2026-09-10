@@ -1,0 +1,148 @@
+import { readFileSync } from 'node:fs';
+import { db } from './db';
+import type { Database } from 'bun:sqlite';
+import type { JsonObject } from './http';
+import type * as db_row from './db/types/db_types';
+
+export const CHARITY_WISH_MATURING_MS = 4 * 24 * 60 * 60 * 1000;
+export const CHARITY_WISH_MIN_VERSION = '1.5.7';
+const WEIRD_GLOOP_ID = 'melvorD:Weird_Gloop';
+const WEIRD_GLOOP_GP_VALUE = 1000n;
+
+type WishCommandKind = 'make' | 'forsake' | 'pick';
+type CatalogEntry = { id: string; max_item_value: number };
+
+const catalog_data = JSON.parse(readFileSync(new URL('./openable-wish-values.json', import.meta.url), 'utf8')) as unknown;
+if (!Array.isArray(catalog_data))
+	throw new Error('Invalid Charitree Wish catalog.');
+export const CHARITY_WISH_VALUES = new Map<string, number>();
+for (const raw of catalog_data) {
+	if (typeof raw !== 'object' || raw === null || Array.isArray(raw))
+		throw new Error('Invalid Charitree Wish catalog entry.');
+	const entry = raw as CatalogEntry;
+	if (typeof entry.id !== 'string' || !Number.isSafeInteger(entry.max_item_value) || entry.max_item_value <= 0)
+		throw new Error('Invalid Charitree Wish catalog value.');
+	CHARITY_WISH_VALUES.set(entry.id, entry.max_item_value);
+}
+
+export function is_charity_wish_client(mod_version: string | null | undefined): boolean {
+	if (mod_version === 'development') return true;
+	const parts = /^(\d+)\.(\d+)\.(\d+)$/.exec(mod_version ?? '');
+	if (parts === null) return false;
+	const version = parts.slice(1).map(Number);
+	return version[0] > 1 || (version[0] === 1 && (version[1] > 5 || (version[1] === 5 && version[2] >= 7)));
+}
+
+export function get_charity_wish_account(client_id: number): number | null {
+	return (db.query<{ melvor_account_id: number | null }, [number]>(
+		'SELECT `melvor_account_id` FROM `clients` WHERE `id` = ?'
+	).get(client_id)?.melvor_account_id ?? null);
+}
+
+export function run_charity_wish_command(
+	client_id: number,
+	command_id: string,
+	kind: WishCommandKind,
+	command: () => JsonObject
+): JsonObject | null {
+	if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(command_id))
+		return null;
+	const replay = db.query<{ client_id: number; kind: WishCommandKind; response_json: string }, [string]>(
+		'SELECT `client_id`, `kind`, `response_json` FROM `charity_wish_commands` WHERE `id` = ?'
+	).get(command_id);
+	if (replay !== null)
+		return replay.client_id === client_id && replay.kind === kind ? JSON.parse(replay.response_json) as JsonObject : null;
+	const transact = db.transaction(() => {
+		const concurrent = db.query<{ client_id: number; kind: WishCommandKind; response_json: string }, [string]>(
+			'SELECT `client_id`, `kind`, `response_json` FROM `charity_wish_commands` WHERE `id` = ?'
+		).get(command_id);
+		if (concurrent !== null)
+			return concurrent.client_id === client_id && concurrent.kind === kind
+				? JSON.parse(concurrent.response_json) as JsonObject : null;
+		const response = command();
+		db.query('INSERT INTO `charity_wish_commands` (`id`, `client_id`, `kind`, `response_json`, `created_at`) VALUES(?, ?, ?, ?, ?)')
+			.run(command_id, client_id, kind, JSON.stringify(response), Date.now());
+		return response;
+	});
+	return transact.immediate();
+}
+
+export function list_charity_wishes(guild_id: number, client_id: number, now: number): JsonObject[] {
+	return db.query<db_row.charity_wishes & { display_name: string }, [number, number, number]>(
+		'SELECT wish.*, owner.`display_name` FROM `charity_wishes` AS wish ' +
+		'JOIN `clients` AS owner ON owner.`id` = wish.`owner_client_id` WHERE wish.`guild_id` = ? ' +
+		'ORDER BY CASE WHEN wish.`progress_gp` >= wish.`required_gp` THEN 0 WHEN wish.`matures_at` <= ? THEN 1 ELSE 2 END, ' +
+		'CASE WHEN wish.`matures_at` > ? THEN wish.`matures_at` ELSE wish.`id` END, wish.`id`'
+	).all(guild_id, now, now).map(wish => ({
+		id: wish.id,
+		item_id: wish.item_id,
+		qty: wish.qty,
+		required_gp: wish.required_gp,
+		progress_gp: wish.progress_gp,
+		matures_at: wish.matures_at,
+		phase: wish.progress_gp >= wish.required_gp ? 'ripe' : wish.matures_at <= now ? 'ripening' : 'maturing',
+		wisher: wish.display_name,
+		owned: wish.owner_client_id === client_id
+	}));
+}
+
+export function distribute_charity_wish_progress(guild_id: number, total_gp: bigint, now: number, database: Database = db): bigint {
+	let remaining = total_gp;
+	while (remaining > 0n) {
+		const wishes = database.query<Pick<db_row.charity_wishes, 'id' | 'required_gp' | 'progress_gp'>, [number, number]>(
+			'SELECT `id`, `required_gp`, `progress_gp` FROM `charity_wishes` WHERE `guild_id` = ? ' +
+			'AND `matures_at` <= ? AND `progress_gp` < `required_gp` ORDER BY `id`'
+		).all(guild_id, now);
+		if (wishes.length === 0) break;
+		const share = (remaining + BigInt(wishes.length - 1)) / BigInt(wishes.length);
+		let granted = 0n;
+		for (const wish of wishes) {
+			const amount = share < BigInt(wish.required_gp - wish.progress_gp)
+				? share : BigInt(wish.required_gp - wish.progress_gp);
+			if (amount <= 0n) continue;
+			database.query('UPDATE `charity_wishes` SET `progress_gp` = `progress_gp` + ? WHERE `id` = ?')
+				.run(Number(amount), wish.id);
+			granted += amount;
+		}
+		if (granted === 0n) break;
+		remaining = granted >= remaining ? 0n : remaining - granted;
+	}
+	return remaining;
+}
+
+export function add_charity_gloop(guild_id: number, gp_value: bigint, database: Database = db): void {
+	if (gp_value <= 0n) return;
+	const qty = (gp_value + WEIRD_GLOOP_GP_VALUE - 1n) / WEIRD_GLOOP_GP_VALUE;
+	if (qty > BigInt(Number.MAX_SAFE_INTEGER))
+		throw new Error(`Charitree Gloop conversion exceeds the safe integer range for guild ${guild_id}.`);
+	database.query(
+		'INSERT INTO `charity_items` (`guild_id`, `item_id`, `qty`, `expires_at`, `donated_at`, `value_currency_id`, `value_per_item`) ' +
+		'VALUES(?, ?, ?, 0, 0, NULL, NULL) ON CONFLICT (`guild_id`, `item_id`) DO UPDATE SET ' +
+		'`qty` = `qty` + excluded.`qty`, `expires_at` = 0, `donated_at` = 0'
+	).run(guild_id, WEIRD_GLOOP_ID, Number(qty));
+}
+
+export function settle_departing_charity_wish(
+	client_id: number,
+	guild_id: number,
+	now = Date.now(),
+	database: Database = db
+): void {
+	const wish = database.query<db_row.charity_wishes, [number, number]>(
+		'SELECT wish.* FROM `charity_wishes` AS wish WHERE wish.`owner_client_id` = ? AND wish.`guild_id` = ?'
+	).get(client_id, guild_id);
+	if (wish === null) return;
+	if (wish.progress_gp >= wish.required_gp) {
+		database.query(
+			'INSERT INTO `inbox_items` (`client_id`, `source_type`, `source_name`, `item_id`, `qty`, `created_at`, `updated_at`) ' +
+			"VALUES(?, 'wish_granted', '', ?, ?, ?, ?) ON CONFLICT (`client_id`, `source_type`, `source_name`, `item_id`) " +
+			'DO UPDATE SET `qty` = `qty` + excluded.`qty`, `updated_at` = excluded.`updated_at`'
+		).run(client_id, wish.item_id, wish.qty, now, now);
+		database.query('UPDATE `clients` SET `event_revision` = `event_revision` + 1 WHERE `id` = ?').run(client_id);
+	}
+	database.query('DELETE FROM `charity_wishes` WHERE `id` = ?').run(wish.id);
+	if (wish.matures_at <= now && wish.progress_gp < wish.required_gp) {
+		const remainder = distribute_charity_wish_progress(guild_id, BigInt(wish.progress_gp), now, database);
+		add_charity_gloop(guild_id, remainder, database);
+	}
+}

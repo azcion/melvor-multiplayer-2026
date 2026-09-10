@@ -232,6 +232,22 @@ test('renders the sender avatar for every Chat message, including Global and Sup
 	assert.match(style, /\.mp-chat-message-avatar\s*\{[\s\S]*margin: 0 2px 0 0;[\s\S]*width: 20px;[\s\S]*height: 20px;/);
 });
 
+test('styles Chat messages by viewer-relative alignment and isolates the conversation panel', async () => {
+	const { templates, style } = await sources();
+	const chat_view = templates.slice(
+		templates.indexOf('<template id="template-mp-chat-page">'),
+		templates.indexOf('<template id="template-mp-profile-modal">')
+	);
+
+	assert.match(chat_view, /<div class="mp-chat-conversation-view" v-else>/);
+	assert.doesNotMatch(chat_view, /class="[^"]*block[^"]*mp-chat-conversation-view/);
+	assert.match(style, /\.mp-chat-message-meta\s*\{[\s\S]*gap: 1rem;[\s\S]*justify-content: start;/);
+	assert.match(style, /\.mp-chat-message-own \.mp-chat-message-meta\s*\{[\s\S]*justify-content: end;/);
+	assert.match(style, /\.mp-chat-message-own \.mp-chat-message-content\s*\{[\s\S]*margin-left: auto;/);
+	assert.match(style, /\.mp-chat-message-author\s*\{[\s\S]*color: #fffe;/);
+	assert.match(style, /\.mp-chat-conversation-view\s*\{[\s\S]*color: white;[\s\S]*border: 5px solid #232a35;[\s\S]*border-radius: \.5rem;[\s\S]*backdrop-filter: blur\(8px\);[\s\S]*background-color: #0004;/);
+});
+
 test('opens the sender member-info modal from Chat message authors', async () => {
 	const { main, templates, style } = await sources();
 	const chat_view = templates.slice(

@@ -2,6 +2,7 @@ import * as runtime from '../app-runtime';
 import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonSerializable } from '../http';
 import { add_inbox_gp, add_inbox_items, get_inbox_source_name } from '../inbox';
+import { GP_TRANSFER_CAP } from '../transfer-caps';
 
 const { db, get_client_guild_id, is_social_only_client, is_valid_uuid, run_economy_command,
 	market_completed_cached, session_get_route, session_post_route } = runtime;
@@ -132,8 +133,12 @@ export function register_haggle_routes(): void {
 			const lot = db.query<db_row.market_items, [number]>(
 				'SELECT * FROM `market_items` WHERE `id` = ? LIMIT 1'
 			).get(listing_id);
-			if (lot === null || lot.client_id === client_id || lot.available < item_qty)
+			if (lot === null || lot.client_id === client_id)
 				return { success: false, error_lang: 'MOD_MP_MARKET_HAGGLE_INVALID' };
+			const max_item_qty = Math.floor(GP_TRANSFER_CAP / Math.max(lot.price, offer_price));
+			const capped_item_qty = Math.min(item_qty, max_item_qty);
+			if (capped_item_qty < 1 || lot.available < capped_item_qty)
+				return { success: false, error_lang: 'MOD_MP_MARKET_VALUE_TOO_LARGE' };
 			const guild = db.query('SELECT 1 FROM `guild_memberships` WHERE `guild_id` = ? AND `client_id` = ?')
 				.get(lot.guild_id, client_id);
 			if (guild === null)
@@ -143,19 +148,22 @@ export function register_haggle_routes(): void {
 			).get(client_id)?.count ?? 0;
 			if (active >= MAX_ACTIVE_HAGGLES)
 				return { success: false, error_lang: 'MOD_MP_MARKET_HAGGLE_LIMIT' };
-			const listing_reserved_gp = lot.direction === 'buy' ? safe_total(item_qty, lot.price) : 0;
+			const listing_reserved_gp = lot.direction === 'buy' ? safe_total(capped_item_qty, lot.price) : 0;
 			if (listing_reserved_gp === null || listing_reserved_gp > lot.escrow_gp)
 				return { success: false, error_lang: 'MOD_MP_MARKET_HAGGLE_INVALID' };
 			const now = Date.now();
 			const id = crypto.randomUUID();
-			const payer_escrow_gp = lot.direction === 'sell' ? offered_total : listing_reserved_gp;
+			const capped_offered_total = safe_total(capped_item_qty, offer_price);
+			if (capped_offered_total === null)
+				return { success: false, error_lang: 'MOD_MP_MARKET_VALUE_TOO_LARGE' };
+			const payer_escrow_gp = lot.direction === 'sell' ? capped_offered_total : listing_reserved_gp;
 			try {
 				db.query(
 					'INSERT INTO `market_haggles` (`id`, `listing_id`, `listing_ref`, `guild_id`, `initiator_id`, `owner_id`, ' +
 					'`direction`, `item_id`, `item_qty`, `listing_price`, `offer_price`, `listing_reserved_gp`, ' +
 					'`payer_escrow_gp`, `turn_client_id`, `created_at`, `updated_at`, `expires_at`) ' +
 					'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-				).run(id, lot.id, lot.id, lot.guild_id, client_id, lot.client_id, lot.direction, lot.item_id, item_qty,
+				).run(id, lot.id, lot.id, lot.guild_id, client_id, lot.client_id, lot.direction, lot.item_id, capped_item_qty,
 					lot.price, offer_price, listing_reserved_gp, payer_escrow_gp, lot.client_id, now, now, now + HAGGLE_LIFETIME);
 			} catch (error) {
 				if (String(error).includes('UNIQUE'))
@@ -164,11 +172,11 @@ export function register_haggle_routes(): void {
 			}
 			db.query('UPDATE `market_items` SET `available` = `available` - ?, `reserved` = `reserved` + ?, ' +
 				'`escrow_gp` = `escrow_gp` - ?, `updated_at` = ? WHERE `id` = ?')
-				.run(item_qty, item_qty, listing_reserved_gp, now, lot.id);
+				.run(capped_item_qty, capped_item_qty, listing_reserved_gp, now, lot.id);
 			market_completed_cached.delete(lot.client_id);
 			return { success: true, haggle_id: id, effects: lot.direction === 'sell'
-				? [{ storage: 'gp' as const, qty: -offered_total }]
-				: [{ storage: 'bank' as const, item_id: lot.item_id, qty: -item_qty }] };
+				? [{ storage: 'gp' as const, qty: -capped_offered_total }]
+				: [{ storage: 'bank' as const, item_id: lot.item_id, qty: -capped_item_qty }] };
 		});
 		return result ?? 400;
 	});
@@ -180,7 +188,7 @@ export function register_haggle_routes(): void {
 			return 400;
 		const haggle_id = json.id as string;
 		const revision = json.revision as number;
-		const price = json.price as number;
+		const requested_price = json.price as number;
 		const result = run_economy_command(client_id, json.command_id, 'market-haggle-counter', () => {
 			expire_market_haggles();
 			const haggle = db.query<db_row.market_haggles, [string]>(
@@ -189,6 +197,10 @@ export function register_haggle_routes(): void {
 			if (haggle === null || haggle.status !== 'active' || haggle.turn_client_id !== client_id ||
 				haggle.revision !== revision || is_social_only_client(client_id))
 				return { success: false, error_lang: 'MOD_MP_MARKET_HAGGLE_STALE' };
+			const max_price = Math.floor(GP_TRANSFER_CAP / haggle.item_qty);
+			if (max_price < 1)
+				return { success: false, error_lang: 'MOD_MP_MARKET_VALUE_TOO_LARGE' };
+			const price = Math.min(requested_price, max_price);
 			const total = safe_total(haggle.item_qty, price);
 			if (total === null)
 				return { success: false, error_lang: 'MOD_MP_MARKET_VALUE_TOO_LARGE' };

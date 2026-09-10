@@ -87,7 +87,7 @@ export function install_trading_actions(runtime) {
 
 			const res = await api_post('/api/trade/offer', {
 				recipient_id: recipient.client_id,
-				items: state.transfer_inventory,
+				items: this.get_capped_transfer_items(state.transfer_inventory),
 				command_id: crypto.randomUUID()
 			});
 			hide_button_spinner($button);
@@ -149,7 +149,7 @@ export function install_trading_actions(runtime) {
 
 			const res = await api_post('/api/trade/counter', {
 				trade_id,
-				items: state.transfer_inventory,
+				items: this.get_capped_transfer_items(state.transfer_inventory),
 				command_id: crypto.randomUUID()
 			});
 
@@ -389,7 +389,7 @@ export function install_trading_actions(runtime) {
 
 			const res = await api_post('/api/gift/send', {
 				recipient_id,
-				items: state.transfer_inventory,
+				items: this.get_capped_transfer_items(state.transfer_inventory),
 				command_id: crypto.randomUUID()
 			});
 

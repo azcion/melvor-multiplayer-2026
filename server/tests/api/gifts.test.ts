@@ -138,6 +138,32 @@ describe('gift API', () => {
 		]);
 	});
 
+	test('caps each currency independently when sending Gifts', async () => {
+		const pair = await make_guildmates('Gift Cap Sender', 'Gift Cap Recipient');
+		const sent = await post_json<{ success: boolean; receipt: { effects: unknown[] } }>('/api/v2/gift/send', {
+			recipient_id: pair.second_id,
+			items: [
+				{ id: 'melvorD:GP', qty: 1_000_000_005 },
+				{ id: 'melvorD:SlayerCoins', qty: 1_000_005 },
+				{ id: 'melvorD:Coal_Ore', qty: 2 }
+			],
+			command_id: crypto.randomUUID()
+		}, pair.first.session_token);
+		const gift_id = (await get_events(pair.second)).gifts[0];
+		const contents = await get_transfer_contents(pair.second.session_token, [gift_id]);
+
+		expect(sent.json.receipt.effects).toEqual([
+			{ storage: 'transfer', item_id: 'melvorD:GP', qty: -1_000_000_000 },
+			{ storage: 'transfer', item_id: 'melvorD:SlayerCoins', qty: -1_000_000 },
+			{ storage: 'transfer', item_id: 'melvorD:Coal_Ore', qty: -2 }
+		]);
+		expect(contents.json.gifts[String(gift_id)].items).toEqual([
+			{ id: expect.any(Number), item_id: 'melvorD:GP', qty: 1_000_000_000 },
+			{ id: expect.any(Number), item_id: 'melvorD:SlayerCoins', qty: 1_000_000 },
+			{ id: expect.any(Number), item_id: 'melvorD:Coal_Ore', qty: 2 }
+		]);
+	});
+
 	test('returns declined gifts to the sender for collection', async () => {
 		const pair = await make_guildmates('Returned Gift Sender', 'Returned Gift Recipient');
 		await db_run(

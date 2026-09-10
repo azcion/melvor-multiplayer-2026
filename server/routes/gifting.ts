@@ -5,6 +5,7 @@ import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
 import type { PetitionType } from '../council';
 import { add_inbox_items, get_inbox_source_name } from '../inbox';
 import { client_uses_legacy_transfer_protocol } from '../transfer-compatibility';
+import { cap_transfer_items } from '../transfer-caps';
 
 const { GiftFlags, db, economy_item_effects, get_gift, gift_cache, guild_membership_exists, is_social_only_client, parse_transfer_items, remove_player_cache_entry, run_economy_command, session_post_route } = runtime;
 
@@ -121,9 +122,10 @@ export function register_gifting_routes(): void {
 		if (typeof recipient_id !== 'number')
 			return 400; // Bad Request
 
-		const items = parse_transfer_items(json.items);
-		if (items === null)
+		const parsed_items = parse_transfer_items(json.items);
+		if (parsed_items === null)
 			return 400; // Bad Request
+		const items = cap_transfer_items(parsed_items);
 
 		if (!(await guild_membership_exists(client_id, recipient_id)))
 			return { error_lang: 'MOD_MP_GUILD_MEMBERSHIP_MISSING' };

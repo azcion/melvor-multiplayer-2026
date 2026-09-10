@@ -5,7 +5,7 @@ import { read_client_source } from './source.mjs';
 
 const root = new URL('../../', import.meta.url);
 
-test('builds avatar choices from official monsters and pickpocketing targets', async () => {
+test('builds avatar choices from official monsters, pickpocketing targets, pets, and Multiplayer pets', async () => {
 	const main = await read_client_source(root);
 
 	for (const namespace of ['melvorD', 'melvorF', 'melvorAoD', 'melvorTotH', 'melvorItA'])
@@ -13,14 +13,18 @@ test('builds avatar choices from official monsters and pickpocketing targets', a
 	const setup_icons = main.slice(main.indexOf('function setup_icons()'), main.indexOf('function setup_guild_icons()'));
 	assert.match(setup_icons, /get_icon_objects\(game\.monsters\)/);
 	assert.match(setup_icons, /get_icon_objects\(game\.thieving\?\.actions\)/);
+	assert.match(setup_icons, /get_icon_objects\(game\.pets\)/);
 	assert.match(main, /get_icon_object_by_id\(game\.thieving\?\.actions, id\)/);
-	assert.doesNotMatch(setup_icons, /game\.pets/);
-	assert.doesNotMatch(main, /get_icon_object_by_id\(game\.pets, id\)/);
+	assert.match(setup_icons, /multiplayer_pet_flare\.values\(\)/);
+	assert.match(main, /get_icon_object_by_id\(game\.pets, id\)/);
 	assert.match(main, /get_pet_icon\(id\) \{[\s\S]*multiplayer_pet_flare\.get/);
+	assert.match(main, /return icon_object\?\.media \?\? this\.get_pet_icon\(id\)/);
 	assert.match(main, /search_name: icon_object\.name\.toLowerCase\(\)/);
 	assert.doesNotMatch(setup_icons, /id\.startsWith\('melvorF:'\) \|\| icon\.id\.startsWith\('melvorD:'\)/);
 	assert.match(main, /MULTIPLAYER_GAME_NAMESPACE = 'multiplayer'/);
-	assert.doesNotMatch(setup_icons, /allow_multiplayer: true/);
+	assert.match(setup_icons, /allow_multiplayer: true/);
+	assert.ok(setup_icons.indexOf('get_icon_objects(game.pets)') < setup_icons.indexOf('get_icon_objects(game.monsters)'));
+	assert.ok(setup_icons.indexOf('multiplayer_pet_flare.values()') < setup_icons.indexOf('get_icon_objects(game.monsters)'));
 });
 
 test('shows every matching avatar in a bounded scrolling selector', async () => {

@@ -301,6 +301,13 @@ const state = ui.createStore({
 	selected_transfer_item_id: '',
 
 	charity_tree_inventory: [],
+	charity_wishes: [],
+	charity_wish_catalog: [],
+	charity_active_wish: false,
+	selected_charity_wish_id: 0,
+	charity_wish_item_id: '',
+	charity_wish_search: '',
+	charity_wish_qty: 1,
 	charity_shuffled_at: null,
 	charity_shuffle_count: 0,
 	charity_currency_locks: [],
@@ -449,6 +456,15 @@ const state = ui.createStore({
 	// #region COMPUTED PROPS
 	get_transfer_currency(currency_id) {
 		return transfer_currency_support?.get_transfer_currency(game, currency_id) ?? null;
+	},
+
+	get_capped_transfer_items(items) {
+		return transfer_currency_support?.cap_transfer_items(game, items) ?? items;
+	},
+
+	get_transfer_cap_notice(items = this.transfer_inventory) {
+		const overages = transfer_currency_support?.get_transfer_currency_overages(game, items) ?? [];
+		return overages.map(({ shorthand, cap }) => `${shorthand}: ${numberWithCommas(cap)}`).join(', ');
 	},
 
 	get sorted_trades() {
@@ -800,6 +816,53 @@ const state = ui.createStore({
 		return getLangString('MOD_MP_CHARITY_UNDISCOVERED_STACK');
 	},
 
+	get charity_tree_entries() {
+		return [
+			...this.charity_tree_inventory.map(item => ({ ...item, kind: 'offering' })),
+			...this.charity_wishes.map(wish => ({ ...wish, id: wish.item_id, kind: 'wish', wish_id: wish.id }))
+		].sort((left, right) => {
+			const rank = entry => entry.kind === 'offering' && entry.id === CHARITY_WEIRD_GLOOP_ID ? 0
+				: entry.kind === 'wish' && entry.phase === 'ripe' ? 1
+					: entry.kind === 'wish' && entry.phase === 'ripening' ? 2 : 3;
+			const ranked = rank(left) - rank(right);
+			if (ranked !== 0) return ranked;
+			const left_time = left.kind === 'wish' ? left.matures_at : left.expires_at;
+			const right_time = right.kind === 'wish' ? right.matures_at : right.expires_at;
+			return (left_time ?? 0) - (right_time ?? 0) || left.id.localeCompare(right.id);
+		});
+	},
+
+	get selected_charity_wish() {
+		return this.charity_wishes.find(wish => wish.id === this.selected_charity_wish_id) ?? null;
+	},
+
+	get eligible_charity_wish_items() {
+		return this.charity_wish_catalog.map(entry => {
+			const item = game.items.getObjectByID(entry.id);
+			return item && game.stats.itemFindCount(item) > 0 ? { ...entry, name: item.name } : null;
+		}).filter(Boolean).sort((left, right) => right.max_item_value - left.max_item_value || left.name.localeCompare(right.name));
+	},
+
+	get filtered_charity_wish_items() {
+		const search = String(this.charity_wish_search ?? '').trim().toLocaleLowerCase();
+		return this.eligible_charity_wish_items.filter(item => search === '' ||
+			String(item.name).toLocaleLowerCase().includes(search));
+	},
+
+	get charity_wish_item_name() {
+		return this.eligible_charity_wish_items.find(item => item.id === this.charity_wish_item_id)?.name ?? '';
+	},
+
+	get charity_wish_requirement() {
+		const entry = this.charity_wish_catalog.find(item => item.id === this.charity_wish_item_id);
+		const qty = Number(this.charity_wish_qty);
+		return entry && Number.isSafeInteger(qty) && qty >= 1 && qty <= 100 ? entry.max_item_value * qty * 5 : 0;
+	},
+
+	charity_wish_progress_percentage(wish) {
+		return !wish || wish.phase === 'ripe' ? null : Math.min(99, Math.floor(wish.progress_gp * 100 / wish.required_gp));
+	},
+
 	get campaign_item_current() {
 		return Math.round(this.campaign_item_total * this.campaign_pct);
 	},
@@ -946,6 +1009,7 @@ function create_action_runtime() {
 		api_get,
 		api_post,
 		run_pending_economy_action,
+		run_pending_charity_wish_action,
 		request_charity_tree_contents,
 		add_currency_to_transfer,
 		add_gp_to_transfer,
@@ -1777,6 +1841,40 @@ function remove_instance_storage_item(key) {
 	remove_character_storage_item(server_instance_storage_prefix + key);
 }
 
+function is_charity_wish_endpoint(endpoint) {
+	return endpoint === '/api/charity/wish/make' || endpoint === '/api/charity/wish/forsake' ||
+		endpoint === '/api/charity/wish/pick';
+}
+
+async function run_pending_charity_wish_action(kind, endpoint, payload = {}) {
+	const storage_key = `pending_charity_wish:${kind}`;
+	let pending = get_instance_storage_item(storage_key);
+	if (pending === undefined) {
+		pending = { endpoint, payload: { ...payload, command_id: crypto.randomUUID() } };
+		set_instance_storage_item(storage_key, pending);
+		if (JSON.stringify(get_instance_storage_item(storage_key)) !== JSON.stringify(pending))
+			return null;
+	}
+	if (pending?.endpoint !== endpoint || typeof pending?.payload?.command_id !== 'string')
+		return null;
+	const result = await api_post_without_economy_journal(pending.endpoint, pending.payload);
+	if (result?.success === true || result?.success === false || typeof result?.error_lang === 'string')
+		remove_instance_storage_item(storage_key);
+	return result;
+}
+
+async function recover_pending_charity_wish_actions() {
+	for (const kind of ['make', 'forsake', 'pick']) {
+		const storage_key = `pending_charity_wish:${kind}`;
+		const pending = get_instance_storage_item(storage_key);
+		if (pending?.endpoint !== `/api/charity/wish/${kind}` || typeof pending?.payload?.command_id !== 'string')
+			continue;
+		const result = await api_post_without_economy_journal(pending.endpoint, pending.payload);
+		if (result?.success === true || result?.success === false || typeof result?.error_lang === 'string')
+			remove_instance_storage_item(storage_key);
+	}
+}
+
 function load_social_mode() {
 	state.social_mode = social_mode.normalize_social_mode(get_instance_storage_item('social_mode'));
 }
@@ -2266,15 +2364,23 @@ function update_charitree_nav() {
 		return;
 
 	const ready = state.guild_state_loaded;
+	const wish_ready = state.is_charitree_enabled && (state.charity_wishes ?? []).some(wish =>
+		wish.phase === 'ripe' && wish.owned === true);
+	const wish_available = state.is_charitree_enabled && (state.charity_wish_catalog ?? []).length > 0 &&
+		state.charity_active_wish !== true;
+	const pick_available = state.is_charitree_enabled && state.can_take_charity;
+	aside.classList.toggle('mp-charitree-wish', wish_ready);
 	set_nav_ready(aside, ready);
 	if (!ready) {
 		aside.textContent = '';
 		return;
 	}
 
-	aside.textContent = state.is_charitree_enabled && state.can_take_charity
-		? getLangString('MOD_MP_SIDEBAR_CHARITY_READY')
-		: '';
+	aside.textContent = wish_ready || wish_available
+		? getLangString('MOD_MP_SIDEBAR_CHARITY_WISH')
+		: pick_available
+			? getLangString('MOD_MP_SIDEBAR_CHARITY_PICK')
+			: '';
 }
 
 function update_multiplayer_nav() {
@@ -2333,6 +2439,7 @@ async function request_charity_tree_contents(force_reload = false, show_loading 
 	if (show_loading)
 		state.charity_tree_loading = true;
 	try {
+		await recover_pending_charity_wish_actions();
 		const res = await api_get('/api/charity/contents');
 		if (Array.isArray(res?.items)) {
 			state.charity_tree_inventory = filter_local_resolved_items(res.items, item => item.id)
@@ -2340,8 +2447,12 @@ async function request_charity_tree_contents(force_reload = false, show_loading 
 				.sort((left, right) => Number(left.id !== CHARITY_WEIRD_GLOOP_ID) - Number(right.id !== CHARITY_WEIRD_GLOOP_ID));
 			state.charity_shuffle_supported = Object.hasOwn(res, 'shuffled_at');
 			state.charity_shuffled_at = res.shuffled_at ?? null;
-			state.charity_shuffle_count = Number.isSafeInteger(res.shuffle_count) && res.shuffle_count >= 0 ? res.shuffle_count : 0;
+			state.charity_shuffle_count = Number.isSafeInteger(res.shuffle_count) ? Math.max(-10, res.shuffle_count) : 0;
 			state.charity_currency_locks = res.currency_locks ?? [];
+			state.charity_wishes = Array.isArray(res.wishes) ? res.wishes : [];
+			state.charity_wish_catalog = Array.isArray(res.wish_catalog) ? res.wish_catalog : [];
+			state.charity_active_wish = res.active_wish === true;
+			update_charitree_nav();
 		}
 	} finally {
 		if (show_loading)
@@ -2362,6 +2473,8 @@ function update_charity_clock() {
 			item => item.id === weird_gloop_id || !Number.isSafeInteger(item.expires_at) || item.expires_at > state.charity_update_time
 		);
 	}
+	if ((state.charity_wishes ?? []).some(wish => wish.phase === 'maturing' && wish.matures_at <= state.charity_update_time))
+		void request_charity_tree_contents(true, false);
 }
 
 function set_charity_page_visible(is_visible) {
@@ -3082,6 +3195,11 @@ async function api_post_binary_response(endpoint, bytes, media_type, upload_toke
 		error('binary POST transport failed for %s (%s)', endpoint, e?.name ?? 'Error');
 		return { response: null, json: null };
 	}
+}
+
+async function api_post_without_economy_journal(endpoint, payload, major = selected_api_major) {
+	const result = await api_post_response_raw(endpoint, payload, session_token, major);
+	return result.response?.status === 200 ? result.json : null;
 }
 
 async function api_post(endpoint, payload, major = selected_api_major) {
@@ -4326,8 +4444,17 @@ function make_avatar_icon(icon_object, allow_multiplayer = false) {
 function setup_icons() {
 	if (state.available_icons.length === 0) {
 		const icon_objects = [
+			...get_icon_objects(game.pets).map(icon => ({ icon, allow_multiplayer: false })),
+			...[...multiplayer_pet_flare.values()].map(pet => ({
+				icon: {
+					id: 'multiplayer:' + pet.id,
+					name: getLangString(pet.name),
+					media: ctx.getResourceUrl(pet.media)
+				},
+				allow_multiplayer: true
+			})),
 			...get_icon_objects(game.monsters).map(icon => ({ icon, allow_multiplayer: false })),
-			...get_icon_objects(game.thieving?.actions).map(icon => ({ icon, allow_multiplayer: false })),
+			...get_icon_objects(game.thieving?.actions).map(icon => ({ icon, allow_multiplayer: false }))
 		];
 		const seen = new Set();
 		state.available_icons = icon_objects
@@ -4503,6 +4630,10 @@ function patch_bank_actions() {
 	function update_bank_item(orig_func, ...args) {
 		orig_func.call(this, ...args);
 		state.bank_action_item_id = args[0]?.item?.id ?? '';
+	}
+
+	function reset_bank_action_item(orig_func, ...args) {
+		update_bank_item.call(this, orig_func, ...args);
 		state.item_slider_value = 1;
 	}
 
@@ -4513,7 +4644,7 @@ function patch_bank_actions() {
 
 	const orig_set_item = $bank_item_menu.setItem;
 	$bank_item_menu.setItem = function(...args) {
-		update_bank_item.call(this, orig_set_item, ...args);
+		reset_bank_action_item.call(this, orig_set_item, ...args);
 	}
 
 	// detect data page open
@@ -4686,6 +4817,9 @@ function activate_multiplayer_identity(response) {
 	economy_commands_ready = false;
 	const generation = session_generation;
 	const storage_key = `pending_economy_command:${response.chat.client_id}`;
+	const pending_economy_command = get_instance_storage_item(storage_key);
+	if (is_charity_wish_endpoint(pending_economy_command?.endpoint))
+		remove_instance_storage_item(storage_key);
 	economy_command_journal = economy_command_module.create_economy_command_journal({
 		read: () => get_instance_storage_item(storage_key),
 		write: value => set_instance_storage_item(storage_key, value),
@@ -4743,7 +4877,7 @@ function activate_multiplayer_identity(response) {
 	start_gp_sampling(true);
 	start_status_observer();
 	start_client_event_polling(true);
-	void refresh_guild_state();
+	void refresh_guild_state().then(() => request_charity_tree_contents());
 	void raid_combat?.flush();
 	void refresh_raid_state();
 	void refresh_identities();

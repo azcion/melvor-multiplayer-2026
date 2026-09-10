@@ -1,0 +1,5713 @@
+[
+  {
+    "id": "melvorAoD:Torn_Parchment",
+    "name": "Torn Parchment",
+    "chest_value": 2,
+    "chest_currency": "GP",
+    "max_item_value": 100,
+    "items": [
+      {
+        "id": "melvorAoD:Paper",
+        "name": "Paper",
+        "max_count": 100,
+        "item_value": 1,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorAoD:Stack_Of_Small_Bones",
+    "name": "Stack of Small Bones",
+    "chest_value": 10,
+    "chest_currency": "GP",
+    "max_item_value": 100,
+    "items": [
+      {
+        "id": "melvorD:Bones",
+        "name": "Bones",
+        "max_count": 20,
+        "item_value": 5,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorTotH:Exotic_Herb_Sack",
+    "name": "Exotic Herb Sack",
+    "chest_value": 20,
+    "chest_currency": "GP",
+    "max_item_value": 1200,
+    "items": [
+      {
+        "id": "melvorTotH:Snowcress_Seeds",
+        "name": "Snowcress Seeds",
+        "max_count": 1,
+        "item_value": 600,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Bitterlyme_Seeds",
+        "name": "Bitterlyme Seeds",
+        "max_count": 1,
+        "item_value": 725,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Moonwort_Seeds",
+        "name": "Moonwort Seeds",
+        "max_count": 1,
+        "item_value": 950,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Wurmtayle_Seeds",
+        "name": "Wurmtayle Seeds",
+        "max_count": 1,
+        "item_value": 1200,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Herb_Sack",
+    "name": "Herb Sack",
+    "chest_value": 20,
+    "chest_currency": "GP",
+    "max_item_value": 2250,
+    "items": [
+      {
+        "id": "melvorD:Garum_Seed",
+        "name": "Garum Seeds",
+        "max_count": 5,
+        "item_value": 3,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Sourweed_Seed",
+        "name": "Sourweed Seeds",
+        "max_count": 5,
+        "item_value": 20,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mantalyme_Seed",
+        "name": "Mantalyme Seeds",
+        "max_count": 5,
+        "item_value": 62,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Lemontyle_Seed",
+        "name": "Lemontyle Seeds",
+        "max_count": 5,
+        "item_value": 88,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Oxilyme_Seed",
+        "name": "Oxilyme Seeds",
+        "max_count": 5,
+        "item_value": 140,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Poraxx_Seed",
+        "name": "Poraxx Seeds",
+        "max_count": 5,
+        "item_value": 190,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Pigtayle_Seed",
+        "name": "Pigtayle Seeds",
+        "max_count": 5,
+        "item_value": 222,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Barrentoe_Seed",
+        "name": "Barrentoe Seeds",
+        "max_count": 5,
+        "item_value": 450,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorD:Egg_Chest",
+    "name": "Egg Chest",
+    "chest_value": 50,
+    "chest_currency": "GP",
+    "max_item_value": 2000,
+    "items": [
+      {
+        "id": "melvorD:Feathers",
+        "name": "Feathers",
+        "max_count": 1000,
+        "item_value": 2,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Raw_Chicken",
+        "name": "Raw Chicken",
+        "max_count": 40,
+        "item_value": 1,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorAoD:Old_Pirate_Treasure_Map",
+    "name": "Old Pirate Treasure Chart",
+    "chest_value": 60,
+    "chest_currency": "GP",
+    "max_item_value": 20000,
+    "items": [
+      {
+        "id": "melvorD:Treasure_Chest",
+        "name": "Treasure Chest",
+        "max_count": 1,
+        "item_value": 500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Old_Pirate_Treasure",
+        "name": "Old Pirate Treasure",
+        "max_count": 1,
+        "item_value": 20000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorAoD:Bag_of_Coal",
+    "name": "Bag of Coal",
+    "chest_value": 100,
+    "chest_currency": "GP",
+    "max_item_value": 1300,
+    "items": [
+      {
+        "id": "melvorD:Coal_Ore",
+        "name": "Coal Ore",
+        "max_count": 100,
+        "item_value": 13,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorD:Bandit_Chest",
+    "name": "Bandit Chest",
+    "chest_value": 100,
+    "chest_currency": "GP",
+    "max_item_value": 150000,
+    "items": [
+      {
+        "id": "melvorD:Steel_Arrows",
+        "name": "Steel Arrows",
+        "max_count": 100,
+        "item_value": 3,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mithril_Arrows",
+        "name": "Mithril Arrows",
+        "max_count": 100,
+        "item_value": 8,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Adamant_Arrows",
+        "name": "Adamant Arrows",
+        "max_count": 100,
+        "item_value": 10,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Rune_Arrows",
+        "name": "Rune Arrows",
+        "max_count": 100,
+        "item_value": 30,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Dragon_Arrows",
+        "name": "Dragon Arrows",
+        "max_count": 100,
+        "item_value": 45,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Maple_Longbow",
+        "name": "Maple Longbow",
+        "max_count": 1,
+        "item_value": 40,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Magic_Longbow",
+        "name": "Magic Longbow",
+        "max_count": 1,
+        "item_value": 315,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Redwood_Longbow",
+        "name": "Redwood Longbow",
+        "max_count": 1,
+        "item_value": 20,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ancient_Longbow",
+        "name": "Ancient Longbow",
+        "max_count": 1,
+        "item_value": 150000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorAoD:Old_Carriage",
+    "name": "Old Carriage",
+    "chest_value": 100,
+    "chest_currency": "GP",
+    "max_item_value": 42500,
+    "items": [
+      {
+        "id": "melvorD:Leather",
+        "name": "Leather",
+        "max_count": 50,
+        "item_value": 50,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Green_Dragonhide",
+        "name": "Green Dragonhide",
+        "max_count": 50,
+        "item_value": 200,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Red_Dragonhide",
+        "name": "Red Dragonhide",
+        "max_count": 50,
+        "item_value": 400,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Blue_Dragonhide",
+        "name": "Blue Dragonhide",
+        "max_count": 50,
+        "item_value": 300,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Black_Dragonhide",
+        "name": "Black Dragonhide",
+        "max_count": 50,
+        "item_value": 850,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Normal_Logs",
+        "name": "Normal Logs",
+        "max_count": 50,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Willow_Logs",
+        "name": "Willow Logs",
+        "max_count": 50,
+        "item_value": 10,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Maple_Logs",
+        "name": "Maple Logs",
+        "max_count": 50,
+        "item_value": 35,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Yew_Logs",
+        "name": "Yew Logs",
+        "max_count": 50,
+        "item_value": 75,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Redwood_Logs",
+        "name": "Redwood Logs",
+        "max_count": 50,
+        "item_value": 25,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Melee_Strength_Potion_III",
+        "name": "Melee Strength Potion III",
+        "max_count": 100,
+        "item_value": 260,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Magic_Damage_Potion_III",
+        "name": "Magic Damage Potion III",
+        "max_count": 100,
+        "item_value": 210,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Ranged_Strength_Potion_III",
+        "name": "Ranged Strength Potion III",
+        "max_count": 100,
+        "item_value": 147,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Divine_Potion_III",
+        "name": "Divine Potion III",
+        "max_count": 100,
+        "item_value": 93,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorD:Standard_Chest",
+    "name": "Standard Chest",
+    "chest_value": 100,
+    "chest_currency": "GP",
+    "max_item_value": 100000,
+    "items": [
+      {
+        "id": "melvorD:Coal_Ore",
+        "name": "Coal Ore",
+        "max_count": 50,
+        "item_value": 13,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Potato_Seed",
+        "name": "Potato Seeds",
+        "max_count": 20,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Onion_Seed",
+        "name": "Onion Seeds",
+        "max_count": 20,
+        "item_value": 5,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Cabbage_Seed",
+        "name": "Cabbage Seeds",
+        "max_count": 20,
+        "item_value": 10,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Tomato_Seed",
+        "name": "Tomato Seeds",
+        "max_count": 20,
+        "item_value": 20,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Oak_Tree_Seed",
+        "name": "Oak Tree Seeds",
+        "max_count": 20,
+        "item_value": 400,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Maple_Tree_Seed",
+        "name": "Maple Tree Seeds",
+        "max_count": 5,
+        "item_value": 1250,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Yew_Tree_Seed",
+        "name": "Yew Tree Seeds",
+        "max_count": 5,
+        "item_value": 2500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Silver_Ore",
+        "name": "Silver Ore",
+        "max_count": 20,
+        "item_value": 25,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Gold_Ore",
+        "name": "Gold Ore",
+        "max_count": 20,
+        "item_value": 30,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mithril_Battleaxe",
+        "name": "Mithril Battleaxe",
+        "max_count": 1,
+        "item_value": 179,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mithril_Sword",
+        "name": "Mithril Sword",
+        "max_count": 1,
+        "item_value": 68,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mithril_Platebody",
+        "name": "Mithril Platebody",
+        "max_count": 1,
+        "item_value": 280,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mithril_Shield",
+        "name": "Mithril Shield",
+        "max_count": 1,
+        "item_value": 145,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Adamant_Battleaxe",
+        "name": "Adamant Battleaxe",
+        "max_count": 1,
+        "item_value": 242,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Adamant_Sword",
+        "name": "Adamant Sword",
+        "max_count": 1,
+        "item_value": 85,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Adamant_Platebody",
+        "name": "Adamant Platebody",
+        "max_count": 1,
+        "item_value": 432,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Adamant_Shield",
+        "name": "Adamant Shield",
+        "max_count": 1,
+        "item_value": 185,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Elite_Amulet_of_Defence",
+        "name": "Elite Amulet of Defence",
+        "max_count": 1,
+        "item_value": 100000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Bone_Necklace",
+        "name": "Bone Necklace",
+        "max_count": 1,
+        "item_value": 2500,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorAoD:Trader_Crate",
+    "name": "Trader Crate",
+    "chest_value": 100,
+    "chest_currency": "GP",
+    "max_item_value": 16500,
+    "items": [
+      {
+        "id": "melvorD:Sourweed_Herb",
+        "name": "Sourweed Herb",
+        "max_count": 50,
+        "item_value": 9,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Lemontyle_Herb",
+        "name": "Lemontyle Herb",
+        "max_count": 50,
+        "item_value": 40,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Poraxx_Herb",
+        "name": "Poraxx Herb",
+        "max_count": 50,
+        "item_value": 150,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Barrentoe_Herb",
+        "name": "Barrentoe Herb",
+        "max_count": 50,
+        "item_value": 330,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Feathers",
+        "name": "Feathers",
+        "max_count": 100,
+        "item_value": 2,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Bowstring",
+        "name": "Bowstring",
+        "max_count": 100,
+        "item_value": 7,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Leather",
+        "name": "Leather",
+        "max_count": 100,
+        "item_value": 50,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Crate_Of_Food",
+    "name": "Crate of Food",
+    "chest_value": 160,
+    "chest_currency": "GP",
+    "max_item_value": 2800,
+    "items": [
+      {
+        "id": "melvorD:Potatoes",
+        "name": "Potatoes",
+        "max_count": 100,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Onions",
+        "name": "Onions",
+        "max_count": 100,
+        "item_value": 2,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Cabbage",
+        "name": "Cabbage",
+        "max_count": 100,
+        "item_value": 5,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Tomatoes",
+        "name": "Tomatoes",
+        "max_count": 100,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Sweetcorn",
+        "name": "Sweetcorn",
+        "max_count": 100,
+        "item_value": 8,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Strawberries",
+        "name": "Strawberries",
+        "max_count": 100,
+        "item_value": 10,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Cherry",
+        "name": "Cherry",
+        "max_count": 100,
+        "item_value": 12,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Watermelon",
+        "name": "Watermelons",
+        "max_count": 100,
+        "item_value": 15,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Snape_Grass",
+        "name": "Snape Grass",
+        "max_count": 100,
+        "item_value": 23,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Carrot",
+        "name": "Carrot",
+        "max_count": 100,
+        "item_value": 28,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorAoD:Small_Lockbox",
+    "name": "Small Lockbox",
+    "chest_value": 180,
+    "chest_currency": "GP",
+    "max_item_value": 80000,
+    "items": [
+      {
+        "id": "melvorD:Amulet_of_Accuracy",
+        "name": "Amulet of Accuracy",
+        "max_count": 10,
+        "item_value": 1000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Amulet_of_Strength",
+        "name": "Amulet of Strength",
+        "max_count": 10,
+        "item_value": 1000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Amulet_of_Defence",
+        "name": "Amulet of Defence",
+        "max_count": 10,
+        "item_value": 1000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Amulet_of_Ranged",
+        "name": "Amulet of Ranged",
+        "max_count": 10,
+        "item_value": 8000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Amulet_of_Glory",
+        "name": "Amulet of Glory",
+        "max_count": 10,
+        "item_value": 2500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Gold_Diamond_Necklace",
+        "name": "Gold Diamond Necklace",
+        "max_count": 10,
+        "item_value": 830,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorAoD:Cursed_Rune_Pouch",
+    "name": "Cursed Rune Pouch",
+    "chest_value": 200,
+    "chest_currency": "GP",
+    "max_item_value": 1200,
+    "items": [
+      {
+        "id": "melvorD:Mind_Rune",
+        "name": "Mind Rune",
+        "max_count": 300,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Body_Rune",
+        "name": "Body Rune",
+        "max_count": 300,
+        "item_value": 2,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Chaos_Rune",
+        "name": "Chaos Rune",
+        "max_count": 300,
+        "item_value": 3,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Havoc_Rune",
+        "name": "Havoc Rune",
+        "max_count": 300,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Death_Rune",
+        "name": "Death Rune",
+        "max_count": 300,
+        "item_value": 4,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Blood_Rune",
+        "name": "Blood Rune",
+        "max_count": 300,
+        "item_value": 4,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorAoD:Toppled_Minecart",
+    "name": "Toppled Minecart",
+    "chest_value": 200,
+    "chest_currency": "GP",
+    "max_item_value": 40500,
+    "items": [
+      {
+        "id": "melvorD:Copper_Ore",
+        "name": "Copper Ore",
+        "max_count": 300,
+        "item_value": 2,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Tin_Ore",
+        "name": "Tin Ore",
+        "max_count": 300,
+        "item_value": 2,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Iron_Ore",
+        "name": "Iron Ore",
+        "max_count": 300,
+        "item_value": 5,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Coal_Ore",
+        "name": "Coal Ore",
+        "max_count": 300,
+        "item_value": 13,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Silver_Ore",
+        "name": "Silver Ore",
+        "max_count": 300,
+        "item_value": 25,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Gold_Ore",
+        "name": "Gold Ore",
+        "max_count": 300,
+        "item_value": 30,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mithril_Ore",
+        "name": "Mithril Ore",
+        "max_count": 300,
+        "item_value": 65,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Adamantite_Ore",
+        "name": "Adamantite Ore",
+        "max_count": 300,
+        "item_value": 88,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Runite_Ore",
+        "name": "Runite Ore",
+        "max_count": 300,
+        "item_value": 100,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Dragonite_Ore",
+        "name": "Dragonite Ore",
+        "max_count": 300,
+        "item_value": 135,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorTotH:Crate_of_Lost_Supplies",
+    "name": "Crate of Lost Supplies",
+    "chest_value": 300,
+    "chest_currency": "GP",
+    "max_item_value": 29775,
+    "items": [
+      {
+        "id": "melvorTotH:Lava_Fish",
+        "name": "Lava Fish",
+        "max_count": 5,
+        "item_value": 1200,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Salmon",
+        "name": "Salmon",
+        "max_count": 10,
+        "item_value": 58,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Corundum_Arrows",
+        "name": "Corundum Arrows",
+        "max_count": 25,
+        "item_value": 60,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Leather",
+        "name": "Leather",
+        "max_count": 10,
+        "item_value": 50,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Onyx_Bolts",
+        "name": "Onyx Bolts",
+        "max_count": 15,
+        "item_value": 1985,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Sandwich",
+        "name": "Sandwich",
+        "max_count": 1,
+        "item_value": 605,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Holy_Dust",
+        "name": "Holy Dust",
+        "max_count": 20,
+        "item_value": 45,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorAoD:Gold_Bar_Coffer",
+    "name": "Gold Bar Coffer",
+    "chest_value": 300,
+    "chest_currency": "GP",
+    "max_item_value": 2130,
+    "items": [
+      {
+        "id": "melvorD:Gold_Bar",
+        "name": "Gold Bar",
+        "max_count": 15,
+        "item_value": 142,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorTotH:Golden_Chest",
+    "name": "Golden Chest",
+    "chest_value": 300,
+    "chest_currency": "GP",
+    "max_item_value": 9700,
+    "items": [
+      {
+        "id": "melvorD:Silver_Bar",
+        "name": "Silver Bar",
+        "max_count": 10,
+        "item_value": 51,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Gold_Bar",
+        "name": "Gold Bar",
+        "max_count": 2,
+        "item_value": 142,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Corundumite_Bar",
+        "name": "Corundumite Bar",
+        "max_count": 1,
+        "item_value": 750,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Gold_Diamond_Necklace",
+        "name": "Gold Diamond Necklace",
+        "max_count": 1,
+        "item_value": 830,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Gold_Ruby_Necklace",
+        "name": "Gold Ruby Necklace",
+        "max_count": 1,
+        "item_value": 450,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Palladium_Onyx_Necklace",
+        "name": "Palladium Onyx Necklace",
+        "max_count": 1,
+        "item_value": 3850,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Iridium_Onyx_Ring",
+        "name": "Iridium Onyx Ring",
+        "max_count": 1,
+        "item_value": 3600,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Iridium_Runestone_Ring",
+        "name": "Iridium Runestone Ring",
+        "max_count": 1,
+        "item_value": 1400,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Iridium_Zephyte_Necklace",
+        "name": "Iridium Zephyte Necklace",
+        "max_count": 1,
+        "item_value": 9700,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorAoD:Old_Barrel",
+    "name": "Old Barrel",
+    "chest_value": 300,
+    "chest_currency": "GP",
+    "max_item_value": 7500,
+    "items": [
+      {
+        "id": "melvorAoD:Rotten_Fish",
+        "name": "Rotten Fish",
+        "max_count": 30,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Stale_Bread",
+        "name": "Stale Bread",
+        "max_count": 30,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Compost",
+        "name": "Compost",
+        "max_count": 30,
+        "item_value": 250,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorD:Bird_Nest",
+    "name": "Bird Nest",
+    "chest_value": 350,
+    "chest_currency": "GP",
+    "max_item_value": 10000,
+    "items": [
+      {
+        "id": "melvorD:Potato_Seed",
+        "name": "Potato Seeds",
+        "max_count": 1,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Onion_Seed",
+        "name": "Onion Seeds",
+        "max_count": 1,
+        "item_value": 5,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Cabbage_Seed",
+        "name": "Cabbage Seeds",
+        "max_count": 1,
+        "item_value": 10,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Tomato_Seed",
+        "name": "Tomato Seeds",
+        "max_count": 1,
+        "item_value": 20,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Sweetcorn_Seed",
+        "name": "Sweetcorn Seeds",
+        "max_count": 1,
+        "item_value": 30,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Strawberry_Seed",
+        "name": "Strawberry Seeds",
+        "max_count": 1,
+        "item_value": 40,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Cherry_Seeds",
+        "name": "Cherry Seeds",
+        "max_count": 1,
+        "item_value": 42,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Watermelon_Seed",
+        "name": "Watermelon Seeds",
+        "max_count": 1,
+        "item_value": 50,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Snape_Grass_Seed",
+        "name": "Snape Grass Seeds",
+        "max_count": 1,
+        "item_value": 75,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Carrot_Seeds",
+        "name": "Carrot Seeds",
+        "max_count": 1,
+        "item_value": 85,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Oak_Tree_Seed",
+        "name": "Oak Tree Seeds",
+        "max_count": 1,
+        "item_value": 400,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Willow_Tree_Seed",
+        "name": "Willow Tree Seeds",
+        "max_count": 1,
+        "item_value": 750,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Maple_Tree_Seed",
+        "name": "Maple Tree Seeds",
+        "max_count": 1,
+        "item_value": 1250,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Yew_Tree_Seed",
+        "name": "Yew Tree Seeds",
+        "max_count": 1,
+        "item_value": 2500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Magic_Tree_Seed",
+        "name": "Magic Tree Seeds",
+        "max_count": 1,
+        "item_value": 10000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorD:Chest_of_Witwix",
+    "name": "Chest of Witwix",
+    "chest_value": 350,
+    "chest_currency": "GP",
+    "max_item_value": 57500,
+    "items": [
+      {
+        "id": "melvorD:Topaz",
+        "name": "Topaz",
+        "max_count": 50,
+        "item_value": 225,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ruby",
+        "name": "Ruby",
+        "max_count": 50,
+        "item_value": 555,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Sapphire",
+        "name": "Sapphire",
+        "max_count": 50,
+        "item_value": 335,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Emerald",
+        "name": "Emerald",
+        "max_count": 50,
+        "item_value": 555,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Diamond",
+        "name": "Diamond",
+        "max_count": 50,
+        "item_value": 1150,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Amulet_of_Fury",
+        "name": "Amulet of Fury",
+        "max_count": 1,
+        "item_value": 15000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Miolite_Chest",
+    "name": "Miolite Chest",
+    "chest_value": 350,
+    "chest_currency": "GP",
+    "max_item_value": 6420,
+    "items": [
+      {
+        "id": "melvorF:Miolite_Boots",
+        "name": "Miolite Boots",
+        "max_count": 1,
+        "item_value": 950,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Miolite_Helmet",
+        "name": "Miolite Helmet",
+        "max_count": 1,
+        "item_value": 1050,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Miolite_Shield",
+        "name": "Miolite Shield",
+        "max_count": 1,
+        "item_value": 1250,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Miolite_Spore",
+        "name": "Miolite Spore",
+        "max_count": 1,
+        "item_value": 1275,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Miolite_Platelegs",
+        "name": "Miolite Platelegs",
+        "max_count": 1,
+        "item_value": 1300,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Miolite_Platebody",
+        "name": "Miolite Platebody",
+        "max_count": 1,
+        "item_value": 2600,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Miolite_Sceptre",
+        "name": "Miolite Sceptre",
+        "max_count": 1,
+        "item_value": 6420,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorD:Spider_Chest",
+    "name": "Spider Chest",
+    "chest_value": 350,
+    "chest_currency": "GP",
+    "max_item_value": 8000,
+    "items": [
+      {
+        "id": "melvorD:Mithril_Arrows",
+        "name": "Mithril Arrows",
+        "max_count": 200,
+        "item_value": 8,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Adamant_Arrows",
+        "name": "Adamant Arrows",
+        "max_count": 200,
+        "item_value": 10,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Rune_Arrows",
+        "name": "Rune Arrows",
+        "max_count": 100,
+        "item_value": 30,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Dragon_Arrows",
+        "name": "Dragon Arrows",
+        "max_count": 100,
+        "item_value": 45,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Leather_Cowl",
+        "name": "Leather Cowl",
+        "max_count": 1,
+        "item_value": 75,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Leather_Chaps",
+        "name": "Leather Chaps",
+        "max_count": 1,
+        "item_value": 75,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Leather_Boots",
+        "name": "Leather Boots",
+        "max_count": 1,
+        "item_value": 75,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Leather_Vambraces",
+        "name": "Leather Vambraces",
+        "max_count": 1,
+        "item_value": 75,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Green_Dhide_Body",
+        "name": "Green D-hide Body",
+        "max_count": 1,
+        "item_value": 600,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Green_Dhide_Chaps",
+        "name": "Green D-hide Chaps",
+        "max_count": 1,
+        "item_value": 400,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Green_Dhide_Vambraces",
+        "name": "Green D-hide Vambraces",
+        "max_count": 1,
+        "item_value": 200,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Amulet_of_Looting",
+        "name": "Amulet of Looting",
+        "max_count": 1,
+        "item_value": 780,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Blue_Dhide_Body",
+        "name": "Blue D-hide Body",
+        "max_count": 1,
+        "item_value": 900,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Blue_Dhide_Chaps",
+        "name": "Blue D-hide Chaps",
+        "max_count": 1,
+        "item_value": 600,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Blue_Dhide_Vambraces",
+        "name": "Blue D-hide Vambraces",
+        "max_count": 1,
+        "item_value": 300,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Red_Dhide_Body",
+        "name": "Red D-hide Body",
+        "max_count": 1,
+        "item_value": 1200,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Red_Dhide_Chaps",
+        "name": "Red D-hide Chaps",
+        "max_count": 1,
+        "item_value": 800,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Red_Dhide_Vambraces",
+        "name": "Red D-hide Vambraces",
+        "max_count": 1,
+        "item_value": 400,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Black_Dhide_Body",
+        "name": "Black D-hide Body",
+        "max_count": 1,
+        "item_value": 1500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Black_Dhide_Chaps",
+        "name": "Black D-hide Chaps",
+        "max_count": 1,
+        "item_value": 1000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Black_Dhide_Vambraces",
+        "name": "Black D-hide Vambraces",
+        "max_count": 1,
+        "item_value": 500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Rangers_Hat",
+        "name": "Ranger Hat",
+        "max_count": 1,
+        "item_value": 1250,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ranger_Boots",
+        "name": "Ranger Boots",
+        "max_count": 1,
+        "item_value": 1000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Amulet_of_Ranged",
+        "name": "Amulet of Ranged",
+        "max_count": 1,
+        "item_value": 8000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorD:Frozen_Chest",
+    "name": "Frozen Chest",
+    "chest_value": 400,
+    "chest_currency": "GP",
+    "max_item_value": 689,
+    "items": [
+      {
+        "id": "melvorD:Ice_Arrows",
+        "name": "Ice Arrows",
+        "max_count": 200,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ice_Shortbow",
+        "name": "Ice Shortbow",
+        "max_count": 1,
+        "item_value": 315,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ice_Longbow",
+        "name": "Ice Longbow",
+        "max_count": 1,
+        "item_value": 315,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ice_Dagger",
+        "name": "Ice Dagger",
+        "max_count": 1,
+        "item_value": 140,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ice_Sword",
+        "name": "Ice Sword",
+        "max_count": 1,
+        "item_value": 145,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ice_Battleaxe",
+        "name": "Ice Battleaxe",
+        "max_count": 1,
+        "item_value": 401,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ice_2h_Sword",
+        "name": "Ice 2H Sword",
+        "max_count": 1,
+        "item_value": 430,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ice_Helmet",
+        "name": "Ice Helmet",
+        "max_count": 1,
+        "item_value": 222,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ice_Boots",
+        "name": "Ice Boots",
+        "max_count": 1,
+        "item_value": 227,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ice_Shield",
+        "name": "Ice Shield",
+        "max_count": 1,
+        "item_value": 251,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ice_Platelegs",
+        "name": "Ice Platelegs",
+        "max_count": 1,
+        "item_value": 415,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ice_Platebody",
+        "name": "Ice Platebody",
+        "max_count": 1,
+        "item_value": 689,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorAoD:Stack_Of_Big_Bones",
+    "name": "Stack Of Big Bones",
+    "chest_value": 400,
+    "chest_currency": "GP",
+    "max_item_value": 260,
+    "items": [
+      {
+        "id": "melvorD:Big_Bones",
+        "name": "Big Bones",
+        "max_count": 20,
+        "item_value": 13,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorAoD:Golden_Crate",
+    "name": "Golden Crate",
+    "chest_value": 420,
+    "chest_currency": "GP",
+    "max_item_value": 6969,
+    "items": [
+      {
+        "id": "melvorD:Lemon",
+        "name": "Lemon",
+        "max_count": 69,
+        "item_value": 0,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Golden_Golbin_Statue",
+        "name": "Golden Golbin Statue",
+        "max_count": 1,
+        "item_value": 6969,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Pile_Of_Ores",
+    "name": "Pile of Ores",
+    "chest_value": 460,
+    "chest_currency": "GP",
+    "max_item_value": 13500,
+    "items": [
+      {
+        "id": "melvorD:Copper_Ore",
+        "name": "Copper Ore",
+        "max_count": 100,
+        "item_value": 2,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Tin_Ore",
+        "name": "Tin Ore",
+        "max_count": 100,
+        "item_value": 2,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Iron_Ore",
+        "name": "Iron Ore",
+        "max_count": 100,
+        "item_value": 5,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Coal_Ore",
+        "name": "Coal Ore",
+        "max_count": 100,
+        "item_value": 13,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Silver_Ore",
+        "name": "Silver Ore",
+        "max_count": 100,
+        "item_value": 25,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Gold_Ore",
+        "name": "Gold Ore",
+        "max_count": 100,
+        "item_value": 30,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mithril_Ore",
+        "name": "Mithril Ore",
+        "max_count": 100,
+        "item_value": 65,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Adamantite_Ore",
+        "name": "Adamantite Ore",
+        "max_count": 100,
+        "item_value": 88,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Runite_Ore",
+        "name": "Runite Ore",
+        "max_count": 100,
+        "item_value": 100,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Dragonite_Ore",
+        "name": "Dragonite Ore",
+        "max_count": 100,
+        "item_value": 135,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Bar_Box_I",
+    "name": "Bar Box I",
+    "chest_value": 500,
+    "chest_currency": "GP",
+    "max_item_value": 5100,
+    "items": [
+      {
+        "id": "melvorD:Bronze_Bar",
+        "name": "Bronze Bar",
+        "max_count": 100,
+        "item_value": 6,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Iron_Bar",
+        "name": "Iron Bar",
+        "max_count": 100,
+        "item_value": 12,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Steel_Bar",
+        "name": "Steel Bar",
+        "max_count": 100,
+        "item_value": 30,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Silver_Bar",
+        "name": "Silver Bar",
+        "max_count": 100,
+        "item_value": 51,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Crate_Of_Basic_Supplies",
+    "name": "Crate of Basic Supplies",
+    "chest_value": 500,
+    "chest_currency": "GP",
+    "max_item_value": 25000,
+    "items": [
+      {
+        "id": "melvorD:Bronze_Arrows",
+        "name": "Bronze Arrows",
+        "max_count": 200,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Iron_Arrows",
+        "name": "Iron Arrows",
+        "max_count": 200,
+        "item_value": 2,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Steel_Arrows",
+        "name": "Steel Arrows",
+        "max_count": 200,
+        "item_value": 3,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mithril_Arrows",
+        "name": "Mithril Arrows",
+        "max_count": 200,
+        "item_value": 8,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Bronze_Bar",
+        "name": "Bronze Bar",
+        "max_count": 200,
+        "item_value": 6,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Iron_Bar",
+        "name": "Iron Bar",
+        "max_count": 200,
+        "item_value": 12,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Steel_Bar",
+        "name": "Steel Bar",
+        "max_count": 200,
+        "item_value": 30,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mithril_Bar",
+        "name": "Mithril Bar",
+        "max_count": 200,
+        "item_value": 125,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Raw_Shrimp",
+        "name": "Raw Shrimp",
+        "max_count": 200,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Raw_Sardine",
+        "name": "Raw Sardine",
+        "max_count": 200,
+        "item_value": 3,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Raw_Herring",
+        "name": "Raw Herring",
+        "max_count": 200,
+        "item_value": 8,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Raw_Trout",
+        "name": "Raw Trout",
+        "max_count": 200,
+        "item_value": 16,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Food_Box_I",
+    "name": "Food Box I",
+    "chest_value": 500,
+    "chest_currency": "GP",
+    "max_item_value": 42000,
+    "items": [
+      {
+        "id": "melvorD:Shrimp",
+        "name": "Shrimp",
+        "max_count": 50,
+        "item_value": 2,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Beef",
+        "name": "Beef",
+        "max_count": 15,
+        "item_value": 5,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Chicken",
+        "name": "Chicken",
+        "max_count": 20,
+        "item_value": 8,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Salmon",
+        "name": "Salmon",
+        "max_count": 80,
+        "item_value": 58,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Lobster",
+        "name": "Lobster",
+        "max_count": 80,
+        "item_value": 108,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Swordfish",
+        "name": "Swordfish",
+        "max_count": 80,
+        "item_value": 134,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Crab",
+        "name": "Crab",
+        "max_count": 150,
+        "item_value": 280,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Bread",
+        "name": "Bread",
+        "max_count": 30,
+        "item_value": 5,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Plain_Pizza_Slice",
+        "name": "Plain Pizza Slice",
+        "max_count": 20,
+        "item_value": 2,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Basic_Soup",
+        "name": "Basic Soup",
+        "max_count": 40,
+        "item_value": 8,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Herb_Box_I",
+    "name": "Herb Box I",
+    "chest_value": 500,
+    "chest_currency": "GP",
+    "max_item_value": 3000,
+    "items": [
+      {
+        "id": "melvorD:Garum_Herb",
+        "name": "Garum Herb",
+        "max_count": 75,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Sourweed_Herb",
+        "name": "Sourweed Herb",
+        "max_count": 75,
+        "item_value": 9,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mantalyme_Herb",
+        "name": "Mantalyme Herb",
+        "max_count": 75,
+        "item_value": 20,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Lemontyle_Herb",
+        "name": "Lemontyle Herb",
+        "max_count": 75,
+        "item_value": 40,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Ore_Box_I",
+    "name": "Ore Box I",
+    "chest_value": 500,
+    "chest_currency": "GP",
+    "max_item_value": 3750,
+    "items": [
+      {
+        "id": "melvorD:Copper_Ore",
+        "name": "Copper Ore",
+        "max_count": 150,
+        "item_value": 2,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Tin_Ore",
+        "name": "Tin Ore",
+        "max_count": 150,
+        "item_value": 2,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Iron_Ore",
+        "name": "Iron Ore",
+        "max_count": 150,
+        "item_value": 5,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Silver_Ore",
+        "name": "Silver Ore",
+        "max_count": 150,
+        "item_value": 25,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Potion_Box_I",
+    "name": "Potion Box I",
+    "chest_value": 500,
+    "chest_currency": "GP",
+    "max_item_value": 20100,
+    "items": [
+      {
+        "id": "melvorF:Melee_Accuracy_Potion_I",
+        "name": "Melee Accuracy Potion I",
+        "max_count": 300,
+        "item_value": 2,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Ranged_Assistance_Potion_I",
+        "name": "Ranged Assistance Potion I",
+        "max_count": 300,
+        "item_value": 6,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Magic_Assistance_Potion_I",
+        "name": "Magic Assistance Potion I",
+        "max_count": 300,
+        "item_value": 30,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Famished_Potion_I",
+        "name": "Famished Potion I",
+        "max_count": 300,
+        "item_value": 42,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Bird_Nest_Potion_I",
+        "name": "Bird Nest Potion I",
+        "max_count": 300,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Controlled_Heat_Potion_I",
+        "name": "Controlled Heat Potion I",
+        "max_count": 300,
+        "item_value": 38,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Generous_Cook_Potion_I",
+        "name": "Generous Cook Potion I",
+        "max_count": 300,
+        "item_value": 58,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Fishermans_Potion_I",
+        "name": "Fishermans Potion I",
+        "max_count": 300,
+        "item_value": 60,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Fletching_Potion_I",
+        "name": "Skilled Fletching Potion I",
+        "max_count": 300,
+        "item_value": 67,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorD:Treasure_Chest",
+    "name": "Treasure Chest",
+    "chest_value": 500,
+    "chest_currency": "GP",
+    "max_item_value": 100000,
+    "items": [
+      {
+        "id": "melvorD:Old_Boot",
+        "name": "Old Boot",
+        "max_count": 1,
+        "item_value": 8,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Old_Hat",
+        "name": "Old Hat",
+        "max_count": 1,
+        "item_value": 8,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Seaweed",
+        "name": "Seaweed",
+        "max_count": 1,
+        "item_value": 8,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Rusty_Key",
+        "name": "Rusty Key",
+        "max_count": 1,
+        "item_value": 8,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Shell",
+        "name": "Shell",
+        "max_count": 1,
+        "item_value": 8,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Rope",
+        "name": "Rope",
+        "max_count": 1,
+        "item_value": 8,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Glass_Bottle",
+        "name": "Glass Bottle",
+        "max_count": 1,
+        "item_value": 8,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Rubber_Ducky",
+        "name": "Rubber Ducky",
+        "max_count": 1,
+        "item_value": 69,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Shark",
+        "name": "Shark",
+        "max_count": 8,
+        "item_value": 674,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Manta_Ray",
+        "name": "Manta Ray",
+        "max_count": 5,
+        "item_value": 1624,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Whale",
+        "name": "Whale",
+        "max_count": 5,
+        "item_value": 2048,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Steel_Bar",
+        "name": "Steel Bar",
+        "max_count": 15,
+        "item_value": 30,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mithril_Bar",
+        "name": "Mithril Bar",
+        "max_count": 10,
+        "item_value": 125,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Adamantite_Bar",
+        "name": "Adamantite Bar",
+        "max_count": 8,
+        "item_value": 178,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Runite_Bar",
+        "name": "Runite Bar",
+        "max_count": 5,
+        "item_value": 220,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Dragonite_Bar",
+        "name": "Dragonite Bar",
+        "max_count": 3,
+        "item_value": 605,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Amulet_of_Fishing",
+        "name": "Amulet of Fishing",
+        "max_count": 1,
+        "item_value": 100000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Undead_Enhancement_Scroll",
+    "name": "Undead Enhancement Scroll",
+    "chest_value": 500,
+    "chest_currency": "GP",
+    "max_item_value": 1500,
+    "items": [
+      {
+        "id": "melvorF:Undead_Enhancement_1",
+        "name": "Undead Enhancement 1",
+        "max_count": 1,
+        "item_value": 1500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Undead_Enhancement_2",
+        "name": "Undead Enhancement 2",
+        "max_count": 1,
+        "item_value": 1500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Undead_Enhancement_3",
+        "name": "Undead Enhancement 3",
+        "max_count": 1,
+        "item_value": 1500,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Wood_Box_I",
+    "name": "Wood Box I",
+    "chest_value": 500,
+    "chest_currency": "GP",
+    "max_item_value": 1600,
+    "items": [
+      {
+        "id": "melvorD:Normal_Logs",
+        "name": "Normal Logs",
+        "max_count": 80,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Oak_Logs",
+        "name": "Oak Logs",
+        "max_count": 80,
+        "item_value": 5,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Willow_Logs",
+        "name": "Willow Logs",
+        "max_count": 80,
+        "item_value": 10,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Teak_Logs",
+        "name": "Teak Logs",
+        "max_count": 80,
+        "item_value": 20,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorAoD:Bag_of_Shards",
+    "name": "Bag of Shards",
+    "chest_value": 600,
+    "chest_currency": "GP",
+    "max_item_value": 45000,
+    "items": [
+      {
+        "id": "melvorF:Summoning_Shard_Black",
+        "name": "Summoning Shard (Black)",
+        "max_count": 300,
+        "item_value": 150,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Summoning_Shard_Blue",
+        "name": "Summoning Shard (Blue)",
+        "max_count": 300,
+        "item_value": 100,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Summoning_Shard_Gold",
+        "name": "Summoning Shard (Gold)",
+        "max_count": 300,
+        "item_value": 150,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Summoning_Shard_Green",
+        "name": "Summoning Shard (Green)",
+        "max_count": 300,
+        "item_value": 50,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Summoning_Shard_Red",
+        "name": "Summoning Shard (Red)",
+        "max_count": 300,
+        "item_value": 50,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Summoning_Shard_Silver",
+        "name": "Summoning Shard (Silver)",
+        "max_count": 300,
+        "item_value": 100,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Elder_Chest",
+    "name": "Elder Chest",
+    "chest_value": 800,
+    "chest_currency": "GP",
+    "max_item_value": 500000,
+    "items": [
+      {
+        "id": "melvorF:Elder_Dragonhide",
+        "name": "Elder Dragonhide",
+        "max_count": 15,
+        "item_value": 2500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Ancient_Dhide_Vambraces",
+        "name": "Ancient D-hide Vambraces",
+        "max_count": 1,
+        "item_value": 30000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Ancient_Dhide_Chaps",
+        "name": "Ancient D-hide Chaps",
+        "max_count": 1,
+        "item_value": 30000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Ancient_Dhide_Shield",
+        "name": "Ancient D-hide Shield",
+        "max_count": 1,
+        "item_value": 30000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Ancient_Dhide_Body",
+        "name": "Ancient D-hide Body",
+        "max_count": 1,
+        "item_value": 30000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Twin_Exiles",
+        "name": "Twin Exiles",
+        "max_count": 1,
+        "item_value": 225000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Ancient_Crossbow",
+        "name": "Ancient Crossbow",
+        "max_count": 1,
+        "item_value": 500000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorD:Generous_Fire_Spirit",
+    "name": "Generous Fire Spirit",
+    "chest_value": 800,
+    "chest_currency": "GP",
+    "max_item_value": 12000,
+    "items": [
+      {
+        "id": "melvorD:Burning_Amulet_of_Ash",
+        "name": "Burning Amulet of Ash",
+        "max_count": 1,
+        "item_value": 12000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Burning_Amulet_of_Stardust",
+        "name": "Burning Amulet of Stardust",
+        "max_count": 1,
+        "item_value": 12000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Burning_Amulet_of_Gold",
+        "name": "Burning Amulet of Gold",
+        "max_count": 1,
+        "item_value": 12000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Burning_Amulet_of_XP",
+        "name": "Burning Amulet of XP",
+        "max_count": 1,
+        "item_value": 12000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Pile_Of_Logs",
+    "name": "Pile of Logs",
+    "chest_value": 980,
+    "chest_currency": "GP",
+    "max_item_value": 40000,
+    "items": [
+      {
+        "id": "melvorD:Normal_Logs",
+        "name": "Normal Logs",
+        "max_count": 100,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Oak_Logs",
+        "name": "Oak Logs",
+        "max_count": 100,
+        "item_value": 5,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Willow_Logs",
+        "name": "Willow Logs",
+        "max_count": 100,
+        "item_value": 10,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Teak_Logs",
+        "name": "Teak Logs",
+        "max_count": 100,
+        "item_value": 20,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Maple_Logs",
+        "name": "Maple Logs",
+        "max_count": 100,
+        "item_value": 35,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mahogany_Logs",
+        "name": "Mahogany Logs",
+        "max_count": 100,
+        "item_value": 50,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Yew_Logs",
+        "name": "Yew Logs",
+        "max_count": 100,
+        "item_value": 75,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Magic_Logs",
+        "name": "Magic Logs",
+        "max_count": 100,
+        "item_value": 400,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Redwood_Logs",
+        "name": "Redwood Logs",
+        "max_count": 100,
+        "item_value": 25,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Bar_Box_II",
+    "name": "Bar Box II",
+    "chest_value": 1000,
+    "chest_currency": "GP",
+    "max_item_value": 27225,
+    "items": [
+      {
+        "id": "melvorD:Gold_Bar",
+        "name": "Gold Bar",
+        "max_count": 45,
+        "item_value": 142,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mithril_Bar",
+        "name": "Mithril Bar",
+        "max_count": 45,
+        "item_value": 125,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Adamantite_Bar",
+        "name": "Adamantite Bar",
+        "max_count": 45,
+        "item_value": 178,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Runite_Bar",
+        "name": "Runite Bar",
+        "max_count": 45,
+        "item_value": 220,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Dragonite_Bar",
+        "name": "Dragonite Bar",
+        "max_count": 45,
+        "item_value": 605,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorD:Elite_Chest",
+    "name": "Elite Chest",
+    "chest_value": 1000,
+    "chest_currency": "GP",
+    "max_item_value": 250000,
+    "items": [
+      {
+        "id": "melvorD:Silver_Bar",
+        "name": "Silver Bar",
+        "max_count": 200,
+        "item_value": 51,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Gold_Bar",
+        "name": "Gold Bar",
+        "max_count": 200,
+        "item_value": 142,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mithril_Bar",
+        "name": "Mithril Bar",
+        "max_count": 100,
+        "item_value": 125,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Adamantite_Bar",
+        "name": "Adamantite Bar",
+        "max_count": 100,
+        "item_value": 178,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Runite_Bar",
+        "name": "Runite Bar",
+        "max_count": 100,
+        "item_value": 220,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Dragonite_Bar",
+        "name": "Dragonite Bar",
+        "max_count": 100,
+        "item_value": 605,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Topaz",
+        "name": "Topaz",
+        "max_count": 100,
+        "item_value": 225,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Sapphire",
+        "name": "Sapphire",
+        "max_count": 100,
+        "item_value": 335,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ruby",
+        "name": "Ruby",
+        "max_count": 100,
+        "item_value": 555,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Emerald",
+        "name": "Emerald",
+        "max_count": 100,
+        "item_value": 555,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Diamond",
+        "name": "Diamond",
+        "max_count": 100,
+        "item_value": 1150,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Red_Dhide_Body",
+        "name": "Red D-hide Body",
+        "max_count": 1,
+        "item_value": 1200,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Red_Dhide_Vambraces",
+        "name": "Red D-hide Vambraces",
+        "max_count": 1,
+        "item_value": 400,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Red_Dhide_Chaps",
+        "name": "Red D-hide Chaps",
+        "max_count": 1,
+        "item_value": 800,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Black_Dhide_Body",
+        "name": "Black D-hide Body",
+        "max_count": 1,
+        "item_value": 1500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Black_Dhide_Vambraces",
+        "name": "Black D-hide Vambraces",
+        "max_count": 1,
+        "item_value": 500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Black_Dhide_Chaps",
+        "name": "Black D-hide Chaps",
+        "max_count": 1,
+        "item_value": 1000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Adamant_Platebody",
+        "name": "Adamant Platebody",
+        "max_count": 1,
+        "item_value": 432,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Rune_Platelegs",
+        "name": "Rune Platelegs",
+        "max_count": 1,
+        "item_value": 415,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Rune_Platebody",
+        "name": "Rune Platebody",
+        "max_count": 1,
+        "item_value": 689,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Cape_Of_Prat",
+        "name": "Cape of Prat",
+        "max_count": 1,
+        "item_value": 250000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Amulet_of_Fury",
+        "name": "Amulet of Fury",
+        "max_count": 1,
+        "item_value": 15000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Dragon_Platelegs",
+        "name": "Dragon Platelegs",
+        "max_count": 1,
+        "item_value": 2275,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Dragon_Platebody",
+        "name": "Dragon Platebody",
+        "max_count": 1,
+        "item_value": 3450,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ancient_Shield",
+        "name": "Ancient Shield",
+        "max_count": 1,
+        "item_value": 250000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ancient_Helmet",
+        "name": "Ancient Helmet",
+        "max_count": 1,
+        "item_value": 250000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ancient_Platelegs",
+        "name": "Ancient Platelegs",
+        "max_count": 1,
+        "item_value": 250000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ancient_Platebody",
+        "name": "Ancient Platebody",
+        "max_count": 1,
+        "item_value": 250000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Food_Box_II",
+    "name": "Food Box II",
+    "chest_value": 1000,
+    "chest_currency": "GP",
+    "max_item_value": 122880,
+    "items": [
+      {
+        "id": "melvorD:Shark",
+        "name": "Shark",
+        "max_count": 60,
+        "item_value": 674,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Cave_Fish",
+        "name": "Cave Fish",
+        "max_count": 60,
+        "item_value": 538,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Manta_Ray",
+        "name": "Manta Ray",
+        "max_count": 60,
+        "item_value": 1624,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Whale",
+        "name": "Whale",
+        "max_count": 60,
+        "item_value": 2048,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Meat_Pizza_Slice",
+        "name": "Meat Pizza Slice",
+        "max_count": 8,
+        "item_value": 4,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Cherry_Cupcake",
+        "name": "Cherry Cupcake",
+        "max_count": 5,
+        "item_value": 78,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Strawberry_Cupcake",
+        "name": "Strawberry Cupcake",
+        "max_count": 5,
+        "item_value": 42,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Hearty_Soup",
+        "name": "Hearty Soup",
+        "max_count": 10,
+        "item_value": 22,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Herb_Box_II",
+    "name": "Herb Box II",
+    "chest_value": 1000,
+    "chest_currency": "GP",
+    "max_item_value": 24750,
+    "items": [
+      {
+        "id": "melvorD:Oxilyme_Herb",
+        "name": "Oxilyme Herb",
+        "max_count": 75,
+        "item_value": 80,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Poraxx_Herb",
+        "name": "Poraxx Herb",
+        "max_count": 75,
+        "item_value": 150,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Pigtayle_Herb",
+        "name": "Pigtayle Herb",
+        "max_count": 75,
+        "item_value": 210,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Barrentoe_Herb",
+        "name": "Barrentoe Herb",
+        "max_count": 75,
+        "item_value": 330,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorD:Magic_Chest",
+    "name": "Magic Chest",
+    "chest_value": 1000,
+    "chest_currency": "GP",
+    "max_item_value": 375000,
+    "items": [
+      {
+        "id": "melvorD:Air_Rune",
+        "name": "Air Rune",
+        "max_count": 100,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Water_Rune",
+        "name": "Water Rune",
+        "max_count": 100,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Earth_Rune",
+        "name": "Earth Rune",
+        "max_count": 100,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Fire_Rune",
+        "name": "Fire Rune",
+        "max_count": 100,
+        "item_value": 2,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Chaos_Rune",
+        "name": "Chaos Rune",
+        "max_count": 50,
+        "item_value": 3,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Death_Rune",
+        "name": "Death Rune",
+        "max_count": 50,
+        "item_value": 4,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ancient_Rune",
+        "name": "Ancient Rune",
+        "max_count": 10,
+        "item_value": 5,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Blue_Wizard_Hat",
+        "name": "Blue Wizard Hat",
+        "max_count": 1,
+        "item_value": 100,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Blue_Wizard_Robes",
+        "name": "Blue Wizard Robes",
+        "max_count": 1,
+        "item_value": 100,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Blue_Wizard_Bottoms",
+        "name": "Blue Wizard Bottoms",
+        "max_count": 1,
+        "item_value": 100,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Blue_Wizard_Boots",
+        "name": "Blue Wizard Boots",
+        "max_count": 1,
+        "item_value": 100,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Red_Wizard_Hat",
+        "name": "Red Wizard Hat",
+        "max_count": 1,
+        "item_value": 250,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Red_Wizard_Robes",
+        "name": "Red Wizard Robes",
+        "max_count": 1,
+        "item_value": 250,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Red_Wizard_Bottoms",
+        "name": "Red Wizard Bottoms",
+        "max_count": 1,
+        "item_value": 250,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Red_Wizard_Boots",
+        "name": "Red Wizard Boots",
+        "max_count": 1,
+        "item_value": 250,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Air_Battlestaff",
+        "name": "Air Battlestaff",
+        "max_count": 1,
+        "item_value": 560,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Water_Battlestaff",
+        "name": "Water Battlestaff",
+        "max_count": 1,
+        "item_value": 630,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mystic_Air_Staff",
+        "name": "Mystic Air Staff",
+        "max_count": 1,
+        "item_value": 6300,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Book_of_Eli",
+        "name": "Book of Eli",
+        "max_count": 1,
+        "item_value": 150000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ancient_Wizard_Hat",
+        "name": "Ancient Wizard Hat",
+        "max_count": 1,
+        "item_value": 100000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ancient_Wizard_Robes",
+        "name": "Ancient Wizard Robes",
+        "max_count": 1,
+        "item_value": 375000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ancient_Wizard_Bottoms",
+        "name": "Ancient Wizard Bottoms",
+        "max_count": 1,
+        "item_value": 225000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ancient_Wizard_Boots",
+        "name": "Ancient Wizard Boots",
+        "max_count": 1,
+        "item_value": 50000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Light_Rune",
+        "name": "Light Rune",
+        "max_count": 100,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mist_Rune",
+        "name": "Mist Rune",
+        "max_count": 100,
+        "item_value": 8,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Dust_Rune",
+        "name": "Dust Rune",
+        "max_count": 100,
+        "item_value": 9,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Smoke_Rune",
+        "name": "Smoke Rune",
+        "max_count": 100,
+        "item_value": 11,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Blood_Rune",
+        "name": "Blood Rune",
+        "max_count": 100,
+        "item_value": 4,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Magic_Enhancement_Scroll",
+    "name": "Magic Enhancement Scroll",
+    "chest_value": 1000,
+    "chest_currency": "GP",
+    "max_item_value": 2000,
+    "items": [
+      {
+        "id": "melvorF:Magic_Enhancement_1",
+        "name": "Magic Enhancement 1",
+        "max_count": 1,
+        "item_value": 2000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Magic_Enhancement_2",
+        "name": "Magic Enhancement 2",
+        "max_count": 1,
+        "item_value": 2000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Magic_Enhancement_3",
+        "name": "Magic Enhancement 3",
+        "max_count": 1,
+        "item_value": 2000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Ore_Box_II",
+    "name": "Ore Box II",
+    "chest_value": 1000,
+    "chest_currency": "GP",
+    "max_item_value": 4725,
+    "items": [
+      {
+        "id": "melvorD:Gold_Ore",
+        "name": "Gold Ore",
+        "max_count": 35,
+        "item_value": 30,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mithril_Ore",
+        "name": "Mithril Ore",
+        "max_count": 35,
+        "item_value": 65,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Adamantite_Ore",
+        "name": "Adamantite Ore",
+        "max_count": 35,
+        "item_value": 88,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Runite_Ore",
+        "name": "Runite Ore",
+        "max_count": 35,
+        "item_value": 100,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Dragonite_Ore",
+        "name": "Dragonite Ore",
+        "max_count": 35,
+        "item_value": 135,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorD:Pirate_Booty",
+    "name": "Pirate Booty",
+    "chest_value": 1000,
+    "chest_currency": "GP",
+    "max_item_value": 150000,
+    "items": [
+      {
+        "id": "melvorD:Silver_Bar",
+        "name": "Silver Bar",
+        "max_count": 50,
+        "item_value": 51,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Gold_Bar",
+        "name": "Gold Bar",
+        "max_count": 50,
+        "item_value": 142,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mithril_Bar",
+        "name": "Mithril Bar",
+        "max_count": 25,
+        "item_value": 125,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Adamantite_Bar",
+        "name": "Adamantite Bar",
+        "max_count": 25,
+        "item_value": 178,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Runite_Bar",
+        "name": "Runite Bar",
+        "max_count": 25,
+        "item_value": 220,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Dragonite_Bar",
+        "name": "Dragonite Bar",
+        "max_count": 10,
+        "item_value": 605,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Topaz",
+        "name": "Topaz",
+        "max_count": 30,
+        "item_value": 225,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Sapphire",
+        "name": "Sapphire",
+        "max_count": 25,
+        "item_value": 335,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ruby",
+        "name": "Ruby",
+        "max_count": 25,
+        "item_value": 555,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Emerald",
+        "name": "Emerald",
+        "max_count": 25,
+        "item_value": 555,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Diamond",
+        "name": "Diamond",
+        "max_count": 20,
+        "item_value": 1150,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Steel_Sword",
+        "name": "Steel Sword",
+        "max_count": 1,
+        "item_value": 10,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mithril_Sword",
+        "name": "Mithril Sword",
+        "max_count": 1,
+        "item_value": 68,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Adamant_Sword",
+        "name": "Adamant Sword",
+        "max_count": 1,
+        "item_value": 85,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Rune_Sword",
+        "name": "Rune Sword",
+        "max_count": 1,
+        "item_value": 145,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Sunset_Rapier",
+        "name": "Sunset Rapier",
+        "max_count": 1,
+        "item_value": 52000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Dragon_Sword",
+        "name": "Dragon Sword",
+        "max_count": 1,
+        "item_value": 665,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Amulet_of_Torture",
+        "name": "Amulet of Torture",
+        "max_count": 1,
+        "item_value": 10000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ancient_Sword",
+        "name": "Ancient Sword",
+        "max_count": 1,
+        "item_value": 150000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Potion_Box_II",
+    "name": "Potion Box II",
+    "chest_value": 1000,
+    "chest_currency": "GP",
+    "max_item_value": 660000,
+    "items": [
+      {
+        "id": "melvorF:Ranged_Strength_Potion_I",
+        "name": "Ranged Strength Potion I",
+        "max_count": 300,
+        "item_value": 120,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Melee_Strength_Potion_I",
+        "name": "Melee Strength Potion I",
+        "max_count": 300,
+        "item_value": 130,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Magic_Damage_Potion_I",
+        "name": "Magic Damage Potion I",
+        "max_count": 300,
+        "item_value": 140,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Diamond_Luck_Potion_I",
+        "name": "Diamond Luck Potion I",
+        "max_count": 300,
+        "item_value": 2200,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Damage_Reduction_Potion_I",
+        "name": "Damage Reduction Potion I",
+        "max_count": 300,
+        "item_value": 850,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Gentle_Hands_Potion_I",
+        "name": "Gentle Hands Potion I",
+        "max_count": 300,
+        "item_value": 57,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Secret_Stardust_Potion_I",
+        "name": "Secret Stardust Potion I",
+        "max_count": 300,
+        "item_value": 50,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Necromancer_Potion_I",
+        "name": "Necromancer Potion I",
+        "max_count": 300,
+        "item_value": 225,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Elemental_Potion_I",
+        "name": "Elemental Potion I",
+        "max_count": 300,
+        "item_value": 140,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Herblore_Potion_I",
+        "name": "Herblore Potion I",
+        "max_count": 300,
+        "item_value": 450,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Undead_Enhancement_Scroll_Augmented",
+    "name": "Undead Enhancement Scroll (Augmented)",
+    "chest_value": 1000,
+    "chest_currency": "GP",
+    "max_item_value": 3000,
+    "items": [
+      {
+        "id": "melvorF:Undead_Enhancement_1_Augmented",
+        "name": "Undead Enhancement 1 (Augmented)",
+        "max_count": 1,
+        "item_value": 3000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Undead_Enhancement_2_Augmented",
+        "name": "Undead Enhancement 2 (Augmented)",
+        "max_count": 1,
+        "item_value": 3000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Undead_Enhancement_3_Augmented",
+        "name": "Undead Enhancement 3 (Augmented)",
+        "max_count": 1,
+        "item_value": 3000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Wood_Box_II",
+    "name": "Wood Box II",
+    "chest_value": 1000,
+    "chest_currency": "GP",
+    "max_item_value": 7200,
+    "items": [
+      {
+        "id": "melvorD:Mahogany_Logs",
+        "name": "Mahogany Logs",
+        "max_count": 18,
+        "item_value": 50,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Yew_Logs",
+        "name": "Yew Logs",
+        "max_count": 18,
+        "item_value": 75,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Magic_Logs",
+        "name": "Magic Logs",
+        "max_count": 18,
+        "item_value": 400,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Redwood_Logs",
+        "name": "Redwood Logs",
+        "max_count": 18,
+        "item_value": 25,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Stack_Of_Bones",
+    "name": "Stack of Bones",
+    "chest_value": 1020,
+    "chest_currency": "GP",
+    "max_item_value": 30000,
+    "items": [
+      {
+        "id": "melvorD:Bones",
+        "name": "Bones",
+        "max_count": 100,
+        "item_value": 5,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Big_Bones",
+        "name": "Big Bones",
+        "max_count": 100,
+        "item_value": 13,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Dragon_Bones",
+        "name": "Dragon Bones",
+        "max_count": 100,
+        "item_value": 200,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Magic_Bones",
+        "name": "Magic Bones",
+        "max_count": 100,
+        "item_value": 300,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorTotH:Bar_Box_III",
+    "name": "Bar Box III",
+    "chest_value": 1500,
+    "chest_currency": "GP",
+    "max_item_value": 25000,
+    "items": [
+      {
+        "id": "melvorTotH:Corundumite_Bar",
+        "name": "Corundumite Bar",
+        "max_count": 20,
+        "item_value": 750,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Iridium_Bar",
+        "name": "Iridium Bar",
+        "max_count": 20,
+        "item_value": 900,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Palladium_Bar",
+        "name": "Palladium Bar",
+        "max_count": 20,
+        "item_value": 1100,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Augite_Bar",
+        "name": "Augite Bar",
+        "max_count": 20,
+        "item_value": 550,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Divinite_Bar",
+        "name": "Divinite Bar",
+        "max_count": 20,
+        "item_value": 1250,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Dragon_Enhancement_Scroll",
+    "name": "Dragon Enhancement Scroll",
+    "chest_value": 1500,
+    "chest_currency": "GP",
+    "max_item_value": 7500,
+    "items": [
+      {
+        "id": "melvorF:Dragon_Enhancement_1",
+        "name": "Dragon Enhancement 1",
+        "max_count": 1,
+        "item_value": 7500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Dragon_Enhancement_2",
+        "name": "Dragon Enhancement 2",
+        "max_count": 1,
+        "item_value": 7500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Dragon_Enhancement_3",
+        "name": "Dragon Enhancement 3",
+        "max_count": 1,
+        "item_value": 7500,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorTotH:Food_Box_III",
+    "name": "Food Box III",
+    "chest_value": 1500,
+    "chest_currency": "GP",
+    "max_item_value": 75000,
+    "items": [
+      {
+        "id": "melvorTotH:Lava_Fish",
+        "name": "Lava Fish",
+        "max_count": 2,
+        "item_value": 1200,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Blue_Crab",
+        "name": "Blue Crab",
+        "max_count": 2,
+        "item_value": 1461,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Static_Jellyfish",
+        "name": "Static Jellyfish",
+        "max_count": 2,
+        "item_value": 4500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Frost_Crab",
+        "name": "Frost Crab",
+        "max_count": 2,
+        "item_value": 1234,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Terrorfish",
+        "name": "Terrorfish",
+        "max_count": 2,
+        "item_value": 3000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Mystic_Shark",
+        "name": "Mystic Shark",
+        "max_count": 10,
+        "item_value": 7500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Banana_Bread",
+        "name": "Banana Bread",
+        "max_count": 10,
+        "item_value": 120,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Sandwich",
+        "name": "Sandwich",
+        "max_count": 5,
+        "item_value": 605,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Mushroom_Soup",
+        "name": "Mushroom Soup",
+        "max_count": 8,
+        "item_value": 150,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Chicken_Cream_Mushroom_Soup",
+        "name": "Chicken Cream Mushroom Soup",
+        "max_count": 5,
+        "item_value": 600,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorAoD:Golem_Chest",
+    "name": "Golem Chest",
+    "chest_value": 1500,
+    "chest_currency": "GP",
+    "max_item_value": 18900,
+    "items": [
+      {
+        "id": "melvorAoD:Imbued_Iron_Bar",
+        "name": "Imbued Iron Bar",
+        "max_count": 10,
+        "item_value": 12,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Imbued_Steel_Bar",
+        "name": "Imbued Steel Bar",
+        "max_count": 10,
+        "item_value": 30,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Imbued_Mithril_Bar",
+        "name": "Imbued Mithril Bar",
+        "max_count": 10,
+        "item_value": 125,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Imbued_Adamantite_Bar",
+        "name": "Imbued Adamantite Bar",
+        "max_count": 10,
+        "item_value": 178,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Imbued_Runite_Bar",
+        "name": "Imbued Runite Bar",
+        "max_count": 10,
+        "item_value": 220,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Rune_Claw",
+        "name": "Rune Claw",
+        "max_count": 1,
+        "item_value": 15000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Barrier_Pure_Shard",
+        "name": "Barrier Pure Shard",
+        "max_count": 6,
+        "item_value": 1000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Familiar_Longbow",
+        "name": "Familiar Longbow",
+        "max_count": 1,
+        "item_value": 15350,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Familiar_2H_Sword",
+        "name": "Familiar 2H Sword",
+        "max_count": 1,
+        "item_value": 18900,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Familiar_Staff",
+        "name": "Familiar Staff",
+        "max_count": 1,
+        "item_value": 8800,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Barrier_Sapping_Shield",
+        "name": "Barrier Sapping Shield",
+        "max_count": 1,
+        "item_value": 251,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Barrier_Hunter_Ring",
+        "name": "Barrier Hunter Ring",
+        "max_count": 1,
+        "item_value": 11200,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Barrier_Hunter_Amulet",
+        "name": "Barrier Hunter Amulet",
+        "max_count": 1,
+        "item_value": 11200,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Draining_Barrier_Gem",
+        "name": "Draining Barrier Gem",
+        "max_count": 6,
+        "item_value": 500,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorTotH:Herb_Box_III",
+    "name": "Herb Box III",
+    "chest_value": 1500,
+    "chest_currency": "GP",
+    "max_item_value": 69375,
+    "items": [
+      {
+        "id": "melvorTotH:Snowcress_Herb",
+        "name": "Snowcress Herb",
+        "max_count": 75,
+        "item_value": 425,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Bitterlyme_Herb",
+        "name": "Bitterlyme Herb",
+        "max_count": 75,
+        "item_value": 580,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Moonwort_Herb",
+        "name": "Moonwort Herb",
+        "max_count": 75,
+        "item_value": 775,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Wurmtayle_Herb",
+        "name": "Wurmtayle Herb",
+        "max_count": 75,
+        "item_value": 925,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Magic_Enhancement_Scroll_Augmented",
+    "name": "Magic Enhancement Scroll (Augmented)",
+    "chest_value": 1500,
+    "chest_currency": "GP",
+    "max_item_value": 6000,
+    "items": [
+      {
+        "id": "melvorF:Magic_Enhancement_1_Augmented",
+        "name": "Magic Enhancement 1 (Augmented)",
+        "max_count": 1,
+        "item_value": 6000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Magic_Enhancement_2_Augmented",
+        "name": "Magic Enhancement 2 (Augmented)",
+        "max_count": 1,
+        "item_value": 6000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Magic_Enhancement_3_Augmented",
+        "name": "Magic Enhancement 3 (Augmented)",
+        "max_count": 1,
+        "item_value": 6000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorTotH:Ore_Box_III",
+    "name": "Ore Box III",
+    "chest_value": 1500,
+    "chest_currency": "GP",
+    "max_item_value": 8625,
+    "items": [
+      {
+        "id": "melvorTotH:Corundumite_Ore",
+        "name": "Corundumite Ore",
+        "max_count": 15,
+        "item_value": 185,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Iridium_Ore",
+        "name": "Iridium Ore",
+        "max_count": 15,
+        "item_value": 240,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Palladium_Ore",
+        "name": "Palladium Ore",
+        "max_count": 15,
+        "item_value": 295,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Augite_Ore",
+        "name": "Augite Ore",
+        "max_count": 15,
+        "item_value": 400,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Divinite_Ore",
+        "name": "Divinite Ore",
+        "max_count": 15,
+        "item_value": 575,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorTotH:Potion_Box_III",
+    "name": "Potion Box III",
+    "chest_value": 1500,
+    "chest_currency": "GP",
+    "max_item_value": 825600,
+    "items": [
+      {
+        "id": "melvorTotH:Area_Control_Potion_I",
+        "name": "Area Control Potion I",
+        "max_count": 300,
+        "item_value": 628,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Slayer_Bounty_Potion_I",
+        "name": "Slayer Bounty Potion I",
+        "max_count": 300,
+        "item_value": 1430,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Holy_Bulwark_Potion_I",
+        "name": "Holy Bulwark Potion I",
+        "max_count": 300,
+        "item_value": 256,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Penetration_Potion_I",
+        "name": "Penetration Potion I",
+        "max_count": 300,
+        "item_value": 1275,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Alchemic_Practice_Potion_I",
+        "name": "Alchemic Practice Potion I",
+        "max_count": 300,
+        "item_value": 58,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Gem_Detector_Potion_I",
+        "name": "Gem Detector Potion I",
+        "max_count": 300,
+        "item_value": 2752,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Traps_Potion_I",
+        "name": "Traps Potion I",
+        "max_count": 300,
+        "item_value": 1052,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Enkindled_Yields_Potion_I",
+        "name": "Enkindled Yields Potion I",
+        "max_count": 300,
+        "item_value": 408,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorTotH:Wood_Box_III",
+    "name": "Wood Box III",
+    "chest_value": 1500,
+    "chest_currency": "GP",
+    "max_item_value": 16665,
+    "items": [
+      {
+        "id": "melvorTotH:Spruce_Logs",
+        "name": "Spruce Logs",
+        "max_count": 5,
+        "item_value": 500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Grove_Logs",
+        "name": "Grove Logs",
+        "max_count": 5,
+        "item_value": 400,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Elderwood_Logs",
+        "name": "Elderwood Logs",
+        "max_count": 5,
+        "item_value": 555,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Revenant_Logs",
+        "name": "Revenant Logs",
+        "max_count": 5,
+        "item_value": 1950,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Carrion_Logs",
+        "name": "Carrion Logs",
+        "max_count": 5,
+        "item_value": 3333,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorAoD:Golden_Flute",
+    "name": "Golden Flute",
+    "chest_value": 2222,
+    "chest_currency": "GP",
+    "max_item_value": 300000,
+    "items": [
+      {
+        "id": "melvorD:Potato_Seed",
+        "name": "Potato Seeds",
+        "max_count": 30,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Onion_Seed",
+        "name": "Onion Seeds",
+        "max_count": 30,
+        "item_value": 5,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Cabbage_Seed",
+        "name": "Cabbage Seeds",
+        "max_count": 30,
+        "item_value": 10,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Tomato_Seed",
+        "name": "Tomato Seeds",
+        "max_count": 30,
+        "item_value": 20,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Sweetcorn_Seed",
+        "name": "Sweetcorn Seeds",
+        "max_count": 30,
+        "item_value": 30,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Strawberry_Seed",
+        "name": "Strawberry Seeds",
+        "max_count": 50,
+        "item_value": 40,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Cherry_Seeds",
+        "name": "Cherry Seeds",
+        "max_count": 30,
+        "item_value": 42,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Watermelon_Seed",
+        "name": "Watermelon Seeds",
+        "max_count": 30,
+        "item_value": 50,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Snape_Grass_Seed",
+        "name": "Snape Grass Seeds",
+        "max_count": 30,
+        "item_value": 75,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Carrot_Seeds",
+        "name": "Carrot Seeds",
+        "max_count": 30,
+        "item_value": 85,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Garum_Seed",
+        "name": "Garum Seeds",
+        "max_count": 30,
+        "item_value": 3,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Sourweed_Seed",
+        "name": "Sourweed Seeds",
+        "max_count": 30,
+        "item_value": 20,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mantalyme_Seed",
+        "name": "Mantalyme Seeds",
+        "max_count": 30,
+        "item_value": 62,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Lemontyle_Seed",
+        "name": "Lemontyle Seeds",
+        "max_count": 30,
+        "item_value": 88,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Oxilyme_Seed",
+        "name": "Oxilyme Seeds",
+        "max_count": 30,
+        "item_value": 140,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Poraxx_Seed",
+        "name": "Poraxx Seeds",
+        "max_count": 30,
+        "item_value": 190,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Pigtayle_Seed",
+        "name": "Pigtayle Seeds",
+        "max_count": 30,
+        "item_value": 222,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Barrentoe_Seed",
+        "name": "Barrentoe Seeds",
+        "max_count": 30,
+        "item_value": 450,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Oak_Tree_Seed",
+        "name": "Oak Tree Seeds",
+        "max_count": 30,
+        "item_value": 400,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Willow_Tree_Seed",
+        "name": "Willow Tree Seeds",
+        "max_count": 30,
+        "item_value": 750,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Maple_Tree_Seed",
+        "name": "Maple Tree Seeds",
+        "max_count": 30,
+        "item_value": 1250,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Yew_Tree_Seed",
+        "name": "Yew Tree Seeds",
+        "max_count": 30,
+        "item_value": 2500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Apple_Tree_Seeds",
+        "name": "Apple Tree Seeds",
+        "max_count": 30,
+        "item_value": 4000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Magic_Tree_Seed",
+        "name": "Magic Tree Seeds",
+        "max_count": 30,
+        "item_value": 10000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Shrimp_Perfect",
+        "name": "Shrimp (Perfect)",
+        "max_count": 50,
+        "item_value": 3,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Sardine_Perfect",
+        "name": "Sardine (Perfect)",
+        "max_count": 50,
+        "item_value": 8,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Herring_Perfect",
+        "name": "Herring (Perfect)",
+        "max_count": 50,
+        "item_value": 15,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Seahorse_Perfect",
+        "name": "Seahorse (Perfect)",
+        "max_count": 50,
+        "item_value": 98,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Trout_Perfect",
+        "name": "Trout (Perfect)",
+        "max_count": 50,
+        "item_value": 41,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Salmon_Perfect",
+        "name": "Salmon (Perfect)",
+        "max_count": 50,
+        "item_value": 87,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Lobster_Perfect",
+        "name": "Lobster (Perfect)",
+        "max_count": 50,
+        "item_value": 162,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Anglerfish_Perfect",
+        "name": "Anglerfish (Perfect)",
+        "max_count": 50,
+        "item_value": 314,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Swordfish_Perfect",
+        "name": "Swordfish (Perfect)",
+        "max_count": 50,
+        "item_value": 201,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Fanfish_Perfect",
+        "name": "Fanfish (Perfect)",
+        "max_count": 50,
+        "item_value": 375,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Crab_Perfect",
+        "name": "Crab (Perfect)",
+        "max_count": 50,
+        "item_value": 420,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Carp_Perfect",
+        "name": "Carp (Perfect)",
+        "max_count": 50,
+        "item_value": 593,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Shark_Perfect",
+        "name": "Shark (Perfect)",
+        "max_count": 50,
+        "item_value": 1011,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Cave_Fish_Perfect",
+        "name": "Cave Fish (Perfect)",
+        "max_count": 50,
+        "item_value": 807,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Manta_Ray_Perfect",
+        "name": "Manta Ray (Perfect)",
+        "max_count": 50,
+        "item_value": 2436,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Whale_Perfect",
+        "name": "Whale (Perfect)",
+        "max_count": 50,
+        "item_value": 3072,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Bronze_Bar",
+        "name": "Bronze Bar",
+        "max_count": 50,
+        "item_value": 6,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Iron_Bar",
+        "name": "Iron Bar",
+        "max_count": 50,
+        "item_value": 12,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Steel_Bar",
+        "name": "Steel Bar",
+        "max_count": 50,
+        "item_value": 30,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Silver_Bar",
+        "name": "Silver Bar",
+        "max_count": 50,
+        "item_value": 51,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Gold_Bar",
+        "name": "Gold Bar",
+        "max_count": 50,
+        "item_value": 142,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mithril_Bar",
+        "name": "Mithril Bar",
+        "max_count": 50,
+        "item_value": 125,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Adamantite_Bar",
+        "name": "Adamantite Bar",
+        "max_count": 50,
+        "item_value": 178,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Runite_Bar",
+        "name": "Runite Bar",
+        "max_count": 50,
+        "item_value": 220,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Dragonite_Bar",
+        "name": "Dragonite Bar",
+        "max_count": 50,
+        "item_value": 605,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Topaz",
+        "name": "Topaz",
+        "max_count": 50,
+        "item_value": 225,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Sapphire",
+        "name": "Sapphire",
+        "max_count": 50,
+        "item_value": 335,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ruby",
+        "name": "Ruby",
+        "max_count": 50,
+        "item_value": 555,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Emerald",
+        "name": "Emerald",
+        "max_count": 50,
+        "item_value": 555,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Diamond",
+        "name": "Diamond",
+        "max_count": 50,
+        "item_value": 1150,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Coal_Ore",
+        "name": "Coal Ore",
+        "max_count": 50,
+        "item_value": 13,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Ash",
+        "name": "Ash",
+        "max_count": 50,
+        "item_value": 5,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Dragon_Enhancement_Scroll_Augmented",
+    "name": "Dragon Enhancement Scroll (Augmented)",
+    "chest_value": 2500,
+    "chest_currency": "GP",
+    "max_item_value": 15000,
+    "items": [
+      {
+        "id": "melvorF:Dragon_Enhancement_1_Augmented",
+        "name": "Dragon Enhancement 1 (Augmented)",
+        "max_count": 1,
+        "item_value": 15000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Dragon_Enhancement_2_Augmented",
+        "name": "Dragon Enhancement 2 (Augmented)",
+        "max_count": 1,
+        "item_value": 15000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Dragon_Enhancement_3_Augmented",
+        "name": "Dragon Enhancement 3 (Augmented)",
+        "max_count": 1,
+        "item_value": 15000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Gods_Enhancement_Scroll",
+    "name": "Gods Enhancement Scroll",
+    "chest_value": 2500,
+    "chest_currency": "GP",
+    "max_item_value": 25000,
+    "items": [
+      {
+        "id": "melvorF:Gods_Enhancement_1",
+        "name": "Gods Enhancement 1",
+        "max_count": 1,
+        "item_value": 25000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Gods_Enhancement_2",
+        "name": "Gods Enhancement 2",
+        "max_count": 1,
+        "item_value": 25000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Gods_Enhancement_3",
+        "name": "Gods Enhancement 3",
+        "max_count": 1,
+        "item_value": 25000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorAoD:Unholy_Trees_Chest",
+    "name": "Unholy Trees Chest",
+    "chest_value": 2500,
+    "chest_currency": "GP",
+    "max_item_value": 75000,
+    "items": [
+      {
+        "id": "melvorAoD:Ring_of_Malice",
+        "name": "Ring of Malice (m)",
+        "max_count": 1,
+        "item_value": 50000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Grudge_Amulet",
+        "name": "Grudge Amulet (m)",
+        "max_count": 1,
+        "item_value": 45000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Consuming_Shield",
+        "name": "Consuming Shield (m)",
+        "max_count": 1,
+        "item_value": 75000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Doubling_Gem",
+        "name": "Doubling Gem",
+        "max_count": 1,
+        "item_value": 100,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Unholy_Dust",
+        "name": "Unholy Dust",
+        "max_count": 50,
+        "item_value": 25,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Unholy_Logs",
+        "name": "Unholy Logs",
+        "max_count": 20,
+        "item_value": 45,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Imbued_Mithril_Bar",
+        "name": "Imbued Mithril Bar",
+        "max_count": 10,
+        "item_value": 125,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Imbued_Adamantite_Bar",
+        "name": "Imbued Adamantite Bar",
+        "max_count": 10,
+        "item_value": 178,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Imbued_Runite_Bar",
+        "name": "Imbued Runite Bar",
+        "max_count": 10,
+        "item_value": 220,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Imbued_Dragonite_Bar",
+        "name": "Imbued Dragonite Bar",
+        "max_count": 10,
+        "item_value": 605,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorAoD:Trickery_Chest",
+    "name": "Trickery Chest",
+    "chest_value": 3000,
+    "chest_currency": "GP",
+    "max_item_value": 250000,
+    "items": [
+      {
+        "id": "melvorAoD:Barrier_Exalted_Shard",
+        "name": "Barrier Exalted Shard",
+        "max_count": 1,
+        "item_value": 2500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Barrier_Burn_Shield",
+        "name": "Barrier Burn Shield",
+        "max_count": 1,
+        "item_value": 250000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Dungeon_Gem",
+        "name": "Dungeon Gem",
+        "max_count": 1,
+        "item_value": 100,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Summoners_Defender",
+        "name": "Summoner's Defender",
+        "max_count": 1,
+        "item_value": 10,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Barrier_Eroding_Amulet",
+        "name": "Barrier Eroding Amulet",
+        "max_count": 1,
+        "item_value": 11200,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Barrier_Eroding_Ring",
+        "name": "Barrier Eroding Ring",
+        "max_count": 1,
+        "item_value": 11200,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Siphoning_Barrier_Gem",
+        "name": "Siphoning Barrier Gem",
+        "max_count": 1,
+        "item_value": 1000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Rune_Essence",
+        "name": "Rune Essence",
+        "max_count": 300,
+        "item_value": 0,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorTotH:Raven_Nest",
+    "name": "Raven Nest",
+    "chest_value": 3500,
+    "chest_currency": "GP",
+    "max_item_value": 30000,
+    "items": [
+      {
+        "id": "melvorTotH:Pumpkin_Seeds",
+        "name": "Pumpkin Seeds",
+        "max_count": 1,
+        "item_value": 100,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Chilli_Seeds",
+        "name": "Chilli Seeds",
+        "max_count": 1,
+        "item_value": 130,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Mushroom_Spores",
+        "name": "Mushroom Spores",
+        "max_count": 1,
+        "item_value": 230,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Starfruit_Seeds",
+        "name": "Starfruit Seeds",
+        "max_count": 1,
+        "item_value": 300,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Banana_Tree_Seeds",
+        "name": "Banana Tree Seeds",
+        "max_count": 1,
+        "item_value": 15000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Grove_Tree_Seeds",
+        "name": "Grove Tree Seeds",
+        "max_count": 1,
+        "item_value": 17500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Elderwood_Tree_Seeds",
+        "name": "Elderwood Tree Seeds",
+        "max_count": 1,
+        "item_value": 22500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Carrion_Tree_Seeds",
+        "name": "Carrion Tree Seeds",
+        "max_count": 1,
+        "item_value": 30000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Woodcutting_Ring_Fragment",
+        "name": "Woodcutting Ring Fragment",
+        "max_count": 1,
+        "item_value": 25000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Woodcutting_Amulet_Fragment",
+        "name": "Woodcutting Amulet Fragment",
+        "max_count": 1,
+        "item_value": 25000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorAoD:Ritual_Chest",
+    "name": "Ritual Chest",
+    "chest_value": 4500,
+    "chest_currency": "GP",
+    "max_item_value": 121000,
+    "items": [
+      {
+        "id": "melvorAoD:Barrier_Exalted_Shard",
+        "name": "Barrier Exalted Shard",
+        "max_count": 3,
+        "item_value": 2500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Soul_Taker_Wand",
+        "name": "Soul Taker Wand",
+        "max_count": 1,
+        "item_value": 100000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Helmet_of_Spite",
+        "name": "Helmet of Spite (m)",
+        "max_count": 1,
+        "item_value": 50000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Shield_of_Martyr",
+        "name": "Shield of Martyr (m)",
+        "max_count": 1,
+        "item_value": 50000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Reduced_Hitpoints_Gem",
+        "name": "Reduced Hitpoints Gem",
+        "max_count": 1,
+        "item_value": 100,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Cursed_Dust",
+        "name": "Cursed Dust",
+        "max_count": 20,
+        "item_value": 50,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Cursed_Logs",
+        "name": "Cursed Logs",
+        "max_count": 10,
+        "item_value": 66,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Imbued_Runite_Bar",
+        "name": "Imbued Runite Bar",
+        "max_count": 100,
+        "item_value": 220,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Imbued_Dragonite_Bar",
+        "name": "Imbued Dragonite Bar",
+        "max_count": 200,
+        "item_value": 605,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Siphoning_Barrier_Gem",
+        "name": "Siphoning Barrier Gem",
+        "max_count": 5,
+        "item_value": 1000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Summoners_Blessed_Ring",
+        "name": "Summoner's Blessed Ring",
+        "max_count": 1,
+        "item_value": 10,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Gods_Enhancement_Scroll_Augmented",
+    "name": "Gods Enhancement Scroll (Augmented)",
+    "chest_value": 5000,
+    "chest_currency": "GP",
+    "max_item_value": 50000,
+    "items": [
+      {
+        "id": "melvorF:Gods_Enhancement_1_Augmented",
+        "name": "Gods Enhancement 1 (Augmented)",
+        "max_count": 1,
+        "item_value": 50000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Gods_Enhancement_2_Augmented",
+        "name": "Gods Enhancement 2 (Augmented)",
+        "max_count": 1,
+        "item_value": 50000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Gods_Enhancement_3_Augmented",
+        "name": "Gods Enhancement 3 (Augmented)",
+        "max_count": 1,
+        "item_value": 50000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorAoD:Treacherous_Chest",
+    "name": "Treacherous Chest",
+    "chest_value": 5000,
+    "chest_currency": "GP",
+    "max_item_value": 151250,
+    "items": [
+      {
+        "id": "melvorAoD:Nullifying_Amulet",
+        "name": "Nullifying Amulet",
+        "max_count": 1,
+        "item_value": 11200,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Cleansing_Ring",
+        "name": "Cleansing Ring",
+        "max_count": 1,
+        "item_value": 11200,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Eradicating_Gloves",
+        "name": "Eradicating Gloves (m)",
+        "max_count": 1,
+        "item_value": 80000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Devouring_Shard",
+        "name": "Devouring Shard",
+        "max_count": 1,
+        "item_value": 10000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Unholy_Dust",
+        "name": "Unholy Dust",
+        "max_count": 500,
+        "item_value": 25,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Cursed_Dust",
+        "name": "Cursed Dust",
+        "max_count": 500,
+        "item_value": 50,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Barrier_Touch_Potion_II",
+        "name": "Barrier Touch Potion II",
+        "max_count": 200,
+        "item_value": 10,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Barrier_Igniter_Potion_II",
+        "name": "Barrier Igniter Potion II",
+        "max_count": 200,
+        "item_value": 150,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Unholy_Potion_II",
+        "name": "Unholy Potion II",
+        "max_count": 200,
+        "item_value": 83,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Cursed_Potion_II",
+        "name": "Cursed Potion II",
+        "max_count": 200,
+        "item_value": 295,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Siphoning_Barrier_Gem",
+        "name": "Siphoning Barrier Gem",
+        "max_count": 10,
+        "item_value": 1000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorAoD:Imbued_Dragonite_Bar",
+        "name": "Imbued Dragonite Bar",
+        "max_count": 250,
+        "item_value": 605,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Air_Chest",
+    "name": "Air Chest",
+    "chest_value": 10000,
+    "chest_currency": "GP",
+    "max_item_value": 420000,
+    "items": [
+      {
+        "id": "melvorF:Ancient_Arrow",
+        "name": "Ancient Arrows",
+        "max_count": 400,
+        "item_value": 56,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Ancient_Throwing_Knife",
+        "name": "Ancient Throwing Knife",
+        "max_count": 200,
+        "item_value": 60,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Ancient_Javelin",
+        "name": "Ancient Javelin",
+        "max_count": 200,
+        "item_value": 1750,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Topaz_Bolts",
+        "name": "Topaz Bolts",
+        "max_count": 100,
+        "item_value": 95,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Sapphire_Bolts",
+        "name": "Sapphire Bolts",
+        "max_count": 100,
+        "item_value": 135,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Ruby_Bolts",
+        "name": "Ruby Bolts",
+        "max_count": 100,
+        "item_value": 210,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Emerald_Bolts",
+        "name": "Emerald Bolts",
+        "max_count": 100,
+        "item_value": 220,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Diamond_Bolts",
+        "name": "Diamond Bolts",
+        "max_count": 100,
+        "item_value": 450,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Deadeye_Ring",
+        "name": "Deadeye Ring",
+        "max_count": 1,
+        "item_value": 420000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Deadeye_Amulet",
+        "name": "Deadeye Amulet",
+        "max_count": 1,
+        "item_value": 420000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorTotH:Lost_Chest",
+    "name": "Lost Chest",
+    "chest_value": 10000,
+    "chest_currency": "GP",
+    "max_item_value": 180000,
+    "items": [
+      {
+        "id": "melvorTotH:Runestone",
+        "name": "Runestone",
+        "max_count": 20,
+        "item_value": 100,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Onyx",
+        "name": "Onyx",
+        "max_count": 20,
+        "item_value": 3000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Oricha",
+        "name": "Oricha",
+        "max_count": 20,
+        "item_value": 4500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Cerulean",
+        "name": "Cerulean",
+        "max_count": 20,
+        "item_value": 6500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Zephyte",
+        "name": "Zephyte",
+        "max_count": 20,
+        "item_value": 9000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Golden_Reel",
+        "name": "Golden Reel",
+        "max_count": 500,
+        "item_value": 150,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Burning_Reel",
+        "name": "Burning Reel",
+        "max_count": 500,
+        "item_value": 150,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Fishing_Hook",
+        "name": "Fishing Hook",
+        "max_count": 1000,
+        "item_value": 7,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Scroll_of_Aeris",
+    "name": "Scroll of Aeris",
+    "chest_value": 10000,
+    "chest_currency": "GP",
+    "max_item_value": 1500000,
+    "items": [
+      {
+        "id": "melvorF:Aeris_God_Boots",
+        "name": "Aeris God Boots",
+        "max_count": 1,
+        "item_value": 150000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Aeris_God_Gloves",
+        "name": "Aeris God Gloves",
+        "max_count": 1,
+        "item_value": 100000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Aeris_God_Helmet",
+        "name": "Aeris God Helmet",
+        "max_count": 1,
+        "item_value": 400000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Aeris_God_Platelegs",
+        "name": "Aeris God Platelegs",
+        "max_count": 1,
+        "item_value": 900000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Aeris_God_Platebody",
+        "name": "Aeris God Platebody",
+        "max_count": 1,
+        "item_value": 1000000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Bank_Slot_Token",
+        "name": "Bank Slot Token",
+        "max_count": 1,
+        "item_value": 6969,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Aeris_Godsword",
+        "name": "Aeris Godsword",
+        "max_count": 1,
+        "item_value": 1250000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Stormsnap",
+        "name": "Stormsnap",
+        "max_count": 1,
+        "item_value": 1500000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Scroll_of_Glacia",
+    "name": "Scroll of Glacia",
+    "chest_value": 11000,
+    "chest_currency": "GP",
+    "max_item_value": 1250000,
+    "items": [
+      {
+        "id": "melvorF:Glacia_God_Boots",
+        "name": "Glacia God Boots",
+        "max_count": 1,
+        "item_value": 150000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Glacia_God_Gloves",
+        "name": "Glacia God Gloves",
+        "max_count": 1,
+        "item_value": 100000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Glacia_God_Helmet",
+        "name": "Glacia God Helmet",
+        "max_count": 1,
+        "item_value": 400000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Glacia_God_Platelegs",
+        "name": "Glacia God Platelegs",
+        "max_count": 1,
+        "item_value": 900000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Glacia_God_Platebody",
+        "name": "Glacia God Platebody",
+        "max_count": 1,
+        "item_value": 1000000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Bank_Slot_Token",
+        "name": "Bank Slot Token",
+        "max_count": 1,
+        "item_value": 6969,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Glacia_Godsword",
+        "name": "Glacia Godsword",
+        "max_count": 1,
+        "item_value": 1250000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Cloudburst_Staff",
+        "name": "Cloudburst Staff",
+        "max_count": 1,
+        "item_value": 1250000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Water_Chest",
+    "name": "Water Chest",
+    "chest_value": 11000,
+    "chest_currency": "GP",
+    "max_item_value": 420000,
+    "items": [
+      {
+        "id": "melvorD:Death_Rune",
+        "name": "Death Rune",
+        "max_count": 1000,
+        "item_value": 4,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Blood_Rune",
+        "name": "Blood Rune",
+        "max_count": 1000,
+        "item_value": 4,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ancient_Rune",
+        "name": "Ancient Rune",
+        "max_count": 1000,
+        "item_value": 5,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Air_Battlestaff",
+        "name": "Air Battlestaff",
+        "max_count": 20,
+        "item_value": 560,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Water_Battlestaff",
+        "name": "Water Battlestaff",
+        "max_count": 20,
+        "item_value": 630,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Earth_Battlestaff",
+        "name": "Earth Battlestaff",
+        "max_count": 20,
+        "item_value": 690,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Fire_Battlestaff",
+        "name": "Fire Battlestaff",
+        "max_count": 20,
+        "item_value": 730,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Magic_Wand_Powerful",
+        "name": "Magic Wand (Powerful)",
+        "max_count": 10,
+        "item_value": 18500,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Magic_Wand_Elite",
+        "name": "Magic Wand (Elite)",
+        "max_count": 1,
+        "item_value": 122400,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Warlock_Ring",
+        "name": "Warlock Ring",
+        "max_count": 1,
+        "item_value": 420000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Warlock_Amulet",
+        "name": "Warlock Amulet",
+        "max_count": 1,
+        "item_value": 420000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Earth_Chest",
+    "name": "Earth Chest",
+    "chest_value": 12000,
+    "chest_currency": "GP",
+    "max_item_value": 420000,
+    "items": [
+      {
+        "id": "melvorD:Coal_Ore",
+        "name": "Coal Ore",
+        "max_count": 3000,
+        "item_value": 13,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Mithril_Ore",
+        "name": "Mithril Ore",
+        "max_count": 3000,
+        "item_value": 65,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Adamantite_Ore",
+        "name": "Adamantite Ore",
+        "max_count": 3000,
+        "item_value": 88,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Runite_Ore",
+        "name": "Runite Ore",
+        "max_count": 1000,
+        "item_value": 100,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Dragonite_Ore",
+        "name": "Dragonite Ore",
+        "max_count": 1000,
+        "item_value": 135,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Guardian_Ring",
+        "name": "Guardian Ring",
+        "max_count": 1,
+        "item_value": 420000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Guardian_Amulet",
+        "name": "Guardian Amulet",
+        "max_count": 1,
+        "item_value": 420000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Scroll_of_Terran",
+    "name": "Scroll of Terran",
+    "chest_value": 12000,
+    "chest_currency": "GP",
+    "max_item_value": 2500000,
+    "items": [
+      {
+        "id": "melvorF:Terran_God_Boots",
+        "name": "Terran God Boots",
+        "max_count": 1,
+        "item_value": 150000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Terran_God_Gloves",
+        "name": "Terran God Gloves",
+        "max_count": 1,
+        "item_value": 100000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Terran_God_Helmet",
+        "name": "Terran God Helmet",
+        "max_count": 1,
+        "item_value": 400000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Terran_God_Platelegs",
+        "name": "Terran God Platelegs",
+        "max_count": 1,
+        "item_value": 900000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Terran_God_Platebody",
+        "name": "Terran God Platebody",
+        "max_count": 1,
+        "item_value": 1000000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Bank_Slot_Token",
+        "name": "Bank Slot Token",
+        "max_count": 1,
+        "item_value": 6969,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Terran_Godsword",
+        "name": "Terran Godsword",
+        "max_count": 1,
+        "item_value": 1250000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Earth_Layered_Shield",
+        "name": "Earth Layered Shield",
+        "max_count": 1,
+        "item_value": 2500000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Fire_Chest",
+    "name": "Fire Chest",
+    "chest_value": 14000,
+    "chest_currency": "GP",
+    "max_item_value": 420000,
+    "items": [
+      {
+        "id": "melvorD:Silver_Bar",
+        "name": "Silver Bar",
+        "max_count": 2000,
+        "item_value": 51,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Gold_Bar",
+        "name": "Gold Bar",
+        "max_count": 2000,
+        "item_value": 142,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Topaz",
+        "name": "Topaz",
+        "max_count": 300,
+        "item_value": 225,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Sapphire",
+        "name": "Sapphire",
+        "max_count": 300,
+        "item_value": 335,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ruby",
+        "name": "Ruby",
+        "max_count": 300,
+        "item_value": 555,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Emerald",
+        "name": "Emerald",
+        "max_count": 300,
+        "item_value": 555,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Diamond",
+        "name": "Diamond",
+        "max_count": 300,
+        "item_value": 1150,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Fighter_Ring",
+        "name": "Fighter Ring",
+        "max_count": 1,
+        "item_value": 420000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Fighter_Amulet",
+        "name": "Fighter Amulet",
+        "max_count": 1,
+        "item_value": 420000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Scroll_of_Ragnar",
+    "name": "Scroll of Ragnar",
+    "chest_value": 14000,
+    "chest_currency": "GP",
+    "max_item_value": 1250000,
+    "items": [
+      {
+        "id": "melvorF:Ragnar_God_Boots",
+        "name": "Ragnar God Boots",
+        "max_count": 1,
+        "item_value": 150000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Ragnar_God_Gloves",
+        "name": "Ragnar God Gloves",
+        "max_count": 1,
+        "item_value": 100000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Ragnar_God_Helmet",
+        "name": "Ragnar God Helmet",
+        "max_count": 1,
+        "item_value": 400000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Ragnar_God_Platelegs",
+        "name": "Ragnar God Platelegs",
+        "max_count": 1,
+        "item_value": 900000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Ragnar_God_Platebody",
+        "name": "Ragnar God Platebody",
+        "max_count": 1,
+        "item_value": 1000000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Bank_Slot_Token",
+        "name": "Bank Slot Token",
+        "max_count": 1,
+        "item_value": 6969,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Ragnar_Godsword",
+        "name": "Ragnar Godsword",
+        "max_count": 1,
+        "item_value": 1250000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Big_Ron",
+        "name": "Big ol Ron",
+        "max_count": 1,
+        "item_value": 1250000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorF:Chest_Of_Gems",
+    "name": "Chest of Gems",
+    "chest_value": 19200,
+    "chest_currency": "GP",
+    "max_item_value": 230000,
+    "items": [
+      {
+        "id": "melvorD:Topaz",
+        "name": "Topaz",
+        "max_count": 200,
+        "item_value": 225,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Sapphire",
+        "name": "Sapphire",
+        "max_count": 200,
+        "item_value": 335,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ruby",
+        "name": "Ruby",
+        "max_count": 200,
+        "item_value": 555,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Emerald",
+        "name": "Emerald",
+        "max_count": 200,
+        "item_value": 555,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Diamond",
+        "name": "Diamond",
+        "max_count": 200,
+        "item_value": 1150,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorAoD:Old_Pirate_Treasure",
+    "name": "Old Pirate Treasure",
+    "chest_value": 20000,
+    "chest_currency": "GP",
+    "max_item_value": 1150000,
+    "items": [
+      {
+        "id": "melvorAoD:Pirate_Doubloons",
+        "name": "Pirate Doubloons",
+        "max_count": 1000,
+        "item_value": 12,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Topaz",
+        "name": "Topaz",
+        "max_count": 250,
+        "item_value": 225,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Sapphire",
+        "name": "Sapphire",
+        "max_count": 1000,
+        "item_value": 335,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Ruby",
+        "name": "Ruby",
+        "max_count": 1000,
+        "item_value": 555,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorD:Diamond",
+        "name": "Diamond",
+        "max_count": 1000,
+        "item_value": 1150,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorTotH:Ancient_Chest",
+    "name": "Ancient Chest",
+    "chest_value": 100000,
+    "chest_currency": "GP",
+    "max_item_value": 120000,
+    "items": [
+      {
+        "id": "melvorTotH:Poison_Lifesteal_Amulet",
+        "name": "Poison Lifesteal Amulet",
+        "max_count": 1,
+        "item_value": 12000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Weakness_Exploiter_Cape_Material",
+        "name": "Weakness Exploiter Cape Material",
+        "max_count": 1,
+        "item_value": 0,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Toxic_Maker_Gloves",
+        "name": "Toxic Maker Gloves",
+        "max_count": 1,
+        "item_value": 25000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Thorned_Power_Core",
+        "name": "Thorned Power Core",
+        "max_count": 35,
+        "item_value": 0,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Carrion_Bark",
+        "name": "Carrion Bark",
+        "max_count": 100,
+        "item_value": 1200,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Jungle_Spores",
+        "name": "Jungle Spores",
+        "max_count": 1,
+        "item_value": 20,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorTotH:Bone_Chest",
+    "name": "Bone Chest",
+    "chest_value": 100000,
+    "chest_currency": "GP",
+    "max_item_value": 5000000,
+    "items": [
+      {
+        "id": "melvorTotH:Hood_of_Shade_Summon",
+        "name": "Hood of Shade Summon",
+        "max_count": 1,
+        "item_value": 3000000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Gloves_of_Greater_Shade_Summon",
+        "name": "Gloves of Greater Shade Summon",
+        "max_count": 1,
+        "item_value": 4000000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Ring_of_Phantom_Summon",
+        "name": "Ring of Phantom Summon",
+        "max_count": 1,
+        "item_value": 2000000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Amulet_of_Curse_Totem_Summon",
+        "name": "Amulet of Curse Totem Summon",
+        "max_count": 1,
+        "item_value": 5000000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Summoning_Scrolls",
+        "name": "Summoning Scrolls",
+        "max_count": 10000,
+        "item_value": 30,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Large_Urn_Enchanted",
+        "name": "Large Urn (Enchanted)",
+        "max_count": 10,
+        "item_value": 1900,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorTotH:Burning_Chest",
+    "name": "Burning Chest",
+    "chest_value": 100000,
+    "chest_currency": "GP",
+    "max_item_value": 8000000,
+    "items": [
+      {
+        "id": "melvorTotH:Heated_Fury_2H_Hammer",
+        "name": "Heated Fury 2H Hammer",
+        "max_count": 1,
+        "item_value": 8000000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Blazing_Helmet",
+        "name": "Blazing Helmet",
+        "max_count": 1,
+        "item_value": 3000000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Charcoal",
+        "name": "Charcoal",
+        "max_count": 50,
+        "item_value": 1,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorF:Ash",
+        "name": "Ash",
+        "max_count": 50,
+        "item_value": 5,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Infernal_Bones",
+        "name": "Infernal Bones",
+        "max_count": 20,
+        "item_value": 1000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorTotH:Cursed_Chest",
+    "name": "Cursed Chest",
+    "chest_value": 100000,
+    "chest_currency": "GP",
+    "max_item_value": 20000000,
+    "items": [
+      {
+        "id": "melvorTotH:Ring_of_Curse_Protection",
+        "name": "Ring of Curse Protection",
+        "max_count": 1,
+        "item_value": 600000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Mask_of_Madness",
+        "name": "Mask of Madness",
+        "max_count": 1,
+        "item_value": 20000000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Mask_of_Despair",
+        "name": "Mask of Despair",
+        "max_count": 1,
+        "item_value": 20000000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Mask_of_Torment",
+        "name": "Mask of Torment",
+        "max_count": 1,
+        "item_value": 20000000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Voodoo_Trinket",
+        "name": "Voodoo Trinket",
+        "max_count": 1,
+        "item_value": 500000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Despair_Rune",
+        "name": "Despair Rune",
+        "max_count": 1000,
+        "item_value": 23,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Decay_Rune",
+        "name": "Decay Rune",
+        "max_count": 1000,
+        "item_value": 21,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Large_Urn_Enchanted",
+        "name": "Large Urn (Enchanted)",
+        "max_count": 10,
+        "item_value": 1900,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorTotH:Static_Chest",
+    "name": "Static Chest",
+    "chest_value": 100000,
+    "chest_currency": "GP",
+    "max_item_value": 10000000,
+    "items": [
+      {
+        "id": "melvorTotH:Lightning_Amulet",
+        "name": "Lightning Amulet",
+        "max_count": 1,
+        "item_value": 600000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Lightning_Boots",
+        "name": "Lightning Boots",
+        "max_count": 1,
+        "item_value": 800000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Lightning_Strike_1H_Sword",
+        "name": "Lightning Strike 1H Sword",
+        "max_count": 1,
+        "item_value": 4000000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Lightning_Coil_2H_Staff",
+        "name": "Lightning Coil 2H Staff",
+        "max_count": 1,
+        "item_value": 10000000,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Lightning_Aura_Helmet",
+        "name": "Lightning Aura Helmet",
+        "max_count": 1,
+        "item_value": 3500000,
+        "item_currency": "GP"
+      }
+    ]
+  },
+  {
+    "id": "melvorTotH:Webbed_Chest",
+    "name": "Webbed Chest",
+    "chest_value": 100000,
+    "chest_currency": "GP",
+    "max_item_value": 15000000,
+    "items": [
+      {
+        "id": "melvorTotH:Spider_Queen_Eggs",
+        "name": "Spider Queen Eggs",
+        "max_count": 2000,
+        "item_value": 50,
+        "item_currency": "GP"
+      },
+      {
+        "id": "melvorTotH:Royal_Toxins_Spear",
+        "name": "Royal Toxins Spear",
+        "max_count": 1,
+        "item_value": 15000000,
+        "item_currency": "GP"
+      }
+    ]
+  }
+]

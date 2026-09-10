@@ -97,3 +97,16 @@ test('shuffle validates prices, supports each currency and blocks unavailable tr
 		{ currency_id: 'melvorD:GP', balance: 10000, command_id: crypto.randomUUID() }, client.session_token);
 	expect(disabled.json.error_lang).toBe('MOD_MP_CHARITY_DISABLED');
 });
+
+test('caps Shuffle Leaves by the requested currency', async () => {
+	const client = await register_guild_client('Shuffle Cap', 'Shuffle Cap Guild', '1.5.7');
+	const gp = await post_json<{ receipt: { effects: unknown[] } }>('/api/v2/charity/shuffle', {
+		currency_id: 'melvorD:GP', balance: 2_000_000_000_000, command_id: crypto.randomUUID()
+	}, client.session_token);
+	const slayer = await post_json<{ receipt: { effects: unknown[] } }>('/api/v2/charity/shuffle', {
+		currency_id: 'melvorD:SlayerCoins', balance: 2_000_000_000, command_id: crypto.randomUUID()
+	}, client.session_token);
+
+	expect(gp.json.receipt.effects).toEqual([{ storage: 'gp', qty: -1_000_000_000 }]);
+	expect(slayer.json.receipt.effects).toEqual([{ storage: 'bank', item_id: 'melvorD:SlayerCoins', qty: -1_000_000 }]);
+});

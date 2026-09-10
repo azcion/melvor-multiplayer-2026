@@ -39,6 +39,19 @@ export type charity_shuffle_events = {
 	shuffled_at: number;
 };
 
+export type charity_wishes = {
+	id: number;
+	guild_id: number;
+	owner_client_id: number;
+	melvor_account_id: number;
+	item_id: string;
+	qty: number;
+	required_gp: number;
+	progress_gp: number;
+	created_at: number;
+	matures_at: number;
+};
+
 export type multiplayer_pet_ownership = {
 	client_id: number;
 	pet_id: string;

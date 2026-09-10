@@ -6,6 +6,7 @@ import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
 import type { PetitionType } from '../council';
 import { add_inbox_items, get_inbox_source_name } from '../inbox';
 import { participants_use_legacy_trade_protocol } from '../transfer-compatibility';
+import { cap_transfer_items } from '../transfer-caps';
 
 const { db, economy_item_effects, guild_membership_exists, is_social_only_client, parse_transfer_items, remove_player_cache_entry, resolved_trade_cache, run_economy_command, session_post_route, trade_cache, trade_player_cache } = runtime;
 
@@ -68,9 +69,10 @@ export function register_trade_routes(): void {
 		if (typeof trade_id !== 'number')
 			return 400; // Bad Request
 
-		const items = parse_transfer_items(json.items);
-		if (items === null)
+		const parsed_items = parse_transfer_items(json.items);
+		if (parsed_items === null)
 			return 400; // Bad Request;
+		const items = cap_transfer_items(parsed_items);
 		const result = run_economy_command(client_id, json.command_id, 'trade-counter', () => {
 			if (is_social_only_client(client_id))
 				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
@@ -313,9 +315,10 @@ export function register_trade_routes(): void {
 		if (typeof recipient_id !== 'number')
 			return 400; // Bad Request
 
-		const items = parse_transfer_items(json.items);
-		if (items === null)
+		const parsed_items = parse_transfer_items(json.items);
+		if (parsed_items === null)
 			return 400; // Bad Request
+		const items = cap_transfer_items(parsed_items);
 
 		if (!(await guild_membership_exists(client_id, recipient_id)))
 			return { error_lang: 'MOD_MP_GUILD_MEMBERSHIP_MISSING' };

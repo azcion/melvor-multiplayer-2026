@@ -117,6 +117,12 @@ export function install_transfer_actions(runtime) {
 				'MOD_MP_BUTTON_CANCEL';
 		},
 
+		get_transfer_confirmation_cap_notice() {
+			return transfer_confirmation?.action === 'donate' || transfer_confirmation?.action === 'counter_trade'
+				? this.get_transfer_cap_notice()
+				: '';
+		},
+
 		async confirm_transfer_action(event) {
 			const confirmation = transfer_confirmation;
 			if (confirmation === null)
@@ -154,6 +160,7 @@ export function install_transfer_actions(runtime) {
 				market_expired: 'MOD_MP_INBOX_SOURCE_MARKET_EXPIRED',
 				market_haggle_cancelled: 'MOD_MP_INBOX_SOURCE_HAGGLE_CANCELLED',
 				charitree: 'MOD_MP_INBOX_SOURCE_CHARITREE',
+				wish_granted: 'MOD_MP_INBOX_SOURCE_WISH_GRANTED',
 				raid_victory_cache: 'MOD_MP_INBOX_SOURCE_RAID',
 				campaign: 'MOD_MP_INBOX_SOURCE_CAMPAIGN',
 				gift_received: 'MOD_MP_INBOX_SOURCE_GIFT_RECEIVED',

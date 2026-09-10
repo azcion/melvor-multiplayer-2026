@@ -9,7 +9,7 @@ import { get_guild_activity, parse_guild_activity_cursor } from '../guild-activi
 import { record_guild_activity } from '../guild-activity';
 import { cancel_client_haggles } from './haggle';
 
-const { DIRECT_JOIN_CHARITREE_LOCK, FREE_FELLOWSHIP_TYPE, GiftFlags, PETITION_LIFETIME, PUBLIC_GUILD_TYPE, db, db_get_all, db_get_single, db_run, ensure_guild_campaign, expire_charity_items, expire_petitions, forget_guild_campaign, get_client_charity_state, get_client_display, get_client_guild_id, get_council_petitions, get_guild_applicants, get_guild_capabilities, get_guild_member_directory, get_guild_members, get_guild_summary, get_guild_type, get_petition_conflict_subject, get_petition_resolution, guild_summary_from_row, has_guild_departure_blocker, is_petition_choice, is_petition_type, is_valid_guild_icon_id, parse_guild_name, process_council_actions, resize_unprogressed_campaign, session_get_route, session_post_route, shadowed_cutoff, unlock_winnowing_targets } = runtime;
+const { DIRECT_JOIN_CHARITREE_LOCK, FREE_FELLOWSHIP_TYPE, GiftFlags, PETITION_LIFETIME, PUBLIC_GUILD_TYPE, db, db_get_all, db_get_single, db_run, ensure_guild_campaign, expire_charity_items, expire_petitions, forget_guild_campaign, get_client_charity_state, get_client_display, get_client_guild_id, get_council_petitions, get_guild_applicants, get_guild_capabilities, get_guild_member_directory, get_guild_members, get_guild_summary, get_guild_type, get_petition_conflict_subject, get_petition_resolution, guild_summary_from_row, has_guild_departure_blocker, is_petition_choice, is_petition_type, is_valid_guild_icon_id, parse_guild_name, process_council_actions, resize_unprogressed_campaign, session_get_route, session_post_route, settle_departing_charity_wish, shadowed_cutoff, unlock_winnowing_targets } = runtime;
 
 export function register_guilds_routes(): void {
 	session_get_route('/api/guilds/activity', async (req, url, client_id): Promise<HandlerResult> => {
@@ -82,10 +82,11 @@ export function register_guilds_routes(): void {
 				return { status: 'admission_unavailable' as const };
 			expire_charity_items(now, membership.guild_id);
 			if (petition_type === 'charitree_ingratitude') {
-				const has_items = db.query(
-					'SELECT 1 FROM `charity_items` WHERE `guild_id` = ? LIMIT 1'
-				).get(membership.guild_id);
-				if (guild.charitree_enabled !== 1 || has_items === null)
+				const has_contents = db.query(
+					'SELECT 1 FROM `charity_items` WHERE `guild_id` = ? UNION ALL ' +
+					'SELECT 1 FROM `charity_wishes` WHERE `guild_id` = ? LIMIT 1'
+				).get(membership.guild_id, membership.guild_id);
+				if (guild.charitree_enabled !== 1 || has_contents === null)
 					return { status: 'charitree_unavailable' as const };
 			} else if (petition_type === 'charitree_sacrilege' && guild.charitree_enabled !== 1) {
 				return { status: 'charitree_unavailable' as const };
@@ -172,6 +173,11 @@ export function register_guilds_routes(): void {
 				for (const target of winnowing_targets)
 					insert_target.run(petition.id, target.id, target.client_id);
 			}
+			if (petition_type === 'charitree_ingratitude')
+				db.query(
+					'INSERT INTO `guild_petition_charity_wishes` (`petition_id`, `wish_id`) ' +
+					'SELECT ?, `id` FROM `charity_wishes` WHERE `guild_id` = ?'
+				).run(petition.id, membership.guild_id);
 			db.query(
 				'INSERT INTO `guild_petition_voters` (`petition_id`, `client_id`) ' +
 				'SELECT ?, membership.`client_id` FROM `guild_memberships` AS membership ' +
@@ -649,6 +655,7 @@ export function register_guilds_routes(): void {
 
 			record_guild_activity({ guild_id: membership.guild_id, event_type: 'left', actor_client_id: client_id,
 				source_key: `membership:${membership.id}:left` });
+			settle_departing_charity_wish(client_id, membership.guild_id);
 			db.query('DELETE FROM `guild_memberships` WHERE `client_id` = ?').run(client_id);
 			const remaining = db.query(
 				'SELECT COUNT(*) AS `count` FROM `guild_memberships` WHERE `guild_id` = ?'

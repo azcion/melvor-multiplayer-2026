@@ -172,6 +172,10 @@ test('always covers undiscovered items until a shuffle bonus lowers their covera
 	const distant_item = { ...expiring_item, expires_at: now + 95 * hour };
 	assert.deepEqual(get_charitree_leaf_coverage(distant_item, now, () => false, () => false, null, 1),
 		{ covered: true, percentage: 100 });
+	assert.deepEqual(get_charitree_leaf_coverage(expiring_item, now, () => false, () => true, null, -10),
+		{ covered: true, percentage: 0 });
+	assert.deepEqual(get_charitree_leaf_coverage(distant_item, now, () => false, () => true, null, -10),
+		{ covered: true, percentage: 100 });
 	assert.deepEqual(get_charitree_leaf_coverage(distant_item, now, () => false, () => true, null, 20),
 		{ covered: false, percentage: 100 });
 	assert.deepEqual(get_charitree_leaf_coverage(
@@ -210,6 +214,7 @@ test('wires completion-log discovery, first-find receipt, and per-stack expiry i
 	assert.match(main, /charity_server_supported/);
 	assert.match(main, /apply_charity_state\(response\.charity\)/);
 	assert.match(main, /apply_charity_state\(res\.charity\)/);
+	assert.match(main, /void refresh_guild_state\(\)\.then\(\(\) => request_charity_tree_contents\(\)\);/);
 	assert.doesNotMatch(main, /charity_timeout/);
 	assert.doesNotMatch(main, /charity_bonus_timeout/);
 	assert.match(main, /get transfer_inventory_donation_value\(\)/);
@@ -235,29 +240,30 @@ test('wires completion-log discovery, first-find receipt, and per-stack expiry i
 		templates.indexOf('<template id="template-mp-charity-page">'),
 		templates.indexOf('<template id="template-mp-transfer-page">')
 	);
-	assert.match(charitree_page, /class="mp-charitree-window-copy">[\s\S]*<p class="mb-2">[\s\S]*<ul class="mb-2">/);
-	assert.match(charitree_page, /MOD_MP_CHARITY_INFO_ONCE_PER_DAY[\s\S]*MOD_MP_CHARITY_INFO_INTRO/);
-	assert.match(charitree_page, /MOD_MP_CHARITY_INFO_PICK_PREFIX[\s\S]*MOD_MP_CHARITY_INFO_CURRENT_BALANCE[\s\S]*MOD_MP_CHARITY_INFO_CURRENCY_SUFFIX/);
-	assert.match(charitree_page, /MOD_MP_CHARITY_INFO_LARGE_STACK/);
-	assert.match(charitree_page, /MOD_MP_CHARITY_INFO_NEW_PREFIX[\s\S]*MOD_MP_CHARITY_INFO_NEW[\s\S]*MOD_MP_CHARITY_INFO_NEW_SUFFIX/);
-	assert.match(charitree_page, /MOD_MP_CHARITY_INFO_LEAVES/);
-	assert.match(charitree_page, /MOD_MP_CHARITY_INFO_DECAY_PREFIX[\s\S]*MOD_MP_CHARITY_INFO_FOUR_DAYS[\s\S]*MOD_MP_CHARITY_INFO_DECAY_SUFFIX/);
+	assert.match(charitree_page, /class="mp-charitree-window-copy">[\s\S]*<details class="mp-charitree-info-section">/);
+	assert.equal((charitree_page.match(/<details class="mp-charitree-info-section/g) ?? []).length, 3);
+	assert.doesNotMatch(charitree_page, /<details class="mp-charitree-info-section[^>]* open/);
+	assert.match(charitree_page, /MOD_MP_CHARITY_INFO_OFFERINGS_TITLE[\s\S]*fa-chevron-down[\s\S]*fa-chevron-up[\s\S]*<\/summary>/);
+	assert.match(charitree_page, /MOD_MP_CHARITY_INFO_OFFERINGS_INTRO_PREFIX[\s\S]*MOD_MP_CHARITY_INFO_OFFERINGS_LIMIT[\s\S]*MOD_MP_CHARITY_INFO_OFFERINGS_UNDISCOVERED[\s\S]*MOD_MP_CHARITY_INFO_OFFERINGS_DECAY_PREFIX/);
+	assert.match(charitree_page, /MOD_MP_CHARITY_INFO_NEXT_PICK[\s\S]*MOD_MP_CHARITY_INFO_AVAILABLE_NOW[\s\S]*MOD_MP_CHARITY_INFO_NEXT_PICK_IN[\s\S]*state\.charity_next_opportunity_formatted/);
+	assert.match(charitree_page, /MOD_MP_CHARITY_INFO_LEAVES_TITLE[\s\S]*MOD_MP_CHARITY_INFO_LEAVES_CHANCE[\s\S]*MOD_MP_CHARITY_INFO_LEAVES_BONUS_EFFECT[\s\S]*state\.show_charity_shuffle\(\)[\s\S]*state\.charity_shuffle_bonus\(\)/);
+	assert.match(charitree_page, /MOD_MP_CHARITY_INFO_WISHES_TITLE[\s\S]*MOD_MP_CHARITY_INFO_WISHES_MATURING[\s\S]*MOD_MP_CHARITY_INFO_WISHES_PENALTY[\s\S]*MOD_MP_CHARITY_INFO_WISHES_ACTIVE[\s\S]*state\.show_charity_wish_modal\(\)/);
+	assert.doesNotMatch(charitree_page, /<hr class="my-4">/);
 	assert.doesNotMatch(charitree_page, /skill-icon-xxs/);
-	assert.match(charitree_page, /MOD_MP_CHARITY_OPPORTUNITY_READY[\s\S]*MOD_MP_CHARITY_NEXT_OPPORTUNITY/);
+	assert.match(charitree_page, /v-show="state\.can_take_charity"[\s\S]*MOD_MP_CHARITY_INFO_AVAILABLE_NOW[\s\S]*v-show="!state\.can_take_charity"[\s\S]*role="timer"/);
 	assert.match(templates, /state\.selected_charity_take_block/);
 	assert.match(templates, /mp-charitree-new-item/);
 	assert.match(templates, /mp-charitree-lock/);
 	assert.match(templates, /state\.selected_charity_take_warning/);
 	assert.match(templates, /MOD_MP_CHARITY_TAKE_AMOUNT/);
-	assert.match(templates, /:lang-arg-1="state\.selected_charity_take_amount"/);
+	assert.match(templates, /state\.selected_charity_take_amount/);
 	assert.match(main, /get selected_charity_take_amount\(\) \{[\s\S]*getLangString\('MOD_MP_CHARITY_ENTIRE_STACK'\)[\s\S]*formatNumber\(this\.selected_charity_take_quantity\)/);
 	assert.match(main, /get_charity_leaf_coverage\([\s\S]*item_id === 'melvorD:GP' \|\| is_transfer_currency\(item_id\),[\s\S]*this\.is_charity_item_discovered\(item_id\)/);
 	assert.match(main, /charity_shuffle_count/);
 	assert.match(main, /this\.charity_shuffle_count/);
-	assert.match(charitree_page, /<template v-for="item of state\.charity_tree_inventory">[\s\S]*<mp-item-icon v-else-if="!state\.get_charity_leaf_coverage\(item\)\.covered" class="bank-item pointer-enabled m-2 mp-charitree-item"[\s\S]*:data-item-id="item\.id"/);
+	assert.match(charitree_page, /<template v-for="item of state\.charity_tree_entries">[\s\S]*<mp-item-icon v-else-if="!state\.get_charity_leaf_coverage\(item\)\.covered" class="bank-item pointer-enabled m-2 mp-charitree-item"[\s\S]*:data-item-id="item\.id"/);
 	assert.match(charitree_page, /item\.id === 'melvorD:Weird_Gloop' && item\.qty > 0/);
 	assert.match(charitree_page, /<img class="bank-img mp-charitree-img" :src="state\.get_item_icon\(item\.id\)" :class="\{ 'mp-charitree-border': state\.selected_charity_item_id === item\.id \}">/);
-	assert.match(charitree_page, /MOD_MP_CHARITY_INFO_NEW_PREFIX[\s\S]*<lang-string lang-id="MOD_MP_CHARITY_INFO_NEW" style="border-radius: 5px;outline: 2px solid rgb\(45 210 75\);box-shadow: 0 0 8px 2px rgb\(45 210 75 \/ 75%\);padding: 0 \.25rem;"><\/lang-string>[\s\S]*MOD_MP_CHARITY_INFO_NEW_SUFFIX/);
 	assert.match(charitree_page, /<div v-else class="bank-item pointer-enabled m-2 mp-charitree-item mp-charitree-leaf" :class="\[`mp-charitree-leaf-coverage-\$\{state\.get_charity_leaf_coverage\(item\)\.percentage\}`[\s\S]*<img class="bank-img mp-charitree-img" src="https:\/\/cdn2-main\.melvor\.net\/assets\/media\/bank\/Golden_Leaf\.png" :class="\{ 'mp-charitree-border': state\.selected_charity_item_id === item\.id \}">/);
 	assert.doesNotMatch(charitree_page, /<img class="bank-img p-3"/);
 	assert.doesNotMatch(charitree_page, /'border border-4x border-success'/);
@@ -286,19 +292,26 @@ test('wires completion-log discovery, first-find receipt, and per-stack expiry i
 	assert.match(style, /outline: 2px solid rgb\(45 210 75\);/);
 	assert.match(style, /box-shadow: 0 0 8px 2px rgb\(45 210 75 \/ 75%\);/);
 	assert.match(style, /\.mp-charitree-window-copy \{[\s\S]*flex-direction: column;/);
+	assert.match(style, /\.mp-charitree-info-section summary \{[\s\S]*cursor: pointer;[\s\S]*list-style: none;/);
+	assert.match(style, /\.mp-charitree-info-section\[open\] \.mp-charitree-info-chevron-down \{[\s\S]*display: none;/);
+	assert.match(style, /\.mp-charitree-info-section\[open\] \.mp-charitree-info-chevron-up \{[\s\S]*display: inline-block;/);
 	assert.doesNotMatch(style, /mp-item-icon\.mp-charitree-new-item > a/);
 	assert.doesNotMatch(style, /mp-charitree-new-item-glow/);
 	assert.equal(language.MOD_MP_CHARITY_OPPORTUNITY_READY, 'You may seek an offering now.');
 	assert.equal(language.MOD_MP_CHARITY_NEXT_OPPORTUNITY, 'You may seek another offering in %s.');
 	assert.equal(language.MOD_MP_CHARITY_SERVER_UNSUPPORTED, 'Charitree claiming requires a newer multiplayer server. Update the server and reload the game.');
-	assert.equal(language.MOD_MP_CHARITY_TAKE_AMOUNT, 'Claiming: %s');
+	assert.equal(language.MOD_MP_CHARITY_TAKE_AMOUNT, 'Claiming:');
 	assert.equal(language.MOD_MP_CHARITY_ENTIRE_STACK, 'entire stack');
-	assert.equal(language.MOD_MP_CHARITY_INFO_ONCE_PER_DAY, 'Once every 20 hours');
-	assert.equal(language.MOD_MP_CHARITY_INFO_CURRENT_BALANCE, 'half of your current balance');
-	assert.equal(language.MOD_MP_CHARITY_INFO_LEAVES, 'Leaves may conceal any item while it is far from expiring.');
-	assert.equal(language.MOD_MP_CHARITY_INFO_FOUR_DAYS, '4 days');
-	assert.match(language.MOD_MP_CHARITY_INFO_DECAY_SUFFIX, /GP value then becomes Weird Gloop/);
-	assert.equal(language.MOD_MP_CHARITY_INFO_NEW, 'undiscovered');
+	assert.equal(language.MOD_MP_CHARITY_INFO_OFFERINGS_TITLE, 'Offerings');
+	assert.equal(language.MOD_MP_CHARITY_INFO_OFFERINGS_LIMIT, 'half of your current balance');
+	assert.equal(language.MOD_MP_CHARITY_INFO_OFFERINGS_UNDISCOVERED, 'Undiscovered');
+	assert.equal(language.MOD_MP_CHARITY_INFO_OFFERINGS_GLOOP, 'Weird Gloop');
+	assert.equal(language.MOD_MP_CHARITY_INFO_LEAVES_CHANCE, "taking a chance on what's underneath");
+	assert.equal(language.MOD_MP_CHARITY_INFO_LEAVES_BONUS_EFFECT, '5% for 7 days');
+	assert.equal(language.MOD_MP_CHARITY_INFO_WISHES_MATURING, '4 days maturing');
+	assert.equal(language.MOD_MP_CHARITY_INFO_WISHES_RIPE, 'Ripe');
+	assert.equal(language.MOD_MP_CHARITY_INFO_WISHES_PENALTY, 'Shuffle Bonus by 10');
+	assert.equal(language.MOD_MP_CHARITY_INFO_WISHES_ACTIVE, 'one active Wish');
 	assert.equal(language.MOD_MP_CHARITY_UNDISCOVERED_STACK,
 		'This offering is undiscovered. You may claim only one; the rest will remain upon the Charitree.');
 });
