@@ -6,6 +6,8 @@ import type { PetitionType } from '../council';
 import { add_inbox_items, get_inbox_source_name } from '../inbox';
 import { client_uses_legacy_transfer_protocol } from '../transfer-compatibility';
 import { cap_transfer_items } from '../transfer-caps';
+import { audit_command_source, audit_position_key, link_audit_events, move_audit_value_with_fallback,
+	record_audit_event } from '../audit';
 
 const { GiftFlags, db, economy_item_effects, get_gift, gift_cache, guild_membership_exists, is_social_only_client, parse_transfer_items, remove_player_cache_entry, run_economy_command, session_post_route } = runtime;
 
@@ -26,6 +28,27 @@ export function register_gifting_routes(): void {
 			const items = db.query(
 				'SELECT `item_id`, `qty` FROM `gift_items` WHERE `gift_id` = ?'
 			).all(gift_id) as Array<{ item_id: string; qty: number }>;
+			const accepted_at = Date.now();
+			const event_id = record_audit_event({
+				event_type: 'gift.accepted',
+				source_key: audit_command_source('gift-accept', client_id, json.command_id),
+				command_id: typeof json.command_id === 'string' ? json.command_id : undefined,
+				actor: { kind: 'client', client_id, request: req },
+				participants: [{ role: 'sender', client_id: gift.sender_id }],
+				occurred_at: accepted_at,
+				values: items.map(item => ({ object_id: item.item_id, quantity: item.qty, direction: 'move' })),
+				details: { gift_id }
+			});
+			const sent = db.query<{ id: number }, [string]>(
+				'SELECT `id` FROM `audit_events` WHERE `source_key` = ?'
+			).get(`gift:${gift_id}:sent`);
+			if (sent !== null)
+				link_audit_events(event_id, 'accepts', sent.id);
+			for (const item of items) {
+				move_audit_value_with_fallback(event_id, item.item_id, item.qty, 'gift',
+					audit_position_key('gift', gift_id), 'inbox',
+					audit_position_key('inbox', client_id, 'gift_received', get_inbox_source_name(gift.sender_id)));
+			}
 			add_inbox_items(client_id, items,
 				{ type: 'gift_received', name: get_inbox_source_name(gift.sender_id) });
 			db.query('DELETE FROM `gifts` WHERE `gift_id` = ?').run(gift_id);
@@ -146,6 +169,20 @@ export function register_gifting_routes(): void {
 				db.query(
 					'INSERT INTO `gift_items` (`gift_id`, `item_id`, `qty`) VALUES(?, ?, ?)'
 				).run(inserted.gift_id, item.id, item.qty);
+			const event_id = record_audit_event({
+				event_type: 'gift.sent',
+				source_key: `gift:${inserted.gift_id}:sent`,
+				command_id: typeof json.command_id === 'string' ? json.command_id : undefined,
+				actor: { kind: 'client', client_id, request: req },
+				participants: [{ role: 'recipient', client_id: recipient_id }],
+				occurred_at: created_at,
+				values: items.map(item => ({ object_id: item.id, quantity: item.qty, direction: 'move' })),
+				details: { gift_id: inserted.gift_id }
+			});
+			for (const item of items) {
+				move_audit_value_with_fallback(event_id, item.id, item.qty, 'client',
+					audit_position_key('client', client_id), 'gift', audit_position_key('gift', inserted.gift_id));
+			}
 			gift_cache.get(recipient_id)?.push(inserted.gift_id);
 			return { success: true, effects: economy_item_effects(items, 'transfer', -1) };
 		});

@@ -330,6 +330,8 @@ test('refreshes the Transfer / Gift sidebar count when transfer state is loaded'
 	);
 
 	assert.match(inbox_update, /state\.inbox_items = Array\.isArray\(res\.items\)[\s\S]*update_transfer_inventory_nav\(\);/);
-	assert.match(events_request, /event_snapshots\.reconcile_event_transfers\(state, res\);\s*reconcile_guild_member_social_modes\(res\.guild_member_social_modes\);\s*update_transfer_inventory_nav\(\);/);
+	assert.match(events_request, /event_snapshots\.reconcile_event_transfers\(state, res\);/);
+	assert.match(events_request, /reconcile_guild_member_social_modes\(res\.guild_member_social_modes\);/);
+	assert.match(events_request, /update_transfer_inventory_nav\(\);/);
 	assert.match(interface_ready, /setup_mobile_sidebar_unread\(\);\s*update_chat_nav\(\);\s*update_transfer_inventory_nav\(\);/);
 });

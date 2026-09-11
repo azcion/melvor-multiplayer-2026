@@ -68,11 +68,13 @@ test('a blocked receipt still hydrates incoming Gifts without advancing the reco
 	const state = { events: {}, gifts: [], trades: [], resolved_trades: [], inbox_items: [] };
 	const context = {
 		state, client_events_hydrated: true, economy_command_journal: null, session_generation: 1, client_event_revision: 4, CHAT_CAPABILITIES: '', chat_page_visible: false,
+		social_mode: { SOCIAL_MODE_FULL: 'full', SOCIAL_MODE_SOCIAL: 'social' },
 		polling: { has_pending_events: () => true }, event_snapshots: { reconcile_event_transfers },
 		api_get: async () => ({ revision: 5, gifts: [42], economy_receipts: [{ id: 'blocked' }] }),
 		reconcile_economy_receipts: async () => false,
 		reconcile_campaign_event() {}, invalidate_guild_state() {}, update_chat_nav() {},
 		reconcile_guild_member_social_modes() {}, update_transfer_inventory_nav() {}, update_multiplayer_nav() {},
+		set_instance_storage_item() {}, leave_social_only_disabled_page() {},
 		reconcile_pending_gifts: async () => { contents++; }
 	};
 	await runInNewContext(source + '\nget_client_events_request(true, 1)', context);

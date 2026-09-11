@@ -10,7 +10,7 @@ import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
 import type { PetitionType } from '../council';
 import { legacy_client_chat_state } from '../legacy-client-compatibility';
 
-const { AUTH_RESPONSE_DELAY_MS, BACKEND_VERSION, DEFAULT_USER_ICON_ID, allow_browser_access, associate_client_with_melvor_account, cancel_deletion_on_authentication, db_get_single, execute_due_client_deletions, generate_friend_code, generate_session_token, get_chat_state, get_client_charity_state, get_owned_pet_ids, get_released_mod_version, identify_request, is_server_owned_pets_client, is_valid_uuid, log, parse_client_runtime, parse_melvor_account, persist_client_runtime, recover_deleted_client, register_client, require_registration_capacity, require_service_available, require_source_capacity, server, temporary_unavailable, validate_display_name, validate_json_request } = runtime;
+const { AUTH_RESPONSE_DELAY_MS, BACKEND_VERSION, DEFAULT_USER_ICON_ID, allow_browser_access, associate_client_with_melvor_account, cancel_deletion_on_authentication, db_get_single, execute_due_client_deletions, generate_friend_code, generate_session_token, get_chat_state, get_client_charity_state, get_client_social_mode, get_client_social_mode_enforcement, get_owned_pet_ids, get_released_mod_version, identify_request, is_server_owned_pets_client, is_valid_uuid, log, parse_client_runtime, parse_melvor_account, persist_client_runtime, recover_deleted_client, register_client, require_registration_capacity, require_service_available, require_source_capacity, server, temporary_unavailable, validate_display_name, validate_json_request } = runtime;
 
 export function register_auth_routes(): void {
 	server.route('/api/versions', allow_browser_access(require_source_capacity(require_service_available(() => ({
@@ -87,7 +87,8 @@ export function register_auth_routes(): void {
 
 		return { session_token, friend_code: client_row.friend_code, display_name: client_row.display_name,
 			icon_id: client_row.icon_id, equipment_visible: client_row.equipment_visible === 1,
-			social_mode: client_row.social_mode,
+			social_mode: get_client_social_mode(client_row.id),
+			social_mode_enforcement: get_client_social_mode_enforcement(client_row.id),
 			status_visible: client_row.status_visible === 1,
 			skills_visible: client_row.skills_visible === 1, activity_visible: client_row.activity_visible === 1,
 			gp_visible: client_row.gp_visible === 1,
@@ -128,7 +129,8 @@ export function register_auth_routes(): void {
 			friend_code,
 			display_name,
 			DEFAULT_USER_ICON_ID,
-			melvor_account
+			melvor_account,
+			client_runtime?.device ?? null
 		);
 
 		if (registration.status !== 'created')
@@ -141,7 +143,8 @@ export function register_auth_routes(): void {
 
 		const session_token = await generate_session_token(client_id, client_runtime?.mod_version ?? null, client_runtime?.device);
 		return { session_token, client_identifier, friend_code, display_name, icon_id: DEFAULT_USER_ICON_ID,
-			social_mode: 'full',
+			social_mode: get_client_social_mode(client_id),
+			social_mode_enforcement: get_client_social_mode_enforcement(client_id),
 			equipment_visible: true, status_visible: true, skills_visible: true, activity_visible: true, gp_visible: true, game_mode_visible: true,
 			active_mods_visible: true,
 			chat: legacy_client_chat_state(client_runtime?.mod_version, client_id) ?? get_chat_state(client_id),

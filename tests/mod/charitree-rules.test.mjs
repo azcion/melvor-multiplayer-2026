@@ -10,6 +10,7 @@ import {
 	get_charitree_leaf_coverage,
 	get_charitree_leaf_coverage_percentage,
 	get_charitree_leaf_roll,
+	get_charitree_max_shuffle_offers,
 	get_charitree_shuffle_offer,
 	get_charitree_next_opportunity,
 	get_charitree_stack_value,
@@ -31,6 +32,16 @@ const sc_item = { sellsFor: { currency: sc_currency, quantity: 100 } };
 const expensive_item = { sellsFor: { currency: gp_currency, quantity: 600 } };
 const partial_item = { sellsFor: { currency: gp_currency, quantity: 1_000 } };
 const indivisible_item = { sellsFor: { currency: gp_currency, quantity: 3_000 } };
+
+class PrototypeCurrency {
+	constructor(amount) {
+		this.value = amount;
+	}
+
+	get amount() {
+		return this.value;
+	}
+}
 
 function make_options({ gp = 1_000, sc = 1_000, ap = 1_000, asc = 1_000, discovered = () => false } = {}) {
 	const currencies = [gp_currency, sc_currency, ap_currency, asc_currency];
@@ -350,6 +361,26 @@ test('shuffle prices select only eligible currencies and round down to whole uni
 	assert.deepEqual(get_charitree_shuffle_offer(currencies, () => 0), { currency_id: 'currency:1', balance: 1000.5, qty: 1 });
 	assert.deepEqual(get_charitree_shuffle_offer(currencies, () => 0.5), { currency_id: 'currency:2', balance: 1999, qty: 1 });
 	assert.deepEqual(get_charitree_shuffle_offer(currencies, () => 0.999), { currency_id: 'currency:3', balance: 10000, qty: 10 });
+});
+
+test('max shuffle simulates each remaining deduction and stops when no currency can fund another request', () => {
+	const currencies = [
+		{ id: 'currency:gp', currency: { amount: 2000 } },
+		{ id: 'currency:sc', currency: { amount: 2000 } }
+	];
+	const rolls = [0, 0.99];
+	assert.deepEqual(get_charitree_max_shuffle_offers(currencies, 18, () => 1000, () => rolls.shift()), [
+		{ currency_id: 'currency:gp', balance: 2000, qty: 2 },
+		{ currency_id: 'currency:sc', balance: 2000, qty: 2 }
+	]);
+	assert.deepEqual(currencies.map(entry => entry.currency.amount), [2000, 2000], 'simulation does not mutate live balances');
+	assert.equal(get_charitree_max_shuffle_offers([{ id: 'currency:gp', currency: { amount: 1001 } }], 18).length, 1);
+	assert.equal(get_charitree_max_shuffle_offers(currencies, 20).length, 0);
+	const melvor_currencies = [
+		{ id: 'melvorD:GP', currency: new PrototypeCurrency(7_024_376_442) },
+		{ id: 'melvorD:SlayerCoins', currency: new PrototypeCurrency(5_000_000) }
+	];
+	assert.equal(get_charitree_max_shuffle_offers(melvor_currencies, 10, () => Number.MAX_SAFE_INTEGER, () => 0).length, 10);
 });
 
 test('shuffle hash affects only older donations, preserves currency and undiscovered rules', () => {

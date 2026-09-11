@@ -1,6 +1,8 @@
 import { revoke_installation } from './installations';
 import { db, get_service_setting } from './db';
+import { make_audit_context, run_with_audit_context } from './audit-context';
 import { CHARITY_KNOWN_CURRENCY_VALUATIONS } from './charity-values';
+import { CHARITY_WISH_PROMO_MATURING_MS } from './charity-wishes';
 import {
 	ICON_CATALOG_SETTING_KEYS,
 	MAX_ICON_CATALOG_BYTES,
@@ -25,6 +27,7 @@ const MAX_GUILD_DIAGNOSTIC_ACTIVITY = 20;
 const MAX_CHARITREE_VALUE_CATALOG_BYTES = 4 * 1024 * 1024;
 const MAX_CHARITREE_VALUE_CATALOG_ITEMS = 100000;
 const MAX_CHARITREE_EXPIRY_SECONDS = 31 * 24 * 60 * 60;
+const MAX_CHARITY_WISH_PROMO_HOURS = 31 * 24;
 
 function usage(output: AdminOutput): number {
 	output.error(`Usage:
@@ -39,12 +42,16 @@ function usage(output: AdminOutput): number {
   bun run admin.ts identity find DISPLAY_NAME
   bun run admin.ts identity inspect CLIENT_ID
   bun run admin.ts identity enable|disable CLIENT_ID
+  bun run admin.ts social-mode enforce|clear identity|account ID
   bun run admin.ts global-chat-throttle server clear|MAX_MESSAGES WINDOW_SECONDS
   bun run admin.ts global-chat-throttle client CLIENT_ID clear|MAX_MESSAGES WINDOW_SECONDS
   bun run admin.ts charity reset CLIENT_ID
   bun run admin.ts charity reset-all
   bun run admin.ts charity repair-bank-receipt CLIENT_ID RECEIPT_ID ITEM_ID QTY confirm
   bun run admin.ts charity set-expiry GUILD_ID ITEM_ID EXPECTED_QTY SECONDS confirm
+  bun run admin.ts charity wish-promo status|stop
+  bun run admin.ts charity wish-promo stagger confirm
+  bun run admin.ts charity wish-promo start HOURS confirm
   bun run admin.ts charity backfill-values < charitree-item-values.json
   bun run admin.ts economy-receipt rollback-duplicate-charity CLIENT_ID RECEIPT_ID confirm`);
 	return 2;
@@ -137,6 +144,34 @@ function parse_positive_integer(value: string | undefined): number | null {
 	return Number.isSafeInteger(parsed) && parsed >= 1 ? parsed : null;
 }
 
+function set_social_mode_enforcement(args: string[], output: AdminOutput): number {
+	const [, action, scope, raw_id] = args;
+	const id = parse_positive_integer(raw_id);
+	if (args.length !== 4 || !['enforce', 'clear'].includes(action ?? '') ||
+		!['identity', 'account'].includes(scope ?? '') || id === null)
+		return usage(output);
+	const table = scope === 'identity' ? 'clients' : 'melvor_accounts';
+	const affected = db.transaction(() => {
+		const updated = db.query(`UPDATE \`${table}\` SET \`social_mode_enforced\` = ? WHERE \`id\` = ?`)
+			.run(action === 'enforce' ? 1 : 0, id);
+		if (updated.changes !== 1) return 0;
+		if (scope === 'identity')
+			db.query('UPDATE `clients` SET `event_revision` = `event_revision` + 1 WHERE `id` = ?').run(id);
+		else
+			db.query('UPDATE `clients` SET `event_revision` = `event_revision` + 1 WHERE `melvor_account_id` = ?').run(id);
+		return scope === 'identity' ? 1 : (db.query<{ count: number }, [number]>(
+			'SELECT COUNT(*) AS `count` FROM `clients` WHERE `melvor_account_id` = ?'
+		).get(id)?.count ?? 0);
+	}).immediate();
+	if (affected === 0 && db.query(`SELECT 1 FROM \`${table}\` WHERE \`id\` = ?`).get(id) === null) {
+		output.error(`${scope === 'identity' ? 'Multiplayer identity' : 'Melvor account'} ${id} does not exist.`);
+		return 1;
+	}
+	output.log(`Social Only enforcement ${action === 'enforce' ? 'enabled' : 'cleared'} for ${scope} ${id}.`);
+	output.log(`affected_identities=${affected}`);
+	return 0;
+}
+
 function parse_icon_collection_limit(kind: string | undefined, value: string | undefined): {
 	key: string;
 	value: number;
@@ -156,6 +191,50 @@ function parse_icon_collection_limit(kind: string | undefined, value: string | u
 
 function set_setting(key: string, value: string): void {
 	db.query('UPDATE `service_settings` SET `value` = ? WHERE `key` = ?').run(value, key);
+}
+
+function run_charity_wish_promo(args: string[], output: AdminOutput): number {
+	const [, , action, argument, confirmation] = args;
+	const now = Date.now();
+	if (action === 'status' && args.length === 3) {
+		const ends_at = Number(get_service_setting('charity_wish_promo_ends_at'));
+		output.log(`charity_wish_promo=${Number.isSafeInteger(ends_at) && ends_at > now ? 'active' : 'inactive'}`);
+		output.log(`charity_wish_promo_ends_at=${Number.isSafeInteger(ends_at) && ends_at > 0 ? ends_at : 0}`);
+		return 0;
+	}
+	if (action === 'stop' && args.length === 3) {
+		set_setting('charity_wish_promo_ends_at', '0');
+		output.log('Charitree Wish promo stopped. Existing timers were not changed.');
+		return 0;
+	}
+	if (action === 'stagger' && args.length === 4 && argument === 'confirm') {
+		const updated = db.query(
+			'WITH eligible AS (' +
+				'SELECT `id`, ROW_NUMBER() OVER (PARTITION BY `guild_id` ORDER BY `matures_at`, `id`) - 1 AS `wish_index` ' +
+				'FROM `charity_wishes` WHERE `matures_at` > ? AND `progress_gp` < `required_gp`' +
+			') UPDATE `charity_wishes` SET `matures_at` = ? + 60000 + (' +
+				'SELECT `wish_index` * 1000 FROM eligible WHERE eligible.`id` = `charity_wishes`.`id`' +
+			') WHERE `id` IN (SELECT `id` FROM eligible)'
+		).run(now + 60000, now);
+		output.log(`charity_wishes_staggered=${updated.changes}`);
+		return 0;
+	}
+	const hours = parse_positive_integer(argument);
+	if (action === 'start' && args.length === 5 && confirmation === 'confirm' &&
+		hours !== null && hours <= MAX_CHARITY_WISH_PROMO_HOURS) {
+		const ends_at = now + hours * 60 * 60 * 1000;
+		const updated = db.transaction(() => {
+			set_setting('charity_wish_promo_ends_at', String(ends_at));
+			return db.query(
+				'UPDATE `charity_wishes` SET `matures_at` = ? WHERE `matures_at` > ? ' +
+				'AND `progress_gp` < `required_gp`'
+			).run(now + CHARITY_WISH_PROMO_MATURING_MS, now + CHARITY_WISH_PROMO_MATURING_MS).changes;
+		}).immediate();
+		output.log(`charity_wish_promo_ends_at=${ends_at}`);
+		output.log(`charity_wishes_accelerated=${updated}`);
+		return 0;
+	}
+	return usage(output);
 }
 
 function is_release_version(value: string | undefined): value is string {
@@ -656,10 +735,12 @@ function set_global_chat_throttle(args: string[], output: AdminOutput): number {
 	return 0;
 }
 
-export function run_admin(args: string[], output: AdminOutput = console_output): number {
+function run_admin_command(args: string[], output: AdminOutput = console_output): number {
 	const [command, action, argument] = args;
 
 	switch (command) {
+		case 'social-mode':
+			return set_social_mode_enforcement(args, output);
 		case 'global-chat-throttle':
 			return set_global_chat_throttle(args, output);
 		case 'status': {
@@ -682,6 +763,9 @@ export function run_admin(args: string[], output: AdminOutput = console_output):
 			output.log(`icon_collection_max_observations=${get_service_setting(ICON_CATALOG_SETTING_KEYS.max_observations)}`);
 			output.log(`released_mod_version=${get_service_setting('released_mod_version') || 'none'}`);
 			output.log(`charitree_value_backfill_pending=${get_service_setting('charity_value_backfill_pending') ?? '0'}`);
+			const wish_promo_ends_at = Number(get_service_setting('charity_wish_promo_ends_at'));
+			output.log(`charity_wish_promo=${Number.isSafeInteger(wish_promo_ends_at) && wish_promo_ends_at > Date.now() ? 'active' : 'inactive'}`);
+			output.log(`charity_wish_promo_ends_at=${Number.isSafeInteger(wish_promo_ends_at) && wish_promo_ends_at > 0 ? wish_promo_ends_at : 0}`);
 			output.log(`identities=${identity_count}`);
 			output.log(`disabled_identities=${disabled_count}`);
 			return 0;
@@ -736,6 +820,8 @@ export function run_admin(args: string[], output: AdminOutput = console_output):
 			return guild_id === null ? usage(output) : inspect_guild(guild_id, output);
 		}
 		case 'charity': {
+			if (action === 'wish-promo')
+				return run_charity_wish_promo(args, output);
 			if (action === 'reset-all' && args.length === 2)
 				return reset_all_charity_timers(output);
 			if (action === 'set-expiry' && args.length === 7 && args[6] === 'confirm') {
@@ -793,16 +879,21 @@ export function run_admin(args: string[], output: AdminOutput = console_output):
 					last_multiplayer_active_at: number;
 					melvor_account_id: number | null;
 					manual_melvor_account_link: number;
+					social_mode: string;
+					social_mode_enforced: number;
+					account_social_mode_enforced: number;
 					session_count: number;
 					guild_id: number | null;
 					guild_name: string | null;
 					guild_type: string | null;
 				}, [number]>(
 					'SELECT c.`id`, c.`display_name`, c.`disabled`, c.`deleted_at`, ' +
-					'c.`last_multiplayer_active_at`, c.`melvor_account_id`, c.`manual_melvor_account_link`, ' +
+					'c.`last_multiplayer_active_at`, c.`melvor_account_id`, c.`manual_melvor_account_link`, c.`social_mode`, ' +
+					'c.`social_mode_enforced`, COALESCE(account.`social_mode_enforced`, 0) AS `account_social_mode_enforced`, ' +
 					'(SELECT COUNT(*) FROM `client_sessions` AS s WHERE s.`client_id` = c.`id`) AS `session_count`, ' +
 					'm.`guild_id`, g.`name` AS `guild_name`, g.`type` AS `guild_type` ' +
 					'FROM `clients` AS c ' +
+					'LEFT JOIN `melvor_accounts` AS account ON account.`id` = c.`melvor_account_id` ' +
 					'LEFT JOIN `guild_memberships` AS m ON m.`client_id` = c.`id` ' +
 					'LEFT JOIN `guilds` AS g ON g.`id` = m.`guild_id` ' +
 					'WHERE c.`id` = ? LIMIT 1'
@@ -827,7 +918,10 @@ export function run_admin(args: string[], output: AdminOutput = console_output):
 				output.log(`deleted=${identity.deleted_at === null ? 'no' : 'yes'}`);
 				output.log(`active_sessions=${identity.session_count}`);
 				output.log(`last_multiplayer_active_at=${identity.last_multiplayer_active_at}`);
+				output.log(`melvor_account_id=${identity.melvor_account_id ?? 'none'}`);
 				output.log(`melvor_account_linked=${identity.melvor_account_id === null ? 'no' : 'yes'}`);
+				output.log(`social_mode=${identity.social_mode}`);
+				output.log(`social_mode_enforcement=${identity.social_mode_enforced === 1 ? 'identity' : identity.account_social_mode_enforced === 1 ? 'account' : 'none'}`);
 				output.log(`manual_account_link=${identity.manual_melvor_account_link === 1 ? 'yes' : 'no'}`);
 				output.log(`guild_id=${identity.guild_id ?? 'none'}`);
 				output.log(`guild_name=${identity.guild_name === null ? 'none' : JSON.stringify(identity.guild_name)}`);
@@ -856,10 +950,25 @@ export function run_admin(args: string[], output: AdminOutput = console_output):
 	}
 }
 
+export function run_admin(args: string[], output: AdminOutput = console_output): number {
+	const action = args.slice(0, 3).join('.') || 'unknown';
+	return run_with_audit_context(make_audit_context({
+		event_type: `operator.admin.${action}`,
+		actor_kind: 'operator', actor_client_id: null, actor_display_name: 'admin-cli',
+		details: { command: action }
+	}), () => run_admin_command(args, output));
+}
+
 if (import.meta.main) {
 	const args = Bun.argv.slice(2);
-	process.exitCode = args.length === 2 && args[0] === 'charity' && args[1] === 'backfill-values'
-		? backfill_charitree_values(await Bun.stdin.text())
-		: run_admin(args);
+	if (args.length === 2 && args[0] === 'charity' && args[1] === 'backfill-values') {
+		const input = await Bun.stdin.text();
+		process.exitCode = run_with_audit_context(make_audit_context({
+			event_type: 'operator.admin.charity.backfill-values', actor_kind: 'operator',
+			actor_client_id: null, actor_display_name: 'admin-cli', details: { command: 'charity.backfill-values' }
+		}), () => backfill_charitree_values(input));
+	} else {
+		process.exitCode = run_admin(args);
+	}
 	db.close();
 }

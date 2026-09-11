@@ -48,7 +48,7 @@ export function install_chat_actions(runtime) {
 		async start_member_chat(event) {
 			const member = this.selected_guild_member;
 			const $button = event.currentTarget;
-			if (!member || member.client_id === this.guild_client_id || is_button_spinning($button))
+			if (!member || member.can_start_chat === false || member.client_id === this.guild_client_id || is_button_spinning($button))
 				return;
 			this.member_actions_error = '';
 			show_button_spinner($button);
@@ -151,12 +151,17 @@ export function install_chat_actions(runtime) {
 			const sender_id = message?.sender_id;
 			if (!Number.isSafeInteger(sender_id) || sender_id < 1 || !message?.sender)
 				return;
-			const member = this.guild_members.find(entry => entry.client_id === sender_id);
+			const member = [...this.guild_members, ...(this.shadowed_members ?? [])]
+				.find(entry => entry.client_id === sender_id);
+			const private_conversation = this.selected_chat_conversation?.conversation_kind === 'private' &&
+				this.selected_chat_conversation.conversation_id !== null &&
+				this.selected_chat_conversation.participant?.client_id === sender_id;
 			this.show_member_actions({
 				...(member ?? {}),
 				client_id: sender_id,
 				display_name: message.sender.display_name,
-				icon_id: message.sender.icon_id
+				icon_id: message.sender.icon_id,
+				can_start_chat: member !== undefined || private_conversation
 			});
 		},
 

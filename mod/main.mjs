@@ -269,6 +269,7 @@ const state = ui.createStore({
 	show_icon_prompt_info: false,
 	current_mod_version: MOD_VERSION,
 	social_mode: 'full',
+	social_mode_enforcement: null,
 	social_mode_cancellation_pending: false,
 	released_mod_version: '',
 	changelog_entries: [],
@@ -312,6 +313,7 @@ const state = ui.createStore({
 	charity_shuffle_count: 0,
 	charity_currency_locks: [],
 	charity_shuffle_offer: null,
+	charity_shuffle_max_offers: [],
 	charity_shuffle_supported: false,
 	selected_charity_item_id: '',
 	charity_server_supported: false,
@@ -1880,7 +1882,7 @@ function load_social_mode() {
 }
 
 function leave_social_only_disabled_page() {
-	if (!interface_ready)
+	if (!interface_ready || !state.is_social_only)
 		return;
 	const disabled_pages = ['mp-charity-page', 'mp-campaign-page', 'mp-market-page'];
 	if (disabled_pages.some(id => {
@@ -1920,6 +1922,7 @@ async function request_social_mode(next) {
 		state.charity_shuffle_count = 0;
 		state.charity_currency_locks = [];
 		state.charity_shuffle_offer = null;
+		state.charity_shuffle_max_offers = [];
 		state.charity_shuffle_supported = false;
 		state.inbox_items = [];
 		state.inbox_groups = [];
@@ -1945,6 +1948,10 @@ async function request_social_mode(next) {
 
 function apply_social_mode(value, selected = true) {
 	const next = social_mode.normalize_social_mode(value);
+	if (next === social_mode.SOCIAL_MODE_FULL && state.social_mode_enforcement !== null) {
+		notify_error('MOD_MP_SOCIAL_MODE_ENFORCED');
+		return Promise.resolve(false);
+	}
 	if (next === state.social_mode && get_instance_storage_item(`social_mode_${next}_command_id`) === undefined) {
 		if (selected)
 			set_instance_storage_item('social_mode_selected', true);
@@ -3608,6 +3615,7 @@ async function refresh_guild_state_request() {
 			state.charity_shuffle_count = 0;
 			state.charity_currency_locks = [];
 			state.charity_shuffle_offer = null;
+			state.charity_shuffle_max_offers = [];
 			state.charity_shuffle_supported = false;
 			state.campaign_has_data = false;
 			state.campaign_history = [];
@@ -3931,9 +3939,16 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 			return null;
 
 		event_snapshots.reconcile_event_transfers(state, res);
+		if (res.social_mode === social_mode.SOCIAL_MODE_FULL || res.social_mode === social_mode.SOCIAL_MODE_SOCIAL) {
+			state.social_mode = res.social_mode;
+			state.social_mode_enforcement = res.social_mode_enforcement === 'identity' || res.social_mode_enforcement === 'account'
+				? res.social_mode_enforcement : null;
+			set_instance_storage_item('social_mode', state.social_mode);
+		}
 		reconcile_guild_member_social_modes(res.guild_member_social_modes);
 		update_transfer_inventory_nav();
 		update_multiplayer_nav();
+		leave_social_only_disabled_page();
 
 		if (state.is_transfer_page_visible)
 			setTimeout(() => update_transfer_contents(), 1);
@@ -4846,6 +4861,8 @@ function activate_multiplayer_identity(response) {
 	state.charity_server_supported = false;
 	apply_charity_state(response.charity);
 	state.social_mode = social_mode.normalize_social_mode(response.social_mode);
+	state.social_mode_enforcement = response.social_mode_enforcement === 'identity' || response.social_mode_enforcement === 'account'
+		? response.social_mode_enforcement : null;
 	set_instance_storage_item('social_mode', state.social_mode);
 	state.equipment_visible = response.equipment_visible !== false;
 	const legacy_status_visible = response.status_visible !== false;
@@ -4869,7 +4886,9 @@ function activate_multiplayer_identity(response) {
 	}
 	if (response.chat?.budget)
 		state.chat_budget = response.chat.budget;
-	if (get_instance_storage_item('social_mode_selected') !== true)
+	if (state.social_mode_enforcement !== null)
+		set_instance_storage_item('social_mode_selected', true);
+	else if (get_instance_storage_item('social_mode_selected') !== true)
 		queue_identity_notice('social_mode_choice');
 	else
 		queue_default_avatar_notice();

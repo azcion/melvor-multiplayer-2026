@@ -3,6 +3,11 @@
 The minimum supported mod version is 1.5.1. API major versions are independent of mod releases and backend deployment
 versions. Existing clients continue using their original URLs and JSON contracts.
 
+Authentication may include `social_mode_enforcement` as `identity`, `account`, or null. When non-null, the effective
+`social_mode` is `social`, Full-mode changes return `MOD_MP_SOCIAL_MODE_ENFORCED`, and every Social Only authorization
+gate remains authoritative for both API majors. Older clients safely receive the effective mode without needing the
+new field; 1.5.8 uses it to explain the operator restriction and hide the unavailable Full Experience choice.
+
 ## Selection
 
 `GET /api/versions` returns `api_versions: [1, 2]` and `preferred_api_version: 2`. Clients select before authentication,

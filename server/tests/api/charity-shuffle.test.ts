@@ -110,3 +110,53 @@ test('caps Shuffle Leaves by the requested currency', async () => {
 	expect(gp.json.receipt.effects).toEqual([{ storage: 'gp', qty: -1_000_000_000 }]);
 	expect(slayer.json.receipt.effects).toEqual([{ storage: 'bank', item_id: 'melvorD:SlayerCoins', qty: -1_000_000 }]);
 });
+
+test('max shuffle atomically fills only the authoritative remaining bonus with aggregate effects', async () => {
+	const client = await register_guild_client('Shuffle Max', 'Shuffle Max Guild', '1.5.8');
+	const now = Date.now();
+	for (let index = 0; index < 18; index++)
+		await db_run('INSERT INTO charity_shuffle_events (owner_key, shuffled_at) VALUES (?, ?)',
+			[`client:${client.client_id}`, now - index]);
+
+	const command_id = crypto.randomUUID();
+	const result = await post_json<{ success: boolean; shuffle_count: number; receipt: { effects: unknown[] } }>(
+		'/api/v2/charity/shuffle', {
+			command_id,
+			offers: [
+				{ currency_id: 'melvorD:GP', balance: 1_000_000 },
+				{ currency_id: 'melvorD:SlayerCoins', balance: 100_000 }
+			]
+		}, client.session_token);
+	expect(result.json.success).toBe(true);
+	expect(result.json.shuffle_count).toBe(20);
+	expect(result.json.receipt.effects).toEqual([
+		{ storage: 'gp', qty: -1000 },
+		{ storage: 'bank', item_id: 'melvorD:SlayerCoins', qty: -100 }
+	]);
+	const state = await contents(client.session_token);
+	expect(state.items.filter(item => ['melvorD:GP', 'melvorD:SlayerCoins'].includes(item.id))
+		.map(({ id, qty }) => ({ id, qty }))).toEqual([
+		{ id: 'melvorD:GP', qty: 1000 },
+		{ id: 'melvorD:SlayerCoins', qty: 100 }
+	]);
+	expect(state.currency_locks.map(lock => lock.currency_id).sort()).toEqual(['melvorD:GP', 'melvorD:SlayerCoins']);
+
+	const oversized = await post_json<{ success: boolean; error_lang: string }>('/api/v2/charity/shuffle', {
+		command_id: crypto.randomUUID(),
+		offers: [{ currency_id: 'melvorD:GP', balance: 999_000 }]
+	}, client.session_token);
+	expect(oversized.json).toEqual({ success: false, error_lang: 'MOD_MP_CHARITY_SHUFFLE_MAX_CHANGED' });
+	expect((await contents(client.session_token)).items.find(item => item.id === 'melvorD:GP')?.qty).toBe(1000);
+});
+
+test('max shuffle requires sequential balances when it repeats a currency', async () => {
+	const client = await register_guild_client('Shuffle Sequence', 'Sequence Guild', '1.5.8');
+	const invalid = await post('/api/v2/charity/shuffle', {
+		command_id: crypto.randomUUID(),
+		offers: [
+			{ currency_id: 'melvorD:GP', balance: 100_000 },
+			{ currency_id: 'melvorD:GP', balance: 100_000 }
+		]
+	}, client.session_token);
+	expect(invalid.status).toBe(400);
+});

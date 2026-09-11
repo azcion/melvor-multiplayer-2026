@@ -13,9 +13,9 @@
 </template>
 <template id="template-mp-social-mode-choice-modal">
 	<div class="mp-social-mode-choice">
-		<div class="mp-social-mode-subtitle"><lang-string lang-id="MOD_MP_SOCIAL_MODE_SUBTITLE"></lang-string></div>
+		<div class="mp-social-mode-subtitle"><lang-string :lang-id="state.social_mode_enforcement ? 'MOD_MP_SOCIAL_MODE_ENFORCED_INFO' : 'MOD_MP_SOCIAL_MODE_SUBTITLE'"></lang-string></div>
 		<div class="mp-social-mode-options">
-			<div class="mp-social-mode-card mp-social-mode-card-full">
+			<div class="mp-social-mode-card mp-social-mode-card-full" v-if="!state.social_mode_enforcement">
 				<h3><lang-string lang-id="MOD_MP_SOCIAL_MODE_FULL"></lang-string></h3>
 				<div class="mp-social-mode-description">
 					<div><lang-string lang-id="MOD_MP_SOCIAL_MODE_FULL_INFO"></lang-string></div>
@@ -242,7 +242,7 @@
 					<span>{{ state.get_status_activity_name(activity) }}</span>
 				</div>
 			</div>
-			<button type="button" class="btn btn-primary" :disabled="state.member_actions_preview" @click="state.start_member_chat($event)">
+			<button type="button" class="btn btn-primary" v-show="state.selected_guild_member.can_start_chat !== false" :disabled="state.member_actions_preview" @click="state.start_member_chat($event)">
 				<span class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></span>
 				<lang-string lang-id="MOD_MP_CHAT_START"></lang-string>
 			</button>
@@ -2346,7 +2346,33 @@
 	</div>
 	<div class="mp-modal-text" v-else><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_POOR"></lang-string></div>
 	<div class="mp-button-tray">
-		<button type="button" class="btn btn-success" v-if="state.charity_shuffle_offer" @click="state.confirm_charity_shuffle($event)"><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE"></lang-string></button>
+		<button type="button" class="btn btn-success" v-if="state.charity_shuffle_offer" @click="state.confirm_charity_shuffle($event)">
+			<div class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></div>
+			<lang-string lang-id="MOD_MP_CHARITY_SHUFFLE"></lang-string>
+		</button>
+		<button type="button" class="btn btn-info" v-if="state.charity_shuffle_offer && state.charity_shuffle_bonus() < 20" @click="state.show_charity_shuffle_max()"><lang-string lang-id="MOD_MP_BUTTON_MAX"></lang-string></button>
+		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
+	</div>
+</template>
+<template id="template-mp-charity-shuffle-max-modal">
+	<div class="mp-modal-text">
+		<p class="mb-2"><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_MAX_INTRO"></lang-string></p>
+		<p class="mb-2 font-w600 text-info"><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_MAX_TARGET"></lang-string></p>
+		<p class="mb-2"><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_PRICE"></lang-string></p>
+		<div class="mp-charity-shuffle-max-offers mb-2">
+			<div class="mp-charity-shuffle-max-offer" v-for="offer in state.charity_shuffle_max_totals()" :key="offer.currency_id">
+				<img class="skill-icon-sm mr-2" :src="offer.currency?.currency?.media" :alt="offer.currency?.currency?.name || ''">
+				<strong>{{ numberWithCommas(offer.qty) }} {{ offer.currency?.shorthand || '' }}</strong>
+			</div>
+		</div>
+		<p class="mb-2"><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_COVERAGE"></lang-string></p>
+		<p class="mb-0"><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_INFO"></lang-string></p>
+	</div>
+	<div class="mp-button-tray">
+		<button type="button" class="btn btn-success" @click="state.confirm_charity_shuffle($event, true)">
+			<div class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></div>
+			<lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_MAX_CONFIRM"></lang-string>
+		</button>
 		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
 	</div>
 </template>

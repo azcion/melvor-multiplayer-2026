@@ -21,13 +21,13 @@ export function register_inbox_routes(): void {
 			!Number.isSafeInteger(available_slots) || available_slots < 0)
 			return 400;
 
-		const claim_id = create_inbox_claim(client_id, existing_item_ids, available_slots);
+		const claim_id = create_inbox_claim(client_id, existing_item_ids, available_slots, req);
 		return { claim: claim_id === null ? null : get_inbox_claim_view(claim_id, client_id) };
 	});
 
 	session_post_route('/api/inbox/acknowledge', async (req, url, client_id, json): Promise<HandlerResult> => {
 		if (typeof json.claim_id !== 'string' || !is_valid_uuid(json.claim_id))
 			return 400;
-		return acknowledge_inbox_claim(client_id, json.claim_id) ? { success: true } : 404;
+		return acknowledge_inbox_claim(client_id, json.claim_id, req) ? { success: true } : 404;
 	});
 }

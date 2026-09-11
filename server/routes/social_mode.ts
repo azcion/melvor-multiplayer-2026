@@ -8,6 +8,7 @@ const {
 	GiftFlags,
 	db,
 	get_client_social_mode,
+	get_client_social_mode_enforcement,
 	gift_cache,
 	market_completed_cached,
 	remove_player_cache_entry,
@@ -133,6 +134,9 @@ export function register_social_mode_routes(): void {
 			return 400;
 		if (typeof json.command_id !== 'string' || !is_valid_uuid(json.command_id))
 			return 400;
+		if (json.mode === 'full' && get_client_social_mode_enforcement(client_id) !== null)
+			return { success: false, error_lang: 'MOD_MP_SOCIAL_MODE_ENFORCED', social_mode: 'social',
+				social_mode_enforcement: get_client_social_mode_enforcement(client_id) };
 		const result = change_mode(client_id, json.mode, json.command_id, 'social-mode-set');
 		return result?.success === true ? result : 400;
 	});

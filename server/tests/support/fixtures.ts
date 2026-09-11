@@ -18,6 +18,8 @@ export type Friend = ClientDisplay & {
 
 export type Events = {
 	revision: number;
+	social_mode: 'full' | 'social';
+	social_mode_enforcement: 'identity' | 'account' | null;
 	friend_requests: FriendRequest[];
 	gifts: number[];
 	trades: Array<{

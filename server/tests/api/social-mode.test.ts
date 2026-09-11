@@ -11,6 +11,33 @@ async function get_inbox(session_token: string) {
 }
 
 describe('Social Only mode cancellation', () => {
+	test('enforces Social Only by identity or linked account and rejects Full restoration', async () => {
+		const pair = await make_guildmates('Forced Social Client', 'Forced Social Peer');
+		await db_run('UPDATE `clients` SET `social_mode_enforced` = 1 WHERE `id` = ?', [pair.first_id]);
+		const authenticated = await post_json<{ social_mode: string; social_mode_enforcement: string; session_token: string }>(
+			'/api/authenticate', { client_identifier: pair.first.client_identifier, client_key: pair.first.client_key }
+		);
+		expect(authenticated.json).toMatchObject({ social_mode: 'social', social_mode_enforcement: 'identity' });
+		const rejected = await post_json<{ success: boolean; error_lang: string; social_mode: string }>(
+			'/api/social-mode/set', { mode: 'full', command_id: crypto.randomUUID() }, authenticated.json.session_token
+		);
+		expect(rejected.json).toMatchObject({ success: false, error_lang: 'MOD_MP_SOCIAL_MODE_ENFORCED', social_mode: 'social' });
+		const forced_event = await get_json_with_session<{ social_mode: string; social_mode_enforcement: string }>(
+			'/api/events', authenticated.json.session_token
+		);
+		expect(forced_event.json).toMatchObject({ social_mode: 'social', social_mode_enforcement: 'identity' });
+
+		const cloud_username = `Forced Cloud ${crypto.randomUUID()}`;
+		const playfab_id = crypto.randomUUID();
+		await db_run('INSERT INTO `melvor_accounts` (`id`, `cloud_username`, `playfab_id`, `created_at`, `social_mode_enforced`) VALUES(999999, ?, ?, 1, 1)',
+			[cloud_username, playfab_id]);
+		await db_run('UPDATE `clients` SET `social_mode_enforced` = 0, `melvor_account_id` = 999999 WHERE `id` = ?', [pair.first_id]);
+		const account_auth = await post_json<{ social_mode: string; social_mode_enforcement: string }>(
+			'/api/authenticate', { client_identifier: pair.first.client_identifier, client_key: pair.first.client_key,
+				cloud_username, playfab_id }
+		);
+		expect(account_auth.json).toMatchObject({ social_mode: 'social', social_mode_enforcement: 'account' });
+	});
 	test('persists the selected mode, hides Social recipients, and rejects server mutations', async () => {
 		const pair = await make_guildmates('Authoritative Social Client', 'Authoritative Full Client');
 		const peer_before = await get_events(pair.second);

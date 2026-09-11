@@ -272,6 +272,41 @@ describe('identity API', () => {
 		});
 		expect(authenticated.response.status).toBe(200);
 		expect(authenticated.json.display_name).toBe('Éowyn-7');
+		const history = await db_all<{
+			display_name: string;
+			valid_from: number | null;
+			valid_to: number | null;
+		}>(
+			'SELECT `display_name`, `valid_from`, `valid_to` FROM `client_display_name_history` ' +
+			'WHERE `client_id` = ? ORDER BY `id`',
+			[client.client_id]
+		);
+		expect(history).toHaveLength(2);
+		expect(history[0].display_name).toBe('Original Character');
+		expect(history[0].valid_from).toBeNumber();
+		expect(history[0].valid_to).toBeNumber();
+		expect(history[1].display_name).toBe('Éowyn-7');
+		expect(history[1].valid_from).toBe(history[0].valid_to);
+		expect(history[1].valid_to).toBeNull();
+		const events = await db_all<{
+			event_type: string;
+			actor_client_id: number;
+			actor_display_name: string;
+			details_json: string;
+		}>(
+			'SELECT `event_type`, `actor_client_id`, `actor_display_name`, `details_json` FROM `audit_events` ' +
+			'WHERE `actor_client_id` = ? AND `event_type` LIKE \'identity.%\' ORDER BY `id`',
+			[client.client_id]
+		);
+		expect(events.map(event => event.event_type)).toEqual([
+			'identity.registered',
+			'identity.display_name_changed'
+		]);
+		expect(events[1].actor_display_name).toBe('Original Character');
+		expect(JSON.parse(events[1].details_json)).toEqual({
+			old_display_name: 'Original Character',
+			new_display_name: 'Éowyn-7'
+		});
 	});
 
 	test('replaces unsafe registration display names with the safe default', async () => {

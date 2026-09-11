@@ -105,7 +105,8 @@ export type clients = {
 	deleted_at: number | null,
 	last_multiplayer_active_at: number,
 	event_revision: number,
-	social_mode: 'full' | 'social'
+	social_mode: 'full' | 'social',
+	social_mode_enforced: number
 };
 
 export type guild_raids = {
@@ -297,6 +298,13 @@ export type gp_snapshots = {
 export type service_settings = {
 	key: string;
 	value: string;
+};
+
+export type update_sections = {
+	id: string;
+	sort_order: number;
+	title: string;
+	body: string;
 };
 
 export type icon_catalog_blobs = {

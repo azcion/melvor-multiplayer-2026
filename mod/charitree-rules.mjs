@@ -162,3 +162,19 @@ export function get_charitree_shuffle_offer(currencies, random = Math.random) {
 	const selected = eligible[Math.min(eligible.length - 1, Math.floor(random() * eligible.length))];
 	return { currency_id: selected.id, balance: selected.currency.amount, qty: Math.floor(selected.currency.amount / 1000) };
 }
+
+export function get_charitree_max_shuffle_offers(currencies, shuffle_count, get_cap = () => Number.MAX_SAFE_INTEGER, random = Math.random) {
+	const remaining = 20 - Math.max(-10, Math.min(20, Number.isSafeInteger(shuffle_count) ? shuffle_count : 0));
+	// Melvor currency amounts are prototype-backed; snapshot the value explicitly for simulation.
+	const simulated = currencies.map(entry => ({ ...entry, currency: { amount: entry.currency?.amount } }));
+	const offers = [];
+	for (let index = 0; index < remaining; index++) {
+		const offer = get_charitree_shuffle_offer(simulated, random);
+		if (offer === null) break;
+		offer.qty = Math.min(offer.qty, get_cap(offer.currency_id));
+		offers.push(offer);
+		const selected = simulated.find(entry => entry.id === offer.currency_id);
+		selected.currency.amount -= offer.qty;
+	}
+	return offers;
+}

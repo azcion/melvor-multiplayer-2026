@@ -5,12 +5,25 @@ import type { JsonObject } from './http';
 import type * as db_row from './db/types/db_types';
 
 export const CHARITY_WISH_MATURING_MS = 4 * 24 * 60 * 60 * 1000;
+export const CHARITY_WISH_PROMO_MATURING_MS = 60 * 60 * 1000;
 export const CHARITY_WISH_MIN_VERSION = '1.5.7';
+export const CHARITY_SHUFFLE_BONUS_LIMIT = 20;
+export const CHARITY_WISH_SHUFFLE_PENALTY = 10;
+const CHARITY_SHUFFLE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const WEIRD_GLOOP_ID = 'melvorD:Weird_Gloop';
 const WEIRD_GLOOP_GP_VALUE = 1000n;
 
 type WishCommandKind = 'make' | 'forsake' | 'pick';
 type CatalogEntry = { id: string; max_item_value: number };
+
+export function get_charity_wish_maturing_ms(now = Date.now(), database: Database = db): number {
+	const raw_ends_at = database.query<{ value: string }, []>(
+		"SELECT `value` FROM `service_settings` WHERE `key` = 'charity_wish_promo_ends_at'"
+	).get()?.value;
+	const ends_at = Number(raw_ends_at);
+	return Number.isSafeInteger(ends_at) && ends_at > now
+		? CHARITY_WISH_PROMO_MATURING_MS : CHARITY_WISH_MATURING_MS;
+}
 
 const catalog_data = JSON.parse(readFileSync(new URL('./openable-wish-values.json', import.meta.url), 'utf8')) as unknown;
 if (!Array.isArray(catalog_data))
@@ -33,10 +46,39 @@ export function is_charity_wish_client(mod_version: string | null | undefined): 
 	return version[0] > 1 || (version[0] === 1 && (version[1] > 5 || (version[1] === 5 && version[2] >= 7)));
 }
 
-export function get_charity_wish_account(client_id: number): number | null {
-	return (db.query<{ melvor_account_id: number | null }, [number]>(
+export function get_charity_wish_account(client_id: number, database: Database = db): number | null {
+	return (database.query<{ melvor_account_id: number | null }, [number]>(
 		'SELECT `melvor_account_id` FROM `clients` WHERE `id` = ?'
 	).get(client_id)?.melvor_account_id ?? null);
+}
+
+export function get_charity_shuffle_owner_key(client_id: number, database: Database = db): string {
+	const account_id = get_charity_wish_account(client_id, database);
+	return account_id === null ? `client:${client_id}` : `account:${account_id}`;
+}
+
+export function normalize_charity_shuffle_events(
+	owner_key: string,
+	active_wish: boolean,
+	now = Date.now(),
+	database: Database = db
+): number {
+	const shuffle_cutoff = now - CHARITY_SHUFFLE_WINDOW_MS;
+	database.query('DELETE FROM `charity_shuffle_events` WHERE `owner_key` = ? AND `shuffled_at` <= ?')
+		.run(owner_key, shuffle_cutoff);
+	const max_event_count = CHARITY_SHUFFLE_BONUS_LIMIT +
+		(active_wish ? CHARITY_WISH_SHUFFLE_PENALTY : 0);
+	const event_count = (database.query<{ count: number }, [string]>(
+		'SELECT COUNT(*) AS `count` FROM `charity_shuffle_events` WHERE `owner_key` = ?'
+	).get(owner_key) as { count: number }).count;
+	const overflow = event_count - max_event_count;
+	if (overflow > 0)
+		database.query(
+			'DELETE FROM `charity_shuffle_events` WHERE `owner_key` = ? AND `id` IN (' +
+				'SELECT `id` FROM `charity_shuffle_events` WHERE `owner_key` = ? ' +
+				'ORDER BY `shuffled_at`, `id` LIMIT ?)'
+		).run(owner_key, owner_key, overflow);
+	return Math.min(event_count, max_event_count);
 }
 
 export function run_charity_wish_command(
@@ -141,6 +183,7 @@ export function settle_departing_charity_wish(
 		database.query('UPDATE `clients` SET `event_revision` = `event_revision` + 1 WHERE `id` = ?').run(client_id);
 	}
 	database.query('DELETE FROM `charity_wishes` WHERE `id` = ?').run(wish.id);
+	normalize_charity_shuffle_events(get_charity_shuffle_owner_key(client_id, database), false, now, database);
 	if (wish.matures_at <= now && wish.progress_gp < wish.required_gp) {
 		const remainder = distribute_charity_wish_progress(guild_id, BigInt(wish.progress_gp), now, database);
 		add_charity_gloop(guild_id, remainder, database);

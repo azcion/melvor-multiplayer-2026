@@ -84,6 +84,84 @@ afterEach(() => {
 });
 
 describe('administration CLI', () => {
+	test('stagger-promotes only eligible Wishes while preserving each Guild order', async () => {
+		const database_path = fixture_database();
+		const database = new Database(database_path, { strict: true });
+		const now = Date.now();
+		database.run("INSERT INTO melvor_accounts (cloud_username, playfab_id, created_at) VALUES ('One', 'wish-one', 1), ('Two', 'wish-two', 1), ('Three', 'wish-three', 1), ('Four', 'wish-four', 1), ('Five', 'wish-five', 1)");
+		database.run("INSERT INTO clients (client_identifier, client_key, friend_code, display_name, icon_id, melvor_account_id) VALUES ('wish-client-2', 'wish-key-2', '200-000-002', 'Wish Two', 'melvorD:Plant', 2), ('wish-client-3', 'wish-key-3', '200-000-003', 'Wish Three', 'melvorD:Plant', 3), ('wish-client-4', 'wish-key-4', '200-000-004', 'Wish Four', 'melvorD:Plant', 4), ('wish-client-5', 'wish-key-5', '200-000-005', 'Wish Five', 'melvorD:Plant', 5)");
+		database.run('UPDATE clients SET melvor_account_id = 1 WHERE id = 1');
+		database.run("INSERT INTO guilds (name, icon_id) VALUES ('Other Wish Guild', 'melvorD:Farmlands')");
+		const insert = database.query('INSERT INTO charity_wishes (guild_id, owner_client_id, melvor_account_id, item_id, qty, required_gp, progress_gp, created_at, matures_at) VALUES (?, ?, ?, ?, 1, 100, ?, ?, ?)');
+		insert.run(2, 1, 1, 'test:Later', 0, now - 10000, now + 300000);
+		insert.run(2, 2, 2, 'test:Earlier', 0, now - 20000, now + 200000);
+		insert.run(2, 3, 3, 'test:Short', 0, now - 30000, now + 30000);
+		insert.run(3, 4, 4, 'test:OtherGuild', 0, now - 40000, now + 400000);
+		insert.run(3, 5, 5, 'test:Ripe', 100, now - 50000, now + 500000);
+		database.close();
+
+		const result = await run_admin(database_path, 'charity', 'wish-promo', 'stagger', 'confirm');
+		expect(result.exit_code).toBe(0);
+		expect(result.stdout).toBe('charity_wishes_staggered=3\n');
+		const verification = new Database(database_path, { readonly: true, strict: true });
+		const rows = verification.query<{ item_id: string; matures_at: number }, []>(
+			'SELECT item_id, matures_at FROM charity_wishes ORDER BY id'
+		).all();
+		expect(rows[1]!.matures_at).toBe(rows[0]!.matures_at - 1000);
+		expect(rows[3]!.matures_at).toBeGreaterThanOrEqual(now + 60000);
+		expect(rows[3]!.matures_at).toBeLessThan(now + 65000);
+		expect(rows[2]!.matures_at).toBe(now + 30000);
+		expect(rows[4]!.matures_at).toBe(now + 500000);
+		verification.close();
+	});
+
+	test('starts and stops a bounded timed Wish promo while shortening only longer timers', async () => {
+		const database_path = fixture_database();
+		const database = new Database(database_path, { strict: true });
+		const now = Date.now();
+		database.run("INSERT INTO melvor_accounts (cloud_username, playfab_id, created_at) VALUES ('Promo', 'wish-promo', 1), ('Short', 'wish-short', 1)");
+		database.run("INSERT INTO clients (client_identifier, client_key, friend_code, display_name, icon_id, melvor_account_id) VALUES ('promo-client', 'promo-key', '300-000-001', 'Promo Wish', 'melvorD:Plant', 1), ('short-client', 'short-key', '300-000-002', 'Short Wish', 'melvorD:Plant', 2)");
+		const insert = database.query('INSERT INTO charity_wishes (guild_id, owner_client_id, melvor_account_id, item_id, qty, required_gp, created_at, matures_at) VALUES (2, ?, ?, ?, 1, 100, ?, ?)');
+		insert.run(2, 1, 'test:Promo', now - 1000, now + 7200000);
+		insert.run(3, 2, 'test:AlreadyShort', now - 1000, now + 1800000);
+		database.close();
+
+		const started = await run_admin(database_path, 'charity', 'wish-promo', 'start', '24', 'confirm');
+		expect(started.exit_code).toBe(0);
+		expect(started.stdout).toContain('charity_wishes_accelerated=1\n');
+		let verification = new Database(database_path, { readonly: true, strict: true });
+		const rows = verification.query<{ item_id: string; matures_at: number }, []>('SELECT item_id, matures_at FROM charity_wishes ORDER BY id').all();
+		expect(rows[0]!.matures_at).toBeGreaterThanOrEqual(now + 3600000);
+		expect(rows[0]!.matures_at).toBeLessThan(now + 3605000);
+		expect(rows[1]!.matures_at).toBe(now + 1800000);
+		expect(Number(verification.query<{ value: string }, []>("SELECT value FROM service_settings WHERE key = 'charity_wish_promo_ends_at'").get()!.value)).toBeGreaterThan(now + 23 * 3600000);
+		verification.close();
+
+		const stopped = await run_admin(database_path, 'charity', 'wish-promo', 'stop');
+		expect(stopped.exit_code).toBe(0);
+		verification = new Database(database_path, { readonly: true, strict: true });
+		expect(verification.query("SELECT value FROM service_settings WHERE key = 'charity_wish_promo_ends_at'").get()).toEqual({ value: '0' });
+		verification.close();
+	});
+
+	test('sets and clears Social Only enforcement by identity and account', async () => {
+		const database_path = fixture_database();
+		const database = new Database(database_path, { strict: true });
+		database.run("INSERT INTO melvor_accounts (cloud_username, playfab_id, created_at) VALUES ('Cloud', 'playfab', 1)");
+		database.run('UPDATE clients SET melvor_account_id = 1 WHERE id = 1');
+		database.close();
+		const identity = await run_admin(database_path, 'social-mode', 'enforce', 'identity', '1');
+		expect(identity.exit_code).toBe(0);
+		expect(identity.stdout).toContain('affected_identities=1');
+		const account = await run_admin(database_path, 'social-mode', 'enforce', 'account', '1');
+		expect(account.exit_code).toBe(0);
+		const cleared = await run_admin(database_path, 'social-mode', 'clear', 'identity', '1');
+		expect(cleared.exit_code).toBe(0);
+		const verification = new Database(database_path, { readonly: true, strict: true });
+		expect(verification.query('SELECT social_mode_enforced FROM clients WHERE id = 1').get()).toEqual({ social_mode_enforced: 0 });
+		expect(verification.query('SELECT social_mode_enforced FROM melvor_accounts WHERE id = 1').get()).toEqual({ social_mode_enforced: 1 });
+		verification.close();
+	});
 	test('backfills only unknown Charitree stack values from a bounded catalog', async () => {
 		const database_path = fixture_database();
 		const database = new Database(database_path, { strict: true });

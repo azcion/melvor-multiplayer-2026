@@ -48,6 +48,7 @@ export function install_market_campaign_charity_actions(runtime) {
 		schedule_status_sync,
 		show_button_spinner,
 		show_modal_error,
+		setTimeout = globalThis.setTimeout,
 		start_status_observer,
 		stop_status_observer,
 		trade_returns,
@@ -610,6 +611,17 @@ export function install_market_campaign_charity_actions(runtime) {
 			return transfer_currency_support.get_transfer_currency(game, state.charity_shuffle_offer?.currency_id) ?? null;
 		},
 
+		charity_shuffle_max_totals() {
+			const totals = new Map();
+			for (const offer of state.charity_shuffle_max_offers)
+				totals.set(offer.currency_id, (totals.get(offer.currency_id) ?? 0) + offer.qty);
+			return [...totals].map(([currency_id, qty]) => ({
+				currency_id,
+				qty,
+				currency: transfer_currency_support.get_transfer_currency(game, currency_id)
+			}));
+		},
+
 		charity_shuffle_bonus() {
 			const count = state.charity_shuffle_count;
 			return Number.isSafeInteger(count) ? Math.max(-10, Math.min(20, count)) : 0;
@@ -704,30 +716,74 @@ export function install_market_campaign_charity_actions(runtime) {
 				...offer,
 				qty: Math.min(offer.qty, transfer_currency_support.get_transfer_currency_cap(game, offer.currency_id))
 			};
-			queue_modal('MOD_MP_CHARITY_SHUFFLE', 'charity-shuffle-modal', 'assets/charity_tree.svg', {
-				showConfirmButton: false,
-				didClose: () => { state.charity_shuffle_offer = null; }
-			});
+			try {
+				const queued = queue_modal('MOD_MP_CHARITY_SHUFFLE', 'charity-shuffle-modal', 'assets/charity_tree.svg', {
+					showConfirmButton: false,
+					didClose: () => { state.charity_shuffle_offer = null; }
+				});
+				if (queued === false)
+					state.charity_shuffle_offer = null;
+			} catch (error) {
+				state.charity_shuffle_offer = null;
+				throw error;
+			}
 		},
 
-		async confirm_charity_shuffle(event) {
-			const offer = state.charity_shuffle_offer;
-			if (offer === null || charity_shuffle_confirming) return;
-			charity_shuffle_confirming = true;
+		async show_charity_shuffle_max() {
+			if (this.charity_shuffle_bonus() >= 20 || charity_shuffle_confirming) return;
+			const offers = charitree_rules.get_charitree_max_shuffle_offers(
+				transfer_currency_support.get_transfer_currencies(game),
+				state.charity_shuffle_count,
+				currency_id => transfer_currency_support.get_transfer_currency_cap(game, currency_id)
+			);
+			if (offers.length < 20 - this.charity_shuffle_bonus())
+				return notify_error('MOD_MP_CHARITY_SHUFFLE_POOR');
+			await close_modal_and_wait('charity-shuffle-modal');
+			state.charity_shuffle_offer = null;
+			state.charity_shuffle_max_offers = offers;
 			try {
-				await close_modal_and_wait('charity-shuffle-modal');
-				const currency = transfer_currency_support.get_transfer_currency(game, offer.currency_id)?.currency;
-				if (!currency || currency.amount < offer.qty) return notify_error('MOD_MP_CHARITY_SHUFFLE_POOR');
-				const res = await run_pending_economy_action('charity_shuffle', '/api/charity/shuffle', {
-					currency_id: offer.currency_id, balance: offer.balance
+				const queued = queue_modal('MOD_MP_CHARITY_SHUFFLE_MAX_TITLE', 'charity-shuffle-max-modal', 'assets/charity_tree.svg', {
+					showConfirmButton: false,
+					didClose: () => { state.charity_shuffle_max_offers = []; }
 				});
+				if (queued === false) state.charity_shuffle_max_offers = [];
+			} catch (error) {
+				state.charity_shuffle_max_offers = [];
+				throw error;
+			}
+		},
+
+		async confirm_charity_shuffle(event, max = false) {
+			const offers = max ? state.charity_shuffle_max_offers : [state.charity_shuffle_offer].filter(Boolean);
+			if (offers.length === 0 || charity_shuffle_confirming) return;
+			charity_shuffle_confirming = true;
+			const $button = event.currentTarget;
+			const width = $button?.getBoundingClientRect?.().width ?? $button?.offsetWidth;
+			if ($button?.style && width > 0) $button.style.width = `${width}px`;
+			if ($button) {
+				$button.disabled = true;
+				show_button_spinner($button);
+			}
+			const minimum_loader = new Promise(resolve => setTimeout(resolve, 2000));
+			let res = null;
+			try {
+				res = await run_pending_economy_action('charity_shuffle', '/api/charity/shuffle', max
+					? { offers: offers.map(({ currency_id, balance }) => ({ currency_id, balance })) }
+					: { currency_id: offers[0].currency_id, balance: offers[0].balance });
+				await minimum_loader;
+				await close_modal_and_wait(max ? 'charity-shuffle-max-modal' : 'charity-shuffle-modal');
 				if (res?.success) {
 					if (typeof res.pet_id === 'string' && !state.owned_pet_ids.includes(res.pet_id))
 						state.owned_pet_ids = [...state.owned_pet_ids, res.pet_id];
 					notify('MOD_MP_CHARITY_SHUFFLED');
 					await request_charity_tree_contents(true, false);
-				} else notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+				} else {
+					notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+					if (res?.error_lang === 'MOD_MP_CHARITY_SHUFFLE_MAX_CHANGED')
+						await request_charity_tree_contents(true, false);
+				}
 			} finally {
+				await minimum_loader;
 				charity_shuffle_confirming = false;
 			}
 		},

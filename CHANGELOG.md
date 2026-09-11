@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.8
+
+- Added a Max action to Shuffle Leaves that previews one total per requested currency and fills the remaining Shuffle Bonus to 20 / 20 with one replay-safe request and aggregate deduction.
+- Kept Shuffle Leaves confirmations open with a width-stable loader for at least two seconds to prevent rapid repeated submissions.
+- Fixed Chat sender profiles from other Guilds showing a Private Chat start action that could not succeed.
+- Added clear client messaging when a server operator requires Social Only mode for an identity or its Melvor account, and hid the unavailable Full Experience choice while that restriction is active.
+- Fixed Shuffle Leaves becoming unresponsive when its modal could not be queued during a modal lifecycle transition.
+
 ## 1.5.7
 
 - Added Charitree Wishes: request 1–100 discovered eligible items at no cost, wait four days, then ripen the Wish with value from decaying GP offerings before its owner picks the reward from the tree into the Inbox.

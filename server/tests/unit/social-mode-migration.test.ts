@@ -28,3 +28,19 @@ test('adds constrained Social mode state with a Full default', () => {
 	).get()).toEqual({ social_mode: 'social' });
 	database.close();
 });
+
+test('adds independent constrained identity and account Social Only enforcement', () => {
+	const database = new Database(':memory:', { strict: true });
+	for (const migration of migrations) {
+		if (migration.foreign_keys_disabled) database.run('PRAGMA foreign_keys = OFF');
+		database.transaction(() => database.run(migration.sql)).immediate();
+		if (migration.foreign_keys_disabled) database.run('PRAGMA foreign_keys = ON');
+	}
+	database.run("INSERT INTO melvor_accounts (cloud_username, playfab_id, created_at) VALUES ('Cloud', 'playfab', 1)");
+	database.run("INSERT INTO clients (client_identifier, client_key, friend_code, display_name, icon_id, melvor_account_id) VALUES ('id', 'key', '111-222-333', 'Client', 'melvorD:Plant', 1)");
+	expect(database.query('SELECT social_mode_enforced FROM clients WHERE id = 1').get()).toEqual({ social_mode_enforced: 0 });
+	expect(database.query('SELECT social_mode_enforced FROM melvor_accounts WHERE id = 1').get()).toEqual({ social_mode_enforced: 0 });
+	expect(() => database.run('UPDATE clients SET social_mode_enforced = 2 WHERE id = 1')).toThrow();
+	expect(() => database.run('UPDATE melvor_accounts SET social_mode_enforced = -1 WHERE id = 1')).toThrow();
+	database.close();
+});

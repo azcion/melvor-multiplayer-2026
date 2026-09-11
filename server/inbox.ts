@@ -1,6 +1,7 @@
 import { db } from './db';
 import type { JsonObject } from './http';
 import type * as db_row from './db/types/db_types';
+import { audit_position_key, link_audit_events, move_audit_value_with_fallback, record_audit_event } from './audit';
 
 export const MAX_INBOX_EXISTING_ITEM_IDS = 512;
 
@@ -112,7 +113,8 @@ export function get_inbox_claim_view(claim_id: string, client_id: number): JsonO
 export function create_inbox_claim(
 	client_id: number,
 	existing_item_ids: string[],
-	available_slots: number
+	available_slots: number,
+	request?: Request
 ): string | null {
 	const create_claim = db.transaction(() => {
 		const outstanding = db.query<Pick<db_row.inbox_claims, 'id'>, [number]>(
@@ -140,12 +142,25 @@ export function create_inbox_claim(
 			return null;
 
 		const claim_id = crypto.randomUUID();
+		const created_at = Date.now();
 		db.query(
 			' INSERT INTO `inbox_claims` (`id`, `client_id`, `created_at`) VALUES(?, ?, ?)'
-		).run(claim_id, client_id, Date.now());
+		).run(claim_id, client_id, created_at);
 		const totals = new Map<string, number>();
-		for (const item of selected) {
+		for (const item of selected)
 			totals.set(item.item_id, (totals.get(item.item_id) ?? 0) + item.qty);
+		const event_id = record_audit_event({
+			event_type: 'inbox.claim_created',
+			source_key: `inbox-claim:${claim_id}:created`,
+			actor: { kind: 'client', client_id, request },
+			occurred_at: created_at,
+			values: [...totals].map(([object_id, quantity]) => ({ object_id, quantity, direction: 'move' })),
+			details: { claim_id }
+		});
+		for (const item of selected) {
+			move_audit_value_with_fallback(event_id, item.item_id, item.qty, 'inbox',
+				audit_position_key('inbox', client_id, item.source_type, item.source_name),
+				'client', audit_position_key('client', client_id));
 			db.query(
 				' DELETE FROM `inbox_items` WHERE `client_id` = ? AND `source_type` = ? AND `source_name` = ? AND `item_id` = ?'
 			).run(client_id, item.source_type, item.source_name, item.item_id);
@@ -160,15 +175,29 @@ export function create_inbox_claim(
 	return create_claim.immediate();
 }
 
-export function acknowledge_inbox_claim(client_id: number, claim_id: string): boolean {
+export function acknowledge_inbox_claim(client_id: number, claim_id: string, request?: Request): boolean {
 	const acknowledged = db.transaction(() => {
 		const claim = db.query(
 			' SELECT `acknowledged_at` FROM `inbox_claims` WHERE `id` = ? AND `client_id` = ? LIMIT 1'
 		).get(claim_id, client_id) as { acknowledged_at: number | null } | null;
 		if (claim === null)
 			return false;
-		if (claim.acknowledged_at === null)
-			db.query(' UPDATE `inbox_claims` SET `acknowledged_at` = ? WHERE `id` = ?').run(Date.now(), claim_id);
+		if (claim.acknowledged_at === null) {
+			const acknowledged_at = Date.now();
+			db.query(' UPDATE `inbox_claims` SET `acknowledged_at` = ? WHERE `id` = ?').run(acknowledged_at, claim_id);
+			const event_id = record_audit_event({
+				event_type: 'inbox.claim_acknowledged',
+				source_key: `inbox-claim:${claim_id}:acknowledged`,
+				actor: { kind: 'client', client_id, request },
+				occurred_at: acknowledged_at,
+				details: { claim_id }
+			});
+			const created = db.query<{ id: number }, [string]>(
+				'SELECT `id` FROM `audit_events` WHERE `source_key` = ?'
+			).get(`inbox-claim:${claim_id}:created`);
+			if (created !== null)
+				link_audit_events(event_id, 'acknowledges', created.id);
+		}
 		return true;
 	});
 	return acknowledged.immediate();

@@ -7,12 +7,13 @@ import type { PetitionType } from '../council';
 import { record_guild_activity } from '../guild-activity';
 import { add_inbox_items } from '../inbox';
 import { cap_transfer_items, get_transfer_currency_cap, get_transfer_currency_overage } from '../transfer-caps';
+import { audit_command_source, audit_position_key, move_audit_value_with_fallback,
+	record_audit_event } from '../audit';
 
-const { CHARITY_ITEM_LIFETIME, CHARITY_TIMEOUT, CHARITY_WEIRD_GLOOP_ID, CHARITY_WISH_MATURING_MS, CHARITY_WISH_VALUES, charity_state_from_values, db, db_get_all, db_get_single, economy_item_effects, expire_charity_items, expire_charity_items_now, get_charity_known_valuation, get_charity_wish_account, get_client_guild_id, get_request_mod_version, grant_charity_pet_if_rolled, is_charity_wish_client, is_server_owned_pets_client, is_social_only_client, is_valid_item_id, list_charity_wishes, parse_transfer_items, run_charity_wish_command, run_economy_command, session_get_route, session_post_route } = runtime;
+const { CHARITY_ITEM_LIFETIME, CHARITY_SHUFFLE_BONUS_LIMIT, CHARITY_TIMEOUT, CHARITY_WEIRD_GLOOP_ID, CHARITY_WISH_SHUFFLE_PENALTY, CHARITY_WISH_VALUES, charity_state_from_values, db, db_get_all, db_get_single, economy_item_effects, expire_charity_items, expire_charity_items_now, get_charity_known_valuation, get_charity_shuffle_owner_key, get_charity_wish_account, get_charity_wish_maturing_ms, get_client_guild_id, get_request_mod_version, grant_charity_pet_if_rolled, is_charity_wish_client, is_server_owned_pets_client, is_social_only_client, is_valid_item_id, list_charity_wishes, normalize_charity_shuffle_events, parse_transfer_items, run_charity_wish_command, run_economy_command, session_get_route, session_post_route } = runtime;
 
 const SHUFFLE_CURRENCIES = new Set(['melvorD:GP', 'melvorD:SlayerCoins', 'melvorItA:AbyssalPieces', 'melvorItA:AbyssalSlayerCoins']);
 const SHUFFLE_LOCK_MS = 4 * 60 * 60 * 1000;
-const SHUFFLE_BONUS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 type CharityDonationItem = {
 	id: string;
@@ -22,6 +23,37 @@ type CharityDonationItem = {
 };
 
 type CharityDonationSource = 'transfer' | 'bank';
+
+type CharityShuffleOffer = { currency_id: string; balance: number; qty: number };
+
+function parse_charity_shuffle_offer(value: unknown): CharityShuffleOffer | null {
+	if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+	const { currency_id, balance } = value as Record<string, unknown>;
+	// Character balances are client-authoritative, as with ordinary donation value.
+	if (typeof currency_id !== 'string' || !SHUFFLE_CURRENCIES.has(currency_id) ||
+		typeof balance !== 'number' || !Number.isFinite(balance) || balance <= 1000 || balance > Number.MAX_SAFE_INTEGER)
+		return null;
+	return { currency_id, balance,
+		qty: Math.min(Math.floor(balance / 1000), get_transfer_currency_cap(currency_id) as number) };
+}
+
+function parse_charity_shuffle_offers(json: JsonObject): { offers: CharityShuffleOffer[]; max: boolean } | null {
+	if (!Array.isArray(json.offers)) {
+		const offer = parse_charity_shuffle_offer(json);
+		return offer === null ? null : { offers: [offer], max: false };
+	}
+	if (json.offers.length === 0 || json.offers.length > CHARITY_SHUFFLE_BONUS_LIMIT + CHARITY_WISH_SHUFFLE_PENALTY)
+		return null;
+	const offers = json.offers.map(parse_charity_shuffle_offer);
+	if (offers.some(offer => offer === null)) return null;
+	const prior_balances = new Map<string, number>();
+	for (const offer of offers as CharityShuffleOffer[]) {
+		const expected_balance = prior_balances.get(offer.currency_id);
+		if (expected_balance !== undefined && offer.balance !== expected_balance) return null;
+		prior_balances.set(offer.currency_id, offer.balance - offer.qty);
+	}
+	return { offers: offers as CharityShuffleOffer[], max: true };
+}
 
 function parse_charity_donation_items(items: unknown): CharityDonationItem[] | null {
 	const parsed = parse_transfer_items(items);
@@ -54,27 +86,19 @@ function parse_charity_donation_items(items: unknown): CharityDonationItem[] | n
 	return donation_items;
 }
 
-function charity_owner_key(client_id: number): string {
-	const row = db.query('SELECT melvor_account_id FROM clients WHERE id = ?').get(client_id) as { melvor_account_id: number | null };
-	return row.melvor_account_id === null ? `client:${client_id}` : `account:${row.melvor_account_id}`;
-}
-
 function charity_shuffle_state(guild_id: number, client_id: number, now: number) {
 	// Discard a shuffle only when it is older than every remaining donation (or the tree is empty).
 	db.query('DELETE FROM charity_shuffles WHERE guild_id = ? AND NOT EXISTS ' +
 		'(SELECT 1 FROM charity_items WHERE guild_id = ? AND donated_at <= charity_shuffles.shuffled_at)')
 		.run(guild_id, guild_id);
 	db.query('DELETE FROM charity_currency_locks WHERE locked_until <= ?').run(now);
-	const owner = charity_owner_key(client_id);
-	const shuffle_cutoff = now - SHUFFLE_BONUS_WINDOW_MS;
-	db.query('DELETE FROM charity_shuffle_events WHERE owner_key = ? AND shuffled_at <= ?').run(owner, shuffle_cutoff);
+	const owner = get_charity_shuffle_owner_key(client_id);
 	const shuffle = db.query('SELECT shuffled_at FROM charity_shuffles WHERE guild_id = ? AND owner_key = ?')
 		.get(guild_id, owner) as { shuffled_at: number } | null;
-	let shuffle_count = (db.query('SELECT COUNT(*) AS count FROM charity_shuffle_events WHERE owner_key = ? AND shuffled_at > ?')
-		.get(owner, shuffle_cutoff) as { count: number }).count;
 	const account_id = get_charity_wish_account(client_id);
-	if (account_id !== null && db.query('SELECT 1 FROM `charity_wishes` WHERE `melvor_account_id` = ?').get(account_id) !== null)
-		shuffle_count -= 10;
+	const active_wish = account_id !== null && db.query('SELECT 1 FROM `charity_wishes` WHERE `melvor_account_id` = ?').get(account_id) !== null;
+	const shuffle_count = normalize_charity_shuffle_events(owner, active_wish, now) -
+		(active_wish ? CHARITY_WISH_SHUFFLE_PENALTY : 0);
 	const locks = db.query('SELECT currency_id, locked_until FROM charity_currency_locks WHERE guild_id = ? AND owner_key = ?')
 		.all(guild_id, owner) as Array<{ currency_id: string; locked_until: number }>;
 	return { shuffled_at: shuffle?.shuffled_at ?? null, shuffle_count, currency_locks: locks };
@@ -139,10 +163,11 @@ export function register_charity_routes(): void {
 			const required_gp = max_value * qty * 5;
 			if (!Number.isSafeInteger(required_gp)) return { success: false, error_lang: 'MOD_MP_GENERIC_ERR' };
 			const now = Date.now();
+			normalize_charity_shuffle_events(get_charity_shuffle_owner_key(client_id), false, now);
 			const wish = db.query<{ id: number }, [number, number, number, string, number, number, number, number]>(
 				'INSERT INTO `charity_wishes` (`guild_id`, `owner_client_id`, `melvor_account_id`, `item_id`, `qty`, ' +
 				'`required_gp`, `created_at`, `matures_at`) VALUES(?, ?, ?, ?, ?, ?, ?, ?) RETURNING `id`'
-			).get(membership.guild_id, client_id, account_id, item_id, qty, required_gp, now, now + CHARITY_WISH_MATURING_MS) as { id: number };
+			).get(membership.guild_id, client_id, account_id, item_id, qty, required_gp, now, now + get_charity_wish_maturing_ms(now)) as { id: number };
 			return { success: true, wish_id: wish.id };
 		});
 		return result ?? 400;
@@ -159,6 +184,7 @@ export function register_charity_routes(): void {
 			if (wish === null) return { success: false, error_lang: 'MOD_MP_CHARITY_WISH_MISSING' };
 			if (wish.matures_at <= Date.now()) return { success: false, error_lang: 'MOD_MP_CHARITY_WISH_CANNOT_FORSAKE' };
 			db.query('DELETE FROM `charity_wishes` WHERE `id` = ?').run(wish.id);
+			normalize_charity_shuffle_events(get_charity_shuffle_owner_key(client_id), false);
 			return { success: true };
 		});
 		return result ?? 400;
@@ -176,6 +202,7 @@ export function register_charity_routes(): void {
 			if (wish.progress_gp < wish.required_gp) return { success: false, error_lang: 'MOD_MP_CHARITY_WISH_NOT_RIPE' };
 			add_inbox_items(client_id, [{ item_id: wish.item_id, qty: wish.qty }], { type: 'wish_granted' });
 			db.query('DELETE FROM `charity_wishes` WHERE `id` = ?').run(wish.id);
+			normalize_charity_shuffle_events(get_charity_shuffle_owner_key(client_id), false);
 			return { success: true };
 		});
 		return result ?? 400;
@@ -245,7 +272,7 @@ export function register_charity_routes(): void {
 			if (is_social_only_client(client_id))
 				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 			const lock = db.query('SELECT locked_until FROM charity_currency_locks WHERE guild_id = ? AND owner_key = ? AND currency_id = ?')
-				.get(guild_id, charity_owner_key(client_id), item_id) as { locked_until: number } | null;
+				.get(guild_id, get_charity_shuffle_owner_key(client_id), item_id) as { locked_until: number } | null;
 			if (lock !== null && lock.locked_until > current_time)
 				return { success: false, error_lang: 'MOD_MP_CHARITY_SHUFFLE_LOCK', locked_until: lock.locked_until };
 			const item_entry = db.query(
@@ -283,6 +310,17 @@ export function register_charity_routes(): void {
 				client_row.last_charity = current_time;
 			}
 
+			const event_id = record_audit_event({
+				event_type: 'charitree.taken',
+				source_key: audit_command_source('charity-take', client_id, json.command_id),
+				command_id: typeof json.command_id === 'string' ? json.command_id : undefined,
+				actor: { kind: 'client', client_id, request: req },
+				guild_id,
+				occurred_at: current_time,
+				values: [{ object_id: item_id, quantity: item_qty, direction: 'move' }]
+			});
+			move_audit_value_with_fallback(event_id, item_id, item_qty, 'charitree',
+				audit_position_key('charitree', guild_id), 'inbox', audit_position_key('inbox', client_id, 'charitree', ''));
 			add_inbox_items(client_id, [{ item_id, qty: item_qty }], { type: 'charitree' });
 			return {
 				success: true,
@@ -361,6 +399,20 @@ export function register_charity_routes(): void {
 					known_valuation?.value_currency_id ?? item.value_currency_id,
 					known_valuation?.value_per_item ?? item.value_per_item);
 			}
+			const event_id = record_audit_event({
+				event_type: 'charitree.donated',
+				source_key: audit_command_source('charity-donate', client_id, json.command_id),
+				command_id: typeof json.command_id === 'string' ? json.command_id : undefined,
+				actor: { kind: 'client', client_id, request: req },
+				guild_id,
+				occurred_at: now,
+				values: items.map(item => ({ object_id: item.id, quantity: item.qty, direction: 'move' })),
+				details: { donation_source }
+			});
+			for (const item of items) {
+				move_audit_value_with_fallback(event_id, item.id, item.qty, 'client',
+					audit_position_key('client', client_id), 'charitree', audit_position_key('charitree', guild_id));
+			}
 			record_guild_activity({ guild_id, event_type: 'charitree_donated', actor_client_id: client_id,
 				source_key: `charitree-donation:${json.command_id}`, created_at: now, throttled: true });
 			const pet_granted = server_owned_pets && grant_charity_pet_if_rolled(client_id, capped_donation_value as number, Math.random(), now);
@@ -376,47 +428,75 @@ export function register_charity_routes(): void {
 	session_post_route('/api/charity/shuffle', async (req, url, client_id, json): Promise<HandlerResult> => {
 		const guild_id = await get_client_guild_id(client_id);
 		if (guild_id === null) return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
-		const currency_id = json.currency_id;
-		const balance = json.balance;
-		// Character balances are client-authoritative, as with ordinary donation value.
-		if (typeof currency_id !== 'string' || !SHUFFLE_CURRENCIES.has(currency_id) ||
-			typeof balance !== 'number' || !Number.isFinite(balance) || balance <= 1000 || balance > Number.MAX_SAFE_INTEGER)
-			return 400;
-		const qty = Math.min(Math.floor(balance / 1000), get_transfer_currency_cap(currency_id) as number);
+		const parsed = parse_charity_shuffle_offers(json);
+		if (parsed === null) return 400;
 		return run_economy_command(client_id, json.command_id, 'charity-shuffle', () => {
 			if (is_social_only_client(client_id)) return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 			const guild = db.query('SELECT charitree_enabled FROM guilds WHERE id = ?').get(guild_id) as { charitree_enabled: number } | null;
 			if (guild?.charitree_enabled !== 1) return { success: false, error_lang: 'MOD_MP_CHARITY_DISABLED' };
 			const now = Date.now();
 			expire_charity_items_now(now, guild_id);
-			const existing = db.query('SELECT qty FROM charity_items WHERE guild_id = ? AND item_id = ?')
-				.get(guild_id, currency_id) as { qty: number } | null;
-			if (!Number.isSafeInteger((existing?.qty ?? 0) + qty)) return { success: false, error_lang: 'MOD_MP_GENERIC_ERR' };
+			const owner = get_charity_shuffle_owner_key(client_id);
+			const account_id = get_charity_wish_account(client_id);
+			const active_wish = account_id !== null && db.query('SELECT 1 FROM `charity_wishes` WHERE `melvor_account_id` = ?').get(account_id) !== null;
+			const shuffle_event_count = normalize_charity_shuffle_events(owner, active_wish, now);
+			const active_shuffle_count = shuffle_event_count - (active_wish ? CHARITY_WISH_SHUFFLE_PENALTY : 0);
+			if (parsed.max && parsed.offers.length !== CHARITY_SHUFFLE_BONUS_LIMIT - active_shuffle_count)
+				return { success: false, error_lang: 'MOD_MP_CHARITY_SHUFFLE_MAX_CHANGED' };
+			const totals = new Map<string, number>();
+			for (const offer of parsed.offers)
+				totals.set(offer.currency_id, (totals.get(offer.currency_id) ?? 0) + offer.qty);
+			for (const [currency_id, qty] of totals) {
+				const existing = db.query('SELECT qty FROM charity_items WHERE guild_id = ? AND item_id = ?')
+					.get(guild_id, currency_id) as { qty: number } | null;
+				if (!Number.isSafeInteger(qty) || !Number.isSafeInteger((existing?.qty ?? 0) + qty))
+					return { success: false, error_lang: 'MOD_MP_GENERIC_ERR' };
+			}
+			const event_id = record_audit_event({
+				event_type: 'charitree.shuffled',
+				source_key: audit_command_source('charity-shuffle', client_id, json.command_id),
+				command_id: typeof json.command_id === 'string' ? json.command_id : undefined,
+				actor: { kind: 'client', client_id, request: req },
+				guild_id,
+				occurred_at: now,
+				values: [...totals].map(([object_id, quantity]) => ({ object_id, quantity, direction: 'move' })),
+				details: { max: parsed.max, offer_count: parsed.offers.length }
+			});
+			for (const [currency_id, qty] of totals) {
+				move_audit_value_with_fallback(event_id, currency_id, qty, 'client',
+					audit_position_key('client', client_id), 'charitree', audit_position_key('charitree', guild_id));
+			}
 			const clearing = db.query("SELECT MAX(charitree_expires_before) AS cutoff FROM guild_petitions WHERE guild_id = ? AND type = 'charitree_ingratitude' AND subject_locked = 1")
 				.get(guild_id) as { cutoff: number | null };
 			const expires_at = Math.max(now + CHARITY_ITEM_LIFETIME, (clearing.cutoff ?? -1) + 1);
-			const known_valuation = get_charity_known_valuation(currency_id);
-			db.query('INSERT INTO charity_items (guild_id, item_id, qty, expires_at, donated_at, value_currency_id, value_per_item) ' +
-				'VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (guild_id, item_id) DO UPDATE SET ' +
-				'qty = qty + excluded.qty, expires_at = excluded.expires_at, donated_at = excluded.donated_at, ' +
-				'value_currency_id = CASE WHEN value_per_item IS NULL THEN excluded.value_currency_id ELSE value_currency_id END, ' +
-				'value_per_item = COALESCE(value_per_item, excluded.value_per_item)')
-				.run(guild_id, currency_id, qty, expires_at, now,
-					known_valuation?.value_currency_id ?? currency_id,
-					known_valuation?.value_per_item ?? 1);
-			const owner = charity_owner_key(client_id);
+			for (const [currency_id, qty] of totals) {
+				const known_valuation = get_charity_known_valuation(currency_id);
+				db.query('INSERT INTO charity_items (guild_id, item_id, qty, expires_at, donated_at, value_currency_id, value_per_item) ' +
+					'VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (guild_id, item_id) DO UPDATE SET ' +
+					'qty = qty + excluded.qty, expires_at = excluded.expires_at, donated_at = excluded.donated_at, ' +
+					'value_currency_id = CASE WHEN value_per_item IS NULL THEN excluded.value_currency_id ELSE value_currency_id END, ' +
+					'value_per_item = COALESCE(value_per_item, excluded.value_per_item)')
+					.run(guild_id, currency_id, qty, expires_at, now,
+						known_valuation?.value_currency_id ?? currency_id,
+						known_valuation?.value_per_item ?? 1);
+			}
 			db.query('INSERT INTO charity_shuffles (guild_id, owner_key, shuffled_at) VALUES (?, ?, ?) ' +
 				'ON CONFLICT (guild_id, owner_key) DO UPDATE SET shuffled_at = excluded.shuffled_at').run(guild_id, owner, now);
-			db.query('INSERT INTO charity_shuffle_events (owner_key, shuffled_at) VALUES (?, ?)').run(owner, now);
-			db.query('INSERT INTO charity_currency_locks (guild_id, owner_key, currency_id, locked_until) VALUES (?, ?, ?, ?) ' +
-				'ON CONFLICT (guild_id, owner_key, currency_id) DO UPDATE SET locked_until = excluded.locked_until')
-				.run(guild_id, owner, currency_id, now + SHUFFLE_LOCK_MS);
+			const bonus_room = Math.max(0, CHARITY_SHUFFLE_BONUS_LIMIT + (active_wish ? CHARITY_WISH_SHUFFLE_PENALTY : 0) - shuffle_event_count);
+			for (let index = 0; index < Math.min(parsed.offers.length, bonus_room); index++)
+				db.query('INSERT INTO charity_shuffle_events (owner_key, shuffled_at) VALUES (?, ?)').run(owner, now + index);
+			for (const currency_id of totals.keys())
+				db.query('INSERT INTO charity_currency_locks (guild_id, owner_key, currency_id, locked_until) VALUES (?, ?, ?, ?) ' +
+					'ON CONFLICT (guild_id, owner_key, currency_id) DO UPDATE SET locked_until = excluded.locked_until')
+					.run(guild_id, owner, currency_id, now + SHUFFLE_LOCK_MS);
 			record_guild_activity({ guild_id, event_type: 'charitree_donated', actor_client_id: client_id,
 				source_key: `charitree-shuffle:${json.command_id}`, created_at: now, throttled: true });
-			const pet_granted = grant_charity_pet_if_rolled(client_id, qty, Math.random(), now);
+			let pet_granted = false;
+			for (const offer of parsed.offers)
+				pet_granted = grant_charity_pet_if_rolled(client_id, offer.qty, Math.random(), now) || pet_granted;
 			return { success: true, ...charity_shuffle_state(guild_id, client_id, now),
 				...(pet_granted ? { pet_id: 'Multiplayer_Pet_Charity' } : {}),
-				effects: economy_item_effects([{ id: currency_id, qty }], 'bank', -1) };
+				effects: economy_item_effects([...totals].map(([id, qty]) => ({ id, qty })), 'bank', -1) };
 		}) ?? 400;
 	});
 }

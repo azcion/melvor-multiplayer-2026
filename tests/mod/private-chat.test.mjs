@@ -257,8 +257,57 @@ test('opens the sender member-info modal from Chat message authors', async () =>
 
 	assert.match(chat_view, /class="mp-chat-message-author"[^>]*@click="state\.show_chat_message_member\(message\)"/);
 	assert.match(chat_view, /class="mp-chat-message-timestamp"[^>]*@click="state\.show_chat_message_actions\(message\)"/);
-	assert.match(main, /show_chat_message_member\(message\)[\s\S]*this\.guild_members\.find\(entry => entry\.client_id === sender_id\)[\s\S]*this\.show_member_actions\(/);
+	assert.match(templates, /class="btn btn-primary" v-show="state\.selected_guild_member\.can_start_chat !== false"/);
+	assert.match(main, /show_chat_message_member\(message\)[\s\S]*this\.guild_members[\s\S]*this\.shadowed_members[\s\S]*find\(entry => entry\.client_id === sender_id\)[\s\S]*this\.show_member_actions\(/);
 	assert.match(style, /\.mp-chat-message-author:hover,[\s\S]*\.mp-chat-message-author:focus-visible/);
+});
+
+test('hides Private Chat initiation for message authors outside the current Guild', async () => {
+	const actions = install_chat_actions({});
+	let selected_member = null;
+	const state = {
+		guild_members: [{ client_id: 12 }],
+		shadowed_members: [],
+		selected_chat_conversation: { conversation_kind: 'global', conversation_id: 1 },
+		show_member_actions(member) {
+			selected_member = member;
+		}
+	};
+
+	actions.show_chat_message_member.call(state, {
+		sender_id: 179,
+		sender: { display_name: 'Global Sender', icon_id: 'melvorD:Chicken' }
+	});
+	assert.equal(selected_member.can_start_chat, false);
+	await actions.start_member_chat.call({ selected_guild_member: selected_member }, {});
+
+	actions.show_chat_message_member.call(state, {
+		sender_id: 12,
+		sender: { display_name: 'Guild Member', icon_id: 'melvorD:Chicken' }
+	});
+	assert.equal(selected_member.can_start_chat, true);
+});
+
+test('keeps reopening an established Private conversation available after a Guild change', async () => {
+	const actions = install_chat_actions({});
+	let selected_member = null;
+	const state = {
+		guild_members: [],
+		selected_chat_conversation: {
+			conversation_kind: 'private',
+			conversation_id: 42,
+			participant: { client_id: 179 }
+		},
+		show_member_actions(member) {
+			selected_member = member;
+		}
+	};
+
+	actions.show_chat_message_member.call(state, {
+		sender_id: 179,
+		sender: { display_name: 'Former Guildmate', icon_id: 'melvorD:Chicken' }
+	});
+	assert.equal(selected_member.can_start_chat, true);
 });
 
 test('disables Message capacity while preserving its dormant UI and rollback compatibility', async () => {

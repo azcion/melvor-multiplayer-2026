@@ -11,6 +11,14 @@ describe('SQLite persistence probe', () => {
 		const tables = rows.map(row => row.name).sort();
 
 		expect(tables).toEqual([
+			'audit_event_links',
+			'audit_event_participants',
+			'audit_event_values',
+			'audit_events',
+			'audit_row_changes',
+			'audit_value_lot_positions',
+			'audit_value_lots',
+			'audit_value_movements',
 			'banishment_return_claim_items',
 			'banishment_return_claims',
 			'banishment_return_items',
@@ -35,6 +43,7 @@ describe('SQLite persistence probe', () => {
 			'client_deletion_return_claims',
 			'client_deletion_return_items',
 			'client_deletion_returns',
+			'client_display_name_history',
 			'client_installations',
 			'client_runtime_snapshots',
 			'client_sessions',
@@ -92,7 +101,8 @@ describe('SQLite persistence probe', () => {
 			'support_teams',
 			'support_virtual_welcomes',
 			'trade_items',
-			'trade_offers'
+			'trade_offers',
+			'update_sections'
 		]);
 	});
 

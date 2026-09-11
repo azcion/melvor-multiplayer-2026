@@ -30,3 +30,20 @@ export async function read_release_changelog(root = new URL('../../', import.met
 		return readFile(new URL('public-release/replacements/changelog.md', root), 'utf8');
 	}
 }
+
+export function load_sidebar_function(main, function_name, parameters) {
+	const function_start = main.indexOf(`function ${function_name}`);
+	const function_end_marker = function_name === 'update_charitree_nav'
+		? 'function update_multiplayer_nav'
+		: '\n// #endregion';
+	const function_end = main.indexOf(function_end_marker, function_start);
+	if (function_start < 0 || function_end < 0)
+		throw new Error(`Unable to extract sidebar function: ${function_name}`);
+
+	return new Function(...parameters, `
+		function set_nav_ready(aside, ready) {
+			aside.classList.toggle('mp-nav-ready', ready);
+		}
+		${main.slice(function_start, function_end)}; return ${function_name};
+	`);
+}

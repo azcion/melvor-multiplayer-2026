@@ -2,6 +2,8 @@ import { replay_economy_command } from './economy';
 import { create_api_server, validate_api_command, ECONOMY_COMMAND_KINDS, type ApiMajor } from './api-contract';
 import { createHash } from 'node:crypto';
 import { parse_device_diagnostics, mark_rejection, type DeviceDiagnostics } from './diagnostics';
+import { audit_position_key, move_audit_value_with_fallback, record_audit_event } from './audit';
+import { make_audit_context, run_with_audit_context } from './audit-context';
 // #region IMPORTS
 import { format } from 'node:util';
 import type { SQLQueryBindings } from 'bun:sqlite';
@@ -142,7 +144,7 @@ import {
 	settle_assault,
 	type RaidOutcome
 } from './raid';
-import { add_charity_gloop, distribute_charity_wish_progress, settle_departing_charity_wish } from './charity-wishes';
+import { add_charity_gloop, distribute_charity_wish_progress, get_charity_shuffle_owner_key, normalize_charity_shuffle_events, settle_departing_charity_wish } from './charity-wishes';
 // #endregion
 export { db, db_get_single, db_execute, db_insert, db_exists, db_get_all, db_run, get_service_setting, register_client } from './db';
 export { CAMPAIGN_AUTO_ADVANCE_INTERVAL, CAMPAIGN_AUTO_CONTRIBUTION_CAP, CAMPAIGN_AUTO_PROGRESS_SQL, get_campaign_auto_advance, get_campaign_item_total, get_required_campaign_contributors } from './campaign';
@@ -163,8 +165,8 @@ export { acknowledge_economy_receipt, economy_item_effects, pending_economy_rece
 export { acknowledge_victory_cache, abandon_assault, activate_raid, get_raid_state, get_victory_cache, reserve_assault, settle_assault } from './raid';
 export { CHARITY_KNOWN_CURRENCY_VALUATIONS, get_charity_known_valuation } from './charity-values';
 export { BACKEND_VERSION } from './version';
-export { CHARITY_WISH_MATURING_MS, CHARITY_WISH_VALUES, get_charity_wish_account, is_charity_wish_client,
-	list_charity_wishes, run_charity_wish_command, settle_departing_charity_wish } from './charity-wishes';
+export { CHARITY_SHUFFLE_BONUS_LIMIT, CHARITY_WISH_MATURING_MS, CHARITY_WISH_PROMO_MATURING_MS, CHARITY_WISH_SHUFFLE_PENALTY, CHARITY_WISH_VALUES, get_charity_shuffle_owner_key, get_charity_wish_account, get_charity_wish_maturing_ms, is_charity_wish_client,
+	list_charity_wishes, normalize_charity_shuffle_events, run_charity_wish_command, settle_departing_charity_wish } from './charity-wishes';
 export { is_server_owned_pets_client } from './pet-compatibility';
 export {
 	CHARITY_PET_ID,
@@ -194,6 +196,7 @@ export type ClientRuntime = {
 };
 
 export type SocialMode = 'full' | 'social';
+export type SocialModeEnforcement = 'identity' | 'account' | null;
 
 export type ActiveTrade = {
 	trade_id: number;
@@ -269,10 +272,25 @@ export type GuildMemberRow = {
 };
 
 export function get_client_social_mode(client_id: number): SocialMode {
-	const row = db.query<{ social_mode: SocialMode }, [number]>(
-		'SELECT `social_mode` FROM `clients` WHERE `id` = ? LIMIT 1'
+	const row = db.query<{ social_mode: SocialMode; enforced: number }, [number]>(
+		'SELECT client.`social_mode`, CASE WHEN client.`social_mode_enforced` = 1 OR ' +
+		'COALESCE(account.`social_mode_enforced`, 0) = 1 THEN 1 ELSE 0 END AS `enforced` ' +
+		'FROM `clients` AS client LEFT JOIN `melvor_accounts` AS account ON account.`id` = client.`melvor_account_id` ' +
+		'WHERE client.`id` = ? LIMIT 1'
 	).get(client_id);
-	return row?.social_mode === 'social' ? 'social' : 'full';
+	return row?.enforced === 1 || row?.social_mode === 'social' ? 'social' : 'full';
+}
+
+export function get_client_social_mode_enforcement(client_id: number): SocialModeEnforcement {
+	const row = db.query<{ identity_enforced: number; account_enforced: number }, [number]>(
+		'SELECT client.`social_mode_enforced` AS `identity_enforced`, ' +
+		'COALESCE(account.`social_mode_enforced`, 0) AS `account_enforced` FROM `clients` AS client ' +
+		'LEFT JOIN `melvor_accounts` AS account ON account.`id` = client.`melvor_account_id` ' +
+		'WHERE client.`id` = ? LIMIT 1'
+	).get(client_id);
+	if (row?.identity_enforced === 1) return 'identity';
+	if (row?.account_enforced === 1) return 'account';
+	return null;
 }
 
 export function is_social_only_client(client_id: number): boolean {
@@ -284,9 +302,12 @@ export function get_guild_member_social_modes(client_id: number): Array<{
 	social_mode: SocialMode;
 }> {
 	return db.query<{ client_id: number; social_mode: SocialMode }, [number, number]>(
-		'SELECT member.`client_id`, client.`social_mode` FROM `guild_memberships` AS own ' +
+		'SELECT member.`client_id`, CASE WHEN client.`social_mode_enforced` = 1 OR ' +
+		'COALESCE(account.`social_mode_enforced`, 0) = 1 THEN \'social\' ELSE client.`social_mode` END AS `social_mode` ' +
+		'FROM `guild_memberships` AS own ' +
 		'JOIN `guild_memberships` AS member ON member.`guild_id` = own.`guild_id` ' +
-		'JOIN `clients` AS client ON client.`id` = member.`client_id` WHERE own.`client_id` = ? ' +
+		'JOIN `clients` AS client ON client.`id` = member.`client_id` ' +
+		'LEFT JOIN `melvor_accounts` AS account ON account.`id` = client.`melvor_account_id` WHERE own.`client_id` = ? ' +
 		'AND client.`last_multiplayer_active_at` >= ? ' +
 		'ORDER BY member.`client_id`'
 	).all(client_id, shadowed_cutoff(Date.now()));
@@ -504,7 +525,7 @@ export async function get_client_charity_state(client_id: number, mod_version: s
 
 	return charity_state_from_values({
 		charitree_enabled: row.charitree_enabled === 1,
-		social_only: row.social_mode === 'social',
+		social_only: is_social_only_client(client_id),
 		charitree_take_available_at: row.charitree_take_available_at,
 		last_charity: row.last_charity,
 		last_bonus_charity: row.last_bonus_charity,
@@ -1039,6 +1060,22 @@ export function expire_charity_items_now(now = Date.now(), guild_id?: number): n
 		const remainder = distribute_charity_wish_progress(expired_guild_id, total_gp, now);
 		add_charity_gloop(expired_guild_id, remainder);
 	}
+	for (const item of expired) {
+		const event_id = record_audit_event({
+			event_type: 'charitree.expired',
+			source_key: `charitree-expired:${item.guild_id}:${item.item_id}:${now}`,
+			actor: { kind: 'system' },
+			guild_id: item.guild_id,
+			occurred_at: now,
+			values: [{ object_id: item.item_id, quantity: item.qty, direction: 'destroy' }],
+			details: {
+				value_currency_id: item.value_currency_id,
+				value_per_item: item.value_per_item
+			}
+		});
+		move_audit_value_with_fallback(event_id, item.item_id, item.qty, 'charitree',
+			audit_position_key('charitree', item.guild_id), null, null);
+	}
 	return guild_id === undefined
 		? db.query('DELETE FROM `charity_items` WHERE `expires_at` <= ? AND `item_id` != ? ' +
 			'AND (? = 0 OR `value_per_item` IS NOT NULL)')
@@ -1315,6 +1352,11 @@ export function apply_council_guild_action(petition: db_row.guild_petitions): st
 	}
 	if (petition.type === 'charitree_ingratitude') {
 		const clear = db.transaction(() => {
+			const wish_owners = db.query<{ owner_client_id: number }, [number]>(
+				'SELECT wish.`owner_client_id` FROM `charity_wishes` AS wish ' +
+					'JOIN `guild_petition_charity_wishes` AS captured ON captured.`wish_id` = wish.`id` ' +
+					'WHERE captured.`petition_id` = ?'
+			).all(petition.id);
 			const items = db.query(
 				'DELETE FROM `charity_items` WHERE `guild_id` = ? AND `expires_at` <= ?'
 			).run(petition.guild_id, petition.charitree_expires_before).changes;
@@ -1322,17 +1364,24 @@ export function apply_council_guild_action(petition: db_row.guild_petitions): st
 				'DELETE FROM `charity_wishes` WHERE `id` IN (' +
 				'SELECT `wish_id` FROM `guild_petition_charity_wishes` WHERE `petition_id` = ?)'
 			).run(petition.id).changes;
+			for (const owner_client_id of new Set(wish_owners.map(wish => wish.owner_client_id)))
+				normalize_charity_shuffle_events(get_charity_shuffle_owner_key(owner_client_id), false);
 			return items + wishes;
 		}).immediate();
 		return clear > 0 ? 'cleared' : 'already_empty';
 	}
 	if (petition.type === 'charitree_sacrilege') {
 		const disable = db.transaction(() => {
+			const wish_owners = db.query<{ owner_client_id: number }, [number]>(
+				'SELECT `owner_client_id` FROM `charity_wishes` WHERE `guild_id` = ?'
+			).all(petition.guild_id);
 			const updated = db.query(
 				'UPDATE `guilds` SET `charitree_enabled` = 0 WHERE `id` = ? AND `charitree_enabled` = 1'
 			).run(petition.guild_id);
 			const removed = db.query('DELETE FROM `charity_items` WHERE `guild_id` = ?').run(petition.guild_id);
 			const wishes = db.query('DELETE FROM `charity_wishes` WHERE `guild_id` = ?').run(petition.guild_id);
+			for (const owner_client_id of new Set(wish_owners.map(wish => wish.owner_client_id)))
+				normalize_charity_shuffle_events(get_charity_shuffle_owner_key(owner_client_id), false);
 			return { updated: updated.changes, removed: removed.changes + wishes.changes };
 		});
 		const result = disable.immediate();
@@ -1996,7 +2045,8 @@ export async function get_guild_members(guild_id: number, shadowed = false, now 
 		? ' AND (c.`last_multiplayer_active_at` = 0 OR c.`last_multiplayer_active_at` < ?)'
 		: ' AND c.`last_multiplayer_active_at` >= ?';
 	const members = await db_get_all(
-		'SELECT c.`id` AS `client_id`, c.`social_mode`, c.`display_name`, c.`icon_id`, ' +
+		'SELECT c.`id` AS `client_id`, CASE WHEN c.`social_mode_enforced` = 1 OR COALESCE(account.`social_mode_enforced`, 0) = 1 ' +
+		'THEN \'social\' ELSE c.`social_mode` END AS `social_mode`, c.`display_name`, c.`icon_id`, ' +
 		'c.`equipment_visible`, ' +
 		'EXISTS(SELECT 1 FROM `equipment_snapshots` AS es WHERE es.`client_id` = c.`id`) AS `equipment_available`, ' +
 		'c.`status_visible`, ' +
@@ -2014,6 +2064,7 @@ export async function get_guild_members(guild_id: number, shadowed = false, now 
 		'c.`last_multiplayer_active_at`, joined_activity.`created_at` AS `joined_at` ' +
 		'FROM `guild_memberships` AS m ' +
 		'JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
+		'LEFT JOIN `melvor_accounts` AS account ON account.`id` = c.`melvor_account_id` ' +
 		'LEFT JOIN `status_snapshots` AS ss ON ss.`client_id` = c.`id` ' +
 		'LEFT JOIN `gp_snapshots` AS gps ON gps.`client_id` = c.`id` ' +
 		'LEFT JOIN `client_runtime_snapshots` AS runtime ON runtime.`client_id` = c.`id` ' +
@@ -2041,7 +2092,8 @@ export async function get_guild_member_directory(
 		: ' AND c.`last_multiplayer_active_at` >= ?';
 	const [members, count] = await Promise.all([
 			db_get_all(
-				'SELECT c.`id` AS `client_id`, c.`social_mode`, c.`display_name`, c.`icon_id`, ' +
+				'SELECT c.`id` AS `client_id`, CASE WHEN c.`social_mode_enforced` = 1 OR COALESCE(account.`social_mode_enforced`, 0) = 1 ' +
+				'THEN \'social\' ELSE c.`social_mode` END AS `social_mode`, c.`display_name`, c.`icon_id`, ' +
 				'c.`equipment_visible`, ' +
 				'EXISTS(SELECT 1 FROM `equipment_snapshots` AS es WHERE es.`client_id` = c.`id`) AS `equipment_available`, ' +
 				'c.`status_visible`, ' +
@@ -2058,6 +2110,7 @@ export async function get_guild_member_directory(
 				'runtime.`language`, ' +
 				'c.`last_multiplayer_active_at`, joined_activity.`created_at` AS `joined_at` ' +
 			'FROM `guild_memberships` AS m JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
+			'LEFT JOIN `melvor_accounts` AS account ON account.`id` = c.`melvor_account_id` ' +
 			'LEFT JOIN `status_snapshots` AS ss ON ss.`client_id` = c.`id` ' +
 			'LEFT JOIN `gp_snapshots` AS gps ON gps.`client_id` = c.`id` ' +
 			'LEFT JOIN `client_runtime_snapshots` AS runtime ON runtime.`client_id` = c.`id` ' +
@@ -2657,28 +2710,51 @@ export function validate_session_request(handler: SessionRequestHandler, json_bo
 
 		const client_id = session.client_id;
 		identify_request(req, client_id, session.mod_version ?? undefined, session.device_diagnostics);
-		const compatibility_response = legacy_client_compatibility_response(req, url, session.mod_version, client_id);
-		if (compatibility_response !== null)
-			return compatibility_response;
-		if (!validate_api_command(req, json)) return 400;
-		const limited = request_limits.limit_identity(client_id);
-		if (limited !== null) {
-			mark_rejection(req, 'identity_rate_limit');
-			return limited;
-		}
+		const actor = db.query<{ display_name: string }, [number]>(
+			'SELECT `display_name` FROM `clients` WHERE `id` = ?'
+		).get(client_id);
+		const path = url.pathname.replace(/^\/api\/v\d+\//, '/api/');
+		const command_id = typeof json === 'object' && json !== null && typeof json.command_id === 'string'
+			? json.command_id : null;
+		const device = session.device_diagnostics;
+		return run_with_audit_context(make_audit_context({
+			event_type: `api.${path.slice('/api/'.length).replaceAll('/', '.')}`,
+			source_key: command_id === null ? undefined : `mutation:${client_id}:${path}:${command_id}`,
+			actor_kind: 'client',
+			actor_client_id: client_id,
+			actor_display_name: actor?.display_name ?? `#${client_id}`,
+			command_id,
+			installation_id: device?.installation_id ?? null,
+			client_platform: device?.platform ?? null,
+			app_distribution: device?.distribution ?? null,
+			app_channel: device?.app_channel ?? null,
+			app_version: device?.app_version ?? null,
+			app_build: device?.app_build ?? null,
+			details: { path }
+		}), async () => {
+			const compatibility_response = legacy_client_compatibility_response(req, url, session.mod_version, client_id);
+			if (compatibility_response !== null)
+				return compatibility_response;
+			if (!validate_api_command(req, json)) return 400;
+			const limited = request_limits.limit_identity(client_id);
+			if (limited !== null) {
+				mark_rejection(req, 'identity_rate_limit');
+				return limited;
+			}
 
-		const now = Date.now();
-		if (now - (client_activity_writes.get(client_id) ?? 0) >= CLIENT_ACTIVITY_WRITE_INTERVAL) {
-			db.query('UPDATE `clients` SET `last_multiplayer_active_at` = ? WHERE `id` = ?')
-				.run(now, client_id);
-			client_activity_writes.set(client_id, now);
-		}
-		const command_kind = ECONOMY_COMMAND_KINDS[url.pathname];
-		if (req.method === 'POST' && command_kind && json?.command_id !== undefined) {
-			const replay = replay_economy_command(client_id, json.command_id, command_kind);
-			if (replay !== undefined) return replay ?? 400;
-		}
-		return handler(req, url, client_id, json as JsonObject);
+			const now = Date.now();
+			if (now - (client_activity_writes.get(client_id) ?? 0) >= CLIENT_ACTIVITY_WRITE_INTERVAL) {
+				db.query('UPDATE `clients` SET `last_multiplayer_active_at` = ? WHERE `id` = ?')
+					.run(now, client_id);
+				client_activity_writes.set(client_id, now);
+			}
+			const command_kind = ECONOMY_COMMAND_KINDS[url.pathname];
+			if (req.method === 'POST' && command_kind && json?.command_id !== undefined) {
+				const replay = replay_economy_command(client_id, json.command_id, command_kind);
+				if (replay !== undefined) return replay ?? 400;
+			}
+			return handler(req, url, client_id, json as JsonObject);
+		});
 	};
 }
 

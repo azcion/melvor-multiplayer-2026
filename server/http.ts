@@ -37,7 +37,7 @@ function body_too_large_response(): Response {
 	});
 }
 
-type RequestIdentity = {
+export type RequestIdentity = {
 	device?: DeviceDiagnostics | null;
 	client_id: number;
 	mod_version?: string;
@@ -61,6 +61,10 @@ export function identify_request(req: Request, client_id: number, mod_version?: 
 
 export function get_request_mod_version(req: Request): string | null {
 	return request_identities.get(req)?.mod_version ?? null;
+}
+
+export function get_request_identity(req: Request): RequestIdentity | null {
+	return request_identities.get(req) ?? null;
 }
 
 function invalid_json_response(req: Request): JsonReadResult {

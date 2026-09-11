@@ -3,6 +3,8 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { migrations } from './db/schema';
 import { report_error } from './log';
+import type { DeviceDiagnostics } from './diagnostics';
+import { instrument_audited_database } from './audit-context';
 
 export type DatabaseRow = Record<string, any>;
 export type DatabaseRunResult = {
@@ -22,10 +24,12 @@ export type ClientRegistration =
 const database_path = process.env.DB_PATH ?? './data/melvor-multiplayer.sqlite';
 mkdirSync(dirname(database_path), { recursive: true });
 
-export const db = new Database(database_path, {
+const raw_db = new Database(database_path, {
 	create: true,
 	strict: true
 });
+
+export let db = raw_db;
 
 db.run('PRAGMA journal_mode = WAL');
 db.run('PRAGMA foreign_keys = ON');
@@ -59,6 +63,7 @@ function initialize_schema(): void {
 }
 
 initialize_schema();
+db = instrument_audited_database(raw_db);
 
 export async function db_run(sql: string, values: SQLQueryBindings[] = []): Promise<DatabaseRunResult> {
 	const result = db.query(sql).run(...values);
@@ -138,7 +143,8 @@ export function register_client(
 	friend_code: string,
 	display_name: string,
 	icon_id: string,
-	melvor_account: MelvorAccountInput | null = null
+	melvor_account: MelvorAccountInput | null = null,
+	device: DeviceDiagnostics | null = null
 ): ClientRegistration {
 	const transaction = db.transaction((): ClientRegistration => {
 		if (get_service_setting('registrations_open') !== '1')
@@ -151,6 +157,21 @@ export function register_client(
 			'`melvor_account_id`) VALUES(?, ?, ?, ?, ?, ?)'
 		).run(client_identifier, client_key, friend_code, display_name, icon_id, melvor_account_id);
 		const client_id = Number(result.lastInsertRowid);
+		const created_at = Date.now();
+		const audit_event = db.query<{ id: number }, [
+			number, number, string, string, string | null, string | null, string | null, string | null, string | null, string | null
+		]>(
+			'INSERT INTO `audit_events` (`occurred_at`, `event_type`, `actor_kind`, `actor_client_id`, ' +
+			'`actor_display_name`, `source_key`, `installation_id`, `client_platform`, `app_distribution`, ' +
+			'`app_channel`, `app_version`, `app_build`) VALUES(?, \'identity.registered\', \'client\', ?, ?, ?, ?, ?, ?, ?, ?, ?) ' +
+			'RETURNING `id`'
+		).get(created_at, client_id, display_name, `identity-registered:${client_id}`,
+			device?.installation_id ?? null, device?.platform ?? null, device?.distribution ?? null,
+			device?.app_channel ?? null, device?.app_version ?? null, device?.app_build ?? null) as { id: number };
+		db.query(
+			'INSERT INTO `client_display_name_history` (`client_id`, `display_name`, `valid_from`, `changed_by_event_id`) ' +
+			'VALUES(?, ?, ?, ?)'
+		).run(client_id, display_name, created_at, audit_event.id);
 		db.query(
 			'INSERT INTO `global_chat_read_state` (`client_id`, `last_read_message_id`) ' +
 			'SELECT ?, COALESCE(MAX(`id`), 0) FROM `global_chat_messages`'

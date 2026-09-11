@@ -36,6 +36,8 @@ test('exposes the mode choice, setting, gates, and Raid exception in both suppor
 
 	assert.doesNotMatch(main, /select\.type\s*=\s*['"]select-one['"]/);
 	assert.match(templates, /MOD_MP_SOCIAL_MODE_FULL/);
+	assert.match(templates, /v-if="!state\.social_mode_enforcement"/);
+	assert.match(templates, /MOD_MP_SOCIAL_MODE_ENFORCED_INFO/);
 	assert.match(templates, /MOD_MP_SOCIAL_MODE_SOCIAL/);
 	assert.match(templates, /mp-social-mode-options/);
 	assert.match(templates, /MOD_MP_SOCIAL_MODE_SUBTITLE/);
@@ -73,6 +75,7 @@ test('exposes the mode choice, setting, gates, and Raid exception in both suppor
 	assert.match(main, /state\.resolved_trades = \[\]/);
 	assert.match(main, /state\.inbox_items = \[\];[\s\S]*await get_client_events\(false\);[\s\S]*else\s*await update_inbox\(\)/);
 	assert.match(main, /reconcile_guild_member_social_modes\(res\.guild_member_social_modes\)/);
+	assert.match(main, /res\.social_mode === social_mode\.SOCIAL_MODE_FULL[\s\S]*state\.social_mode = res\.social_mode[\s\S]*state\.social_mode_enforcement = res\.social_mode_enforcement/);
 	assert.match(main, /state\.is_social_only && page_id !== 'Guild_Raid'/);
 	assert.match(main, /state\.is_social_only\)\s*return/);
 	assert.equal(english.MOD_MP_SOCIAL_MODE_FULL, 'Full Experience');
@@ -80,6 +83,7 @@ test('exposes the mode choice, setting, gates, and Raid exception in both suppor
 	assert.equal(english.MOD_MP_SOCIAL_MODE_SOCIAL_DETAIL, 'Chat, connect, and show off.');
 	assert.equal(english.MOD_MP_SOCIAL_MODE_CHOOSE, 'Choose');
 	assert.equal(english.MOD_MP_SOCIAL_MODE_TITLE, 'Pick your Multiplayer experience');
+	assert.match(english.MOD_MP_SOCIAL_MODE_ENFORCED_INFO, /server requires Social Only/);
 	assert.equal(english.MOD_MP_SETTINGS_CHANGE_MODE, 'Change Mode');
 	assert.equal(chinese.MOD_MP_SOCIAL_MODE_FULL, '完整模式');
 	assert.equal(chinese.MOD_MP_SOCIAL_MODE_SOCIAL, '社交模式');
@@ -151,6 +155,39 @@ test('refreshes sidebar visibility after loading the saved Social Only mode', as
 		main.indexOf('\n\tctx.onCharacterSelectionLoaded', main.indexOf('ctx.onCharacterLoaded(() =>'))
 	);
 	assert.match(character_loaded, /load_social_mode\(\);\s*update_multiplayer_nav\(\);\s*start_multiplayer_session\(\);/);
+});
+
+test('leaves disabled pages only while Social Only is active', async () => {
+	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const function_source = main.slice(
+		main.indexOf('function leave_social_only_disabled_page'),
+		main.indexOf('\nasync function request_social_mode')
+	);
+	const guild_page = { id: 'multiplayer:Guild' };
+	const run = is_social_only => {
+		const calls = [];
+		const leave_social_only_disabled_page = new Function(
+			'state', 'interface_ready', 'document', 'navigate_page', 'game', `
+			${function_source}
+			return leave_social_only_disabled_page;
+		`
+		)(
+			{ is_social_only },
+			true,
+			{
+				getElementById: id => id === 'mp-charity-page'
+					? { classList: { contains: () => false } }
+					: null
+			},
+			page => calls.push(page),
+			{ pages: { getObjectByID: () => guild_page } }
+		);
+		leave_social_only_disabled_page();
+		return calls;
+	};
+
+	assert.deepEqual(run(false), []);
+	assert.deepEqual(run(true), [guild_page]);
 });
 
 test('reconciles authoritative Guild member modes into open recipient state', async () => {
