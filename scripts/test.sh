@@ -3,8 +3,8 @@
 set -eu
 
 repo_root="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
-project_name="melvor-mp-test"
-server_port="${MELVOR_TEST_SERVER_PORT:-3001}"
+project_name="${MELVOR_TEST_PROJECT:-melvor-mp-test-$$}"
+server_port="${MELVOR_TEST_SERVER_PORT:-$((40000 + $$ % 20000))}"
 server_args_file=""
 node_args_file=""
 compose_owned=0
@@ -22,6 +22,7 @@ export MELVOR_REGISTRATIONS_PER_SERVICE_HOUR=10000
 export MELVOR_AUTH_RESPONSE_DELAY_MS=0
 export MELVOR_SUPPORT_TEAM_CLIENT_IDENTIFIERS=RESTART-SUPPORT-CLIENT
 export MELVOR_CHAT_MODERATOR_CLIENT_IDENTIFIERS=RESTART-CHAT-MODERATOR,RESTART-CHAT-MODERATOR-2
+export MELVOR_POLL_CREATOR_CLIENT_IDENTIFIERS=11111111-1111-4111-8111-111111111111
 
 cleanup() {
 	status=$?

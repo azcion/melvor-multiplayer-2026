@@ -1,4 +1,3 @@
-import { request_uses_server_owned_pets } from '../api-contract';
 import { API_VERSIONS } from '../api-contract';
 import { authenticate_installation, enroll_installation } from '../installations';
 import { is_installation_id, parse_device_diagnostics } from '../diagnostics';
@@ -8,13 +7,13 @@ import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
 import type { PetitionType } from '../council';
-import { legacy_client_chat_state } from '../legacy-client-compatibility';
 
-const { AUTH_RESPONSE_DELAY_MS, BACKEND_VERSION, DEFAULT_USER_ICON_ID, allow_browser_access, associate_client_with_melvor_account, cancel_deletion_on_authentication, db_get_single, execute_due_client_deletions, generate_friend_code, generate_session_token, get_chat_state, get_client_charity_state, get_client_social_mode, get_client_social_mode_enforcement, get_owned_pet_ids, get_released_mod_version, identify_request, is_server_owned_pets_client, is_valid_uuid, log, parse_client_runtime, parse_melvor_account, persist_client_runtime, recover_deleted_client, register_client, require_registration_capacity, require_service_available, require_source_capacity, server, temporary_unavailable, validate_display_name, validate_json_request } = runtime;
+const { AUTH_RESPONSE_DELAY_MS, BACKEND_VERSION, DEFAULT_USER_ICON_ID, allow_browser_access, associate_client_with_melvor_account, cancel_deletion_on_authentication, db_get_single, execute_due_client_deletions, generate_friend_code, generate_session_token, get_chat_state, get_client_charity_state, get_client_social_mode, get_client_social_mode_enforcement, get_minimum_supported_mod_version, get_owned_pet_ids, get_released_mod_version, identify_request, is_valid_uuid, log, parse_client_runtime, parse_melvor_account, persist_client_runtime, recover_deleted_client, register_client, require_registration_capacity, require_service_available, require_source_capacity, server, temporary_unavailable, validate_display_name, validate_json_request } = runtime;
 
 export function register_auth_routes(): void {
 	server.route('/api/versions', allow_browser_access(require_source_capacity(require_service_available(() => ({
-		api_versions: API_VERSIONS, preferred_api_version: API_VERSIONS[API_VERSIONS.length - 1]
+		api_versions: API_VERSIONS, preferred_api_version: API_VERSIONS[API_VERSIONS.length - 1],
+		minimum_supported_mod_version: get_minimum_supported_mod_version()
 	})))), ['GET', 'OPTIONS']);
 	server.route('/health', require_source_capacity(() => ({ status: 'ok', backend_version: BACKEND_VERSION })));
 
@@ -41,7 +40,7 @@ export function register_auth_routes(): void {
 		}
 
 		const client_row = await db_get_single(
-			' SELECT `id`, `client_key`, `friend_code`, `display_name`, `icon_id`, `disabled`, `equipment_visible`, `status_visible`, `skills_visible`, `activity_visible`, `gp_visible`, `game_mode_visible`, `active_mods_visible`, `social_mode`, ' +
+			' SELECT `id`, `client_key`, `friend_code`, `display_name`, `icon_id`, `disabled`, `equipment_visible`, `skills_visible`, `activity_visible`, `gp_visible`, `game_mode_visible`, `active_mods_visible`, `social_mode`, ' +
 			'`messaging_enabled`, `melvor_account_id`, `deleted_at` ' +
 			'FROM `clients` WHERE `client_identifier` = ? LIMIT 1',
 			[client_identifier]
@@ -89,18 +88,17 @@ export function register_auth_routes(): void {
 			icon_id: client_row.icon_id, equipment_visible: client_row.equipment_visible === 1,
 			social_mode: get_client_social_mode(client_row.id),
 			social_mode_enforcement: get_client_social_mode_enforcement(client_row.id),
-			status_visible: client_row.status_visible === 1,
 			skills_visible: client_row.skills_visible === 1, activity_visible: client_row.activity_visible === 1,
 			gp_visible: client_row.gp_visible === 1,
 			game_mode_visible: client_row.game_mode_visible === 1,
 			active_mods_visible: client_row.active_mods_visible === 1,
-			chat: legacy_client_chat_state(client_runtime?.mod_version, client_row.id) ?? get_chat_state(client_row.id),
-			read_post_supported: true,
+			chat: get_chat_state(client_row.id),
 			installation_auth_supported: true, backend_version: BACKEND_VERSION,
-			server_owned_pets: request_uses_server_owned_pets(req, client_runtime?.mod_version ?? null),
-			charity: await get_client_charity_state(client_row.id, client_runtime?.mod_version, Date.now(), request_uses_server_owned_pets(req, client_runtime?.mod_version ?? null)),
+			server_owned_pets: true,
+			charity: await get_client_charity_state(client_row.id, client_runtime?.mod_version, Date.now(), true),
 			owned_pet_ids: get_owned_pet_ids(client_row.id),
 			released_mod_version: get_released_mod_version(),
+			minimum_supported_mod_version: get_minimum_supported_mod_version(),
 			deletion_cancelled, identity_recovered };
 	})))), ['POST', 'OPTIONS']);
 
@@ -145,15 +143,15 @@ export function register_auth_routes(): void {
 		return { session_token, client_identifier, friend_code, display_name, icon_id: DEFAULT_USER_ICON_ID,
 			social_mode: get_client_social_mode(client_id),
 			social_mode_enforcement: get_client_social_mode_enforcement(client_id),
-			equipment_visible: true, status_visible: true, skills_visible: true, activity_visible: true, gp_visible: true, game_mode_visible: true,
+			equipment_visible: true, skills_visible: true, activity_visible: true, gp_visible: true, game_mode_visible: true,
 			active_mods_visible: true,
-			chat: legacy_client_chat_state(client_runtime?.mod_version, client_id) ?? get_chat_state(client_id),
-			read_post_supported: true,
+			chat: get_chat_state(client_id),
 			installation_auth_supported: true, backend_version: BACKEND_VERSION,
-			server_owned_pets: request_uses_server_owned_pets(req, client_runtime?.mod_version ?? null),
-			charity: await get_client_charity_state(client_id, client_runtime?.mod_version, Date.now(), request_uses_server_owned_pets(req, client_runtime?.mod_version ?? null)),
+			server_owned_pets: true,
+			charity: await get_client_charity_state(client_id, client_runtime?.mod_version, Date.now(), true),
 			owned_pet_ids: get_owned_pet_ids(client_id),
-			released_mod_version: get_released_mod_version() };
+			released_mod_version: get_released_mod_version(),
+			minimum_supported_mod_version: get_minimum_supported_mod_version() };
 	}))))), ['POST', 'OPTIONS']);
 	runtime.session_post_route('/api/installations/enroll', async (req, _url, client_id, json) => {
 		const session = await runtime.get_client_session(req.headers.get('X-Session-Token'));

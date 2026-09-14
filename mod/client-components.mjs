@@ -10,6 +10,16 @@ export function register_components(runtime) {
 		tippy,
 	} = runtime;
 
+	function bind_slider_value_input(value_input, slider, on_empty) {
+		value_input.addEventListener('input', () => {
+			if (value_input.value === '') {
+				on_empty();
+				return;
+			}
+			slider.setSliderPosition(value_input.value);
+		});
+	}
+
 	class MPModalComponent extends HTMLElement {
 		constructor() {
 			super();
@@ -224,7 +234,7 @@ export function register_components(runtime) {
 			$value.type = 'number';
 			$value.value = 1;
 
-			$value.addEventListener('input', () => this.slider.setSliderPosition($value.value));
+			bind_slider_value_input($value, this.slider, () => state.add_currency_value = '');
 			this.slider.customOnChange = (amount) => {
 				$value.value = amount;
 				state.add_currency_value = amount;
@@ -268,7 +278,7 @@ export function register_components(runtime) {
 			$value.value = min;
 			this.value_input = $value;
 
-			$value.addEventListener('input', () => this.slider.setSliderPosition($value.value));
+			bind_slider_value_input($value, this.slider, () => state.item_slider_value = '');
 			this.slider.customOnChange = (amount) => {
 				$value.value = amount;
 				state.item_slider_value = amount;
@@ -304,6 +314,9 @@ export function register_components(runtime) {
 				min,
 				max: max
 			});
+
+			if (this.value_input?.value === '')
+				return;
 
 			const current_value = Number(state.item_slider_value);
 			if (!Number.isFinite(current_value) || current_value < min || current_value > max) {

@@ -58,7 +58,8 @@ export function preflight_diagnostics(req: Request): string {
 }
 export type RejectionReason = 'invalid_session' | 'source_rate_limit' | 'identity_rate_limit' |
 	'registration_rate_limit' | 'maintenance' | 'invalid_credentials' | 'identity_disabled' |
-	'installation_revoked' | 'session_replaced' | 'account_mismatch' | 'account_required' | 'invalid_json' | 'invalid_runtime';
+	'installation_revoked' | 'session_replaced' | 'account_mismatch' | 'account_required' | 'invalid_json' | 'invalid_runtime' |
+	'unsupported_mod_version';
 const rejections = new WeakMap<Request, RejectionReason>();
 export function mark_rejection(req: Request, reason: RejectionReason): void { rejections.set(req, reason); }
 export function rejection_diagnostics(req: Request): string {

@@ -103,7 +103,8 @@ function message_view(message: Message, conversation: Conversation, support_team
 		content: message.content,
 		created_at: message.created_at,
 		author_side,
-		sent_by_viewer: author_side === viewer_side
+		sent_by_viewer: author_side === viewer_side,
+		reactions: []
 	};
 }
 
@@ -120,6 +121,10 @@ function conversation_access(client_id: number, conversation_id: number) {
 	}
 	const membership = membership_for(client_id, conversation.team_id);
 	return membership === null ? null : { conversation, membership, viewer_side: 'team' as const };
+}
+
+export function can_access_support_conversation(client_id: number, conversation_id: number): boolean {
+	return conversation_access(client_id, conversation_id) !== null;
 }
 
 export function parse_support_membership_client_identifiers(raw: string | undefined): string[] | undefined {

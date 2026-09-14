@@ -1,4 +1,3 @@
-import { request_uses_server_owned_pets } from '../api-contract';
 import * as runtime from '../app-runtime';
 import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
@@ -7,7 +6,7 @@ import type { PetitionType } from '../council';
 import { record_guild_activity } from '../guild-activity';
 import { add_inbox_gp } from '../inbox';
 
-const { apply_campaign_completion, db, db_get_single, ensure_guild_campaign, get_campaign_history, get_campaign_item_gp_value, get_campaign_pet_id, get_campaign_rankings, get_client_guild_id, get_owned_pet_ids, get_request_mod_version, has_owned_pet, is_server_owned_pets_client, is_social_only_client, persist_campaign_completion, run_economy_command, session_get_route, session_post_route } = runtime;
+const { apply_campaign_completion, db, db_get_single, ensure_guild_campaign, get_campaign_history, get_campaign_item_gp_value, get_campaign_pet_id, get_campaign_rankings, get_client_guild_id, get_owned_pet_ids, has_owned_pet, is_social_only_client, persist_campaign_completion, run_economy_command, session_get_route, session_post_route } = runtime;
 
 export function register_campaign_routes(): void {
 	session_get_route('/api/campaign/info', async (req, url, client_id): Promise<HandlerResult> => {
@@ -57,11 +56,8 @@ export function register_campaign_routes(): void {
 		if (typeof campaign_id !== 'number')
 			return 400; // Bad Request
 
-		const server_owned_pets = request_uses_server_owned_pets(req);
 		const value = json.value;
-		if (server_owned_pets && value !== undefined)
-			return 400; // Bad Request
-		if (!server_owned_pets && (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0))
+		if (value !== undefined)
 			return 400; // Bad Request
 
 		const result = run_economy_command(client_id, json.command_id, 'campaign-claim', () => {
@@ -74,17 +70,14 @@ export function register_campaign_routes(): void {
 			if (completion === null)
 				return { success: false };
 
-			let reward_value = value as number;
-			if (server_owned_pets) {
-				const item_gp_value = get_campaign_item_gp_value(completion.item_id);
-				if (item_gp_value === null)
-					return { success: false };
-				const reward_multiplier = get_campaign_pet_id(completion.campaign_id) !== null &&
-					has_owned_pet(client_id, get_campaign_pet_id(completion.campaign_id)!) ? 15 : 10;
-				reward_value = item_gp_value * completion.item_amount * reward_multiplier;
-				if (!Number.isSafeInteger(reward_value) || reward_value <= 0)
-					return { success: false };
-			}
+			const item_gp_value = get_campaign_item_gp_value(completion.item_id);
+			if (item_gp_value === null)
+				return { success: false };
+			const reward_multiplier = get_campaign_pet_id(completion.campaign_id) !== null &&
+				has_owned_pet(client_id, get_campaign_pet_id(completion.campaign_id)!) ? 15 : 10;
+			const reward_value = item_gp_value * completion.item_amount * reward_multiplier;
+			if (!Number.isSafeInteger(reward_value) || reward_value <= 0)
+				return { success: false };
 
 			const updated_at = Date.now();
 			db.query(
@@ -97,7 +90,7 @@ export function register_campaign_routes(): void {
 			add_inbox_gp(client_id, reward_value, { type: 'campaign' });
 			return {
 				success: true,
-				...(server_owned_pets ? { reward_value } : {}),
+				reward_value,
 				effects: []
 			};
 		});

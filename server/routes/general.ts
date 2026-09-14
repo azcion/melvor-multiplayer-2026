@@ -6,7 +6,7 @@ import type { PetitionType } from '../council';
 import { has_pending_inbox } from '../inbox';
 import { change_display_name } from '../audit';
 
-const { acknowledge_economy_receipt, db, db_execute, db_exists, display_name_cache, friend_request_cache, get_campaign_progress, get_client_gifts, get_client_resolved_trades, get_client_social_mode, get_client_social_mode_enforcement, get_client_trades, get_friend_requests, get_global_chat_unread_count, get_guild_applicants, get_guild_chat_unread_count, get_guild_member_social_modes, get_market_completed, get_support_unread_count, get_trade_offer_meta, get_unread_chat_count, has_deletion_returns, has_global_chat_capability, has_guild_chat_capability, is_valid_avatar_icon_id, parse_display_name, pending_economy_receipts, session_get_route, session_post_route } = runtime;
+const { acknowledge_economy_receipt, db, db_execute, db_exists, display_name_cache, friend_request_cache, get_campaign_progress, get_client_gifts, get_client_resolved_trades, get_client_social_mode, get_client_social_mode_enforcement, get_client_trades, get_friend_requests, get_global_chat_unread_count, get_guild_applicants, get_guild_chat_unread_count, get_guild_member_social_modes, get_market_completed, get_minimum_supported_mod_version, get_released_mod_version, get_support_unread_count, get_trade_offer_meta, get_unread_chat_count, has_deletion_returns, has_global_chat_capability, has_guild_chat_capability, is_valid_avatar_icon_id, parse_display_name, pending_economy_receipts, session_get_route, session_post_route } = runtime;
 
 export function register_general_routes(): void {
 	session_get_route('/api/events', async (req, url, client_id): Promise<HandlerResult> => {
@@ -17,7 +17,8 @@ export function register_general_routes(): void {
 		const client = db.query('SELECT `event_revision` FROM `clients` WHERE `id` = ? LIMIT 1')
 			.get(client_id) as Pick<db_row.clients, 'event_revision'>;
 		if (known_revision === client.event_revision)
-			return { revision: client.event_revision, unchanged: true };
+			return { revision: client.event_revision, unchanged: true, released_mod_version: get_released_mod_version(),
+				minimum_supported_mod_version: get_minimum_supported_mod_version() };
 		const trade_ids = await get_client_trades(client_id);
 		const trade_meta = [];
 
@@ -35,6 +36,8 @@ export function register_general_routes(): void {
 
 		return {
 			revision: client.event_revision,
+			released_mod_version: get_released_mod_version(),
+			minimum_supported_mod_version: get_minimum_supported_mod_version(),
 			social_mode: get_client_social_mode(client_id),
 			social_mode_enforcement: get_client_social_mode_enforcement(client_id),
 			friend_requests: await get_friend_requests(client_id),

@@ -1,18 +1,13 @@
-import { is_server_owned_pets_client } from './pet-compatibility';
-import { create_http_server, get_request_mod_version, type JsonObject, type RequestHandler } from './http';
+import { create_http_server, type JsonObject, type RequestHandler } from './http';
 
-export type ApiMajor = 1 | 2;
-export const API_VERSIONS: ApiMajor[] = [1, 2];
-type RouteOptions = { versions?: ApiMajor[] };
+export type ApiMajor = 2;
+export const API_VERSIONS: ApiMajor[] = [2];
+type RouteOptions = Record<string, never>;
 type RouteContext = { api_major: ApiMajor; logical_path: string; explicit: boolean };
 const contexts = new WeakMap<Request, RouteContext>();
 
 export function api_context(req: Request): RouteContext {
-	return contexts.get(req) ?? { api_major: 1, logical_path: new URL(req.url).pathname, explicit: false };
-}
-
-export function request_uses_server_owned_pets(req: Request, mod_version = get_request_mod_version(req)): boolean {
-	return api_context(req).api_major === 2 || is_server_owned_pets_client(mod_version);
+	return contexts.get(req) ?? { api_major: 2, logical_path: new URL(req.url).pathname, explicit: false };
 }
 
 export const ECONOMY_COMMAND_KINDS: Readonly<Record<string, string>> = {
@@ -56,21 +51,10 @@ export const REPLAY_COMMAND_PATHS = new Set([
 ]);
 
 export function validate_api_command(req: Request, json: JsonObject | null): boolean {
-	const { api_major, logical_path } = api_context(req);
-	if (api_major !== 2) return true;
-	if (logical_path === '/api/client/status/sync' && json && Object.hasOwn(json, 'activity')) return false;
+	const { logical_path } = api_context(req);
 	if (!REPLAY_COMMAND_PATHS.has(logical_path)) return true;
 	return typeof json?.command_id === 'string' &&
 		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(json.command_id);
-}
-
-// Only removed wire aliases are filtered; persisted snapshots and receipt payloads are untouched.
-function v2_response(value: unknown): unknown {
-	if (Array.isArray(value)) return value.map(v2_response);
-	if (value === null || typeof value !== 'object') return value;
-	return Object.fromEntries(Object.entries(value).filter(([key]) =>
-		key !== 'status_visible' && key !== 'status_available' && key !== 'read_post_supported'
-	).map(([key, entry]) => [key, key === 'receipt' || key === 'economy_receipts' ? entry : v2_response(entry)]));
 }
 
 // The original Request stays intact for session identity, diagnostics, and body consumption.
@@ -87,10 +71,9 @@ export function create_api_server(port: number) {
 				http.route(path, handler, methods);
 				return;
 			}
-			const versions = options.versions ?? API_VERSIONS;
-			for (const api_major of versions) {
-				if (api_major === 2 && path === '/api/client/status/visibility') continue;
-				const paths = api_major === 1 ? [path, `/api/v1/${path.slice(5)}`] : [`/api/v2/${path.slice(5)}`];
+			const api_major: ApiMajor = 2;
+			{
+				const paths = [`/api/v2/${path.slice(5)}`];
 				for (const wire_path of paths) {
 					for (const method of Array.isArray(methods) ? methods : [methods]) {
 						const key = `${method} ${wire_path}`;
@@ -106,12 +89,12 @@ export function create_api_server(port: number) {
 							const logical_url = new URL(url);
 							logical_url.pathname = path;
 							const result = await handler(req, logical_url);
-							const bootstrap = wire_path !== path && (path === '/api/register' || path === '/api/authenticate');
-							if ((bootstrap || api_major === 2) && result instanceof Response && result.status === 200 &&
+							const bootstrap = path === '/api/register' || path === '/api/authenticate';
+							if (result instanceof Response && result.status === 200 &&
 								result.headers.get('Content-Type')?.includes('application/json')) {
 								const body = await result.json() as Record<string, unknown>;
 								const adapted = bootstrap ? { ...body, api_version: api_major, api_versions: API_VERSIONS } : body;
-								return Response.json(api_major === 2 ? v2_response(adapted) : adapted, { headers: result.headers });
+								return Response.json(adapted, { headers: result.headers });
 							}
 							return result;
 						}, method);

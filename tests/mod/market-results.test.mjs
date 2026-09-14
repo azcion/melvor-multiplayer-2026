@@ -325,11 +325,15 @@ test('sets the Buy, Sell, and Haggle quantity pickers to a minimum of one', asyn
 	}
 });
 
-test('keeps the item quantity input aligned when Vue applies a minimum after mount', async () => {
+test('keeps item quantity inputs clear while editing and aligned when Vue applies a minimum', async () => {
 	const components = await readFile(new URL('../../mod/client-components.mjs', import.meta.url), 'utf8');
 
 	assert.match(components, /this\.value_input = \$value/);
+	assert.match(components, /function bind_slider_value_input\(value_input, slider, on_empty\)[\s\S]*if \(value_input\.value === ''\)[\s\S]*on_empty\(\)[\s\S]*return;[\s\S]*slider\.setSliderPosition\(value_input\.value\)/);
+	assert.match(components, /bind_slider_value_input\(\$value, this\.slider, \(\) => state\.add_currency_value = ''\)/);
+	assert.match(components, /bind_slider_value_input\(\$value, this\.slider, \(\) => state\.item_slider_value = ''\)/);
 	assert.match(components, /current_value = Number\(state\.item_slider_value\)[\s\S]*current_value < min[\s\S]*state\.item_slider_value = min[\s\S]*this\.value_input\.value = min/);
+	assert.match(components, /if \(this\.value_input\?\.value === ''\)\s*return;/);
 });
 
 test('outlines Marketplace, Transfer, and Haggle numeric inputs', async () => {

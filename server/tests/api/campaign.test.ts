@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { round_campaign_estimate } from '../../campaign';
+import { get_campaign_item_total } from '../../campaign';
 import { AVAILABLE_CAMPAIGNS } from '../../campaign_data';
 import { get_events, make_guild_group, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post, post_json, register_client } from '../support/http';
 import { db_all, db_count, db_run } from '../support/persistence';
-import { SHADOWED_AFTER } from '../../shadowed';
+import { RECENTLY_ACTIVE_AFTER } from '../../recent-activity';
 
 type CampaignHistory = {
 	id: number;
@@ -113,12 +113,12 @@ describe('campaign API', () => {
 
 		expect(selected_item).toBeDefined();
 		expect(campaign.item_total).toBe(
-			round_campaign_estimate(selected_item?.estimated_12h_output ?? 0) * 3
+			get_campaign_item_total(selected_item?.estimated_12h_output ?? 0, 3)
 		);
 		expect(campaign.max_contribution).toBe(campaign.item_total / 3);
 	});
 
-	test('excludes Shadowed members from sizing without resizing when they return', async () => {
+	test('excludes members inactive for four days without resizing when they return', async () => {
 		const founder = await register_guild_client('Campaign Shadow Founder', 'Campaign Shadows');
 		const applicants = await Promise.all([
 			register_client('Campaign Active Two'),
@@ -132,7 +132,7 @@ describe('campaign API', () => {
 		}, applicant.session_token)));
 		await db_run(
 			'UPDATE `clients` SET `last_multiplayer_active_at` = ? WHERE `id` IN (?, ?)',
-			[Date.now() - SHADOWED_AFTER - 1_000, applicants[3].client_id, applicants[4].client_id]
+			[Date.now() - RECENTLY_ACTIVE_AFTER - 1_000, applicants[3].client_id, applicants[4].client_id]
 		);
 		const guild = await get_json_with_session<{
 			applicants: Array<{ application_id: number }>;
@@ -149,7 +149,7 @@ describe('campaign API', () => {
 			.flatMap(entry => entry.items)
 			.find(item => item.id === before_return.item_id);
 		expect(before_return.item_total).toBe(
-			round_campaign_estimate(selected_item?.estimated_12h_output ?? 0) * 2
+			get_campaign_item_total(selected_item?.estimated_12h_output ?? 0, 2)
 		);
 		expect(before_return.max_contribution).toBe(before_return.item_total / 2);
 
@@ -223,15 +223,18 @@ describe('campaign API', () => {
 		const keeper = pair[1];
 		const campaign = await get_campaign_info(contributor.session_token);
 		await post_json('/api/campaign/contribute', {
-			item_amount: campaign.item_total
+			item_amount: campaign.max_contribution
 		}, contributor.session_token);
+		await post_json('/api/campaign/contribute', {
+			item_amount: campaign.item_total - campaign.max_contribution
+		}, keeper.session_token);
 
 		const completed = await get_campaign_info(contributor.session_token);
 		expect(completed.history).toEqual([{
 			id: expect.any(Number),
 			campaign_id: campaign.campaign_id,
 			item_id: campaign.item_id,
-			item_amount: campaign.item_total,
+			item_amount: campaign.max_contribution,
 			taken: 0
 		}]);
 		expect(completed.rankings).toEqual({ [campaign.campaign_id]: 1 });
@@ -279,12 +282,14 @@ describe('campaign API', () => {
 		expect(switched.history).toEqual(completed.history);
 		expect(switched.rankings).toEqual(completed.rankings);
 
-		const legacy_claim = await post_json<{ success: boolean }>('/api/campaign/claim', {
+		const current_claim = await post_json<{ success: boolean; reward_value: number; receipt: unknown }>('/api/campaign/claim', {
 			campaign_id: completion_id,
-			value: 123
+			command_id: crypto.randomUUID()
 		}, contributor.session_token);
-		expect(legacy_claim.json).toEqual({ success: true });
-		expect((await get_campaign_info(contributor.session_token)).history[0].taken).toBe(123);
+		expect(current_claim.json.success).toBe(true);
+		expect(current_claim.json.reward_value).toBeGreaterThan(0);
+		expect(current_claim.json.receipt).toBeDefined();
+		expect((await get_campaign_info(contributor.session_token)).history[0].taken).toBe(current_claim.json.reward_value);
 		const claimed_timestamps = await db_all<{ created_at: number | null; updated_at: number | null }>(
 			'SELECT `created_at`, `updated_at` FROM `campaign_completions` ' +
 			'WHERE `source_campaign_state_id` = ? AND `client_id` = ?', [completion_id, contributor.client_id]
@@ -312,16 +317,17 @@ describe('campaign API', () => {
 	});
 
 	test('delivers an identity-owned completed reward through one durable receipt', async () => {
-		const contributor = await register_guild_client('Receipt Contributor', 'Receipt Guild', '1.5.2');
+		const contributor = await register_guild_client('Receipt Contributor', 'Receipt Guild', '1.5.9');
 		const campaign = await get_campaign_info(contributor.session_token);
 		await post_json('/api/campaign/contribute', {
 			item_amount: campaign.item_total
 		}, contributor.session_token);
 		const completion_id = (await get_campaign_info(contributor.session_token)).history[0].id;
 		const command_id = crypto.randomUUID();
-		const claim_body = { campaign_id: completion_id, value: 456, command_id };
+		const claim_body = { campaign_id: completion_id, command_id };
 		const first = await post_json<{
 			success: boolean;
+			reward_value: number;
 			receipt: { id: string; kind: string; effects: Array<Record<string, unknown>> };
 		}>('/api/campaign/claim', claim_body, contributor.session_token);
 		const replay = await post_json<typeof first.json>('/api/campaign/claim', claim_body, contributor.session_token);
@@ -336,14 +342,14 @@ describe('campaign API', () => {
 		await post_json('/api/economy/receipts/acknowledge', {
 			receipt_id: command_id
 		}, contributor.session_token);
-		const acknowledged = await post_json<{ success: boolean; receipt: null }>(
+		const acknowledged = await post_json<{ success: boolean; reward_value: number; receipt: null }>(
 			'/api/campaign/claim', claim_body, contributor.session_token
 		);
-		expect(acknowledged.json).toEqual({ success: true, receipt: null });
-		expect((await get_campaign_info(contributor.session_token)).history[0].taken).toBe(456);
+		expect(acknowledged.json).toEqual({ success: true, reward_value: first.json.reward_value, receipt: null });
+		expect((await get_campaign_info(contributor.session_token)).history[0].taken).toBe(first.json.reward_value);
 		expect((await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
 			'/api/inbox', contributor.session_token
-		)).json.items).toEqual([{ item_id: 'melvorD:GP', qty: 456 }]);
+		)).json.items).toEqual([{ item_id: 'melvorD:GP', qty: first.json.reward_value }]);
 	});
 
 	test('calculates server-owned campaign claims from fixed item values and pet ownership', async () => {

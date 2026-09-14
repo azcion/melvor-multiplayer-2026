@@ -10,6 +10,7 @@ const LANGUAGE_LANG_IDS = Object.freeze({
 	fr: 'MOD_MP_LANGUAGE_FR',
 	de: 'MOD_MP_LANGUAGE_DE',
 	pt: 'MOD_MP_LANGUAGE_PT',
+	'pt-br': 'MOD_MP_LANGUAGE_PT_BR',
 	'pt-BR': 'MOD_MP_LANGUAGE_PT_BR',
 	it: 'MOD_MP_LANGUAGE_IT',
 	ko: 'MOD_MP_LANGUAGE_KO',
@@ -91,4 +92,19 @@ export function is_mod_version_outdated(current_version, released_version) {
 			return current[index] < released[index];
 	}
 	return false;
+}
+
+export function is_mod_version_unsupported(current_version, minimum_supported_version) {
+	const feature_version = parse_release_version('1.5.10');
+	const current = parse_release_version(current_version);
+	const minimum = parse_release_version(minimum_supported_version);
+	if (current === null || minimum === null)
+		return false;
+	const compare = (left, right) => {
+		for (let index = 0; index < left.length; index++) {
+			if (left[index] !== right[index]) return left[index] - right[index];
+		}
+		return 0;
+	};
+	return compare(current, feature_version) >= 0 && compare(current, minimum) < 0;
 }

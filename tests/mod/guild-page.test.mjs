@@ -45,6 +45,9 @@ test('renders localized paginated Guild Activity responsively and refreshes it o
 	assert.equal(english.MOD_MP_GUILD_ACTIVITY_MARKET_SOLD, 'You sold %s %s to %s.');
 	assert.equal(english.MOD_MP_GUILD_ACTIVITY_MARKET_SOLD_TO, '%s sold you %s %s.');
 	assert.equal(english.MOD_MP_GUILD_ACTIVITY_PRIVATE, '🔒 only you');
+	assert.equal(english.MOD_MP_GUILD_ESTABLISHED, 'Established');
+	assert.equal(english.MOD_MP_GUILD_DAYS_AGO, 'days ago');
+	assert.equal(typeof chinese.MOD_MP_GUILD_ESTABLISHED, 'string');
 	assert.match(templates, /mp-guild-activity-scroll/);
 	assert.match(templates, /state\.get_guild_activity_lang_id\(event\)/);
 	assert.match(templates, /state\.get_guild_activity_arg_3\(event\)/);
@@ -66,6 +69,8 @@ test('renders localized paginated Guild Activity responsively and refreshes it o
 	assert.match(style, /@media \(max-width: 767\.98px\)[\s\S]*\.mp-guild-activity-scroll\s*\{[\s\S]*max-height: 8rem/);
 	assert.match(main, /api_get\(endpoint\)/);
 	assert.match(main, /refresh_shadowed_members\(\), refresh_guild_activity\(\)/);
+	assert.match(templates, /MOD_MP_GUILD_ESTABLISHED[\s\S]*<strong>\{\{ state\.get_guild_established_days\(\) \}\}<\/strong>[\s\S]*MOD_MP_GUILD_DAYS_AGO/);
+	assert.match(main, /function get_guild_established_days\(\)/);
 	const activity_state_actions = main.slice(main.indexOf('Object.assign('), main.indexOf('modal_queue_guard =', main.indexOf('Object.assign(')));
 	assert.match(activity_state_actions, /load_more_guild_activity,\s*get_guild_activity_lang_id,\s*get_guild_activity_arg_1,\s*get_guild_activity_arg_2,\s*get_guild_activity_arg_3,\s*format_guild_activity_time/);
 	assert.match(main, /event\.event_type === 'market_bought'[\s\S]*formatNumber\(event\.metadata\.quantity\)/);
@@ -169,13 +174,17 @@ test('cache-busts authenticated GETs without using the Android-sensitive Fetch c
 		'/api/events?after=42&_mp_cache=runtime-nonce-2'
 	);
 	assert.match(api_get, /polling\.fetch_with_timeout\(fetch, server_host \+ cache_bust_api_endpoint\(resolve_api_endpoint\(endpoint\)\)/);
-	assert.match(api_get, /const json = res\.status === 200 \? await res\.json\(\) : null/);
+	assert.match(api_get, /const json = res\.headers\.get\('Content-Type'\)\?\.includes\('application\/json'\) \? await res\.json\(\) : null/);
+	assert.match(api_get, /if \(res\.status === 426\)\s*enter_unsupported_multiplayer\(json\?\.minimum_supported_mod_version\)/);
 	assert.doesNotMatch(api_get, /cache\s*:/);
 	assert.equal(lang.MOD_MP_GUILD_LOADING, 'Loading Guild...');
-	assert.equal(typeof lang.MOD_MP_GUILD_LOAD_FAILED, 'string');
+	assert.equal(lang.MOD_MP_GUILD_LOAD_FAILED, "Guild isn't loading. Refresh the page or restart the game.");
 	assert.notEqual(loading, -1);
 	assert.notEqual(failure, -1);
 	assert.notEqual(onboarding, -1);
+	assert.match(guild_page.slice(failure, onboarding), /<div class="block-content text-muted">\{\{ state\.guild_state_error \}\}<\/div>/);
+	assert.doesNotMatch(guild_page.slice(failure, onboarding), /text-danger/);
+	assert.doesNotMatch(lang.MOD_MP_GUILD_LOAD_FAILED, /open(?:ing)? Guild again/i);
 });
 
 test('tears down the leave confirmation modal before refreshing Guild state', async () => {
@@ -287,9 +296,12 @@ test('renders each loaded member activity as a right-aligned icon', async () => 
 	assert.match(member_list, /member\.client_id !== state\.guild_client_id && state\.is_new_guild_member\(member\.joined_at\)/);
 	assert.match(member_list, /MOD_MP_GUILD_NEW_MEMBER/);
 	assert.match(member_list, /member\.social_mode === 'social'[\s\S]*MOD_MP_SOCIAL_MODE_SOCIAL/);
+	assert.match(member_list, /member\.using_cheats[\s\S]*MOD_MP_GUILD_USING_CHEATS/);
+	assert.match(member_list, /MOD_MP_SOCIAL_MODE_SOCIAL[\s\S]*MOD_MP_GUILD_USING_CHEATS/);
 	assert.doesNotMatch(member_list, /MOD_MP_SOCIAL_MODE_FULL/);
 	assert.match(main, /Math\.max\(0, Date\.now\(\) - timestamp\) <= 48 \* 60 \* 60 \* 1000/);
 	assert.match(style, /\.mp-guild-new-member-badge \{[\s\S]*background-color: #269e70;/);
+	assert.match(style, /\.mp-guild-cheats-badge \{[\s\S]*background-color: #8f3030;/);
 	assert.match(style, /\.mp-guild-member-content \{[\s\S]*display: flex;[\s\S]*flex-direction: column;/);
 	assert.match(style, /\.mp-guild-member-row \{[\s\S]*justify-content: space-between;[\s\S]*width: 100%;/);
 	assert.match(style, /\.mp-guild-member-tags \{[\s\S]*justify-content: flex-end;/);

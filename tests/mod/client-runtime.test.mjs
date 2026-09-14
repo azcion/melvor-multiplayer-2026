@@ -7,6 +7,7 @@ import {
 	get_language_lang_id,
 	get_game_mode_id,
 	is_mod_version_outdated,
+	is_mod_version_unsupported,
 	make_client_runtime_report,
 	normalize_active_mod_names
 } from '../../mod/client-runtime.mjs';
@@ -27,6 +28,15 @@ test('compares stable release versions without notifying development or malforme
 	assert.equal(is_mod_version_outdated('1.4.0', '1.3.0'), false);
 	assert.equal(is_mod_version_outdated('development', '1.3.0'), false);
 	assert.equal(is_mod_version_outdated('1.2.0', null), false);
+});
+
+test('applies the support floor only to feature-aware 1.5.10 and later clients', () => {
+	assert.equal(is_mod_version_unsupported('1.5.10', '1.5.11'), true);
+	assert.equal(is_mod_version_unsupported('1.5.11', '1.5.11'), false);
+	assert.equal(is_mod_version_unsupported('1.6.0', '1.5.11'), false);
+	assert.equal(is_mod_version_unsupported('1.5.9', '1.5.11'), false);
+	assert.equal(is_mod_version_unsupported('development', '1.5.11'), false);
+	assert.equal(is_mod_version_unsupported('1.5.10', null), false);
 });
 
 test('copies runtime reports so the once-per-load snapshot is stable', () => {
@@ -55,6 +65,7 @@ test('captures canonical base-game and custom game-mode IDs', () => {
 test('captures raw language values while exposing only known display labels', () => {
 	assert.equal(get_language_code('x-debug-locale'), 'x-debug-locale');
 	assert.equal(get_language_code('x'.repeat(65)), null);
+	assert.equal(get_language_lang_id('pt-br'), 'MOD_MP_LANGUAGE_PT_BR');
 	assert.equal(get_language_lang_id('pt-BR'), 'MOD_MP_LANGUAGE_PT_BR');
 	assert.equal(get_language_lang_id('x-debug-locale'), null);
 	assert.equal(get_language_lang_id('toString'), null);
@@ -80,10 +91,25 @@ test('captures loaded mods after the Melvor lifecycle and reports them during bo
 	assert.match(main, /client_runtime\.get_language_code\(typeof setLang === 'string' \? setLang : null\)/);
 	assert.equal((main.match(/client_runtime: get_client_runtime_report\(\)/g) ?? []).length, 2);
 	assert.match(packaging, /const MOD_VERSION = '\$\{version\}';/);
-	assert.match(main, /is_mod_version_outdated\(MOD_VERSION, response\.released_mod_version\)/);
+	assert.match(main, /function check_released_mod_version\(released_mod_version\)[\s\S]*is_mod_version_outdated\(MOD_VERSION, released_mod_version\)/);
+	assert.match(main, /check_released_mod_version\(response\.released_mod_version\)/);
+	assert.match(main, /check_released_mod_version\(res\.released_mod_version\);[\s\S]*if \(res\.unchanged === true\)/);
 	assert.match(main, /release_notice_shown = true/);
 	assert.match(templates, /template-mp-outdated-version-modal/);
-	assert.match(language.MOD_MP_OUTDATED_VERSION_INFO, /issues until you update/);
+	assert.match(language.MOD_MP_OUTDATED_VERSION_INFO, /refresh or restart Melvor/);
+	assert.equal(language.MOD_MP_UNSUPPORTED_VERSION_MESSAGE,
+		"You're using an unsupported version of the Multiplayer mod.\n\nPlease refresh your page, or restart your game to update it.");
+});
+
+test('stops multiplayer traffic and presents a permanent local Support notice below the support floor', async () => {
+	const main = await read_client_source(root);
+	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
+	assert.match(main, /function enter_unsupported_multiplayer[\s\S]*state\.is_connected = false;[\s\S]*stop_chat_polling\(\);[\s\S]*stop_gp_sampling\(\);[\s\S]*stop_status_observer\(\);/);
+	assert.match(main, /async function api_get\(endpoint\) \{\s*if \(state\.multiplayer_unsupported\)\s*return null;/);
+	assert.match(main, /async function api_post_response_raw[\s\S]*?if \(state\.multiplayer_unsupported\)\s*return \{ response: null, json: null \};/);
+	assert.match(main, /synthetic_unsupported: true,[\s\S]*unread_count: 1/);
+	assert.match(main, /if \(conversation\.synthetic_unsupported === true\)[\s\S]*this\.chat_messages = \[conversation\.latest_message\];/);
+	assert.match(templates, /v-else-if="state\.selected_chat_conversation\?\.synthetic_unsupported !== true"/);
 });
 
 test('initializes action dependencies before installing split actions', async () => {

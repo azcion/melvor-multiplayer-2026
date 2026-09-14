@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.5.10
+
+- Added a persistent Using Cheats Guild-roster badge when a character reported a recognized cheat mod within the last seven days.
+- Added Petition of Interdict and Petition of Heresy, allowing Guild Councils to confine members marked Using Cheats to Social Only or restore their full access.
+- Added an in-game update notice for already-running sessions, prompting players to refresh or restart after a newer Multiplayer version becomes available.
+- Added mandatory server-wide Polls below Global Chat, with authorized poll creation, one-or-more options, multi-select aggregate voting, append-only options, reactions, automatic updates, and a permanent discussion for each poll.
+- Made profiles opened from Chat honor the sender's normal Private Chat, equipment, Skills, game mode, active-mod, language, Account Age, and Total Skill Level sharing across Guilds while keeping current activity private, and added the sender's Guild name at the bottom.
+
+## 1.5.9
+
+- Added Chat reactions with a curated 18-emoji picker, clickable aggregate counts, highlighted personal reactions, multiple reactions per player, and reactions on your own Messages.
+- Unified Campaign and Raid participation scaling around 40% of Guild members active within four days, with one expected contributor for solo Guilds, a two-player minimum otherwise, and no upper ceiling.
+- Reduced Campaign goals from twelve to four hours of estimated production per expected contributor and replaced aggressive upward rounding with nearest-increment rounding.
+- Hid avatar and Guild icon choices whose registered media is the native question-mark placeholder while preserving existing saved choices.
+- Replaced the Guild summary label with the number of days since the Guild was established.
+- Added durable Guild creation timestamps for new Guilds; existing Guild timestamps can be backfilled from retained historical evidence.
+- Allowed quantity controls to be cleared while entering a value instead of forcing the minimum back into the field.
+
 ## 1.5.8
 
 - Added a Max action to Shuffle Leaves that previews one total per requested currency and fills the remaining Shuffle Bonus to 20 / 20 with one replay-safe request and aggregate deduction.

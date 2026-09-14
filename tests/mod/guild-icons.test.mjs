@@ -13,6 +13,7 @@ test('builds Guild icon choices from official base-game and DLC combat locations
 	const setup_guild_icons = main.slice(main.indexOf('function setup_guild_icons()'), main.indexOf('function patch_bank_actions()'));
 	assert.match(setup_guild_icons, /get_icon_objects\(game\.combatAreas\)/);
 	assert.match(setup_guild_icons, /is_official_game_id\(icon\.id\)/);
+	assert.match(setup_guild_icons, /!is_question_mark_media\(icon\.media\)/);
 	assert.doesNotMatch(setup_guild_icons, /game\.combatAreas\.registeredObjects/);
 	assert.doesNotMatch(setup_guild_icons, /id\.startsWith\('melvorF:'\) \|\| icon\.id\.startsWith\('melvorD:'\)/);
 });

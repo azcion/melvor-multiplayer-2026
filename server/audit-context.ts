@@ -46,7 +46,7 @@ const PRIVATE_EXACT = new Set([
 	'client_identifier', 'client_key', 'friend_code', 'playfab_id', 'cloud_username',
 	'device_diagnostics', 'response_json', 'event_revision', 'last_multiplayer_active_at'
 ]);
-const OPERATIONAL_TABLES = new Set(['client_sessions']);
+const OPERATIONAL_TABLES = new Set(['charity_decay_activations', 'client_sessions']);
 
 function identifier(value: string): string {
 	return `\`${value.replaceAll('`', '``')}\``;

@@ -394,7 +394,7 @@ describe('market API', () => {
 			id: lot.id
 		}, seller.session_token);
 
-		expect(partial.json).toEqual({
+		expect(partial.json).toMatchObject({
 			success: true,
 			item_id: 'melvorD:Lifecycle_Ore',
 			item_qty: 4,
@@ -402,7 +402,7 @@ describe('market API', () => {
 			new_item_qty: 6
 		});
 		expect(unauthorized_payout.status).toBe(400);
-		expect(legacy_payout.json).toEqual({ success: true, payout: 0, ended: false });
+		expect(legacy_payout.json).toMatchObject({ success: true, payout: 0, ended: false });
 
 		const final = await post_json<{
 			success: boolean;
@@ -449,7 +449,7 @@ describe('market API', () => {
 			id: cancelled_lot.id
 		}, seller.session_token);
 
-		expect(cancelled.json).toEqual({
+		expect(cancelled.json).toMatchObject({
 			success: true,
 			item_id: 'melvorD:Cancelled_Ore',
 			item_qty: 3,
@@ -714,7 +714,7 @@ describe('market API', () => {
 		}>('/api/market/destroy', { id: listing.id }, pair.first.session_token);
 
 		expect(unauthorized.status).toBe(400);
-		expect(destroyed.json).toEqual({
+		expect(destroyed.json).toMatchObject({
 			success: true,
 			item_id: 'missingMod:Destroy_Item',
 			item_qty: 3,

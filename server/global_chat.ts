@@ -61,7 +61,8 @@ function message_view(message: GlobalChatMessage) {
 		sender_id: message.sender_id,
 		sender: { display_name: message.display_name, icon_id: message.icon_id },
 		content: message.content,
-		created_at: message.created_at
+		created_at: message.created_at,
+		reactions: []
 	};
 }
 

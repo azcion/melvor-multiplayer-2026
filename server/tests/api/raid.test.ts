@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { get_json_with_session, post, post_json, register_client } from '../support/http';
 import { attach_to_free_fellowship, make_guild_group, make_guildmates, register_guild_client } from '../support/fixtures';
 import { db_count, db_run } from '../support/persistence';
-import { SHADOWED_AFTER } from '../../shadowed';
+import { RECENTLY_ACTIVE_AFTER } from '../../recent-activity';
 import { RAID_VICTORY_CACHE } from '../../raid';
 
 type RaidState = {
@@ -204,7 +204,7 @@ describe('Guild Raids', () => {
 		expect(excluded.json.error_lang).toBe('MOD_MP_RAID_NOT_ELIGIBLE');
 	});
 
-	test('excludes Shadowed members from scaling while retaining their Raid roster tenures', async () => {
+	test('excludes members inactive for four days while retaining their Raid roster tenures', async () => {
 		const members = await make_guild_group([
 			'Raid Active One',
 			'Raid Active Two',
@@ -216,7 +216,7 @@ describe('Guild Raids', () => {
 		await db_run(
 			'UPDATE `clients` SET `last_multiplayer_active_at` = ? WHERE `id` IN (?, ?, ?, ?)',
 			[
-				Date.now() - SHADOWED_AFTER - 1_000,
+				Date.now() - RECENTLY_ACTIVE_AFTER - 1_000,
 				members[2].client_id,
 				members[3].client_id,
 				members[4].client_id,
@@ -244,6 +244,21 @@ describe('Guild Raids', () => {
 		});
 		const reservation = await reserve(members[2].session_token, 1);
 		expect(reservation.assault_id).toBeString();
+	});
+
+	test('does not cap the expected Raid contributor count at five', async () => {
+		const members = await make_guild_group(
+			Array.from({ length: 13 }, (_, index) => `Raid Scale ${index + 1}`),
+			'Raid Scale Guild'
+		);
+		const activated = await post_json<{ success: boolean; raid: RaidState['raid'] }>(
+			'/api/raids/activate', {}, members[0].session_token
+		);
+
+		expect(activated.json.raid).toMatchObject({
+			active_member_count: 13,
+			required_contributors: 6
+		});
 	});
 
 	test('rejects malformed reservations and conflicting settlement replays', async () => {

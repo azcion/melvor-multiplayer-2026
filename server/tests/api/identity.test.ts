@@ -83,6 +83,44 @@ describe('identity API', () => {
 		expect(snapshots[0]?.language).toBe('zh-TW');
 	});
 
+	test('retains the latest recognized cheat-mod report when later runtime snapshots are clean', async () => {
+		const cheat_mod_names = [
+			'Add Items',
+			'God Mode',
+			'dev.Console',
+			'[Creative Mode] God mode w/ Loot + XP Multipliers',
+			'Melvor Cheat Suite'
+		];
+		const client = await register_client('Cheat Report Test');
+		let previous_detection = 0;
+
+		for (const mod_name of cheat_mod_names) {
+			const authenticated = await post('/api/authenticate', {
+				client_identifier: client.client_identifier,
+				client_key: client.client_key,
+				client_runtime: { mod_version: '1.5.10', active_mods: [mod_name] }
+			});
+			expect(authenticated.status).toBe(200);
+			const [stored] = await db_all<{ cheats_detected_at: number | null }>(
+				'SELECT `cheats_detected_at` FROM `clients` WHERE `id` = ?', [client.client_id]
+			);
+			expect(stored?.cheats_detected_at).toBeGreaterThanOrEqual(previous_detection);
+			previous_detection = stored?.cheats_detected_at ?? 0;
+		}
+
+		const clean = await post('/api/authenticate', {
+			client_identifier: client.client_identifier,
+			client_key: client.client_key,
+			client_runtime: { mod_version: '1.5.10', active_mods: ['Multiplayer', 'Cheat Engine Lookalike'] }
+		});
+		const [stored] = await db_all<{ cheats_detected_at: number | null }>(
+			'SELECT `cheats_detected_at` FROM `clients` WHERE `id` = ?', [client.client_id]
+		);
+
+		expect(clean.status).toBe(200);
+		expect(stored?.cheats_detected_at).toBe(previous_detection);
+	});
+
 	test('keeps runtime reporting optional and rejects malformed snapshots', async () => {
 		const legacy = await register_client('Legacy Runtime Test');
 		const legacy_sessions = await db_all<{ mod_version: string | null }>(

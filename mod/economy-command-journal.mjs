@@ -52,6 +52,13 @@ export function create_economy_command_journal({ read, write, remove, send, reco
 			if (pending === undefined || !current()) return true;
 			if (typeof pending?.endpoint !== 'string' || typeof pending.payload?.command_id !== 'string' ||
 				![1, 2].includes(pending.major)) return Promise.resolve(false);
+			if (pending.major === 1) {
+				pending = { ...pending, major: 2 };
+				try {
+					write(pending);
+					if (JSON.stringify(read()) !== JSON.stringify(pending)) return false;
+				} catch { return false; }
+			}
 			return locked(() => dispatch(pending)).then(async result => {
 				if (result.json?.success === true && await reconcile([result.json.receipt])) return true;
 				return read() === undefined;

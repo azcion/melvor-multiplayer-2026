@@ -2,6 +2,7 @@ export function install_chat_actions(runtime) {
 	const {
 		document,
 		state,
+		api_get,
 		api_post,
 		changePage,
 		close_account_dropdown,
@@ -14,6 +15,7 @@ export function install_chat_actions(runtime) {
 		log,
 		nativeManager,
 		next_tick = () => Promise.resolve(),
+		now = () => Date.now(),
 		notify,
 		queue_modal,
 		refresh_chat_conversations,
@@ -23,8 +25,24 @@ export function install_chat_actions(runtime) {
 		start_chat_polling,
 		stop_chat_polling,
 	} = runtime;
+	const reaction_throttle_ms = 1000;
 
 	const get_chat_messages_element = () => document.querySelector('.mp-chat-messages');
+	const close_chat_reaction_picker = () => {
+		if (!state)
+			return;
+		state.chat_reaction_picker_message_id = null;
+		state.chat_reaction_picker_style = {};
+	};
+	if (document?.addEventListener) {
+		document.addEventListener('click', event => {
+			if (!(event.target instanceof Element) ||
+				!event.target.closest('.mp-chat-reaction-add, .mp-chat-reaction-picker'))
+				close_chat_reaction_picker();
+		});
+		document.addEventListener('scroll', close_chat_reaction_picker, true);
+		globalThis.addEventListener?.('resize', close_chat_reaction_picker);
+	}
 	const scroll_chat_messages_to_bottom = () => {
 		const $messages = get_chat_messages_element();
 		if ($messages)
@@ -38,6 +56,12 @@ export function install_chat_actions(runtime) {
 	return {
 		async scroll_chat_messages_to_bottom() {
 			await wait_and_scroll_chat_messages_to_bottom();
+		},
+
+		chat_messages_are_at_bottom() {
+			const $messages = get_chat_messages_element();
+			return $messages !== null &&
+				$messages.scrollHeight - $messages.scrollTop - $messages.clientHeight <= 24;
 		},
 
 		open_chat_page() {
@@ -65,6 +89,7 @@ export function install_chat_actions(runtime) {
 			}
 			this.selected_chat_conversation = { ...res.conversation, blocked: false };
 			this.chat_messages = [];
+			this.chat_reaction_revision = null;
 			this.selected_chat_message = null;
 			this.chat_has_more = false;
 			this.close_modal();
@@ -75,12 +100,18 @@ export function install_chat_actions(runtime) {
 			const view_generation = ++runtime.chat_view_generation;
 			this.selected_chat_conversation = conversation;
 			this.chat_messages = [];
+			this.chat_reaction_revision = null;
 			this.selected_chat_message = null;
 			this.chat_has_more = false;
 			this.chat_before_cursor = null;
 			this.chat_error = '';
 			this.chat_messages_loading = false;
 			this.chat_loading = false;
+			if (conversation.synthetic_unsupported === true) {
+				this.chat_messages = [conversation.latest_message];
+				await this.scroll_chat_messages_to_bottom();
+				return;
+			}
 			await refresh_chat_messages('', false, false, view_generation);
 			if (view_generation !== runtime.chat_view_generation ||
 				this.selected_chat_conversation?.conversation_kind !== conversation.conversation_kind ||
@@ -95,12 +126,145 @@ export function install_chat_actions(runtime) {
 			runtime.chat_view_generation++;
 			this.selected_chat_conversation = null;
 			this.chat_messages = [];
+			this.chat_reaction_revision = null;
 			this.selected_chat_message = null;
+			this.chat_reaction_picker_message_id = null;
+			this.chat_reaction_picker_style = {};
 			this.chat_has_more = false;
 			this.chat_before_cursor = null;
 			this.chat_error = '';
 			this.chat_messages_loading = false;
 			stop_chat_polling();
+		},
+
+		async toggle_chat_reaction_picker(message, event) {
+			if (!Number.isSafeInteger(message?.message_id) || message.message_id < 1)
+				return;
+			if (this.chat_reaction_picker_message_id === message.message_id) {
+				this.chat_reaction_picker_message_id = null;
+				this.chat_reaction_picker_style = {};
+				return;
+			}
+			const bubble = event?.currentTarget?.closest?.('.mp-chat-message-bubble, .mp-poll-card');
+			const bubble_rect = bubble?.getBoundingClientRect?.();
+			this.chat_reaction_picker_message_id = message.message_id;
+			this.chat_reaction_picker_style = { visibility: 'hidden' };
+			await next_tick();
+			const picker = document?.querySelector?.('.mp-chat-reaction-picker');
+			if (!bubble_rect || !picker || this.chat_reaction_picker_message_id !== message.message_id)
+				return;
+			const picker_rect = picker.getBoundingClientRect();
+			const viewport_width = globalThis.innerWidth || document.documentElement?.clientWidth || picker_rect.width;
+			const left = Math.max(8, Math.min(bubble_rect.left, viewport_width - picker_rect.width - 8));
+			this.chat_reaction_picker_style = {
+				left: left + 'px',
+				top: bubble_rect.bottom + 8 + 'px'
+			};
+		},
+
+		get_chat_reaction_picker_message() {
+			return this.chat_messages.find(message => message.message_id === this.chat_reaction_picker_message_id);
+		},
+
+		get_chat_reaction_add_label() {
+			return getLangString('MOD_MP_CHAT_ADD_REACTION');
+		},
+
+		async toggle_chat_reaction(message, reaction) {
+			const conversation = this.selected_chat_conversation;
+			if (!conversation || !Number.isSafeInteger(message?.message_id) || message.message_id < 1 ||
+				typeof reaction !== 'string')
+				return;
+			const pending_key = (conversation.conversation_kind ?? 'private') + '\n' + conversation.conversation_id + '\n' +
+				message.message_id + '\n' + reaction;
+			const toggled_at = now();
+			if (this.chat_reaction_pending[pending_key] === true ||
+				(this.chat_reaction_throttle_until[pending_key] ?? 0) > toggled_at)
+				return;
+			const reacted = !(message.reactions ?? []).some(summary => summary.reaction === reaction && summary.reacted === true);
+			this.chat_reaction_pending[pending_key] = true;
+			this.chat_reaction_throttle_until[pending_key] = toggled_at + reaction_throttle_ms;
+			this.chat_reaction_picker_message_id = null;
+			this.chat_reaction_picker_style = {};
+			let res = null;
+			try {
+				const endpoint = conversation.conversation_kind === 'polls'
+					? '/api/polls/reaction?capabilities=polls-v1'
+					: conversation.conversation_kind === 'global'
+					? '/api/chat/messages/reaction?capabilities=global-chat-v1'
+					: '/api/chat/messages/reaction';
+				res = await api_post(endpoint, conversation.conversation_kind === 'polls' ? {
+					poll_id: message.poll_id, reaction, reacted
+				} : {
+					conversation_kind: conversation.conversation_kind ?? 'private',
+					conversation_id: conversation.conversation_id,
+					message_id: message.message_id,
+					reaction,
+					reacted
+				});
+			} catch (e) {
+				log('Chat reaction failed (%s)', e);
+			}
+			delete this.chat_reaction_pending[pending_key];
+			if (res?.success && (Array.isArray(res.reactions) || res.poll)) {
+				message.reactions = res.poll?.reactions ?? res.reactions;
+				if (Number.isSafeInteger(res.reaction_revision))
+					message.reaction_revision = res.reaction_revision;
+			}
+			else if (res !== null)
+				this.chat_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+		},
+
+		show_poll_creator(poll = null) {
+			if (!this.poll_can_create) return;
+			this.poll_creator_content = poll?.content ?? '';
+			this.poll_creator_options = [''];
+			this.poll_creator_poll_id = poll?.poll_id ?? null;
+			queue_modal(poll ? 'MOD_MP_POLLS_ADD_OPTIONS' : 'MOD_MP_POLLS_CREATE', 'poll-creator-modal',
+				this.get_chat_participant_icon(), { showConfirmButton: false }, true, false);
+		},
+
+		add_poll_creator_option() { this.poll_creator_options.push(''); },
+
+		remove_poll_creator_option(index) {
+			if (this.poll_creator_options.length > 1) this.poll_creator_options.splice(index, 1);
+		},
+
+		async submit_poll(event) {
+			event?.preventDefault();
+			const options = this.poll_creator_options.map(option => option.trim()).filter(Boolean);
+			if (options.length < 1 || (!this.poll_creator_poll_id && !this.poll_creator_content.trim())) return;
+			this.poll_creator_pending = true;
+			const editing = Number.isSafeInteger(this.poll_creator_poll_id);
+			const res = await api_post((editing ? '/api/polls/options' : '/api/polls/create') + '?capabilities=polls-v1',
+				editing ? { poll_id: this.poll_creator_poll_id, options } : {
+					idempotency_key: crypto.randomUUID(), content: this.poll_creator_content.trim(), options
+				});
+			this.poll_creator_pending = false;
+			if (!res?.success) return show_modal_error(getLangString('MOD_MP_GENERIC_ERR'));
+			const index = this.polls.findIndex(poll => poll.poll_id === res.poll.poll_id);
+			if (index < 0) this.polls.push(res.poll); else this.polls[index] = res.poll;
+			this.close_modal();
+		},
+
+		async toggle_poll_option(poll, option) {
+			const key = poll.poll_id + ':' + option.option_id;
+			if ((this.poll_vote_throttle_until[key] ?? 0) > now()) return;
+			this.poll_vote_throttle_until[key] = now() + 400;
+			const res = await api_post('/api/polls/vote?capabilities=polls-v1', {
+				poll_id: poll.poll_id, option_id: option.option_id, selected: !option.selected
+			});
+			if (Number.isFinite(res?.retry_after_ms)) this.poll_vote_throttle_until[key] = now() + res.retry_after_ms;
+			if (res?.poll) {
+				const index = this.polls.findIndex(entry => entry.poll_id === poll.poll_id);
+				if (index >= 0) this.polls[index] = res.poll;
+			}
+		},
+
+		async open_poll_discussion(poll) {
+			await this.open_chat_conversation({ conversation_kind: 'poll-discussion', conversation_id: poll.poll_id,
+				participant: { client_id: null, display_name: getLangString('MOD_MP_POLLS_DISCUSSION'), icon_id: 'multiplayer' },
+				poll, unread_count: 0, blocked: false });
 		},
 
 		show_chat_budget_modal() {
@@ -147,21 +311,26 @@ export function install_chat_actions(runtime) {
 			}, true, false);
 		},
 
-		show_chat_message_member(message) {
+		async show_chat_message_member(message) {
 			const sender_id = message?.sender_id;
 			if (!Number.isSafeInteger(sender_id) || sender_id < 1 || !message?.sender)
 				return;
 			const member = [...this.guild_members, ...(this.shadowed_members ?? [])]
 				.find(entry => entry.client_id === sender_id);
-			const private_conversation = this.selected_chat_conversation?.conversation_kind === 'private' &&
-				this.selected_chat_conversation.conversation_id !== null &&
-				this.selected_chat_conversation.participant?.client_id === sender_id;
+			let chat_profile = null;
+			if (member === undefined) {
+				try {
+					chat_profile = await api_get('/api/chat/profile?client_id=' + sender_id);
+				} catch (e) {
+					log('chat profile fetch failed (%s)', e);
+				}
+			}
 			this.show_member_actions({
-				...(member ?? {}),
+				...(member ?? chat_profile ?? {}),
 				client_id: sender_id,
 				display_name: message.sender.display_name,
 				icon_id: message.sender.icon_id,
-				can_start_chat: member !== undefined || private_conversation
+				...(member === undefined ? { profile_source: 'chat' } : {})
 			});
 		},
 
@@ -259,7 +428,8 @@ export function install_chat_actions(runtime) {
 			try {
 				const endpoint = conversation_kind === 'global'
 					? '/api/chat/messages/send?capabilities=global-chat-v1'
-					: '/api/chat/messages/send';
+					: conversation_kind === 'poll-discussion'
+						? '/api/chat/messages/send?capabilities=polls-v1' : '/api/chat/messages/send';
 				res = await api_post(endpoint, {
 					conversation_kind,
 					conversation_id: conversation.conversation_id,

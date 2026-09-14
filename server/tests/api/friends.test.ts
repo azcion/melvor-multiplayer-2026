@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { get_events, make_friends } from '../support/fixtures';
 import { get_json_with_session, post_json, register_client } from '../support/http';
 import type { Friend } from '../support/fixtures';
+import { db_run } from '../support/persistence';
 
 describe('friends API', () => {
 	test('validates friend codes and prevents self requests', async () => {
@@ -56,7 +57,12 @@ describe('friends API', () => {
 		const initial = await get_json_with_session<{ revision: number; unchanged?: boolean }>(
 			'/api/events?revision=0', recipient.session_token
 		);
-		const unchanged = await get_json_with_session<{ revision: number; unchanged?: boolean }>(
+		const unchanged = await get_json_with_session<{
+			revision: number;
+			unchanged?: boolean;
+			released_mod_version: string | null;
+			minimum_supported_mod_version: string | null;
+		}>(
 			`/api/events?revision=${initial.json.revision}`, recipient.session_token
 		);
 		await post_json('/api/friends/add', { friend_code: recipient.friend_code }, sender.session_token);
@@ -66,10 +72,39 @@ describe('friends API', () => {
 			friend_requests: Friend[];
 		}>(`/api/events?revision=${initial.json.revision}`, recipient.session_token);
 
-		expect(unchanged.json).toEqual({ revision: initial.json.revision, unchanged: true });
+		expect(unchanged.json).toEqual({
+			revision: initial.json.revision,
+			unchanged: true,
+			released_mod_version: null,
+			minimum_supported_mod_version: null
+		});
 		expect(changed.json.revision).toBeGreaterThan(initial.json.revision);
 		expect(changed.json.unchanged).not.toBe(true);
 		expect(changed.json.friend_requests).toHaveLength(1);
+	});
+
+	test('includes release changes in unchanged event polls', async () => {
+		const client = await register_client('Release Poll Recipient');
+		const initial = await get_json_with_session<{ revision: number }>('/api/events', client.session_token);
+
+		await db_run("UPDATE `service_settings` SET `value` = '1.5.10' WHERE `key` = 'released_mod_version'");
+		try {
+			const polled = await get_json_with_session<{
+				revision: number;
+				unchanged: boolean;
+				released_mod_version: string | null;
+				minimum_supported_mod_version: string | null;
+			}>(`/api/events?revision=${initial.json.revision}`, client.session_token);
+
+			expect(polled.json).toEqual({
+				revision: initial.json.revision,
+				unchanged: true,
+				released_mod_version: '1.5.10',
+				minimum_supported_mod_version: null
+			});
+		} finally {
+			await db_run("UPDATE `service_settings` SET `value` = '' WHERE `key` = 'released_mod_version'");
+		}
 	});
 
 	test('refreshes cached friend requests after a display name change', async () => {

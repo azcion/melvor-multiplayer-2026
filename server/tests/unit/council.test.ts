@@ -46,6 +46,8 @@ describe('Council petition rules', () => {
 		expect(is_petition_type('charitree_beneficence')).toBe(true);
 		expect(is_petition_type('fellowship')).toBe(true);
 		expect(is_petition_type('enclosure')).toBe(true);
+		expect(is_petition_type('interdict')).toBe(true);
+		expect(is_petition_type('heresy')).toBe(true);
 		expect(is_petition_type('charitree_clearing')).toBe(false);
 		expect(is_petition_type('execute_sql')).toBe(false);
 		expect(is_petition_choice('aye')).toBe(true);
@@ -60,6 +62,8 @@ describe('Council petition rules', () => {
 		expect(get_petition_conflict_subject('charitree_beneficence')).toBe('guild:charitree');
 		expect(get_petition_conflict_subject('fellowship')).toBe('guild:admission');
 		expect(get_petition_conflict_subject('enclosure')).toBe('guild:admission');
+		expect(get_petition_conflict_subject('interdict')).toBe('guild:cheat-policy');
+		expect(get_petition_conflict_subject('heresy')).toBe('guild:cheat-policy');
 		expect(get_petition_conflict_subject('winnowing')).toBe('guild:winnowing');
 		expect(get_petition_conflict_subject('banishment', 42)).toBe('membership:42');
 	});
@@ -246,6 +250,56 @@ describe('Council petition rules', () => {
 		);
 		expect(database.query('SELECT membership_id, client_id FROM guild_petition_winnowing_targets').get())
 			.toEqual({ membership_id: 2, client_id: 2 });
+		database.close();
+	});
+
+	test('preserves Petition children while adding the Guild cheat policy', () => {
+		const database = new Database(':memory:', { strict: true });
+		for (const migration of migrations.filter(entry => entry.version < 88)) {
+			if (migration.foreign_keys_disabled)
+				database.run('PRAGMA foreign_keys = OFF');
+			database.transaction(() => database.run(migration.sql)).immediate();
+			if (migration.foreign_keys_disabled)
+				database.run('PRAGMA foreign_keys = ON');
+		}
+		database.run(
+			'INSERT INTO `clients` (`id`, `client_identifier`, `client_key`, `friend_code`, `display_name`, `icon_id`) ' +
+			"VALUES(1, 'policy-member', 'key', 'friend', 'Policy Member', 'melvorD:Plant')"
+		);
+		database.run("INSERT INTO `guilds` (`id`, `name`, `icon_id`) VALUES(2, 'Policy Guild', 'melvorD:Farmlands')");
+		database.run(
+			'INSERT INTO `guild_petitions` (`id`, `guild_id`, `guild_name`, `type`, `conflict_subject`, ' +
+			'`petitioner_id`, `proposed_name`, `created_at`, `expires_at`) ' +
+			"VALUES(1, 2, 'Policy Guild', 'appellation', 'guild:name', 1, 'Renamed Guild', 1, 2)"
+		);
+		database.run('INSERT INTO `guild_petition_voters` (`petition_id`, `client_id`) VALUES(1, 1)');
+		database.run(
+			"INSERT INTO `guild_petition_votes` (`petition_id`, `client_id`, `choice`, `submitted_at`) " +
+			"VALUES(1, 1, 'aye', 1)"
+		);
+
+		const migration = migrations.find(entry => entry.version === 88);
+		expect(migration?.foreign_keys_disabled).toBe(true);
+		database.run('PRAGMA foreign_keys = OFF');
+		database.transaction(() => {
+			database.run(migration!.sql);
+			expect(database.query('PRAGMA foreign_key_check').all()).toEqual([]);
+		}).immediate();
+		database.run('PRAGMA foreign_keys = ON');
+
+		expect(database.query('SELECT choice FROM `guild_petition_votes`').get()).toEqual({ choice: 'aye' });
+		expect(database.query('SELECT cheat_restriction_enabled FROM `guilds`').get())
+			.toEqual({ cheat_restriction_enabled: 0 });
+		database.run(
+			'INSERT INTO `guild_petitions` (`guild_id`, `guild_name`, `type`, `conflict_subject`, `petitioner_id`, `created_at`, `expires_at`) ' +
+			"VALUES(2, 'Policy Guild', 'interdict', 'guild:cheat-policy', 1, 3, 4)"
+		);
+		database.run("UPDATE `guild_petitions` SET `subject_locked` = 0 WHERE `type` = 'interdict'");
+		database.run(
+			'INSERT INTO `guild_petitions` (`guild_id`, `guild_name`, `type`, `conflict_subject`, `petitioner_id`, `created_at`, `expires_at`) ' +
+			"VALUES(2, 'Policy Guild', 'heresy', 'guild:cheat-policy', 1, 5, 6)"
+		);
+		expect(database.query('PRAGMA foreign_key_check').all()).toEqual([]);
 		database.close();
 	});
 });

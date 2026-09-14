@@ -21,7 +21,28 @@ type Message = {
 	sender: { display_name: string; icon_id: string };
 	content: string;
 	created_at: number;
+	reactions: Array<{ reaction: string; count: number; reacted: boolean }>;
 };
+
+type MessageResponse = {
+	messages: Message[];
+	has_more: boolean;
+	reaction_revision: number;
+	reaction_updates: Array<{
+		message_id: number;
+		reaction_revision: number;
+		reactions: Message['reactions'];
+	}>;
+};
+
+async function set_reaction(session_token: string, conversation_id: number, message_id: number,
+	reaction: string, reacted: boolean) {
+	return post_json<{ success?: boolean; reactions?: Message['reactions']; error_lang?: string }>(
+		'/api/chat/messages/reaction',
+		{ conversation_kind: 'private', conversation_id, message_id, reaction, reacted },
+		session_token
+	);
+}
 
 async function start_chat(session_token: string, client_id: number) {
 	return post_json<{ success?: boolean; conversation?: Conversation; error_lang?: string }>(
@@ -52,7 +73,7 @@ async function conversations(session_token: string) {
 }
 
 async function messages(session_token: string, conversation_id: number, cursor = '') {
-	return get_json_with_session<{ messages: Message[]; has_more: boolean }>(
+	return get_json_with_session<MessageResponse>(
 		`/api/chat/messages?conversation_id=${conversation_id}${cursor}`,
 		session_token
 	);
@@ -130,7 +151,70 @@ async function send_guild_message(
 }
 
 describe('Private Chat API', () => {
-	test('starts one canonical conversation only for Guildmates', async () => {
+	test('aggregates unrestricted reactions and tracks each viewer independently', async () => {
+		const pair = await make_guildmates('Reaction Writer', 'Reaction Reader');
+		const outsider = await register_client('Reaction Outsider');
+		const sent = await send_chat(pair.first.session_token, null, 'React to this', undefined, pair.second_id);
+		const conversation_id = sent.json.message?.conversation_id as number;
+		const message_id = sent.json.message?.message_id as number;
+
+		expect((await set_reaction(pair.first.session_token, conversation_id, message_id, 'custom reaction', true)).response.status).toBe(200);
+		expect((await set_reaction(pair.first.session_token, conversation_id, message_id, '🔥', true)).response.status).toBe(200);
+		const reader_reaction = await set_reaction(pair.second.session_token, conversation_id, message_id, '🔥', true);
+		expect(reader_reaction.json.reactions).toEqual([
+			{ reaction: 'custom reaction', count: 1, reacted: false },
+			{ reaction: '🔥', count: 2, reacted: true }
+		]);
+
+		const writer_view = await messages(pair.first.session_token, conversation_id);
+		expect(writer_view.json.messages[0].reactions).toEqual([
+			{ reaction: 'custom reaction', count: 1, reacted: true },
+			{ reaction: '🔥', count: 2, reacted: true }
+		]);
+		expect((await set_reaction(pair.first.session_token, conversation_id, message_id, '🔥', false)).json.reactions).toEqual([
+			{ reaction: 'custom reaction', count: 1, reacted: true },
+			{ reaction: '🔥', count: 1, reacted: false }
+		]);
+		expect((await set_reaction(pair.first.session_token, conversation_id, message_id, '🔥', false)).response.status).toBe(200);
+		expect((await set_reaction(outsider.session_token, conversation_id, message_id, '🔥', true)).json.error_lang)
+			.toBe('MOD_MP_CHAT_CONVERSATION_MISSING');
+	});
+
+	test('returns only reaction summaries changed after the conversation revision cursor', async () => {
+		const pair = await make_guildmates('Reaction Poll Writer', 'Reaction Poll Reader');
+		const sent = await send_chat(pair.first.session_token, null, 'Watch reactions', undefined, pair.second_id);
+		const conversation_id = sent.json.message?.conversation_id as number;
+		const message_id = sent.json.message?.message_id as number;
+		const initial = await messages(pair.first.session_token, conversation_id);
+
+		expect(initial.json.reaction_updates).toEqual([]);
+		await set_reaction(pair.second.session_token, conversation_id, message_id, '👀', true);
+		const added = await messages(pair.first.session_token, conversation_id,
+			`&after=${message_id}&reaction_after=${initial.json.reaction_revision}`);
+		expect(added.json.messages).toEqual([]);
+		expect(added.json.reaction_updates).toEqual([{
+			message_id,
+			reaction_revision: added.json.reaction_revision,
+			reactions: [{ reaction: '👀', count: 1, reacted: false }]
+		}]);
+
+		await set_reaction(pair.second.session_token, conversation_id, message_id, '👀', false);
+		const removed = await messages(pair.first.session_token, conversation_id,
+			`&after=${message_id}&reaction_after=${added.json.reaction_revision}`);
+		expect(removed.json.reaction_revision).toBeGreaterThan(added.json.reaction_revision);
+		expect(removed.json.reaction_updates).toEqual([{
+			message_id,
+			reaction_revision: removed.json.reaction_revision,
+			reactions: []
+		}]);
+
+		const unchanged = await messages(pair.first.session_token, conversation_id,
+			`&after=${message_id}&reaction_after=${removed.json.reaction_revision}`);
+		expect(unchanged.json.reaction_revision).toBe(removed.json.reaction_revision);
+		expect(unchanged.json.reaction_updates).toEqual([]);
+	});
+
+	test('starts one canonical conversation across Guilds when privacy allows it', async () => {
 		const pair = await make_guildmates('Chat Starter', 'Chat Recipient');
 		const outsider = await register_client('Chat Outsider');
 		const started = await start_chat(pair.first.session_token, pair.second_id);
@@ -164,8 +248,64 @@ describe('Private Chat API', () => {
 			client_id: pair.second_id,
 			blocked: false
 		}, pair.first.session_token)).json.success).toBe(true);
-		expect(outside.json.error_lang).toBe('MOD_MP_CHAT_CONVERSATION_MISSING');
+		expect(outside.json.success).toBe(true);
 		expect(self.status).toBe(400);
+	});
+
+	test('shares privacy-filtered chat profiles across Guilds without current activity', async () => {
+		const pair = await make_guildmates('Profile Subject', 'Profile Guildmate', 'Visible Guild');
+		const outsider = await register_client('Profile Outsider');
+		await post_json('/api/client/equipment/sync', {
+			slots: [{ slot_id: 'melvorD:Weapon', item_id: 'melvorD:Bronze_Sword' }]
+		}, pair.first.session_token);
+		await post_json('/api/client/status/sync', {
+			skills: [{ skill_id: 'melvorD:Attack', level: 42 }],
+			activity: { type: 'skill', skill_id: 'melvorD:Woodcutting', action_id: 'melvorD:Oak' },
+			account_creation_date: Date.now() - 60_000,
+			total_skill_level: 123
+		}, pair.first.session_token);
+		await db_run(
+			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `game_mode_id`, `language`, `reported_at`) VALUES(?, ?, ?, ?, ?, ?)',
+			[pair.first_id, '1.5.10', JSON.stringify(['Multiplayer']), 'melvorD:Standard', 'en', Date.now()]
+		);
+
+		const profile = await get_json_with_session<any>(
+			`/api/chat/profile?client_id=${pair.first_id}`, outsider.session_token
+		);
+		const equipment = await get_json_with_session<any>(
+			`/api/chat/equipment?client_id=${pair.first_id}`, outsider.session_token
+		);
+		const status = await get_json_with_session<any>(
+			`/api/chat/status?client_id=${pair.first_id}`, outsider.session_token
+		);
+		const mods = await get_json_with_session<any>(
+			`/api/chat/active-mods?client_id=${pair.first_id}`, outsider.session_token
+		);
+
+		expect(profile.json).toMatchObject({
+			client_id: pair.first_id,
+			can_start_chat: true,
+			equipment_visible: true,
+			equipment_available: true,
+			skills_visible: true,
+			skills_available: true,
+			total_skill_level: 123,
+			game_mode_visible: true,
+			game_mode_id: 'melvorD:Standard',
+			active_mods_visible: true,
+			active_mods_available: true,
+			language: 'en',
+			guild_name: 'Visible Guild'
+		});
+		expect(profile.json).not.toHaveProperty('status_activity');
+		expect(profile.json.account_age).toBeGreaterThanOrEqual(60_000);
+		expect(equipment.json.slots).toEqual([
+			{ slot_id: 'melvorD:Weapon', item_id: 'melvorD:Bronze_Sword' }
+		]);
+		expect(status.json.skills).toEqual([{ skill_id: 'melvorD:Attack', level: 42 }]);
+		expect(status.json).not.toHaveProperty('activity');
+		expect(status.json).not.toHaveProperty('activities');
+		expect(mods.json.active_mods).toEqual(['Multiplayer']);
 	});
 
 	test('sends trimmed immutable plain text idempotently and renders current names', async () => {
@@ -360,6 +500,13 @@ describe('Global Chat API', () => {
 		const reader_messages = (await global_messages(reader.session_token)).json.messages;
 		expect(reader_messages.map(message => message.content)).toEqual(['Hello, server']);
 		expect(reader_messages[0]?.sender).toEqual({ display_name: 'Global Sender', icon_id: 'melvorD:Plant' });
+		expect((await post_json<{ reactions: Message['reactions'] }>(
+			`/api/chat/messages/reaction?${GLOBAL_CHAT_CAPABILITY}`,
+			{ conversation_kind: 'global', conversation_id: 1, message_id: reader_messages[0].message_id,
+				reaction: '👀', reacted: true }, reader.session_token
+		)).json.reactions).toEqual([{ reaction: '👀', count: 1, reacted: true }]);
+		expect((await global_messages(sender.session_token)).json.messages[0].reactions)
+			.toEqual([{ reaction: '👀', count: 1, reacted: false }]);
 		expect((await global_events(reader.session_token)).json.chat_unread).toBe(1);
 
 		const later = await register_client('Later Global Reader');
@@ -448,6 +595,10 @@ describe('Guild Chat API', () => {
 		expect(retry.json.message?.message_id).toBe(sent.json.message?.message_id);
 		expect(await db_count('SELECT COUNT(*) AS `count` FROM `guild_chat_messages` WHERE `guild_id` = ?',
 			[owner.guild_id])).toBe(1);
+		expect((await post_json<{ reactions: Message['reactions'] }>('/api/chat/messages/reaction', {
+			conversation_kind: 'guild', conversation_id: owner.guild_id, message_id: sent.json.message?.message_id,
+			reaction: '🎉', reacted: true
+		}, owner.session_token)).json.reactions).toEqual([{ reaction: '🎉', count: 1, reacted: true }]);
 
 		const later = await register_client('Later Guild Chat Member');
 		await post_json('/api/guilds/apply', { guild_id: owner.guild_id }, later.session_token);
@@ -755,6 +906,14 @@ describe('Support Chat API', () => {
 			player.session_token
 		);
 		expect(durable.json.messages[0].content).toBe('Updated welcome before materialization');
+		expect((await post_json<{ reactions: Message['reactions'] }>('/api/chat/messages/reaction', {
+			conversation_kind: 'support', conversation_id: first.json.message.conversation_id,
+			message_id: first.json.message.message_id, reaction: '🙏', reacted: true
+		}, player.session_token)).json.reactions).toEqual([{ reaction: '🙏', count: 1, reacted: true }]);
+		expect((await get_json_with_session<{ messages: Message[] }>(
+			`/api/chat/messages?conversation_kind=support&conversation_id=${first.json.message.conversation_id}`,
+			player.session_token
+		)).json.messages.at(-1)?.reactions).toEqual([{ reaction: '🙏', count: 1, reacted: true }]);
 		await db_run('UPDATE `support_teams` SET `welcome_content` = ? WHERE `id` = ?', [
 			"Welcome to Melvor Multiplayer!\n\nThis is an automated message. If you run into any problems or have a suggestion, just reply here. We'd love to hear from you!",
 			support.support_team_id

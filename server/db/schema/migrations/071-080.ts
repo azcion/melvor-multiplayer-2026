@@ -227,5 +227,80 @@ export const migrations_071_080: Migration[] = [
 		sql: `
 			INSERT INTO service_settings (key, value) VALUES ('charity_wish_promo_ends_at', '0');
 		`
+	},
+	{
+		version: 78,
+		sql: `
+			INSERT INTO service_settings (key, value) VALUES
+				('charity_wish_promo_started_at', '0'),
+				('charity_wish_promo_decay_hours', '0');
+
+			CREATE TABLE charity_decay_activations (
+				guild_id INTEGER PRIMARY KEY REFERENCES guilds (id) ON DELETE CASCADE,
+				activated_at INTEGER NOT NULL CHECK (activated_at BETWEEN 0 AND 9007199254740991)
+			);
+			CREATE TRIGGER charity_decay_activation_after_wish_insert
+			AFTER INSERT ON charity_wishes
+			WHEN NEW.progress_gp < NEW.required_gp
+			BEGIN
+				INSERT INTO charity_decay_activations (guild_id, activated_at)
+				VALUES (NEW.guild_id, NEW.created_at) ON CONFLICT (guild_id) DO NOTHING;
+			END;
+			CREATE TRIGGER charity_decay_activation_after_wish_update
+			AFTER UPDATE OF guild_id, progress_gp, required_gp, created_at ON charity_wishes
+			BEGIN
+				DELETE FROM charity_decay_activations WHERE guild_id = OLD.guild_id
+					AND NOT EXISTS (
+						SELECT 1 FROM charity_wishes
+						WHERE guild_id = OLD.guild_id AND progress_gp < required_gp
+					);
+				INSERT INTO charity_decay_activations (guild_id, activated_at)
+				SELECT NEW.guild_id, NEW.created_at WHERE NEW.progress_gp < NEW.required_gp
+				ON CONFLICT (guild_id) DO NOTHING;
+			END;
+			CREATE TRIGGER charity_decay_activation_after_wish_delete
+			AFTER DELETE ON charity_wishes
+			BEGIN
+				DELETE FROM charity_decay_activations WHERE guild_id = OLD.guild_id
+					AND NOT EXISTS (
+						SELECT 1 FROM charity_wishes
+						WHERE guild_id = OLD.guild_id AND progress_gp < required_gp
+					);
+			END;
+		`
+	},
+	{
+		version: 79,
+		sql: `
+			ALTER TABLE guilds ADD COLUMN created_at INTEGER
+				CHECK (created_at IS NULL OR created_at BETWEEN 0 AND 9007199254740991);
+		`
+	},
+	{
+		version: 80,
+		foreign_keys_disabled: true,
+		sql: `
+			CREATE TABLE guild_raids_new (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				guild_id INTEGER NOT NULL,
+				started_at INTEGER NOT NULL CHECK (started_at >= 0),
+				expires_at INTEGER NOT NULL CHECK (expires_at > started_at),
+				active_member_count INTEGER NOT NULL CHECK (active_member_count >= 1),
+				required_contributors INTEGER NOT NULL CHECK (required_contributors >= 1),
+				max_health INTEGER NOT NULL CHECK (max_health > 0),
+				remaining_health INTEGER NOT NULL CHECK (remaining_health BETWEEN 0 AND max_health),
+				secured_at INTEGER CHECK (secured_at IS NULL OR secured_at >= started_at),
+				FOREIGN KEY (guild_id) REFERENCES guilds (id) ON DELETE CASCADE
+			);
+			INSERT INTO guild_raids_new
+				(id, guild_id, started_at, expires_at, active_member_count, required_contributors,
+					max_health, remaining_health, secured_at)
+			SELECT id, guild_id, started_at, expires_at, active_member_count, required_contributors,
+				max_health, remaining_health, secured_at
+			FROM guild_raids;
+			DROP TABLE guild_raids;
+			ALTER TABLE guild_raids_new RENAME TO guild_raids;
+			CREATE INDEX idx_guild_raids_guild_started ON guild_raids (guild_id, started_at DESC);
+		`
 	}
 ];

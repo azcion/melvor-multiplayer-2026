@@ -1,8 +1,13 @@
+import { createHash } from 'node:crypto';
+import { record_audit_event } from './audit';
 import { revoke_installation } from './installations';
 import { db, get_service_setting } from './db';
 import { make_audit_context, run_with_audit_context } from './audit-context';
 import { CHARITY_KNOWN_CURRENCY_VALUATIONS } from './charity-values';
 import { CHARITY_WISH_PROMO_MATURING_MS } from './charity-wishes';
+import { CHARITY_NORMAL_DECAY_MS } from './charity-decay';
+import { is_minimum_supported_version } from './client-version-policy';
+import { remove_charity_contributor_quantity } from './charity-contributors';
 import {
 	ICON_CATALOG_SETTING_KEYS,
 	MAX_ICON_CATALOG_BYTES,
@@ -28,6 +33,9 @@ const MAX_CHARITREE_VALUE_CATALOG_BYTES = 4 * 1024 * 1024;
 const MAX_CHARITREE_VALUE_CATALOG_ITEMS = 100000;
 const MAX_CHARITREE_EXPIRY_SECONDS = 31 * 24 * 60 * 60;
 const MAX_CHARITY_WISH_PROMO_HOURS = 31 * 24;
+const MIN_CHARITY_DECAY_HOURS = 2;
+const MAX_CHARITY_DECAY_HOURS = CHARITY_NORMAL_DECAY_MS / (60 * 60 * 1000) - 1;
+const MAX_SUPPORT_MESSAGE_LENGTH = 1000;
 
 function usage(output: AdminOutput): number {
 	output.error(`Usage:
@@ -37,11 +45,14 @@ function usage(output: AdminOutput): number {
   bun run admin.ts icon-collection on|off
   bun run admin.ts icon-collection-limit icon-bytes|manifest-items|catalog-bytes|observations VALUE
   bun run admin.ts release-version VERSION|clear
+  bun run admin.ts minimum-supported-version VERSION|clear
   bun run admin.ts installation revoke CLIENT_ID INSTALLATION_ID
   bun run admin.ts guild inspect GUILD_ID
   bun run admin.ts identity find DISPLAY_NAME
   bun run admin.ts identity inspect CLIENT_ID
   bun run admin.ts identity enable|disable CLIENT_ID
+  bun run admin.ts support-message inspect MESSAGE_ID
+  bun run admin.ts support-message correct MESSAGE_ID EXPECTED_SHA256 confirm < REPLACEMENT_TEXT
   bun run admin.ts social-mode enforce|clear identity|account ID
   bun run admin.ts global-chat-throttle server clear|MAX_MESSAGES WINDOW_SECONDS
   bun run admin.ts global-chat-throttle client CLIENT_ID clear|MAX_MESSAGES WINDOW_SECONDS
@@ -51,7 +62,7 @@ function usage(output: AdminOutput): number {
   bun run admin.ts charity set-expiry GUILD_ID ITEM_ID EXPECTED_QTY SECONDS confirm
   bun run admin.ts charity wish-promo status|stop
   bun run admin.ts charity wish-promo stagger confirm
-  bun run admin.ts charity wish-promo start HOURS confirm
+  bun run admin.ts charity wish-promo start PROMO_HOURS [DECAY_HOURS] confirm
   bun run admin.ts charity backfill-values < charitree-item-values.json
   bun run admin.ts economy-receipt rollback-duplicate-charity CLIENT_ID RECEIPT_ID confirm`);
 	return 2;
@@ -144,6 +155,118 @@ function parse_positive_integer(value: string | undefined): number | null {
 	return Number.isSafeInteger(parsed) && parsed >= 1 ? parsed : null;
 }
 
+type OperatorSupportMessage = {
+	id: number;
+	conversation_id: number;
+	team_id: number;
+	player_client_id: number;
+	author_kind: 'automated' | 'player' | 'member';
+	sending_client_id: number | null;
+	content: string;
+	moderated: number;
+	read_by_player: number;
+};
+
+function support_message_digest(content: string): string {
+	return createHash('sha256').update(content).digest('hex');
+}
+
+function operator_support_message(message_id: number): OperatorSupportMessage | null {
+	return db.query<OperatorSupportMessage, [number]>(
+		'SELECT message.`id`, message.`conversation_id`, conversation.`team_id`, conversation.`player_client_id`, ' +
+		'message.`author_kind`, message.`sending_client_id`, message.`content`, ' +
+		'EXISTS(SELECT 1 FROM `support_message_moderation` AS moderation ' +
+			'WHERE moderation.`message_id` = message.`id`) AS `moderated`, ' +
+		'EXISTS(SELECT 1 FROM `support_player_message_reads` AS message_read ' +
+			'WHERE message_read.`message_id` = message.`id` ' +
+			'AND message_read.`client_id` = conversation.`player_client_id`) AS `read_by_player` ' +
+		'FROM `support_messages` AS message ' +
+		'JOIN `support_conversations` AS conversation ON conversation.`id` = message.`conversation_id` ' +
+		'WHERE message.`id` = ?'
+	).get(message_id);
+}
+
+function inspect_support_message(message_id: number, output: AdminOutput): number {
+	const message = operator_support_message(message_id);
+	if (message === null) {
+		output.error(`Support Message ${message_id} does not exist.`);
+		return 1;
+	}
+	output.log(`message_id=${message.id}`);
+	output.log(`conversation_id=${message.conversation_id}`);
+	output.log(`player_client_id=${message.player_client_id}`);
+	output.log(`author_kind=${message.author_kind}`);
+	output.log(`moderated=${message.moderated === 1 ? 'yes' : 'no'}`);
+	output.log(`read_by_player=${message.read_by_player === 1 ? 'yes' : 'no'}`);
+	output.log(`content_length=${[...message.content].length}`);
+	output.log(`content_sha256=${support_message_digest(message.content)}`);
+	return 0;
+}
+
+export function correct_support_message(message_id: number, expected_digest: string, replacement_input: string,
+	output: AdminOutput = console_output): number {
+	let replacement = replacement_input;
+	if (replacement.endsWith('\r\n')) replacement = replacement.slice(0, -2);
+	else if (replacement.endsWith('\n')) replacement = replacement.slice(0, -1);
+	const replacement_length = [...replacement].length;
+	if (replacement_length < 1 || replacement_length > MAX_SUPPORT_MESSAGE_LENGTH || replacement.includes('\0')) {
+		output.error(`Replacement Support Message must contain 1-${MAX_SUPPORT_MESSAGE_LENGTH} characters.`);
+		return 1;
+	}
+
+	const result = db.transaction(() => {
+		const message = operator_support_message(message_id);
+		if (message === null) return { status: 'missing' as const };
+		if (message.author_kind !== 'member' || message.sending_client_id === null)
+			return { status: 'wrong_author' as const };
+		if (message.moderated === 1) return { status: 'moderated' as const };
+		if (message.read_by_player === 1) return { status: 'read' as const };
+		if (support_message_digest(message.content) !== expected_digest)
+			return { status: 'changed' as const };
+		if (message.content === replacement) return { status: 'unchanged' as const };
+
+		const updated = db.query(
+			'UPDATE `support_messages` SET `content` = ? WHERE `id` = ? AND `content` = ? ' +
+			'AND `author_kind` = \'member\' ' +
+			'AND NOT EXISTS(SELECT 1 FROM `support_message_moderation` AS moderation ' +
+				'WHERE moderation.`message_id` = `support_messages`.`id`) ' +
+			'AND NOT EXISTS(SELECT 1 FROM `support_player_message_reads` AS message_read ' +
+				'JOIN `support_conversations` AS conversation ' +
+					'ON conversation.`id` = `support_messages`.`conversation_id` ' +
+				'WHERE message_read.`message_id` = `support_messages`.`id` ' +
+				'AND message_read.`client_id` = conversation.`player_client_id`)'
+		).run(replacement, message_id, message.content);
+		if (updated.changes !== 1) return { status: 'changed' as const };
+
+		db.query(
+			'UPDATE `clients` SET `event_revision` = `event_revision` + 1 ' +
+			'WHERE `id` = ? OR `id` IN (SELECT `client_id` FROM `support_team_memberships` ' +
+				'WHERE `team_id` = ? AND `active` = 1 AND `client_id` IS NOT NULL)'
+		).run(message.player_client_id, message.team_id);
+		record_audit_event({
+			event_type: 'support.message.corrected',
+			source_key: `operator:support-message-correction:${message_id}:${crypto.randomUUID()}`,
+			actor: { kind: 'operator', name: 'admin-cli' },
+			participants: [
+				{ role: 'player', client_id: message.player_client_id },
+				{ role: 'support-member', client_id: message.sending_client_id }
+			],
+			details: { message_id, conversation_id: message.conversation_id, team_id: message.team_id }
+		});
+		return { status: 'corrected' as const };
+	}).immediate();
+
+	switch (result.status) {
+		case 'missing': output.error(`Support Message ${message_id} does not exist.`); return 1;
+		case 'wrong_author': output.error('Only member-authored Support Messages can be corrected.'); return 1;
+		case 'moderated': output.error(`Support Message ${message_id} is moderated and cannot be corrected.`); return 1;
+		case 'read': output.error(`Support Message ${message_id} has already been read by the player.`); return 1;
+		case 'changed': output.error(`Support Message ${message_id} no longer matches the expected SHA-256.`); return 1;
+		case 'unchanged': output.log(`Support Message ${message_id} already has the replacement content.`); return 0;
+		case 'corrected': output.log(`Support Message ${message_id} corrected.`); return 0;
+	}
+}
+
 function set_social_mode_enforcement(args: string[], output: AdminOutput): number {
 	const [, action, scope, raw_id] = args;
 	const id = parse_positive_integer(raw_id);
@@ -194,16 +317,24 @@ function set_setting(key: string, value: string): void {
 }
 
 function run_charity_wish_promo(args: string[], output: AdminOutput): number {
-	const [, , action, argument, confirmation] = args;
+	const [, , action, argument] = args;
 	const now = Date.now();
 	if (action === 'status' && args.length === 3) {
+		const started_at = Number(get_service_setting('charity_wish_promo_started_at'));
 		const ends_at = Number(get_service_setting('charity_wish_promo_ends_at'));
+		const decay_hours = Number(get_service_setting('charity_wish_promo_decay_hours'));
 		output.log(`charity_wish_promo=${Number.isSafeInteger(ends_at) && ends_at > now ? 'active' : 'inactive'}`);
+		output.log(`charity_wish_promo_started_at=${Number.isSafeInteger(started_at) && started_at > 0 ? started_at : 0}`);
 		output.log(`charity_wish_promo_ends_at=${Number.isSafeInteger(ends_at) && ends_at > 0 ? ends_at : 0}`);
+		output.log(`charity_wish_promo_decay_hours=${Number.isSafeInteger(decay_hours) && decay_hours > 0 ? decay_hours : 0}`);
 		return 0;
 	}
 	if (action === 'stop' && args.length === 3) {
-		set_setting('charity_wish_promo_ends_at', '0');
+		db.transaction(() => {
+			set_setting('charity_wish_promo_started_at', '0');
+			set_setting('charity_wish_promo_ends_at', '0');
+			set_setting('charity_wish_promo_decay_hours', '0');
+		}).immediate();
 		output.log('Charitree Wish promo stopped. Existing timers were not changed.');
 		return 0;
 	}
@@ -219,18 +350,29 @@ function run_charity_wish_promo(args: string[], output: AdminOutput): number {
 		output.log(`charity_wishes_staggered=${updated.changes}`);
 		return 0;
 	}
-	const hours = parse_positive_integer(argument);
-	if (action === 'start' && args.length === 5 && confirmation === 'confirm' &&
-		hours !== null && hours <= MAX_CHARITY_WISH_PROMO_HOURS) {
-		const ends_at = now + hours * 60 * 60 * 1000;
+	const promo_hours = parse_positive_integer(argument);
+	const decay_hours = args.length === 6 ? parse_positive_integer(args[4]) : 0;
+	const confirmation = args.length === 6 ? args[5] : args[4];
+	if (action === 'start' && (args.length === 5 || args.length === 6) && confirmation === 'confirm' &&
+		promo_hours !== null && promo_hours <= MAX_CHARITY_WISH_PROMO_HOURS && decay_hours !== null &&
+		(decay_hours === 0 || (decay_hours >= MIN_CHARITY_DECAY_HOURS && decay_hours <= MAX_CHARITY_DECAY_HOURS))) {
+		const previous_ends_at = Number(get_service_setting('charity_wish_promo_ends_at'));
+		const previous_started_at = Number(get_service_setting('charity_wish_promo_started_at'));
+		const started_at = previous_ends_at > now && Number.isSafeInteger(previous_started_at) &&
+			previous_started_at > 0 && previous_started_at <= now ? previous_started_at : now;
+		const ends_at = now + promo_hours * 60 * 60 * 1000;
 		const updated = db.transaction(() => {
+			set_setting('charity_wish_promo_started_at', String(started_at));
 			set_setting('charity_wish_promo_ends_at', String(ends_at));
+			set_setting('charity_wish_promo_decay_hours', String(decay_hours));
 			return db.query(
 				'UPDATE `charity_wishes` SET `matures_at` = ? WHERE `matures_at` > ? ' +
 				'AND `progress_gp` < `required_gp`'
 			).run(now + CHARITY_WISH_PROMO_MATURING_MS, now + CHARITY_WISH_PROMO_MATURING_MS).changes;
 		}).immediate();
+		output.log(`charity_wish_promo_started_at=${started_at}`);
 		output.log(`charity_wish_promo_ends_at=${ends_at}`);
+		output.log(`charity_wish_promo_decay_hours=${decay_hours}`);
 		output.log(`charity_wishes_accelerated=${updated}`);
 		return 0;
 	}
@@ -665,6 +807,7 @@ function rollback_duplicate_charity_receipt(client_id: number, receipt_id: strin
 			const item = db.query<{ qty: number }, [number, string]>(
 				'SELECT `qty` FROM `charity_items` WHERE `guild_id` = ? AND `item_id` = ? LIMIT 1'
 			).get(membership.guild_id, effect.item_id);
+			remove_charity_contributor_quantity(membership.guild_id, effect.item_id, client_id, -effect.qty);
 			if (item?.qty === -effect.qty)
 				db.query('DELETE FROM `charity_items` WHERE `guild_id` = ? AND `item_id` = ?').run(membership.guild_id, effect.item_id);
 			else
@@ -762,10 +905,15 @@ function run_admin_command(args: string[], output: AdminOutput = console_output)
 			output.log(`icon_collection_max_catalog_bytes=${get_service_setting(ICON_CATALOG_SETTING_KEYS.max_catalog_bytes)}`);
 			output.log(`icon_collection_max_observations=${get_service_setting(ICON_CATALOG_SETTING_KEYS.max_observations)}`);
 			output.log(`released_mod_version=${get_service_setting('released_mod_version') || 'none'}`);
+			output.log(`minimum_supported_mod_version=${get_service_setting('minimum_supported_mod_version') || 'none'}`);
 			output.log(`charitree_value_backfill_pending=${get_service_setting('charity_value_backfill_pending') ?? '0'}`);
+			const wish_promo_started_at = Number(get_service_setting('charity_wish_promo_started_at'));
 			const wish_promo_ends_at = Number(get_service_setting('charity_wish_promo_ends_at'));
+			const wish_promo_decay_hours = Number(get_service_setting('charity_wish_promo_decay_hours'));
 			output.log(`charity_wish_promo=${Number.isSafeInteger(wish_promo_ends_at) && wish_promo_ends_at > Date.now() ? 'active' : 'inactive'}`);
+			output.log(`charity_wish_promo_started_at=${Number.isSafeInteger(wish_promo_started_at) && wish_promo_started_at > 0 ? wish_promo_started_at : 0}`);
 			output.log(`charity_wish_promo_ends_at=${Number.isSafeInteger(wish_promo_ends_at) && wish_promo_ends_at > 0 ? wish_promo_ends_at : 0}`);
+			output.log(`charity_wish_promo_decay_hours=${Number.isSafeInteger(wish_promo_decay_hours) && wish_promo_decay_hours > 0 ? wish_promo_decay_hours : 0}`);
 			output.log(`identities=${identity_count}`);
 			output.log(`disabled_identities=${disabled_count}`);
 			return 0;
@@ -813,11 +961,25 @@ function run_admin_command(args: string[], output: AdminOutput = console_output)
 				? 'Released mod version cleared.'
 				: `Released mod version set to ${action}.`);
 			return 0;
+		case 'minimum-supported-version':
+			if (args.length !== 2 || (action !== 'clear' && !is_minimum_supported_version(action)))
+				return usage(output);
+			set_setting('minimum_supported_mod_version', action === 'clear' ? '' : action);
+			output.log(action === 'clear'
+				? 'Minimum supported mod version cleared.'
+				: `Minimum supported mod version set to ${action}.`);
+			return 0;
 		case 'guild': {
 			if (action !== 'inspect' || args.length !== 3)
 				return usage(output);
 			const guild_id = parse_positive_integer(argument);
 			return guild_id === null ? usage(output) : inspect_guild(guild_id, output);
+		}
+		case 'support-message': {
+			const message_id = parse_positive_integer(argument);
+			if (action !== 'inspect' || args.length !== 3 || message_id === null)
+				return usage(output);
+			return inspect_support_message(message_id, output);
 		}
 		case 'charity': {
 			if (action === 'wish-promo')
@@ -961,7 +1123,20 @@ export function run_admin(args: string[], output: AdminOutput = console_output):
 
 if (import.meta.main) {
 	const args = Bun.argv.slice(2);
-	if (args.length === 2 && args[0] === 'charity' && args[1] === 'backfill-values') {
+	if (args.length === 5 && args[0] === 'support-message' && args[1] === 'correct') {
+		const message_id = parse_positive_integer(args[2]);
+		const expected_digest = args[3];
+		if (message_id === null || !/^[0-9a-f]{64}$/.test(expected_digest ?? '') || args[4] !== 'confirm') {
+			process.exitCode = usage(console_output);
+		} else {
+			const input = await Bun.stdin.text();
+			process.exitCode = run_with_audit_context(make_audit_context({
+				event_type: 'operator.admin.support-message.correct', actor_kind: 'operator',
+				actor_client_id: null, actor_display_name: 'admin-cli',
+				details: { command: 'support-message.correct', message_id }
+			}), () => correct_support_message(message_id, expected_digest as string, input));
+		}
+	} else if (args.length === 2 && args[0] === 'charity' && args[1] === 'backfill-values') {
 		const input = await Bun.stdin.text();
 		process.exitCode = run_with_audit_context(make_audit_context({
 			event_type: 'operator.admin.charity.backfill-values', actor_kind: 'operator',

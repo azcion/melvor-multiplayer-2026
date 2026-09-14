@@ -1,5 +1,5 @@
 import { db } from './db';
-import { shadowed_cutoff } from './shadowed';
+import { get_expected_contributor_count, recently_active_cutoff } from './recent-activity';
 import { record_guild_activity } from './guild-activity';
 import { add_inbox_items } from './inbox';
 import { client_uses_legacy_transfer_protocol } from './transfer-compatibility';
@@ -212,11 +212,9 @@ export function activate_raid(client_id: number, now = Date.now()) {
 			'WHERE membership.`guild_id` = ? ORDER BY membership.`id`'
 		).all(membership.guild_id) as Array<{ membership_id: number; client_id: number; last_multiplayer_active_at: number }>;
 		const active_member_count = members.filter(
-			member => member.last_multiplayer_active_at >= shadowed_cutoff(now)
+			member => member.last_multiplayer_active_at >= recently_active_cutoff(now)
 		).length;
-		const required_contributors = active_member_count <= 1
-			? 1
-			: Math.min(5, Math.max(2, Math.ceil(active_member_count * 0.4)));
+		const required_contributors = get_expected_contributor_count(active_member_count);
 		const inserted = db.query(
 			'INSERT INTO `guild_raids` (`guild_id`, `started_at`, `expires_at`, `active_member_count`, ' +
 			'`required_contributors`, `max_health`, `remaining_health`) VALUES(?, ?, ?, ?, ?, ?, ?) RETURNING `id`'

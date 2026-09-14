@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { Database } from 'bun:sqlite';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -126,8 +127,9 @@ describe('administration CLI', () => {
 		insert.run(3, 2, 'test:AlreadyShort', now - 1000, now + 1800000);
 		database.close();
 
-		const started = await run_admin(database_path, 'charity', 'wish-promo', 'start', '24', 'confirm');
+		const started = await run_admin(database_path, 'charity', 'wish-promo', 'start', '24', '12', 'confirm');
 		expect(started.exit_code).toBe(0);
+		expect(started.stdout).toContain('charity_wish_promo_started_at=');
 		expect(started.stdout).toContain('charity_wishes_accelerated=1\n');
 		let verification = new Database(database_path, { readonly: true, strict: true });
 		const rows = verification.query<{ item_id: string; matures_at: number }, []>('SELECT item_id, matures_at FROM charity_wishes ORDER BY id').all();
@@ -135,12 +137,32 @@ describe('administration CLI', () => {
 		expect(rows[0]!.matures_at).toBeLessThan(now + 3605000);
 		expect(rows[1]!.matures_at).toBe(now + 1800000);
 		expect(Number(verification.query<{ value: string }, []>("SELECT value FROM service_settings WHERE key = 'charity_wish_promo_ends_at'").get()!.value)).toBeGreaterThan(now + 23 * 3600000);
+		expect(verification.query<{ value: string }, []>("SELECT value FROM service_settings WHERE key = 'charity_wish_promo_decay_hours'").get()!.value).toBe('12');
 		verification.close();
 
 		const stopped = await run_admin(database_path, 'charity', 'wish-promo', 'stop');
 		expect(stopped.exit_code).toBe(0);
 		verification = new Database(database_path, { readonly: true, strict: true });
 		expect(verification.query("SELECT value FROM service_settings WHERE key = 'charity_wish_promo_ends_at'").get()).toEqual({ value: '0' });
+		expect(verification.query("SELECT value FROM service_settings WHERE key = 'charity_wish_promo_decay_hours'").get()).toEqual({ value: '0' });
+		verification.close();
+	});
+
+	test('updates an active timed Wish promo without restarting its decay activation', async () => {
+		const database_path = fixture_database();
+		const database = new Database(database_path, { strict: true });
+		const original_started_at = Date.now() - 2 * 60 * 60 * 1000;
+		database.query("UPDATE `service_settings` SET `value` = ? WHERE `key` = 'charity_wish_promo_started_at'").run(String(original_started_at));
+		database.query("UPDATE `service_settings` SET `value` = ? WHERE `key` = 'charity_wish_promo_ends_at'").run(String(Date.now() + 46 * 60 * 60 * 1000));
+		database.close();
+
+		const updated = await run_admin(database_path, 'charity', 'wish-promo', 'start', '46', '12', 'confirm');
+		expect(updated.exit_code).toBe(0);
+		expect(updated.stdout).toContain(`charity_wish_promo_started_at=${original_started_at}\n`);
+		const verification = new Database(database_path, { readonly: true, strict: true });
+		expect(verification.query<{ value: string }, []>(
+			"SELECT `value` FROM `service_settings` WHERE `key` = 'charity_wish_promo_started_at'"
+		).get()?.value).toBe(String(original_started_at));
 		verification.close();
 	});
 
@@ -162,6 +184,76 @@ describe('administration CLI', () => {
 		expect(verification.query('SELECT social_mode_enforced FROM melvor_accounts WHERE id = 1').get()).toEqual({ social_mode_enforced: 1 });
 		verification.close();
 	});
+
+	test('corrects only an unread member-authored Support Message with the expected digest', async () => {
+		const database_path = fixture_database();
+		const database = new Database(database_path, { strict: true });
+		database.query(
+			'INSERT INTO `clients` (`client_identifier`, `client_key`, `friend_code`, `display_name`, `icon_id`) ' +
+			'VALUES (?, ?, ?, ?, ?)'
+		).run(crypto.randomUUID(), crypto.randomUUID(), '321-654-987', 'Support Member', 'melvorD:Blue_Party_Hat');
+		const membership = database.query(
+			'INSERT INTO `support_team_memberships` (`team_id`, `client_id`, `member_display_name`, `created_at`) ' +
+			'VALUES (1, 2, ?, 1)'
+		).run('Support Member');
+		const conversation = database.query(
+			'INSERT INTO `support_conversations` (`team_id`, `player_client_id`, `created_at`) VALUES (1, 1, 2)'
+		).run();
+		const original_content = 'Original support reply';
+		const message = database.query(
+			'INSERT INTO `support_messages` (`conversation_id`, `author_kind`, `membership_id`, `sending_client_id`, ' +
+			'`idempotency_scope`, `idempotency_key`, `content`, `created_at`) VALUES (?, \'member\', ?, 2, ?, ?, ?, 3)'
+		).run(Number(conversation.lastInsertRowid), Number(membership.lastInsertRowid), 'member:2', crypto.randomUUID(),
+			original_content);
+		const message_id = Number(message.lastInsertRowid);
+		const initial_revisions = database.query<{ id: number; event_revision: number }, []>(
+			'SELECT `id`, `event_revision` FROM `clients` WHERE `id` IN (1, 2) ORDER BY `id`'
+		).all();
+		database.close();
+
+		const digest = createHash('sha256').update(original_content).digest('hex');
+		const inspected = await run_admin(database_path, 'support-message', 'inspect', String(message_id));
+		expect(inspected.exit_code).toBe(0);
+		expect(inspected.stdout).toContain(`message_id=${message_id}\n`);
+		expect(inspected.stdout).toContain('author_kind=member\n');
+		expect(inspected.stdout).toContain('read_by_player=no\n');
+		expect(inspected.stdout).toContain(`content_sha256=${digest}\n`);
+
+		const stale = await run_admin_with_input(database_path, 'Must not apply\n', 'support-message', 'correct',
+			String(message_id), '0'.repeat(64), 'confirm');
+		expect(stale.exit_code).toBe(1);
+		expect(stale.stderr).toContain('no longer matches the expected SHA-256');
+
+		const corrected = await run_admin_with_input(database_path, 'Corrected support reply\n', 'support-message',
+			'correct', String(message_id), digest, 'confirm');
+		expect(corrected.exit_code).toBe(0);
+		expect(corrected.stdout).toBe(`Support Message ${message_id} corrected.\n`);
+
+		const verification = new Database(database_path, { strict: true });
+		expect(verification.query('SELECT `content` FROM `support_messages` WHERE `id` = ?').get(message_id))
+			.toEqual({ content: 'Corrected support reply' });
+		expect(verification.query<{ id: number; event_revision: number }, []>(
+			'SELECT `id`, `event_revision` FROM `clients` WHERE `id` IN (1, 2) ORDER BY `id`'
+		).all()).toEqual(initial_revisions.map(client => ({
+			id: client.id,
+			event_revision: client.event_revision + 1
+		})));
+		expect(verification.query(
+			"SELECT `event_type`, json_extract(`details_json`, '$.message_id') AS `message_id` " +
+			"FROM `audit_events` WHERE `event_type` = 'support.message.corrected'"
+		).get()).toEqual({ event_type: 'support.message.corrected', message_id });
+		verification.query(
+			'INSERT INTO `support_player_message_reads` (`message_id`, `client_id`, `read_at`) VALUES (?, 1, 4)'
+		).run(message_id);
+		verification.close();
+
+		const corrected_digest = createHash('sha256').update('Corrected support reply').digest('hex');
+		const read = await run_admin_with_input(database_path, 'Second correction\n', 'support-message', 'correct',
+			String(message_id), corrected_digest, 'confirm');
+		expect(read.exit_code).toBe(1);
+		expect(read.stderr).toContain('has already been read by the player');
+	});
+
 	test('backfills only unknown Charitree stack values from a bounded catalog', async () => {
 		const database_path = fixture_database();
 		const database = new Database(database_path, { strict: true });
@@ -340,6 +432,25 @@ describe('administration CLI', () => {
 		expect(clear.exit_code).toBe(0);
 		expect(clear.stdout).toBe('Released mod version cleared.\n');
 		expect(cleared_status.stdout).toContain('released_mod_version=none\n');
+	});
+
+	test('sets, reports, validates, and clears the minimum supported mod version', async () => {
+		const database_path = fixture_database();
+		const set = await run_admin(database_path, 'minimum-supported-version', '1.5.11');
+		const status = await run_admin(database_path, 'status');
+		const too_old = await run_admin(database_path, 'minimum-supported-version', '1.5.9');
+		const invalid = await run_admin(database_path, 'minimum-supported-version', 'latest');
+		const clear = await run_admin(database_path, 'minimum-supported-version', 'clear');
+		const cleared_status = await run_admin(database_path, 'status');
+
+		expect(set.exit_code).toBe(0);
+		expect(set.stdout).toBe('Minimum supported mod version set to 1.5.11.\n');
+		expect(status.stdout).toContain('minimum_supported_mod_version=1.5.11\n');
+		expect(too_old.exit_code).toBe(2);
+		expect(invalid.exit_code).toBe(2);
+		expect(clear.exit_code).toBe(0);
+		expect(clear.stdout).toBe('Minimum supported mod version cleared.\n');
+		expect(cleared_status.stdout).toContain('minimum_supported_mod_version=none\n');
 	});
 
 	test('toggles and reports icon collection without accepting arbitrary values', async () => {

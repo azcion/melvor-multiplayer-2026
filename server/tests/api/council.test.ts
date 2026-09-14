@@ -7,7 +7,7 @@ import { SHADOWED_AFTER } from '../../shadowed';
 type PetitionView = {
 	petition_id: number;
 	type: 'appellation' | 'heraldry' | 'banishment' | 'winnowing' | 'charitree_ingratitude' |
-		'charitree_sacrilege' | 'charitree_beneficence' | 'fellowship' | 'enclosure';
+		'charitree_sacrilege' | 'charitree_beneficence' | 'fellowship' | 'enclosure' | 'interdict' | 'heresy';
 	proposal: Record<string, unknown>;
 	lifecycle: 'active' | 'granted' | 'denied' | 'lapsed';
 	execution_state: 'not_applicable' | 'pending' | 'running' | 'succeeded' | 'failed';
@@ -482,16 +482,95 @@ describe('Council API', () => {
 			shuffled_at: number | null;
 			shuffle_count: number;
 			currency_locks: unknown[];
+			wishes: unknown[];
+			wish_catalog: unknown[];
+			active_wish: boolean;
 		}>(
 			'/api/charity/contents', member.session_token
 		);
-		expect(enabled.json).toEqual({
+		expect(enabled.json).toMatchObject({
 			enabled: true,
 			items: [],
 			shuffled_at: null,
 			shuffle_count: 0,
-			currency_locks: []
+			currency_locks: [],
+			wishes: [],
+			wish_catalog: expect.any(Array),
+			active_wish: false
 		});
+	});
+
+	test('toggles Guild cheat confinement through exclusive Interdict and Heresy Petitions', async () => {
+		const pair = await make_guildmates('Policy Cheater', 'Policy Voter', 'Policy Guild');
+		await db_run('UPDATE `clients` SET `cheats_detected_at` = ? WHERE `id` = ?', [Date.now(), pair.first_id]);
+
+		let council = await get_council(pair.second.session_token);
+		expect(council.available_petition_types).toContain('interdict');
+		expect(council.available_petition_types).not.toContain('heresy');
+		const premature_heresy = await post_json<{ error_lang: string }>('/api/guilds/petitions/raise', {
+			type: 'heresy'
+		}, pair.second.session_token);
+		expect(premature_heresy.json.error_lang).toBe('MOD_MP_COUNCIL_CHEAT_POLICY_UNAVAILABLE');
+
+		const interdict = await post_json<{ petition_id: number }>('/api/guilds/petitions/raise', {
+			type: 'interdict'
+		}, pair.second.session_token);
+		await post_json('/api/guilds/petitions/vote', {
+			petition_id: interdict.json.petition_id,
+			choice: 'aye'
+		}, pair.first.session_token);
+		const confined = await get_json_with_session<{
+			social_mode: string;
+			social_mode_enforcement: string | null;
+			guild_member_social_modes: Array<{ client_id: number; social_mode: string }>;
+		}>('/api/events', pair.first.session_token);
+		expect(confined.json).toMatchObject({ social_mode: 'social', social_mode_enforcement: 'guild' });
+		expect(confined.json.guild_member_social_modes.find(member => member.client_id === pair.first_id)?.social_mode)
+			.toBe('social');
+		const full_rejected = await post_json<{ success: boolean; error_lang: string; social_mode_enforcement: string }>(
+			'/api/social-mode/set', { mode: 'full' }, pair.first.session_token
+		);
+		expect(full_rejected.json).toMatchObject({
+			success: false,
+			error_lang: 'MOD_MP_SOCIAL_MODE_ENFORCED',
+			social_mode_enforcement: 'guild'
+		});
+
+		await db_run('UPDATE `clients` SET `cheats_detected_at` = ? WHERE `id` = ?', [
+			Date.now() - 7 * 24 * 60 * 60 * 1000 - 1,
+			pair.first_id
+		]);
+		const expired = await get_json_with_session<{ social_mode: string; social_mode_enforcement: string | null }>(
+			'/api/events', pair.first.session_token
+		);
+		expect(expired.json).toMatchObject({ social_mode: 'full', social_mode_enforcement: null });
+		await db_run('UPDATE `clients` SET `cheats_detected_at` = ? WHERE `id` = ?', [Date.now(), pair.first_id]);
+
+		council = await get_council(pair.second.session_token);
+		expect(council.available_petition_types).toContain('heresy');
+		expect(council.available_petition_types).not.toContain('interdict');
+		const duplicate_interdict = await post_json<{ error_lang: string }>('/api/guilds/petitions/raise', {
+			type: 'interdict'
+		}, pair.second.session_token);
+		expect(duplicate_interdict.json.error_lang).toBe('MOD_MP_COUNCIL_CHEAT_POLICY_UNAVAILABLE');
+
+		const heresy = await post_json<{ petition_id: number }>('/api/guilds/petitions/raise', {
+			type: 'heresy'
+		}, pair.second.session_token);
+		await post_json('/api/guilds/petitions/vote', {
+			petition_id: heresy.json.petition_id,
+			choice: 'aye'
+		}, pair.first.session_token);
+		const tolerated = await get_json_with_session<{ social_mode: string; social_mode_enforcement: string | null }>(
+			'/api/events', pair.first.session_token
+		);
+		expect(tolerated.json).toMatchObject({ social_mode: 'full', social_mode_enforcement: null });
+
+		await db_run("UPDATE `clients` SET `social_mode` = 'social' WHERE `id` = ?", [pair.first_id]);
+		const voluntary = await get_json_with_session<{ social_mode: string; social_mode_enforcement: string | null }>(
+			'/api/events', pair.first.session_token
+		);
+		expect(voluntary.json).toMatchObject({ social_mode: 'social', social_mode_enforcement: null });
 	});
 
 	test('keeps post-snapshot members ineligible and conceals the active tally', async () => {

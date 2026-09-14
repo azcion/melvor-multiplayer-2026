@@ -61,9 +61,12 @@ test('creates representative state before a server restart', async () => {
 	const campaign_completion_id = completed_campaign.json.history[0].id;
 	await post_json('/api/campaign/claim', {
 		campaign_id: campaign_completion_id,
-		value: 321,
 		command_id: crypto.randomUUID()
 	}, campaign_history_client.session_token);
+	const campaign_claim_inbox = await get_json_with_session<{
+		items: Array<{ item_id: string; qty: number }>;
+	}>('/api/inbox', campaign_history_client.session_token);
+	const campaign_claim_gp = campaign_claim_inbox.json.items.find(item => item.item_id === 'melvorD:GP')?.qty as number;
 	const equipment_slots = [
 		{ slot_id: 'melvorD:Helmet', item_id: 'melvorD:Restart_Helmet' },
 		{ slot_id: 'melvorD:Weapon', item_id: 'melvorD:Restart_Weapon' }
@@ -83,7 +86,6 @@ test('creates representative state before a server restart', async () => {
 	const gp_amount = 142_609;
 	await post_json('/api/client/status/sync', {
 		skills: status_skills,
-		activity: status_activity,
 		activities: status_activities,
 		account_creation_date: status_account_creation_date,
 		total_skill_level: status_total_skill_level,
@@ -226,6 +228,7 @@ test('creates representative state before a server restart', async () => {
 		campaign_history_client,
 		campaign_completion_id,
 		campaign_completion_type: campaign_to_complete.json.campaign_id,
+		campaign_claim_gp,
 		equipment_slots,
 		status_skills,
 		status_activity,
@@ -255,6 +258,7 @@ test('creates representative state before a server restart', async () => {
 	expect(offered.json.trade_id).toBeNumber();
 	expect(market_lot_id).toBeNumber();
 	expect(campaign_completion_id).toBeNumber();
+	expect(campaign_claim_gp).toBeNumber();
 	expect(active_petition.json.petition_id).toBeNumber();
 	expect(retry_petition.json.petition_id).toBeNumber();
 	expect(chat_message.json.message.message_id).toBeNumber();

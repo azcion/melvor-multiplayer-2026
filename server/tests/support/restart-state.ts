@@ -17,6 +17,7 @@ export type RestartState = {
 	campaign_history_client: RegisteredClient;
 	campaign_completion_id: number;
 	campaign_completion_type: string;
+	campaign_claim_gp: number;
 	equipment_slots: Array<{ slot_id: string; item_id: string }>;
 	status_skills: Array<{ skill_id: string; level: number }>;
 	status_activity: { type: 'skill'; skill_id: string; action_id: string };

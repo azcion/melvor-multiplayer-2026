@@ -59,9 +59,10 @@ ROUTES.add('/api/charity/wish/forsake');
 ROUTES.add('/api/charity/wish/make');
 ROUTES.add('/api/charity/wish/pick');
 ROUTES.add('/api/versions');
+ROUTES.add('/api/chat/messages/reaction');
 export function diagnostic_route(url) {
 	try {
-		const path = new URL(url, 'https://diagnostic.invalid').pathname.replace(/^\/api\/v[12]\//, '/api/');
+		const path = new URL(url, 'https://diagnostic.invalid').pathname.replace(/^\/api\/v2\//, '/api/');
 		return ROUTES.has(path) ? path : 'other';
 	} catch { return 'other'; }
 }

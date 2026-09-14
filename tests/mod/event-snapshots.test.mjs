@@ -71,6 +71,8 @@ test('a blocked receipt still hydrates incoming Gifts without advancing the reco
 		social_mode: { SOCIAL_MODE_FULL: 'full', SOCIAL_MODE_SOCIAL: 'social' },
 		polling: { has_pending_events: () => true }, event_snapshots: { reconcile_event_transfers },
 		api_get: async () => ({ revision: 5, gifts: [42], economy_receipts: [{ id: 'blocked' }] }),
+		enter_unsupported_multiplayer: () => false,
+		check_released_mod_version() {},
 		reconcile_economy_receipts: async () => false,
 		reconcile_campaign_event() {}, invalidate_guild_state() {}, update_chat_nav() {},
 		reconcile_guild_member_social_modes() {}, update_transfer_inventory_nav() {}, update_multiplayer_nav() {},

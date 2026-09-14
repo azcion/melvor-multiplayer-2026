@@ -75,11 +75,6 @@ export function run_economy_command(
 	kind: string,
 	operation: () => EconomyResponse
 ): JsonObject | null {
-	if (command_id === undefined) {
-		const response = { ...db.transaction(operation).immediate() };
-		delete response.effects;
-		return response as JsonObject;
-	}
 	if (!valid_command_id(command_id))
 		return null;
 

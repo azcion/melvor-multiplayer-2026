@@ -28,13 +28,14 @@ test('coalesces duplicate commands despite newly generated UUIDs and blocks a se
 	assert.deepEqual(h.calls[0], h.calls[1]);
 });
 
-test('reload recovery uses originating protocol and retains blocked receipts until acknowledgement', async () => {
+test('reload recovery upgrades a pending v1 command and retains blocked receipts until acknowledgement', async () => {
 	const h = harness();
 	await create_economy_command_journal(h.options).run('/api/market/sell', { command_id: 'one', item_qty: 3 }, 1);
 	h.respond({ response: { status: 200 }, json: { success: true, receipt: { id: 'one', effects: [] } } });
 	const reloaded = create_economy_command_journal(h.options);
 	assert.equal(await reloaded.recover(), false);
-	assert.equal(h.calls[1][2], 1);
+	assert.equal(h.calls[1][2], 2);
+	assert.equal(h.saved().major, 2);
 	reloaded.acknowledge('another');
 	assert.ok(h.saved());
 	reloaded.acknowledge('one');

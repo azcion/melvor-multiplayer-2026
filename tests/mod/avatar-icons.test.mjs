@@ -10,6 +10,7 @@ test('builds avatar choices from official monsters, pickpocketing targets, pets,
 
 	for (const namespace of ['melvorD', 'melvorF', 'melvorAoD', 'melvorTotH', 'melvorItA'])
 		assert.match(main, new RegExp(`'${namespace}'`));
+	const avatar_builder = main.slice(main.indexOf('function make_avatar_icon('), main.indexOf('function setup_icons()'));
 	const setup_icons = main.slice(main.indexOf('function setup_icons()'), main.indexOf('function setup_guild_icons()'));
 	assert.match(setup_icons, /get_icon_objects\(game\.monsters\)/);
 	assert.match(setup_icons, /get_icon_objects\(game\.thieving\?\.actions\)/);
@@ -20,6 +21,8 @@ test('builds avatar choices from official monsters, pickpocketing targets, pets,
 	assert.match(main, /get_pet_icon\(id\) \{[\s\S]*multiplayer_pet_flare\.get/);
 	assert.match(main, /return icon_object\?\.media \?\? this\.get_pet_icon\(id\)/);
 	assert.match(main, /search_name: icon_object\.name\.toLowerCase\(\)/);
+	assert.match(main, /function is_question_mark_media\(media\) \{[\s\S]*question\\\.png/);
+	assert.match(avatar_builder, /is_question_mark_media\(icon_object\.media\)/);
 	assert.doesNotMatch(setup_icons, /id\.startsWith\('melvorF:'\) \|\| icon\.id\.startsWith\('melvorD:'\)/);
 	assert.match(main, /MULTIPLAYER_GAME_NAMESPACE = 'multiplayer'/);
 	assert.match(setup_icons, /allow_multiplayer: true/);

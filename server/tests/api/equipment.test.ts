@@ -58,7 +58,7 @@ describe('equipment snapshot API', () => {
 		expect(former.json.error_lang).toBe('MOD_MP_GUILD_MEMBERSHIP_MISSING');
 	});
 
-	test('deletes a snapshot on opt-out and requires a new upload after opt-in', async () => {
+	test('continues collecting equipment while opt-out masks the snapshot', async () => {
 		const pair = await make_guildmates('Visibility Owner', 'Visibility Viewer');
 		await sync_equipment(pair.first.session_token, [
 			{ slot_id: 'melvorD:Cape', item_id: 'melvorD:Fire_Cape' }
@@ -70,19 +70,24 @@ describe('equipment snapshot API', () => {
 			pair.first.session_token
 		);
 		const hidden = await get_equipment(pair.second.session_token, pair.first_id);
-		const rejected_sync = await sync_equipment(pair.first.session_token, []);
+		const saved_while_hidden = await sync_equipment(pair.first.session_token, [
+			{ slot_id: 'melvorD:Weapon', item_id: 'melvorD:Bronze_Sword' }
+		]);
 		const enabled = await post_json<{ success: boolean; visible: boolean }>(
 			'/api/client/equipment/visibility',
 			{ visible: true },
 			pair.first.session_token
 		);
-		const missing = await get_equipment(pair.second.session_token, pair.first_id);
+		const viewed_after_reenable = await get_equipment(pair.second.session_token, pair.first_id);
 
 		expect(disabled.json).toEqual({ success: true, visible: false });
 		expect(hidden.json.error_lang).toBe('MOD_MP_EQUIPMENT_SHARING_DISABLED');
-		expect(rejected_sync.json.error_lang).toBe('MOD_MP_EQUIPMENT_SHARING_DISABLED');
+		expect(saved_while_hidden.json.success).toBe(true);
 		expect(enabled.json).toEqual({ success: true, visible: true });
-		expect(missing.json.error_lang).toBe('MOD_MP_EQUIPMENT_NOT_AVAILABLE');
+		expect(viewed_after_reenable.json).toEqual({
+			client_id: pair.first_id,
+			slots: [{ slot_id: 'melvorD:Weapon', item_id: 'melvorD:Bronze_Sword' }]
+		});
 	});
 
 	test('accepts an empty snapshot and rejects malformed, duplicate, or oversized input', async () => {

@@ -7,6 +7,7 @@ import { migrations_041_050 } from './migrations/041-050';
 import { migrations_061_070 } from './migrations/061-070';
 import { migrations_051_060 } from './migrations/051-060';
 import { migrations_071_080 } from './migrations/071-080';
+import { migrations_081_090 } from './migrations/081-090';
 
 export const migrations: Migration[] = [
 	...migrations_001_010,
@@ -17,4 +18,5 @@ export const migrations: Migration[] = [
 	...migrations_051_060,
 	...migrations_061_070,
 	...migrations_071_080,
+	...migrations_081_090,
 ];

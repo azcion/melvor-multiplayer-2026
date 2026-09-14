@@ -213,6 +213,8 @@ export function install_common_actions(runtime) {
 		get_chat_participant_icon(conversation = this.selected_chat_conversation) {
 			if (conversation?.conversation_kind === 'global')
 				return ctx.getResourceUrl('assets/multiplayer.svg');
+			if (conversation?.conversation_kind === 'polls')
+				return ctx.getResourceUrl('assets/polls-icon.svg');
 			if (conversation?.conversation_kind === 'guild')
 				return this.get_guild_icon(conversation.participant?.icon_id);
 			if (conversation?.conversation_kind === 'support' && conversation.viewer_side === 'player') {

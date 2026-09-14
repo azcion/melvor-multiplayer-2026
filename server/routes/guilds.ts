@@ -1,4 +1,3 @@
-import { request_uses_server_owned_pets } from '../api-contract';
 import * as runtime from '../app-runtime';
 import type { GuildSummary, GuildType } from '../app-runtime';
 import type { SQLQueryBindings } from 'bun:sqlite';
@@ -9,7 +8,7 @@ import { get_guild_activity, parse_guild_activity_cursor } from '../guild-activi
 import { record_guild_activity } from '../guild-activity';
 import { cancel_client_haggles } from './haggle';
 
-const { DIRECT_JOIN_CHARITREE_LOCK, FREE_FELLOWSHIP_TYPE, GiftFlags, PETITION_LIFETIME, PUBLIC_GUILD_TYPE, db, db_get_all, db_get_single, db_run, ensure_guild_campaign, expire_charity_items, expire_petitions, forget_guild_campaign, get_client_charity_state, get_client_display, get_client_guild_id, get_council_petitions, get_guild_applicants, get_guild_capabilities, get_guild_member_directory, get_guild_members, get_guild_summary, get_guild_type, get_petition_conflict_subject, get_petition_resolution, guild_summary_from_row, has_guild_departure_blocker, is_petition_choice, is_petition_type, is_valid_guild_icon_id, parse_guild_name, process_council_actions, resize_unprogressed_campaign, session_get_route, session_post_route, settle_departing_charity_wish, shadowed_cutoff, unlock_winnowing_targets } = runtime;
+const { DIRECT_JOIN_CHARITREE_LOCK, FREE_FELLOWSHIP_TYPE, GiftFlags, PETITION_LIFETIME, PUBLIC_GUILD_TYPE, db, db_get_all, db_get_single, db_run, ensure_guild_campaign, expire_charity_items, expire_petitions, forget_guild_campaign, get_client_charity_state, get_client_display, get_client_guild_id, get_council_petitions, get_guild_applicants, get_guild_capabilities, get_guild_established_at, get_guild_member_directory, get_guild_members, get_guild_summary, get_guild_type, get_petition_conflict_subject, get_petition_resolution, guild_summary_from_row, has_guild_departure_blocker, is_petition_choice, is_petition_type, is_valid_guild_icon_id, parse_guild_name, process_council_actions, resize_unprogressed_campaign, session_get_route, session_post_route, settle_departing_charity_wish, shadowed_cutoff, unlock_winnowing_targets } = runtime;
 
 export function register_guilds_routes(): void {
 	session_get_route('/api/guilds/activity', async (req, url, client_id): Promise<HandlerResult> => {
@@ -69,10 +68,10 @@ export function register_guilds_routes(): void {
 				return { status: 'forbidden' as const };
 
 			const guild = db.query(
-				'SELECT `type`, `name`, `charitree_enabled` FROM `guilds` WHERE `id` = ? LIMIT 1'
+				'SELECT `type`, `name`, `charitree_enabled`, `cheat_restriction_enabled` FROM `guilds` WHERE `id` = ? LIMIT 1'
 			).get(
 				membership.guild_id
-			) as { type: GuildType; name: string; charitree_enabled: number } | null;
+			) as { type: GuildType; name: string; charitree_enabled: number; cheat_restriction_enabled: number } | null;
 			if (guild === null)
 				return { status: 'forbidden' as const };
 			if (guild.type === FREE_FELLOWSHIP_TYPE)
@@ -80,6 +79,9 @@ export function register_guilds_routes(): void {
 			if ((petition_type === 'fellowship' && guild.type !== 'private') ||
 				(petition_type === 'enclosure' && guild.type !== PUBLIC_GUILD_TYPE))
 				return { status: 'admission_unavailable' as const };
+			if ((petition_type === 'interdict' && guild.cheat_restriction_enabled !== 0) ||
+				(petition_type === 'heresy' && guild.cheat_restriction_enabled !== 1))
+				return { status: 'cheat_policy_unavailable' as const };
 			expire_charity_items(now, membership.guild_id);
 			if (petition_type === 'charitree_ingratitude') {
 				const has_contents = db.query(
@@ -202,6 +204,8 @@ export function register_guilds_routes(): void {
 			return { error_lang: 'MOD_MP_COUNCIL_CHARITREE_UNAVAILABLE' };
 		if (result.status === 'admission_unavailable')
 			return { error_lang: 'MOD_MP_COUNCIL_ADMISSION_UNAVAILABLE' };
+		if (result.status === 'cheat_policy_unavailable')
+			return { error_lang: 'MOD_MP_COUNCIL_CHEAT_POLICY_UNAVAILABLE' };
 		return { success: true, petition_id: result.petition_id };
 	});
 
@@ -412,6 +416,7 @@ export function register_guilds_routes(): void {
 			const guild = await get_guild_summary(guild_id);
 			if (guild === null)
 				return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
+			const established_at = await get_guild_established_at(guild_id);
 			const guild_type = guild.is_free_fellowship === true
 				? FREE_FELLOWSHIP_TYPE
 				: guild.is_public === true ? PUBLIC_GUILD_TYPE : 'private';
@@ -425,9 +430,10 @@ export function register_guilds_routes(): void {
 			return {
 				affiliation: 'member',
 				current_client_id: client_id,
-				charity: await get_client_charity_state(client_id, runtime.get_request_mod_version(req), Date.now(), request_uses_server_owned_pets(req)),
+				charity: await get_client_charity_state(client_id, runtime.get_request_mod_version(req), Date.now(), true),
 				guild: {
 					...guild,
+					established_at,
 					charitree_enabled: charitree?.charitree_enabled === 1,
 					capabilities: get_guild_capabilities(guild_type)
 				},
@@ -465,14 +471,15 @@ export function register_guilds_routes(): void {
 			if (affiliation !== null)
 				return null;
 
+			const created_at = Date.now();
 			const guild = db.query(
-				'INSERT INTO `guilds` (`name`, `icon_id`) VALUES(?, ?) RETURNING `id`'
-			).get(guild_name, icon_id) as { id: number };
+				'INSERT INTO `guilds` (`name`, `icon_id`, `created_at`) VALUES(?, ?, ?) RETURNING `id`'
+			).get(guild_name, icon_id, created_at) as { id: number };
 			const membership = db.query(
 				'INSERT INTO `guild_memberships` (`client_id`, `guild_id`) VALUES(?, ?) RETURNING `id`'
 			).get(client_id, guild.id) as { id: number };
 			record_guild_activity({ guild_id: guild.id, event_type: 'joined', actor_client_id: client_id,
-				source_key: `membership:${membership.id}:joined` });
+				source_key: `membership:${membership.id}:joined`, created_at });
 			return guild.id;
 		});
 

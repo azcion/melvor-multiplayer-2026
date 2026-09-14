@@ -134,7 +134,13 @@ test('implements jittered foreground conversation polling and cursor-based histo
 
 	assert.match(main, /ctx\.loadModule\('polling\.mjs'\)/);
 	assert.match(main, /on_page_toggle\('mp-chat-page', is_visible =>/);
+	assert.match(main, /if \(is_visible && state\.is_connected\) \{[\s\S]*void get_client_events\(\);[\s\S]*void refresh_chat_page\(\);/);
+	assert.match(main, /async function refresh_chat_page\(\) \{\s*if \(!state\.is_connected\)\s*return;/);
+	assert.match(main, /start_client_event_polling\(true\);\s*if \(chat_page_visible\)\s*void refresh_chat_page\(\);/);
 	assert.match(main, /'&after=' \+ state\.chat_latest_message_id/);
+	assert.match(main, /'&reaction_after=' \+ state\.chat_reaction_revision/);
+	assert.match(main, /Array\.isArray\(res\.reaction_updates\)[\s\S]*message\.reactions = update\.reactions/);
+	assert.match(main, /should_scroll_for_additions = quiet && additions\.length > 0 && state\.chat_messages_are_at_bottom\(\)[\s\S]*await state\.scroll_chat_messages_to_bottom\(\)/);
 	assert.match(main, /'&before=' \+ this\.chat_before_cursor/);
 	assert.match(main, /poll_id !== chat_poll_id \|\| !chat_page_visible \|\| !polling\.is_foreground\(document\)/);
 	assert.match(main, /polling\.chat_poll_delay\(\)/);
@@ -170,6 +176,12 @@ test('keeps Chat at the bottom when opening or sending and anchors the viewport 
 	container.scrollTop = 140;
 	await actions.load_older_chat_messages.call({ chat_before_cursor: 20 });
 	assert.equal(container.scrollTop, 940);
+	container.scrollHeight = 1000;
+	container.clientHeight = 300;
+	container.scrollTop = 676;
+	assert.equal(actions.chat_messages_are_at_bottom.call({}), true);
+	container.scrollTop = 675;
+	assert.equal(actions.chat_messages_are_at_bottom.call({}), false);
 });
 
 test('moves conversation actions behind the participant header and confirms them', async () => {
@@ -248,6 +260,69 @@ test('styles Chat messages by viewer-relative alignment and isolates the convers
 	assert.match(style, /\.mp-chat-conversation-view\s*\{[\s\S]*color: white;[\s\S]*border: 5px solid #232a35;[\s\S]*border-radius: \.5rem;[\s\S]*backdrop-filter: blur\(8px\);[\s\S]*background-color: #0004;/);
 });
 
+test('renders the curated reaction picker and applies aggregate reaction toggles', async () => {
+	const { main, templates, style } = await sources();
+	const chat_view = templates.slice(
+		templates.indexOf('<template id="template-mp-chat-page">'),
+		templates.indexOf('<template id="template-mp-profile-modal">')
+	);
+	const requests = [];
+	let current_time = 1000;
+	const actions = install_chat_actions({
+		api_post: async (endpoint, body) => {
+			requests.push({ endpoint, body });
+			return { success: true, reaction_revision: requests.length,
+				reactions: [{ reaction: body.reaction, count: 2, reacted: body.reacted }] };
+		},
+		getLangString: id => id,
+		log() {},
+		now: () => current_time
+	});
+	const message = { message_id: 42, reactions: [{ reaction: '🔥', count: 1, reacted: false }] };
+	const state = {
+		selected_chat_conversation: { conversation_kind: 'guild', conversation_id: 9 },
+		chat_reaction_picker_message_id: null,
+		chat_reaction_picker_style: {},
+		chat_reaction_pending: {},
+		chat_reaction_throttle_until: {},
+		chat_messages: [message],
+		chat_error: ''
+	};
+
+	await actions.toggle_chat_reaction_picker.call(state, message);
+	assert.equal(state.chat_reaction_picker_message_id, 42);
+	await actions.toggle_chat_reaction.call(state, message, '🔥');
+	await actions.toggle_chat_reaction.call(state, message, '🔥');
+	current_time += 1000;
+	await actions.toggle_chat_reaction.call(state, message, '🔥');
+	assert.deepEqual(requests, [{ endpoint: '/api/chat/messages/reaction', body: {
+		conversation_kind: 'guild', conversation_id: 9, message_id: 42, reaction: '🔥', reacted: true
+	} }, { endpoint: '/api/chat/messages/reaction', body: {
+		conversation_kind: 'guild', conversation_id: 9, message_id: 42, reaction: '🔥', reacted: false
+	} }]);
+	assert.deepEqual(message.reactions, [{ reaction: '🔥', count: 2, reacted: false }]);
+	assert.equal(message.reaction_revision, 2);
+	assert.equal(state.chat_reaction_picker_message_id, null);
+
+	assert.match(chat_view, /state\.chat_reaction_choices/);
+	assert.match(chat_view, />☻<span aria-hidden="true">\+<\/span>/);
+	assert.ok(chat_view.indexOf('class="mp-chat-reaction-picker"') > chat_view.indexOf('class="block-content mp-chat-compose"'));
+	assert.match(chat_view, /v-for="summary in message\.reactions"/);
+	assert.match(chat_view, /'mp-chat-reaction-reacted': summary\.reacted/);
+	assert.match(chat_view, /state\.toggle_chat_reaction\(message, summary\.reaction\)/);
+	assert.doesNotMatch(chat_view, /dropdown/);
+	assert.match(style, /\.mp-chat-reaction-picker\s*\{[\s\S]*position: fixed;[\s\S]*z-index: 10000;[\s\S]*grid-template-columns: repeat\(6, 32px\);[\s\S]*padding: 4px;/);
+	assert.match(style, /\.mp-chat-reaction-picker button\s*\{[\s\S]*width: 32px;[\s\S]*height: 32px;[\s\S]*border-radius: 10px;[\s\S]*font-size: 18px;/);
+	assert.match(style, /\.mp-chat-reactions-empty\s*\{[\s\S]*position: absolute;[\s\S]*right: -5px;[\s\S]*bottom: -8px/);
+	assert.match(style, /\.mp-chat-reactions\s*\{[\s\S]*margin: 2px 0 0 8px;/);
+	assert.match(style, /\.mp-chat-reactions-empty \.mp-chat-reaction-add\s*\{[\s\S]*position: relative;[\s\S]*font-size: 10px;[\s\S]*padding: 0 2px;/);
+	assert.match(style, /\.mp-chat-reactions-empty \.mp-chat-reaction-add::before\s*\{[\s\S]*content: "";[\s\S]*position: absolute;[\s\S]*inset: -8px;/);
+	assert.doesNotMatch(style.slice(style.indexOf('.mp-chat-reaction-summary,'), style.indexOf('.mp-chat-reaction-summary:hover')), /min-height/);
+	assert.match(style, /\.mp-chat-reaction-reacted\s*\{[\s\S]*background: rgba\(30, 112, 164, \.55\)/);
+	assert.match(main, /document\.addEventListener\('click',[\s\S]*\.mp-chat-reaction-add, \.mp-chat-reaction-picker[\s\S]*close_chat_reaction_picker\(\)/);
+	assert.match(main, /reaction_throttle_ms = 1000;[\s\S]*chat_reaction_throttle_until\[pending_key\]/);
+});
+
 test('opens the sender member-info modal from Chat message authors', async () => {
 	const { main, templates, style } = await sources();
 	const chat_view = templates.slice(
@@ -262,8 +337,11 @@ test('opens the sender member-info modal from Chat message authors', async () =>
 	assert.match(style, /\.mp-chat-message-author:hover,[\s\S]*\.mp-chat-message-author:focus-visible/);
 });
 
-test('hides Private Chat initiation for message authors outside the current Guild', async () => {
-	const actions = install_chat_actions({});
+test('loads normal profile restrictions for message authors outside the current Guild', async () => {
+	const actions = install_chat_actions({
+		api_get: async () => ({ can_start_chat: true, skills_visible: false, guild_name: 'Other Guild' }),
+		log() {}
+	});
 	let selected_member = null;
 	const state = {
 		guild_members: [{ client_id: 12 }],
@@ -274,22 +352,24 @@ test('hides Private Chat initiation for message authors outside the current Guil
 		}
 	};
 
-	actions.show_chat_message_member.call(state, {
+	await actions.show_chat_message_member.call(state, {
 		sender_id: 179,
 		sender: { display_name: 'Global Sender', icon_id: 'melvorD:Chicken' }
 	});
-	assert.equal(selected_member.can_start_chat, false);
-	await actions.start_member_chat.call({ selected_guild_member: selected_member }, {});
+	assert.equal(selected_member.can_start_chat, true);
+	assert.equal(selected_member.skills_visible, false);
+	assert.equal(selected_member.guild_name, 'Other Guild');
+	assert.equal(selected_member.profile_source, 'chat');
 
-	actions.show_chat_message_member.call(state, {
+	await actions.show_chat_message_member.call(state, {
 		sender_id: 12,
 		sender: { display_name: 'Guild Member', icon_id: 'melvorD:Chicken' }
 	});
-	assert.equal(selected_member.can_start_chat, true);
+	assert.equal(selected_member.profile_source, undefined);
 });
 
 test('keeps reopening an established Private conversation available after a Guild change', async () => {
-	const actions = install_chat_actions({});
+	const actions = install_chat_actions({ api_get: async () => ({ can_start_chat: true }), log() {} });
 	let selected_member = null;
 	const state = {
 		guild_members: [],
@@ -303,7 +383,7 @@ test('keeps reopening an established Private conversation available after a Guil
 		}
 	};
 
-	actions.show_chat_message_member.call(state, {
+	await actions.show_chat_message_member.call(state, {
 		sender_id: 179,
 		sender: { display_name: 'Former Guildmate', icon_id: 'melvorD:Chicken' }
 	});

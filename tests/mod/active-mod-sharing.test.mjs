@@ -27,7 +27,8 @@ test('wires privacy-gated active-mod viewing into member actions and self previe
 	assert.match(active_mods_modal, /v-for="mod_name in state\.viewed_active_mods"/);
 	assert.match(active_mods_modal, /<ol class="mp-active-mods-list">/);
 	assert.match(main, /api_post\('\/api\/client\/active-mods\/visibility'/);
-	assert.match(main, /api_get\('\/api\/guilds\/active-mods\?client_id='/);
+	assert.match(main, /member\.profile_source === 'chat' \? 'chat' : 'guilds'/);
+	assert.match(main, /'\/active-mods\?client_id=' \+ member\.client_id/);
 	assert.match(main, /get active_mod_names\(\) \{ return active_mod_names; \}/);
 	assert.match(main, /member_actions_preview[\s\S]*runtime\.active_mod_names/);
 	assert.match(main, /this\.viewed_active_mods = \[\.\.\.res\.active_mods\]/);

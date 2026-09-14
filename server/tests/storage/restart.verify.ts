@@ -163,7 +163,7 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	]));
 	expect(transfers.json.gifts).toHaveProperty(String(state.gift_id));
 	expect(transfers.json.trades).toHaveProperty(String(state.trade_id));
-	expect(inbox.json.items).toEqual([{ item_id: 'melvorD:GP', qty: 321 }]);
+	expect(inbox.json.items).toEqual([{ item_id: 'melvorD:GP', qty: state.campaign_claim_gp }]);
 	expect(market.json.items).toContainEqual(expect.objectContaining({
 		id: state.market_lot_id,
 		item_id: state.market_item_id
@@ -177,7 +177,7 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	expect(campaign_history.json.history).toContainEqual(expect.objectContaining({
 		id: state.campaign_completion_id,
 		campaign_id: state.campaign_completion_type,
-		taken: 321
+		taken: state.campaign_claim_gp
 	}));
 	expect(campaign_history.json.rankings[state.campaign_completion_type]).toBe(1);
 	expect(equipment.json).toEqual({ client_id: state.first_id, slots: state.equipment_slots });

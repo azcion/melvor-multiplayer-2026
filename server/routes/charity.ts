@@ -1,4 +1,3 @@
-import { request_uses_server_owned_pets } from '../api-contract';
 import * as runtime from '../app-runtime';
 import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
@@ -7,10 +6,11 @@ import type { PetitionType } from '../council';
 import { record_guild_activity } from '../guild-activity';
 import { add_inbox_items } from '../inbox';
 import { cap_transfer_items, get_transfer_currency_cap, get_transfer_currency_overage } from '../transfer-caps';
+import { add_charity_contribution, consume_charity_contributions, list_charity_contributors } from '../charity-contributors';
 import { audit_command_source, audit_position_key, move_audit_value_with_fallback,
 	record_audit_event } from '../audit';
 
-const { CHARITY_ITEM_LIFETIME, CHARITY_SHUFFLE_BONUS_LIMIT, CHARITY_TIMEOUT, CHARITY_WEIRD_GLOOP_ID, CHARITY_WISH_SHUFFLE_PENALTY, CHARITY_WISH_VALUES, charity_state_from_values, db, db_get_all, db_get_single, economy_item_effects, expire_charity_items, expire_charity_items_now, get_charity_known_valuation, get_charity_shuffle_owner_key, get_charity_wish_account, get_charity_wish_maturing_ms, get_client_guild_id, get_request_mod_version, grant_charity_pet_if_rolled, is_charity_wish_client, is_server_owned_pets_client, is_social_only_client, is_valid_item_id, list_charity_wishes, normalize_charity_shuffle_events, parse_transfer_items, run_charity_wish_command, run_economy_command, session_get_route, session_post_route } = runtime;
+const { CHARITY_ITEM_LIFETIME, CHARITY_SHUFFLE_BONUS_LIMIT, CHARITY_TIMEOUT, CHARITY_WEIRD_GLOOP_ID, CHARITY_WISH_SHUFFLE_PENALTY, CHARITY_WISH_VALUES, charity_state_from_values, db, db_get_all, db_get_single, economy_item_effects, expire_charity_items, expire_charity_items_now, get_charity_decay_context, get_effective_charity_expiry, get_charity_known_valuation, get_charity_shuffle_owner_key, get_charity_wish_account, get_charity_wish_maturing_ms, get_client_guild_id, grant_charity_pet_if_rolled, grant_charity_wish_to_inbox, is_social_only_client, is_valid_item_id, list_charity_wishes, normalize_charity_shuffle_events, parse_transfer_items, run_charity_wish_command, run_economy_command, session_get_route, session_post_route } = runtime;
 
 const SHUFFLE_CURRENCIES = new Set(['melvorD:GP', 'melvorD:SlayerCoins', 'melvorItA:AbyssalPieces', 'melvorItA:AbyssalSlayerCoins']);
 const SHUFFLE_LOCK_MS = 4 * 60 * 60 * 1000;
@@ -119,27 +119,31 @@ export function register_charity_routes(): void {
 			return { enabled: false, items: [] };
 
 		const now = Date.now();
-		const wish_supported = is_charity_wish_client(get_request_mod_version(req));
+		const decay_context = get_charity_decay_context(guild_id, db, now);
+		const contributors = list_charity_contributors(guild_id);
 		return {
 			enabled: true,
 			...charity_shuffle_state(guild_id, client_id, now),
-			items: await db_get_all(
+			items: (await db_get_all(
 				'SELECT `item_id` as `id`, `qty`, `expires_at`, `donated_at` FROM `charity_items` ' +
 				'WHERE `guild_id` = ? AND `qty` > 0 ORDER BY CASE WHEN `item_id` = ? THEN 0 ELSE 1 END, `expires_at`, `item_id` LIMIT 156',
 				[guild_id, CHARITY_WEIRD_GLOOP_ID]
-			),
-			...(wish_supported ? {
-				wishes: list_charity_wishes(guild_id, client_id, now),
-				wish_catalog: [...CHARITY_WISH_VALUES].map(([id, max_item_value]) => ({ id, max_item_value })),
-				active_wish: get_charity_wish_account(client_id) !== null &&
-					db.query('SELECT 1 FROM `charity_wishes` WHERE `melvor_account_id` = ?')
-						.get(get_charity_wish_account(client_id) as number) !== null
-			} : {})
+			)).map(item => ({
+				...item,
+				...(contributors.has(String(item.id))
+					? { contributors: contributors.get(String(item.id)) }
+					: {}),
+				expires_at: get_effective_charity_expiry(item.expires_at, decay_context)
+			})),
+			wishes: list_charity_wishes(guild_id, client_id, now),
+			wish_catalog: [...CHARITY_WISH_VALUES].map(([id, max_item_value]) => ({ id, max_item_value })),
+			active_wish: get_charity_wish_account(client_id) !== null &&
+				db.query('SELECT 1 FROM `charity_wishes` WHERE `melvor_account_id` = ?')
+					.get(get_charity_wish_account(client_id) as number) !== null
 		};
 	});
 
 	session_post_route('/api/charity/wish/make', async (req, url, client_id, json): Promise<HandlerResult> => {
-		if (!is_charity_wish_client(get_request_mod_version(req))) return 404;
 		const item_id = json.item_id;
 		const qty = json.qty;
 		const command_id = json.command_id;
@@ -174,7 +178,6 @@ export function register_charity_routes(): void {
 	});
 
 	session_post_route('/api/charity/wish/forsake', async (req, url, client_id, json): Promise<HandlerResult> => {
-		if (!is_charity_wish_client(get_request_mod_version(req))) return 404;
 		if (typeof json.command_id !== 'string') return 400;
 		const result = run_charity_wish_command(client_id, json.command_id, 'forsake', (): JsonObject => {
 			if (is_social_only_client(client_id)) return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
@@ -191,7 +194,6 @@ export function register_charity_routes(): void {
 	});
 
 	session_post_route('/api/charity/wish/pick', async (req, url, client_id, json): Promise<HandlerResult> => {
-		if (!is_charity_wish_client(get_request_mod_version(req))) return 404;
 		if (typeof json.command_id !== 'string') return 400;
 		const result = run_charity_wish_command(client_id, json.command_id, 'pick', (): JsonObject => {
 			if (is_social_only_client(client_id)) return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
@@ -200,7 +202,7 @@ export function register_charity_routes(): void {
 			).get(client_id);
 			if (wish === null) return { success: false, error_lang: 'MOD_MP_CHARITY_WISH_MISSING' };
 			if (wish.progress_gp < wish.required_gp) return { success: false, error_lang: 'MOD_MP_CHARITY_WISH_NOT_RIPE' };
-			add_inbox_items(client_id, [{ item_id: wish.item_id, qty: wish.qty }], { type: 'wish_granted' });
+			grant_charity_wish_to_inbox(wish);
 			db.query('DELETE FROM `charity_wishes` WHERE `id` = ?').run(wish.id);
 			normalize_charity_shuffle_events(get_charity_shuffle_owner_key(client_id), false);
 			return { success: true };
@@ -246,14 +248,13 @@ export function register_charity_routes(): void {
 		if (client_row === null)
 			return 400; // Bad Request
 
-		const server_owned_pets = request_uses_server_owned_pets(req);
 		const charity = charity_state_from_values({
 			charitree_enabled: guild?.charitree_enabled === 1,
 			social_only: is_social_only_client(client_id),
 			charitree_take_available_at: membership.charitree_take_available_at,
 			last_charity: client_row.last_charity,
 			last_bonus_charity: client_row.last_bonus_charity,
-			server_owned_pets,
+			server_owned_pets: true,
 			now: current_time
 		});
 		if (is_social_only_client(client_id))
@@ -264,7 +265,7 @@ export function register_charity_routes(): void {
 			return {
 				error_lang: 'MOD_MP_CHARITY_TIMEOUT',
 				timeout: client_row.last_charity,
-				timeout_bonus: server_owned_pets ? 0 : client_row.last_bonus_charity,
+				timeout_bonus: 0,
 				charity
 			};
 
@@ -283,6 +284,7 @@ export function register_charity_routes(): void {
 
 			const item_qty = requested_qty ?? item_entry.qty;
 			const item_remaining_qty = item_entry.qty - item_qty;
+			consume_charity_contributions(guild_id, item_id, item_entry.qty, item_qty);
 			let item_expires_at = 0;
 			if (item_remaining_qty === 0) {
 				db.query('DELETE FROM `charity_items` WHERE `guild_id` = ? AND `item_id` = ?').run(guild_id, item_id);
@@ -300,15 +302,12 @@ export function register_charity_routes(): void {
 				db.query(
 					'UPDATE `charity_items` SET `qty` = ?, `expires_at` = ? WHERE `guild_id` = ? AND `item_id` = ?'
 				).run(item_remaining_qty, item_expires_at, guild_id, item_id);
+				item_expires_at = get_effective_charity_expiry(item_expires_at,
+					get_charity_decay_context(guild_id, db, current_time));
 			}
 
-			if (last_charity_cooling_down && !server_owned_pets) {
-				db.query('UPDATE `clients` SET `last_bonus_charity` = ? WHERE `id` = ?').run(current_time, client_id);
-				client_row.last_bonus_charity = current_time;
-			} else {
-				db.query('UPDATE `clients` SET `last_charity` = ? WHERE `id` = ?').run(current_time, client_id);
-				client_row.last_charity = current_time;
-			}
+			db.query('UPDATE `clients` SET `last_charity` = ? WHERE `id` = ?').run(current_time, client_id);
+			client_row.last_charity = current_time;
 
 			const event_id = record_audit_event({
 				event_type: 'charitree.taken',
@@ -328,14 +327,14 @@ export function register_charity_routes(): void {
 				item_remaining_qty,
 				item_expires_at,
 				timeout: client_row.last_charity,
-				timeout_bonus: server_owned_pets ? 0 : client_row.last_bonus_charity,
+				timeout_bonus: 0,
 				charity: charity_state_from_values({
 					charitree_enabled: true,
 					social_only: false,
 					charitree_take_available_at: membership.charitree_take_available_at,
 					last_charity: client_row.last_charity,
 					last_bonus_charity: client_row.last_bonus_charity,
-					server_owned_pets,
+					server_owned_pets: true,
 					now: current_time
 				}),
 				effects: []
@@ -358,9 +357,8 @@ export function register_charity_routes(): void {
 		const donation_source = json.source === undefined ? 'transfer' : json.source;
 		if (donation_source !== 'transfer' && donation_source !== 'bank')
 			return 400; // Bad Request
-		const server_owned_pets = request_uses_server_owned_pets(req);
 		const donation_value = json.donation_value;
-		if (server_owned_pets && (typeof donation_value !== 'number' || !Number.isSafeInteger(donation_value) || donation_value < 0))
+		if (donation_value !== undefined && (typeof donation_value !== 'number' || !Number.isSafeInteger(donation_value) || donation_value < 0))
 			return 400; // Bad Request
 		const capped_donation_value = typeof donation_value === 'number'
 			? Math.max(0, donation_value - get_transfer_currency_overage(parsed_items))
@@ -398,6 +396,8 @@ export function register_charity_routes(): void {
 				).run(guild_id, item.id, item.qty, item.id === CHARITY_WEIRD_GLOOP_ID ? 0 : expires_at, now,
 					known_valuation?.value_currency_id ?? item.value_currency_id,
 					known_valuation?.value_per_item ?? item.value_per_item);
+				if (item.id !== CHARITY_WEIRD_GLOOP_ID)
+					add_charity_contribution(guild_id, item.id, client_id, item.qty, now);
 			}
 			const event_id = record_audit_event({
 				event_type: 'charitree.donated',
@@ -415,7 +415,7 @@ export function register_charity_routes(): void {
 			}
 			record_guild_activity({ guild_id, event_type: 'charitree_donated', actor_client_id: client_id,
 				source_key: `charitree-donation:${json.command_id}`, created_at: now, throttled: true });
-			const pet_granted = server_owned_pets && grant_charity_pet_if_rolled(client_id, capped_donation_value as number, Math.random(), now);
+			const pet_granted = grant_charity_pet_if_rolled(client_id, capped_donation_value as number, Math.random(), now);
 			return {
 				success: true,
 				...(pet_granted ? { pet_id: 'Multiplayer_Pet_Charity' } : {}),
@@ -479,6 +479,7 @@ export function register_charity_routes(): void {
 					.run(guild_id, currency_id, qty, expires_at, now,
 						known_valuation?.value_currency_id ?? currency_id,
 						known_valuation?.value_per_item ?? 1);
+				add_charity_contribution(guild_id, currency_id, client_id, qty, now);
 			}
 			db.query('INSERT INTO charity_shuffles (guild_id, owner_key, shuffled_at) VALUES (?, ?, ?) ' +
 				'ON CONFLICT (guild_id, owner_key) DO UPDATE SET shuffled_at = excluded.shuffled_at').run(guild_id, owner, now);

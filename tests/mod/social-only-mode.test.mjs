@@ -75,7 +75,9 @@ test('exposes the mode choice, setting, gates, and Raid exception in both suppor
 	assert.match(main, /state\.resolved_trades = \[\]/);
 	assert.match(main, /state\.inbox_items = \[\];[\s\S]*await get_client_events\(false\);[\s\S]*else\s*await update_inbox\(\)/);
 	assert.match(main, /reconcile_guild_member_social_modes\(res\.guild_member_social_modes\)/);
-	assert.match(main, /res\.social_mode === social_mode\.SOCIAL_MODE_FULL[\s\S]*state\.social_mode = res\.social_mode[\s\S]*state\.social_mode_enforcement = res\.social_mode_enforcement/);
+	assert.match(main, /res\.social_mode === social_mode\.SOCIAL_MODE_FULL[\s\S]*state\.social_mode = res\.social_mode[\s\S]*state\.social_mode_enforcement = \['identity', 'account', 'guild'\]\.includes\(res\.social_mode_enforcement\)/);
+	assert.match(main, /\['identity', 'account', 'guild'\]\.includes\(res\.social_mode_enforcement\)/);
+	assert.match(main, /\['identity', 'account', 'guild'\]\.includes\(response\.social_mode_enforcement\)/);
 	assert.match(main, /state\.is_social_only && page_id !== 'Guild_Raid'/);
 	assert.match(main, /state\.is_social_only\)\s*return/);
 	assert.equal(english.MOD_MP_SOCIAL_MODE_FULL, 'Full Experience');

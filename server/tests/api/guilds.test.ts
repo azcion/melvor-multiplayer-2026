@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { get_events, make_guild_group, make_guildmates, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post, post_json, register_client } from '../support/http';
-import { db_count, db_run } from '../support/persistence';
+import { db_all, db_count, db_run } from '../support/persistence';
 import { SHADOWED_AFTER } from '../../shadowed';
 
 type GuildSummary = {
@@ -13,7 +13,7 @@ type GuildSummary = {
 
 type GuildState = {
 	affiliation: 'none' | 'applicant' | 'member';
-	guild?: GuildSummary;
+	guild?: GuildSummary & { established_at: number | null };
 	application?: GuildSummary & { application_id: number };
 	members?: Array<{
 		client_id: number;
@@ -82,6 +82,12 @@ describe('guild API', () => {
 			icon_id: 'melvorD:Farmlands',
 			member_count: 1
 		});
+		const first_state = await get_guild_state(first.session_token);
+		expect(first_state.guild?.established_at).toBeGreaterThanOrEqual(Date.now() - 5000);
+		expect(first_state.guild?.established_at).toBeLessThanOrEqual(Date.now());
+		expect((await db_all<{ created_at: number | null }>(
+			'SELECT `created_at` FROM `guilds` WHERE `id` = ?', [first_created.json.guild.guild_id]
+		))[0]?.created_at ?? null).toBe(first_state.guild?.established_at ?? null);
 		expect(second_created.json.guild).toMatchObject({
 			name: 'Rats',
 			icon_id: 'melvorF:Penumbra',

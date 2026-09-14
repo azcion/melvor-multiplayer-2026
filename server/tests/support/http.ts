@@ -25,8 +25,24 @@ export type MelvorAccountFixture = {
 
 type RequestHeaders = NonNullable<RequestInit['headers']>;
 
+// Existing API fixtures use logical mutation payloads and predate the v2 command journal.
+// Give those fixtures the same stable command identity as a current client; tests that
+// exercise rejection pass an explicit /api/v2 path and command_id value.
+const journaled_mutations = new Set([
+	'/api/campaign/claim', '/api/campaign/contribute', '/api/charity/donate', '/api/charity/shuffle', '/api/charity/take',
+	'/api/charity/wish/make', '/api/charity/wish/forsake', '/api/charity/wish/pick',
+	'/api/gift/accept', '/api/gift/decline', '/api/gift/discard', '/api/gift/send',
+	'/api/market/buy', '/api/market/buy-order', '/api/market/cancel', '/api/market/claim-legacy-payouts', '/api/market/destroy',
+	'/api/market/fulfill', '/api/market/haggle', '/api/market/haggle/accept', '/api/market/haggle/claim',
+	'/api/market/haggle/counter', '/api/market/haggle/terminate', '/api/market/payout', '/api/market/sell',
+	'/api/social-mode/cancel', '/api/social-mode/set', '/api/trade/accept', '/api/trade/cancel', '/api/trade/counter',
+	'/api/trade/decline', '/api/trade/offer', '/api/trade/resolve'
+]);
+
 export async function request(path: string, init: RequestInit = {}): Promise<Response> {
-	return fetch(new URL(path, server_url), init);
+	const wire_path = path.startsWith('/api/') && !path.startsWith('/api/v2/') && path !== '/api/versions'
+		? `/api/v2/${path.slice('/api/'.length)}` : path;
+	return fetch(new URL(wire_path, server_url), init);
 }
 
 async function read_json_response<T>(response: Response): Promise<T> {
@@ -68,6 +84,15 @@ export async function post(
 
 	if (session_token)
 		request_headers.set('X-Session-Token', session_token);
+	if (path === '/api/client/status/sync' && !path.startsWith('/api/v2/') &&
+		typeof body === 'object' && body !== null && !Array.isArray(body) && Object.hasOwn(body, 'activity') && !Object.hasOwn(body, 'activities')) {
+		const legacy_activity = (body as Record<string, any>).activity;
+		body = { ...(body as Record<string, unknown>), activities: legacy_activity?.type === 'idle' ? [] : [legacy_activity] };
+		delete (body as Record<string, unknown>).activity;
+	}
+	if (path.startsWith('/api/') && !path.startsWith('/api/v2/') && journaled_mutations.has(path.split('?')[0]) &&
+		typeof body === 'object' && body !== null && !Array.isArray(body) && !Object.hasOwn(body, 'command_id'))
+		body = { ...(body as Record<string, unknown>), command_id: crypto.randomUUID() };
 
 	return request(path, {
 		method: 'POST',

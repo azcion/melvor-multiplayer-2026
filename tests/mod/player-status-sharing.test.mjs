@@ -17,10 +17,12 @@ test('adds independent skills and activity visibility controls to member actions
 	assert.match(templates, /MOD_MP_ACTIVITY_VISIBILITY/);
 	assert.match(templates, /state\.set_skills_visibility\(\$event\)/);
 	assert.match(templates, /state\.set_activity_visibility\(\$event\)/);
+	assert.doesNotMatch(templates, /mp-activity-visibility" v-if=/);
 	assert.match(templates, /state\.view_member_profile\(\$event\)/);
 	assert.match(templates, /template-mp-profile-modal/);
-	assert.match(main, /api_get\('\/api\/guilds\/equipment\?client_id=' \+ member\.client_id\)/);
-	assert.match(main, /api_get\('\/api\/guilds\/status\?client_id=' \+ member\.client_id\)/);
+	assert.match(main, /const profile_path = member\.profile_source === 'chat' \? 'chat' : 'guilds'/);
+	assert.match(main, /api_get\('\/api\/' \+ profile_path \+ '\/equipment\?client_id=' \+ member\.client_id\)/);
+	assert.match(main, /api_get\('\/api\/' \+ profile_path \+ '\/status\?client_id=' \+ member\.client_id\)/);
 	assert.match(main, /'\/api\/client\/skills\/visibility'/);
 	assert.match(main, /api_post\('\/api\/client\/activity\/visibility'/);
 	assert.equal(language.MOD_MP_PROFILE_VIEW, 'View Skills & Equipment');
@@ -52,7 +54,7 @@ test('renders local skill icons and levels while keeping activity in the member 
 	assert.match(profile_modal, /state\.profile_active_tab = 'equipment'/);
 	assert.doesNotMatch(profile_modal, /mp-status-activity|viewed_status_activity/);
 	assert.doesNotMatch(profile_modal, /state\.viewed_status\.activity/);
-	assert.match(member_modal, /class="mp-member-activities" v-if="state\.get_status_activities\(state\.selected_guild_member\)\.length"/);
+	assert.match(member_modal, /class="mp-member-activities" v-if="state\.selected_guild_member\.profile_source !== 'chat' && state\.get_status_activities\(state\.selected_guild_member\)\.length"/);
 	assert.match(member_modal, /state\.get_status_activities\(state\.selected_guild_member\)/);
 	assert.match(member_modal, /state\.get_status_activity_icon\(activity\)/);
 	assert.match(member_modal, /state\.get_status_activity_name\(activity\)/);
@@ -64,7 +66,8 @@ test('renders local skill icons and levels while keeping activity in the member 
 	assert.match(member_modal, /state\.format_member_account_age\(state\.selected_guild_member\.account_age\)/);
 	assert.match(member_modal, /state\.format_member_total_skill_level\(state\.selected_guild_member\.total_skill_level\)/);
 	assert.match(member_modal, /<div class="mp-member-shared-stats">[\s\S]*<\/div>/);
-	assert.equal((member_modal.match(/class="mp-member-shared-stat-label"/g) ?? []).length, 3);
+	assert.equal((member_modal.match(/class="mp-member-shared-stat-label"/g) ?? []).length, 4);
+	assert.match(member_modal, /MOD_MP_PAGE_GUILD[\s\S]*state\.selected_guild_member\.guild_name/);
 	assert.match(main, /activity\.area_id === null \? null : game\.combatAreas\?\.getObjectByID\(activity\.area_id\)/);
 	assert.match(main, /is_official_game_id\(area\?\.id\) && area\.media/);
 	assert.doesNotMatch(profile_modal, /qty|quantity|rate|duration|inventory|history/i);
@@ -122,7 +125,6 @@ test('observes status changes without heartbeats and sends bounded partial snaps
 	const watcher = main.slice(main.indexOf('function observe_status_changes'), main.indexOf('function watch_equipment_view_actions'));
 
 	assert.match(capture, /status_activities\.capture_status_activities\(game\)/);
-	assert.match(capture, /status_activities\.capture_primary_status_activity\(game, activities\)/);
 	assert.match(capture, /activities,/);
 	assert.match(main, /function update_local_status_member\(snapshot\)/);
 	assert.match(main, /if \(res\?\.success\) \{[\s\S]*update_local_status_member\(snapshot\);/);
@@ -132,18 +134,14 @@ test('observes status changes without heartbeats and sends bounded partial snaps
 	assert.match(capture, /game\.completion\?\.skillLevelProgress\?\.currentCount\?\.getSum\?\.\(\)/);
 	assert.match(main, /payload\.account_creation_date = snapshot\.account_creation_date/);
 	assert.match(main, /payload\.total_skill_level = snapshot\.total_skill_level/);
-	assert.match(main, /const serialized_skills = state\.skills_visible/);
-	assert.match(main, /const serialized_activity = state\.activity_visible/);
-	assert.match(main, /serialize_status_statistics\(snapshot, state\.skills_visible\)/);
-	assert.match(main, /function status_statistics_sync_allowed\(\)[\s\S]*state\.split_visibility_supported/);
-	assert.match(main, /function status_sync_allowed\(\)[\s\S]*state\.gp_visible/);
-	assert.match(main, /statistics_sync_allowed && serialized_statistics !== last_synced_status_statistics/);
+	assert.match(main, /const serialized_skills = JSON\.stringify\(snapshot\.skills\)/);
+	assert.match(main, /const serialized_statistics = serialize_status_statistics\(snapshot\)/);
+	assert.match(main, /function status_sync_allowed\(\)[\s\S]*return true/);
+	assert.doesNotMatch(main, /statistics_sync_allowed && serialized_statistics/);
 	assert.match(main, /serialized_statistics !== last_synced_status_statistics/);
 	assert.match(main, /serialized_skills !== last_synced_status_skills/);
-	assert.match(main, /serialized_activity !== last_synced_status_activity/);
 	assert.match(main, /serialized_activities !== last_synced_status_activities/);
 	assert.match(main, /STATUS_MIN_SYNC_INTERVAL/);
-	assert.match(main, /status_activity_sync_signature\(activity\)/);
 	assert.match(main, /status_activities_sync_signature\(activities\)/);
 	assert.match(main, /status_sync_in_flight/);
 	assert.match(main, /request_generation !== session_generation/);
@@ -185,6 +183,7 @@ test('collects changed raw GP in the status batch and keeps formatting viewer-lo
 	assert.match(main, /polling\.event_poll_delay\(false, gp_scheduled_checks\)/);
 	assert.match(main, /stop_gp_sampling\(\)/);
 	assert.match(main, /api_post\('\/api\/client\/gp\/visibility'/);
+	assert.doesNotMatch(main, /!state\.gp_visible \|\| polling\.is_foreground/);
 	assert.match(main, /format_shared_gp\(amount\)[^]*Number\.isSafeInteger\(amount\)[^]*formatNumber\(amount\)/);
 	assert.match(member_list, /state\.format_shared_gp\(member\.gp\)/);
 	assert.doesNotMatch(member_list, /formatNumber\(member\.gp\)/);

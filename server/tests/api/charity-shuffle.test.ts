@@ -7,7 +7,13 @@ type Contents = {
 	shuffled_at: number | null;
 	shuffle_count: number;
 	currency_locks: Array<{ currency_id: string; locked_until: number }>;
-	items: Array<{ id: string; qty: number; donated_at: number; expires_at: number }>;
+	items: Array<{
+		id: string;
+		qty: number;
+		donated_at: number;
+		expires_at: number;
+		contributors?: Array<{ client_id: number; icon_id: string }>;
+	}>;
 };
 const contents = async (token: string) => (await get_json_with_session<Contents>('/api/charity/contents', token)).json;
 
@@ -31,6 +37,9 @@ test('shuffle donates once, shares its timestamp and currency lock with siblings
 	expect(bob_state.shuffled_at).toBeGreaterThan(before);
 	expect(bob_state.shuffle_count).toBe(1);
 	expect(bob_state.items.find(i => i.id === 'melvorD:GP')?.qty).toBe(110);
+	expect(bob_state.items.find(i => i.id === 'melvorD:GP')?.contributors).toEqual([
+		{ client_id: bob.client_id, icon_id: bob.icon_id }
+	]);
 	expect(bob_state.currency_locks).toEqual([{ currency_id: 'melvorD:GP', locked_until: result.json.shuffled_at + 14400000 }]);
 	expect((await contents(sibling.session_token)).shuffled_at).toBe(bob_state.shuffled_at);
 	expect((await contents(sibling.session_token)).shuffle_count).toBe(1);
@@ -56,6 +65,9 @@ test('shuffle donates once, shares its timestamp and currency lock with siblings
 	expect(other_currency.json.success).toBe(true);
 	const lucy_take = await post_json<{ success: boolean }>('/api/charity/take', { item_id: 'melvorD:GP', qty: 1 }, lucy.session_token);
 	expect(lucy_take.json.success).toBe(true);
+	expect((await contents(bob.session_token)).items.find(i => i.id === 'melvorD:GP')?.contributors).toEqual([
+		{ client_id: bob.client_id, icon_id: bob.icon_id }
+	]);
 	const wrong_ack = await post('/api/economy/receipts/acknowledge', { receipt_id: command_id }, lucy.session_token);
 	expect(wrong_ack.status).toBe(404);
 	const pending = await get_json_with_session<{ economy_receipts: Array<{ id: string }> }>('/api/events', bob.session_token);

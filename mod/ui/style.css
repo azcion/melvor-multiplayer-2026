@@ -756,6 +756,12 @@ input.form-control[type="number"] {
 	text-align: left;
 }
 
+.mp-chat-conversation-icon {
+	height: 32px;
+	width: 32px;
+	margin: 6px;
+}
+
 .mp-chat-conversation:hover,
 .mp-chat-conversation:focus-visible {
 	background: rgba(255, 255, 255, 0.06);
@@ -897,9 +903,128 @@ input.form-control[type="number"] {
 	width: fit-content;
 }
 
+.mp-chat-message-bubble {
+	position: relative;
+	width: fit-content;
+	max-width: 100%;
+}
+
+.mp-chat-message-own .mp-chat-message-bubble {
+	margin-left: auto;
+}
+
 .mp-chat-message-own .mp-chat-message-content {
 	background: rgba(91, 74, 161, 0.38);
-	margin-left: auto;
+}
+
+.mp-poll-card { margin: 1rem; padding: 1rem; border-radius: .5rem; background: rgba(127, 127, 127, .1); }
+.mp-poll-question { margin: .75rem 0; white-space: pre-wrap; }
+.mp-poll-option { width: 100%; display: flex; justify-content: space-between; gap: .75rem; margin-top: .5rem; padding: .65rem .8rem; border: 1px solid rgba(127, 127, 127, .35); border-radius: .35rem; background: transparent; color: inherit; text-align: left; }
+.mp-poll-option-selected { border-color: #5c80d1; background: rgba(92, 128, 209, .18); }
+.mp-poll-actions, .mp-poll-creator-row { display: flex; gap: .5rem; margin-top: .75rem; }
+.mp-poll-creator { display: grid; gap: .75rem; }
+.mp-poll-creator-row .mp-input-text { flex: 1; }
+
+.mp-chat-reactions {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: .3rem;
+	margin: 2px 0 0 8px;
+}
+
+.mp-chat-reactions-empty {
+	position: absolute;
+	right: -5px;
+	bottom: -8px;
+	margin: 0;
+}
+
+.mp-chat-reaction-summary,
+.mp-chat-reaction-add {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: .3rem;
+	border: 1px solid rgba(72, 155, 217, .52);
+	border-radius: .65rem;
+	background: rgba(18, 37, 55, .88);
+	color: #d7e5ef;
+	font: inherit;
+	line-height: 1;
+}
+
+.mp-chat-reaction-summary:hover,
+.mp-chat-reaction-summary:focus-visible,
+.mp-chat-reaction-add:hover,
+.mp-chat-reaction-add:focus-visible,
+.mp-chat-reaction-reacted {
+	border-color: #29a9ef;
+	background: rgba(30, 112, 164, .55);
+	color: #fff;
+}
+
+.mp-chat-reaction-add {
+	gap: 0;
+	padding: 4px 6px;
+	font-size: 1.05rem;
+}
+
+.mp-chat-reaction-add > span {
+	font-size: .75rem;
+	font-weight: 700;
+}
+
+.mp-chat-reaction-summary {
+	padding: 4px 6px;
+}
+
+.mp-chat-reactions-empty .mp-chat-reaction-add {
+	position: relative;
+	font-size: 10px;
+	padding: 0 2px;
+}
+
+.mp-chat-reactions-empty .mp-chat-reaction-add::before {
+	content: "";
+	position: absolute;
+	inset: -8px;
+}
+
+.mp-chat-reactions-empty .mp-chat-reaction-add > span {
+	font-size: 9px;
+	margin: -1px 0 0 -.5px;
+}
+
+.mp-chat-reaction-picker {
+	position: fixed;
+	z-index: 10000;
+	display: grid;
+	grid-template-columns: repeat(6, 32px);
+	gap: .35rem;
+	padding: 4px;
+	border: 1px solid #29a9ef;
+	border-radius: .8rem;
+	background: rgba(18, 29, 43, .98);
+	box-shadow: 0 .4rem 1rem rgba(0, 0, 0, .45);
+}
+
+.mp-chat-reaction-picker button {
+	width: 32px;
+	height: 32px;
+	padding: 0;
+	border: 1px solid rgba(72, 155, 217, .3);
+	border-radius: 10px;
+	background: rgba(54, 76, 98, .55);
+	font: inherit;
+	font-size: 18px;
+	line-height: 1;
+}
+
+.mp-chat-reaction-picker button:hover,
+.mp-chat-reaction-picker button:focus-visible {
+	border-color: #29a9ef;
+	background: rgba(48, 124, 174, .6);
 }
 
 .mp-chat-compose {
@@ -1161,6 +1286,10 @@ input.form-control[type="number"] {
 
 .mp-guild-new-member-badge {
 	background-color: #269e70;
+}
+
+.mp-guild-cheats-badge {
+	background-color: #8f3030;
 }
 
 .mp-guild-member-rule {
@@ -1755,7 +1884,7 @@ mp-item-slider .noUi-target * {
 	display: inline-block;
 }
 
-div.mp-charitree-timer {
+.mp-charitree-item .mp-charitree-timer {
 	all: unset;
 	position: absolute;
 	top: -2px;
@@ -1767,7 +1896,7 @@ div.mp-charitree-timer {
 	font-size: 9px;
 }
 
-div.mp-charitree-lock {
+.mp-charitree-item .mp-charitree-lock {
 	all: unset;
 	position: absolute;
 	top: 0;
@@ -1776,7 +1905,43 @@ div.mp-charitree-lock {
 	color: #e56767;
 }
 
-div.mp-charitree-wish-progress {
+.mp-charitree-item.mp-charitree-has-avatars .mp-charitree-lock {
+	top: auto;
+	right: 2px;
+	bottom: 2px;
+}
+
+.mp-charitree-item .mp-charitree-avatars {
+	all: unset;
+	position: absolute;
+	right: -2px;
+	top: -2px;
+	z-index: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	align-items: center;
+}
+
+.mp-charitree-avatar {
+	width: 20px;
+	height: 20px;
+	background: #424242;
+	border-radius: 4px;
+	outline: 1px solid #adadad;
+}
+
+.mp-charitree-avatar:nth-child(2) {
+	width: 17px;
+	height: 17px;
+}
+
+.mp-charitree-avatar:nth-child(3) {
+	width: 14px;
+	height: 14px;
+}
+
+.mp-charitree-item .mp-charitree-wish-progress {
 	all: unset;
 	position: absolute;
 	top: -2px;
@@ -1785,6 +1950,7 @@ div.mp-charitree-wish-progress {
 	border-radius: 4px;
 	padding: 1px 4px;
 	font-size: 9px;
+	outline: 1px solid #adadad;
 }
 
 .mp-charitree-wish-ripe .mp-charitree-img {

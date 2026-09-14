@@ -48,7 +48,8 @@ const STATUS_OBSERVER_INTERVAL = 1000;
 const GUILD_STATE_FRESHNESS = 15 * 1000;
 const GUILD_CHAT_CAPABILITY = 'guild-chat-v1';
 const GLOBAL_CHAT_CAPABILITY = 'global-chat-v1';
-const CHAT_CAPABILITIES = GUILD_CHAT_CAPABILITY + ',' + GLOBAL_CHAT_CAPABILITY;
+const POLLS_CAPABILITY = 'polls-v1';
+const CHAT_CAPABILITIES = GUILD_CHAT_CAPABILITY + ',' + GLOBAL_CHAT_CAPABILITY + ',' + POLLS_CAPABILITY;
 const SUPPORT_TEAM_ICON_ASSETS = Object.freeze({
 	multiplayer: 'multiplayer.svg',
 	sae_support: 'sae_support.png'
@@ -151,7 +152,6 @@ let status_sync_in_flight = false;
 let status_sync_pending = false;
 let status_sync_failures = 0;
 let last_synced_status_skills = null;
-let last_synced_status_activity = null;
 let last_synced_status_activities = null;
 let last_synced_status_statistics = null;
 let status_icon_discovery_generation = 0;
@@ -159,7 +159,6 @@ let status_icon_collection_queue = Promise.resolve();
 let last_synced_gp = null;
 let last_status_sync_at = 0;
 let status_observer_timer = null;
-let last_observed_status_activity = null;
 let last_observed_status_activities = null;
 let last_observed_status_statistics = null;
 let gp_sampling_timer = null;
@@ -226,6 +225,8 @@ const state = ui.createStore({
 	TRANSFER_INVENTORY_MAX_LIMIT,
 
 	is_connected: false,
+	multiplayer_unsupported: false,
+	minimum_supported_mod_version: '',
 	is_transfer_page_visible: false,
 	is_updating_transfer_contents: false,
 
@@ -241,7 +242,6 @@ const state = ui.createStore({
 	skills_visibility_pending: false,
 	activity_visible: true,
 	activity_visibility_pending: false,
-	split_visibility_supported: false,
 	gp_visible: true,
 	gp_visibility_pending: false,
 	game_mode_visible: true,
@@ -437,6 +437,20 @@ const state = ui.createStore({
 	chat_drafts: {},
 	chat_pending_sends: {},
 	chat_sending_conversations: {},
+	chat_reaction_choices: ['👍', '👎', '❤️', '😂', '😭', '💀', '👀', '🔥', '💯', '🎉', '🤔', '😮', '😬', '😡', '🗿', '🙏', '👏', '😎'],
+	chat_reaction_revision: null,
+	chat_reaction_picker_message_id: null,
+	chat_reaction_picker_style: {},
+	chat_reaction_pending: {},
+	chat_reaction_throttle_until: {},
+	polls: [],
+	poll_revision: null,
+	poll_can_create: false,
+	poll_creator_content: '',
+	poll_creator_options: [''],
+	poll_creator_poll_id: null,
+	poll_creator_pending: false,
+	poll_vote_throttle_until: {},
 	chat_unread: 0,
 	chat_client_id: null,
 	chat_budget_enabled: true,
@@ -717,6 +731,10 @@ const state = ui.createStore({
 
 	get global_chat_conversations() {
 		return this.chat_conversations.filter(conversation => conversation.conversation_kind === 'global');
+	},
+
+	get polls_chat_conversations() {
+		return this.chat_conversations.filter(conversation => conversation.conversation_kind === 'polls');
 	},
 
 	get guild_chat_conversations() {
@@ -1099,8 +1117,6 @@ function create_action_runtime() {
 		set last_synced_gp(value) { last_synced_gp = value; },
 		get last_synced_status_activities() { return last_synced_status_activities; },
 		set last_synced_status_activities(value) { last_synced_status_activities = value; },
-		get last_synced_status_activity() { return last_synced_status_activity; },
-		set last_synced_status_activity(value) { last_synced_status_activity = value; },
 		get last_synced_status_skills() { return last_synced_status_skills; },
 		set last_synced_status_skills(value) { last_synced_status_skills = value; },
 		get loaded_game_mode_id() { return loaded_game_mode_id; },
@@ -1259,7 +1275,7 @@ function capture_equipment_snapshot() {
 }
 
 function schedule_equipment_sync(delay = EQUIPMENT_SYNC_DELAY) {
-	if (!state.is_connected || !state.equipment_visible)
+	if (!state.is_connected)
 		return;
 	clearTimeout(equipment_sync_timer);
 	equipment_sync_timer = setTimeout(flush_equipment_sync, delay);
@@ -1267,7 +1283,7 @@ function schedule_equipment_sync(delay = EQUIPMENT_SYNC_DELAY) {
 
 async function flush_equipment_sync() {
 	equipment_sync_timer = null;
-	if (!state.is_connected || !state.equipment_visible)
+	if (!state.is_connected)
 		return;
 	if (equipment_sync_in_flight) {
 		equipment_sync_pending = true;
@@ -1334,16 +1350,11 @@ function capture_status_activities() {
 	return status_activities.capture_status_activities(game);
 }
 
-function capture_status_activity(activities = capture_status_activities()) {
-	return status_activities.capture_primary_status_activity(game, activities);
-}
-
 function capture_status_snapshot() {
 	const activities = capture_status_activities();
 	return {
 		skills: capture_status_skills(),
 		...capture_status_statistics(),
-		activity: capture_status_activity(activities),
 		activities,
 		gp: capture_gp()
 	};
@@ -1356,7 +1367,7 @@ function update_local_status_member(snapshot) {
 	const update = member => member.client_id === state.guild_client_id
 		? { ...member,
 			...(state.skills_visible ? { skills_visible: true, skills_available: true } : {}),
-			...(state.activity_visible ? { activity_visible: true, activity_available: true, status_activity: snapshot.activity, status_activities: [...snapshot.activities] } : {}),
+			...(state.activity_visible ? { activity_visible: true, activity_available: true, status_activity: snapshot.activities[0] ?? { type: 'idle' }, status_activities: [...snapshot.activities] } : {}),
 			account_age: snapshot.account_creation_date === null ? null :
 				Math.max(0, Date.now() - snapshot.account_creation_date),
 			total_skill_level: state.skills_visible ? snapshot.total_skill_level : null }
@@ -1422,10 +1433,6 @@ function capture_gp() {
 	return Number.isSafeInteger(amount) && amount >= 0 ? amount : null;
 }
 
-function serialize_status_activity(activity) {
-	return status_activities.status_activity_sync_signature(activity);
-}
-
 function serialize_status_activities(activities) {
 	return status_activities.status_activities_sync_signature(activities);
 }
@@ -1443,11 +1450,7 @@ function format_status_account_age(account_age) {
 }
 
 function status_sync_allowed() {
-	return status_statistics_sync_allowed() || state.gp_visible;
-}
-
-function status_statistics_sync_allowed() {
-	return state.split_visibility_supported || state.skills_visible || state.activity_visible;
+	return true;
 }
 
 function schedule_status_sync(delay = STATUS_SYNC_DELAY, enforce_minimum = true) {
@@ -1469,27 +1472,21 @@ async function flush_status_sync() {
 	}
 
 	const snapshot = capture_status_snapshot();
-	const serialized_skills = state.skills_visible ? JSON.stringify(snapshot.skills) : null;
-	const statistics_sync_allowed = status_statistics_sync_allowed();
-	const serialized_statistics = statistics_sync_allowed
-		? serialize_status_statistics(snapshot, state.skills_visible) : null;
-	const serialized_activity = state.activity_visible ? serialize_status_activity(snapshot.activity) : null;
-	const serialized_activities = state.activity_visible ? serialize_status_activities(snapshot.activities) : null;
+	const serialized_skills = JSON.stringify(snapshot.skills);
+	const serialized_statistics = serialize_status_statistics(snapshot);
+	const serialized_activities = serialize_status_activities(snapshot.activities);
 	const payload = {};
-	if (state.skills_visible && serialized_skills !== last_synced_status_skills)
+	if (serialized_skills !== last_synced_status_skills)
 		payload.skills = snapshot.skills;
-	if (statistics_sync_allowed && serialized_statistics !== last_synced_status_statistics) {
+	if (serialized_statistics !== last_synced_status_statistics) {
 		payload.account_creation_date = snapshot.account_creation_date;
-		if (state.skills_visible)
-			payload.total_skill_level = snapshot.total_skill_level;
+		payload.total_skill_level = snapshot.total_skill_level;
 	}
-	if (selected_api_major === 1 && state.activity_visible && serialized_activity !== last_synced_status_activity)
-		payload.activity = snapshot.activity;
-	if (state.activity_visible && serialized_activities !== last_synced_status_activities)
+	if (serialized_activities !== last_synced_status_activities)
 		payload.activities = snapshot.activities;
-	if (state.gp_visible && snapshot.gp !== null && snapshot.gp !== last_synced_gp)
+	if (snapshot.gp !== null && snapshot.gp !== last_synced_gp)
 		payload.gp = snapshot.gp;
-	if (payload.skills === undefined && payload.account_creation_date === undefined && payload.activity === undefined &&
+	if (payload.skills === undefined && payload.account_creation_date === undefined &&
 		payload.activities === undefined && payload.gp === undefined) {
 		status_sync_failures = 0;
 		return;
@@ -1513,17 +1510,15 @@ async function flush_status_sync() {
 	}
 	if (res?.success) {
 		status_sync_failures = 0;
-		if (payload.skills !== undefined || payload.account_creation_date !== undefined || payload.activity !== undefined ||
-			payload.activities !== undefined)
+		if (payload.skills !== undefined || payload.account_creation_date !== undefined || payload.activities !== undefined)
 			update_local_status_member(snapshot);
 		if (payload.skills !== undefined) {
 			last_synced_status_skills = serialized_skills;
-			queue_status_icon_collection(snapshot.skills);
+			if (state.skills_visible)
+				queue_status_icon_collection(snapshot.skills);
 		}
 		if (payload.account_creation_date !== undefined || payload.total_skill_level !== undefined)
 			last_synced_status_statistics = serialized_statistics;
-		if (payload.activity !== undefined)
-			last_synced_status_activity = serialized_activity;
 		if (payload.activities !== undefined)
 			last_synced_status_activities = serialized_activities;
 		if (payload.gp !== undefined)
@@ -1546,15 +1541,12 @@ function observe_status_changes() {
 		return;
 
 	const snapshot = capture_status_snapshot();
-	const serialized = state.activity_visible ? serialize_status_activity(snapshot.activity) : null;
-	const serialized_activities = state.activity_visible ? serialize_status_activities(snapshot.activities) : null;
-	const serialized_statistics = status_statistics_sync_allowed()
-		? serialize_status_statistics(snapshot, state.skills_visible) : null;
-	if (serialized === last_observed_status_activity && serialized_activities === last_observed_status_activities &&
+	const serialized_activities = serialize_status_activities(snapshot.activities);
+	const serialized_statistics = serialize_status_statistics(snapshot);
+	if (serialized_activities === last_observed_status_activities &&
 		serialized_statistics === last_observed_status_statistics)
 		return;
 
-	last_observed_status_activity = serialized;
 	last_observed_status_activities = serialized_activities;
 	last_observed_status_statistics = serialized_statistics;
 	schedule_status_sync();
@@ -1573,14 +1565,13 @@ function stop_status_observer() {
 	if (status_observer_timer !== null)
 		clearInterval(status_observer_timer);
 	status_observer_timer = null;
-	last_observed_status_activity = null;
 	last_observed_status_activities = null;
 	last_observed_status_statistics = null;
 }
 
 function start_gp_sampling(count_initial_check = false) {
 	stop_gp_sampling();
-	if (!state.is_connected || !state.gp_visible || !polling.is_foreground(document))
+	if (!state.is_connected || !polling.is_foreground(document))
 		return;
 	const sampling_id = gp_sampling_id;
 	sample_gp(sampling_id, count_initial_check);
@@ -1593,7 +1584,7 @@ function stop_gp_sampling() {
 }
 
 function sample_gp(sampling_id, scheduled_check = true) {
-	if (sampling_id !== gp_sampling_id || !state.is_connected || !state.gp_visible || !polling.is_foreground(document))
+	if (sampling_id !== gp_sampling_id || !state.is_connected || !polling.is_foreground(document))
 		return;
 	if (scheduled_check)
 		gp_scheduled_checks++;
@@ -1902,7 +1893,7 @@ async function request_social_mode(next) {
 	const command_id = saved_command_id ?? crypto.randomUUID();
 	set_instance_storage_item(storage_key, command_id);
 	try {
-		const result = await api_post('/api/social-mode/set', { mode: next, command_id }, saved_command_id === undefined ? selected_api_major : 1);
+		const result = await api_post('/api/social-mode/set', { mode: next, command_id });
 		if (result?.success !== true || !await reconcile_economy_receipts([result.receipt])) {
 			notify_error('MOD_MP_SOCIAL_MODE_CANCEL_FAILED');
 			return false;
@@ -2364,7 +2355,7 @@ function watch_chat_nav() {
 
 function update_charitree_nav() {
 	const nav_item = sidebar.category('Multiplayer').item('multiplayer:Charity_Tree');
-	nav_item.rootEl?.classList.toggle('mp-nav-unavailable', !state.is_charitree_enabled);
+	nav_item.rootEl?.classList.toggle('mp-nav-unavailable', state.multiplayer_unsupported || !state.is_charitree_enabled);
 
 	const aside = document.querySelector('.mp-charity-nav');
 	if (!aside)
@@ -2392,6 +2383,8 @@ function update_charitree_nav() {
 
 function update_multiplayer_nav() {
 	const multiplayer_category = sidebar.category('Multiplayer');
+	for (const page_id of ['Guild', 'Transfer_Items', 'Charity_Tree', 'Multiplayer_Market', 'Campaign_Effort', 'Guild_Raid'])
+		multiplayer_category.item('multiplayer:' + page_id).rootEl?.classList.toggle('mp-nav-unavailable', state.multiplayer_unsupported);
 	const guild_aside = document.querySelector('.mp-guild-nav');
 	if (guild_aside !== null) {
 		const ready = state.guild_state_loaded;
@@ -2409,12 +2402,12 @@ function update_multiplayer_nav() {
 
 	for (const page_id of ['Multiplayer_Market', 'Campaign_Effort', 'Guild_Raid']) {
 		const nav_item = multiplayer_category.item('multiplayer:' + page_id);
-		nav_item.rootEl?.classList.toggle('mp-nav-unavailable', !state.is_guild_member ||
+		nav_item.rootEl?.classList.toggle('mp-nav-unavailable', state.multiplayer_unsupported || !state.is_guild_member ||
 			(state.is_social_only && page_id !== 'Guild_Raid'));
 	}
 
 	const transfer_nav_item = multiplayer_category.item('multiplayer:Transfer_Items');
-	transfer_nav_item.rootEl?.classList.toggle('mp-nav-unavailable', !state.has_transfer_access);
+	transfer_nav_item.rootEl?.classList.toggle('mp-nav-unavailable', state.multiplayer_unsupported || !state.has_transfer_access);
 	update_charitree_nav();
 }
 // #endregion
@@ -3098,18 +3091,68 @@ let client_events_hydrated = false;
 let selected_api_major = null;
 let legacy_market_payout_migration_started = false;
 
+function unsupported_support_conversation(minimum_supported_mod_version) {
+	const created_at = Date.now();
+	const message = {
+		message_id: -1, conversation_id: -1, sender_id: null,
+		sender: { display_name: getLangString('MOD_MP_CHAT_CATEGORY_SUPPORT'), icon_id: 'multiplayer' },
+		content: getLangString('MOD_MP_UNSUPPORTED_VERSION_MESSAGE'), created_at,
+		author_side: 'team', sent_by_viewer: false, reactions: []
+	};
+	return {
+		conversation_kind: 'support', conversation_id: -1, support_team_id: -1, viewer_side: 'player',
+		synthetic_unsupported: true,
+		participant: { client_id: null, display_name: getLangString('MOD_MP_CHAT_CATEGORY_SUPPORT'), icon_id: 'multiplayer' },
+		created_at, latest_message: message, unread_count: 1, blocked: false, minimum_supported_mod_version
+	};
+}
+
+function enter_unsupported_multiplayer(minimum_supported_mod_version) {
+	if (!client_runtime.is_mod_version_unsupported(MOD_VERSION, minimum_supported_mod_version))
+		return false;
+	state.multiplayer_unsupported = true;
+	state.minimum_supported_mod_version = minimum_supported_mod_version;
+	state.is_connected = false;
+	economy_commands_ready = false;
+	client_event_poll_id++;
+	stop_chat_polling();
+	stop_gp_sampling();
+	stop_status_observer();
+	clearTimeout(status_sync_timer);
+	status_sync_timer = null;
+	clearTimeout(equipment_sync_timer);
+	equipment_sync_timer = null;
+	const conversation = unsupported_support_conversation(minimum_supported_mod_version);
+	state.chat_conversations = [conversation];
+	state.chat_unread = 1;
+	if (state.selected_chat_conversation?.synthetic_unsupported === true) {
+		state.selected_chat_conversation = conversation;
+		state.chat_messages = [conversation.latest_message];
+	}
+	if (interface_ready) {
+		update_chat_nav();
+		update_multiplayer_nav();
+	}
+	return true;
+}
+
 async function discover_api_contract() {
 	const origin = server_host;
 	const generation = session_generation;
 	selected_api_major = null;
+	let minimum_supported_mod_version = null;
 	const major = await polling.fetch_with_timeout(fetch, origin + '/api/versions', { method: 'GET' }, {
 		observe: entry => transport_diagnostics?.record(entry),
-		consume: async response => api_contract.select_api_major(response.status,
-			response.status === 200 ? await response.json() : null)
+		consume: async response => {
+			const body = response.status === 200 ? await response.json() : null;
+			minimum_supported_mod_version = body?.minimum_supported_mod_version ?? null;
+			return api_contract.select_api_major(response.status, body);
+		}
 	});
 	if (origin !== server_host || generation !== session_generation)
 		throw new Error('Stale API discovery');
 	selected_api_major = major;
+	enter_unsupported_multiplayer(minimum_supported_mod_version);
 }
 
 function resolve_api_endpoint(endpoint, major = selected_api_major) {
@@ -3122,6 +3165,8 @@ function cache_bust_api_endpoint(endpoint) {
 }
 
 async function api_get(endpoint) {
+	if (state.multiplayer_unsupported)
+		return null;
 	const request_generation = session_generation;
 	try {
 		if (selected_api_major === null) await discover_api_contract();
@@ -3134,8 +3179,10 @@ async function api_get(endpoint) {
 			observe: entry => transport_diagnostics?.record(entry),
 			consume: async res => {
 				handle_session_response(res, request_generation);
-				const json = res.status === 200 ? await res.json() : null;
-				return request_generation === session_generation ? json : null;
+				const json = res.headers.get('Content-Type')?.includes('application/json') ? await res.json() : null;
+				if (res.status === 426)
+					enter_unsupported_multiplayer(json?.minimum_supported_mod_version);
+				return res.status === 200 && request_generation === session_generation ? json : null;
 			}
 		});
 	} catch (e) {
@@ -3145,12 +3192,16 @@ async function api_get(endpoint) {
 }
 
 async function api_post_response(endpoint, payload, request_session_token = session_token, major = selected_api_major) {
+	if (state.multiplayer_unsupported)
+		return { response: null, json: null };
 	if (payload?.command_id !== undefined && economy_command_journal)
 		return economy_command_journal.run(endpoint, payload, major);
 	return api_post_response_raw(endpoint, payload, request_session_token, major);
 }
 
 async function api_post_response_raw(endpoint, payload, request_session_token = session_token, major = selected_api_major) {
+	if (state.multiplayer_unsupported)
+		return { response: null, json: null };
 	const request_generation = session_generation;
 	try {
 		return await polling.fetch_with_timeout(fetch, server_host + resolve_api_endpoint(endpoint, major), {
@@ -3167,6 +3218,8 @@ async function api_post_response_raw(endpoint, payload, request_session_token = 
 				let json = null;
 				if (res.headers.get('Content-Type')?.includes('application/json'))
 					json = await res.json();
+				if (res.status === 426)
+					enter_unsupported_multiplayer(json?.minimum_supported_mod_version);
 				if (request_generation !== session_generation) return { response: null, json: null };
 				return { response: res, json };
 			}
@@ -3178,6 +3231,8 @@ async function api_post_response_raw(endpoint, payload, request_session_token = 
 }
 
 async function api_post_binary_response(endpoint, bytes, media_type, upload_token) {
+	if (state.multiplayer_unsupported)
+		return { response: null, json: null };
 	const request_generation = session_generation;
 	try {
 		return await polling.fetch_with_timeout(fetch, server_host + resolve_api_endpoint(endpoint), {
@@ -3195,6 +3250,8 @@ async function api_post_binary_response(endpoint, bytes, media_type, upload_toke
 				let json = null;
 				if (res.headers.get('Content-Type')?.includes('application/json'))
 					json = await res.json();
+				if (res.status === 426)
+					enter_unsupported_multiplayer(json?.minimum_supported_mod_version);
 				return request_generation === session_generation ? { response: res, json } : { response: null, json: null };
 			}
 		});
@@ -3333,17 +3390,23 @@ function queue_default_avatar_notice() {
 		queue_identity_notice('default_avatar');
 }
 
+function check_released_mod_version(released_mod_version) {
+	if (release_notice_shown || !client_runtime.is_mod_version_outdated(MOD_VERSION, released_mod_version))
+		return;
+	release_notice_shown = true;
+	state.released_mod_version = released_mod_version;
+	queue_identity_notice('outdated_version');
+}
+
 function set_session_token(token) {
 	session_token = token;
 	session_generation++;
 	state.is_connected = true;
 	last_synced_equipment = null;
 	last_synced_status_skills = null;
-	last_synced_status_activity = null;
 	last_synced_status_activities = null;
 	last_synced_status_statistics = null;
 	last_synced_gp = null;
-	last_observed_status_activity = null;
 	last_observed_status_activities = null;
 	last_observed_status_statistics = null;
 	last_status_sync_at = 0;
@@ -3377,6 +3440,16 @@ async function refresh_chat_conversations() {
 	if (!Array.isArray(res?.conversations))
 		return;
 	state.chat_conversations = res.conversations;
+	const polls = await api_get('/api/polls?capabilities=' + POLLS_CAPABILITY);
+	if (Array.isArray(polls?.polls)) {
+		state.polls = polls.polls;
+		state.poll_revision = polls.revision;
+		state.poll_can_create = polls.can_create === true;
+		state.chat_conversations.push({ conversation_kind: 'polls', conversation_id: 1,
+			participant: { client_id: null, display_name: getLangString('MOD_MP_POLLS_TITLE'), icon_id: 'multiplayer' },
+			created_at: state.polls.at(-1)?.created_at ?? 0, latest_message: state.polls.at(-1) ?? null,
+			unread_count: 0, blocked: false });
+	}
 	state.global_chat_enabled = res.global_chat?.enabled !== false;
 	state.guild_chat_state = res.guild_chat ?? { affiliated: false, enabled: state.guild_chat_enabled };
 	state.guild_chat_enabled = state.guild_chat_state.enabled !== false;
@@ -3436,6 +3509,18 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 	if (!conversation || (state.chat_messages_loading && !quiet))
 		return false;
 	const kind = conversation.conversation_kind ?? 'private';
+	if (kind === 'polls') {
+		const after = quiet && Number.isSafeInteger(state.poll_revision) ? '&after=' + state.poll_revision : '';
+		const res = await api_get('/api/polls?capabilities=' + POLLS_CAPABILITY + after);
+		if (!Array.isArray(res?.polls)) return false;
+		for (const poll of res.polls) {
+			const index = state.polls.findIndex(entry => entry.poll_id === poll.poll_id);
+			if (index < 0) state.polls.push(poll); else state.polls[index] = poll;
+		}
+		state.poll_revision = res.revision;
+		state.poll_can_create = res.can_create === true;
+		return true;
+	}
 	if (kind === 'private' && conversation.conversation_id === null)
 		return false;
 	const conversation_id = conversation.conversation_id;
@@ -3448,9 +3533,12 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 			? '' : '&conversation_id=' + conversation.conversation_id;
 		const team_parameter = conversation.support_team_id === undefined
 			? '' : '&support_team_id=' + conversation.support_team_id;
-		const capability_parameter = kind === 'global' ? '&capabilities=' + GLOBAL_CHAT_CAPABILITY : '';
+		const capability_parameter = kind === 'global' ? '&capabilities=' + GLOBAL_CHAT_CAPABILITY :
+			kind === 'poll-discussion' ? '&capabilities=' + POLLS_CAPABILITY : '';
+		const reaction_parameter = Number.isSafeInteger(state.chat_reaction_revision)
+			? '&reaction_after=' + state.chat_reaction_revision : '';
 		res = await api_get('/api/chat/messages?conversation_kind=' + kind + conversation_parameter + team_parameter +
-			cursor + capability_parameter);
+			cursor + reaction_parameter + capability_parameter);
 		if (view_generation !== chat_view_generation ||
 			state.selected_chat_conversation?.conversation_id !== conversation_id ||
 			state.selected_chat_conversation?.support_team_id !== conversation.support_team_id)
@@ -3458,6 +3546,20 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 		if (Array.isArray(res?.messages)) {
 			const known = new Set(state.chat_messages.map(message => message.message_id));
 			const additions = res.messages.filter(message => !known.has(message.message_id));
+			const should_scroll_for_additions = quiet && additions.length > 0 && state.chat_messages_are_at_bottom();
+			if (Array.isArray(res.reaction_updates)) {
+				for (const update of res.reaction_updates) {
+					const message = state.chat_messages.find(entry => entry.message_id === update?.message_id);
+					if (message && Number.isSafeInteger(update.reaction_revision) && Array.isArray(update.reactions) &&
+						update.reaction_revision >= (message.reaction_revision ?? 0)) {
+						message.reactions = update.reactions;
+						message.reaction_revision = update.reaction_revision;
+					}
+				}
+			}
+			if (Number.isSafeInteger(res.reaction_revision) &&
+				res.reaction_revision >= (state.chat_reaction_revision ?? 0))
+				state.chat_reaction_revision = res.reaction_revision;
 			if (res.messages.length > 0 && (prepend || (cursor === '' && state.chat_before_cursor === null)))
 				state.chat_before_cursor = res.messages[0].message_id;
 			state.chat_messages = prepend
@@ -3467,6 +3569,8 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 				state.chat_has_more = res.has_more === true;
 			if (additions.length > 0)
 				await refresh_chat_conversations();
+			if (should_scroll_for_additions)
+				await state.scroll_chat_messages_to_bottom();
 		} else if (!quiet) {
 			state.chat_error = getLangString(res?.error_lang ?? 'MOD_MP_CHAT_LOAD_FAILED');
 		}
@@ -3481,6 +3585,8 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 }
 
 async function refresh_chat_page() {
+	if (!state.is_connected)
+		return;
 	const view_generation = ++chat_view_generation;
 	state.chat_loading = true;
 	try {
@@ -3581,10 +3687,10 @@ async function refresh_guild_state_request() {
 		state.guild_client_id = res.current_client_id ?? null;
 		state.guild_members = prioritize_current_guild_member((res.members ?? []).map(member => ({
 			...member,
-			skills_visible: member.skills_visible !== undefined ? member.skills_visible === true : member.status_visible !== false,
-			skills_available: member.skills_available !== undefined ? member.skills_available === true : member.status_available === true,
-			activity_visible: member.activity_visible !== undefined ? member.activity_visible === true : member.status_visible !== false,
-			activity_available: member.activity_available !== undefined ? member.activity_available === true : member.status_available === true,
+			skills_visible: member.skills_visible === true,
+			skills_available: member.skills_available === true,
+			activity_visible: member.activity_visible === true,
+			activity_available: member.activity_available === true,
 			status_activity: member.status_activity ?? null,
 			status_activities: Array.isArray(member.status_activities) ? member.status_activities : [],
 			account_age: Number.isSafeInteger(member.account_age) && member.account_age >= 0 ? member.account_age : null,
@@ -3646,10 +3752,10 @@ async function refresh_guild_members(page = 0, search = state.guild_member_searc
 		if (res !== null) {
 			const members = (res.members ?? []).map(member => ({
 				...member,
-				skills_visible: member.skills_visible !== undefined ? member.skills_visible === true : member.status_visible !== false,
-				skills_available: member.skills_available !== undefined ? member.skills_available === true : member.status_available === true,
-				activity_visible: member.activity_visible !== undefined ? member.activity_visible === true : member.status_visible !== false,
-				activity_available: member.activity_available !== undefined ? member.activity_available === true : member.status_available === true,
+				skills_visible: member.skills_visible === true,
+				skills_available: member.skills_available === true,
+				activity_visible: member.activity_visible === true,
+				activity_available: member.activity_available === true,
 				status_activity: member.status_activity ?? null,
 				status_activities: Array.isArray(member.status_activities) ? member.status_activities : [],
 				account_age: Number.isSafeInteger(member.account_age) && member.account_age >= 0 ? member.account_age : null,
@@ -3732,6 +3838,13 @@ function get_guild_activity_arg_3(event) {
 
 function format_guild_activity_time(created_at) {
 	return new Date(created_at).toLocaleString();
+}
+
+function get_guild_established_days() {
+	const established_at = state.guild_state.guild?.established_at;
+	if (!Number.isSafeInteger(established_at) || established_at < 0)
+		return null;
+	return Math.floor(Math.max(0, Date.now() - established_at) / (24 * 60 * 60 * 1000));
 }
 
 async function refresh_shadowed_members(page = 0, search = state.shadowed_member_search, append = false) {
@@ -3916,6 +4029,9 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 		: '/api/events?capabilities=' + CHAT_CAPABILITIES;
 	const res = await api_get(endpoint);
 	if (res !== null && request_generation === session_generation) {
+		if (enter_unsupported_multiplayer(res.minimum_supported_mod_version))
+			return res;
+		check_released_mod_version(res.released_mod_version);
 		if (res.unchanged === true) {
 			void economy_command_journal?.recover();
 			return res;
@@ -3941,7 +4057,7 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 		event_snapshots.reconcile_event_transfers(state, res);
 		if (res.social_mode === social_mode.SOCIAL_MODE_FULL || res.social_mode === social_mode.SOCIAL_MODE_SOCIAL) {
 			state.social_mode = res.social_mode;
-			state.social_mode_enforcement = res.social_mode_enforcement === 'identity' || res.social_mode_enforcement === 'account'
+			state.social_mode_enforcement = ['identity', 'account', 'guild'].includes(res.social_mode_enforcement)
 				? res.social_mode_enforcement : null;
 			set_instance_storage_item('social_mode', state.social_mode);
 		}
@@ -4138,7 +4254,8 @@ export async function setup(ctx) {
 			get_guild_activity_arg_2,
 			get_guild_activity_arg_3,
 			format_guild_activity_time,
-			set_updates_mobile_tab
+			set_updates_mobile_tab,
+			get_guild_established_days
 		},
 		install_common_actions(action_runtime),
 		install_chat_actions(action_runtime),
@@ -4286,7 +4403,7 @@ export async function setup(ctx) {
 			}, true);
 			on_page_toggle('mp-chat-page', is_visible => {
 				chat_page_visible = is_visible;
-				if (is_visible) {
+				if (is_visible && state.is_connected) {
 					void get_client_events();
 					void refresh_chat_page();
 				} else {
@@ -4444,10 +4561,15 @@ function is_multiplayer_game_id(id) {
 	return separator > 0 && id.slice(0, separator) === MULTIPLAYER_GAME_NAMESPACE;
 }
 
+function is_question_mark_media(media) {
+	return typeof media === 'string' && /(?:^|\/)assets\/media\/main\/question\.png(?:[?#]|$)/i.test(media);
+}
+
 function make_avatar_icon(icon_object, allow_multiplayer = false) {
 	if ((!is_official_game_id(icon_object?.id) && !(allow_multiplayer && is_multiplayer_game_id(icon_object?.id))) ||
 		typeof icon_object.name !== 'string' ||
-		typeof icon_object.media !== 'string')
+		typeof icon_object.media !== 'string' ||
+		is_question_mark_media(icon_object.media))
 		return null;
 	return {
 		id: icon_object.id,
@@ -4493,7 +4615,7 @@ function setup_guild_icons() {
 			search_name: area.name.toLowerCase(),
 			media: area.media
 		};
-	}).filter(icon => is_official_game_id(icon.id));
+	}).filter(icon => is_official_game_id(icon.id) && !is_question_mark_media(icon.media));
 }
 
 const BANK_ACTION_TITLE_LANG_IDS = {
@@ -4538,6 +4660,8 @@ function update_bank_action_modal_header(mode) {
 }
 
 function show_bank_actions_modal() {
+	if (state.multiplayer_unsupported)
+		return;
 	if (!state.is_guild_member)
 		return notify_error('MOD_MP_GUILD_REQUIRED');
 
@@ -4705,12 +4829,16 @@ async function start_multiplayer_session() {
 
 	is_connecting = true;
 	state.is_connected = false;
+	state.multiplayer_unsupported = false;
+	state.minimum_supported_mod_version = '';
 	session_generation++;
 	economy_commands_ready = false;
 	economy_command_journal = null;
 	try {
 		const melvor_cloud_manager = typeof cloudManager === 'undefined' ? globalThis.cloudManager : cloudManager;
 		await discover_api_contract();
+		if (state.multiplayer_unsupported)
+			return;
 		const account = identity_bindings.read_melvor_account(melvor_cloud_manager, globalThis.localStorage);
 		const stored_bindings = get_instance_storage_item('identity_bindings');
 		const normalized_bindings = identity_bindings.normalize_identity_bindings(stored_bindings);
@@ -4745,6 +4873,8 @@ async function start_multiplayer_session() {
 		});
 		if (auth.response?.status === 200 && auth.json !== null &&
 			api_contract.validate_api_bootstrap(auth.json, selected_api_major)) {
+			if (enter_unsupported_multiplayer(auth.json.minimum_supported_mod_version))
+				return;
 			if (account !== null)
 				store_account_identity_binding(account, { ...credentials, friend_code: auth.json.friend_code });
 			activate_multiplayer_identity(auth.json);
@@ -4798,6 +4928,8 @@ async function register_multiplayer_identity(account, account_changed) {
 		error('failed to register client (%s), multiplayer features not available', registration.response?.status ?? 'transport');
 		return false;
 	}
+	if (enter_unsupported_multiplayer(registration.json.minimum_supported_mod_version))
+		return false;
 
 	const credentials = {
 		client_identifier: registration.json.client_identifier,
@@ -4827,6 +4959,8 @@ async function enroll_current_installation(response, client_identifier) {
 }
 
 function activate_multiplayer_identity(response) {
+	if (enter_unsupported_multiplayer(response.minimum_supported_mod_version))
+		return;
 	connected_backend_version = Number.isSafeInteger(response.backend_version) ? response.backend_version : null;
 	set_session_token(response.session_token);
 	economy_commands_ready = false;
@@ -4861,14 +4995,12 @@ function activate_multiplayer_identity(response) {
 	state.charity_server_supported = false;
 	apply_charity_state(response.charity);
 	state.social_mode = social_mode.normalize_social_mode(response.social_mode);
-	state.social_mode_enforcement = response.social_mode_enforcement === 'identity' || response.social_mode_enforcement === 'account'
+	state.social_mode_enforcement = ['identity', 'account', 'guild'].includes(response.social_mode_enforcement)
 		? response.social_mode_enforcement : null;
 	set_instance_storage_item('social_mode', state.social_mode);
 	state.equipment_visible = response.equipment_visible !== false;
-	const legacy_status_visible = response.status_visible !== false;
-	state.split_visibility_supported = typeof response.skills_visible === 'boolean' && typeof response.activity_visible === 'boolean';
-	state.skills_visible = state.split_visibility_supported ? response.skills_visible : legacy_status_visible;
-	state.activity_visible = state.split_visibility_supported ? response.activity_visible : legacy_status_visible;
+	state.skills_visible = response.skills_visible !== false;
+	state.activity_visible = response.activity_visible !== false;
 	invalidate_status_icon_collection();
 	state.gp_visible = response.gp_visible !== false;
 	state.game_mode_visible = response.game_mode_visible !== false;
@@ -4879,11 +5011,7 @@ function activate_multiplayer_identity(response) {
 	state.guild_chat_state = { affiliated: false, enabled: state.guild_chat_enabled };
 	state.chat_client_id = response.chat?.client_id ?? null;
 	state.chat_budget_enabled = response.chat?.budget_enabled !== false;
-	if (!release_notice_shown && client_runtime.is_mod_version_outdated(MOD_VERSION, response.released_mod_version)) {
-		release_notice_shown = true;
-		state.released_mod_version = response.released_mod_version;
-		queue_identity_notice('outdated_version');
-	}
+	check_released_mod_version(response.released_mod_version);
 	if (response.chat?.budget)
 		state.chat_budget = response.chat.budget;
 	if (state.social_mode_enforcement !== null)
@@ -4896,6 +5024,8 @@ function activate_multiplayer_identity(response) {
 	start_gp_sampling(true);
 	start_status_observer();
 	start_client_event_polling(true);
+	if (chat_page_visible)
+		void refresh_chat_page();
 	void refresh_guild_state().then(() => request_charity_tree_contents());
 	void raid_combat?.flush();
 	void refresh_raid_state();

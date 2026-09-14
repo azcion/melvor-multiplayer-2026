@@ -13,7 +13,9 @@ export const PETITION_TYPES = [
 	'charitree_sacrilege',
 	'charitree_beneficence',
 	'fellowship',
-	'enclosure'
+	'enclosure',
+	'interdict',
+	'heresy'
 ] as const;
 export const PETITION_CHOICES = ['aye', 'nay'] as const;
 
@@ -57,6 +59,8 @@ export function get_petition_conflict_subject(type: PetitionType, target_members
 		return 'guild:charitree';
 	if (type === 'fellowship' || type === 'enclosure')
 		return 'guild:admission';
+	if (type === 'interdict' || type === 'heresy')
+		return 'guild:cheat-policy';
 	if (type === 'winnowing')
 		return 'guild:winnowing';
 	if (!Number.isSafeInteger(target_membership_id) || (target_membership_id as number) < 1)

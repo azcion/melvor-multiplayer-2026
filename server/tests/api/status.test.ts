@@ -23,7 +23,7 @@ async function sync_status(
 ) {
 	return post_json<{ success?: boolean; error_lang?: string }>(
 		'/api/client/status/sync',
-		{ skills, activity, ...(activities === undefined ? {} : { activities }), ...(statistics ?? {}) },
+		{ skills, activities: activities ?? (activity.type === 'idle' ? [] : [activity]), ...(statistics ?? {}) },
 		session_token
 	);
 }
@@ -56,8 +56,6 @@ describe('player status API', () => {
 		const state = await get_json_with_session<{
 			members: Array<{
 				client_id: number;
-				status_visible: boolean;
-				status_available: boolean;
 				status_activity: StatusActivity | null;
 				status_activities: StatusActiveActivity[];
 			}>;
@@ -72,8 +70,6 @@ describe('player status API', () => {
 			activities
 		});
 		expect(owner).toMatchObject({
-			status_visible: true,
-			status_available: true,
 			status_activity: activity,
 			status_activities: activities
 		});
@@ -86,7 +82,7 @@ describe('player status API', () => {
 			type: 'skill', skill_id: 'melvorD:Woodcutting', action_id: 'melvorD:Oak'
 		});
 		const activity_only = await post_json<{ success: boolean }>('/api/client/status/sync', {
-			activity: { type: 'combat', area_id: 'melvorD:Volcanic_Cave' }
+			activities: [{ type: 'combat', area_id: 'melvorD:Volcanic_Cave' }]
 		}, pair.first.session_token);
 		const after_activity = await get_status(pair.second.session_token, pair.first_id);
 		const activities: StatusActiveActivity[] = [
@@ -108,11 +104,11 @@ describe('player status API', () => {
 		expect(after_activity.json.activity).toEqual({ type: 'combat', area_id: 'melvorD:Volcanic_Cave' });
 		expect(after_activity.json.activities).toEqual([{ type: 'combat', area_id: 'melvorD:Volcanic_Cave' }]);
 		expect(activities_only.json.success).toBe(true);
-		expect(after_activities.json.activity).toEqual({ type: 'combat', area_id: 'melvorD:Volcanic_Cave' });
+		expect(after_activities.json.activity).toEqual({ type: 'skill', skill_id: 'melvorD:Astrology', action_id: 'melvorD:Aries' });
 		expect(after_activities.json.activities).toEqual(activities);
 		expect(skills_only.json.success).toBe(true);
 		expect(after_skills.json.skills).toEqual([{ skill_id: 'melvorD:Attack', level: 43 }]);
-		expect(after_skills.json.activity).toEqual({ type: 'combat', area_id: 'melvorD:Volcanic_Cave' });
+		expect(after_skills.json.activity).toEqual({ type: 'skill', skill_id: 'melvorD:Astrology', action_id: 'melvorD:Aries' });
 		expect(after_skills.json.activities).toEqual(activities);
 		expect(empty.status).toBe(400);
 	});
@@ -151,7 +147,7 @@ describe('player status API', () => {
 		expect(directory_owner?.account_age).toBeLessThanOrEqual(maximum_age);
 
 		const activity_only = await post_json<{ success: boolean }>('/api/client/status/sync', {
-			activity: { type: 'combat', area_id: 'melvorD:Volcanic_Cave' }
+			activities: [{ type: 'combat', area_id: 'melvorD:Volcanic_Cave' }]
 		}, pair.first.session_token);
 		const after_partial = await get_json_with_session<{
 			members: Array<{ client_id: number; account_age: number | null; total_skill_level: number | null }>;
@@ -208,7 +204,7 @@ describe('player status API', () => {
 		expect(skills_disabled.json).toEqual({ success: true, visible: false });
 		expect(skills_hidden_owner).toMatchObject({
 			skills_visible: false,
-			skills_available: false,
+			skills_available: true,
 			activity_visible: true,
 			activity_available: true,
 			status_activity: { type: 'skill', skill_id: 'melvorD:Mining', action_id: 'melvorD:Ore' },
@@ -226,7 +222,7 @@ describe('player status API', () => {
 		});
 	});
 
-	test('rejects malformed shared statistics and hides them after status opt-out', async () => {
+	test('rejects malformed shared statistics and masks them after status opt-out', async () => {
 		const pair = await make_guildmates('Invalid Statistics Owner', 'Invalid Statistics Viewer');
 		for (const body of [
 			{ account_creation_date: 0 },
@@ -245,8 +241,9 @@ describe('player status API', () => {
 			total_skill_level: 2_000
 		});
 		const disabled = await post_json<{ success: boolean; visible: boolean }>(
-			'/api/client/status/visibility', { visible: false }, pair.first.session_token
+			'/api/client/skills/visibility', { visible: false }, pair.first.session_token
 		);
+		await post('/api/client/activity/visibility', { visible: false }, pair.first.session_token);
 		const hidden_state = await get_json_with_session<{
 			members: Array<{ client_id: number; account_age: number | null; total_skill_level: number | null }>;
 		}>('/api/guilds/state', pair.second.session_token);
@@ -256,7 +253,7 @@ describe('player status API', () => {
 		expect(hidden).toMatchObject({ account_age: null, total_skill_level: null });
 		expect(await db_all<{ client_id: number }>(
 			'SELECT `client_id` FROM `status_snapshots` WHERE `client_id` = ?', [pair.first_id]
-		)).toEqual([]);
+		)).toEqual([{ client_id: pair.first_id }]);
 	});
 
 	test('shares raw GP and authenticated last-seen activity with current Guild members', async () => {
@@ -302,7 +299,7 @@ describe('player status API', () => {
 		});
 	});
 
-	test('defaults GP sharing on and deletes the snapshot on opt-out', async () => {
+	test('defaults GP sharing on and continues collecting while opt-out masks the snapshot', async () => {
 		const pair = await make_guildmates('GP Visibility Owner', 'GP Visibility Viewer');
 		await post_json('/api/client/status/sync', { gp: 50_000 }, pair.first.session_token);
 
@@ -314,7 +311,7 @@ describe('player status API', () => {
 		const hidden_state = await get_json_with_session<{
 			members: Array<{ client_id: number; gp_visible: boolean; gp: number | null }>;
 		}>('/api/guilds/state', pair.second.session_token);
-		const rejected = await post_json<{ error_lang: string }>(
+		const saved_while_hidden = await post_json<{ success: boolean }>(
 			'/api/client/status/sync',
 			{ gp: 60_000 },
 			pair.first.session_token
@@ -325,11 +322,16 @@ describe('player status API', () => {
 			pair.first.session_token
 		);
 		const hidden_owner = hidden_state.json.members.find(member => member.client_id === pair.first_id);
+		const visible_after_reenable = await get_json_with_session<{
+			members: Array<{ client_id: number; gp_visible: boolean; gp: number | null }>;
+		}>('/api/guilds/state', pair.second.session_token);
+		const visible_owner = visible_after_reenable.json.members.find(member => member.client_id === pair.first_id);
 
 		expect(disabled.json).toEqual({ success: true, visible: false });
 		expect(hidden_owner).toMatchObject({ gp_visible: false, gp: null });
-		expect(rejected.json.error_lang).toBe('MOD_MP_GP_SHARING_DISABLED');
+		expect(saved_while_hidden.json.success).toBe(true);
 		expect(enabled.json).toEqual({ success: true, visible: true });
+		expect(visible_owner).toMatchObject({ gp_visible: true, gp: 60_000 });
 	});
 
 	test('shares the latest game mode by default and preserves the runtime snapshot on opt-out', async () => {
@@ -478,6 +480,38 @@ describe('player status API', () => {
 		expect(member).toMatchObject({ status_activity: activity, status_activities: [activity] });
 	});
 
+	test('shows recent cheat use in both Guild rosters independently of active-mod sharing', async () => {
+		const pair = await make_guildmates('Cheat Badge Owner', 'Cheat Badge Viewer');
+		const seven_days = 7 * 24 * 60 * 60 * 1000;
+		const now = Date.now();
+		await db_run(
+			'UPDATE `clients` SET `cheats_detected_at` = ?, `active_mods_visible` = 0 WHERE `id` = ?',
+			[now - seven_days + 60_000, pair.first_id]
+		);
+
+		const state = await get_json_with_session<{
+			members: Array<{ client_id: number; using_cheats: boolean; active_mods_visible: boolean }>;
+		}>('/api/guilds/state', pair.second.session_token);
+		const directory = await get_json_with_session<{
+			members: Array<{ client_id: number; using_cheats: boolean; active_mods_visible: boolean }>;
+		}>('/api/guilds/members?page=0&search=', pair.second.session_token);
+
+		expect(state.json.members.find(member => member.client_id === pair.first_id)).toMatchObject({
+			using_cheats: true,
+			active_mods_visible: false
+		});
+		expect(directory.json.members.find(member => member.client_id === pair.first_id)?.using_cheats).toBe(true);
+
+		await db_run('UPDATE `clients` SET `cheats_detected_at` = ? WHERE `id` = ?', [
+			Date.now() - seven_days - 1,
+			pair.first_id
+		]);
+		const expired = await get_json_with_session<{
+			members: Array<{ client_id: number; using_cheats: boolean }>;
+		}>('/api/guilds/state', pair.second.session_token);
+		expect(expired.json.members.find(member => member.client_id === pair.first_id)?.using_cheats).toBe(false);
+	});
+
 	test('authorizes every read against current same-Guild membership', async () => {
 		const pair = await make_guildmates('Private Status Owner', 'Former Status Viewer');
 		const outsider = await register_client('Outside Status Viewer');
@@ -491,31 +525,38 @@ describe('player status API', () => {
 		expect(former.json.error_lang).toBe('MOD_MP_GUILD_MEMBERSHIP_MISSING');
 	});
 
-	test('deletes a snapshot on opt-out and requires a new upload after opt-in', async () => {
+	test('continues collecting status while opt-out masks the snapshot', async () => {
 		const pair = await make_guildmates('Status Visibility Owner', 'Status Visibility Viewer');
 		await sync_status(pair.first.session_token, [
 			{ skill_id: 'melvorD:Mining', level: 55 }
 		], { type: 'combat', area_id: 'melvorD:Volcanic_Cave' });
 
 		const disabled = await post_json<{ success: boolean; visible: boolean }>(
-			'/api/client/status/visibility',
+			'/api/client/skills/visibility',
 			{ visible: false },
 			pair.first.session_token
 		);
+		await post('/api/client/activity/visibility', { visible: false }, pair.first.session_token);
 		const hidden = await get_status(pair.second.session_token, pair.first_id);
-		const rejected_sync = await sync_status(pair.first.session_token, [], { type: 'idle' });
+		const saved_while_hidden = await sync_status(pair.first.session_token, [], { type: 'idle' });
 		const enabled = await post_json<{ success: boolean; visible: boolean }>(
-			'/api/client/status/visibility',
+			'/api/client/skills/visibility',
 			{ visible: true },
 			pair.first.session_token
 		);
-		const missing = await get_status(pair.second.session_token, pair.first_id);
+		await post('/api/client/activity/visibility', { visible: true }, pair.first.session_token);
+		const viewed_after_reenable = await get_status(pair.second.session_token, pair.first_id);
 
 		expect(disabled.json).toEqual({ success: true, visible: false });
 		expect(hidden.json.error_lang).toBe('MOD_MP_STATUS_SHARING_DISABLED');
-		expect(rejected_sync.json.error_lang).toBe('MOD_MP_STATUS_SHARING_DISABLED');
+		expect(saved_while_hidden.json.success).toBe(true);
 		expect(enabled.json).toEqual({ success: true, visible: true });
-		expect(missing.json.error_lang).toBe('MOD_MP_STATUS_NOT_AVAILABLE');
+		expect(viewed_after_reenable.json).toMatchObject({
+			client_id: pair.first_id,
+			skills: [],
+			activity: { type: 'idle' },
+			activities: []
+		});
 	});
 
 	test('accepts idle and combat-without-area status and rejects malformed or oversized input', async () => {
@@ -526,27 +567,22 @@ describe('player status API', () => {
 			skills: [
 				{ skill_id: 'melvorD:Attack', level: 1 },
 				{ skill_id: 'melvorD:Attack', level: 2 }
-			],
-			activity: { type: 'idle' }
+			]
 		}, owner.session_token);
 		const malformed = await post('/api/client/status/sync', {
-			skills: [{ skill_id: 'not-namespaced', level: 1 }],
-			activity: { type: 'idle' }
+			skills: [{ skill_id: 'not-namespaced', level: 1 }]
 		}, owner.session_token);
 		const invalid_level = await post('/api/client/status/sync', {
-			skills: [{ skill_id: 'melvorD:Attack', level: -1 }],
-			activity: { type: 'idle' }
+			skills: [{ skill_id: 'melvorD:Attack', level: -1 }]
 		}, owner.session_token);
 		const too_many = await post('/api/client/status/sync', {
 			skills: Array.from({ length: 65 }, (_, index) => ({
 				skill_id: `test:Skill_${index}`,
 				level: index
-			})),
-			activity: { type: 'idle' }
+			}))
 		}, owner.session_token);
 		const invalid_activity = await post('/api/client/status/sync', {
-			skills: [],
-			activity: { type: 'skill', skill_id: 'melvorD:Attack' }
+			activities: [{ type: 'skill', skill_id: 'melvorD:Attack' }]
 		}, owner.session_token);
 		const idle_in_activities = await post('/api/client/status/sync', {
 			activities: [{ type: 'idle' }]

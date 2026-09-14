@@ -6,11 +6,11 @@ import {
 	CAMPAIGN_AUTO_PROGRESS_SQL,
 	get_campaign_auto_advance,
 	get_campaign_item_total,
-	get_required_campaign_contributors,
 	round_campaign_estimate
 } from '../../campaign';
 import { AVAILABLE_CAMPAIGNS } from '../../campaign_data';
 import { migrations } from '../../db/schema';
+import { get_expected_contributor_count } from '../../recent-activity';
 
 const campaign_item_fixture = JSON.parse(readFileSync(
 	new URL('../fixtures/campaign-item-ids-v1.3.1.json', import.meta.url),
@@ -18,23 +18,25 @@ const campaign_item_fixture = JSON.parse(readFileSync(
 )) as { game_version: string; item_ids: string[] };
 
 describe('campaign balancing', () => {
-	test('rounds estimates upward to the coarsest increment within fifteen percent', () => {
+	test('rounds four-hour estimates to a sensible nearest increment', () => {
 		expect(round_campaign_estimate(8888)).toBe(9000);
-		expect(round_campaign_estimate(6087)).toBe(7000);
-		expect(round_campaign_estimate(11111)).toBe(12000);
-		expect(round_campaign_estimate(388800)).toBe(400000);
+		expect(round_campaign_estimate(6087)).toBe(6000);
+		expect(round_campaign_estimate(11111)).toBe(11000);
+		expect(round_campaign_estimate(388800)).toBe(389000);
+		expect(round_campaign_estimate(233)).toBe(200);
+		expect(round_campaign_estimate(67)).toBe(70);
 	});
 
-	test('requires half of the starting Guild membership rounded upward', () => {
-		expect([0, 1, 2, 3, 4, 5, 6].map(get_required_campaign_contributors)).toEqual([
-			1, 1, 1, 2, 2, 3, 3
+	test('requires forty percent of recently active members without an upper cap', () => {
+		expect([0, 1, 2, 3, 4, 5, 6, 10, 66].map(get_expected_contributor_count)).toEqual([
+			1, 1, 2, 2, 2, 2, 3, 4, 27
 		]);
 	});
 
-	test('scales the rounded per-player estimate by the required contributors', () => {
-		expect(get_campaign_item_total(388800, 1)).toBe(400000);
-		expect(get_campaign_item_total(388800, 2)).toBe(800000);
-		expect(get_campaign_item_total(388800, 3)).toBe(1200000);
+	test('scales the rounded four-hour estimate by the required contributors', () => {
+		expect(get_campaign_item_total(180000, 1)).toBe(60000);
+		expect(get_campaign_item_total(388800, 2)).toBe(260000);
+		expect(get_campaign_item_total(388800, 3)).toBe(390000);
 	});
 
 	test('defines a positive twelve-hour estimate for every campaign item', () => {

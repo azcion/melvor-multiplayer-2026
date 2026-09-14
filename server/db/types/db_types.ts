@@ -33,6 +33,21 @@ export type charity_items = {
 	value_per_item: number | null;
 };
 
+export type charity_contribution_lots = {
+	id: number;
+	guild_id: number;
+	item_id: string;
+	client_id: number;
+	qty: number;
+	contributed_at: number;
+	source_audit_lot_id: number | null;
+};
+
+export type charity_decay_activations = {
+	guild_id: number;
+	activated_at: number;
+};
+
 export type charity_shuffle_events = {
 	id: number;
 	owner_key: string;
@@ -50,6 +65,7 @@ export type charity_wishes = {
 	progress_gp: number;
 	created_at: number;
 	matures_at: number;
+	ripe_at: number | null;
 };
 
 export type multiplayer_pet_ownership = {
@@ -66,6 +82,17 @@ export type client_sessions = {
 	client_id: number,
 	mod_version: string | null
 };
+
+export type chat_message_reactions = {
+	message_id: number;
+	client_id: number;
+	reaction: string;
+	created_at: number;
+};
+
+export type guild_chat_message_reactions = chat_message_reactions;
+export type global_chat_message_reactions = chat_message_reactions;
+export type support_message_reactions = chat_message_reactions;
 
 export type client_runtime_snapshots = {
 	client_id: number;
@@ -95,6 +122,7 @@ export type clients = {
 	gp_visible: number,
 	game_mode_visible: number,
 	active_mods_visible: number,
+	cheats_detected_at: number | null,
 	messaging_enabled: number,
 	messaging_credits: number,
 	messaging_refill_at: number,
@@ -357,6 +385,8 @@ export type guilds = {
 	name: string;
 	icon_id: string;
 	charitree_enabled: number;
+	cheat_restriction_enabled: number;
+	created_at: number | null;
 };
 
 export type guild_memberships = {
@@ -386,7 +416,7 @@ export type guild_petitions = {
 	guild_id: number;
 	guild_name: string;
 	type: 'appellation' | 'heraldry' | 'banishment' | 'winnowing' | 'charitree_ingratitude' |
-		'charitree_sacrilege' | 'charitree_beneficence' | 'fellowship' | 'enclosure';
+		'charitree_sacrilege' | 'charitree_beneficence' | 'fellowship' | 'enclosure' | 'interdict' | 'heresy';
 	conflict_subject: string;
 	subject_locked: number;
 	petitioner_id: number;

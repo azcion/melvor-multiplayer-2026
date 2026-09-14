@@ -1,4 +1,6 @@
-const CAMPAIGN_ROUNDING_TOLERANCE = 0.15;
+export const CAMPAIGN_ESTIMATE_HOURS = 4;
+const CAMPAIGN_SOURCE_ESTIMATE_HOURS = 12;
+const CAMPAIGN_LARGE_ROUNDING_INCREMENT = 1000;
 
 export const CAMPAIGN_AUTO_ADVANCE_MIN = 0.05;
 export const CAMPAIGN_AUTO_ADVANCE_MAX = 0.15;
@@ -12,26 +14,16 @@ export const CAMPAIGN_AUTO_PROGRESS_SQL =
 	'WHERE `id` = ? AND `guild_id` = ? RETURNING `item_current`, `auto_contribution`';
 
 export function round_campaign_estimate(estimate: number): number {
-	const normalized_estimate = Math.max(Math.trunc(estimate), 1);
-	let increment = 10 ** Math.floor(Math.log10(normalized_estimate));
-
-	while (increment >= 1) {
-		const rounded = Math.ceil(normalized_estimate / increment) * increment;
-		if (rounded <= normalized_estimate * (1 + CAMPAIGN_ROUNDING_TOLERANCE))
-			return rounded;
-
-		increment /= 10;
-	}
-
-	return normalized_estimate;
-}
-
-export function get_required_campaign_contributors(member_count: number): number {
-	return Math.max(Math.ceil(member_count / 2), 1);
+	const normalized_estimate = Math.max(estimate, 1);
+	const increment = normalized_estimate >= CAMPAIGN_LARGE_ROUNDING_INCREMENT
+		? CAMPAIGN_LARGE_ROUNDING_INCREMENT
+		: 10 ** Math.max(Math.floor(Math.log10(normalized_estimate)), 0);
+	return Math.max(Math.round(normalized_estimate / increment) * increment, 1);
 }
 
 export function get_campaign_item_total(estimated_12h_output: number, required_contributors: number): number {
-	return round_campaign_estimate(estimated_12h_output) * Math.max(Math.trunc(required_contributors), 1);
+	const estimated_output = estimated_12h_output * CAMPAIGN_ESTIMATE_HOURS / CAMPAIGN_SOURCE_ESTIMATE_HOURS;
+	return round_campaign_estimate(estimated_output) * Math.max(Math.trunc(required_contributors), 1);
 }
 
 export function get_campaign_auto_advance(

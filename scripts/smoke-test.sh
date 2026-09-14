@@ -35,7 +35,7 @@ preflight_headers="$(
 		--header "Origin: https://melvoridle.com" \
 		--header "Access-Control-Request-Method: POST" \
 		--header "Access-Control-Request-Headers: content-type,x-session-token" \
-		"${base_url}/api/register"
+		"${base_url}/api/v2/register"
 )"
 
 case "$preflight_headers" in
@@ -55,7 +55,7 @@ register_response="$(
 		--header "Origin: https://melvoridle.com" \
 		--header "Content-Type: application/json" \
 		--data "{\"client_key\":\"${client_key}\",\"display_name\":\"Smoke Test\"}" \
-		"${base_url}/api/register"
+		"${base_url}/api/v2/register"
 )"
 
 session_token="$(
@@ -74,7 +74,7 @@ events_response="$(
 		--silent \
 		--show-error \
 		--header "X-Session-Token: ${session_token}" \
-		"${base_url}/api/events"
+		"${base_url}/api/v2/events"
 )"
 
 case "$events_response" in

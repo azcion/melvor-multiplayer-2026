@@ -147,7 +147,7 @@ function other_participant(conversation: ConversationRow, client_id: number): nu
 		: conversation.participant_low_id;
 }
 
-function privacy_allows(client_id: number, other_id: number): boolean {
+export function privacy_allows(client_id: number, other_id: number): boolean {
 	const row = db.query<{ allowed: number }, number[]>(
 		'SELECT NOT EXISTS(' +
 			'SELECT 1 FROM `clients` WHERE `id` IN (?, ?) ' +
@@ -167,7 +167,8 @@ function message_view(message: MessageRow) {
 		sender_id: message.sender_id,
 		sender: { display_name: message.display_name, icon_id: message.icon_id },
 		content: message.content,
-		created_at: message.created_at
+		created_at: message.created_at,
+		reactions: []
 	};
 }
 
@@ -303,12 +304,6 @@ export function start_conversation(client_id: number, target_id: number): ChatRe
 			'SELECT `id` FROM `clients` WHERE `id` = ? AND `deleted_at` IS NULL LIMIT 1'
 		).get(target_id);
 		if (target === null)
-			return { status: 'missing' };
-		const guildmates = db.query<{ shared: number }, [number, number]>(
-			'SELECT EXISTS(SELECT 1 FROM `guild_memberships` AS a JOIN `guild_memberships` AS b ' +
-			'ON b.`guild_id` = a.`guild_id` WHERE a.`client_id` = ? AND b.`client_id` = ?) AS `shared`'
-		).get(client_id, target_id) as { shared: number };
-		if (guildmates.shared !== 1)
 			return { status: 'missing' };
 		if (!privacy_allows(client_id, target_id))
 			return { status: 'privacy' };

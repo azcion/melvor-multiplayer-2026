@@ -49,6 +49,8 @@ test('wires Wish creation, presentation, owner actions, and Inbox naming', async
 	assert.match(templates, /state\.selected_charity_wish\?\.wisher/);
 	assert.match(templates, /state\.selected_charity_wish\?\.owned/);
 	assert.match(templates, /state\.selected_charity_wish\?\.phase !== undefined/);
+	assert.equal((templates.match(/class="mp-charitree-avatars"/g) ?? []).length, 4);
+	assert.match(templates, /item\.contributors\?\.length[\s\S]*state\.get_avatar_icon\(contributor\.icon_id\)[\s\S]*class="mp-charitree-avatar"/);
 	assert.match(templates, /formatNumber\(state\.selected_charity_wish\?\.progress_gp \?\? 0\)/);
 	assert.match(templates, /formatNumber\(state\.selected_charity_wish\?\.required_gp \?\? 0\)/);
 	assert.match(templates, /role="status"[\s\S]*MOD_MP_CHARITY_WISH_FORSAKE/);
@@ -63,6 +65,10 @@ test('wires Wish creation, presentation, owner actions, and Inbox naming', async
 	assert.match(style, /\.mp-charity-wish-quantity\s*\{[\s\S]*grid-template-columns: 36px minmax\(0, 1fr\) 36px;[\s\S]*height: 50px;[\s\S]*width: 180px;[\s\S]*margin: 0 auto;/);
 	assert.match(style, /\.mp-charity-wish-quantity-button\s*\{[\s\S]*font-size: 1\.5rem;/);
 	assert.match(style, /\.mp-charitree-wish\s*\{[\s\S]*border-radius: 6\.5px;[\s\S]*outline: 2px solid rgb\(252, 231, 152\);[\s\S]*box-shadow: 0 0 8px 2px rgb\(252 231 152 \/ 75%\);/);
+	assert.match(style, /\.mp-charitree-item \.mp-charitree-avatars\s*\{[\s\S]*all: unset;[\s\S]*right: -2px;[\s\S]*top: -2px;[\s\S]*flex-direction: column;/);
+	assert.match(style, /\.mp-charitree-avatar\s*\{[\s\S]*width: 20px;[\s\S]*height: 20px;[\s\S]*border-radius: 4px;/);
+	assert.match(style, /\.mp-charitree-avatar:nth-child\(2\)[\s\S]*width: 17px;[\s\S]*height: 17px;/);
+	assert.match(style, /\.mp-charitree-avatar:nth-child\(3\)[\s\S]*width: 14px;[\s\S]*height: 14px;/);
 	assert.match(style, /\.mp-charitree-take-label[\s\S]*color: #adb5bd;/);
 	assert.match(style, /\.mp-charitree-take-value[\s\S]*color: #fff;/);
 	assert.doesNotMatch(style, /\.mp-charitree-take-amount\s*\{[\s\S]*font-size: 0\.9rem/);

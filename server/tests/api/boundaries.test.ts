@@ -181,46 +181,36 @@ describe('browser and request boundaries', () => {
 		expect(await response.text()).toBe('Method Not Allowed');
 	});
 
-	test('advertises POST reads during both registration and authentication', async () => {
+	test('omits retired read POST compatibility from registration and authentication', async () => {
 		const registered = await register_client('Read Compatibility');
-		expect((registered as RegisteredClient & { read_post_supported: boolean }).read_post_supported).toBe(true);
+		expect((registered as RegisteredClient & { read_post_supported?: boolean }).read_post_supported).toBeUndefined();
 		const { response, json } = await post_json<{ read_post_supported: boolean }>('/api/authenticate', {
 			client_identifier: registered.client_identifier, client_key: registered.client_key
 		});
 		expect(response.status).toBe(200);
-		expect(json.read_post_supported).toBe(true);
+		expect(json.read_post_supported).toBeUndefined();
 	});
 
-	test('serves Guild state and discovery through the same authenticated POST read handlers', async () => {
+	test('rejects retired authenticated POST read aliases', async () => {
 		for (const endpoint of ['/api/guilds/state', '/api/guilds/list']) {
-			const get_response = await get_with_session(endpoint, client.session_token);
 			const post_response = await post(endpoint, {}, client.session_token, { Origin: allowed_origins[3] });
-			expect(post_response.status).toBe(200);
-			expect(await post_response.json()).toEqual(await get_response.json());
-			expect(post_response.headers.get('Access-Control-Allow-Origin')).toBe(allowed_origins[3]);
-			expect(post_response.headers.get('Cache-Control')).toBe('private, no-store');
+			expect(post_response.status).toBe(405);
 		}
 	});
 
-	test('preserves query selectors and cross-Guild privacy on POST reads', async () => {
+	test('preserves query selectors and cross-Guild privacy on GET reads', async () => {
 		const outsider = await register_client('Read Outsider');
 		const endpoint = `/api/guilds/equipment?client_id=${outsider.client_id}&_mp_cache=probe`;
 		const get_response = await get_with_session(endpoint, client.session_token);
-		const post_response = await post(endpoint, {}, client.session_token);
 		expect(get_response.status).toBe(200);
-		expect(post_response.status).toBe(get_response.status);
 		const expected = await get_response.json();
 		expect(expected).toEqual({ error_lang: 'MOD_MP_GUILD_MEMBERSHIP_MISSING' });
-		expect(await post_response.json()).toEqual(expected);
-		expect((await post('/api/guilds/equipment?client_id=invalid', {}, client.session_token)).status).toBe(400);
+		expect((await get_with_session('/api/guilds/equipment?client_id=invalid', client.session_token)).status).toBe(400);
 	});
 
-	test('keeps POST reads behind session and bounded JSON validation', async () => {
-		expect((await post('/api/guilds/state', {})).status).toBe(401);
-		expect((await post('/api/guilds/state', {}, 'invalid-session')).status).toBe(401);
-		expect((await post('/api/guilds/state', {}, client.session_token, { Origin: custom_origin })).status).toBe(200);
-		expect((await post('/api/guilds/state', [], client.session_token)).status).toBe(400);
-		expect((await post('/api/guilds/state', { padding: 'x'.repeat(32768) }, client.session_token)).status).toBe(413);
+	test('keeps GET reads behind session', async () => {
+		expect((await get_with_session('/api/guilds/state', client.session_token)).status).toBe(200);
+		expect((await request('/api/guilds/state')).status).toBe(401);
 	});
 
 	test('echoes the allowed origin on JSON responses', async () => {
@@ -269,7 +259,6 @@ describe('browser and request boundaries', () => {
 		await db_run("UPDATE `service_settings` SET `value` = '1' WHERE `key` = 'maintenance'");
 		try {
 			const response = await get_with_session('/api/events', client.session_token);
-			const post_read = await post('/api/events', {}, client.session_token);
 			const preflight = await request('/api/register', {
 				method: 'OPTIONS',
 				headers: {
@@ -279,7 +268,7 @@ describe('browser and request boundaries', () => {
 			});
 
 			expect(response.status).toBe(503);
-			expect(post_read.status).toBe(503);
+			expect((await post('/api/events', {}, client.session_token)).status).toBe(405);
 			expect(response.headers.get('Retry-After')).toBe('300');
 			expect(await response.text()).toBe('Service Unavailable');
 			expect(preflight.status).toBe(204);

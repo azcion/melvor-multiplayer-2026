@@ -83,7 +83,6 @@ export function install_transfer_actions(runtime) {
 		Swal,
 		start_gp_sampling,
 		start_status_observer,
-		stop_gp_sampling,
 		stop_status_observer,
 		trade_returns,
 		transfer_inventory,
@@ -462,20 +461,17 @@ export function install_transfer_actions(runtime) {
 			this.member_actions_error = '';
 			let res = null;
 			try {
-				res = await api_post(this.split_visibility_supported ? '/api/client/skills/visibility' : '/api/client/status/visibility', { visible: desired });
+				res = await api_post('/api/client/skills/visibility', { visible: desired });
 			} catch (e) {
 				log('player skills visibility update failed (%s)', e);
 			}
 			if (res?.success) {
 				this.skills_visible = res.visible;
-				if (!this.split_visibility_supported)
-					this.activity_visible = res.visible;
 				if (!res.visible)
 					invalidate_status_icon_collection();
 				if (this.selected_guild_member?.client_id === this.guild_client_id)
 					Object.assign(this.selected_guild_member, {
 						skills_visible: res.visible,
-						...(!this.split_visibility_supported ? { activity_visible: res.visible, activity_available: res.visible } : {}),
 						...(res.visible ? {} : { skills_available: false, total_skill_level: null })
 					});
 				runtime.last_synced_status_skills = null;
@@ -508,7 +504,6 @@ export function install_transfer_actions(runtime) {
 						activity_visible: res.visible,
 						...(res.visible ? {} : { activity_available: false, status_activity: null, status_activities: [] })
 					});
-				runtime.last_synced_status_activity = null;
 				runtime.last_synced_status_activities = null;
 				start_status_observer();
 				schedule_status_sync(0);
@@ -539,11 +534,8 @@ export function install_transfer_actions(runtime) {
 						this.selected_guild_member.gp = null;
 				}
 				runtime.last_synced_gp = null;
-				if (res.visible) {
-					start_gp_sampling(true);
-					schedule_status_sync(0);
-				} else
-					stop_gp_sampling();
+				start_gp_sampling(true);
+				schedule_status_sync(0);
 			} else {
 				this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 			}
@@ -614,7 +606,8 @@ export function install_transfer_actions(runtime) {
 					: null;
 			} else {
 				try {
-					res = await api_get('/api/guilds/active-mods?client_id=' + member.client_id);
+					res = await api_get('/api/' + (member.profile_source === 'chat' ? 'chat' : 'guilds') +
+						'/active-mods?client_id=' + member.client_id);
 				} catch (e) {
 					log('active mod list fetch failed (%s)', e);
 				}
@@ -649,9 +642,10 @@ export function install_transfer_actions(runtime) {
 				status_res = member.skills_visible || member.activity_visible ? capture_status_snapshot() : null;
 			} else {
 				try {
+					const profile_path = member.profile_source === 'chat' ? 'chat' : 'guilds';
 					[equipment_res, status_res] = await Promise.all([
-						api_get('/api/guilds/equipment?client_id=' + member.client_id),
-						api_get('/api/guilds/status?client_id=' + member.client_id)
+						api_get('/api/' + profile_path + '/equipment?client_id=' + member.client_id),
+						api_get('/api/' + profile_path + '/status?client_id=' + member.client_id)
 					]);
 				} catch (e) {
 					log('player profile fetch failed (%s)', e);

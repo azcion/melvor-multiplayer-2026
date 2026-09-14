@@ -9,6 +9,7 @@ type CharityContents = {
 		qty: number;
 		expires_at: number;
 		donated_at: number;
+		contributors?: Array<{ client_id: number; icon_id: string }>;
 	}>;
 };
 
@@ -206,6 +207,48 @@ describe('charity API', () => {
 		]));
 	});
 
+	test('shows the top three surviving contributors after FIFO takes', async () => {
+		const [bob, lucy, alice, eve] = await make_guild_group(
+			['Charity Avatar Bob', 'Charity Avatar Lucy', 'Charity Avatar Alice', 'Charity Avatar Eve'],
+			'Charity Avatar Guild'
+		);
+		await db_run('UPDATE `clients` SET `icon_id` = ? WHERE `id` = ?', ['melvorD:Bob', bob.client_id]);
+		await db_run('UPDATE `clients` SET `icon_id` = ? WHERE `id` = ?', ['melvorD:Lucy', lucy.client_id]);
+		await db_run('UPDATE `clients` SET `icon_id` = ? WHERE `id` = ?', ['melvorD:Alice', alice.client_id]);
+		await db_run('UPDATE `clients` SET `icon_id` = ? WHERE `id` = ?', ['melvorD:Eve', eve.client_id]);
+		const item_id = 'melvorD:Charity_Avatar_Stack';
+		await post_json('/api/charity/donate', { items: [{ id: item_id, qty: 100 }] }, bob.session_token);
+		await post_json('/api/charity/take', {
+			item_id, qty: 75, command_id: crypto.randomUUID()
+		}, alice.session_token);
+		await post_json('/api/charity/donate', { items: [{ id: item_id, qty: 30 }] }, lucy.session_token);
+		await post_json('/api/charity/donate', { items: [{ id: item_id, qty: 5 }] }, alice.session_token);
+		await post_json('/api/charity/donate', { items: [{ id: item_id, qty: 1 }] }, eve.session_token);
+
+		let stack = (await get_charity_contents(bob.session_token)).items.find(item => item.id === item_id);
+		expect(stack).toMatchObject({
+			qty: 61,
+			contributors: [
+				{ client_id: lucy.client_id, icon_id: 'melvorD:Lucy' },
+				{ client_id: bob.client_id, icon_id: 'melvorD:Bob' },
+				{ client_id: alice.client_id, icon_id: 'melvorD:Alice' }
+			]
+		});
+
+		const tied_item_id = 'melvorD:Charity_Avatar_FIFO';
+		await post_json('/api/charity/donate', { items: [{ id: tied_item_id, qty: 2 }] }, bob.session_token);
+		await post_json('/api/charity/donate', { items: [{ id: tied_item_id, qty: 2 }] }, lucy.session_token);
+		await db_run('UPDATE `clients` SET `last_charity` = 0, `last_bonus_charity` = 0 WHERE `id` = ?', [alice.client_id]);
+		await post_json('/api/charity/take', {
+			item_id: tied_item_id, qty: 2, command_id: crypto.randomUUID()
+		}, alice.session_token);
+		stack = (await get_charity_contents(bob.session_token)).items.find(item => item.id === tied_item_id);
+		expect(stack).toMatchObject({
+			qty: 2,
+			contributors: [{ client_id: lucy.client_id, icon_id: 'melvorD:Lucy' }]
+		});
+	});
+
 	test('accepts at most 32 distinct donation entries', async () => {
 		const client = await register_guild_client('Charity Entry Limit');
 		const maximum = await post_json<{ success: boolean }>('/api/charity/donate', {
@@ -313,8 +356,7 @@ describe('charity API', () => {
 			item_id: 'melvorD:Charity_Cooldown_A'
 		}, taker.session_token);
 		const second = await post_json<{
-			success: boolean;
-			item_qty: number;
+			error_lang: string;
 			timeout: number;
 			timeout_bonus: number;
 		}>('/api/charity/take', {
@@ -333,19 +375,18 @@ describe('charity API', () => {
 		expect(first.json.item_qty).toBe(11);
 		expect(first.json.timeout).toBeGreaterThan(0);
 		expect(first.json.timeout_bonus).toBe(0);
-		expect(second.json.success).toBe(true);
-		expect(second.json.item_qty).toBe(12);
+		expect(second.json.error_lang).toBe('MOD_MP_CHARITY_TIMEOUT');
 		expect(second.json.timeout).toBe(first.json.timeout);
-		expect(second.json.timeout_bonus).toBeGreaterThan(0);
+		expect(second.json.timeout_bonus).toBe(0);
 		expect(exhausted.json.error_lang).toBe('MOD_MP_CHARITY_TIMEOUT');
 		expect(exhausted.json.timeout).toBe(first.json.timeout);
-		expect(exhausted.json.timeout_bonus).toBe(second.json.timeout_bonus);
+		expect(exhausted.json.timeout_bonus).toBe(0);
 
 		const contents = await get_charity_contents(taker.session_token);
 		expect(contents.items).not.toContainEqual(expect.objectContaining({
 			id: 'melvorD:Charity_Cooldown_A'
 		}));
-		expect(contents.items).not.toContainEqual(expect.objectContaining({
+		expect(contents.items).toContainEqual(expect.objectContaining({
 			id: 'melvorD:Charity_Cooldown_B'
 		}));
 		expect(contents.items).toContainEqual(expect.objectContaining({
@@ -425,11 +466,11 @@ describe('charity API', () => {
 		}, client.session_token);
 		expect(empty_donation.status).toBe(400);
 
-		const missing_value = await post('/api/charity/donate', {
+		const missing_value = await post_json<{ success: boolean }>('/api/charity/donate', {
 			items: [{ id: 'melvorD:Charity_Server_Owned', qty: 1 }],
 			command_id: crypto.randomUUID()
 		}, client.session_token);
-		expect(missing_value.status).toBe(400);
+		expect(missing_value.json.success).toBe(true);
 
 		const command_id = crypto.randomUUID();
 		const donation = await post_json<{

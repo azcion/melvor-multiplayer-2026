@@ -112,7 +112,7 @@ test('diagnostics settings remain usable offline and select the report when clip
 
 test('normalizes only supported version prefixes in redacted diagnostics', () => {
 	assert.equal(diagnostic_route('/api/v2/events?token=secret'), '/api/events');
-	assert.equal(diagnostic_route('/api/v1/authenticate'), '/api/authenticate');
+	assert.equal(diagnostic_route('/api/v1/authenticate'), 'other');
 	assert.equal(diagnostic_route('/api/versions'), '/api/versions');
 	assert.equal(diagnostic_route('/api/v99/events'), 'other');
 });

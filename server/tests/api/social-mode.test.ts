@@ -79,7 +79,7 @@ describe('Social Only mode cancellation', () => {
 		const campaign = await post_json<{ error_lang: string }>('/api/campaign/contribute', {
 			item_amount: 1, command_id: crypto.randomUUID()
 		}, authenticated.json.session_token);
-		const campaign_claim = await post_json<{ error_lang: string }>('/api/campaign/claim', {
+		const campaign_claim = await post('/api/campaign/claim', {
 			campaign_id: 1, value: 1, command_id: crypto.randomUUID()
 		}, authenticated.json.session_token);
 		const charity = await post_json<{ error_lang: string }>('/api/charity/donate', {
@@ -90,6 +90,7 @@ describe('Social Only mode cancellation', () => {
 		}, authenticated.json.session_token);
 
 		expect(authenticated.json.social_mode).toBe('social');
+		expect(campaign_claim.status).toBe(400);
 		expect(guild.json.members.find(member => member.client_id === pair.first_id)?.social_mode).toBe('social');
 		const peer_after = await get_json_with_session<{
 			revision: number;
@@ -109,7 +110,7 @@ describe('Social Only mode cancellation', () => {
 		expect(gift.json.error_lang).toBe('MOD_MP_SOCIAL_ONLY_DISABLED');
 		expect(trade.json.error_lang).toBe('MOD_MP_SOCIAL_ONLY_DISABLED');
 		expect(campaign.json.error_lang).toBe('MOD_MP_SOCIAL_ONLY_DISABLED');
-		expect(campaign_claim.json.error_lang).toBe('MOD_MP_SOCIAL_ONLY_DISABLED');
+		expect(campaign_claim.status).toBe(400);
 		expect(charity.json.error_lang).toBe('MOD_MP_SOCIAL_ONLY_DISABLED');
 		expect(transfer_contents.json.error_lang).toBe('MOD_MP_SOCIAL_ONLY_DISABLED');
 
