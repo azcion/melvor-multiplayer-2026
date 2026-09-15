@@ -368,8 +368,10 @@ export function register_guilds_routes(): void {
 		if (guild_id !== null || application !== null)
 			return { error_lang: 'MOD_MP_GUILD_AFFILIATION_EXISTS' };
 
+		const cutoff = shadowed_cutoff();
 		const guilds = await db_get_all(
-			'SELECT g.`id` AS `guild_id`, g.`type`, g.`name`, g.`icon_id`, COUNT(m.`client_id`) AS `member_count` ' +
+			'SELECT g.`id` AS `guild_id`, g.`type`, g.`name`, g.`icon_id`, COUNT(m.`client_id`) AS `member_count`, ' +
+			'COUNT(CASE WHEN c.`last_multiplayer_active_at` >= ? THEN m.`client_id` END) AS `active_member_count` ' +
 			'FROM `guilds` AS g LEFT JOIN `guild_memberships` AS m ON m.`guild_id` = g.`id` ' +
 			'LEFT JOIN `clients` AS c ON c.`id` = m.`client_id` GROUP BY g.`id` ' +
 			"HAVING g.`type` = 'free_fellowship' OR " +
@@ -377,7 +379,7 @@ export function register_guilds_routes(): void {
 			"ORDER BY CASE WHEN g.`type` = 'free_fellowship' THEN 0 WHEN g.`type` = 'public' THEN 1 ELSE 2 END, " +
 			'MAX(c.`last_multiplayer_active_at`) DESC, ' +
 			'g.`name` COLLATE NOCASE, g.`id`',
-			[shadowed_cutoff()]
+			[cutoff, cutoff]
 		) as Array<GuildSummary & { type: GuildType }>;
 		return { guilds: guilds.map(guild_summary_from_row) };
 	});
@@ -445,11 +447,14 @@ export function register_guilds_routes(): void {
 
 		const application = await db_get_single(
 			'SELECT a.`id` AS `application_id`, g.`id` AS `guild_id`, g.`name`, g.`icon_id`, ' +
-			'COUNT(m.`client_id`) AS `member_count` FROM `guild_applications` AS a ' +
+			'COUNT(m.`client_id`) AS `member_count`, ' +
+			'COUNT(CASE WHEN c.`last_multiplayer_active_at` >= ? THEN m.`client_id` END) AS `active_member_count` ' +
+			'FROM `guild_applications` AS a ' +
 			'JOIN `guilds` AS g ON g.`id` = a.`guild_id` ' +
 			'LEFT JOIN `guild_memberships` AS m ON m.`guild_id` = g.`id` ' +
+			'LEFT JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
 			'WHERE a.`client_id` = ? GROUP BY a.`id`',
-			[client_id]
+			[shadowed_cutoff(), client_id]
 		);
 
 		return application === null

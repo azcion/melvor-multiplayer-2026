@@ -21,7 +21,7 @@ import { register_social_mode_routes } from './routes/social_mode';
 import { register_haggle_routes } from './routes/haggle';
 import { register_poll_routes } from './routes/polls';
 import { maintain_market_listings } from './market-expiry';
-import { default_handler, flush_logs, report_error, server } from './app-runtime';
+import { chat_translation_worker, default_handler, flush_logs, report_error, server } from './app-runtime';
 import { create_shutdown_handler } from './shutdown';
 
 register_market_routes();
@@ -47,6 +47,7 @@ register_social_mode_routes();
 register_haggle_routes();
 register_poll_routes();
 maintain_market_listings();
+chat_translation_worker.start();
 
 server.error((err: Error) => {
 	report_error('unhandled request error', err);
@@ -57,7 +58,10 @@ server.default((req, status_code) => default_handler(status_code));
 
 server.start();
 const shutdown = create_shutdown_handler(
-	() => server.stop(),
+	() => {
+		chat_translation_worker.stop();
+		return server.stop();
+	},
 	flush_logs,
 	() => process.exit(0)
 );

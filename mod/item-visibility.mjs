@@ -1,9 +1,21 @@
+const OWNED_DLC_NAMESPACE_SET = new Set(['melvorTotH', 'melvorAoD', 'melvorItA']);
+
 export function get_item_namespace(item_id) {
 	if (typeof item_id !== 'string')
 		return null;
 
 	const separator = item_id.indexOf(':');
 	return separator > 0 ? item_id.slice(0, separator) : null;
+}
+
+export function is_item_available_for_owned_dlc(item_id, owned_dlc) {
+	const namespace = get_item_namespace(item_id);
+	return !OWNED_DLC_NAMESPACE_SET.has(namespace) ||
+		(Array.isArray(owned_dlc) && owned_dlc.includes(namespace));
+}
+
+export function filter_items_for_owned_dlc(items, get_item_id, owned_dlc) {
+	return items.filter(item => is_item_available_for_owned_dlc(get_item_id(item), owned_dlc));
 }
 
 export function get_resolved_item_namespaces(registered_items) {

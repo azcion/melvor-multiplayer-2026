@@ -4,6 +4,7 @@
 
 .env
 .env.*
+config/*.key
 
 assets
 mod

@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+	filter_items_for_owned_dlc,
 	filter_resolved_items,
 	get_item_namespace,
 	get_resolved_item_namespaces,
 	has_unresolved_item,
+	is_item_available_for_owned_dlc,
 	is_item_resolved
 } from '../../mod/item-visibility.mjs';
 
@@ -44,5 +46,31 @@ test('extracts namespaces from registered game items', () => {
 			{ id: 'exampleMod:Another_Gem' }
 		]),
 		['melvorD', 'exampleMod']
+	);
+});
+
+test('restricts only official DLC namespaces that the player does not own', () => {
+	const owned_dlc = ['melvorAoD'];
+
+	assert.equal(is_item_available_for_owned_dlc('melvorTotH:Corundumite_Ore', owned_dlc), false);
+	assert.equal(is_item_available_for_owned_dlc('melvorAoD:Torn_Parchment', owned_dlc), true);
+	assert.equal(is_item_available_for_owned_dlc('melvorItA:Abyssal_Pieces', owned_dlc), false);
+	assert.equal(is_item_available_for_owned_dlc('melvorD:Coal_Ore', owned_dlc), true);
+	assert.equal(is_item_available_for_owned_dlc('melvorF:Normal_Log', owned_dlc), true);
+	assert.equal(is_item_available_for_owned_dlc('exampleMod:Bright_Gem', owned_dlc), true);
+	assert.equal(is_item_available_for_owned_dlc('not-namespaced', owned_dlc), true);
+});
+
+test('filters unavailable official DLC items without changing source records', () => {
+	const items = [
+		{ id: 'melvorD:Coal_Ore', qty: 2 },
+		{ id: 'melvorTotH:Corundumite_Ore', qty: 3 },
+		{ id: 'melvorAoD:Torn_Parchment', qty: 4 },
+		{ id: 'exampleMod:Bright_Gem', qty: 5 }
+	];
+
+	assert.deepEqual(
+		filter_items_for_owned_dlc(items, item => item.id, ['melvorAoD']),
+		[items[0], items[2], items[3]]
 	);
 });

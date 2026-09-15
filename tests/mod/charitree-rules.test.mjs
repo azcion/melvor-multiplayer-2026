@@ -308,8 +308,8 @@ test('wires completion-log discovery, first-find receipt, and per-stack expiry i
 	assert.match(style, /\.mp-charitree-info-section\[open\] \.mp-charitree-info-chevron-up \{[\s\S]*display: inline-block;/);
 	assert.doesNotMatch(style, /mp-item-icon\.mp-charitree-new-item > a/);
 	assert.doesNotMatch(style, /mp-charitree-new-item-glow/);
-	assert.equal(language.MOD_MP_CHARITY_OPPORTUNITY_READY, 'You may seek an offering now.');
-	assert.equal(language.MOD_MP_CHARITY_NEXT_OPPORTUNITY, 'You may seek another offering in %s.');
+	assert.equal(language.MOD_MP_CHARITY_INFO_AVAILABLE_NOW, 'Available now');
+	assert.equal(language.MOD_MP_CHARITY_INFO_NEXT_PICK_IN, 'in %s');
 	assert.equal(language.MOD_MP_CHARITY_SERVER_UNSUPPORTED, 'Charitree claiming requires a newer multiplayer server. Update the server and reload the game.');
 	assert.equal(language.MOD_MP_CHARITY_TAKE_AMOUNT, 'Claiming:');
 	assert.equal(language.MOD_MP_CHARITY_ENTIRE_STACK, 'entire stack');

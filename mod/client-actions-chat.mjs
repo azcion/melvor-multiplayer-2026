@@ -10,9 +10,11 @@ export function install_chat_actions(runtime) {
 		game,
 		get_chat_conversation_key,
 		getLangString,
+		get_instance_storage_item = () => undefined,
 		hide_button_spinner,
 		is_button_spinning,
 		log,
+		localization,
 		nativeManager,
 		next_tick = () => Promise.resolve(),
 		now = () => Date.now(),
@@ -20,12 +22,37 @@ export function install_chat_actions(runtime) {
 		queue_modal,
 		refresh_chat_conversations,
 		refresh_chat_messages,
+		set_instance_storage_item = () => {},
 		show_button_spinner,
 		show_modal_error,
 		start_chat_polling,
 		stop_chat_polling,
 	} = runtime;
 	const reaction_throttle_ms = 1000;
+	const translation_wait_ms = 10000;
+	const translation_languages = new Set(['en', 'zh-CN']);
+	const localized_welcome_language = () => localization.resolve_multiplayer_language(
+		typeof setLang === 'string' ? setLang : 'en'
+	);
+	const default_translation_language = conversation => {
+		const kind = conversation?.conversation_kind ?? 'private';
+		return typeof setLang === 'string' && setLang === 'zh-CN' &&
+			(kind === 'global' || kind === 'guild') ? 'zh-CN' : null;
+	};
+	const translation_preference = conversation => {
+		const key = get_chat_conversation_key(conversation);
+		if (key === null) return null;
+		const stored = state.chat_translation_preferences[key];
+		if (translation_languages.has(stored)) return stored;
+		if (stored === false) return null;
+		return default_translation_language(conversation);
+	};
+	const preferred_manual_language = message => {
+		const configured = translation_preference(state.selected_chat_conversation);
+		if (configured) return configured;
+		const game_language = typeof setLang === 'string' && setLang === 'zh-CN' ? 'zh-CN' : 'en';
+		return game_language;
+	};
 
 	const get_chat_messages_element = () => document.querySelector('.mp-chat-messages');
 	const close_chat_reaction_picker = () => {
@@ -54,6 +81,15 @@ export function install_chat_actions(runtime) {
 	};
 
 	return {
+		load_chat_translation_preferences() {
+			const stored_translation_preferences = get_instance_storage_item('chat_translation_preferences');
+			state.chat_translation_preferences = stored_translation_preferences &&
+				typeof stored_translation_preferences === 'object' && !Array.isArray(stored_translation_preferences)
+				? Object.fromEntries(Object.entries(stored_translation_preferences)
+					.filter(([, language]) => language === false || translation_languages.has(language)))
+				: {};
+		},
+
 		async scroll_chat_messages_to_bottom() {
 			await wait_and_scroll_chat_messages_to_bottom();
 		},
@@ -309,6 +345,75 @@ export function install_chat_actions(runtime) {
 			queue_modal('MOD_MP_CHAT_MESSAGE_ACTIONS', 'chat-message-actions-modal', this.get_chat_participant_icon(), {
 				showConfirmButton: false
 			}, true, false);
+		},
+
+		show_chat_translation_modal() {
+			const current = translation_preference(this.selected_chat_conversation);
+			this.chat_translation_language_input = current ??
+				(typeof setLang === 'string' && setLang === 'zh-CN' ? 'zh-CN' : 'en');
+			queue_modal('MOD_MP_CHAT_TRANSLATION_TITLE', 'chat-translation-modal', this.get_chat_participant_icon(), {
+				showConfirmButton: false
+			}, true, false);
+		},
+
+		set_chat_translation_enabled(enabled) {
+			const key = get_chat_conversation_key(this.selected_chat_conversation);
+			if (key === null) return;
+			if (enabled && translation_languages.has(this.chat_translation_language_input))
+				this.chat_translation_preferences[key] = this.chat_translation_language_input;
+			else
+				this.chat_translation_preferences[key] = false;
+			this.chat_translation_preferences = { ...this.chat_translation_preferences };
+			set_instance_storage_item('chat_translation_preferences', this.chat_translation_preferences);
+			this.close_modal();
+			void refresh_chat_messages('', false, false);
+		},
+
+		translate_selected_chat_message() {
+			const message = this.selected_chat_message;
+			if (!message || message.sender_id === this.chat_client_id || message.sent_by_viewer === true) return;
+			const language = preferred_manual_language(message);
+			if (language) message.manual_translation_language = language;
+			this.selected_chat_message = null;
+			this.close_modal();
+		},
+
+		has_chat_message_translations(message) {
+			return Object.values(message?.translations ?? {}).some(translation =>
+				typeof translation === 'string' && translation.length > 0);
+		},
+
+		get_chat_message_content(message) {
+			if (!message || message.sender_id === this.chat_client_id || message.sent_by_viewer === true)
+				return message?.content ?? '';
+			if (message.sender_id === null) {
+				const localized = message.translations?.[localized_welcome_language()];
+				if (typeof localized === 'string' && localized.length > 0) return localized;
+			}
+			const language = message.manual_translation_language ?? translation_preference(this.selected_chat_conversation);
+			if (!language) return message.content;
+			const translated = message.translations?.[language];
+			if (typeof translated === 'string' && translated.length > 0) return translated;
+			message.translation_observed_at ??= now();
+			if ((message.translation_status === 'queued' || message.translation_status === 'processing') &&
+				now() - message.translation_observed_at < translation_wait_ms)
+				return getLangString('MOD_MP_CHAT_TRANSLATING');
+			return message.content;
+		},
+
+		is_chat_message_translation_waiting(message) {
+			if (!message || message.sender_id === this.chat_client_id || message.sent_by_viewer === true)
+				return false;
+			const language = message.manual_translation_language ?? translation_preference(this.selected_chat_conversation);
+			if (!language || typeof message.translations?.[language] === 'string' ||
+				(message.translation_status !== 'queued' && message.translation_status !== 'processing'))
+				return false;
+			return Number.isFinite(message.translation_observed_at) &&
+				now() - message.translation_observed_at < translation_wait_ms;
+		},
+
+		is_chat_translation_enabled() {
+			return translation_preference(this.selected_chat_conversation) !== null;
 		},
 
 		async show_chat_message_member(message) {

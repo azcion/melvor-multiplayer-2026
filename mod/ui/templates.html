@@ -400,7 +400,10 @@
 
 			<div class="mp-chat-conversation-view" v-else>
 				<div class="block-header block-header-default mp-chat-header">
-					<button type="button" class="btn btn-sm btn-secondary" @click="state.close_chat_conversation()"><i class="fa fa-chevron-left mr-1"></i><lang-string lang-id="MOD_MP_CHAT_BACK"></lang-string></button>
+					<div class="mp-chat-buttons">
+						<button type="button" class="btn btn-sm btn-secondary" @click="state.close_chat_conversation()"><i class="fa fa-chevron-left mr-1"></i><lang-string lang-id="MOD_MP_CHAT_BACK"></lang-string></button>
+						<button type="button" aria-haspopup="dialog" :aria-label="getLangString('MOD_MP_CHAT_TRANSLATION_TITLE')" class="btn btn-sm btn-primary mp-translation-button" :aria-pressed="state.is_chat_translation_enabled()" @click="state.show_chat_translation_modal()"><i class="fa fa-language"></i></button>
+					</div>
 					<button type="button" class="mp-chat-participant" v-if="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private'" @click="state.show_chat_actions_modal()" aria-haspopup="dialog">
 						<img class="skill-icon-xs" :src="state.get_chat_participant_icon()">
 						<span class="font-w600">{{ state.selected_chat_conversation?.participant?.display_name }}</span>
@@ -429,7 +432,7 @@
 					<div class="mp-chat-message" :class="{ 'mp-chat-message-own': message.sent_by_viewer === true || (message.sent_by_viewer === undefined && message.sender_id === state.chat_client_id) }" v-for="message in state.chat_messages" :key="message.message_id">
 						<div class="mp-chat-message-meta"><button type="button" class="mp-chat-message-author" @click="state.show_chat_message_member(message)" :disabled="!message.sender_id"><img class="mp-chat-message-avatar" :src="state.get_chat_message_icon(message)" alt=""><span class="font-w600">{{ message.sender.display_name }}</span></button><button type="button" class="mp-chat-message-timestamp" @click="state.show_chat_message_actions(message)"><time :datetime="state.format_chat_datetime(message.created_at)">{{ state.format_chat_time(message.created_at) }}</time></button></div>
 						<div class="mp-chat-message-bubble">
-							<div class="mp-chat-message-content">{{ message.content }}</div>
+							<div class="mp-chat-message-content" :class="{ 'mp-chat-message-translating': state.get_chat_message_content(message) === getLangString('MOD_MP_CHAT_TRANSLATING') }">{{ state.get_chat_message_content(message) }}</div>
 							<div class="mp-chat-reactions" :class="{ 'mp-chat-reactions-empty': !message.reactions?.length }">
 								<button type="button" class="mp-chat-reaction-summary" :class="{ 'mp-chat-reaction-reacted': summary.reacted }" v-for="summary in message.reactions" :key="summary.reaction" @click="state.toggle_chat_reaction(message, summary.reaction)"><span>{{ summary.reaction }}</span><span>{{ summary.count }}</span></button>
 								<button type="button" class="mp-chat-reaction-add" v-if="message.message_id > 0" :aria-label="state.get_chat_reaction_add_label()" :aria-expanded="state.chat_reaction_picker_message_id === message.message_id" @click="state.toggle_chat_reaction_picker(message, $event)">☻<span aria-hidden="true">+</span></button>
@@ -488,12 +491,25 @@
 </template>
 <template id="template-mp-chat-message-actions-modal">
 	<div class="mp-chat-modal-actions">
+		<button type="button" class="btn btn-primary" v-if="state.has_chat_message_translations(state.selected_chat_message) && state.selected_chat_message?.sender_id !== state.chat_client_id && state.selected_chat_message?.sent_by_viewer !== true" @click="state.translate_selected_chat_message()"><lang-string lang-id="MOD_MP_CHAT_TRANSLATE"></lang-string></button>
 		<button type="button" class="btn btn-primary" @click="state.copy_chat_message()"><lang-string lang-id="MOD_MP_CHAT_COPY"></lang-string></button>
 		<button type="button" class="btn btn-outline-danger" v-if="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private'" @click="state.show_chat_message_delete_confirmation()"><lang-string lang-id="MOD_MP_CHAT_DELETE_MESSAGE"></lang-string></button>
 		<button type="button" class="btn btn-danger" v-if="state.can_moderate_chat_messages()" @click="state.show_chat_message_delete_for_all_confirmation()"><lang-string lang-id="MOD_MP_CHAT_DELETE_MESSAGE_FOR_ALL"></lang-string></button>
 	</div>
 	<div id="mp-modal-error" class="d-none text-danger mt-2"></div>
 	<button type="button" class="btn btn-secondary mt-3" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
+</template>
+<template id="template-mp-chat-translation-modal">
+	<div class="mp-modal-text"><lang-string lang-id="MOD_MP_CHAT_TRANSLATION_INFO"></lang-string></div>
+	<label class="font-w600" for="mp-chat-translation-language"><lang-string lang-id="MOD_MP_CHAT_TRANSLATION_LANGUAGE"></lang-string></label>
+	<select id="mp-chat-translation-language" class="mp-input-text mb-3" v-model="state.chat_translation_language_input">
+		<option value="en">English</option>
+		<option value="zh-CN">简体中文</option>
+	</select>
+	<div class="mp-button-tray">
+		<button type="button" :class="state.is_chat_translation_enabled() ? 'btn btn-outline-danger' : 'btn btn-primary'" @click="state.set_chat_translation_enabled(!state.is_chat_translation_enabled())"><lang-string :lang-id="state.is_chat_translation_enabled() ? 'MOD_MP_CHAT_TRANSLATION_DISABLE' : 'MOD_MP_CHAT_TRANSLATION_ENABLE'"></lang-string></button>
+		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
+	</div>
 </template>
 <template id="template-mp-chat-message-delete-confirm-modal">
 	<div class="mp-modal-text">
@@ -689,9 +705,9 @@
 	<div class="mp-council-petition-description"><em><lang-string lang-id="MOD_MP_COUNCIL_HERALDRY_DESCRIPTION"></lang-string></em></div>
 	<hr class="mp-council-modal-rule">
 	<div class="font-w600 mb-1"><lang-string lang-id="MOD_MP_COUNCIL_PROPOSED_ICON"></lang-string></div>
-	<input class="mp-input-text w-100" type="search" v-model="state.council_icon_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_COMBAT_LOCATIONS')">
-	<div class="mp-guild-icon-selector mt-2" @touchmove="state.stop_icon_scroll_propagation($event)">
-		<button type="button" class="bank-item no-bg btn-light pointer-enabled resize-48" :class="{ 'mp-icon-picked': icon.id === state.council_picked_icon }" v-for="icon in state.filtered_council_icons" @click="state.pick_council_icon(icon)"><img class="p-2 resize-48" :src="icon.media"></button>
+	<input class="mp-input-text mp-guild-icon-selector-search" type="search" v-model="state.council_icon_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_COMBAT_LOCATIONS')">
+	<div class="mp-guild-icon-selector" @touchmove="state.stop_icon_scroll_propagation($event)">
+		<button type="button" class="mp-guild-icon-selector-item" :class="{ 'mp-icon-picked': icon.id === state.council_picked_icon }" v-for="icon in state.filtered_council_icons" @click="state.pick_council_icon(icon)"><img class="mp-guild-icon-selector-image" :src="icon.media"></button>
 	</div>
 	<div class="text-danger mt-3" v-if="state.council_error">{{ state.council_error }}</div>
 	<div class="mp-button-tray mt-3">
@@ -703,7 +719,7 @@
 	<div class="mp-council-petition-description"><em><lang-string lang-id="MOD_MP_COUNCIL_BANISHMENT_DESCRIPTION"></lang-string></em></div>
 	<hr class="mp-council-modal-rule">
 	<div class="mp-council-target-list">
-		<button type="button" class="btn btn-outline-danger mp-guild-person" v-for="member in state.guild_members" @click="state.submit_council_petition($event, 'banishment', member.client_id)"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><img class="skill-icon-xs" :src="state.get_avatar_icon(member.icon_id)"><span>{{ member.display_name }}</span><span class="badge badge-info" v-if="member.client_id === state.guild_client_id"><lang-string lang-id="MOD_MP_GUILD_YOU"></lang-string></span></button>
+		<button type="button" class="btn btn-outline-danger mp-guild-person" v-for="member in state.council_banishment_members" @click="state.submit_council_petition($event, 'banishment', member.client_id)"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><img class="skill-icon-xs" :src="state.get_avatar_icon(member.icon_id)"><span>{{ member.display_name }}</span><span class="badge badge-secondary" v-if="member.shadowed === true"><lang-string lang-id="MOD_MP_GUILD_SHADOWED"></lang-string></span><span class="badge badge-info" v-if="member.client_id === state.guild_client_id"><lang-string lang-id="MOD_MP_GUILD_YOU"></lang-string></span></button>
 	</div>
 	<div class="text-danger mt-3" v-if="state.council_error">{{ state.council_error }}</div>
 </template>
@@ -729,7 +745,7 @@
 						<div>
 							<div class="font-size-sm text-muted" v-if="state.get_guild_established_days() !== null"><lang-string lang-id="MOD_MP_GUILD_ESTABLISHED"></lang-string> <strong>{{ state.get_guild_established_days() }}</strong> <lang-string lang-id="MOD_MP_GUILD_DAYS_AGO"></lang-string></div>
 							<h3 class="font-w600 mb-1">{{ state.guild_state.guild?.name }}</h3>
-							<mp-lang-string-f lang-id="MOD_MP_GUILD_MEMBER_COUNT" :lang-arg-1="state.guild_member_count"></mp-lang-string-f>
+							<mp-lang-string-f :lang-id="state.guild_member_count === 1 ? (state.guild_active_member_count === state.guild_member_count ? 'MOD_MP_GUILD_MEMBER_COUNT_ONE' : 'MOD_MP_GUILD_MEMBER_ACTIVE_COUNT_ONE') : (state.guild_active_member_count === state.guild_member_count ? 'MOD_MP_GUILD_MEMBER_COUNT' : 'MOD_MP_GUILD_MEMBER_ACTIVE_COUNT')" :lang-arg-1="state.guild_member_count" :lang-arg-2="state.guild_active_member_count"></mp-lang-string-f>
 						</div>
 					</div>
 				</div>
@@ -768,6 +784,11 @@
 						<div class="block-content p-0 mp-guild-members-scroll">
 							<template v-for="(member, member_index) in state.guild_members">
 							<button type="button" class="mp-guild-person mp-guild-member-button" @click="state.show_member_actions(member)">
+								<div class="mp-guild-member-dlc-indicators" v-if="state.get_member_owned_dlc(member).length > 0">
+									<div class="mp-guild-member-dlc-indicator" v-for="namespace in state.get_member_owned_dlc(member)" :key="namespace">
+										<span :class="state.get_owned_dlc_status_class(namespace)">•</span>
+									</div>
+								</div>
 								<img class="mp-guild-member-avatar skill-icon-xs" :src="state.get_avatar_icon(member.icon_id)">
 								<div class="mp-guild-member-content">
 									<div class="mp-guild-member-row">
@@ -883,7 +904,7 @@
 							<h3 class="font-w600 mb-1">{{ state.guild_state.application?.name ?? '' }}</h3>
 							<p class="mb-2"><lang-string lang-id="MOD_MP_GUILD_APPLICATION_PENDING"></lang-string></p>
 							<span class="badge badge-secondary">
-								<mp-lang-string-f lang-id="MOD_MP_GUILD_MEMBER_COUNT" :lang-arg-1="state.guild_state.application?.member_count ?? 0"></mp-lang-string-f>
+								<mp-lang-string-f :lang-id="(state.guild_state.application?.member_count ?? 0) === 1 ? ((state.guild_state.application?.active_member_count ?? state.guild_state.application?.member_count ?? 0) === state.guild_state.application?.member_count ? 'MOD_MP_GUILD_MEMBER_COUNT_ONE' : 'MOD_MP_GUILD_MEMBER_ACTIVE_COUNT_ONE') : ((state.guild_state.application?.active_member_count ?? state.guild_state.application?.member_count ?? 0) === state.guild_state.application?.member_count ? 'MOD_MP_GUILD_MEMBER_COUNT' : 'MOD_MP_GUILD_MEMBER_ACTIVE_COUNT')" :lang-arg-1="state.guild_state.application?.member_count ?? 0" :lang-arg-2="state.guild_state.application?.active_member_count ?? state.guild_state.application?.member_count ?? 0"></mp-lang-string-f>
 							</span>
 						</div>
 					</div>
@@ -926,27 +947,28 @@
 						<input class="mp-input-text w-100 mb-3" type="search" v-model="state.guild_list_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_GUILDS')">
 						<div class="mp-guild-list" v-if="state.filtered_guilds.length > 0">
 							<div class="mp-guild-result" v-for="guild in state.filtered_guilds">
-								<img class="skill-icon-xs" :src="state.get_guild_icon(guild.icon_id)">
-								<div class="mp-guild-result-details">
-									<span class="font-w600 mp-guild-result-name">{{ guild.name }}</span>
-									<div class="font-size-sm text-muted" v-if="guild.is_free_fellowship"><lang-string lang-id="MOD_MP_FREE_FELLOWSHIP_LABEL"></lang-string></div>
-									<div class="font-size-sm text-muted" v-else-if="guild.is_public"><lang-string lang-id="MOD_MP_PUBLIC_GUILD_LABEL"></lang-string></div>
-								</div>
-								<div class="mp-guild-result-actions">
-									<button type="button" class="btn btn-sm btn-success" v-if="guild.is_free_fellowship" @click="state.join_free_fellowship($event, guild)">
-										<lang-string lang-id="MOD_MP_BUTTON_JOIN"></lang-string>
-									</button>
-									<button type="button" class="btn btn-sm btn-success" v-else-if="guild.is_public" @click="state.join_guild($event, guild)">
-										<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-										<lang-string lang-id="MOD_MP_BUTTON_JOIN"></lang-string>
-									</button>
-									<button type="button" class="btn btn-sm btn-success" v-else @click="state.apply_to_guild($event, guild)">
-										<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-										<lang-string lang-id="MOD_MP_BUTTON_APPLY"></lang-string>
-									</button>
-									<span class="badge badge-secondary">
-										<mp-lang-string-f lang-id="MOD_MP_GUILD_MEMBER_COUNT" :lang-arg-1="guild.member_count"></mp-lang-string-f>
-									</span>
+								<img class="mp-guild-result-icon" :src="state.get_guild_icon(guild.icon_id)">
+								<div class="mp-guild-result-content">
+									<div class="mp-guild-result-row">
+										<span class="font-w600 mp-guild-result-name">{{ guild.name }}</span>
+										<button type="button" class="btn btn-sm btn-success" v-if="guild.is_free_fellowship" @click="state.join_free_fellowship($event, guild)">
+											<lang-string lang-id="MOD_MP_BUTTON_JOIN"></lang-string>
+										</button>
+										<button type="button" class="btn btn-sm btn-success" v-else-if="guild.is_public" @click="state.join_guild($event, guild)">
+											<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+											<lang-string lang-id="MOD_MP_BUTTON_JOIN"></lang-string>
+										</button>
+										<button type="button" class="btn btn-sm btn-info" v-else @click="state.apply_to_guild($event, guild)">
+											<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+											<lang-string lang-id="MOD_MP_BUTTON_APPLY"></lang-string>
+										</button>
+									</div>
+									<div class="mp-guild-result-tags">
+										<span class="badge badge-secondary"><lang-string :lang-id="guild.is_public || guild.is_free_fellowship ? 'MOD_MP_GUILD_OPEN' : 'MOD_MP_GUILD_PRIVATE'"></lang-string></span>
+										<span class="badge badge-secondary">
+											<mp-lang-string-f :lang-id="guild.member_count === 1 ? ((guild.active_member_count ?? guild.member_count) === guild.member_count ? 'MOD_MP_GUILD_MEMBER_COUNT_ONE' : 'MOD_MP_GUILD_MEMBER_ACTIVE_COUNT_ONE') : ((guild.active_member_count ?? guild.member_count) === guild.member_count ? 'MOD_MP_GUILD_MEMBER_COUNT' : 'MOD_MP_GUILD_MEMBER_ACTIVE_COUNT')" :lang-arg-1="guild.member_count" :lang-arg-2="guild.active_member_count ?? guild.member_count"></mp-lang-string-f>
+										</span>
+									</div>
 								</div>
 							</div>
 						</div>
@@ -970,10 +992,10 @@
 							<lang-string lang-id="MOD_MP_LABEL_GUILD_NAME"></lang-string>
 							<input class="mp-input-text w-100 mt-1" type="text" maxlength="20" v-model="state.guild_name_input">
 						</label>
-						<input class="mp-input-text w-100 mt-3" type="search" v-model="state.guild_icon_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_COMBAT_LOCATIONS')">
-						<div class="mp-guild-icon-selector mt-2" v-if="state.filtered_guild_icons.length > 0" @touchmove="state.stop_icon_scroll_propagation($event)">
-							<button type="button" class="bank-item no-bg btn-light pointer-enabled resize-48" :class="{ 'mp-icon-picked': icon.id === state.picked_guild_icon }" v-for="icon in state.filtered_guild_icons" @click="state.pick_guild_icon(icon)">
-								<img class="p-2 resize-48" :src="icon.media">
+						<input class="mp-input-text mp-guild-icon-selector-search" type="search" v-model="state.guild_icon_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_COMBAT_LOCATIONS')">
+						<div class="mp-guild-icon-selector" v-if="state.filtered_guild_icons.length > 0" @touchmove="state.stop_icon_scroll_propagation($event)">
+							<button type="button" class="mp-guild-icon-selector-item" :class="{ 'mp-icon-picked': icon.id === state.picked_guild_icon }" v-for="icon in state.filtered_guild_icons" @click="state.pick_guild_icon(icon)">
+								<img class="mp-guild-icon-selector-image" :src="icon.media">
 							</button>
 						</div>
 						<div class="text-muted mt-3" v-else>
@@ -1217,10 +1239,10 @@
 </template>
 <template id="template-mp-change-icon-modal">
 	<div class="mp-modal-text mb-3" v-if="state.show_icon_prompt_info"><lang-string lang-id="MOD_MP_DEFAULT_AVATAR_PROMPT"></lang-string></div>
-	<input class="form-control" type="text" v-model="state.icon_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_ICON')"/>
+	<input class="mp-input-text mp-icon-selector-search" type="text" v-model="state.icon_search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_ICON')"/>
 	<div class="mp-icon-selector" v-if="state.filtered_icons.length > 0" @touchmove="state.stop_icon_scroll_propagation($event)">
-		<div class="bank-item no-bg btn-light pointer-enabled m-1 resize-48" :class="{ 'mp-icon-picked': icon.id == state.picked_icon }" v-for="icon in state.filtered_icons" @click="state.pick_icon(icon)">
-			<img class="p-2 resize-48" :src="icon.media" loading="lazy">
+		<div class="mp-icon-selector-item" :class="{ 'mp-icon-picked': icon.id == state.picked_icon }" v-for="icon in state.filtered_icons" @click="state.pick_icon(icon)">
+			<img class="mp-icon-selector-image" :src="icon.media" loading="lazy">
 		</div>
 	</div>
 	<div class="mp-modal-text mt-3" v-else>

@@ -54,7 +54,13 @@ test('shows every matching avatar in a bounded scrolling selector', async () => 
 	assert.match(main, /stop_icon_scroll_propagation\(event\) \{\s*event\.stopPropagation\(\);/);
 	assert.doesNotMatch(main, /stop_icon_scroll_propagation\(event\) \{[^}]*preventDefault/);
 	assert.match(styles, /\.mp-icon-picker-modal-popup \.swal2-html-container,[\s\S]*\.mp-name-input-modal-popup \.swal2-html-container \{[^}]*overflow:\s*visible/);
+	assert.match(templates, /class="mp-input-text mp-icon-selector-search"/);
 	assert.match(templates, /class="mp-icon-selector"[\s\S]*?@touchmove="state\.stop_icon_scroll_propagation\(\$event\)"/);
+	assert.match(templates, /class="mp-icon-selector-item"[\s\S]*class="mp-icon-selector-image"/);
+	const icon_picker_template = templates.slice(templates.indexOf('<template id="template-mp-change-icon-modal">'), templates.indexOf('<template id="template-mp-bank-actions-container">'));
+	assert.doesNotMatch(icon_picker_template, /bank-item|no-bg|btn-light|pointer-enabled|resize-48|p-2/);
+	assert.match(styles, /\.mp-icon-selector-item,[\s\S]*\.mp-guild-icon-selector-item \{/);
+	assert.match(styles, /\.mp-icon-selector-image,[\s\S]*\.mp-guild-icon-selector-image \{/);
 	assert.match(templates, /state\.show_icon_prompt_info[\s\S]*MOD_MP_DEFAULT_AVATAR_PROMPT/);
 	assert.match(templates, /v-for="icon in state\.filtered_icons"[\s\S]*?<img[^>]+loading="lazy">/);
 	assert.match(templates, /<\/div>\s*<div class="mp-button-tray">/);

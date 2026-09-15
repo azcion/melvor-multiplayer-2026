@@ -295,5 +295,81 @@ export const migrations_081_090: Migration[] = [
 				ON guild_petitions (execution_state, execution_last_attempt_at, id)
 				WHERE execution_state IN ('pending', 'running', 'failed');
 		`
+	},
+	{
+		version: 89,
+		sql: `
+			ALTER TABLE client_runtime_snapshots ADD COLUMN owned_dlc TEXT NOT NULL DEFAULT '[]'
+				CHECK (length(owned_dlc) <= 512);
+		`
+	},
+	{
+		version: 90,
+		sql: `
+			CREATE TABLE chat_translation_jobs (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				source_kind TEXT NOT NULL CHECK (
+					source_kind IN ('private', 'guild', 'global', 'support', 'poll-discussion')
+				),
+				message_id INTEGER NOT NULL CHECK (message_id > 0),
+				content TEXT NOT NULL CHECK (length(content) BETWEEN 1 AND 1000),
+				detected_language TEXT,
+				state TEXT NOT NULL DEFAULT 'queued' CHECK (state IN ('queued', 'processing', 'complete', 'dead')),
+				attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts BETWEEN 0 AND 4),
+				enqueued_at INTEGER NOT NULL CHECK (enqueued_at BETWEEN 0 AND 9007199254740991),
+				available_at INTEGER NOT NULL CHECK (available_at BETWEEN 0 AND 9007199254740991),
+				last_attempt_at INTEGER CHECK (last_attempt_at BETWEEN 0 AND 9007199254740991),
+				completed_at INTEGER CHECK (completed_at BETWEEN 0 AND 9007199254740991),
+				last_error_code TEXT,
+				UNIQUE (source_kind, message_id)
+			);
+			CREATE INDEX idx_chat_translation_jobs_fifo
+				ON chat_translation_jobs (state, id, available_at);
+
+			CREATE TABLE chat_message_translations (
+				job_id INTEGER NOT NULL REFERENCES chat_translation_jobs (id) ON DELETE CASCADE,
+				language TEXT NOT NULL CHECK (length(language) BETWEEN 2 AND 64),
+				content TEXT NOT NULL CHECK (length(content) BETWEEN 1 AND 5000),
+				translated_at INTEGER NOT NULL CHECK (translated_at BETWEEN 0 AND 9007199254740991),
+				PRIMARY KEY (job_id, language)
+			);
+
+			CREATE TRIGGER enqueue_private_chat_translation AFTER INSERT ON chat_messages BEGIN
+				INSERT INTO chat_translation_jobs (source_kind, message_id, content, enqueued_at, available_at)
+				VALUES ('private', NEW.id, NEW.content, NEW.created_at, NEW.created_at);
+			END;
+			CREATE TRIGGER enqueue_guild_chat_translation AFTER INSERT ON guild_chat_messages BEGIN
+				INSERT INTO chat_translation_jobs (source_kind, message_id, content, enqueued_at, available_at)
+				VALUES ('guild', NEW.id, NEW.content, NEW.created_at, NEW.created_at);
+			END;
+			CREATE TRIGGER enqueue_global_chat_translation AFTER INSERT ON global_chat_messages BEGIN
+				INSERT INTO chat_translation_jobs (source_kind, message_id, content, enqueued_at, available_at)
+				VALUES ('global', NEW.id, NEW.content, NEW.created_at, NEW.created_at);
+			END;
+			CREATE TRIGGER enqueue_support_chat_translation AFTER INSERT ON support_messages BEGIN
+				INSERT INTO chat_translation_jobs (source_kind, message_id, content, enqueued_at, available_at)
+				VALUES ('support', NEW.id, NEW.content, NEW.created_at, NEW.created_at);
+			END;
+			CREATE TRIGGER enqueue_poll_discussion_translation AFTER INSERT ON poll_discussion_messages BEGIN
+				INSERT INTO chat_translation_jobs (source_kind, message_id, content, enqueued_at, available_at)
+				VALUES ('poll-discussion', NEW.id, NEW.content, NEW.created_at, NEW.created_at);
+			END;
+
+			CREATE TRIGGER delete_private_chat_translation AFTER DELETE ON chat_messages BEGIN
+				DELETE FROM chat_translation_jobs WHERE source_kind = 'private' AND message_id = OLD.id;
+			END;
+			CREATE TRIGGER delete_guild_chat_translation AFTER DELETE ON guild_chat_messages BEGIN
+				DELETE FROM chat_translation_jobs WHERE source_kind = 'guild' AND message_id = OLD.id;
+			END;
+			CREATE TRIGGER delete_global_chat_translation AFTER DELETE ON global_chat_messages BEGIN
+				DELETE FROM chat_translation_jobs WHERE source_kind = 'global' AND message_id = OLD.id;
+			END;
+			CREATE TRIGGER delete_support_chat_translation AFTER DELETE ON support_messages BEGIN
+				DELETE FROM chat_translation_jobs WHERE source_kind = 'support' AND message_id = OLD.id;
+			END;
+			CREATE TRIGGER delete_poll_discussion_translation AFTER DELETE ON poll_discussion_messages BEGIN
+				DELETE FROM chat_translation_jobs WHERE source_kind = 'poll-discussion' AND message_id = OLD.id;
+			END;
+		`
 	}
 ];

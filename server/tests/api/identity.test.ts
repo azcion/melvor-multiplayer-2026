@@ -28,7 +28,8 @@ describe('identity API', () => {
 				mod_version: '1.3.0-beta.1',
 				active_mods: ['Multiplayer', 'QoL Mod', 'Multiplayer'],
 				game_mode_id: 'melvorF:Adventure',
-				language: 'x-debug-locale'
+				language: 'x-debug-locale',
+				owned_dlc: ['melvorAoD', 'melvorTotH', 'melvorAoD']
 			}
 		});
 		expect(registered.response.status).toBe(200);
@@ -38,9 +39,10 @@ describe('identity API', () => {
 			active_mods: string;
 			game_mode_id: string | null;
 			language: string | null;
+			owned_dlc: string;
 			reported_at: number;
 		}>(
-			'SELECT `mod_version`, `active_mods`, `game_mode_id`, `language`, `reported_at` FROM `client_runtime_snapshots` WHERE `client_id` = ?',
+			'SELECT `mod_version`, `active_mods`, `game_mode_id`, `language`, `owned_dlc`, `reported_at` FROM `client_runtime_snapshots` WHERE `client_id` = ?',
 			[registered.json.chat.client_id]
 		);
 		expect(snapshots).toHaveLength(1);
@@ -48,6 +50,7 @@ describe('identity API', () => {
 		expect(JSON.parse(snapshots[0]?.active_mods ?? 'null')).toEqual(['Multiplayer', 'QoL Mod']);
 		expect(snapshots[0]?.game_mode_id).toBe('melvorF:Adventure');
 		expect(snapshots[0]?.language).toBe('x-debug-locale');
+		expect(JSON.parse(snapshots[0]?.owned_dlc ?? 'null')).toEqual(['melvorAoD', 'melvorTotH']);
 		expect(snapshots[0]?.reported_at).toBeGreaterThan(0);
 
 		const sessions = await db_all<{ mod_version: string | null }>(
@@ -63,7 +66,8 @@ describe('identity API', () => {
 				mod_version: '1.3.0',
 				active_mods: ['Multiplayer', 'Compatibility Mod'],
 				game_mode_id: 'customMode:Iron_Idler',
-				language: 'zh-TW'
+				language: 'zh-TW',
+				owned_dlc: ['melvorItA']
 			}
 		});
 		expect(authenticated.status).toBe(200);
@@ -72,15 +76,17 @@ describe('identity API', () => {
 			active_mods: string;
 			game_mode_id: string | null;
 			language: string | null;
+			owned_dlc: string;
 			reported_at: number;
 		}>(
-			'SELECT `mod_version`, `active_mods`, `game_mode_id`, `language`, `reported_at` FROM `client_runtime_snapshots` WHERE `client_id` = ?',
+			'SELECT `mod_version`, `active_mods`, `game_mode_id`, `language`, `owned_dlc`, `reported_at` FROM `client_runtime_snapshots` WHERE `client_id` = ?',
 			[registered.json.chat.client_id]
 		);
 		expect(snapshots[0]?.mod_version).toBe('1.3.0');
 		expect(JSON.parse(snapshots[0]?.active_mods ?? 'null')).toEqual(['Multiplayer', 'Compatibility Mod']);
 		expect(snapshots[0]?.game_mode_id).toBe('customMode:Iron_Idler');
 		expect(snapshots[0]?.language).toBe('zh-TW');
+		expect(JSON.parse(snapshots[0]?.owned_dlc ?? 'null')).toEqual(['melvorItA']);
 	});
 
 	test('retains the latest recognized cheat-mod report when later runtime snapshots are clean', async () => {
@@ -139,7 +145,11 @@ describe('identity API', () => {
 			{ mod_version: '1.3.0', active_mods: [], game_mode_id: 'x:'.padEnd(258, 'y') },
 			{ mod_version: '1.3.0', active_mods: [], game_mode_id: 1 },
 			{ mod_version: '1.3.0', active_mods: [], language: 1 },
-			{ mod_version: '1.3.0', active_mods: [], language: 'x'.repeat(65) }
+			{ mod_version: '1.3.0', active_mods: [], language: 'x'.repeat(65) },
+			{ mod_version: '1.3.0', active_mods: [], owned_dlc: null },
+			{ mod_version: '1.3.0', active_mods: [], owned_dlc: ['melvorUnknown'] },
+			{ mod_version: '1.3.0', active_mods: [], owned_dlc: [1] },
+			{ mod_version: '1.3.0', active_mods: [], owned_dlc: ['melvorTotH', 'melvorAoD', 'melvorItA', 'melvorTotH'] }
 		]) {
 			const response = await post('/api/register', {
 				client_key: crypto.randomUUID(),
@@ -154,11 +164,11 @@ describe('identity API', () => {
 			display_name: 'Legacy Runtime Shape',
 			client_runtime: { mod_version: '1.2.0', active_mods: ['Multiplayer'] }
 		});
-		const snapshots = await db_all<{ game_mode_id: string | null }>(
-			'SELECT `game_mode_id` FROM `client_runtime_snapshots` WHERE `client_id` = ?',
+		const snapshots = await db_all<{ game_mode_id: string | null; owned_dlc: string }>(
+			'SELECT `game_mode_id`, `owned_dlc` FROM `client_runtime_snapshots` WHERE `client_id` = ?',
 			[legacy_runtime.json.chat.client_id]
 		);
-		expect(snapshots).toEqual([{ game_mode_id: null }]);
+		expect(snapshots).toEqual([{ game_mode_id: null, owned_dlc: '[]' }]);
 	});
 
 	test('reports only the operator-controlled released mod version during identity startup', async () => {

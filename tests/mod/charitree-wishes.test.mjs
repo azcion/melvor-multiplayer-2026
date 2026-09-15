@@ -85,6 +85,24 @@ test('wires Wish creation, presentation, owner actions, and Inbox naming', async
 	assert.equal(english.MOD_MP_CHARITY_WISH_WISHER, 'Wished for by');
 	assert.equal(english.MOD_MP_CHARITY_WISH_FORSAKE_CONFIRM, 'Are you sure you want to forsake this Wish? It will be destroyed and cannot be recovered.');
 	assert.equal(english.MOD_MP_CHARITY_WISH_PICK, 'Claim Wish');
-	assert.equal(english.MOD_MP_CHARITY_WISH_SHUFFLE_PENALTY, 'While a Wish is active, your Shuffle Bonus is reduced by 10, which may cause the Charitree to grow denser leaves.');
+	assert.equal(english.MOD_MP_CHARITY_INFO_WISHES_PENALTY, 'Shuffle Bonus by 10');
 	assert.equal(typeof chinese.MOD_MP_CHARITY_WISH_MAKE, 'string');
+});
+
+test('hides Charitree offerings, wishes, and Wish choices from unowned official DLC', async () => {
+	const [main, actions] = await Promise.all([
+		readFile(new URL('mod/main.mjs', root), 'utf8'),
+		readFile(new URL('mod/client-actions-market-campaign-charity.mjs', root), 'utf8')
+	]);
+	const request = main.slice(
+		main.indexOf('async function request_charity_tree_contents'),
+		main.indexOf('\nfunction update_charity_clock')
+	);
+
+	assert.match(request, /filter_local_available_items\(res\.items, item => item\.id\)/);
+	assert.match(request, /state\.charity_wishes = item_visibility\.filter_items_for_owned_dlc\([\s\S]*wish => wish\.item_id[\s\S]*owned_dlc_namespaces/);
+	assert.match(request, /state\.charity_wish_catalog = item_visibility\.filter_items_for_owned_dlc\([\s\S]*item => item\.id[\s\S]*owned_dlc_namespaces/);
+	assert.match(actions, /async resolve_charity_wish\(event, action, confirmed = false\)[\s\S]*!is_local_item_available\(wish\?\.item_id\)/);
+	assert.match(actions, /async make_charity_wish\(event\)[\s\S]*!is_local_item_available\(state\.charity_wish_item_id\)/);
+	assert.match(actions, /async charity_take_item\(event\)[\s\S]*!is_local_item_available\(item\.id\)/);
 });

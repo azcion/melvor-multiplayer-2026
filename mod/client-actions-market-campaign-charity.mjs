@@ -26,6 +26,7 @@ export function install_market_campaign_charity_actions(runtime) {
 		has_local_unresolved_item,
 		hide_button_spinner,
 		is_button_spinning,
+		is_local_item_available = () => true,
 		is_local_item_resolved,
 		load_market_filter_items,
 		numberWithCommas,
@@ -91,6 +92,8 @@ export function install_market_campaign_charity_actions(runtime) {
 		},
 
 		select_market_filter_item(item_id) {
+			if (!is_local_item_available(item_id))
+				return;
 			if (state.market_active_tab === 'create-filter') {
 				const item = game.items.getObjectByID(item_id);
 				state.market_create_item = item_id;
@@ -137,6 +140,8 @@ export function install_market_campaign_charity_actions(runtime) {
 		},
 
 		show_market_buy_modal(item) {
+			if (!is_local_item_available(item?.item_id))
+				return;
 			this.market_buy_item = item;
 
 			const item_name = this.get_item_name(item.item_id);
@@ -155,6 +160,8 @@ export function install_market_campaign_charity_actions(runtime) {
 
 			if (!state.market_buy_item)
 				return notify_error('MOD_MP_GENERIC_ERR');
+			if (!is_local_item_available(state.market_buy_item.item_id))
+				return;
 
 			if (state.item_slider_value <= 0)
 				return notify_error('MOD_MP_MARKET_BUY_NOTHING');
@@ -196,6 +203,8 @@ export function install_market_campaign_charity_actions(runtime) {
 		},
 
 		show_market_fulfill_modal(item) {
+			if (!is_local_item_available(item?.item_id))
+				return;
 			this.market_fulfill_item = item;
 
 			const item_name = this.get_item_name(item.item_id);
@@ -224,6 +233,8 @@ export function install_market_campaign_charity_actions(runtime) {
 
 			if (!state.market_fulfill_item)
 				return notify_error('MOD_MP_GENERIC_ERR');
+			if (!is_local_item_available(state.market_fulfill_item.item_id))
+				return;
 
 			if (state.item_slider_value <= 0)
 				return notify_error('MOD_MP_MARKET_FULFILL_NOTHING');
@@ -264,8 +275,10 @@ export function install_market_campaign_charity_actions(runtime) {
 				return;
 
 			const item = this.market_create_item && game.items.getObjectByID(this.market_create_item);
-		if (!item)
-			return notify_error('MOD_MP_MARKET_CREATE_ITEM_REQUIRED');
+			if (!item)
+				return notify_error('MOD_MP_MARKET_CREATE_ITEM_REQUIRED');
+			if (!is_local_item_available(item.id))
+				return;
 
 			const item_qty = Number(this.market_create_qty);
 			const item_buy_price = Number(this.market_create_price);
@@ -356,6 +369,8 @@ export function install_market_campaign_charity_actions(runtime) {
 		},
 
 		show_market_haggle_modal(item) {
+			if (!is_local_item_available(item?.item_id))
+				return;
 			this.market_haggle_item = item;
 			this.market_haggle_price = item.price;
 			queue_modal(getLangString('MOD_MP_MARKET_HAGGLE_TITLE'), 'market-haggle-modal',
@@ -382,6 +397,8 @@ export function install_market_campaign_charity_actions(runtime) {
 
 		async create_market_haggle(event) {
 			const item = this.market_haggle_item;
+			if (!is_local_item_available(item?.item_id))
+				return;
 			const requested_qty = this.item_slider_value;
 			const price = Number(this.market_haggle_price);
 			if (!item || !Number.isSafeInteger(requested_qty) || requested_qty <= 0 || !Number.isSafeInteger(price) || price <= 0)
@@ -663,6 +680,8 @@ export function install_market_campaign_charity_actions(runtime) {
 
 		async make_charity_wish(event) {
 			const qty = Number(state.charity_wish_qty);
+			if (!is_local_item_available(state.charity_wish_item_id))
+				return;
 			if (!state.eligible_charity_wish_items.some(item => item.id === state.charity_wish_item_id) ||
 				!Number.isSafeInteger(qty) || qty < 1 || qty > 100)
 				return notify_error('MOD_MP_CHARITY_WISH_INVALID');
@@ -692,6 +711,8 @@ export function install_market_campaign_charity_actions(runtime) {
 
 		async resolve_charity_wish(event, action, confirmed = false) {
 			const wish = state.selected_charity_wish;
+			if (!is_local_item_available(wish?.item_id))
+				return;
 			if (!wish?.owned || (action === 'forsake' && wish.phase !== 'maturing') ||
 				(action === 'pick' && wish.phase !== 'ripe')) return;
 			if (action === 'forsake' && !confirmed)
@@ -794,6 +815,8 @@ export function install_market_campaign_charity_actions(runtime) {
 			const item = this.charity_tree_inventory.find(e => e.id === state.selected_charity_item_id);
 			if (!item)
 				return notify_error('MOD_MP_CHARITY_INVALID_ITEM');
+			if (!is_local_item_available(item.id))
+				return;
 			if (!is_local_item_resolved(item.id))
 				return notify_error('MOD_MP_CHARITY_UNKNOWN_ITEM');
 			const take_block = this.get_charity_take_block(item);

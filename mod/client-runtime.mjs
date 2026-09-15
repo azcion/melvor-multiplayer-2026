@@ -2,6 +2,7 @@ export const MAX_ACTIVE_MOD_COUNT = 128;
 export const MAX_ACTIVE_MOD_NAME_LENGTH = 128;
 export const MAX_GAME_MODE_ID_LENGTH = 256;
 export const MAX_LANGUAGE_LENGTH = 64;
+export const OWNED_DLC_NAMESPACES = Object.freeze(['melvorTotH', 'melvorAoD', 'melvorItA']);
 
 const LANGUAGE_LANG_IDS = Object.freeze({
 	en: 'MOD_MP_LANGUAGE_EN',
@@ -11,7 +12,6 @@ const LANGUAGE_LANG_IDS = Object.freeze({
 	de: 'MOD_MP_LANGUAGE_DE',
 	pt: 'MOD_MP_LANGUAGE_PT',
 	'pt-br': 'MOD_MP_LANGUAGE_PT_BR',
-	'pt-BR': 'MOD_MP_LANGUAGE_PT_BR',
 	it: 'MOD_MP_LANGUAGE_IT',
 	ko: 'MOD_MP_LANGUAGE_KO',
 	ja: 'MOD_MP_LANGUAGE_JA',
@@ -58,10 +58,22 @@ export function get_language_lang_id(language) {
 		: null;
 }
 
-export function make_client_runtime_report(mod_version, active_mods, game_mode_id, language = null, device = null) {
+export function get_owned_dlc(cloud_manager) {
+	const owned_dlc = [];
+	if (cloud_manager?.hasTotHEntitlementAndIsEnabled === true)
+		owned_dlc.push('melvorTotH');
+	if (cloud_manager?.hasAoDEntitlementAndIsEnabled === true)
+		owned_dlc.push('melvorAoD');
+	if (cloud_manager?.hasItAEntitlementAndIsEnabled === true)
+		owned_dlc.push('melvorItA');
+	return owned_dlc;
+}
+
+export function make_client_runtime_report(mod_version, active_mods, game_mode_id, language = null, device = null, owned_dlc = []) {
 	const report = {
 		mod_version,
-		active_mods: [...active_mods]
+		active_mods: [...active_mods],
+		owned_dlc: [...owned_dlc]
 	};
 	if (game_mode_id !== null && game_mode_id !== undefined)
 		report.game_mode_id = game_mode_id;

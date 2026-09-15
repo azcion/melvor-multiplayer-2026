@@ -300,7 +300,7 @@ export function install_social_actions(runtime) {
 
 		async show_raise_petition_modal() {
 			this.council_error = '';
-			await refresh_council();
+			await Promise.all([refresh_council(), refresh_shadowed_members(0, '')]);
 			queue_modal('MOD_MP_COUNCIL_RAISE', 'council-raise-modal', 'assets/multiplayer.svg', {
 				showConfirmButton: false
 			});

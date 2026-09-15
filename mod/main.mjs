@@ -56,6 +56,11 @@ const SUPPORT_TEAM_ICON_ASSETS = Object.freeze({
 });
 const DEFAULT_AVATAR_ICON_ID = 'melvorD:Plant';
 const DEFAULT_AVATAR_PROMPT_STORAGE_KEY = 'default_avatar_prompt_shown';
+const OWNED_DLC_STATUS_CLASSES = Object.freeze({
+	melvorTotH: 'text-toth',
+	melvorAoD: 'text-aod',
+	melvorItA: 'text-ita'
+});
 const OFFICIAL_GAME_NAMESPACES = new Set([
 	'melvorD',
 	'melvorF',
@@ -186,6 +191,7 @@ let has_done_first_market_search = false;
 const multiplayer_pet_flare = new Map();
 let active_mod_names = [];
 let loaded_game_mode_id = null;
+let owned_dlc_namespaces = [];
 // #endregion
 
 function capture_active_mod_names() {
@@ -205,8 +211,20 @@ function get_connection_report() {
 }
 
 function get_client_runtime_report() {
+	const melvor_cloud_manager = typeof cloudManager === 'undefined' ? globalThis.cloudManager : cloudManager;
+	owned_dlc_namespaces = client_runtime.get_owned_dlc(melvor_cloud_manager);
 	return client_runtime.make_client_runtime_report(MOD_VERSION, active_mod_names, loaded_game_mode_id,
-		client_runtime.get_language_code(typeof setLang === 'string' ? setLang : null), get_device_diagnostics());
+		client_runtime.get_language_code(typeof setLang === 'string' ? setLang : null), get_device_diagnostics(),
+		owned_dlc_namespaces);
+}
+
+function get_member_owned_dlc(member) {
+	const reported_owned_dlc = Array.isArray(member?.owned_dlc) ? member.owned_dlc : [];
+	return (client_runtime?.OWNED_DLC_NAMESPACES ?? []).filter(namespace => reported_owned_dlc.includes(namespace));
+}
+
+function get_owned_dlc_status_class(namespace) {
+	return OWNED_DLC_STATUS_CLASSES[namespace] ?? '';
 }
 
 function get_chat_conversation_key(conversation) {
@@ -443,6 +461,8 @@ const state = ui.createStore({
 	chat_reaction_picker_style: {},
 	chat_reaction_pending: {},
 	chat_reaction_throttle_until: {},
+	chat_translation_preferences: {},
+	chat_translation_language_input: 'en',
 	polls: [],
 	poll_revision: null,
 	poll_can_create: false,
@@ -571,6 +591,9 @@ const state = ui.createStore({
 		return Number.isSafeInteger(amount) && amount >= 0 ? formatNumber(amount) : '';
 	},
 
+	get_member_owned_dlc,
+	get_owned_dlc_status_class,
+
 	get filtered_icons() {
 		const icon_search_lower = this.icon_search.toLowerCase();
 		return this.available_icons.filter(icon => icon.search_name.includes(icon_search_lower));
@@ -641,8 +664,23 @@ const state = ui.createStore({
 		return this.guild_state.guild?.member_count ?? this.guild_members.length;
 	},
 
+	get guild_active_member_count() {
+		return this.guild_state.guild?.active_member_count ?? this.guild_member_count;
+	},
+
 	get guild_recipients() {
 		return this.guild_members.filter(member => member.client_id !== this.guild_client_id && member.social_mode !== 'social');
+	},
+
+	get council_banishment_members() {
+		const members = [...this.guild_members, ...this.shadowed_members];
+		const seen = new Set();
+		return members.filter(member => {
+			if (seen.has(member.client_id))
+				return false;
+			seen.add(member.client_id);
+			return true;
+		});
 	},
 
 	get viewed_equipment_grid() {
@@ -1006,6 +1044,7 @@ function create_action_runtime() {
 		ctx,
 		game,
 		getLangString,
+		localization,
 		changePage: navigate_page,
 		Swal,
 		document,
@@ -1057,6 +1096,7 @@ function create_action_runtime() {
 		hide_modal_error,
 		invalidate_guild_state,
 		is_button_spinning,
+		is_local_item_available,
 		is_local_item_resolved,
 		load_market_filter_items,
 		log,
@@ -1711,12 +1751,26 @@ function filter_local_resolved_items(items, get_item_id) {
 	return item_visibility.filter_resolved_items(items, get_item_id, is_local_item_resolved);
 }
 
+function filter_local_available_items(items, get_item_id) {
+	return item_visibility.filter_items_for_owned_dlc(
+		filter_local_resolved_items(items, get_item_id),
+		get_item_id,
+		owned_dlc_namespaces
+	);
+}
+
+function is_local_item_available(item_id) {
+	return is_local_item_resolved(item_id) &&
+		item_visibility.is_item_available_for_owned_dlc(item_id, owned_dlc_namespaces);
+}
+
 function has_local_unresolved_item(items, get_item_id) {
 	return item_visibility.has_unresolved_item(items, get_item_id, is_local_item_resolved);
 }
 
 function get_local_item_namespaces() {
-	return item_visibility.get_resolved_item_namespaces([...game.items.registeredObjects]);
+	return item_visibility.get_resolved_item_namespaces([...game.items.registeredObjects])
+		.filter(namespace => item_visibility.is_item_available_for_owned_dlc(`${namespace}:Item`, owned_dlc_namespaces));
 }
 
 function add_bank_item(item_id, amount, found = false) {
@@ -2051,6 +2105,8 @@ async function market_create_listing(item, item_qty, item_sell_price) {
 		notify_error('MOD_MP_GUILD_REQUIRED');
 		return false;
 	}
+	if (!is_local_item_available(item?.id))
+		return false;
 
 	if (!Number.isSafeInteger(item_qty) || item_qty <= 0) {
 		notify_error('MOD_MP_MARKET_CANNOT_SELL_NOTHING');
@@ -2179,7 +2235,9 @@ async function update_market_search() {
 		if (res?.success) {
 			state.market_current_page = res.page;
 			state.market_total_items = res.total_items;
-			state.market_results = (res.items ?? []).map(item => ({
+			state.market_results = item_visibility.filter_items_for_owned_dlc(
+				res.items ?? [], item => item.item_id, owned_dlc_namespaces
+			).map(item => ({
 				...item,
 				direction: item.direction ?? direction,
 				market_owner: item.buyer ?? item.seller ?? null
@@ -2199,7 +2257,7 @@ function load_market_filter_items() {
 		if (item.category === '')
 			return false;
 
-		return true;
+		return is_local_item_available(item.id);
 	}).map(item => {
 		return {
 			id: item.id,
@@ -2442,15 +2500,19 @@ async function request_charity_tree_contents(force_reload = false, show_loading 
 		await recover_pending_charity_wish_actions();
 		const res = await api_get('/api/charity/contents');
 		if (Array.isArray(res?.items)) {
-			state.charity_tree_inventory = filter_local_resolved_items(res.items, item => item.id)
+			state.charity_tree_inventory = filter_local_available_items(res.items, item => item.id)
 				.filter(item => item.qty > 0)
 				.sort((left, right) => Number(left.id !== CHARITY_WEIRD_GLOOP_ID) - Number(right.id !== CHARITY_WEIRD_GLOOP_ID));
 			state.charity_shuffle_supported = Object.hasOwn(res, 'shuffled_at');
 			state.charity_shuffled_at = res.shuffled_at ?? null;
 			state.charity_shuffle_count = Number.isSafeInteger(res.shuffle_count) ? Math.max(-10, res.shuffle_count) : 0;
 			state.charity_currency_locks = res.currency_locks ?? [];
-			state.charity_wishes = Array.isArray(res.wishes) ? res.wishes : [];
-			state.charity_wish_catalog = Array.isArray(res.wish_catalog) ? res.wish_catalog : [];
+			state.charity_wishes = item_visibility.filter_items_for_owned_dlc(
+				Array.isArray(res.wishes) ? res.wishes : [], wish => wish.item_id, owned_dlc_namespaces
+			);
+			state.charity_wish_catalog = item_visibility.filter_items_for_owned_dlc(
+				Array.isArray(res.wish_catalog) ? res.wish_catalog : [], item => item.id, owned_dlc_namespaces
+			);
 			state.charity_active_wish = res.active_wish === true;
 			update_charitree_nav();
 		}
@@ -3546,6 +3608,14 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 		if (Array.isArray(res?.messages)) {
 			const known = new Set(state.chat_messages.map(message => message.message_id));
 			const additions = res.messages.filter(message => !known.has(message.message_id));
+			for (const incoming of res.messages) {
+				const existing = state.chat_messages.find(message => message.message_id === incoming.message_id);
+				if (existing) {
+					existing.translations = incoming.translations ?? {};
+					existing.translation_status = incoming.translation_status;
+					existing.translation_enqueued_at = incoming.translation_enqueued_at;
+				}
+			}
 			const should_scroll_for_additions = quiet && additions.length > 0 && state.chat_messages_are_at_bottom();
 			if (Array.isArray(res.reaction_updates)) {
 				for (const update of res.reaction_updates) {
@@ -3622,13 +3692,16 @@ async function poll_chat_messages(poll_id) {
 	let succeeded = false;
 	try {
 		const view_generation = chat_view_generation;
-		if (state.selected_chat_conversation)
+		if (state.selected_chat_conversation) {
+			const translation_pending = state.chat_messages.some(message =>
+				state.is_chat_message_translation_waiting(message));
 			succeeded = await refresh_chat_messages(
-				'&after=' + state.chat_latest_message_id,
+				translation_pending ? '' : '&after=' + state.chat_latest_message_id,
 				false,
 				true,
 				view_generation
 			);
+		}
 	} catch (e) {
 		error('Chat polling failed (%s)', e);
 	} finally {
@@ -3663,6 +3736,13 @@ async function refresh_guild_state(force = false) {
 	} finally {
 		guild_state_refresh_request = null;
 	}
+}
+
+async function refresh_guild_state_after_invalidation() {
+	const pending_refresh = guild_state_refresh_request;
+	if (pending_refresh !== null)
+		await pending_refresh;
+	return refresh_guild_state(true);
 }
 
 async function refresh_guild_state_request() {
@@ -3856,6 +3936,7 @@ async function refresh_shadowed_members(page = 0, search = state.shadowed_member
 		if (res !== null) {
 			const members = (res.members ?? []).map(member => ({
 				...member,
+				shadowed: true,
 				status_activity: member.status_activity ?? null,
 				status_activities: Array.isArray(member.status_activities) ? member.status_activities : [],
 				account_age: Number.isSafeInteger(member.account_age) && member.account_age >= 0 ? member.account_age : null,
@@ -3885,13 +3966,13 @@ async function refresh_guild_list() {
 
 async function refresh_guild_page() {
 	setup_guild_icons();
-	const [, guild_state] = await Promise.all([get_client_events(), refresh_guild_state()]);
+	await Promise.all([get_client_events(), refresh_guild_state()]);
 
 	if (state.is_guild_member) {
 		state.shadowed_member_count = 0;
 		await Promise.all([refresh_council(), refresh_shadowed_members(), refresh_guild_activity()]);
 	}
-	else if (guild_state?.affiliation === 'none')
+	else if (state.guild_state.affiliation === 'none')
 		await refresh_guild_list();
 }
 
@@ -4094,7 +4175,9 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 			await reconcile_banishment_returns();
 			if (request_generation !== session_generation)
 				return null;
-			await refresh_guild_state();
+			const guild_state = await refresh_guild_state_after_invalidation();
+			if (guild_state?.affiliation === 'none')
+				await refresh_guild_list();
 		}
 		show_pending_banishment_notice();
 	}
@@ -4353,6 +4436,7 @@ export async function setup(ctx) {
 		raid_loaded_session_id = crypto.randomUUID();
 		loaded_game_mode_id = client_runtime.get_game_mode_id(game.currentGamemode);
 		legacy_market_payout_migration_started = false;
+		state.load_chat_translation_preferences();
 		state.last_seen_mod_version = get_character_storage_item(UPDATES_LAST_SEEN_MOD_VERSION_KEY) ?? '';
 		state.updates_new = updates_loader.has_unseen_mod_version(MOD_VERSION, state.last_seen_mod_version);
 		apply_server_configuration();

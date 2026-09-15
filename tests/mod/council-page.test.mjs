@@ -27,6 +27,8 @@ test('wires Council petition controls, resolved-history toggle, and action descr
 	assert.match(templates, /MOD_MP_COUNCIL_APPELLATION_DESCRIPTION/);
 	assert.match(templates, /MOD_MP_COUNCIL_HERALDRY_DESCRIPTION/);
 	assert.match(templates, /MOD_MP_COUNCIL_BANISHMENT_DESCRIPTION/);
+	assert.match(templates, /v-for="member in state\.council_banishment_members"/);
+	assert.match(templates, /member\.shadowed === true[\s\S]*MOD_MP_GUILD_SHADOWED/);
 	assert.match(templates, /can_raise_council_petition\('winnowing'\)/);
 	assert.match(templates, /MOD_MP_COUNCIL_WINNOWING_DESCRIPTION/);
 	assert.match(templates, /petition\.type === 'winnowing'[\s\S]*petition\.proposal\.target_count/);
@@ -50,7 +52,8 @@ test('wires Council petition controls, resolved-history toggle, and action descr
 	assert.match(main, /api_post\('\/api\/guilds\/petitions\/vote'/);
 	assert.match(main, /api_post\('\/api\/guilds\/petitions\/withdraw'/);
 	assert.match(main, /async function refresh_guild_page\(\)[\s\S]*?if \(state\.is_guild_member\)[\s\S]*?Promise\.all\(\[refresh_council\(\), refresh_shadowed_members\(\), refresh_guild_activity\(\)\]\)/);
-	assert.match(main, /async show_raise_petition_modal\(\)[\s\S]*?await refresh_council\(\)/);
+	assert.match(main, /get council_banishment_members\(\)[\s\S]*?this\.guild_members[\s\S]*?this\.shadowed_members/);
+	assert.match(main, /async show_raise_petition_modal\(\)[\s\S]*?Promise\.all\(\[refresh_council\(\), refresh_shadowed_members\(0, ''\)\]\)/);
 	assert.match(main, /petition\.lifecycle === 'active'/);
 	assert.match(main, /state\.council_available_petition_types = res\.available_petition_types \?\? \[\]/);
 	assert.equal(language.MOD_MP_COUNCIL_TYPE_BANISHMENT, 'Petition for Banishment');

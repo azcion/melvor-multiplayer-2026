@@ -195,6 +195,11 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 		message_id: state.chat_message_id,
 		content: 'Restart-safe private Message'
 	}));
+	expect(await db_all(
+		'SELECT `source_kind`, `message_id`, `state`, `attempts` FROM `chat_translation_jobs` ' +
+		'WHERE `source_kind` = ? AND `message_id` = ?',
+		['private', state.chat_message_id]
+	)).toEqual([{ source_kind: 'private', message_id: state.chat_message_id, state: 'queued', attempts: 0 }]);
 	expect(chat_state.json.messaging_enabled).toBe(false);
 	expect(chat_state.json.guild_chat_enabled).toBe(false);
 	expect(chat_state.json.global_chat_enabled).toBe(false);

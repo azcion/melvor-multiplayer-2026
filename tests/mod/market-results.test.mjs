@@ -80,11 +80,36 @@ test('captures Marketplace queries and ignores stale generations', async () => {
 	assert.match(search, /const sort = state\.market_sort/);
 	assert.match(search, /const direction = state\.market_direction/);
 	assert.match(search, /const item_id = state\.market_filter_item/);
+	assert.match(search, /const item_namespaces = get_local_item_namespaces\(\)/);
 	assert.match(search, /api_post\('\/api\/market\/catalog',[\s\S]*direction\s*\n?\s*\}/);
 	assert.match(search, /unresolved_item_ids = \(catalog\.item_ids \?\? \[\]\)\.filter\(item_id => !is_local_item_resolved\(item_id\)\)/);
 	assert.match(search, /market_owner: item\.buyer \?\? item\.seller \?\? null/);
+	assert.match(search, /filter_items_for_owned_dlc\([\s\S]*res\.items \?\? \[\][\s\S]*item => item\.item_id[\s\S]*owned_dlc_namespaces/);
 	assert.equal((search.match(/generation !== market_search_generation/g) ?? []).length, 2);
 	assert.match(search, /if \(generation === market_search_generation\)\s*state\.market_search_loading = false/);
+});
+
+test('limits Marketplace discovery to locally owned official DLC', async () => {
+	const [main, actions] = await Promise.all([
+		read_client_source(),
+		readFile(new URL('../../mod/client-actions-market-campaign-charity.mjs', import.meta.url), 'utf8')
+	]);
+	const namespaces = main.slice(
+		main.indexOf('function get_local_item_namespaces()'),
+		main.indexOf('\nfunction add_bank_item')
+	);
+	const filters = main.slice(
+		main.indexOf('function load_market_filter_items()'),
+		main.indexOf('// #endregion', main.indexOf('function load_market_filter_items()'))
+	);
+
+	assert.match(main, /owned_dlc_namespaces = client_runtime\.get_owned_dlc\(melvor_cloud_manager\)/);
+	assert.match(namespaces, /get_resolved_item_namespaces[\s\S]*is_item_available_for_owned_dlc[\s\S]*owned_dlc_namespaces/);
+	assert.match(filters, /return is_local_item_available\(item\.id\)/);
+	assert.match(actions, /show_market_buy_modal\(item\)[\s\S]*!is_local_item_available\(item\?\.item_id\)/);
+	assert.match(actions, /show_market_fulfill_modal\(item\)[\s\S]*!is_local_item_available\(item\?\.item_id\)/);
+	assert.match(actions, /show_market_haggle_modal\(item\)[\s\S]*!is_local_item_available\(item\?\.item_id\)/);
+	assert.match(actions, /async create_market_buy_order\(event\)[\s\S]*!is_local_item_available\(item\.id\)/);
 });
 
 test('serializes overlapping Haggle refreshes and keeps the post-response refresh', async () => {

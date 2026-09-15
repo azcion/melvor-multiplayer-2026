@@ -46,7 +46,7 @@ test('adds a first-class Chat page, inbox, unread indicators, and Guild-roster i
 	assert.match(style, /\.mp-chat-nav[\s\S]*background-color: #ff4545/);
 	assert.match(style, /#mp-chat-header-unread[\s\S]*top: unset[\s\S]*padding: 3px 5px[\s\S]*background-color: #ff4545[\s\S]*font-weight: 700 !important/);
 	assert.match(style, /#mp-chat-header-unread[\s\S]*position: absolute[\s\S]*bottom: -5px[\s\S]*right: -5px/);
-	assert.equal(language.MOD_MP_MENU_VIEW_CHAT, 'Open Chat');
+	assert.equal(language.MOD_MP_PAGE_CHAT, 'Chat');
 	assert.doesNotMatch(templates, /MOD_MP_CHAT_INBOX/);
 	assert.equal(language.MOD_MP_CHAT_CATEGORY_PERSONAL_INFO, 'These stay with you across Guilds.');
 });
@@ -207,6 +207,28 @@ test('moves conversation actions behind the participant header and confirms them
 	assert.equal(language.MOD_MP_CHAT_DELETE_CONFIRM_TITLE, 'Delete this conversation?');
 });
 
+test('uses a compact header translation toggle and one modal toggle action', async () => {
+	const { templates, style } = await sources();
+	const chat_view = templates.slice(
+		templates.indexOf('<template id="template-mp-chat-page">'),
+		templates.indexOf('<template id="template-mp-profile-modal">')
+	);
+	const chat_header = chat_view.slice(chat_view.indexOf('<div class="block-header block-header-default mp-chat-header">'), chat_view.indexOf('mp-chat-messages'));
+	const translation_modal = templates.slice(
+		templates.indexOf('<template id="template-mp-chat-translation-modal">'),
+		templates.indexOf('<template id="template-mp-chat-message-delete-confirm-modal">')
+	);
+
+	assert.match(chat_header, /<div class="mp-chat-buttons">[\s\S]*class="btn btn-sm btn-secondary"[\s\S]*aria-haspopup="dialog" :aria-label="getLangString\('MOD_MP_CHAT_TRANSLATION_TITLE'\)" class="btn btn-sm btn-primary mp-translation-button"/);
+	assert.doesNotMatch(chat_header, /aria-label="Automatic Translation"/);
+	assert.match(chat_header, /:aria-pressed="state\.is_chat_translation_enabled\(\)"/);
+	assert.match(style, /\.mp-chat-buttons\s*\{[\s\S]*display: flex;[\s\S]*gap: 12px;/);
+	assert.match(style, /\.mp-translation-button\s*\{[\s\S]*padding: 0px 6px;[\s\S]*font-size: 26px;[\s\S]*line-height: 16px;/);
+	assert.match(translation_modal, /@click="state\.set_chat_translation_enabled\(!state\.is_chat_translation_enabled\(\)\)"/);
+	assert.equal((translation_modal.match(/@click="state\.set_chat_translation_enabled/g) ?? []).length, 1);
+	assert.doesNotMatch(translation_modal, /v-if="state\.is_chat_translation_enabled\(\)"/);
+});
+
 test('opens message actions from timestamps with copy and confirmed deletion', async () => {
 	const { main, templates, style, language } = await sources();
 	const chat_view = templates.slice(
@@ -229,6 +251,138 @@ test('opens message actions from timestamps with copy and confirmed deletion', a
 	assert.match(style, /\.mp-chat-message-timestamp[\s\S]*cursor: pointer/);
 	assert.equal(language.MOD_MP_CHAT_COPY, 'Copy');
 	assert.equal(language.MOD_MP_CHAT_DELETE_MESSAGE_CONFIRM_TITLE, 'Delete this Message?');
+});
+
+test('only offers manual translation when a message has an alternate translation', async () => {
+	const { templates } = await sources();
+	const actions_modal = templates.slice(
+		templates.indexOf('<template id="template-mp-chat-message-actions-modal">'),
+		templates.indexOf('<template id="template-mp-chat-translation-modal">')
+	);
+	const actions = install_chat_actions({ state: {}, document: null });
+	const context = Object.assign({}, actions);
+
+	assert.equal(context.has_chat_message_translations({ translations: { 'zh-CN': '你好' } }), true);
+	assert.equal(context.has_chat_message_translations({ translations: { en: '' } }), false);
+	assert.equal(context.has_chat_message_translations({ translations: {} }), false);
+	assert.equal(context.has_chat_message_translations({}), false);
+	assert.match(actions_modal, /state\.has_chat_message_translations\(state\.selected_chat_message\)[\s\S]*state\.selected_chat_message\?\.sender_id !== state\.chat_client_id/);
+});
+
+test('keeps translation client-only, per conversation, and never translates the viewer own Messages', () => {
+	const writes = [];
+	const reads = [];
+	let clock = 1000;
+	const state = {
+		chat_client_id: 7,
+		selected_chat_conversation: { conversation_kind: 'global', conversation_id: 1 },
+		chat_translation_preferences: {},
+		chat_translation_language_input: 'zh-CN'
+	};
+	const actions = install_chat_actions({
+		state,
+		document: null,
+		get_chat_conversation_key: conversation => `${conversation.conversation_kind}:${conversation.conversation_id}`,
+		getLangString: key => key === 'MOD_MP_CHAT_TRANSLATING' ? 'Translating…' : key,
+		get_instance_storage_item: key => {
+			reads.push(key);
+			return {
+				'global:1': 'zh-CN',
+				'global:2': 'unsupported',
+			};
+		},
+		set_instance_storage_item: (key, value) => writes.push([key, structuredClone(value)]),
+		refresh_chat_messages: async () => {},
+		now: () => clock
+	});
+	const context = Object.assign(state, actions, { close_modal() {} });
+	assert.deepEqual(reads, []);
+	context.load_chat_translation_preferences();
+	assert.deepEqual(reads, ['chat_translation_preferences']);
+	assert.deepEqual(context.chat_translation_preferences, { 'global:1': 'zh-CN' });
+	context.set_chat_translation_enabled(true);
+	assert.deepEqual(writes, [['chat_translation_preferences', { 'global:1': 'zh-CN' }]]);
+	assert.equal(context.get_chat_message_content({ sender_id: 8, content: 'Hello',
+		translations: { 'zh-CN': '你好' }, translation_status: 'complete', created_at: 0 }), '你好');
+	assert.equal(context.get_chat_message_content({ sender_id: 7, content: 'My words',
+		translations: { 'zh-CN': '我的话' }, translation_status: 'complete', created_at: 0 }), 'My words');
+	assert.equal(context.get_chat_message_content({ sender_id: 8, content: 'Waiting', translations: {},
+		translation_status: 'queued' }), 'Translating…');
+	const fallback = { sender_id: 8, content: 'Fallback', translations: {}, translation_status: 'queued' };
+	assert.equal(context.get_chat_message_content(fallback), 'Translating…');
+	assert.equal(context.is_chat_message_translation_waiting(fallback), true);
+	clock += 10_001;
+	assert.equal(context.get_chat_message_content(fallback), 'Fallback');
+	assert.equal(context.is_chat_message_translation_waiting(fallback), false);
+	assert.equal(context.is_chat_message_translation_waiting({ sender_id: 7, content: 'Mine',
+		translations: {}, translation_status: 'queued', translation_observed_at: 1000 }), false);
+});
+
+test('defaults zh-CN Global and Guild Chat translation on while preserving explicit opt-out and English', () => {
+	const previous_language = globalThis.setLang;
+	globalThis.setLang = 'zh-CN';
+	try {
+		const writes = [];
+		const state = {
+			chat_client_id: 7,
+			selected_chat_conversation: { conversation_kind: 'global', conversation_id: 1 },
+			chat_translation_preferences: {},
+			chat_translation_language_input: 'zh-CN'
+		};
+		const actions = install_chat_actions({
+			state,
+			document: null,
+			get_chat_conversation_key: conversation => `${conversation.conversation_kind}:${conversation.conversation_id}`,
+			get_instance_storage_item: () => ({ 'global:2': false, 'guild:2': 'en', 'global:3': 'unsupported' }),
+			set_instance_storage_item: (key, value) => writes.push([key, structuredClone(value)]),
+			refresh_chat_messages: async () => {}
+		});
+		const context = Object.assign(state, actions, { close_modal() {} });
+		const translated_message = { sender_id: 8, content: 'こんにちは', translations: { en: 'Hello', 'zh-CN': '你好' } };
+
+		context.load_chat_translation_preferences();
+		assert.deepEqual(context.chat_translation_preferences, { 'global:2': false, 'guild:2': 'en' });
+		assert.equal(context.is_chat_translation_enabled(), true);
+		assert.equal(context.get_chat_message_content(translated_message), '你好');
+
+		context.selected_chat_conversation = { conversation_kind: 'guild', conversation_id: 1 };
+		assert.equal(context.is_chat_translation_enabled(), true);
+		assert.equal(context.get_chat_message_content(translated_message), '你好');
+
+		context.selected_chat_conversation = { conversation_kind: 'private', conversation_id: 1 };
+		assert.equal(context.is_chat_translation_enabled(), false);
+
+		context.selected_chat_conversation = { conversation_kind: 'global', conversation_id: 2 };
+		assert.equal(context.is_chat_translation_enabled(), false);
+
+		context.selected_chat_conversation = { conversation_kind: 'guild', conversation_id: 2 };
+		assert.equal(context.is_chat_translation_enabled(), true);
+		assert.equal(context.get_chat_message_content(translated_message), 'Hello');
+
+		context.selected_chat_conversation = { conversation_kind: 'global', conversation_id: 1 };
+		context.set_chat_translation_enabled(false);
+		assert.equal(context.is_chat_translation_enabled(), false);
+		assert.deepEqual(writes.at(-1), ['chat_translation_preferences', {
+			'global:1': false, 'global:2': false, 'guild:2': 'en'
+		}]);
+
+		context.chat_translation_language_input = 'en';
+		context.set_chat_translation_enabled(true);
+		assert.equal(context.is_chat_translation_enabled(), true);
+		assert.equal(context.get_chat_message_content(translated_message), 'Hello');
+		assert.deepEqual(writes.at(-1), ['chat_translation_preferences', {
+			'global:1': 'en', 'global:2': false, 'guild:2': 'en'
+		}]);
+
+		globalThis.setLang = 'en';
+		context.selected_chat_conversation = { conversation_kind: 'global', conversation_id: 3 };
+		assert.equal(context.is_chat_translation_enabled(), false);
+	} finally {
+		if (previous_language === undefined)
+			delete globalThis.setLang;
+		else
+			globalThis.setLang = previous_language;
+	}
 });
 
 test('renders the sender avatar for every Chat message, including Global and Support messages', async () => {
@@ -407,7 +561,7 @@ test('disables Message capacity while preserving its dormant UI and rollback com
 	assert.match(main, /api_post\('\/api\/chat\/messages\/delete'/);
 	assert.match(main, /api_post\('\/api\/chat\/conversations\/delete'/);
 	assert.match(chat_template, /maxlength="1000"/);
-	assert.match(chat_template, /\{\{ message\.content \}\}/);
+	assert.match(chat_template, /\{\{ state\.get_chat_message_content\(message\) \}\}/);
 	assert.doesNotMatch(chat_template, /v-html|innerHTML/);
 	assert.doesNotMatch(chat_template, /chat_draft\.length/);
 	assert.match(main, /chat_budget_enabled: true/);
@@ -506,6 +660,7 @@ test('does not poll an empty or background Chat inbox and refreshes visible meta
 	assert.match(message_refresh, /conversation_kind=' \+ kind[\s\S]*support_team_id/);
 	assert.match(scheduler, /!polling\.is_foreground\(document\)/);
 	assert.doesNotMatch(polling, /refresh_chat_state\(\)/);
+	assert.match(polling, /state\.is_chat_message_translation_waiting\(message\)/);
 	assert.match(polling, /state\.selected_chat_conversation && polling\.is_foreground\(document\)/);
 	assert.match(events, /if \(res\.unchanged === true\) \{\s*void economy_command_journal\?\.recover\(\);\s*return res;[\s\S]*if \(chat_page_visible\)\s*await refresh_chat_conversations\(\)/);
 });
@@ -527,6 +682,7 @@ test('renders Support Chat identity, alignment, virtual welcomes, and restricted
 	assert.match(main, /multiplayer: 'multiplayer\.svg'/);
 	assert.match(main, /sae_support: 'sae_support\.png'/);
 	assert.match(main, /conversation\?\.conversation_kind === 'support' && conversation\.viewer_side === 'player'/);
+	assert.match(main, /message\.sender_id === null[\s\S]*message\.translations\?\.\[localized_welcome_language\(\)\]/);
 	assert.match(main, /asset === undefined \? 'assets\/media\/main\/question\.png'/);
 });
 

@@ -4,7 +4,7 @@ import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
 import type { PetitionType } from '../council';
 
-const { CHAT_BUDGET_ENABLED, CHAT_BUDGET_ERROR, CHAT_PRIVACY_ERROR, attach_reactions, db_get_single, delete_conversation, delete_message, get_chat_state, get_global_chat_inbox, get_guild_chat_inbox, has_global_chat_capability, has_guild_chat_capability, has_polls_capability, list_conversations, list_global_chat_messages, list_guild_chat_messages, list_messages, list_poll_discussion_messages, list_support_conversations, list_support_messages, moderate_global_chat_message, moderate_guild_chat_message, privacy_allows, reaction_updates, send_global_chat_message, send_guild_chat_message, send_message, send_poll_discussion_message, send_support_message, session_get_route, session_post_route, set_block, set_global_chat_enabled, set_guild_chat_enabled, set_message_reaction, set_messaging_enabled, start_conversation } = runtime;
+const { CHAT_BUDGET_ENABLED, CHAT_BUDGET_ERROR, CHAT_PRIVACY_ERROR, attach_reactions, attach_translations, chat_translation_worker, db_get_single, delete_conversation, delete_message, get_chat_state, get_global_chat_inbox, get_guild_chat_inbox, has_global_chat_capability, has_guild_chat_capability, has_polls_capability, list_conversations, list_global_chat_messages, list_guild_chat_messages, list_messages, list_poll_discussion_messages, list_support_conversations, list_support_messages, moderate_global_chat_message, moderate_guild_chat_message, privacy_allows, reaction_updates, send_global_chat_message, send_guild_chat_message, send_message, send_poll_discussion_message, send_support_message, session_get_route, session_post_route, set_block, set_global_chat_enabled, set_guild_chat_enabled, set_message_reaction, set_messaging_enabled, start_conversation } = runtime;
 
 export function register_chat_routes(): void {
 	function chat_error(status: 'bad_request' | 'missing' | 'privacy' | 'budget' | 'forbidden') {
@@ -134,7 +134,8 @@ export function register_chat_routes(): void {
 		return {
 			...result.value,
 			...reaction_result.value,
-			messages: attach_reactions(kind, client_id, result.value.messages)
+			messages: attach_translations(kind, client_id,
+				attach_reactions(kind, client_id, result.value.messages))
 		};
 	});
 
@@ -200,6 +201,7 @@ export function register_chat_routes(): void {
 			return { success: false, retry_after_ms: result.retry_after_ms };
 		if (result.status !== 'ok')
 			return chat_error(result.status);
+		chat_translation_worker.wake();
 		const response: JsonObject = {
 			success: true,
 			budget_enabled: CHAT_BUDGET_ENABLED

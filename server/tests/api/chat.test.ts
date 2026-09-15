@@ -22,6 +22,9 @@ type Message = {
 	content: string;
 	created_at: number;
 	reactions: Array<{ reaction: string; count: number; reacted: boolean }>;
+	translations: Partial<Record<string, string>>;
+	translation_status: 'queued' | 'processing' | 'complete' | 'dead' | 'original' | 'unavailable';
+	translation_enqueued_at: number | null;
 };
 
 type MessageResponse = {
@@ -334,6 +337,41 @@ describe('Private Chat API', () => {
 			idempotency_key: crypto.randomUUID(),
 			content: 'x'.repeat(1001)
 		}, pair.first.session_token)).status).toBe(400);
+	});
+
+	test('queues each new Message once and exposes only persisted translations to other viewers', async () => {
+		const pair = await make_guildmates('Translation Writer', 'Translation Reader');
+		const key = crypto.randomUUID();
+		const sent = await send_chat(pair.first.session_token, null, 'Hello', key, pair.second_id);
+		const conversation_id = sent.json.message?.conversation_id as number;
+		const message_id = sent.json.message?.message_id as number;
+		await send_chat(pair.first.session_token, null, 'Hello', key, pair.second_id);
+
+		expect(await db_count(
+			'SELECT COUNT(*) AS count FROM `chat_translation_jobs` WHERE `source_kind` = ? AND `message_id` = ?',
+			['private', message_id]
+		)).toBe(1);
+		const queued = await messages(pair.second.session_token, conversation_id);
+		expect(queued.json.messages[0]).toMatchObject({
+			content: 'Hello', translations: {}, translation_status: 'queued'
+		});
+		await db_run(
+			'INSERT INTO `chat_message_translations` (`job_id`, `language`, `content`, `translated_at`) ' +
+			'SELECT `id`, ?, ?, ? FROM `chat_translation_jobs` WHERE `source_kind` = ? AND `message_id` = ?',
+			['zh-CN', '你好', Date.now(), 'private', message_id]
+		);
+		await db_run(
+			"UPDATE `chat_translation_jobs` SET `state` = 'complete', `detected_language` = 'en', `completed_at` = ? " +
+			'WHERE `source_kind` = ? AND `message_id` = ?',
+			[Date.now(), 'private', message_id]
+		);
+
+		expect((await messages(pair.second.session_token, conversation_id)).json.messages[0]).toMatchObject({
+			translations: { 'zh-CN': '你好' }, translation_status: 'complete'
+		});
+		expect((await messages(pair.first.session_token, conversation_id)).json.messages[0]).toMatchObject({
+			translations: {}, translation_status: 'original'
+		});
 	});
 
 	test('loads twenty newest messages, paginates older history, and acknowledges only returned messages', async () => {
@@ -918,6 +956,48 @@ describe('Support Chat API', () => {
 			"Welcome to Melvor Multiplayer!\n\nThis is an automated message. If you run into any problems or have a suggestion, just reply here. We'd love to hear from you!",
 			support.support_team_id
 		]);
+	});
+
+	test('localizes automated Support welcomes while retaining English team history', async () => {
+		const player = await register_client('Localized Support Player');
+		await db_run(
+			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `language`, `reported_at`) ' +
+			'VALUES(?, ?, ?, ?, ?)',
+			[player.client_id, '1.5.11', '[]', 'zh-TW', Date.now()]
+		);
+		const support = (await conversations(player.session_token)).json.conversations.find(entry =>
+			entry.conversation_kind === 'support'
+		) as Conversation & { support_team_id: number };
+		expect(support.latest_message?.content).toContain('歡迎來到 Melvor Multiplayer');
+		const virtual = await get_json_with_session<{ messages: Message[] }>(
+			`/api/chat/messages?conversation_kind=support&support_team_id=${support.support_team_id}`,
+			player.session_token
+		);
+		expect(virtual.json.messages[0].content).toContain('這是一則自動訊息');
+
+		const sent = await post_json<{ success: boolean; message: Message }>('/api/chat/messages/send', {
+			conversation_kind: 'support', conversation_id: null, support_team_id: support.support_team_id,
+			idempotency_key: crypto.randomUUID(), content: '需要協助'
+		}, player.session_token);
+		const player_history = await get_json_with_session<{ messages: Message[] }>(
+			`/api/chat/messages?conversation_kind=support&conversation_id=${sent.json.message.conversation_id}`,
+			player.session_token
+		);
+		expect(player_history.json.messages[0].content).toContain('Welcome to Melvor Multiplayer!');
+		expect(player_history.json.messages[0].translations['zh-TW']).toContain('歡迎來到 Melvor Multiplayer');
+		expect(player_history.json.messages[0].translation_status).toBe('complete');
+
+		const member = await register_client('Localized Support Member');
+		await db_run(
+			'INSERT INTO `support_team_memberships` ' +
+			'(`team_id`, `client_id`, `member_display_name`, `created_at`) VALUES(?, ?, ?, ?)',
+			[support.support_team_id, member.client_id, 'Localized Support Member', Date.now()]
+		);
+		const team_history = await get_json_with_session<{ messages: Message[] }>(
+			`/api/chat/messages?conversation_kind=support&conversation_id=${sent.json.message.conversation_id}`,
+			member.session_token
+		);
+		expect(team_history.json.messages[0].content).toContain('Welcome to Melvor Multiplayer!');
 	});
 
 	test('gates data-owned Support Teams by client version and exact active mod while retaining history', async () => {

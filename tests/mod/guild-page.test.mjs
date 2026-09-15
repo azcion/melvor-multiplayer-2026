@@ -101,9 +101,34 @@ test('renders open ordinary Guilds with a direct Join action', async () => {
 	]);
 
 	assert.equal(lang.MOD_MP_BUTTON_JOIN, 'Join');
-	assert.match(lang.MOD_MP_PUBLIC_GUILD_LABEL, /join without an application/);
+	assert.equal(lang.MOD_MP_GUILD_OPEN, 'Open');
 	assert.match(templates, /v-else-if="guild\.is_public" @click="state\.join_guild\(\$event, guild\)"/);
 	assert.match(main, /api_post\('\/api\/guilds\/join', \{ guild_id: guild\.guild_id \}\)/);
+});
+
+test('renders Guild discovery like the Guildmates list with localized visibility and member tags', async () => {
+	const [lang, templates, style] = await Promise.all([
+		readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse),
+		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
+		readFile(new URL('mod/ui/style.css', root), 'utf8')
+	]);
+	const discovery = templates.slice(templates.indexOf('<div class="mp-guild-list"'), templates.indexOf('<div class="text-muted" v-else>', templates.indexOf('<div class="mp-guild-list"')));
+
+	assert.equal(lang.MOD_MP_GUILD_OPEN, 'Open');
+	assert.equal(lang.MOD_MP_GUILD_PRIVATE, 'Private');
+	assert.equal(lang.MOD_MP_GUILD_MEMBER_COUNT_ONE, '%s Member');
+	assert.equal(lang.MOD_MP_GUILD_MEMBER_COUNT, '%s Members');
+	assert.equal(lang.MOD_MP_GUILD_MEMBER_ACTIVE_COUNT_ONE, '%s Member (%s Active)');
+	assert.equal(lang.MOD_MP_GUILD_MEMBER_ACTIVE_COUNT, '%s Members (%s Active)');
+	assert.match(discovery, /class="mp-guild-result-icon"/);
+	assert.match(discovery, /class="mp-guild-result-row"[\s\S]*guild\.name[\s\S]*MOD_MP_BUTTON_APPLY/);
+	assert.match(discovery, /class="mp-guild-result-tags"[\s\S]*MOD_MP_GUILD_OPEN[\s\S]*MOD_MP_GUILD_PRIVATE[\s\S]*MOD_MP_GUILD_MEMBER_COUNT/);
+	assert.match(discovery, /guild\.active_member_count \?\? guild\.member_count\) === guild\.member_count/);
+	assert.match(discovery, /class="btn btn-sm btn-info" v-else @click="state\.apply_to_guild/);
+	assert.match(style, /\.mp-guild-result-icon\s*\{[\s\S]*height: 40px;[\s\S]*width: 40px/);
+	assert.match(style, /\.mp-guild-result-content\s*\{[\s\S]*flex-direction: column/);
+	assert.match(style, /\.mp-guild-result-row,[\s\S]*justify-content: space-between/);
+	assert.match(style, /\.mp-guild-result-tags\s*\{[\s\S]*justify-content: flex-end/);
 });
 
 test('does not render member-only Guild bindings during an incomplete state refresh', async () => {
@@ -120,6 +145,23 @@ test('does not render member-only Guild bindings during an incomplete state refr
 	assert.match(member_view, /state\.guild_state\.guild\?\.icon_id/);
 	assert.match(member_view, /state\.guild_state\.guild\?\.name/);
 	assert.match(member_view, /state\.guild_state\.guild\?\.capabilities\?\.council/);
+});
+
+test('reloads Guild discovery after banishment and uses the reconciled affiliation', async () => {
+	const main = await read_client_source(root);
+	const banishment_refresh = main.slice(
+		main.indexOf('if (res.banishment_return_pending)'),
+		main.indexOf('\n\t\tshow_pending_banishment_notice();', main.indexOf('if (res.banishment_return_pending)'))
+	);
+	const guild_page_refresh = main.slice(
+		main.indexOf('async function refresh_guild_page()'),
+		main.indexOf('\nasync function refresh_raid_state')
+	);
+
+	assert.match(banishment_refresh, /await refresh_guild_state_after_invalidation\(\);[\s\S]*guild_state\?\.affiliation === 'none'[\s\S]*await refresh_guild_list\(\);/);
+	assert.match(guild_page_refresh, /await Promise\.all\(\[get_client_events\(\), refresh_guild_state\(\)\]\);[\s\S]*state\.guild_state\.affiliation === 'none'/);
+	assert.doesNotMatch(guild_page_refresh, /const \[, guild_state\] = await Promise\.all/);
+	assert.match(main, /async function refresh_guild_state_after_invalidation\(\)[\s\S]*pending_refresh[\s\S]*return refresh_guild_state\(true\)/);
 });
 
 test('keeps top-level Guild views mounted when affiliation changes', async () => {
@@ -252,11 +294,12 @@ test('keeps Free Fellowship confirmation titles localized and guild results resp
 
 	assert.equal(lang.MOD_MP_BUTTON_JOIN, 'Join');
 	assert.match(main, /queue_modal\('MOD_MP_FREE_FELLOWSHIP_CONFIRM_TITLE',[\s\S]*\}, true, false\)/);
-	assert.match(templates, /class="mp-guild-result-details"/);
-	assert.match(templates, /class="mp-guild-result-actions"/);
+	assert.match(templates, /class="mp-guild-result-content"/);
+	assert.match(templates, /class="mp-guild-result-row"/);
+	assert.match(templates, /class="mp-guild-result-tags"/);
 	assert.doesNotMatch(templates, /MOD_MP_FREE_FELLOWSHIP_CONFIRM_IDENTITY/);
-	assert.match(style, /\.mp-guild-result \{[\s\S]*grid-template-columns: auto minmax\(0, 1fr\) auto;/);
-	assert.match(style, /\.mp-guild-result-actions \{[\s\S]*align-items: flex-end;/);
+	assert.match(style, /\.mp-guild-result \{[\s\S]*display: flex;/);
+	assert.match(style, /\.mp-guild-result-tags \{[\s\S]*justify-content: flex-end;/);
 	assert.doesNotMatch(style, /\.mp-guild-result \.badge \{[\s\S]*display: none/);
 });
 
@@ -288,6 +331,7 @@ test('renders each loaded member activity as a right-aligned icon', async () => 
 	assert.match(member_list, /state\.get_status_activities\(member\)\.slice\(0, 3\)/);
 	assert.match(member_list, /state\.get_status_activities\(member\)\.length - 3/);
 	assert.match(member_list, /mp-guild-member-content[\s\S]*mp-guild-member-row[\s\S]*mp-guild-member-name[\s\S]*mp-guild-member-activities/);
+	assert.match(member_list, /mp-guild-member-dlc-indicators[\s\S]*state\.get_member_owned_dlc\(member\)[\s\S]*get_owned_dlc_status_class\(namespace\)[\s\S]*mp-guild-member-avatar/);
 	assert.match(member_list, /mp-guild-member-gp[\s\S]*mp-guild-member-last-seen/);
 	assert.match(member_list, /mp-guild-member-row[\s\S]*mp-guild-member-tags/);
 	assert.match(member_list, /MOD_MP_GUILD_YOU[\s\S]*member\.client_id !== state\.guild_client_id && state\.is_new_guild_member/);
@@ -306,6 +350,10 @@ test('renders each loaded member activity as a right-aligned icon', async () => 
 	assert.match(style, /\.mp-guild-member-row \{[\s\S]*justify-content: space-between;[\s\S]*width: 100%;/);
 	assert.match(style, /\.mp-guild-member-tags \{[\s\S]*justify-content: flex-end;/);
 	assert.match(style, /\.mp-guild-member-button \{[\s\S]*overflow: hidden;[\s\S]*position: relative;[\s\S]*padding: 8px 12px;/);
+	assert.match(style, /\.mp-guild-member-dlc-indicators \{[\s\S]*position: absolute;[\s\S]*left: 4px;[\s\S]*top: 3px;/);
+	assert.match(style, /\.mp-guild-member-dlc-indicator:nth-child\(1\) \{[\s\S]*top: 0;/);
+	assert.match(style, /\.mp-guild-member-dlc-indicator:nth-child\(2\) \{[\s\S]*top: 6px;/);
+	assert.match(style, /\.mp-guild-member-dlc-indicator:nth-child\(3\) \{[\s\S]*top: 12px;/);
 	assert.match(style, /\.mp-member-activities \{[\s\S]*gap: 8px;[\s\S]*display: flex;[\s\S]*flex-wrap: wrap;[\s\S]*justify-content: center;/);
 	assert.match(style, /\.mp-member-actions > label \{[\s\S]*justify-content: flex-start;/);
 

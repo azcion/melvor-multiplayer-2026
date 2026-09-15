@@ -6,6 +6,7 @@ import {
 	get_language_code,
 	get_language_lang_id,
 	get_game_mode_id,
+	get_owned_dlc,
 	is_mod_version_outdated,
 	is_mod_version_unsupported,
 	make_client_runtime_report,
@@ -41,18 +42,31 @@ test('applies the support floor only to feature-aware 1.5.10 and later clients',
 
 test('copies runtime reports so the once-per-load snapshot is stable', () => {
 	const active_mods = ['Multiplayer'];
-	const report = make_client_runtime_report('1.3.0', active_mods, 'melvorF:Adventure');
+	const owned_dlc = ['melvorTotH'];
+	const report = make_client_runtime_report('1.3.0', active_mods, 'melvorF:Adventure', null, null, owned_dlc);
 	active_mods.push('Later Mod');
+	owned_dlc.push('melvorAoD');
 
 	assert.deepEqual(report, {
 		mod_version: '1.3.0',
 		active_mods: ['Multiplayer'],
+		owned_dlc: ['melvorTotH'],
 		game_mode_id: 'melvorF:Adventure'
 	});
 	assert.deepEqual(make_client_runtime_report('1.3.0', [], null), {
 		mod_version: '1.3.0',
-		active_mods: []
+		active_mods: [],
+		owned_dlc: []
 	});
+});
+
+test('captures only owned-and-enabled official DLC as owned namespaces', () => {
+	assert.deepEqual(get_owned_dlc({
+		hasTotHEntitlementAndIsEnabled: true,
+		hasAoDEntitlementAndIsEnabled: false,
+		hasItAEntitlementAndIsEnabled: true
+	}), ['melvorTotH', 'melvorItA']);
+	assert.deepEqual(get_owned_dlc(null), []);
 });
 
 test('captures canonical base-game and custom game-mode IDs', () => {
@@ -66,13 +80,14 @@ test('captures raw language values while exposing only known display labels', ()
 	assert.equal(get_language_code('x-debug-locale'), 'x-debug-locale');
 	assert.equal(get_language_code('x'.repeat(65)), null);
 	assert.equal(get_language_lang_id('pt-br'), 'MOD_MP_LANGUAGE_PT_BR');
-	assert.equal(get_language_lang_id('pt-BR'), 'MOD_MP_LANGUAGE_PT_BR');
+	assert.equal(get_language_lang_id('pt-BR'), null);
 	assert.equal(get_language_lang_id('x-debug-locale'), null);
 	assert.equal(get_language_lang_id('toString'), null);
 
 	assert.deepEqual(make_client_runtime_report('1.4.0', [], null, 'x-debug-locale'), {
 		mod_version: '1.4.0',
 		active_mods: [],
+		owned_dlc: [],
 		language: 'x-debug-locale'
 	});
 });
@@ -89,6 +104,7 @@ test('captures loaded mods after the Melvor lifecycle and reports them during bo
 	assert.match(main, /ctx\.loadModule\('icon-catalog-discovery\.mjs'\)/);
 	assert.match(main, /loaded_game_mode_id = client_runtime\.get_game_mode_id\(game\.currentGamemode\);/);
 	assert.match(main, /client_runtime\.get_language_code\(typeof setLang === 'string' \? setLang : null\)/);
+	assert.match(main, /client_runtime\.get_owned_dlc\(melvor_cloud_manager\)/);
 	assert.equal((main.match(/client_runtime: get_client_runtime_report\(\)/g) ?? []).length, 2);
 	assert.match(packaging, /const MOD_VERSION = '\$\{version\}';/);
 	assert.match(main, /function check_released_mod_version\(released_mod_version\)[\s\S]*is_mod_version_outdated\(MOD_VERSION, released_mod_version\)/);
@@ -123,4 +139,16 @@ test('initializes action dependencies before installing split actions', async ()
 	const runtime_start = main.indexOf('function create_action_runtime()');
 	const runtime_end = main.indexOf('\n// #region COMMON FUNCTIONS', runtime_start);
 	assert.match(main.slice(runtime_start, runtime_end), /\brefresh_identities,\s/);
+});
+
+test('defers character-scoped Chat preference loading until a character is loaded', async () => {
+	const main = await read_client_source(root);
+	const setup_start = main.indexOf('export async function setup(ctx)');
+	const character_loaded_start = main.indexOf('ctx.onCharacterLoaded(() =>', setup_start);
+	const character_loaded_end = main.indexOf('\n\tctx.onCharacterSelectionLoaded', character_loaded_start);
+	const setup_before_character_load = main.slice(setup_start, character_loaded_start);
+	const character_loaded = main.slice(character_loaded_start, character_loaded_end);
+
+	assert.doesNotMatch(setup_before_character_load, /get_instance_storage_item\('chat_translation_preferences'\)/);
+	assert.match(character_loaded, /state\.load_chat_translation_preferences\(\);/);
 });

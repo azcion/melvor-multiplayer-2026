@@ -9,6 +9,7 @@ type GuildSummary = {
 	name: string;
 	icon_id: string;
 	member_count: number;
+	active_member_count: number;
 };
 
 type GuildState = {
@@ -21,6 +22,7 @@ type GuildState = {
 		icon_id: string;
 		last_seen_at: number | null;
 		joined_at: number | null;
+		owned_dlc: string[];
 	}>;
 	applicants?: Array<{
 		application_id: number;
@@ -75,12 +77,14 @@ describe('guild API', () => {
 		expect(dlc_created.json.guild).toMatchObject({
 			name: 'DLC Rats',
 			icon_id: 'melvorAoD:VolcanicCave',
-			member_count: 1
+			member_count: 1,
+			active_member_count: 1
 		});
 		expect(first_created.json.guild).toMatchObject({
 			name: 'Rats',
 			icon_id: 'melvorD:Farmlands',
-			member_count: 1
+			member_count: 1,
+			active_member_count: 1
 		});
 		const first_state = await get_guild_state(first.session_token);
 		expect(first_state.guild?.established_at).toBeGreaterThanOrEqual(Date.now() - 5000);
@@ -91,7 +95,8 @@ describe('guild API', () => {
 		expect(second_created.json.guild).toMatchObject({
 			name: 'Rats',
 			icon_id: 'melvorF:Penumbra',
-			member_count: 1
+			member_count: 1,
+			active_member_count: 1
 		});
 		expect(listing.json.guilds).toEqual(expect.arrayContaining([
 			first_created.json.guild,
@@ -101,6 +106,7 @@ describe('guild API', () => {
 			guild.guild_id === first_created.json.guild.guild_id
 		);
 		expect(Object.keys(discovered as GuildSummary).sort()).toEqual([
+			'active_member_count',
 			'guild_id',
 			'icon_id',
 			'member_count',
@@ -188,7 +194,8 @@ describe('guild API', () => {
 			application: {
 				guild_id: first.json.guild.guild_id,
 				name: 'One',
-				member_count: 1
+				member_count: 1,
+				active_member_count: 1
 			}
 		});
 		expect(withdrawn.json.success).toBe(true);
@@ -368,6 +375,7 @@ describe('guild API', () => {
 		);
 		const returned_state = await get_guild_state(pair.first.session_token);
 		expect(returned_state.guild?.member_count).toBe(2);
+		expect(returned_state.guild?.active_member_count).toBe(1);
 		expect(returned_state.members?.map(member => member.display_name)).toEqual(['Visible Member']);
 
 		const shadowed = await get_json_with_session<{
@@ -383,7 +391,7 @@ describe('guild API', () => {
 			'/api/guilds/list', browser.session_token
 		);
 		expect(visible.json.guilds).toEqual(expect.arrayContaining([
-			expect.objectContaining({ guild_id: pair.guild_id, member_count: 2 })
+			expect.objectContaining({ guild_id: pair.guild_id, member_count: 2, active_member_count: 1 })
 		]));
 
 		await db_run(
@@ -446,6 +454,20 @@ describe('guild API', () => {
 		expect(joined_member?.joined_at).toBeLessThanOrEqual(Date.now());
 	});
 
+	test('exposes Guild member DLC ownership in the fixed display order', async () => {
+		const pair = await make_guildmates('DLC Viewer', 'DLC Member', 'DLC Guild');
+		await db_run(
+			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `owned_dlc`, `reported_at`) ' +
+			'VALUES(?, ?, ?, ?, ?)',
+			[pair.second_id, '1.5.11', '[]', '["melvorItA","melvorTotH"]', Date.now()]
+		);
+
+		const state = await get_guild_state(pair.first.session_token);
+		const member = state.members?.find(entry => entry.client_id === pair.second_id);
+
+		expect(member?.owned_dlc).toEqual(['melvorTotH', 'melvorItA']);
+	});
+
 	test('immediately restores a never-active Shadowed member on their first authenticated request', async () => {
 		const founder = await register_client('Return Founder');
 		const created = await post_json<{ guild: GuildSummary }>('/api/guilds/create', {
@@ -482,6 +504,7 @@ describe('guild API', () => {
 			name: 'Free Fellowship',
 			icon_id: 'multiplayer',
 			member_count: 0,
+			active_member_count: 0,
 			is_free_fellowship: true
 		});
 		expect(await db_count(
@@ -553,7 +576,7 @@ describe('guild API', () => {
 			'/api/guilds/list', browser.session_token
 		);
 		const persisted = after_empty.json.guilds.find(guild => guild.guild_id === fellowship.guild_id);
-		expect(persisted).toMatchObject({ name: 'Free Fellowship', member_count: 0 });
+		expect(persisted).toMatchObject({ name: 'Free Fellowship', member_count: 0, active_member_count: 0 });
 		expect(await db_count(
 			"SELECT COUNT(*) AS `count` FROM `guilds` WHERE `type` = 'free_fellowship'"
 		)).toBe(1);

@@ -9,7 +9,7 @@ export const MULTIPLAYER_PAGE_LANG_IDS = Object.freeze({
 	Updates: 'MOD_MP_PAGE_UPDATES'
 });
 
-export const MULTIPLAYER_SUPPORTED_LANGUAGES = Object.freeze(['en', 'zh-CN']);
+export const MULTIPLAYER_SUPPORTED_LANGUAGES = Object.freeze(['en', 'zh-CN', 'zh-TW', 'fr', 'de', 'pt', 'pt-br', 'it', 'ko', 'ja', 'es', 'ru', 'tr']);
 
 export function resolve_multiplayer_language(lang) {
 	return MULTIPLAYER_SUPPORTED_LANGUAGES.includes(lang) ? lang : 'en';

@@ -100,6 +100,7 @@ export type client_runtime_snapshots = {
 	active_mods: string;
 	game_mode_id: string | null;
 	language: string | null;
+	owned_dlc: string;
 	reported_at: number;
 };
 

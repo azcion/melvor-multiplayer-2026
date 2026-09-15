@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.11
+
+- Localized the Multiplayer Mod Team and SAE Support Team automated welcomes for every supported game language while retaining the canonical English message in shared Support history.
+- Added optional per-conversation automatic Chat translation between English and Simplified Chinese, plus a Translate action for individual incoming Messages.
+- Added complete localization for every game language, reviewed and corrected Simplified Chinese, and removed unused translation entries.
+- Reworked Guild icon and player avatar pickers with consistent Multiplayer-owned layouts, including larger, centered Guild emblem tiles.
+- Kept Shadowed members available as targets in the Petition for Banishment picker.
+- Restructured Guild discovery to match the Guildmates list, with compact emblems, Open or Private tags, clearer localized member counts, and distinct Apply styling for private Guilds.
+
 ## 1.5.10
 
 - Added a persistent Using Cheats Guild-roster badge when a character reported a recognized cheat mod within the last seven days.

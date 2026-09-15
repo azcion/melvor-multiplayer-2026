@@ -112,6 +112,7 @@ import {
 	send_global_chat_message,
 	set_global_chat_enabled
 } from './global_chat';
+import { attach_translations, chat_translation_worker } from './chat_translation';
 import { add_poll_options, create_poll, has_polls_capability, list_poll_discussion_messages, list_polls, reconcile_poll_creators, send_poll_discussion_message, set_poll_reaction, set_poll_vote } from './polls';
 import {
 	acknowledge_deletion_return_claim,
@@ -162,6 +163,7 @@ export { CHAT_BUDGET_ENABLED, CHAT_BUDGET_ERROR, CHAT_PRIVACY_ERROR, delete_conv
 export { get_support_unread_count, list_support_conversations, list_support_messages, reconcile_support_memberships, reconcile_support_team_memberships, send_support_message } from './support_chat';
 export { get_guild_chat_inbox, get_guild_chat_unread_count, has_guild_chat_capability, list_guild_chat_messages, moderate_guild_chat_message, send_guild_chat_message, set_guild_chat_enabled } from './guild_chat';
 export { get_global_chat_inbox, get_global_chat_unread_count, has_global_chat_capability, list_global_chat_messages, moderate_global_chat_message, send_global_chat_message, set_global_chat_enabled } from './global_chat';
+export { attach_translations, chat_translation_worker } from './chat_translation';
 export { add_poll_options, create_poll, has_polls_capability, list_poll_discussion_messages, list_polls, reconcile_poll_creators, send_poll_discussion_message, set_poll_reaction, set_poll_vote } from './polls';
 export { attach_reactions, reaction_updates, set_message_reaction } from './chat_reactions';
 export { acknowledge_deletion_return_claim, associate_client_with_melvor_account, cancel_deletion_on_authentication, cancel_scheduled_client_deletion, CLIENT_DELETION_MAINTENANCE_INTERVAL, create_deletion_return_claim, get_client_deletion_status, get_deletion_claim_view, has_deletion_returns, list_sibling_identities, parse_melvor_account, process_due_client_deletions, recover_deleted_client, schedule_client_deletion } from './identity';
@@ -191,12 +193,17 @@ export type SessionRequestHandler = (req: Request, url: URL, client_id: number, 
 export type SessionBinaryRequestHandler = (req: Request, url: URL, client_id: number) => HandlerReturnType;
 export type CachedSession = { client_id: number, mod_version: string | null, device_diagnostics?: DeviceDiagnostics | null, last_access: number };
 
+export const OWNED_DLC_NAMESPACES = ['melvorTotH', 'melvorAoD', 'melvorItA'] as const;
+export type OwnedDlcNamespace = typeof OWNED_DLC_NAMESPACES[number];
+const OWNED_DLC_NAMESPACE_SET = new Set<string>(OWNED_DLC_NAMESPACES);
+
 export type ClientRuntime = {
 	device: DeviceDiagnostics | null;
 	mod_version: string;
 	active_mods: string[];
 	game_mode_id: string | null;
 	language: string | null;
+	owned_dlc: OwnedDlcNamespace[];
 };
 
 export type SocialMode = 'full' | 'social';
@@ -270,6 +277,7 @@ export type GuildMemberRow = {
 	active_mods_available: number;
 	cheats_detected_at: number | null;
 	language: string | null;
+	owned_dlc: string | null;
 	last_multiplayer_active_at: number;
 	joined_at: number | null;
 };
@@ -346,6 +354,7 @@ export type GuildSummary = {
 	name: string;
 	icon_id: string;
 	member_count: number;
+	active_member_count: number;
 	is_free_fellowship?: boolean;
 	is_public?: boolean;
 }
@@ -416,8 +425,10 @@ export function get_guild_capabilities(type: GuildType): GuildCapabilities {
 export function guild_summary_from_row(row: GuildSummary & { type: GuildType }): GuildSummary {
 	return row.type === FREE_FELLOWSHIP_TYPE
 		? { guild_id: row.guild_id, name: row.name, icon_id: row.icon_id, member_count: row.member_count,
+			active_member_count: row.active_member_count,
 			is_free_fellowship: true }
 		: { guild_id: row.guild_id, name: row.name, icon_id: row.icon_id, member_count: row.member_count,
+			active_member_count: row.active_member_count,
 			...(row.type === PUBLIC_GUILD_TYPE ? { is_public: true } : {}) };
 }
 
@@ -806,18 +817,32 @@ export function parse_client_runtime(value: unknown): ClientRuntime | null | und
 		(typeof language !== 'string' || language.length > MAX_LANGUAGE_LENGTH))
 		return null;
 
-	return { device: parse_device_diagnostics(runtime.device), mod_version, active_mods, game_mode_id: game_mode_id ?? null, language: language ?? null };
+	const reported_owned_dlc = runtime.owned_dlc;
+	if (reported_owned_dlc !== undefined &&
+		(!Array.isArray(reported_owned_dlc) || reported_owned_dlc.length > OWNED_DLC_NAMESPACES.length))
+		return null;
+	const owned_dlc: OwnedDlcNamespace[] = [];
+	for (const namespace of reported_owned_dlc ?? []) {
+		if (typeof namespace !== 'string' || !OWNED_DLC_NAMESPACE_SET.has(namespace))
+			return null;
+		if (!owned_dlc.includes(namespace as OwnedDlcNamespace))
+			owned_dlc.push(namespace as OwnedDlcNamespace);
+	}
+
+	return { device: parse_device_diagnostics(runtime.device), mod_version, active_mods, game_mode_id: game_mode_id ?? null, language: language ?? null, owned_dlc };
 }
 
 export function persist_client_runtime(client_id: number, runtime: ClientRuntime | undefined, now = Date.now()): void {
 	if (runtime === undefined)
 		return;
 	db.query(
-		'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `game_mode_id`, `language`, `reported_at`) ' +
-		'VALUES(?, ?, ?, ?, ?, ?) ON CONFLICT (`client_id`) DO UPDATE SET ' +
+		'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `game_mode_id`, `language`, `owned_dlc`, `reported_at`) ' +
+		'VALUES(?, ?, ?, ?, ?, ?, ?) ON CONFLICT (`client_id`) DO UPDATE SET ' +
 		'`mod_version` = excluded.`mod_version`, `active_mods` = excluded.`active_mods`, ' +
-		'`game_mode_id` = excluded.`game_mode_id`, `language` = excluded.`language`, `reported_at` = excluded.`reported_at`'
-	).run(client_id, runtime.mod_version, JSON.stringify(runtime.active_mods), runtime.game_mode_id, runtime.language, now);
+		'`game_mode_id` = excluded.`game_mode_id`, `language` = excluded.`language`, ' +
+		'`owned_dlc` = excluded.`owned_dlc`, `reported_at` = excluded.`reported_at`'
+	).run(client_id, runtime.mod_version, JSON.stringify(runtime.active_mods), runtime.game_mode_id, runtime.language,
+		JSON.stringify(runtime.owned_dlc), now);
 	if (runtime.active_mods.some(mod_name => CHEAT_MOD_NAMES.has(mod_name)))
 		db.query('UPDATE `clients` SET `cheats_detected_at` = ? WHERE `id` = ?').run(now, client_id);
 }
@@ -2041,11 +2066,14 @@ export async function guild_membership_exists(client_id_a: number, client_id_b: 
 }
 
 export async function get_guild_summary(guild_id: number): Promise<GuildSummary | null> {
+	const cutoff = shadowed_cutoff();
 	const guild = await db_get_single(
-		'SELECT g.`id` AS `guild_id`, g.`type`, g.`name`, g.`icon_id`, COUNT(m.`client_id`) AS `member_count` ' +
+		'SELECT g.`id` AS `guild_id`, g.`type`, g.`name`, g.`icon_id`, COUNT(m.`client_id`) AS `member_count`, ' +
+		'COUNT(CASE WHEN c.`last_multiplayer_active_at` >= ? THEN m.`client_id` END) AS `active_member_count` ' +
 		'FROM `guilds` AS g LEFT JOIN `guild_memberships` AS m ON m.`guild_id` = g.`id` ' +
+		'LEFT JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
 		'WHERE g.`id` = ? GROUP BY g.`id`',
-		[guild_id]
+		[cutoff, guild_id]
 	) as GuildSummary & { type: GuildType };
 	return guild === null ? null : guild_summary_from_row(guild);
 }
@@ -2075,6 +2103,17 @@ export function get_guild_member_status_activities(member: GuildMemberRow, activ
 	if (member.activity_visible !== 1 || member.activity_available !== 1 || activity === null || member.status_activities === null)
 		return [];
 	return status_snapshot_activities({ activities: member.status_activities }, activity);
+}
+
+export function get_guild_member_owned_dlc(member: Pick<GuildMemberRow, 'owned_dlc'>): OwnedDlcNamespace[] {
+	try {
+		const reported_owned_dlc = JSON.parse(member.owned_dlc ?? '[]');
+		if (Array.isArray(reported_owned_dlc))
+			return OWNED_DLC_NAMESPACES.filter(namespace => reported_owned_dlc.includes(namespace));
+	} catch {
+		// Older or manually repaired snapshots have no usable DLC ownership data.
+	}
+	return [];
 }
 
 export function guild_member_from_row(member: GuildMemberRow, now = Date.now()) {
@@ -2108,6 +2147,7 @@ export function guild_member_from_row(member: GuildMemberRow, now = Date.now()) 
 		active_mods_available: member.active_mods_visible === 1 && member.active_mods_available === 1,
 		using_cheats: is_using_cheats(member.cheats_detected_at, now),
 		language: member.language,
+		owned_dlc: get_guild_member_owned_dlc(member),
 		last_seen_at: member.last_multiplayer_active_at > 0 ? member.last_multiplayer_active_at : null,
 		joined_at: member.joined_at !== null && member.joined_at > 0 ? member.joined_at : null
 	};
@@ -2133,7 +2173,7 @@ export async function get_guild_members(guild_id: number, shadowed = false, now 
 		'ss.`account_creation_date`, ss.`total_skill_level`, ' +
 		'c.`gp_visible`, gps.`amount` AS `gp_amount`, c.`game_mode_visible`, runtime.`game_mode_id`, ' +
 		'c.`active_mods_visible`, (runtime.`active_mods` IS NOT NULL AND runtime.`active_mods` <> \'[]\') AS `active_mods_available`, c.`cheats_detected_at`, ' +
-		'runtime.`language`, ' +
+		'runtime.`language`, runtime.`owned_dlc`, ' +
 		'c.`last_multiplayer_active_at`, joined_activity.`created_at` AS `joined_at` ' +
 		'FROM `guild_memberships` AS m ' +
 		'JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
@@ -2180,7 +2220,7 @@ export async function get_guild_member_directory(
 				'ss.`account_creation_date`, ss.`total_skill_level`, ' +
 				'c.`gp_visible`, gps.`amount` AS `gp_amount`, c.`game_mode_visible`, runtime.`game_mode_id`, ' +
 				'c.`active_mods_visible`, (runtime.`active_mods` IS NOT NULL AND runtime.`active_mods` <> \'[]\') AS `active_mods_available`, c.`cheats_detected_at`, ' +
-				'runtime.`language`, ' +
+				'runtime.`language`, runtime.`owned_dlc`, ' +
 				'c.`last_multiplayer_active_at`, joined_activity.`created_at` AS `joined_at` ' +
 			'FROM `guild_memberships` AS m JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
 			'JOIN `guilds` AS g ON g.`id` = m.`guild_id` ' +

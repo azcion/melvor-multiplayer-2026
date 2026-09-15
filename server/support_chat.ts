@@ -15,6 +15,40 @@ type Message = {
 	id: number; conversation_id: number; author_kind: 'automated' | 'player' | 'member';
 	membership_id: number | null; sending_client_id: number | null; content: string; created_at: number;
 };
+type WelcomeLocalization = { language: string; content: string };
+
+function player_language(client_id: number): string {
+	return db.query<{ language: string | null }, [number]>(
+		'SELECT `language` FROM `client_runtime_snapshots` WHERE `client_id` = ?'
+	).get(client_id)?.language ?? 'en';
+}
+
+function welcome_localizations(support_team: Team): WelcomeLocalization[] {
+	return db.query<WelcomeLocalization, [number, string]>(
+		'SELECT `language`, `content` FROM `support_team_welcome_localizations` ' +
+		'WHERE `team_id` = ? AND `source_content` = ?'
+	).all(support_team.id, support_team.welcome_content);
+}
+
+function localized_welcome_content(support_team: Team, language: string): string {
+	if (language === 'en')
+		return support_team.welcome_content;
+	return welcome_localizations(support_team).find(localization => localization.language === language)?.content ??
+		support_team.welcome_content;
+}
+
+function persist_welcome_localizations(message_id: number, support_team: Team, now: number): void {
+	const job = db.query<{ id: number }, [number]>(
+		"SELECT `id` FROM `chat_translation_jobs` WHERE `source_kind` = 'support' AND `message_id` = ?"
+	).get(message_id);
+	if (job === null)
+		return;
+	for (const localization of welcome_localizations(support_team))
+		db.query('INSERT INTO `chat_message_translations` (`job_id`, `language`, `content`, `translated_at`) VALUES(?, ?, ?, ?)')
+			.run(job.id, localization.language, localization.content, now);
+	db.query("UPDATE `chat_translation_jobs` SET `state` = 'complete', `detected_language` = 'en', `completed_at` = ? " +
+		'WHERE `id` = ?').run(now, job.id);
+}
 
 function membership_for(client_id: number, team_id: number): Membership | null {
 	return db.query<Membership, [number, number]>(
@@ -320,10 +354,11 @@ export function list_support_conversations(client_id: number, now = Date.now()):
 	for (const welcome of virtuals) {
 		if (!player_is_eligible_for_team(client_id, welcome))
 			continue;
+		const content = localized_welcome_content(welcome, player_language(client_id));
 		result.push({ conversation_kind: 'support', conversation_id: null, support_team_id: welcome.id,
 			viewer_side: 'player', participant: { client_id: null, display_name: welcome.display_name, icon_id: welcome.icon_id },
 			created_at: welcome.presented_at, latest_message: { message_id: 0, conversation_id: null, sender_id: null,
-				sender: { display_name: welcome.display_name, icon_id: welcome.icon_id }, content: welcome.welcome_content,
+				sender: { display_name: welcome.display_name, icon_id: welcome.icon_id }, content,
 				created_at: welcome.presented_at, author_side: 'team', sent_by_viewer: false },
 			unread_count: welcome.read_at === null ? 1 : 0, blocked: false });
 	}
@@ -355,7 +390,8 @@ export function list_support_messages(client_id: number, conversation_id: number
 		db.query('UPDATE `support_virtual_welcomes` SET `read_at` = COALESCE(`read_at`, ?) WHERE `team_id` = ? AND `client_id` = ?')
 			.run(Date.now(), team_id, client_id);
 		return { status: 'ok', value: { messages: [{ message_id: 0, conversation_id: null, sender_id: null,
-			sender: { display_name: support_team.display_name, icon_id: support_team.icon_id }, content: support_team.welcome_content,
+			sender: { display_name: support_team.display_name, icon_id: support_team.icon_id },
+			content: localized_welcome_content(support_team, player_language(client_id)),
 			created_at: welcome.presented_at, author_side: 'team', sent_by_viewer: false }], has_more: false } };
 	}
 	const access = conversation_access(client_id, conversation_id);
@@ -429,9 +465,11 @@ export function send_support_message(client_id: number, conversation_id: number 
 				const created = db.query('INSERT INTO `support_conversations` (`team_id`, `player_client_id`, `created_at`) VALUES(?, ?, ?)')
 					.run(team_id, client_id, now);
 				conversation = { id: Number(created.lastInsertRowid), team_id, player_client_id: client_id, created_at: now };
-				const welcome_content = (team(team_id) as Team).welcome_content;
+				const support_team = team(team_id) as Team;
+				const welcome_content = support_team.welcome_content;
 				const welcome_message = db.query('INSERT INTO `support_messages` (`conversation_id`, `author_kind`, `idempotency_scope`, `idempotency_key`, `content`, `created_at`) VALUES(?, \'automated\', ?, ?, ?, ?)')
 					.run(conversation.id, `welcome:${team_id}:${client_id}`, 'welcome', welcome_content, welcome.presented_at);
+				persist_welcome_localizations(Number(welcome_message.lastInsertRowid), support_team, now);
 				if (welcome.read_at !== null)
 					db.query('INSERT INTO `support_player_message_reads` VALUES(?, ?, ?)')
 						.run(Number(welcome_message.lastInsertRowid), client_id, welcome.read_at);

@@ -25,6 +25,8 @@ services:
       FILE_OPERATIONAL_LOGS: ${MELVOR_FILE_OPERATIONAL_LOGS:-0}
       LOG_DIR: /app/logs
       BACKUP_DIR: /app/backups
+      AZURE_TRANSLATOR_KEY_FILE: ${MELVOR_AZURE_TRANSLATOR_KEY_FILE-/app/config/azure-translator.key}
+      AZURE_TRANSLATOR_REGION: ${MELVOR_AZURE_TRANSLATOR_REGION:-northeurope}
     healthcheck:
       test:
         - CMD
@@ -42,6 +44,7 @@ services:
       - database-data:/app/data
       - ${MELVOR_BACKUP_DIR:-./backups}:/app/backups
       - ${MELVOR_LOG_DIR:-./logs}:/app/logs
+      - ./config:/app/config:ro
     logging:
       driver: ${MELVOR_DOCKER_LOG_DRIVER:-local}
     restart: unless-stopped

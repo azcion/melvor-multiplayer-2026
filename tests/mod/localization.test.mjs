@@ -23,8 +23,13 @@ test('declares every packaged locale and falls back unsupported languages to Eng
 		.sort();
 
 	assert.deepEqual([...MULTIPLAYER_SUPPORTED_LANGUAGES].sort(), packaged_languages);
-	assert.equal(resolve_multiplayer_language('zh-CN'), 'zh-CN');
-	assert.equal(resolve_multiplayer_language('zh-TW'), 'en');
+	assert.deepEqual([...MULTIPLAYER_SUPPORTED_LANGUAGES],
+		['en', 'zh-CN', 'zh-TW', 'fr', 'de', 'pt', 'pt-br', 'it', 'ko', 'ja', 'es', 'ru', 'tr']);
+	for (const language of MULTIPLAYER_SUPPORTED_LANGUAGES)
+		assert.equal(resolve_multiplayer_language(language), language);
+	assert.equal(resolve_multiplayer_language('pt-BR'), 'en');
+	assert.equal(resolve_multiplayer_language('zh-TW'), 'zh-TW');
+	assert.equal(resolve_multiplayer_language('unsupported'), 'en');
 });
 
 test('translated locales preserve every English key and formatting placeholder', async () => {
@@ -36,7 +41,7 @@ test('translated locales preserve every English key and formatting placeholder',
 		assert.deepEqual(Object.keys(translations), english_keys, `${language} keys must match English`);
 		for (const key of english_keys) {
 			assert.equal(typeof translations[key], 'string', `${language}:${key} must be text`);
-			assert.notEqual(translations[key], '', `${language}:${key} must not be empty`);
+			assert.notEqual(translations[key].trim(), '', `${language}:${key} must not be empty`);
 			assert.equal(placeholder_signature(translations[key]), placeholder_signature(english[key]),
 				`${language}:${key} placeholders must match English`);
 		}
@@ -106,4 +111,60 @@ test('templates contain no static English placeholders or reviewed text literals
 	assert.doesNotMatch(templates, /\s(?:aria-label|title)="[A-Za-z]/);
 	assert.doesNotMatch(templates, />\s*(?:Loading\.\.\.|Load more|Space:)\s*</);
 	assert.doesNotMatch(templates, />\s*[A-Za-z][^<{]*\{\{/);
+});
+
+async function runtime_sources(directory) {
+	const entries = await readdir(new URL(directory, root), { withFileTypes: true });
+	const chunks = await Promise.all(entries.map(async entry => {
+		if (['lang', 'tests', 'node_modules'].includes(entry.name))
+			return '';
+		const path = `${directory}/${entry.name}`;
+		if (entry.isDirectory())
+			return runtime_sources(path);
+		return /\.(?:mjs|js|ts|html|json)$/.test(entry.name)
+			? readFile(new URL(path, root), 'utf8') : '';
+	}));
+	return chunks.join('\n');
+}
+
+test('localization inventory covers runtime and server errors without unused entries', async () => {
+	const [english, client, server] = await Promise.all([
+		readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse),
+		runtime_sources('mod'), runtime_sources('server')
+	]);
+	const sources = client + '\n' + server;
+	const literals = new Set([...sources.matchAll(/['"](MOD_MP_[A-Z0-9_]+)['"]/g)].map(match => match[1]));
+	// These families are assembled at runtime, including inside HTML bindings.
+	const dynamic = new Set();
+	for (const state of ['ACTIVE', 'ACCEPTED', 'CLAIMED', 'CANCELLED', 'REJECTED', 'EXPIRED'])
+		dynamic.add('MOD_MP_MARKET_HAGGLE_STATUS_' + state);
+	for (const state of ['ACTIVE', 'GRANTED', 'DENIED', 'LAPSED', 'WITHDRAWN'])
+		dynamic.add('MOD_MP_COUNCIL_OUTCOME_' + state);
+	for (const action of ['WINNOWING', 'FELLOWSHIP', 'ENCLOSURE', 'INTERDICT', 'HERESY', 'INGRATITUDE', 'SACRILEGE', 'BENEFICENCE']) {
+		for (const suffix of ['CONFIRM', 'PROPOSAL'])
+			dynamic.add(`MOD_MP_COUNCIL_${action}_${suffix}`);
+	}
+	for (const event of ['JOINED', 'LEFT', 'BANISHED', 'CHARITREE_DONATED', 'RAID_STARTED', 'RAID_BOSS_DEFEATED',
+		'RAID_COMPLETED', 'MARKET_LISTING_CREATED', 'MARKET_BOUGHT', 'MARKET_BOUGHT_BY', 'MARKET_SOLD',
+		'MARKET_SOLD_TO', 'PETITION_RAISED', 'PETITION_CARRIED', 'PETITION_DEFEATED', 'CAMPAIGN_STARTED',
+		'CAMPAIGN_COMPLETED', 'CAMPAIGN_CONTRIBUTED'])
+		dynamic.add('MOD_MP_GUILD_ACTIVITY_' + event);
+	for (const key of [...literals, ...dynamic]) {
+		if (!key.endsWith('_'))
+			assert.equal(typeof english[key], 'string', `Missing runtime key: ${key}`);
+	}
+	for (const key of Object.keys(english))
+		assert.ok(literals.has(key) || dynamic.has(key), `Unused localization key: ${key}`);
+});
+
+test('Chinese Marketplace activity keeps quantity item and counterparty in source order', async () => {
+	for (const language of ['zh-CN', 'zh-TW']) {
+		const dictionary = await readFile(new URL(`mod/data/lang/${language}.json`, root), 'utf8').then(JSON.parse);
+		for (const action of ['BOUGHT', 'SOLD']) {
+			const values = ['17', 'ITEM', 'PLAYER'];
+			const rendered = dictionary['MOD_MP_GUILD_ACTIVITY_MARKET_' + action].replace(/%s/g, () => values.shift());
+			assert.match(rendered, /17件ITEM/);
+			assert.match(rendered, action === 'BOUGHT' ? /[卖賣]家[为為]PLAYER/ : /[买買]家[为為]PLAYER/);
+		}
+	}
 });
