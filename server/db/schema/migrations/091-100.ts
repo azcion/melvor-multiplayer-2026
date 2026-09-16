@@ -62,4 +62,9 @@ export const migrations_091_100: Migration[] = [{
 			VALUES ('support', NEW.id, NEW.content, NEW.created_at, NEW.created_at);
 		END;
 	`
+}, {
+	version: 93,
+	sql: `
+		DROP TABLE audit_row_changes;
+	`
 }];

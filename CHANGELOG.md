@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.13
+
+- Fixed the Chat item tag picker so its item list scrolls correctly on mobile.
+- Fixed duplicate items appearing in the Chat item tag picker when marketplace and recently selected categories overlap.
+
 ## 1.5.12
 
 - Added a Charitree Filter Wishes toggle beside Make a Wish to show only your own Wishes.

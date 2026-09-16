@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { make_guildmates } from '../support/fixtures';
 import { get_json_with_session, post, post_json } from '../support/http';
-import { db_all, db_run } from '../support/persistence';
+import { db_run } from '../support/persistence';
 
 test('item parts survive sends, retries, history and inboxes across every Chat kind', async () => {
 	const { first, second, guild_id } = await make_guildmates('Tag Sender', 'Tag Reader', 'Tag Test Guild');
@@ -24,11 +24,6 @@ test('item parts survive sends, retries, history and inboxes across every Chat k
 			expect(sent.response.status).toBe(200);
 			expect(sent.json.success).toBe(true);
 			expect(sent.json.message.parts).toEqual(parts);
-			const audited = await db_all<{ after_json: string }>('SELECT change.after_json FROM audit_row_changes change ' +
-				'JOIN audit_events event ON event.id = change.event_id WHERE change.table_name = ? AND event.actor_client_id = ? ORDER BY change.event_id DESC LIMIT 1',
-				['chat_message_bodies', first.client_id]);
-			expect(audited).toHaveLength(1);
-			expect(Object.keys(JSON.parse(audited[0]!.after_json))).toEqual(['job_id']);
 			expect(sent.json.message.content).toBe('Use [Bronze Sword] and [Golden Stardust]');
 			const retry = await post_json<{ message: any }>(endpoint, payload, first.session_token);
 			expect(retry.json.message.message_id).toBe(sent.json.message.message_id);

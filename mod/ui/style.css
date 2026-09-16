@@ -3293,7 +3293,14 @@ mp-chat-composer { display: block; min-width: 0; }
 .mp-chat-compose-count { font-size: .8rem; opacity: .75; }
 .mp-chat-item-picker { text-align: start; }
 .mp-chat-item-search { width: 100%; margin-bottom: 10px; }
-.mp-chat-item-results { max-height: 40vh; max-height: 40dvh; overflow-y: auto; overscroll-behavior: contain; }
+.mp-chat-item-results {
+	max-height: 40vh;
+	max-height: 40dvh;
+	overflow-y: scroll;
+	-webkit-overflow-scrolling: touch;
+	touch-action: pan-y;
+	overscroll-behavior-y: contain;
+}
 .mp-chat-item-result {
 	display: flex;
 	align-items: center;
@@ -3315,4 +3322,8 @@ mp-chat-composer { display: block; min-width: 0; }
 	.mp-chat-editor { font-size: 16px; }
 	.mp-chat-item-search { font-size: 16px; }
 	.mp-chat-item-results { max-height: 32vh; max-height: 32dvh; }
+}
+
+.mp-chat-item-picker-modal-popup .swal2-html-container {
+	overflow: visible;
 }

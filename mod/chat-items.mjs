@@ -57,13 +57,31 @@ export const ordered_item_ids = listings => [...new Map((listings ?? [])
 	.sort((a, b) => (a.direction === 'buy' ? 0 : 1) - (b.direction === 'buy' ? 0 : 1))
 	.map(listing => [listing.item_id, listing.item_id])).values()];
 
+function unique_items(items) {
+	const seen = new Set();
+	return items.filter(item => {
+		if (!item || seen.has(item.id)) return false;
+		seen.add(item.id);
+		return true;
+	});
+}
+
 export function search_items(catalog, query, recent = [], limit = 30) {
 	const search = query.trim().toLocaleLowerCase();
+	const unique_catalog = unique_items(catalog);
 	if (!search) {
-		const by_id = new Map(catalog.map(item => [item.id, item]));
-		return [...recent.map(id => by_id.get(id)).filter(Boolean), ...catalog.filter(item => !recent.includes(item.id))].slice(0, limit);
+		const by_id = new Map(unique_catalog.map(item => [item.id, item]));
+		const prioritized = [];
+		const seen = new Set();
+		for (const id of recent) {
+			const item = by_id.get(id);
+			if (!item || seen.has(item.id)) continue;
+			seen.add(item.id);
+			prioritized.push(item);
+		}
+		return [...prioritized, ...unique_catalog.filter(item => !seen.has(item.id))].slice(0, limit);
 	}
-	return catalog.filter(item => item.name.toLocaleLowerCase().includes(search) ||
+	return unique_catalog.filter(item => item.name.toLocaleLowerCase().includes(search) ||
 		fallback_item_name(item.id).toLocaleLowerCase().includes(search)).slice(0, limit);
 }
 

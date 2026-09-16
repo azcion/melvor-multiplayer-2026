@@ -46,6 +46,8 @@ function usage(output: AdminOutput): number {
   bun run admin.ts icon-collection-limit icon-bytes|manifest-items|catalog-bytes|observations VALUE
   bun run admin.ts release-version VERSION|clear
   bun run admin.ts minimum-supported-version VERSION|clear
+  bun run admin.ts updates get SECTION_ID title|body
+  bun run admin.ts updates set SECTION_ID title|body < CONTENT
   bun run admin.ts installation revoke CLIENT_ID INSTALLATION_ID
   bun run admin.ts guild inspect GUILD_ID
   bun run admin.ts identity find DISPLAY_NAME
@@ -153,6 +155,75 @@ export function backfill_charitree_values(input: string, output: AdminOutput = c
 function parse_positive_integer(value: string | undefined): number | null {
 	const parsed = Number(value);
 	return Number.isSafeInteger(parsed) && parsed >= 1 ? parsed : null;
+}
+
+type UpdateSectionField = 'title' | 'body';
+
+type UpdateSection = {
+	id: string;
+	title: string;
+	body: string;
+};
+
+function parse_update_section_field(value: string | undefined): UpdateSectionField | null {
+	return value === 'title' || value === 'body' ? value : null;
+}
+
+function get_update_section(section_id: string, field: UpdateSectionField, output: AdminOutput): number {
+	const section = db.query<UpdateSection, [string]>(
+		'SELECT `id`, `title`, `body` FROM `update_sections` WHERE `id` = ? LIMIT 1'
+	).get(section_id);
+	if (section === null) {
+		output.error(`Update section ${section_id} does not exist.`);
+		return 1;
+	}
+	output.log(JSON.stringify({ section_id: section.id, field, value: section[field] }));
+	return 0;
+}
+
+export function set_update_section(args: string[], input: string, output: AdminOutput = console_output): number {
+	if (args.length !== 4 || args[0] !== 'updates' || args[1] !== 'set')
+		return usage(output);
+	const section_id = args[2];
+	const field = parse_update_section_field(args[3]);
+	if (section_id === undefined || !/^[A-Za-z0-9_-]{1,64}$/.test(section_id) || field === null)
+		return usage(output);
+	let content = input;
+	if (content.endsWith('\r\n')) content = content.slice(0, -2);
+	else if (content.endsWith('\n')) content = content.slice(0, -1);
+	const max_length = field === 'title' ? 128 : 8192;
+	const content_length = [...content].length;
+	if (content_length < 1 || content_length > max_length || content.trim().length < 1 || content.includes('\0')) {
+		output.error(`Update section ${field} must contain 1-${max_length} characters and at least one non-whitespace character.`);
+		return 1;
+	}
+
+	const result = db.transaction(() => {
+		const section = db.query<{ id: string }, [string]>(
+			'SELECT `id` FROM `update_sections` WHERE `id` = ? LIMIT 1'
+		).get(section_id);
+		if (section === null)
+			return 'missing' as const;
+		db.query(`UPDATE \`update_sections\` SET \`${field}\` = ? WHERE \`id\` = ?`).run(content, section_id);
+		return 'updated' as const;
+	}).immediate();
+
+	if (result === 'missing') {
+		output.error(`Update section ${section_id} does not exist.`);
+		return 1;
+	}
+	output.log(`Update section ${section_id} ${field} updated.`);
+	return 0;
+}
+
+function run_updates_command(args: string[], output: AdminOutput): number {
+	if (args.length === 4 && args[1] === 'get') {
+		const field = parse_update_section_field(args[3]);
+		return args[2] === undefined || !/^[A-Za-z0-9_-]{1,64}$/.test(args[2]) || field === null
+			? usage(output)
+			: get_update_section(args[2], field, output);
+	}
+	return usage(output);
 }
 
 type OperatorSupportMessage = {
@@ -882,6 +953,8 @@ function run_admin_command(args: string[], output: AdminOutput = console_output)
 	const [command, action, argument] = args;
 
 	switch (command) {
+		case 'updates':
+			return run_updates_command(args, output);
 		case 'social-mode':
 			return set_social_mode_enforcement(args, output);
 		case 'global-chat-throttle':
@@ -1142,6 +1215,13 @@ if (import.meta.main) {
 			event_type: 'operator.admin.charity.backfill-values', actor_kind: 'operator',
 			actor_client_id: null, actor_display_name: 'admin-cli', details: { command: 'charity.backfill-values' }
 		}), () => backfill_charitree_values(input));
+	} else if (args.length === 4 && args[0] === 'updates' && args[1] === 'set') {
+		const input = await Bun.stdin.text();
+		process.exitCode = run_with_audit_context(make_audit_context({
+			event_type: 'operator.admin.updates.set', actor_kind: 'operator',
+			actor_client_id: null, actor_display_name: 'admin-cli',
+			details: { command: 'updates.set', section_id: args[2], field: args[3] }
+		}), () => set_update_section(args, input));
 	} else {
 		process.exitCode = run_admin(args);
 	}

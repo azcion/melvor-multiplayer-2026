@@ -130,6 +130,30 @@ describe('friends API', () => {
 		expect(after.friend_requests[0].friend.display_name).toBe('Custom Sender');
 	});
 
+	test('refreshes cached friend display icons after an icon change', async () => {
+		const [sender, recipient, next_recipient] = await Promise.all([
+			register_client('Icon Sender'),
+			register_client('Icon Recipient'),
+			register_client('Next Icon Recipient')
+		]);
+		await post_json('/api/friends/add', {
+			friend_code: recipient.friend_code
+		}, sender.session_token);
+
+		const before = await get_events(recipient);
+		const updated = await post_json<{ success: boolean }>('/api/client/set_icon', {
+			icon_id: 'melvorF:Golbin'
+		}, sender.session_token);
+		await post_json('/api/friends/add', {
+			friend_code: next_recipient.friend_code
+		}, sender.session_token);
+		const after = await get_events(next_recipient);
+
+		expect(before.friend_requests[0].friend.icon_id).toBe(sender.icon_id);
+		expect(updated.json.success).toBe(true);
+		expect(after.friend_requests[0].friend.icon_id).toBe('melvorF:Golbin');
+	});
+
 	test('accepts, lists, rejects duplicates, and removes friendships symmetrically', async () => {
 		const pair = await make_friends('Friends Alice', 'Friends Bob');
 		const first_listing = await get_json_with_session<{

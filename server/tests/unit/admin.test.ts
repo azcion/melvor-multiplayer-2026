@@ -85,6 +85,45 @@ afterEach(() => {
 });
 
 describe('administration CLI', () => {
+	test('gets and sets one Updates section field without changing maintenance state', async () => {
+		const database_path = fixture_database();
+		const original_body = await run_admin(database_path, 'updates', 'get', 'dev-message', 'body');
+		const set_title = await run_admin_with_input(database_path, 'Updated dev note\n', 'updates', 'set', 'dev-message', 'title');
+		const set_body = await run_admin_with_input(database_path,
+			'First paragraph.\n\nSecond paragraph.\n', 'updates', 'set', 'dev-message', 'body');
+		const title = await run_admin(database_path, 'updates', 'get', 'dev-message', 'title');
+		const body = await run_admin(database_path, 'updates', 'get', 'dev-message', 'body');
+		const database = new Database(database_path, { readonly: true, strict: true });
+		const maintenance = database.query<{ value: string }, []>(
+			"SELECT `value` FROM `service_settings` WHERE `key` = 'maintenance'"
+		).get();
+		database.close();
+
+		expect(original_body.exit_code).toBe(0);
+		expect(original_body.stdout).toBe("{\"section_id\":\"dev-message\",\"field\":\"body\",\"value\":\"It's a tree - it's gonna have leaves. 🍃\"}\n");
+		expect(set_title.exit_code).toBe(0);
+		expect(set_title.stdout).toBe('Update section dev-message title updated.\n');
+		expect(set_body.exit_code).toBe(0);
+		expect(set_body.stdout).toBe('Update section dev-message body updated.\n');
+		expect(title.stdout).toBe('{"section_id":"dev-message","field":"title","value":"Updated dev note"}\n');
+		expect(body.stdout).toBe('{"section_id":"dev-message","field":"body","value":"First paragraph.\\n\\nSecond paragraph."}\n');
+		expect(maintenance?.value).toBe('0');
+	});
+
+	test('validates Updates section fields and content', async () => {
+		const database_path = fixture_database();
+		const invalid_field = await run_admin(database_path, 'updates', 'get', 'dev-message', 'body-text');
+		const missing = await run_admin(database_path, 'updates', 'get', 'missing-section', 'body');
+		const empty = await run_admin_with_input(database_path, '\n', 'updates', 'set', 'dev-message', 'body');
+
+		expect(invalid_field.exit_code).toBe(2);
+		expect(invalid_field.stderr).toContain('Usage:');
+		expect(missing.exit_code).toBe(1);
+		expect(missing.stderr).toContain('does not exist');
+		expect(empty.exit_code).toBe(1);
+		expect(empty.stderr).toContain('non-whitespace');
+	});
+
 	test('stagger-promotes only eligible Wishes while preserving each Guild order', async () => {
 		const database_path = fixture_database();
 		const database = new Database(database_path, { strict: true });

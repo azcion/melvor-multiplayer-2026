@@ -15,7 +15,6 @@ describe('SQLite persistence probe', () => {
 			'audit_event_participants',
 			'audit_event_values',
 			'audit_events',
-			'audit_row_changes',
 			'audit_value_lot_positions',
 			'audit_value_lots',
 			'audit_value_movements',

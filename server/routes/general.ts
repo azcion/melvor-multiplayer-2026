@@ -6,7 +6,7 @@ import type { PetitionType } from '../council';
 import { has_pending_inbox } from '../inbox';
 import { change_display_name } from '../audit';
 
-const { acknowledge_economy_receipt, db, db_execute, db_exists, display_name_cache, friend_request_cache, get_campaign_progress, get_client_gifts, get_client_resolved_trades, get_client_social_mode, get_client_social_mode_enforcement, get_client_trades, get_friend_requests, get_global_chat_unread_count, get_guild_applicants, get_guild_chat_unread_count, get_guild_member_social_modes, get_market_completed, get_minimum_supported_mod_version, get_released_mod_version, get_support_unread_count, get_trade_offer_meta, get_unread_chat_count, has_deletion_returns, has_global_chat_capability, has_guild_chat_capability, is_valid_avatar_icon_id, parse_display_name, pending_economy_receipts, session_get_route, session_post_route } = runtime;
+const { acknowledge_economy_receipt, db, db_execute, db_exists, display_icon_cache, display_name_cache, friend_request_cache, get_campaign_progress, get_client_gifts, get_client_resolved_trades, get_client_social_mode, get_client_social_mode_enforcement, get_client_trades, get_friend_requests, get_global_chat_unread_count, get_guild_applicants, get_guild_chat_unread_count, get_guild_member_social_modes, get_market_completed, get_minimum_supported_mod_version, get_released_mod_version, get_support_unread_count, get_trade_offer_meta, get_unread_chat_count, has_deletion_returns, has_global_chat_capability, has_guild_chat_capability, is_valid_avatar_icon_id, parse_display_name, pending_economy_receipts, session_get_route, session_post_route } = runtime;
 
 export function register_general_routes(): void {
 	session_get_route('/api/events', async (req, url, client_id): Promise<HandlerResult> => {
@@ -78,6 +78,7 @@ export function register_general_routes(): void {
 			return 400; // Bad Request
 
 		await db_execute('UPDATE `clients` SET `icon_id` = ? WHERE `id` = ?', [icon_id, client_id]);
+		display_icon_cache.delete(client_id);
 
 		return { success: true };
 	});

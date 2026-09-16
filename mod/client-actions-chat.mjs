@@ -120,6 +120,7 @@ export function install_chat_actions(runtime) {
 			this.chat_item_catalog = items.item_catalog(game, this.market_listings);
 			queue_modal('MOD_MP_CHAT_INSERT_ITEM', 'chat-item-picker-modal', undefined, {
 				showConfirmButton: false,
+				customClass: { popup: 'mp-chat-item-picker-modal-popup' },
 				didOpen: () => {
 					this.render_chat_item_results();
 					document.querySelector('.mp-chat-item-search')?.focus();

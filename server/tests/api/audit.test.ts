@@ -73,22 +73,6 @@ describe('durable audit log', () => {
 			guild_id: donor.guild_id,
 			guild_name: 'Audit Guild'
 		});
-		const covered_mutations = await db_all<{ event_type: string }>(
-			'SELECT `event_type` FROM `audit_events` WHERE `event_type` = \'api.guilds.create\' ' +
-			'AND `actor_client_id` = ?', [donor.client_id]
-		);
-		expect(covered_mutations).toHaveLength(1);
-		const guild_changes = await db_all<{ table_name: string; operation: string; after_json: string }>(
-			'SELECT change.`table_name`, change.`operation`, change.`after_json` FROM `audit_row_changes` AS change ' +
-			'JOIN `audit_events` AS event ON event.`id` = change.`event_id` ' +
-			'WHERE event.`event_type` = \'api.guilds.create\' AND event.`actor_client_id` = ? ' +
-			'AND change.`table_name` = \'guilds\'', [donor.client_id]
-		);
-		expect(guild_changes).toHaveLength(1);
-		expect(guild_changes[0]).toMatchObject({ table_name: 'guilds', operation: 'insert' });
-		expect(JSON.parse(guild_changes[0].after_json)).toMatchObject({ name: 'Audit Guild' });
-		expect(guild_changes[0].after_json).not.toContain('client_key');
-		expect(guild_changes[0].after_json).not.toContain('session_token');
 		const donor_lot = await db_all<{ lot_id: number; quantity: number }>(
 			' SELECT movement.`lot_id`, movement.`quantity` FROM `audit_value_movements` AS movement ' +
 			'JOIN `audit_events` AS event ON event.`id` = movement.`event_id` ' +
@@ -119,7 +103,7 @@ describe('durable audit log', () => {
 		});
 	});
 
-	test('does not retain rejected attempts and omits request activity churn', async () => {
+	test('retains semantic events without generic request mutation events', async () => {
 		const [client] = await make_guild_group(['Coverage Auditor'], 'Coverage Audit Guild');
 		const before = await db_all<{ count: number }>(
 			'SELECT COUNT(*) AS `count` FROM `audit_events` WHERE `actor_client_id` = ? AND `event_type` = \'api.friends.add\'',
@@ -131,9 +115,10 @@ describe('durable audit log', () => {
 			[client.client_id]
 		);
 		expect(after[0].count).toBe(before[0].count);
+		await post_json('/api/client/status/sync', { gp: 123 }, client.session_token);
 		expect(await db_all(
-			'SELECT 1 FROM `audit_row_changes` WHERE `table_name` = \'clients\' ' +
-			'AND (`before_json` LIKE \'%last_multiplayer_active_at%\' OR `after_json` LIKE \'%last_multiplayer_active_at%\')'
+			'SELECT 1 FROM `audit_events` WHERE `actor_client_id` = ? AND `event_type` = \'api.client.status.sync\'',
+			[client.client_id]
 		)).toEqual([]);
 	});
 

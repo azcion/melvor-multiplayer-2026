@@ -39,13 +39,28 @@ test('orders discovered chat items by own Buy Orders, Sell Orders, then name', (
 	const game = { items: { registeredObjects }, stats: { itemFindCount: () => 1 } };
 	const listings = [
 		{ item_id: 'melvorD:Bronze', direction: 'sell' },
+		{ item_id: 'melvorD:Bronze', direction: 'buy' },
 		{ item_id: 'melvorD:Zinc', direction: 'buy' },
 		{ item_id: 'melvorD:Amber', direction: 'buy' }
 	];
 	assert.deepEqual(items.item_catalog(game, listings).map(item => item.id), [
-		'melvorD:Amber', 'melvorD:Zinc', 'melvorD:Bronze', 'melvorD:Apple'
+		'melvorD:Amber', 'melvorD:Bronze', 'melvorD:Zinc', 'melvorD:Apple'
 	]);
-	assert.deepEqual(items.ordered_item_ids(listings), ['melvorD:Zinc', 'melvorD:Amber', 'melvorD:Bronze']);
+	assert.deepEqual(items.ordered_item_ids(listings), ['melvorD:Bronze', 'melvorD:Zinc', 'melvorD:Amber']);
+});
+
+test('deduplicates items when marketplace and recent picker categories overlap', () => {
+	const catalog = [
+		{ id: 'melvorD:Buy_And_Sell', name: 'Buy and Sell' },
+		{ id: 'melvorD:Sell_Only', name: 'Sell Only' },
+		{ id: 'melvorD:Discovered', name: 'Discovered' }
+	];
+	assert.deepEqual(items.search_items(catalog, '', [
+		'melvorD:Buy_And_Sell', 'melvorD:Sell_Only', 'melvorD:Buy_And_Sell', 'melvorD:Discovered'
+	]).map(item => item.id), [
+		'melvorD:Buy_And_Sell', 'melvorD:Sell_Only', 'melvorD:Discovered'
+	]);
+	assert.deepEqual(items.search_items([...catalog, catalog[0]], 'discovered').map(item => item.id), ['melvorD:Discovered']);
 });
 
 function context() {
@@ -125,11 +140,18 @@ test('composer discards cloned editor markup and preserves the picker insertion 
 });
 
 test('picker renders changing results without Petite Vue structural directives', async () => {
-	const templates = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
+	const [main, templates, style] = await Promise.all([
+		readFile(new URL('../../mod/client-actions-chat.mjs', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8')
+	]);
 	const picker = templates.slice(templates.indexOf('template-mp-chat-item-picker-modal'));
+	assert.match(main, /queue_modal\('MOD_MP_CHAT_INSERT_ITEM', 'chat-item-picker-modal'[\s\S]*customClass: \{ popup: 'mp-chat-item-picker-modal-popup' \}/);
 	assert.match(picker, /@input="state\.update_chat_item_search\(\$event\)"/);
-	assert.match(picker, /class="mp-chat-item-results"><\/div>/);
+	assert.match(picker, /class="mp-chat-item-results" @touchmove="state\.stop_icon_scroll_propagation\(\$event\)"><\/div>/);
 	assert.match(picker, /mp-chat-item-empty d-none/);
 	assert.doesNotMatch(picker, /v-for=/);
 	assert.doesNotMatch(picker, /get_chat_item_results\(\).*v-(?:if|show)/);
+	assert.match(style, /\.mp-chat-item-results \{[\s\S]*overflow-y: scroll;[\s\S]*-webkit-overflow-scrolling: touch;[\s\S]*touch-action: pan-y;[\s\S]*overscroll-behavior-y: contain;/);
+	assert.match(style, /\.mp-chat-item-picker-modal-popup \.swal2-html-container \{[\s\S]*overflow: visible;/);
 });

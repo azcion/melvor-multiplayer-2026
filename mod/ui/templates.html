@@ -2488,7 +2488,7 @@
 <template id="template-mp-chat-item-picker-modal">
 	<div class="mp-chat-item-picker">
 		<input type="search" class="mp-input-text mp-chat-item-search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_ITEMS')" :aria-label="getLangString('MOD_MP_PLACEHOLDER_SEARCH_ITEMS')" @input="state.update_chat_item_search($event)" @keydown="state.handle_chat_item_search_key($event)">
-		<div class="mp-chat-item-results"></div>
+		<div class="mp-chat-item-results" @touchmove="state.stop_icon_scroll_propagation($event)"></div>
 		<div class="text-muted p-3 mp-chat-item-empty d-none" role="status"><lang-string lang-id="MOD_MP_CHAT_NO_ITEM_MATCHES"></lang-string></div>
 		<div class="text-muted font-size-sm mt-2"><lang-string lang-id="MOD_MP_CHAT_ITEM_SEARCH_HINT"></lang-string></div>
 		<div class="text-muted font-size-sm"><lang-string lang-id="MOD_MP_CHAT_ITEM_DISCOVERY_HINT"></lang-string></div>
