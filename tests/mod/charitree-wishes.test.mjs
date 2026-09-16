@@ -19,8 +19,11 @@ test('wires Wish creation, presentation, owner actions, and Inbox naming', async
 	assert.match(main, /async function api_post_without_economy_journal\(endpoint, payload, major = selected_api_major\)[\s\S]*api_post_response_raw\(endpoint, payload, session_token, major\)/);
 	assert.match(main, /const pending_economy_command = get_instance_storage_item\(storage_key\);[\s\S]*is_charity_wish_endpoint\(pending_economy_command\?\.endpoint\)[\s\S]*remove_instance_storage_item\(storage_key\)/);
 	assert.match(main, /charity_wish_progress_percentage\(wish\)/);
+	assert.match(main, /charity_filter_wishes: false/);
+	assert.match(main, /get charity_tree_entries\(\) \{[\s\S]*const wishes = this\.charity_filter_wishes[\s\S]*this\.charity_wishes\.filter\(wish => wish\.owned === true\)[\s\S]*wishes\.map\(wish/);
 	assert.match(actions, /\/api\/charity\/wish\/make/);
 	assert.match(actions, /\/api\/charity\/wish\/\$\{action\}/);
+	assert.match(actions, /toggle_charity_wish_filter\(\) \{[\s\S]*state\.charity_filter_wishes = !state\.charity_filter_wishes[\s\S]*wish\.owned === true/);
 	assert.match(actions, /async resolve_charity_wish\(event, action, confirmed = false\)[\s\S]*action === 'forsake' && !confirmed[\s\S]*show_charity_wish_forsake_confirmation/);
 	assert.match(actions, /confirm_charity_wish_forsake\(event\)[\s\S]*resolve_charity_wish\(event, 'forsake', true\)/);
 	assert.match(templates, /template-mp-charity-wish-modal/);
@@ -34,6 +37,8 @@ test('wires Wish creation, presentation, owner actions, and Inbox naming', async
 	assert.match(templates, /state\.adjust_charity_wish_qty\(1\)/);
 	assert.doesNotMatch(templates, /for="mp-charity-wish-item"/);
 	assert.match(templates, /MOD_MP_CHARITY_WISH_ELIGIBLE_ITEMS/);
+	assert.match(templates, /MOD_MP_CHARITY_WISH_MAKE[\s\S]*MOD_MP_CHARITY_WISH_FILTER/);
+	assert.match(templates, /:aria-pressed="state\.charity_filter_wishes" @click="state\.toggle_charity_wish_filter\(\)"[^>]*><lang-string lang-id="MOD_MP_CHARITY_WISH_FILTER"><\/lang-string>/);
 	assert.match(templates, /<p class="mp-charity-wish-intro"><lang-string lang-id="MOD_MP_CHARITY_WISH_INTRO"><\/lang-string><\/p>/);
 	assert.doesNotMatch(templates, /MOD_MP_CHARITY_WISH_SHUFFLE_PENALTY/);
 	assert.match(templates, /id="mp-charity-wish-qty-label" for="mp-charity-wish-qty"/);

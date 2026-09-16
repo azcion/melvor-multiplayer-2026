@@ -47,4 +47,19 @@ export const migrations_091_100: Migration[] = [{
 		SELECT id, language, welcome_content, content FROM support_teams CROSS JOIN localization
 		WHERE system_key = 'super_awesome_expansion';
 	`
+}, {
+	version: 92,
+	sql: `
+		CREATE TABLE chat_message_bodies (
+			job_id INTEGER PRIMARY KEY REFERENCES chat_translation_jobs (id) ON DELETE CASCADE,
+			parts TEXT NOT NULL CHECK (json_valid(parts) AND length(parts) <= 20000),
+			translations TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(translations) AND length(translations) <= 100000)
+		);
+		CREATE TRIGGER correct_support_chat_translation AFTER UPDATE OF content ON support_messages
+		WHEN OLD.content <> NEW.content BEGIN
+			DELETE FROM chat_translation_jobs WHERE source_kind = 'support' AND message_id = NEW.id;
+			INSERT INTO chat_translation_jobs (source_kind, message_id, content, enqueued_at, available_at)
+			VALUES ('support', NEW.id, NEW.content, NEW.created_at, NEW.created_at);
+		END;
+	`
 }];

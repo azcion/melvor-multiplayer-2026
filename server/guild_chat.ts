@@ -1,3 +1,4 @@
+import { save_chat_parts, same_chat_parts, type ChatPart } from './chat_parts';
 import { db } from './db';
 import { CHAT_MESSAGE_MAX_LENGTH, CHAT_MESSAGE_PAGE_SIZE } from './chat';
 import { is_chat_moderator } from './chat_moderation';
@@ -185,7 +186,8 @@ export function send_guild_chat_message(
 	guild_id: number,
 	idempotency_key: string,
 	content: string,
-	now = Date.now()
+	now = Date.now(),
+	parts?: ChatPart[]
 ): GuildChatResult<{ message: ReturnType<typeof message_view> }> {
 	const trimmed = typeof content === 'string' ? content.trim() : '';
 	if (!Number.isSafeInteger(guild_id) || guild_id < 1 || typeof idempotency_key !== 'string' ||
@@ -201,7 +203,7 @@ export function send_guild_chat_message(
 			'WHERE `sender_id` = ? AND `idempotency_key` = ?'
 		).get(client_id, idempotency_key);
 		if (duplicate !== null) {
-			if (duplicate.guild_id !== guild_id || duplicate.content !== trimmed)
+			if (duplicate.guild_id !== guild_id || duplicate.content !== trimmed || !same_chat_parts('guild', duplicate.id, parts))
 				return { status: 'bad_request' };
 			return { status: 'ok', value: { message_id: duplicate.id } };
 		}
@@ -209,6 +211,7 @@ export function send_guild_chat_message(
 			'INSERT INTO `guild_chat_messages` (`guild_id`, `sender_id`, `idempotency_key`, `content`, `created_at`) ' +
 			'VALUES(?, ?, ?, ?, ?)'
 		).run(guild_id, client_id, idempotency_key, trimmed, now);
+		save_chat_parts('guild', Number(created.lastInsertRowid), parts);
 		return { status: 'ok', value: { message_id: Number(created.lastInsertRowid) } };
 	});
 	const result = send.immediate();

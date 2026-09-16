@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.12
+
+- Added a Charitree Filter Wishes toggle beside Make a Wish to show only your own Wishes.
+- Added current owned item quantities beside Available sell listings and Requested buy orders in the Marketplace.
+- Added inline Chat item tags with an Insert Item picker and # shortcut for base-game and official DLC items. Item names appear in each reader’s game language and stay intact during whole-message translation.
+- Added per-chat notification bell toggles, enabled by default, to exclude muted chats from navigation unread badges while keeping their inline unread counts.
+- Fixed automatic Chat translation updates remaining hidden in an open conversation after the initial translation wait elapsed.
+- Prevented the Chat localization modal from automatically opening its native language picker on mobile.
+- Clarified the active Chat translation language and added an explicit Apply action for changing it.
+
 ## 1.5.11
 
 - Localized the Multiplayer Mod Team and SAE Support Team automated welcomes for every supported game language while retaining the canonical English message in shared Support history.

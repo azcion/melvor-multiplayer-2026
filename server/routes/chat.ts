@@ -1,3 +1,4 @@
+import { normalize_chat_parts, parts_text, attach_chat_parts } from '../chat_parts';
 import * as runtime from '../app-runtime';
 import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
@@ -73,6 +74,16 @@ export function register_chat_routes(): void {
 			...list_support_conversations(client_id)
 		].sort((a, b) => (b.latest_message?.created_at ?? b.created_at) -
 			(a.latest_message?.created_at ?? a.created_at));
+		for (const kind of ['private', 'guild', 'global', 'support']) {
+			const matching = conversations.filter(conversation => (conversation.conversation_kind ?? 'private') === kind);
+			const latest = attach_chat_parts(kind, matching.flatMap(conversation => conversation.latest_message ? [conversation.latest_message] : []));
+			const by_id = new Map(latest.map(message => [message.message_id, message]));
+			for (const conversation of matching)
+				if (conversation.latest_message && conversation.latest_message.message_id > 0) {
+					const parts = by_id.get(conversation.latest_message.message_id)?.parts;
+					if (parts) Object.assign(conversation.latest_message, { parts });
+				}
+		}
 		return {
 			conversations,
 			...(global_chat === null ? {} : { global_chat: global_chat.state }),
@@ -172,30 +183,33 @@ export function register_chat_routes(): void {
 			typeof json.idempotency_key !== 'string' ||
 			typeof json.content !== 'string')
 			return 400;
+		const parts = json.parts === undefined ? undefined : normalize_chat_parts(json.parts);
+		if (parts === null) return 400;
+		const content = parts ? parts_text(parts) : json.content;
 		const result = kind === 'poll-discussion' ? send_poll_discussion_message(
-			client_id, json.conversation_id as number, json.idempotency_key, json.content
+			client_id, json.conversation_id as number, json.idempotency_key, content, Date.now(), parts
 		) : kind === 'support' ? send_support_message(
 			client_id,
 			json.conversation_id,
 			typeof json.support_team_id === 'number' ? json.support_team_id : null,
 			json.idempotency_key,
-			json.content
+			content, Date.now(), parts
 		) : kind === 'guild' ? send_guild_chat_message(
 			client_id,
 			json.conversation_id as number,
 			json.idempotency_key,
-			json.content
+			content, Date.now(), parts
 		) : kind === 'global' ? send_global_chat_message(
 			client_id,
 			json.conversation_id as number,
 			json.idempotency_key,
-			json.content
+			content, Date.now(), parts
 		) : send_message(
 			client_id,
 			json.conversation_id,
 			typeof json.client_id === 'number' ? json.client_id : null,
 			json.idempotency_key,
-			json.content
+			content, Date.now(), parts
 		);
 		if (result.status === 'throttled')
 			return { success: false, retry_after_ms: result.retry_after_ms };
@@ -207,6 +221,7 @@ export function register_chat_routes(): void {
 			budget_enabled: CHAT_BUDGET_ENABLED
 		};
 		Object.assign(response, result.value as JsonObject);
+		response.message = attach_chat_parts(kind, [result.value.message])[0] as JsonObject;
 		if (kind === 'support')
 			response.budget = get_chat_state(client_id).budget;
 		return response;

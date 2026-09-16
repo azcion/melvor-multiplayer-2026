@@ -77,6 +77,7 @@ function install_durable_audit_triggers(database: Database): void {
 			`PRAGMA table_info(${identifier(name)})`
 		).all();
 		const public_columns = columns.filter(column =>
+			!(name === 'chat_message_bodies' && (column.name === 'parts' || column.name === 'translations')) &&
 			!PRIVATE_EXACT.has(column.name) && !PRIVATE_COLUMN.test(column.name) && !/BLOB/i.test(column.type)
 		).map(column => column.name);
 		const primary_columns = columns.filter(column => column.pk > 0 && public_columns.includes(column.name))

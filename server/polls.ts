@@ -1,3 +1,4 @@
+import { save_chat_parts, same_chat_parts, type ChatPart } from './chat_parts';
 import { db } from './db';
 
 export const POLLS_CAPABILITY = 'polls-v1';
@@ -201,20 +202,24 @@ export function list_poll_discussion_messages(client_id: number, poll_id: number
 }
 
 export function send_poll_discussion_message(client_id: number, poll_id: number, idempotency_key: string,
-	content: string, now = Date.now()): PollResult<{ message: ReturnType<typeof discussion_message_view> }> {
+	content: string, now = Date.now(), parts?: ChatPart[]): PollResult<{ message: ReturnType<typeof discussion_message_view> }> {
 	const trimmed = content.trim();
 	if (!Number.isSafeInteger(poll_id) || poll_id < 1 || idempotency_key.length < 1 || idempotency_key.length > 128 ||
 		trimmed.length < 1 || trimmed.length > 1000 || !poll_view(client_id, poll_id))
 		return { status: 'bad_request' };
 	const message_id = db.transaction(() => {
-		const existing = db.query<{ id: number }, [number, string]>(
-			'SELECT `id` FROM `poll_discussion_messages` WHERE `sender_id` = ? AND `idempotency_key` = ?'
-		).get(client_id, idempotency_key)?.id;
-		if (existing !== undefined) return existing;
-		return Number(db.query(
+		const existing = db.query<{ id: number; poll_id: number; content: string }, [number, string]>(
+			'SELECT `id`, `poll_id`, `content` FROM `poll_discussion_messages` WHERE `sender_id` = ? AND `idempotency_key` = ?'
+		).get(client_id, idempotency_key);
+		if (existing) return existing.poll_id === poll_id && existing.content === trimmed &&
+			same_chat_parts('poll-discussion', existing.id, parts) ? existing.id : null;
+		const created = Number(db.query(
 			'INSERT INTO `poll_discussion_messages` (`poll_id`, `sender_id`, `idempotency_key`, `content`, `created_at`) VALUES (?, ?, ?, ?, ?)'
 		).run(poll_id, client_id, idempotency_key, trimmed, now).lastInsertRowid);
+		save_chat_parts('poll-discussion', created, parts);
+		return created;
 	}).immediate();
+	if (message_id === null) return { status: 'bad_request' };
 	const message = db.query<DiscussionMessage, [number]>(
 		'SELECT message.*, sender.`display_name`, sender.`icon_id` FROM `poll_discussion_messages` AS message ' +
 		'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` WHERE message.`id` = ?'

@@ -207,7 +207,7 @@ test('moves conversation actions behind the participant header and confirms them
 	assert.equal(language.MOD_MP_CHAT_DELETE_CONFIRM_TITLE, 'Delete this conversation?');
 });
 
-test('uses a compact header translation toggle and one modal toggle action', async () => {
+test('shows the active translation language and applies changed languages separately', async () => {
 	const { templates, style } = await sources();
 	const chat_view = templates.slice(
 		templates.indexOf('<template id="template-mp-chat-page">'),
@@ -224,9 +224,13 @@ test('uses a compact header translation toggle and one modal toggle action', asy
 	assert.match(chat_header, /:aria-pressed="state\.is_chat_translation_enabled\(\)"/);
 	assert.match(style, /\.mp-chat-buttons\s*\{[\s\S]*display: flex;[\s\S]*gap: 12px;/);
 	assert.match(style, /\.mp-translation-button\s*\{[\s\S]*padding: 0px 6px;[\s\S]*font-size: 26px;[\s\S]*line-height: 16px;/);
-	assert.match(translation_modal, /@click="state\.set_chat_translation_enabled\(!state\.is_chat_translation_enabled\(\)\)"/);
+	assert.match(translation_modal, /<div class="mp-modal-text" v-show="state\.is_chat_translation_enabled\(\)"><mp-lang-string-f lang-id="MOD_MP_CHAT_TRANSLATION_STATUS" :lang-arg-1="state\.get_language_name\(state\.get_chat_translation_language\(\)\)"><\/mp-lang-string-f><\/div>/);
+	assert.match(translation_modal, /autofocus[^>]*state\.is_chat_translation_language_changed\(\)/);
+	assert.match(translation_modal, /@click="state\.save_chat_translation\(\)"/);
+	assert.match(translation_modal, /:lang-id="state\.get_chat_translation_action_lang_id\(\)"/);
+	assert.match(translation_modal, /v-show="state\.is_chat_translation_enabled\(\) && state\.is_chat_translation_language_changed\(\)"[\s\S]*MOD_MP_CHAT_TRANSLATION_DISABLE/);
+	assert.doesNotMatch(translation_modal, /v-if=/);
 	assert.equal((translation_modal.match(/@click="state\.set_chat_translation_enabled/g) ?? []).length, 1);
-	assert.doesNotMatch(translation_modal, /v-if="state\.is_chat_translation_enabled\(\)"/);
 });
 
 test('opens message actions from timestamps with copy and confirmed deletion', async () => {
@@ -245,7 +249,7 @@ test('opens message actions from timestamps with copy and confirmed deletion', a
 	assert.match(main, /selected_chat_message: null/);
 	assert.match(main, /queue_modal\('MOD_MP_CHAT_MESSAGE_ACTIONS', 'chat-message-actions-modal'/);
 	assert.match(main, /queue_modal\('MOD_MP_CHAT_DELETE_MESSAGE_CONFIRM_TITLE', 'chat-message-delete-confirm-modal'/);
-	assert.match(main, /clipboard\.writeText\(message\.content\)/);
+	assert.match(main, /clipboard\.writeText\(this\.get_chat_plain_content\(message\)\)/);
 	assert.match(main, /api_post\('\/api\/chat\/messages\/delete'/);
 	assert.doesNotMatch(style, /\.mp-chat-message-content\s*\{[^}]*margin-top/);
 	assert.match(style, /\.mp-chat-message-timestamp[\s\S]*cursor: pointer/);
@@ -302,6 +306,9 @@ test('keeps translation client-only, per conversation, and never translates the 
 	assert.deepEqual(context.chat_translation_preferences, { 'global:1': 'zh-CN' });
 	context.set_chat_translation_enabled(true);
 	assert.deepEqual(writes, [['chat_translation_preferences', { 'global:1': 'zh-CN' }]]);
+	assert.equal(context.get_chat_translation_language(), 'zh-CN');
+	assert.equal(context.is_chat_translation_language_changed(), false);
+	assert.equal(context.get_chat_translation_action_lang_id(), 'MOD_MP_CHAT_TRANSLATION_DISABLE');
 	assert.equal(context.get_chat_message_content({ sender_id: 8, content: 'Hello',
 		translations: { 'zh-CN': '你好' }, translation_status: 'complete', created_at: 0 }), '你好');
 	assert.equal(context.get_chat_message_content({ sender_id: 7, content: 'My words',
@@ -310,12 +317,21 @@ test('keeps translation client-only, per conversation, and never translates the 
 		translation_status: 'queued' }), 'Translating…');
 	const fallback = { sender_id: 8, content: 'Fallback', translations: {}, translation_status: 'queued' };
 	assert.equal(context.get_chat_message_content(fallback), 'Translating…');
+	assert.equal(context.is_chat_message_translation_pending(fallback), true);
 	assert.equal(context.is_chat_message_translation_waiting(fallback), true);
 	clock += 10_001;
 	assert.equal(context.get_chat_message_content(fallback), 'Fallback');
+	assert.equal(context.is_chat_message_translation_pending(fallback), true);
 	assert.equal(context.is_chat_message_translation_waiting(fallback), false);
 	assert.equal(context.is_chat_message_translation_waiting({ sender_id: 7, content: 'Mine',
 		translations: {}, translation_status: 'queued', translation_observed_at: 1000 }), false);
+	context.chat_translation_language_input = 'en';
+	assert.equal(context.is_chat_translation_language_changed(), true);
+	assert.equal(context.get_chat_translation_action_lang_id(), 'MOD_MP_CHAT_TRANSLATION_APPLY');
+	context.save_chat_translation();
+	assert.equal(context.get_chat_translation_language(), 'en');
+	assert.equal(context.is_chat_translation_language_changed(), false);
+	assert.deepEqual(writes.at(-1), ['chat_translation_preferences', { 'global:1': 'en' }]);
 });
 
 test('defaults zh-CN Global and Guild Chat translation on while preserving explicit opt-out and English', () => {
@@ -561,7 +577,7 @@ test('disables Message capacity while preserving its dormant UI and rollback com
 	assert.match(main, /api_post\('\/api\/chat\/messages\/delete'/);
 	assert.match(main, /api_post\('\/api\/chat\/conversations\/delete'/);
 	assert.match(chat_template, /maxlength="1000"/);
-	assert.match(chat_template, /\{\{ state\.get_chat_message_content\(message\) \}\}/);
+	assert.match(chat_template, /<mp-chat-message-body :parts="state\.get_chat_message_document\(message\)"/);
 	assert.doesNotMatch(chat_template, /v-html|innerHTML/);
 	assert.doesNotMatch(chat_template, /chat_draft\.length/);
 	assert.match(main, /chat_budget_enabled: true/);
@@ -597,7 +613,7 @@ test('sends Chat on desktop Enter while preserving mobile and multiline input', 
 	);
 	const keydown_handler = main.slice(main.indexOf('handle_chat_keydown(event)'), main.indexOf('async send_chat_message(event)'));
 
-	assert.match(chat_template, /@keydown="state\.handle_chat_keydown\(\$event\)"/);
+	assert.match(main, /state\.handle_chat_keydown\(event\)/);
 	assert.match(keydown_handler, /event\.key !== 'Enter'/);
 	assert.match(keydown_handler, /event\.isComposing/);
 	assert.match(keydown_handler, /event\.shiftKey/);
@@ -660,9 +676,9 @@ test('does not poll an empty or background Chat inbox and refreshes visible meta
 	assert.match(message_refresh, /conversation_kind=' \+ kind[\s\S]*support_team_id/);
 	assert.match(scheduler, /!polling\.is_foreground\(document\)/);
 	assert.doesNotMatch(polling, /refresh_chat_state\(\)/);
-	assert.match(polling, /state\.is_chat_message_translation_waiting\(message\)/);
+	assert.match(polling, /state\.is_chat_message_translation_pending\(message\)/);
 	assert.match(polling, /state\.selected_chat_conversation && polling\.is_foreground\(document\)/);
-	assert.match(events, /if \(res\.unchanged === true\) \{\s*void economy_command_journal\?\.recover\(\);\s*return res;[\s\S]*if \(chat_page_visible\)\s*await refresh_chat_conversations\(\)/);
+	assert.match(events, /if \(res\.unchanged === true\) \{\s*void economy_command_journal\?\.recover\(\);\s*return res;[\s\S]*if \(chat_page_visible \|\| has_muted_chats\)\s*await refresh_chat_conversations\(\)/);
 });
 
 test('renders Support Chat identity, alignment, virtual welcomes, and restricted actions', async () => {
@@ -719,4 +735,74 @@ test('retains an older-history cursor after deleting the visible page', async ()
 	assert.match(main, /if \(this\.chat_before_cursor === null\)/);
 	assert.match(main, /'&before=' \+ this\.chat_before_cursor/);
 	assert.match(main, /state\.chat_before_cursor = res\.messages\[0\]\.message_id/);
+});
+
+
+test('per-chat notifications default on, persist isolated preferences, and throttle without API calls or modals', () => {
+	let clock = 1000;
+	const storage = new Map();
+	const timers = [];
+	const notices = [];
+	let nav_updates = 0;
+	const conversations = [
+		{ conversation_kind: 'private', conversation_id: 1, unread_count: 3 },
+		{ conversation_kind: 'guild', conversation_id: 1, unread_count: 4 },
+		{ conversation_kind: 'support', conversation_id: 1, unread_count: 2 },
+		{ conversation_kind: 'global', conversation_id: 1, unread_count: 5 },
+		{ conversation_kind: 'poll', conversation_id: 1, unread_count: 1 },
+	];
+	const state = { chat_conversations: conversations, selected_chat_conversation: conversations[0] };
+	Object.assign(state, install_chat_actions({
+		state, document: {}, now: () => clock,
+		get_chat_conversation_key: conversation => conversation
+			? conversation.conversation_kind + ':' + conversation.conversation_id : null,
+		get_instance_storage_item: key => storage.get(key),
+		set_instance_storage_item: (key, value) => storage.set(key, value),
+		schedule_timeout: (callback, delay) => timers.push({ callback, delay }),
+		update_chat_nav: () => nav_updates++,
+		notify: (...args) => notices.push(args),
+		api_get: () => assert.fail('notification toggle must be local'),
+		api_post: () => assert.fail('notification toggle must be local'),
+		queue_modal: () => assert.fail('notification toggle must not open a modal'),
+	}));
+	state.load_chat_notification_preferences();
+	assert.equal(state.is_chat_notifications_enabled(), true);
+	assert.equal(state.get_chat_notification_unread(), 15);
+	state.toggle_chat_notifications();
+	assert.equal(state.is_chat_notifications_enabled(), false);
+	assert.equal(state.chat_unread, 12);
+	assert.equal(conversations[0].unread_count, 3);
+	assert.equal(state.chat_notifications_busy, true);
+	assert.equal(timers[0].delay, 2000);
+	assert.equal(notices[0][0], 'MOD_MP_CHAT_NOTIFICATIONS_DISABLED');
+	state.toggle_chat_notifications();
+	assert.equal(notices.length, 1);
+	state.selected_chat_conversation = conversations[1];
+	assert.equal(state.is_chat_notifications_enabled(), true);
+	state.toggle_chat_notifications();
+	assert.equal(notices.length, 1);
+	clock += 2000;
+	timers.shift().callback();
+	state.selected_chat_conversation = conversations[0];
+	state.chat_notification_preferences = {};
+	state.load_chat_notification_preferences();
+	assert.equal(state.is_chat_notifications_enabled(), false);
+	state.toggle_chat_notifications();
+	assert.equal(state.is_chat_notifications_enabled(), true);
+	assert.equal(state.chat_unread, 15);
+	assert.deepEqual(storage.get('chat_notification_preferences'), {});
+	assert.equal(notices[1][0], 'MOD_MP_CHAT_NOTIFICATIONS_ENABLED');
+	assert.equal(nav_updates, 2);
+});
+
+test('notification bell renders the current enabled state and locks while throttled', async () => {
+	const { main, templates } = await sources();
+	const bell = templates.split('\n').find(line => line.includes('mp-notifications-button'));
+	assert.match(bell, /:aria-pressed="state.is_chat_notifications_enabled\(\)"/);
+	assert.match(bell, /state.is_chat_notifications_enabled\(\) \? 'fa-bell' : 'fa-bell-slash'/);
+	assert.match(bell, /:disabled="state.chat_notifications_busy"/);
+	assert.doesNotMatch(bell, /aria-haspopup|modal/);
+	assert.match(main, /apply_server_configuration\(\);\s*state.load_chat_notification_preferences\(\)/);
+	assert.match(main, /if \(!has_muted_chats\)\s*state.chat_unread = res.chat_unread/);
+	assert.match(main, /if \(chat_page_visible \|\| has_muted_chats\)\s*await refresh_chat_conversations/);
 });

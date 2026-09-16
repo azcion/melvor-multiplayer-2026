@@ -193,7 +193,8 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	}));
 	expect(chat_messages.json.messages).toContainEqual(expect.objectContaining({
 		message_id: state.chat_message_id,
-		content: 'Restart-safe private Message'
+		content: 'Restart-safe [Bronze Sword]',
+		parts: [{ type: 'text', text: 'Restart-safe ' }, { type: 'item', item_id: 'melvorD:Bronze_Sword' }]
 	}));
 	expect(await db_all(
 		'SELECT `source_kind`, `message_id`, `state`, `attempts` FROM `chat_translation_jobs` ' +

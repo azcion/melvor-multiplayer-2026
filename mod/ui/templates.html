@@ -361,7 +361,7 @@
 						<div class="block-content text-muted mp-guild-chat-opted-out" v-if="!state.global_chat_enabled"><lang-string lang-id="MOD_MP_GLOBAL_CHAT_OPTED_OUT"></lang-string></div>
 						<div class="mp-chat-conversations" v-else>
 							<button type="button" class="mp-chat-conversation" v-for="conversation in state.global_chat_conversations" :key="'global:' + conversation.conversation_id" @click="state.open_chat_conversation(conversation)">
-								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600">{{ state.get_chat_participant_name(conversation) }}</div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ conversation.latest_message.content }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge badge-danger" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
+								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600">{{ state.get_chat_participant_name(conversation) }}</div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ state.get_chat_plain_content(conversation.latest_message) }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge badge-danger" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
 							</button>
 						</div>
 						<div class="mp-chat-conversations" v-if="state.polls.length > 0">
@@ -375,7 +375,7 @@
 						<div class="block-content text-muted mp-guild-chat-opted-out" v-if="!state.guild_chat_enabled"><lang-string lang-id="MOD_MP_GUILD_CHAT_OPTED_OUT"></lang-string></div>
 						<div class="mp-chat-conversations" v-else>
 							<button type="button" class="mp-chat-conversation" v-for="conversation in state.guild_chat_conversations" :key="'guild:' + conversation.conversation_id" @click="state.open_chat_conversation(conversation)">
-								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600">{{ conversation.participant.display_name }}</div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ conversation.latest_message.content }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge badge-danger" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
+								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600">{{ conversation.participant.display_name }}</div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ state.get_chat_plain_content(conversation.latest_message) }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge badge-danger" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
 							</button>
 						</div>
 					</section>
@@ -383,7 +383,7 @@
 						<div class="mp-chat-category-heading"><div class="font-w600"><lang-string lang-id="MOD_MP_CHAT_CATEGORY_PRIVATE"></lang-string></div><div class="font-size-sm text-muted"><lang-string lang-id="MOD_MP_CHAT_CATEGORY_PERSONAL_INFO"></lang-string></div></div>
 						<div class="mp-chat-conversations">
 							<button type="button" class="mp-chat-conversation" v-for="conversation in state.personal_chat_conversations" :key="'private:' + (conversation.conversation_id || 'virtual')" @click="state.open_chat_conversation(conversation)">
-								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600">{{ conversation.participant.display_name }}</div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ conversation.latest_message.content }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge badge-danger" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
+								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600">{{ conversation.participant.display_name }}</div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ state.get_chat_plain_content(conversation.latest_message) }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge badge-danger" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
 							</button>
 						</div>
 					</section>
@@ -391,7 +391,7 @@
 						<div class="mp-chat-category-heading"><div class="font-w600"><lang-string lang-id="MOD_MP_CHAT_CATEGORY_SUPPORT"></lang-string></div></div>
 						<div class="mp-chat-conversations">
 							<button type="button" class="mp-chat-conversation" v-for="conversation in state.support_chat_conversations" :key="'support:' + (conversation.support_team_id || '') + ':' + (conversation.conversation_id || 'virtual')" @click="state.open_chat_conversation(conversation)">
-								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600">{{ conversation.participant.display_name }}</div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ conversation.latest_message.content }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge badge-danger" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
+								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600">{{ conversation.participant.display_name }}</div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ state.get_chat_plain_content(conversation.latest_message) }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge badge-danger" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
 							</button>
 						</div>
 					</section>
@@ -403,6 +403,7 @@
 					<div class="mp-chat-buttons">
 						<button type="button" class="btn btn-sm btn-secondary" @click="state.close_chat_conversation()"><i class="fa fa-chevron-left mr-1"></i><lang-string lang-id="MOD_MP_CHAT_BACK"></lang-string></button>
 						<button type="button" aria-haspopup="dialog" :aria-label="getLangString('MOD_MP_CHAT_TRANSLATION_TITLE')" class="btn btn-sm btn-primary mp-translation-button" :aria-pressed="state.is_chat_translation_enabled()" @click="state.show_chat_translation_modal()"><i class="fa fa-language"></i></button>
+						<button type="button" class="btn btn-sm btn-secondary mp-notifications-button" :aria-label="getLangString(state.is_chat_notifications_enabled() ? 'MOD_MP_CHAT_NOTIFICATIONS_ENABLED' : 'MOD_MP_CHAT_NOTIFICATIONS_DISABLED')" :aria-pressed="state.is_chat_notifications_enabled()" :disabled="state.chat_notifications_busy" @click="state.toggle_chat_notifications()"><i class="fa" :class="state.is_chat_notifications_enabled() ? 'fa-bell' : 'fa-bell-slash'" aria-hidden="true"></i></button>
 					</div>
 					<button type="button" class="mp-chat-participant" v-if="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private'" @click="state.show_chat_actions_modal()" aria-haspopup="dialog">
 						<img class="skill-icon-xs" :src="state.get_chat_participant_icon()">
@@ -432,7 +433,7 @@
 					<div class="mp-chat-message" :class="{ 'mp-chat-message-own': message.sent_by_viewer === true || (message.sent_by_viewer === undefined && message.sender_id === state.chat_client_id) }" v-for="message in state.chat_messages" :key="message.message_id">
 						<div class="mp-chat-message-meta"><button type="button" class="mp-chat-message-author" @click="state.show_chat_message_member(message)" :disabled="!message.sender_id"><img class="mp-chat-message-avatar" :src="state.get_chat_message_icon(message)" alt=""><span class="font-w600">{{ message.sender.display_name }}</span></button><button type="button" class="mp-chat-message-timestamp" @click="state.show_chat_message_actions(message)"><time :datetime="state.format_chat_datetime(message.created_at)">{{ state.format_chat_time(message.created_at) }}</time></button></div>
 						<div class="mp-chat-message-bubble">
-							<div class="mp-chat-message-content" :class="{ 'mp-chat-message-translating': state.get_chat_message_content(message) === getLangString('MOD_MP_CHAT_TRANSLATING') }">{{ state.get_chat_message_content(message) }}</div>
+							<div class="mp-chat-message-content" :class="{ 'mp-chat-message-translating': state.get_chat_message_content(message) === getLangString('MOD_MP_CHAT_TRANSLATING') }"><mp-chat-message-body :parts="state.get_chat_message_document(message)"></mp-chat-message-body></div>
 							<div class="mp-chat-reactions" :class="{ 'mp-chat-reactions-empty': !message.reactions?.length }">
 								<button type="button" class="mp-chat-reaction-summary" :class="{ 'mp-chat-reaction-reacted': summary.reacted }" v-for="summary in message.reactions" :key="summary.reaction" @click="state.toggle_chat_reaction(message, summary.reaction)"><span>{{ summary.reaction }}</span><span>{{ summary.count }}</span></button>
 								<button type="button" class="mp-chat-reaction-add" v-if="message.message_id > 0" :aria-label="state.get_chat_reaction_add_label()" :aria-expanded="state.chat_reaction_picker_message_id === message.message_id" @click="state.toggle_chat_reaction_picker(message, $event)">☻<span aria-hidden="true">+</span></button>
@@ -452,8 +453,10 @@
 						</div>
 					</div>
 					<form v-else @submit="state.send_chat_message($event)">
-						<textarea class="mp-input-text" maxlength="1000" rows="3" v-model="state.chat_draft" @keydown="state.handle_chat_keydown($event)" :disabled="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && !state.messaging_enabled" :placeholder="state.get_chat_compose_placeholder()"></textarea>
+						<mp-chat-composer :value="state.get_chat_draft_document()" :disabled="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && !state.messaging_enabled ? 'disabled' : null" :placeholder="state.get_chat_compose_placeholder()"></mp-chat-composer>
 						<div class="mp-chat-compose-actions">
+							<button type="button" class="btn btn-secondary mp-chat-insert-item" @mousedown.prevent @click="state.open_chat_item_picker()" :disabled="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && !state.messaging_enabled"><lang-string lang-id="MOD_MP_CHAT_INSERT_ITEM"></lang-string></button>
+							<span class="mp-chat-compose-count" :class="{ 'text-danger': !state.is_chat_item_draft_valid() }">{{ state.get_chat_item_count_label() }}</span>
 							<button type="button" class="mp-chat-budget" v-if="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && state.chat_budget_enabled" @click="state.show_chat_budget_modal()" aria-haspopup="dialog" :aria-label="getLangString('MOD_MP_CHAT_BUDGET_ARIA')">
 								<mp-lang-string-f lang-id="MOD_MP_CHAT_BUDGET" :lang-arg-1="state.chat_budget.credits" :lang-arg-2="state.chat_budget.maximum"></mp-lang-string-f>
 								<img class="skill-icon-xxs" :src="state.get_item_icon('melvorD:Message_In_A_Bottle')" alt="">
@@ -462,6 +465,7 @@
 							<button type="submit" class="btn btn-primary" :disabled="!state.chat_can_send"><span class="spinner-border spinner-border-sm text-light mr-2" role="status" v-if="state.chat_sending"></span><lang-string lang-id="MOD_MP_CHAT_SEND"></lang-string></button>
 						</div>
 					</form>
+					<div class="text-danger mt-2" role="status" v-if="!state.is_chat_item_draft_valid()"><lang-string lang-id="MOD_MP_CHAT_ITEM_LIMIT"></lang-string></div>
 					<div class="text-danger mt-2" v-if="state.chat_error">{{ state.chat_error }}</div>
 				</div>
 			</div>
@@ -501,13 +505,15 @@
 </template>
 <template id="template-mp-chat-translation-modal">
 	<div class="mp-modal-text"><lang-string lang-id="MOD_MP_CHAT_TRANSLATION_INFO"></lang-string></div>
+	<div class="mp-modal-text" v-show="state.is_chat_translation_enabled()"><mp-lang-string-f lang-id="MOD_MP_CHAT_TRANSLATION_STATUS" :lang-arg-1="state.get_language_name(state.get_chat_translation_language())"></mp-lang-string-f></div>
 	<label class="font-w600" for="mp-chat-translation-language"><lang-string lang-id="MOD_MP_CHAT_TRANSLATION_LANGUAGE"></lang-string></label>
 	<select id="mp-chat-translation-language" class="mp-input-text mb-3" v-model="state.chat_translation_language_input">
 		<option value="en">English</option>
 		<option value="zh-CN">简体中文</option>
 	</select>
 	<div class="mp-button-tray">
-		<button type="button" :class="state.is_chat_translation_enabled() ? 'btn btn-outline-danger' : 'btn btn-primary'" @click="state.set_chat_translation_enabled(!state.is_chat_translation_enabled())"><lang-string :lang-id="state.is_chat_translation_enabled() ? 'MOD_MP_CHAT_TRANSLATION_DISABLE' : 'MOD_MP_CHAT_TRANSLATION_ENABLE'"></lang-string></button>
+		<button type="button" autofocus :class="state.is_chat_translation_enabled() && !state.is_chat_translation_language_changed() ? 'btn btn-outline-danger' : 'btn btn-primary'" @click="state.save_chat_translation()"><lang-string :lang-id="state.get_chat_translation_action_lang_id()"></lang-string></button>
+		<button type="button" class="btn btn-outline-danger" v-show="state.is_chat_translation_enabled() && state.is_chat_translation_language_changed()" @click="state.set_chat_translation_enabled(false)"><lang-string lang-id="MOD_MP_CHAT_TRANSLATION_DISABLE"></lang-string></button>
 		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
 	</div>
 </template>
@@ -1496,10 +1502,16 @@
 							<span>{{ item.market_owner.display_name }}</span>
 						</template>
 					</div>
-					<div class="mp-market-item-col">
-						<lang-string lang-id="MOD_MP_MARKET_AVAILABLE" class="mp-market-item-label" v-if="item.direction == 'sell'"></lang-string>
-						<lang-string lang-id="MOD_MP_MARKET_REQUESTED" class="mp-market-item-label" v-else></lang-string>
-						<span class="mp-market-item-value">{{ numberWithCommas(item.available) }}</span>
+					<div class="mp-market-item-col mp-market-quantity">
+						<div class="mp-market-quantity-row">
+							<lang-string lang-id="MOD_MP_MARKET_AVAILABLE" class="mp-market-item-label" v-if="item.direction == 'sell'"></lang-string>
+							<lang-string lang-id="MOD_MP_MARKET_REQUESTED" class="mp-market-item-label" v-else></lang-string>
+							<span class="mp-market-item-value">{{ numberWithCommas(item.available) }}</span>
+						</div>
+						<div class="mp-market-quantity-row">
+							<lang-string lang-id="MOD_MP_MARKET_OWNED" class="mp-market-item-label"></lang-string>
+							<span class="mp-market-item-value">{{ numberWithCommas(state.get_market_item_owned_qty(item.item_id)) }}</span>
+						</div>
 					</div>
 					<div class="mp-market-item-col">
 						<lang-string lang-id="MOD_MP_MARKET_PRICE" class="mp-market-item-label"></lang-string>
@@ -1623,16 +1635,6 @@
 		<div :class="{ 'mp-guild-locked': !state.is_guild_member }" v-if="!state.is_social_only">
 		<div class="block block-rounded p-4 mp-guild-required">
 			<lang-string lang-id="MOD_MP_GUILD_REQUIRED_INFO"></lang-string>
-		</div>
-		<div class="row row-deck gutters-tiny">
-			<div class="block block-rounded block-link-pop border-top mp-campaign-border border-4x w-100">
-				<div class="row row-deck gutters-tiny">
-					<div class="p-3 mp-transfer-info">
-						<img class="skill-icon-xxs mr-1" :src="state.get_svg('campaigns')">
-						<lang-string lang-id="MOD_MP_CAMPAIGN_WINDOW_INFO"></lang-string>
-					</div>
-				</div>
-			</div>
 		</div>
 		<div class="row row-deck gutters-tiny" v-if="state.campaign_loading || !state.campaign_has_data">
 			<div class="block block-rounded block-link-pop w-100">
@@ -1829,8 +1831,9 @@
 									<p class="mb-2"><lang-string lang-id="MOD_MP_CHARITY_INFO_WISHES_ACTIVE_PREFIX"></lang-string><strong><lang-string lang-id="MOD_MP_CHARITY_INFO_WISHES_ACTIVE"></lang-string></strong><lang-string lang-id="MOD_MP_CHARITY_INFO_WISHES_ACTIVE_SUFFIX"></lang-string></p>
 								</div>
 							</details>
-							<div class="pt-2" v-if="state.charity_wish_catalog.length > 0 && !state.charity_active_wish">
-								<button type="button" class="btn btn-success" @click="state.show_charity_wish_modal()"><lang-string lang-id="MOD_MP_CHARITY_WISH_MAKE"></lang-string></button>
+							<div class="pt-2 d-flex align-items-center">
+								<button type="button" class="btn btn-success" v-if="state.charity_wish_catalog.length > 0 && !state.charity_active_wish" @click="state.show_charity_wish_modal()"><lang-string lang-id="MOD_MP_CHARITY_WISH_MAKE"></lang-string></button>
+								<button type="button" class="btn btn-secondary ml-2" :aria-pressed="state.charity_filter_wishes" @click="state.toggle_charity_wish_filter()"><lang-string lang-id="MOD_MP_CHARITY_WISH_FILTER"></lang-string></button>
 							</div>
 						</div>
 					</div>
@@ -2479,5 +2482,16 @@
 			<lang-string lang-id="MOD_MP_CHARITY_WISH_MAKE"></lang-string>
 		</button>
 		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
+	</div>
+</template>
+
+<template id="template-mp-chat-item-picker-modal">
+	<div class="mp-chat-item-picker">
+		<input type="search" class="mp-input-text mp-chat-item-search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_ITEMS')" :aria-label="getLangString('MOD_MP_PLACEHOLDER_SEARCH_ITEMS')" @input="state.update_chat_item_search($event)" @keydown="state.handle_chat_item_search_key($event)">
+		<div class="mp-chat-item-results"></div>
+		<div class="text-muted p-3 mp-chat-item-empty d-none" role="status"><lang-string lang-id="MOD_MP_CHAT_NO_ITEM_MATCHES"></lang-string></div>
+		<div class="text-muted font-size-sm mt-2"><lang-string lang-id="MOD_MP_CHAT_ITEM_SEARCH_HINT"></lang-string></div>
+		<div class="text-muted font-size-sm"><lang-string lang-id="MOD_MP_CHAT_ITEM_DISCOVERY_HINT"></lang-string></div>
+		<div class="mp-button-tray mt-3"><button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button></div>
 	</div>
 </template>

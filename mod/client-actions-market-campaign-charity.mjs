@@ -81,12 +81,14 @@ export function install_market_campaign_charity_actions(runtime) {
 			state.market_page_first(true);
 		},
 
-		choose_market_filter() {
+		async choose_market_filter() {
 			this.market_active_tab = 'filter';
 			this.market_filter_search = '';
 
-			if (!runtime.has_sorted_market_filter_items)
+			if (!runtime.has_sorted_market_filter_items) {
+				await update_market_listings();
 				load_market_filter_items();
+			}
 
 			setTimeout(() => $('mp-market-filter-input').focus(), 1);
 		},
@@ -107,12 +109,14 @@ export function install_market_campaign_charity_actions(runtime) {
 			state.market_page_first(true);
 		},
 
-		choose_market_create_item() {
+		async choose_market_create_item() {
 			this.market_active_tab = 'create-filter';
 			this.market_filter_search = '';
 
-			if (!runtime.has_sorted_market_filter_items)
+			if (!runtime.has_sorted_market_filter_items) {
+				await update_market_listings();
 				load_market_filter_items();
+			}
 
 			setTimeout(() => $('mp-market-create-filter-input').focus(), 1);
 		},
@@ -647,6 +651,13 @@ export function install_market_campaign_charity_actions(runtime) {
 		select_charity_wish(wish) {
 			state.selected_charity_wish_id = wish.wish_id;
 			state.selected_charity_item_id = '';
+		},
+
+		toggle_charity_wish_filter() {
+			state.charity_filter_wishes = !state.charity_filter_wishes;
+			if (state.charity_filter_wishes && state.selected_charity_wish_id !== 0 &&
+				!state.charity_wishes.some(wish => wish.id === state.selected_charity_wish_id && wish.owned === true))
+				state.selected_charity_wish_id = 0;
 		},
 
 		select_charity_wish_item(item) {

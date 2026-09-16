@@ -1,3 +1,4 @@
+import { save_chat_parts, same_chat_parts, type ChatPart } from './chat_parts';
 import { db } from './db';
 import { CHAT_MESSAGE_MAX_LENGTH, CHAT_MESSAGE_PAGE_SIZE } from './chat';
 import { is_chat_moderator } from './chat_moderation';
@@ -200,7 +201,8 @@ export function send_global_chat_message(
 	conversation_id: number,
 	idempotency_key: string,
 	content: string,
-	now = Date.now()
+	now = Date.now(),
+	parts?: ChatPart[]
 ): GlobalChatResult<{ message: ReturnType<typeof message_view>; retry_after_ms: number }> {
 	const trimmed = typeof content === 'string' ? content.trim() : '';
 	if (conversation_id !== GLOBAL_CHAT_CONVERSATION_ID || typeof idempotency_key !== 'string' ||
@@ -214,7 +216,7 @@ export function send_global_chat_message(
 			'SELECT `id`, `content` FROM `global_chat_messages` WHERE `sender_id` = ? AND `idempotency_key` = ?'
 		).get(client_id, idempotency_key);
 		if (duplicate !== null) {
-			if (duplicate.content !== trimmed)
+			if (duplicate.content !== trimmed || !same_chat_parts('global', duplicate.id, parts))
 				return { status: 'bad_request' };
 			return { status: 'ok', value: { message_id: duplicate.id, retry_after_ms: current_throttle_wait(client_id, now) } };
 		}
@@ -225,6 +227,7 @@ export function send_global_chat_message(
 			'INSERT INTO `global_chat_messages` (`sender_id`, `idempotency_key`, `content`, `created_at`) ' +
 			'VALUES(?, ?, ?, ?)'
 		).run(client_id, idempotency_key, trimmed, now);
+		save_chat_parts('global', Number(created.lastInsertRowid), parts);
 		return { status: 'ok', value: {
 			message_id: Number(created.lastInsertRowid),
 			retry_after_ms: current_throttle_wait(client_id, now)

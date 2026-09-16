@@ -1,3 +1,4 @@
+import { save_chat_parts, same_chat_parts, type ChatPart } from './chat_parts';
 import { db } from './db';
 
 export const CHAT_MESSAGE_PAGE_SIZE = 20;
@@ -394,7 +395,8 @@ export function send_message(
 	target_id: number | null,
 	idempotency_key: string,
 	content: string,
-	now = Date.now()
+	now = Date.now(),
+	parts?: ChatPart[]
 ): ChatResult<{ message: ReturnType<typeof message_view>; budget: ChatBudget }> {
 	const trimmed = typeof content === 'string' ? content.trim() : '';
 	if ((conversation_id !== null && (!Number.isSafeInteger(conversation_id) || conversation_id < 1)) ||
@@ -409,7 +411,7 @@ export function send_message(
 		).get(client_id, idempotency_key);
 		if (duplicate !== null) {
 			const duplicate_conversation = participant_conversation(duplicate.conversation_id, client_id);
-			if (duplicate.content !== trimmed || duplicate_conversation === null ||
+			if (duplicate.content !== trimmed || !same_chat_parts('private', duplicate.id, parts) || duplicate_conversation === null ||
 				(conversation_id !== null && duplicate.conversation_id !== conversation_id) ||
 				(conversation_id === null && other_participant(duplicate_conversation, client_id) !== target_id))
 				return { status: 'bad_request' };
@@ -458,6 +460,7 @@ export function send_message(
 			'INSERT INTO `chat_messages` (`conversation_id`, `sender_id`, `idempotency_key`, `content`, `created_at`) ' +
 			'VALUES(?, ?, ?, ?, ?)'
 		).run(conversation.id, client_id, idempotency_key, trimmed, now);
+		save_chat_parts('private', Number(result.lastInsertRowid), parts);
 		if (CHAT_BUDGET_ENABLED) {
 			budget.credits--;
 			db.query('UPDATE `clients` SET `messaging_credits` = ? WHERE `id` = ?').run(budget.credits, client_id);

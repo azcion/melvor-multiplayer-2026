@@ -1,3 +1,4 @@
+import { attach_chat_parts, translation_html, translated_parts, parts_text, type ChatPart } from './chat_parts';
 import { readFileSync } from 'node:fs';
 import type { Database } from 'bun:sqlite';
 import { db } from './db';
@@ -131,7 +132,10 @@ export class ChatTranslationWorker {
 		this.database.query("UPDATE `chat_translation_jobs` SET `state` = 'processing', `attempts` = `attempts` + 1, " +
 			'`last_attempt_at` = ? WHERE `id` = ?').run(started_at, job.id);
 		try {
-			const result = await this.translate(job.content);
+			const body = this.database.query<{ parts: string }, [number]>('SELECT parts FROM chat_message_bodies WHERE job_id = ?').get(job.id);
+			const parts = body ? JSON.parse(body.parts) as ChatPart[] : undefined;
+			const result = parts && !parts.some(part => part.type === 'text' && /[\p{L}\p{N}]/u.test(part.text))
+				? { detected_language: 'und', translations: [] } : await this.translate(job.content, parts);
 			const completed_at = this.now();
 			this.database.transaction(() => {
 				for (const translation of result.translations)
@@ -139,6 +143,8 @@ export class ChatTranslationWorker {
 						'VALUES (?, ?, ?, ?) ON CONFLICT (`job_id`, `language`) DO UPDATE SET ' +
 						'`content` = excluded.`content`, `translated_at` = excluded.`translated_at`')
 						.run(job.id, translation.language, translation.content, completed_at);
+				if (parts) this.database.query('UPDATE chat_message_bodies SET translations = ? WHERE job_id = ?')
+					.run(JSON.stringify(Object.fromEntries(result.translations.map(translation => [translation.language, translation.parts]))), job.id);
 				this.database.query("UPDATE `chat_translation_jobs` SET `state` = 'complete', `detected_language` = ?, " +
 					'`completed_at` = ?, `last_error_code` = NULL WHERE `id` = ?')
 					.run(result.detected_language, completed_at, job.id);
@@ -164,12 +170,13 @@ export class ChatTranslationWorker {
 		}
 	}
 
-	private async translate(content: string): Promise<{
+	private async translate(content: string, parts?: ChatPart[]): Promise<{
 		detected_language: string;
-		translations: Array<{ language: ChatTranslationLanguage; content: string }>;
+		translations: Array<{ language: ChatTranslationLanguage; content: string; parts?: ChatPart[] }>;
 	}> {
 		const url = new URL('/translate', this.endpoint);
 		url.searchParams.set('api-version', '3.0');
+		if (parts) url.searchParams.set('textType', 'html');
 		for (const language of CHAT_TRANSLATION_LANGUAGES)
 			url.searchParams.append('to', azure_language[language]);
 		const controller = new AbortController();
@@ -183,7 +190,7 @@ export class ChatTranslationWorker {
 					'Ocp-Apim-Subscription-Region': this.region,
 					'Content-Type': 'application/json; charset=UTF-8'
 				},
-				body: JSON.stringify([{ Text: content }]),
+				body: JSON.stringify([{ Text: parts ? translation_html(parts) : content }]),
 				signal: controller.signal
 			});
 		} catch (error) {
@@ -210,8 +217,9 @@ export class ChatTranslationWorker {
 		const detected_client_language = client_language[detected_language];
 		const translations = result.translations.flatMap(translation => {
 			const language = typeof translation.to === 'string' ? client_language[translation.to] : undefined;
-			return language && language !== detected_client_language && typeof translation.text === 'string' &&
-				translation.text.length > 0 ? [{ language, content: translation.text }] : [];
+			if (!language || language === detected_client_language || typeof translation.text !== 'string' || !translation.text.length) return [];
+			const translated = parts ? translated_parts(translation.text, parts) : undefined;
+			return [{ language, content: translated ? parts_text(translated) : translation.text, ...(translated ? { parts: translated } : {}) }];
 		});
 		return { detected_language, translations };
 	}
@@ -222,7 +230,7 @@ export function attach_translations<T extends { message_id: number; sender_id?: 
 	viewer_id: number,
 	messages: T[]
 ): Array<T & { translations: Partial<Record<ChatTranslationLanguage, string>>; translation_status: string;
-	translation_enqueued_at: number | null }> {
+	translation_enqueued_at: number | null; parts?: ChatPart[]; translation_parts?: Record<string, ChatPart[]> }> {
 	if (messages.length === 0)
 		return [];
 	const placeholders = messages.map(() => '?').join(', ');
@@ -241,10 +249,15 @@ export function attach_translations<T extends { message_id: number; sender_id?: 
 	for (const translation of translations)
 		by_job.set(translation.job_id,
 			{ ...(by_job.get(translation.job_id) ?? {}), [translation.language]: translation.content });
-	return messages.map(message => {
+	const bodies = jobs.length === 0 ? [] : db.query<{ job_id: number; translations: string }, number[]>(
+		`SELECT job_id, translations FROM chat_message_bodies WHERE job_id IN (${jobs.map(() => '?').join(',')})`
+	).all(...jobs.map(job => job.id));
+	const body_by_job = new Map(bodies.map(body => [body.job_id, JSON.parse(body.translations) as Record<string, ChatPart[]>]));
+	return attach_chat_parts(source_kind, messages).map(message => {
 		const job = by_message.get(message.message_id);
 		return {
 			...message,
+			...(job && body_by_job.has(job.id) && message.sender_id !== viewer_id ? { translation_parts: body_by_job.get(job.id)! } : {}),
 			translations: message.sender_id === viewer_id || !job ? {} : by_job.get(job.id) ?? {},
 			translation_status: message.sender_id === viewer_id ? 'original' : job?.state ?? 'unavailable',
 			translation_enqueued_at: job?.enqueued_at ?? null

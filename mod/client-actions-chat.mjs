@@ -27,7 +27,13 @@ export function install_chat_actions(runtime) {
 		show_modal_error,
 		start_chat_polling,
 		stop_chat_polling,
+		update_chat_nav = () => {},
+		update_market_listings = async () => {},
+		schedule_timeout = (callback, delay) => setTimeout(callback, delay),
 	} = runtime;
+	const items = runtime.chat_items;
+	let item_picker_composer = null;
+	let notifications_next_toggle_at = 0;
 	const reaction_throttle_ms = 1000;
 	const translation_wait_ms = 10000;
 	const translation_languages = new Set(['en', 'zh-CN']);
@@ -81,6 +87,172 @@ export function install_chat_actions(runtime) {
 	};
 
 	return {
+		get_chat_draft_parts() {
+			const key = get_chat_conversation_key(this.selected_chat_conversation);
+			const stored = this.chat_item_drafts?.[key];
+			return stored && items?.fallback_text(stored) === this.chat_draft ? stored :
+				(this.chat_draft ? [{ type: 'text', text: this.chat_draft }] : []);
+		},
+
+		get_chat_draft_document() {
+			return JSON.stringify({ key: get_chat_conversation_key(this.selected_chat_conversation), parts: this.get_chat_draft_parts() });
+		},
+
+		update_chat_item_draft(key, parts) {
+			if (key !== get_chat_conversation_key(this.selected_chat_conversation)) return;
+			this.chat_item_drafts[key] = parts;
+			this.chat_draft = items.fallback_text(parts);
+		},
+
+		is_chat_item_draft_valid() {
+			return items ? items.valid_parts(this.get_chat_draft_parts()) : this.chat_draft.length <= 1000;
+		},
+
+		get_chat_item_count_label() {
+			return `${this.chat_draft.trim().length} / 1000`;
+		},
+
+		async show_chat_item_picker(composer) {
+			item_picker_composer = composer;
+			this.chat_item_search = '';
+			await update_market_listings();
+			this.chat_item_order_ids = items.ordered_item_ids(this.market_listings);
+			this.chat_item_catalog = items.item_catalog(game, this.market_listings);
+			queue_modal('MOD_MP_CHAT_INSERT_ITEM', 'chat-item-picker-modal', undefined, {
+				showConfirmButton: false,
+				didOpen: () => {
+					this.render_chat_item_results();
+					document.querySelector('.mp-chat-item-search')?.focus();
+				},
+				didClose: () => {
+					if (item_picker_composer === composer) item_picker_composer = null;
+					if (composer.isConnected && composer.key === get_chat_conversation_key(state.selected_chat_conversation)) {
+						if (composer.picker_item_id) composer.insert_item(composer.picker_item_id);
+						else {
+							composer.editor.focus();
+							composer.set_selection(...composer.picker_restore_selection);
+						}
+					}
+				}
+			});
+		},
+
+		open_chat_item_picker() {
+			document.querySelector('mp-chat-composer')?.open_picker();
+		},
+
+		get_chat_item_results() {
+			return items.search_items(this.chat_item_catalog, this.chat_item_search,
+				[...this.chat_item_order_ids, ...this.chat_recent_items]);
+		},
+
+		update_chat_item_search(event) {
+			this.chat_item_search = event.target.value;
+			this.render_chat_item_results();
+		},
+
+		render_chat_item_results() {
+			const host = document.querySelector('.mp-chat-item-results');
+			const empty = document.querySelector('.mp-chat-item-empty');
+			if (!host || !empty) return;
+			const results = this.get_chat_item_results();
+			const fragment = document.createDocumentFragment();
+			for (const item of results) {
+				const button = document.createElement('button');
+				button.type = 'button';
+				button.className = 'mp-chat-item-result';
+				button.addEventListener('click', () => state.choose_chat_item(item.id));
+				button.addEventListener('keydown', event => state.handle_chat_item_result_key(event, item.id));
+				const image = document.createElement('img');
+				image.src = item.media; image.alt = ''; image.draggable = false;
+				const name = document.createElement('span');
+				name.textContent = item.name;
+				button.append(image, name); fragment.append(button);
+			}
+			host.replaceChildren(fragment);
+			empty.classList.toggle('d-none', results.length !== 0);
+		},
+
+		choose_chat_item(id) {
+			const composer = item_picker_composer;
+			if (!composer?.isConnected || composer.key !== get_chat_conversation_key(this.selected_chat_conversation)) return;
+			if (!items.official_chat_item(id) || !game.items.getObjectByID(id)) return;
+			this.chat_recent_items = [id, ...this.chat_recent_items.filter(recent => recent !== id)].slice(0, 10);
+			// didClose restores the editor after SweetAlert has released its focus trap.
+			composer.picker_item_id = id;
+			this.close_modal();
+		},
+
+		handle_chat_item_search_key(event) {
+			if (event.isComposing) return;
+			if (event.key === 'ArrowDown') {
+				event.preventDefault(); document.querySelector('.mp-chat-item-result')?.focus();
+			} else if (event.key === 'Enter') {
+				event.preventDefault(); const first = this.get_chat_item_results()[0]; if (first) this.choose_chat_item(first.id);
+			}
+		},
+
+		handle_chat_item_result_key(event, id) {
+			if (event.key === 'Enter' || event.key === ' ') {
+				event.preventDefault(); this.choose_chat_item(id); return;
+			}
+			if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+			event.preventDefault();
+			const next = event.key === 'ArrowDown' ? event.currentTarget.nextElementSibling : event.currentTarget.previousElementSibling;
+			(next ?? document.querySelector('.mp-chat-item-search'))?.focus();
+		},
+
+		get_chat_message_parts(message) {
+			const content = this.get_chat_message_content(message);
+			const own = message?.sender_id === this.chat_client_id || message?.sent_by_viewer === true;
+			const language = message?.sender_id === null ? localized_welcome_language() :
+				message?.manual_translation_language ?? translation_preference(this.selected_chat_conversation);
+			if (!own && language && message?.translation_parts?.[language] && content === message.translations?.[language])
+				return message.translation_parts[language];
+			return content === message?.content && message.parts ? message.parts : [{ type: 'text', text: content }];
+		},
+
+		get_chat_message_document(message) { return JSON.stringify(this.get_chat_message_parts(message)); },
+
+		get_chat_plain_content(message) {
+			return (message.parts ?? [{ type: 'text', text: message.content ?? '' }]).map(part => part.type === 'text' ? part.text :
+				game.items.getObjectByID(part.item_id)?.name ?? items.fallback_item_name(part.item_id)).join('');
+		},
+
+		load_chat_notification_preferences() {
+			const stored = get_instance_storage_item('chat_notification_preferences');
+			state.chat_notification_preferences = stored && typeof stored === 'object' && !Array.isArray(stored)
+				? Object.fromEntries(Object.entries(stored).filter(([, enabled]) => enabled === false)) : {};
+		},
+
+		is_chat_notifications_enabled(conversation = this.selected_chat_conversation) {
+			const key = get_chat_conversation_key(conversation);
+			return this.chat_notification_preferences[key] !== false;
+		},
+
+		get_chat_notification_unread(conversations = this.chat_conversations) {
+			return conversations.reduce((total, conversation) => total +
+				(this.is_chat_notifications_enabled(conversation) ? conversation.unread_count ?? 0 : 0), 0);
+		},
+
+		toggle_chat_notifications() {
+			const key = get_chat_conversation_key(this.selected_chat_conversation);
+			if (key === null || this.chat_notifications_busy || now() < notifications_next_toggle_at)
+				return;
+			const enabled = !this.is_chat_notifications_enabled();
+			const preferences = { ...this.chat_notification_preferences };
+			if (enabled) delete preferences[key];
+			else preferences[key] = false;
+			set_instance_storage_item('chat_notification_preferences', preferences);
+			this.chat_notification_preferences = preferences;
+			this.chat_unread = this.get_chat_notification_unread();
+			update_chat_nav();
+			notifications_next_toggle_at = now() + 2000;
+			this.chat_notifications_busy = true;
+			schedule_timeout(() => { state.chat_notifications_busy = false; }, 2000);
+			notify(enabled ? 'MOD_MP_CHAT_NOTIFICATIONS_ENABLED' : 'MOD_MP_CHAT_NOTIFICATIONS_DISABLED', 'success');
+		},
+
 		load_chat_translation_preferences() {
 			const stored_translation_preferences = get_instance_storage_item('chat_translation_preferences');
 			state.chat_translation_preferences = stored_translation_preferences &&
@@ -369,6 +541,27 @@ export function install_chat_actions(runtime) {
 			void refresh_chat_messages('', false, false);
 		},
 
+		get_chat_translation_language() {
+			return translation_preference(this.selected_chat_conversation);
+		},
+
+		is_chat_translation_language_changed() {
+			return this.is_chat_translation_enabled() &&
+				this.chat_translation_language_input !== translation_preference(this.selected_chat_conversation);
+		},
+
+		get_chat_translation_action_lang_id() {
+			if (!this.is_chat_translation_enabled()) return 'MOD_MP_CHAT_TRANSLATION_ENABLE';
+			if (this.is_chat_translation_language_changed()) return 'MOD_MP_CHAT_TRANSLATION_APPLY';
+			return 'MOD_MP_CHAT_TRANSLATION_DISABLE';
+		},
+
+		save_chat_translation() {
+			if (!this.is_chat_translation_enabled() || this.is_chat_translation_language_changed())
+				return this.set_chat_translation_enabled(true);
+			this.set_chat_translation_enabled(false);
+		},
+
 		translate_selected_chat_message() {
 			const message = this.selected_chat_message;
 			if (!message || message.sender_id === this.chat_client_id || message.sent_by_viewer === true) return;
@@ -401,12 +594,17 @@ export function install_chat_actions(runtime) {
 			return message.content;
 		},
 
-		is_chat_message_translation_waiting(message) {
+		is_chat_message_translation_pending(message) {
 			if (!message || message.sender_id === this.chat_client_id || message.sent_by_viewer === true)
 				return false;
 			const language = message.manual_translation_language ?? translation_preference(this.selected_chat_conversation);
-			if (!language || typeof message.translations?.[language] === 'string' ||
-				(message.translation_status !== 'queued' && message.translation_status !== 'processing'))
+			if (!language || (typeof message.translations?.[language] === 'string' && message.translations[language].length > 0))
+				return false;
+			return message.translation_status === 'queued' || message.translation_status === 'processing';
+		},
+
+		is_chat_message_translation_waiting(message) {
+			if (!this.is_chat_message_translation_pending(message))
 				return false;
 			return Number.isFinite(message.translation_observed_at) &&
 				now() - message.translation_observed_at < translation_wait_ms;
@@ -465,7 +663,7 @@ export function install_chat_actions(runtime) {
 			if (!clipboard?.writeText)
 				return show_modal_error(getLangString('MOD_MP_CHAT_COPY_FAILED'));
 			try {
-				await clipboard.writeText(message.content);
+				await clipboard.writeText(this.get_chat_plain_content(message));
 			} catch (e) {
 				log('Chat message copy failed (%s)', e);
 				return show_modal_error(getLangString('MOD_MP_CHAT_COPY_FAILED'));
@@ -508,8 +706,11 @@ export function install_chat_actions(runtime) {
 			const conversation_key = get_chat_conversation_key(conversation);
 			const view_generation = runtime.chat_view_generation;
 			const content = this.chat_draft.trim();
+			const draft_parts = this.get_chat_draft_parts();
+			const parts = draft_parts.some(part => part.type === 'item') ? items.compact_parts(draft_parts, true) : undefined;
+			const parts_key = JSON.stringify(parts ?? null);
 			if (!conversation || conversation_key === null || content.length === 0 || content.length > 1000 ||
-				this.chat_sending_conversations[conversation_key] === true)
+				this.chat_sending_conversations[conversation_key] === true || !this.is_chat_item_draft_valid())
 				return;
 			this.chat_sending_conversations[conversation_key] = true;
 			this.chat_error = '';
@@ -518,7 +719,8 @@ export function install_chat_actions(runtime) {
 			const idempotency_key = pending?.conversation_kind === conversation_kind &&
 				pending?.conversation_id === conversation.conversation_id &&
 				pending.support_team_id === conversation.support_team_id &&
-				pending.client_id === conversation.participant.client_id && pending.content === content
+				pending.client_id === conversation.participant.client_id && pending.content === content &&
+				(pending.parts_key ?? 'null') === parts_key
 				? pending.idempotency_key
 				: crypto.randomUUID();
 			this.chat_pending_sends[conversation_key] = {
@@ -527,6 +729,7 @@ export function install_chat_actions(runtime) {
 				support_team_id: conversation.support_team_id,
 				client_id: conversation.participant.client_id,
 				content,
+				parts_key,
 				idempotency_key
 			};
 			let res = null;
@@ -541,7 +744,8 @@ export function install_chat_actions(runtime) {
 					support_team_id: conversation.support_team_id,
 					client_id: conversation.participant.client_id,
 					idempotency_key,
-					content
+					content,
+					...(parts ? { parts } : {})
 				});
 			} catch (e) {
 				log('Chat send failed (%s)', e);
@@ -567,8 +771,12 @@ export function install_chat_actions(runtime) {
 					if (res.budget)
 						this.chat_budget = res.budget;
 					this.chat_budget_enabled = res.budget_enabled !== false;
-					if (this.chat_drafts[conversation_key]?.trim() === content)
+					if (this.chat_drafts[conversation_key]?.trim() === content &&
+						JSON.stringify(this.chat_item_drafts?.[conversation_key]?.some(part => part.type === 'item') ?
+							items.compact_parts(this.chat_item_drafts[conversation_key], true) : null) === parts_key) {
 						this.chat_drafts[conversation_key] = '';
+						if (this.chat_item_drafts) delete this.chat_item_drafts[conversation_key];
+					}
 					await refresh_chat_conversations();
 					if (is_current_view())
 						start_chat_polling();

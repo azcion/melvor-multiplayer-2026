@@ -18,3 +18,15 @@ export function market_page_window(current_page, page_count, radius = 2) {
 	const end = Math.min(start + radius * 2, count);
 	return Array.from({ length: end - start + 1 }, (_, index) => start + index);
 }
+
+export function sort_market_filter_items(items, listings = []) {
+	const priorities = new Map();
+	for (const listing of listings) {
+		const priority = listing.direction === 'buy' ? 0 : listing.direction === 'sell' ? 1 : 2;
+		if (typeof listing.item_id === 'string' && priority < (priorities.get(listing.item_id) ?? 2))
+			priorities.set(listing.item_id, priority);
+	}
+	return [...items].sort((a, b) =>
+		(priorities.get(a.id) ?? 2) - (priorities.get(b.id) ?? 2) ||
+		a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+}

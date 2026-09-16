@@ -106,6 +106,7 @@ let polling = null;
 let open_transfer_page = null;
 let remove_sold_out_market_result = null;
 let get_market_page_window = null;
+let sort_market_filter_items = null;
 let apply_banishment_claim = null;
 let apply_inbox_claim = null;
 let load_inbox_delivery_state = null;
@@ -323,6 +324,7 @@ const state = ui.createStore({
 	charity_wishes: [],
 	charity_wish_catalog: [],
 	charity_active_wish: false,
+	charity_filter_wishes: false,
 	selected_charity_wish_id: 0,
 	charity_wish_item_id: '',
 	charity_wish_search: '',
@@ -453,6 +455,11 @@ const state = ui.createStore({
 	chat_before_cursor: null,
 	chat_error: '',
 	chat_drafts: {},
+	chat_item_drafts: {},
+	chat_item_search: '',
+	chat_item_catalog: [],
+	chat_item_order_ids: [],
+	chat_recent_items: [],
 	chat_pending_sends: {},
 	chat_sending_conversations: {},
 	chat_reaction_choices: ['👍', '👎', '❤️', '😂', '😭', '💀', '👀', '🔥', '💯', '🎉', '🤔', '😮', '😬', '😡', '🗿', '🙏', '👏', '😎'],
@@ -462,6 +469,8 @@ const state = ui.createStore({
 	chat_reaction_pending: {},
 	chat_reaction_throttle_until: {},
 	chat_translation_preferences: {},
+	chat_notification_preferences: {},
+	chat_notifications_busy: false,
 	chat_translation_language_input: 'en',
 	polls: [],
 	poll_revision: null,
@@ -733,6 +742,7 @@ const state = ui.createStore({
 		return (kind !== 'private' || (this.messaging_enabled && (!this.chat_budget_enabled || this.chat_budget.credits > 0))) &&
 			(kind !== 'global' || !this.global_chat_cooling_down) &&
 			this.chat_draft.trim().length > 0 &&
+			this.is_chat_item_draft_valid() &&
 			!this.chat_sending;
 	},
 
@@ -875,9 +885,12 @@ const state = ui.createStore({
 	},
 
 	get charity_tree_entries() {
+		const wishes = this.charity_filter_wishes
+			? this.charity_wishes.filter(wish => wish.owned === true)
+			: this.charity_wishes;
 		return [
 			...this.charity_tree_inventory.map(item => ({ ...item, kind: 'offering' })),
-			...this.charity_wishes.map(wish => ({ ...wish, id: wish.item_id, kind: 'wish', wish_id: wish.id }))
+			...wishes.map(wish => ({ ...wish, id: wish.item_id, kind: 'wish', wish_id: wish.id }))
 		].sort((left, right) => {
 			const rank = entry => entry.kind === 'offering' && entry.id === CHARITY_WEIRD_GLOOP_ID ? 0
 				: entry.kind === 'wish' && entry.phase === 'ripe' ? 1
@@ -991,6 +1004,11 @@ const state = ui.createStore({
 		return item === undefined || item === null ? 0 : game.bank.getQty(item);
 	},
 
+	get_market_item_owned_qty(item_id) {
+		const item = game.items.getObjectByID(item_id);
+		return item === undefined || item === null ? 0 : game.bank.getQty(item);
+	},
+
 	get market_haggle_item_owned_qty() {
 		const item = this.market_haggle_item === null ? null :
 			game.items.getObjectByID(this.market_haggle_item.item_id);
@@ -1099,6 +1117,7 @@ function create_action_runtime() {
 		is_local_item_available,
 		is_local_item_resolved,
 		load_market_filter_items,
+		sort_market_filter_items,
 		log,
 		notify,
 		notify_error,
@@ -1107,6 +1126,7 @@ function create_action_runtime() {
 		queue_modal,
 		reconcile_economy_receipts,
 		refresh_chat_conversations,
+		update_chat_nav,
 		refresh_chat_messages,
 		refresh_council,
 		refresh_guild_members,
@@ -2148,6 +2168,7 @@ async function update_market_listings() {
 	if (state.market_listings_loading)
 		return;
 
+	has_sorted_market_filter_items = false;
 	state.market_listings_loading = true;
 	try {
 		const res = await api_get('/api/market/listings');
@@ -2253,7 +2274,7 @@ async function update_market_search() {
 }
 
 function load_market_filter_items() {
-	state.market_filter_items = [...game.items.registeredObjects].map(e => e[1]).filter(item => {
+	const filter_items = [...game.items.registeredObjects].map(e => e[1]).filter(item => {
 		if (item.category === '')
 			return false;
 
@@ -2266,6 +2287,7 @@ function load_market_filter_items() {
 			media: item.media,
 		}
 	});
+	state.market_filter_items = sort_market_filter_items(filter_items, state.market_listings);
 
 	has_sorted_market_filter_items = true;
 }
@@ -3515,7 +3537,7 @@ async function refresh_chat_conversations() {
 	state.global_chat_enabled = res.global_chat?.enabled !== false;
 	state.guild_chat_state = res.guild_chat ?? { affiliated: false, enabled: state.guild_chat_enabled };
 	state.guild_chat_enabled = state.guild_chat_state.enabled !== false;
-	state.chat_unread = res.conversations.reduce((total, conversation) => total + conversation.unread_count, 0);
+	state.chat_unread = state.get_chat_notification_unread(res.conversations);
 	update_chat_nav();
 	if (selected) {
 		const current = res.conversations.find(conversation =>
@@ -3612,6 +3634,8 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 				const existing = state.chat_messages.find(message => message.message_id === incoming.message_id);
 				if (existing) {
 					existing.translations = incoming.translations ?? {};
+					existing.parts = incoming.parts;
+					existing.translation_parts = incoming.translation_parts;
 					existing.translation_status = incoming.translation_status;
 					existing.translation_enqueued_at = incoming.translation_enqueued_at;
 				}
@@ -3694,7 +3718,7 @@ async function poll_chat_messages(poll_id) {
 		const view_generation = chat_view_generation;
 		if (state.selected_chat_conversation) {
 			const translation_pending = state.chat_messages.some(message =>
-				state.is_chat_message_translation_waiting(message));
+				state.is_chat_message_translation_pending(message));
 			succeeded = await refresh_chat_messages(
 				translation_pending ? '' : '&after=' + state.chat_latest_message_id,
 				false,
@@ -4127,10 +4151,12 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 		state.market_haggle_pending = res.haggle_pending ?? 0;
 		if (state.is_transfer_page_visible)
 			update_market_haggles();
-		state.chat_unread = res.chat_unread ?? 0;
+		const has_muted_chats = Object.values(state.chat_notification_preferences).includes(false);
+		if (!has_muted_chats)
+			state.chat_unread = res.chat_unread ?? 0;
 		state.inbox_pending_claim = res.inbox_pending === true;
 		update_chat_nav();
-		if (chat_page_visible)
+		if (chat_page_visible || has_muted_chats)
 			await refresh_chat_conversations();
 		if (request_generation !== session_generation)
 			return null;
@@ -4301,6 +4327,7 @@ export async function setup(ctx) {
 	open_transfer_page = transfer_page.open_transfer_page;
 	remove_sold_out_market_result = market_results.remove_sold_out_market_result;
 	get_market_page_window = market_results.market_page_window;
+	sort_market_filter_items = market_results.sort_market_filter_items;
 	apply_banishment_claim = banishment_returns.apply_banishment_claim;
 	apply_inbox_claim = inbox_module.apply_inbox_claim;
 	load_inbox_delivery_state = inbox_module.load_inbox_delivery_state;
@@ -4313,12 +4340,14 @@ export async function setup(ctx) {
 	custom_server_max_length = server_config.CUSTOM_SERVER_MAX_LENGTH;
 	const { install_common_actions } = await ctx.loadModule('client-actions-common.mjs');
 	const { install_chat_actions } = await ctx.loadModule('client-actions-chat.mjs');
+	const chat_items = await ctx.loadModule('chat-items.mjs');
 	const { install_market_campaign_charity_actions } = await ctx.loadModule('client-actions-market-campaign-charity.mjs');
 	const { install_trading_actions } = await ctx.loadModule('client-actions-trading.mjs');
 	const { install_transfer_actions } = await ctx.loadModule('client-actions-transfer.mjs');
 	const { install_social_actions } = await ctx.loadModule('client-actions-social.mjs');
 	const { register_components } = await ctx.loadModule('client-components.mjs');
 	const action_runtime = create_action_runtime();
+	action_runtime.chat_items = chat_items;
 	Object.assign(
 		state,
 		{
@@ -4355,6 +4384,7 @@ export async function setup(ctx) {
 		component.setAttribute('data-template-id', template_id);
 		return component;
 	});
+	chat_items.register_chat_elements({ game, state, getLangString, document, HTMLElement, customElements });
 	register_components({
 		BankRangeSlider,
 		createItemInformationTooltip,
@@ -4440,6 +4470,7 @@ export async function setup(ctx) {
 		state.last_seen_mod_version = get_character_storage_item(UPDATES_LAST_SEEN_MOD_VERSION_KEY) ?? '';
 		state.updates_new = updates_loader.has_unseen_mod_version(MOD_VERSION, state.last_seen_mod_version);
 		apply_server_configuration();
+		state.load_chat_notification_preferences();
 		load_social_mode();
 		update_multiplayer_nav();
 		start_multiplayer_session();

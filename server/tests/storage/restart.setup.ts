@@ -100,7 +100,8 @@ test('creates representative state before a server restart', async () => {
 		conversation_id: chat.json.conversation.conversation_id,
 		client_id: pair.second_id,
 		idempotency_key: crypto.randomUUID(),
-		content: 'Restart-safe private Message'
+		content: 'Restart-safe private Message',
+		parts: [{ type: 'text', text: 'Restart-safe ' }, { type: 'item', item_id: 'melvorD:Bronze_Sword' }]
 	}, pair.first.session_token);
 	await post_json('/api/chat/block', {
 		client_id: pair.first_id,

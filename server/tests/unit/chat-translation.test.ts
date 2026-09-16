@@ -5,6 +5,7 @@ import { ChatTranslationWorker } from '../../chat_translation';
 function translation_database(): Database {
 	const database = new Database(':memory:', { strict: true });
 	database.run(`
+		CREATE TABLE chat_message_bodies (job_id INTEGER PRIMARY KEY, parts TEXT, translations TEXT);
 		CREATE TABLE chat_translation_jobs (
 			id INTEGER PRIMARY KEY,
 			content TEXT NOT NULL,
@@ -104,6 +105,49 @@ describe('Chat translation worker', () => {
 			state: 'queued', attempts: 1, last_error_code: 'request_timeout'
 		});
 		worker.stop();
+		database.close();
+	});
+});
+
+describe('Structured item translations', () => {
+	test('persists reconstructed tags and legacy text in one job', async () => {
+		const database = translation_database();
+		database.run("INSERT INTO chat_translation_jobs VALUES (1, 'Use [Bronze Sword]', NULL, 'queued', 0, 0, 0, NULL, NULL, NULL)");
+		const parts = [{ type: 'text', text: 'Use ' }, { type: 'item', item_id: 'melvorD:Bronze_Sword' }];
+		database.query('INSERT INTO chat_message_bodies (job_id, parts) VALUES (1, ?)').run(JSON.stringify(parts));
+		const worker = new ChatTranslationWorker({ key: 'test', database, set_timer: inert_timer,
+			fetcher: async (input, init) => {
+				expect(String(input)).toContain('textType=html');
+				expect(JSON.parse(String(init?.body))).toEqual([{ Text: 'Use <span translate="no">0</span>' }]);
+				return Response.json([{ detectedLanguage: { language: 'en' }, translations: [
+					{ to: 'zh-Hans', text: '使用<span translate="no">0</span>' }
+				] }]);
+			} });
+		worker.start(); await worker.run_once(); worker.stop();
+		expect(database.query('SELECT content FROM chat_message_translations').get()).toEqual({ content: '使用[Bronze Sword]' });
+		const body = database.query<{ translations: string }, []>('SELECT translations FROM chat_message_bodies').get()!;
+		expect(JSON.parse(body.translations)['zh-CN']).toEqual([{ type: 'text', text: '使用' }, parts[1]]);
+		database.close();
+	});
+	test('does not publish damaged tags and skips Azure entirely for item-only messages', async () => {
+		const database = translation_database();
+		database.run("INSERT INTO chat_translation_jobs VALUES (1, 'Use sword', NULL, 'queued', 0, 0, 0, NULL, NULL, NULL)");
+		const item = { type: 'item', item_id: 'melvorD:Bronze_Sword' };
+		database.query('INSERT INTO chat_message_bodies (job_id, parts) VALUES (1, ?)').run(JSON.stringify([{ type: 'text', text: 'Use ' }, item]));
+		let requests = 0;
+		const worker = new ChatTranslationWorker({ key: 'test', database, set_timer: inert_timer,
+			fetcher: async () => { requests++; return Response.json([{ detectedLanguage: { language: 'en' },
+				translations: [{ to: 'zh-Hans', text: '使用' }] }]); } });
+		worker.start(); await worker.run_once(); worker.stop();
+		expect(database.query('SELECT state FROM chat_translation_jobs').get()).toEqual({ state: 'queued' });
+		expect(database.query('SELECT * FROM chat_message_translations').all()).toEqual([]);
+		database.query('UPDATE chat_message_bodies SET parts = ?').run(JSON.stringify([item]));
+		database.run('UPDATE chat_translation_jobs SET available_at = 0');
+		const worker2 = new ChatTranslationWorker({ key: 'test', database, set_timer: inert_timer,
+			fetcher: async () => { requests++; throw Error('must not translate'); } });
+		worker2.start(); await worker2.run_once(); worker2.stop();
+		expect(requests).toBe(1);
+		expect(database.query('SELECT state FROM chat_translation_jobs').get()).toEqual({ state: 'complete' });
 		database.close();
 	});
 });

@@ -58,3 +58,25 @@ in the server-owned Inbox, whose existing claim receipt handles later character-
 
 Do not delete historical value queues or journal rows as part of API retirement. Marketplace legacy payouts and
 participant transfer protocol records are retained until a separate value-conservation reconciliation proves removal safe.
+
+## Chat item tags (1.5.12)
+
+Chat sends optionally include `parts`, an ordered array of `{type: "text", text: "..."}` and
+`{type: "item", item_id: "melvorD:Bronze_Sword"}`. The server normalizes adjacent text and outer whitespace,
+allows at most 20 item occurrences and 100 input parts, and enforces the existing 1,000-character limit on its
+readable fallback string (including bracketed item names derived from IDs). Item identifiers are bounded to 256
+characters and the official `melvorD`, `melvorF`, `melvorTotH`, `melvorAoD`, and `melvorItA` namespaces; the server
+validates identifier syntax, while clients resolve actual registered items. Modded namespaces are rejected.
+
+The existing `content` field remains required for compatibility; when parts are supplied, the server derives content
+from them. Identical idempotency keys must preserve both content and item identities. Tagged Messages return `parts`
+in send responses, history, and inbox previews. Persisted translations additionally expose `translation_parts` keyed
+by language, alongside the existing readable `translations`. Clients resolve each item in their own game language.
+Unknown local items remain visible as unavailable references. Ordinary text-only clients and historical Messages
+continue using their existing strings.
+
+Azure receives one server-generated HTML sentence with escaped text and numeric occurrence markers such as
+`<span translate="no">0</span>`, using `textType=html`. Returned markup must contain exactly one of every expected
+marker and no unexpected markup; marker order may change. The server decodes text once, rebuilds typed parts, and
+stores the result atomically. Failed validation follows bounded translation retries and falls back to original
+content. Item-only Messages skip the external request. HTML is never used as a client rendering payload.

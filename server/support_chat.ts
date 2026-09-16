@@ -1,3 +1,4 @@
+import { save_chat_parts, same_chat_parts, type ChatPart } from './chat_parts';
 import { db } from './db';
 import type { Database } from 'bun:sqlite';
 import { CHAT_MESSAGE_MAX_LENGTH, CHAT_MESSAGE_PAGE_SIZE } from './chat';
@@ -426,7 +427,7 @@ export function list_support_messages(client_id: number, conversation_id: number
 }
 
 export function send_support_message(client_id: number, conversation_id: number | null, team_id: number | null,
-	idempotency_key: string, content: string, now = Date.now()): SupportResult<{ message: any }> {
+	idempotency_key: string, content: string, now = Date.now(), parts?: ChatPart[]): SupportResult<{ message: any }> {
 	const trimmed = typeof content === 'string' ? content.trim() : '';
 	if ((conversation_id !== null && (!Number.isSafeInteger(conversation_id) || conversation_id < 1)) ||
 		(team_id !== null && (!Number.isSafeInteger(team_id) || team_id < 1)) || typeof idempotency_key !== 'string' ||
@@ -481,13 +482,14 @@ export function send_support_message(client_id: number, conversation_id: number 
 			'SELECT * FROM `support_messages` WHERE `idempotency_scope` = ? AND `idempotency_key` = ?'
 		).get(scope, idempotency_key);
 		if (duplicate !== null) {
-			if (duplicate.conversation_id !== conversation.id || duplicate.content !== trimmed) return { status: 'bad_request' };
+			if (duplicate.conversation_id !== conversation.id || duplicate.content !== trimmed || !same_chat_parts('support', duplicate.id, parts)) return { status: 'bad_request' };
 			return { status: 'ok', value: { message_id: duplicate.id, viewer_side } };
 		}
 		const created = db.query(
 			'INSERT INTO `support_messages` (`conversation_id`, `author_kind`, `membership_id`, `sending_client_id`, `idempotency_scope`, `idempotency_key`, `content`, `created_at`) VALUES(?, ?, ?, ?, ?, ?, ?, ?)'
 		).run(conversation.id, viewer_side === 'player' ? 'player' : 'member', membership?.id ?? null, client_id,
 			scope, idempotency_key, trimmed, now);
+		save_chat_parts('support', Number(created.lastInsertRowid), parts);
 		return { status: 'ok', value: { message_id: Number(created.lastInsertRowid), viewer_side } };
 	});
 	const result = send.immediate();

@@ -5,7 +5,8 @@ import { read_client_source } from './source.mjs';
 
 import {
 	market_page_window,
-	remove_sold_out_market_result
+	remove_sold_out_market_result,
+	sort_market_filter_items
 } from '../../mod/market-results.mjs';
 import { install_market_campaign_charity_actions } from '../../mod/client-actions-market-campaign-charity.mjs';
 import * as charitree_rules from '../../mod/charitree-rules.mjs';
@@ -40,6 +41,23 @@ test('renders a bounded Marketplace page window around the current page', () => 
 	assert.deepEqual(market_page_window(1, 20), [1, 2, 3, 4, 5]);
 	assert.deepEqual(market_page_window(10, 20), [8, 9, 10, 11, 12]);
 	assert.deepEqual(market_page_window(20, 20), [16, 17, 18, 19, 20]);
+});
+
+test('prioritizes own Buy Orders and Sell Orders before alphabetical fallback', () => {
+	const items = [
+		{ id: 'melvorD:Zinc', name: 'Zinc' },
+		{ id: 'melvorD:Apple', name: 'Apple' },
+		{ id: 'melvorD:Bronze', name: 'Bronze' },
+		{ id: 'melvorD:Amber', name: 'Amber' }
+	];
+	const listings = [
+		{ item_id: 'melvorD:Bronze', direction: 'sell' },
+		{ item_id: 'melvorD:Zinc', direction: 'buy' },
+		{ item_id: 'melvorD:Amber', direction: 'buy' }
+	];
+	assert.deepEqual(sort_market_filter_items(items, listings).map(item => item.id), [
+		'melvorD:Amber', 'melvorD:Zinc', 'melvorD:Bronze', 'melvorD:Apple'
+	]);
 });
 
 test('clamps a page window when no Marketplace results exist', () => {
@@ -106,6 +124,10 @@ test('limits Marketplace discovery to locally owned official DLC', async () => {
 	assert.match(main, /owned_dlc_namespaces = client_runtime\.get_owned_dlc\(melvor_cloud_manager\)/);
 	assert.match(namespaces, /get_resolved_item_namespaces[\s\S]*is_item_available_for_owned_dlc[\s\S]*owned_dlc_namespaces/);
 	assert.match(filters, /return is_local_item_available\(item\.id\)/);
+	assert.match(filters, /sort_market_filter_items\(filter_items, state\.market_listings\)/);
+	assert.match(main, /has_sorted_market_filter_items = false;\s*state\.market_listings_loading = true/);
+	assert.match(actions, /async choose_market_filter\(\)[\s\S]*await update_market_listings\(\);[\s\S]*load_market_filter_items\(\)/);
+	assert.match(actions, /async choose_market_create_item\(\)[\s\S]*await update_market_listings\(\);[\s\S]*load_market_filter_items\(\)/);
 	assert.match(actions, /show_market_buy_modal\(item\)[\s\S]*!is_local_item_available\(item\?\.item_id\)/);
 	assert.match(actions, /show_market_fulfill_modal\(item\)[\s\S]*!is_local_item_available\(item\?\.item_id\)/);
 	assert.match(actions, /show_market_haggle_modal\(item\)[\s\S]*!is_local_item_available\(item\?\.item_id\)/);
@@ -560,17 +582,20 @@ test('splits Marketplace metric labels from values and keeps GP icons attached',
 	);
 
 	assert.match(market_page, /<lang-string lang-id="MOD_MP_MARKET_AVAILABLE" class="mp-market-item-label" v-if="item\.direction == 'sell'"><\/lang-string>/);
-	assert.match(market_page, /<lang-string lang-id="MOD_MP_MARKET_REQUESTED" class="mp-market-item-label" v-else><\/lang-string>[\s\S]*numberWithCommas\(item\.available\)/);
+	assert.match(market_page, /<div class="mp-market-item-col mp-market-quantity">[\s\S]*<div class="mp-market-quantity-row">[\s\S]*<lang-string lang-id="MOD_MP_MARKET_REQUESTED" class="mp-market-item-label" v-else><\/lang-string>[\s\S]*numberWithCommas\(item\.available\)[\s\S]*<\/div>[\s\S]*<div class="mp-market-quantity-row">[\s\S]*<lang-string lang-id="MOD_MP_MARKET_OWNED" class="mp-market-item-label"><\/lang-string>[\s\S]*numberWithCommas\(state\.get_market_item_owned_qty\(item\.item_id\)\)/);
 	assert.match(market_page, /<lang-string lang-id="MOD_MP_MARKET_WANTED" class="mp-market-item-label"><\/lang-string>[\s\S]*numberWithCommas\(item\.qty\)/);
 	assert.match(market_page, /<span class="mp-market-item-value text-success mp-market-item-gp"><span>\{\{ numberWithCommas\(item\.escrow_gp\) \}\}<\/span><img class="skill-icon-xxs"/);
 	assert.match(market_page, /<lang-string lang-id="MOD_MP_MARKET_SOLD_BY" class="mp-market-item-label"><\/lang-string>/);
 	assert.doesNotMatch(market_page, /<mp-lang-string-f lang-id="MOD_MP_MARKET_(AVAILABLE|WANTED|SOLD|PRICE|PROFIT|ESCROW)"/);
 	assert.match(style, /\.mp-market-item-label \{[\s\S]*font-size: 11px/);
+	assert.match(style, /\.mp-market-quantity \{[\s\S]*flex-direction: column/);
+	assert.match(style, /\.mp-market-quantity-row \{[\s\S]*display: flex/);
 	assert.match(style, /\[lang-id="MOD_MP_MARKET_SOLD_BY"\] \+ img,[\s\S]*margin: 0 3px !important/);
 	assert.match(style, /\.mp-market-item-gp \{[\s\S]*display: inline-flex[\s\S]*gap: 3px/);
 	for (const language of [english, chinese]) {
 		assert.match(language, /"MOD_MP_MARKET_AVAILABLE": "[^\"]+"/);
 		assert.match(language, /"MOD_MP_MARKET_REQUESTED": "[^\"]+"/);
+		assert.match(language, /"MOD_MP_MARKET_OWNED": "[^\"]+"/);
 		assert.doesNotMatch(language, /"MOD_MP_MARKET_AVAILABLE": "[^\"]*%s/);
 		assert.match(language, /"MOD_MP_MARKET_ESCROW": "[^\"]+"/);
 		assert.doesNotMatch(language, /"MOD_MP_MARKET_ESCROW": "[^\"]*%s/);

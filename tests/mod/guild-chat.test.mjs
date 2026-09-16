@@ -61,7 +61,7 @@ test('advertises Chat capabilities and includes unread counts in shared Chat sta
 	assert.match(main, /const GLOBAL_CHAT_CAPABILITY = 'global-chat-v1'/);
 	assert.match(main, /\/api\/chat\/conversations\?capabilities=' \+ CHAT_CAPABILITIES/);
 	assert.match(main, /\/api\/events\?revision=' \+ client_event_revision \+ '&capabilities=' \+ CHAT_CAPABILITIES/);
-	assert.match(main, /state\.chat_unread = res\.conversations\.reduce/);
+	assert.match(main, /state\.chat_unread = state\.get_chat_notification_unread\(res\.conversations\)/);
 	assert.match(main, /state\.guild_chat_state = res\.guild_chat/);
 });
 
@@ -100,5 +100,5 @@ test('closes inaccessible Guild conversations and reloads cached Messages after 
 	assert.match(main, /selected\.conversation_kind === 'guild' \|\| selected\.conversation_kind === 'global'/);
 	assert.match(main, /current\.moderation_count !== selected\.moderation_count/);
 	assert.match(main, /if \(moderation_changed\) \{\s*state\.close_chat_conversation\(\);\s*await state\.open_chat_conversation\(current\)/);
-	assert.match(main, /if \(chat_page_visible\)\s*await refresh_chat_conversations\(\)/);
+	assert.match(main, /if \(chat_page_visible \|\| has_muted_chats\)\s*await refresh_chat_conversations\(\)/);
 });

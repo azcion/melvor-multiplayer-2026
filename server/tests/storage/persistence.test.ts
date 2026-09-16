@@ -36,6 +36,7 @@ describe('SQLite persistence probe', () => {
 			'charity_wishes',
 			'chat_blocks',
 			'chat_conversations',
+			'chat_message_bodies',
 			'chat_message_deletions',
 			'chat_message_reactions',
 			'chat_message_reads',

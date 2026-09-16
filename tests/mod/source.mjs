@@ -11,7 +11,8 @@ const source_files = [
 	'mod/client-components.mjs',
 	'mod/status-statistics.mjs',
 	'mod/changelog.mjs',
-	'mod/updates.mjs'
+	'mod/updates.mjs',
+	'mod/chat-items.mjs'
 ];
 
 export async function read_client_source(root = new URL('../../', import.meta.url)) {
