@@ -18,6 +18,12 @@ function compare_versions(left: number[], right: number[]): number {
 	return 0;
 }
 
+export function is_client_version_at_least(actual: unknown, minimum: unknown): boolean {
+	const parsed_actual = parse_version(actual);
+	const parsed_minimum = parse_version(minimum);
+	return parsed_actual !== null && parsed_minimum !== null && compare_versions(parsed_actual, parsed_minimum) >= 0;
+}
+
 export function is_minimum_supported_version(value: unknown): value is string {
 	const parsed = parse_version(value);
 	const feature = parse_version(MINIMUM_SUPPORTED_VERSION_FEATURE)!;

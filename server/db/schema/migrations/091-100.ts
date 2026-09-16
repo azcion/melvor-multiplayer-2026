@@ -67,4 +67,95 @@ export const migrations_091_100: Migration[] = [{
 	sql: `
 		DROP TABLE audit_row_changes;
 	`
+}, {
+	version: 94,
+	sql: `
+		CREATE TABLE poll_translation_jobs (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			source_kind TEXT NOT NULL CHECK (source_kind IN ('poll', 'poll-option')),
+			content_id INTEGER NOT NULL CHECK (content_id > 0),
+			content TEXT NOT NULL CHECK (length(content) BETWEEN 1 AND 1000),
+			detected_language TEXT,
+			state TEXT NOT NULL DEFAULT 'queued' CHECK (state IN ('queued', 'processing', 'complete', 'dead')),
+			attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts BETWEEN 0 AND 4),
+			enqueued_at INTEGER NOT NULL CHECK (enqueued_at BETWEEN 0 AND 9007199254740991),
+			available_at INTEGER NOT NULL CHECK (available_at BETWEEN 0 AND 9007199254740991),
+			last_attempt_at INTEGER CHECK (last_attempt_at BETWEEN 0 AND 9007199254740991),
+			completed_at INTEGER CHECK (completed_at BETWEEN 0 AND 9007199254740991),
+			last_error_code TEXT,
+			UNIQUE (source_kind, content_id)
+		);
+		CREATE INDEX idx_poll_translation_jobs_fifo
+			ON poll_translation_jobs (state, id, available_at);
+		CREATE TABLE poll_translations (
+			job_id INTEGER NOT NULL REFERENCES poll_translation_jobs (id) ON DELETE CASCADE,
+			language TEXT NOT NULL CHECK (length(language) BETWEEN 2 AND 64),
+			content TEXT NOT NULL CHECK (length(content) BETWEEN 1 AND 5000),
+			translated_at INTEGER NOT NULL CHECK (translated_at BETWEEN 0 AND 9007199254740991),
+			PRIMARY KEY (job_id, language)
+		);
+
+		CREATE TRIGGER enqueue_poll_translation AFTER INSERT ON polls BEGIN
+			INSERT INTO poll_translation_jobs (source_kind, content_id, content, enqueued_at, available_at)
+			VALUES ('poll', NEW.id, NEW.content, NEW.created_at, NEW.created_at);
+		END;
+		CREATE TRIGGER enqueue_poll_option_translation AFTER INSERT ON poll_options BEGIN
+			INSERT INTO poll_translation_jobs (source_kind, content_id, content, enqueued_at, available_at)
+			VALUES ('poll-option', NEW.id, NEW.content, NEW.created_at, NEW.created_at);
+		END;
+		CREATE TRIGGER delete_poll_translation AFTER DELETE ON polls BEGIN
+			DELETE FROM poll_translation_jobs WHERE source_kind = 'poll' AND content_id = OLD.id;
+		END;
+		CREATE TRIGGER delete_poll_option_translation AFTER DELETE ON poll_options BEGIN
+			DELETE FROM poll_translation_jobs WHERE source_kind = 'poll-option' AND content_id = OLD.id;
+		END;
+		CREATE TRIGGER refresh_poll_translation AFTER INSERT ON poll_translations BEGIN
+			UPDATE service_settings SET value = CAST(value AS INTEGER) + 1 WHERE key = 'poll_revision';
+			UPDATE polls SET revision = (SELECT CAST(value AS INTEGER) FROM service_settings WHERE key = 'poll_revision')
+			WHERE id = CASE
+				WHEN (SELECT source_kind FROM poll_translation_jobs WHERE id = NEW.job_id) = 'poll'
+				THEN (SELECT content_id FROM poll_translation_jobs WHERE id = NEW.job_id)
+				ELSE (SELECT poll_id FROM poll_options WHERE id =
+					(SELECT content_id FROM poll_translation_jobs WHERE id = NEW.job_id))
+			END;
+		END;
+
+		INSERT INTO poll_translation_jobs (source_kind, content_id, content, enqueued_at, available_at)
+		SELECT 'poll', id, content, created_at, created_at FROM polls;
+		INSERT INTO poll_translation_jobs (source_kind, content_id, content, enqueued_at, available_at)
+		SELECT 'poll-option', id, content, created_at, created_at FROM poll_options;
+	`
+}, {
+	version: 95,
+	sql: `
+		ALTER TABLE polls ADD COLUMN choice_mode TEXT NOT NULL DEFAULT 'multi'
+			CHECK (choice_mode IN ('single', 'multi'));
+		ALTER TABLE polls ADD COLUMN closed_at INTEGER
+			CHECK (closed_at IS NULL OR closed_at BETWEEN 0 AND 9007199254740991);
+	`
+}, {
+	version: 96,
+	sql: `
+		CREATE TABLE poll_deletions (
+			poll_id INTEGER PRIMARY KEY CHECK (poll_id > 0),
+			revision INTEGER NOT NULL CHECK (revision BETWEEN 0 AND 9007199254740991)
+		);
+		CREATE INDEX idx_poll_deletions_revision ON poll_deletions (revision);
+		CREATE TRIGGER event_poll_delete AFTER DELETE ON polls BEGIN
+			UPDATE clients SET event_revision = event_revision + 1 WHERE deleted_at IS NULL;
+		END;
+	`
+}, {
+	version: 97,
+	sql: `
+		CREATE TABLE poll_interactions (
+			poll_id INTEGER NOT NULL REFERENCES polls (id) ON DELETE CASCADE,
+			client_id INTEGER NOT NULL REFERENCES clients (id),
+			interacted_at INTEGER NOT NULL CHECK (interacted_at BETWEEN 0 AND 9007199254740991),
+			PRIMARY KEY (poll_id, client_id)
+		);
+		CREATE INDEX idx_poll_interactions_client ON poll_interactions (client_id, poll_id);
+		INSERT INTO poll_interactions (poll_id, client_id, interacted_at)
+		SELECT poll_id, client_id, MIN(created_at) FROM poll_votes GROUP BY poll_id, client_id;
+	`
 }];

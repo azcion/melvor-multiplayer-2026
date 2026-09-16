@@ -11,7 +11,8 @@ export const CHAT_TRANSLATION_MAX_ATTEMPTS = 4;
 export const CHAT_TRANSLATION_PENDING_MS = 10_000;
 
 type ChatTranslationLanguage = typeof CHAT_TRANSLATION_LANGUAGES[number];
-type TranslationJob = { id: number; content: string; attempts: number; available_at: number };
+type TranslationQueue = 'chat' | 'poll';
+type TranslationJob = { queue: TranslationQueue; id: number; content: string; attempts: number; available_at: number };
 type AzureTranslationResponse = Array<{
 	detectedLanguage?: { language?: string };
 	translations?: Array<{ text?: string; to?: string }>;
@@ -82,6 +83,7 @@ export class ChatTranslationWorker {
 		}
 		this.stopped = false;
 		this.database.query("UPDATE `chat_translation_jobs` SET `state` = 'queued' WHERE `state` = 'processing'").run();
+		this.database.query("UPDATE `poll_translation_jobs` SET `state` = 'queued' WHERE `state` = 'processing'").run();
 		this.schedule(0);
 	}
 
@@ -110,9 +112,19 @@ export class ChatTranslationWorker {
 
 	private next_job(): TranslationJob | null {
 		return this.database.query<TranslationJob, []>(
-			"SELECT `id`, `content`, `attempts`, `available_at` FROM `chat_translation_jobs` " +
-			"WHERE `state` = 'queued' ORDER BY `id` LIMIT 1"
+			"SELECT 'chat' AS `queue`, `id`, `content`, `attempts`, `available_at`, `enqueued_at` " +
+			"FROM `chat_translation_jobs` WHERE `state` = 'queued' UNION ALL " +
+			"SELECT 'poll' AS `queue`, `id`, `content`, `attempts`, `available_at`, `enqueued_at` " +
+			"FROM `poll_translation_jobs` WHERE `state` = 'queued' ORDER BY `enqueued_at`, `queue`, `id` LIMIT 1"
 		).get();
+	}
+
+	private job_table(queue: TranslationQueue): 'chat_translation_jobs' | 'poll_translation_jobs' {
+		return queue === 'chat' ? 'chat_translation_jobs' : 'poll_translation_jobs';
+	}
+
+	private translations_table(queue: TranslationQueue): 'chat_message_translations' | 'poll_translations' {
+		return queue === 'chat' ? 'chat_message_translations' : 'poll_translations';
 	}
 
 	async run_once(): Promise<void> {
@@ -129,23 +141,26 @@ export class ChatTranslationWorker {
 		}
 		this.running = true;
 		this.next_request_at = started_at + CHAT_TRANSLATION_REQUEST_INTERVAL_MS;
-		this.database.query("UPDATE `chat_translation_jobs` SET `state` = 'processing', `attempts` = `attempts` + 1, " +
+		const job_table = this.job_table(job.queue);
+		const translations_table = this.translations_table(job.queue);
+		this.database.query(`UPDATE \`${job_table}\` SET \`state\` = 'processing', \`attempts\` = \`attempts\` + 1, ` +
 			'`last_attempt_at` = ? WHERE `id` = ?').run(started_at, job.id);
 		try {
-			const body = this.database.query<{ parts: string }, [number]>('SELECT parts FROM chat_message_bodies WHERE job_id = ?').get(job.id);
+			const body = job.queue === 'chat' ? this.database.query<{ parts: string }, [number]>(
+				'SELECT parts FROM chat_message_bodies WHERE job_id = ?').get(job.id) : null;
 			const parts = body ? JSON.parse(body.parts) as ChatPart[] : undefined;
 			const result = parts && !parts.some(part => part.type === 'text' && /[\p{L}\p{N}]/u.test(part.text))
 				? { detected_language: 'und', translations: [] } : await this.translate(job.content, parts);
 			const completed_at = this.now();
 			this.database.transaction(() => {
 				for (const translation of result.translations)
-					this.database.query('INSERT INTO `chat_message_translations` (`job_id`, `language`, `content`, `translated_at`) ' +
+					this.database.query(`INSERT INTO \`${translations_table}\` (\`job_id\`, \`language\`, \`content\`, \`translated_at\`) ` +
 						'VALUES (?, ?, ?, ?) ON CONFLICT (`job_id`, `language`) DO UPDATE SET ' +
 						'`content` = excluded.`content`, `translated_at` = excluded.`translated_at`')
 						.run(job.id, translation.language, translation.content, completed_at);
 				if (parts) this.database.query('UPDATE chat_message_bodies SET translations = ? WHERE job_id = ?')
 					.run(JSON.stringify(Object.fromEntries(result.translations.map(translation => [translation.language, translation.parts]))), job.id);
-				this.database.query("UPDATE `chat_translation_jobs` SET `state` = 'complete', `detected_language` = ?, " +
+				this.database.query(`UPDATE \`${job_table}\` SET \`state\` = 'complete', \`detected_language\` = ?, ` +
 					'`completed_at` = ?, `last_error_code` = NULL WHERE `id` = ?')
 					.run(result.detected_language, completed_at, job.id);
 			}).immediate();
@@ -157,7 +172,7 @@ export class ChatTranslationWorker {
 			const available_at = this.now() + retry_after_ms;
 			if (failure.retry_after_ms !== undefined)
 				this.next_request_at = Math.max(this.next_request_at, available_at);
-			this.database.query("UPDATE `chat_translation_jobs` SET `state` = ?, `available_at` = ?, `last_error_code` = ? " +
+			this.database.query(`UPDATE \`${job_table}\` SET \`state\` = ?, \`available_at\` = ?, \`last_error_code\` = ? ` +
 				'WHERE `id` = ?').run(dead ? 'dead' : 'queued', available_at,
 				failure.code ?? 'request_failed', job.id);
 			write_log('error', `message=${JSON.stringify('Azure Translator request failed')} ` +
@@ -233,27 +248,32 @@ export function attach_translations<T extends { message_id: number; sender_id?: 
 	translation_enqueued_at: number | null; parts?: ChatPart[]; translation_parts?: Record<string, ChatPart[]> }> {
 	if (messages.length === 0)
 		return [];
+	const poll_source = source_kind === 'poll' || source_kind === 'poll-option';
+	const jobs_table = poll_source ? 'poll_translation_jobs' : 'chat_translation_jobs';
+	const translations_table = poll_source ? 'poll_translations' : 'chat_message_translations';
+	const id_column = poll_source ? 'content_id' : 'message_id';
 	const placeholders = messages.map(() => '?').join(', ');
 	const jobs = db.query<{ id: number; message_id: number; state: string; enqueued_at: number }, Array<string | number>>(
-		'SELECT `id`, `message_id`, `state`, `enqueued_at` FROM `chat_translation_jobs` ' +
-		`WHERE \`source_kind\` = ? AND \`message_id\` IN (${placeholders})`
+		`SELECT \`id\`, \`${id_column}\` AS \`message_id\`, \`state\`, \`enqueued_at\` FROM \`${jobs_table}\` ` +
+		`WHERE \`source_kind\` = ? AND \`${id_column}\` IN (${placeholders})`
 	).all(source_kind, ...messages.map(message => message.message_id));
 	const by_message = new Map(jobs.map(job => [job.message_id, job]));
 	const translations = jobs.length === 0 ? [] : db.query<{
 		job_id: number; language: ChatTranslationLanguage; content: string
 	}, number[]>(
-		`SELECT \`job_id\`, \`language\`, \`content\` FROM \`chat_message_translations\` ` +
+		`SELECT \`job_id\`, \`language\`, \`content\` FROM \`${translations_table}\` ` +
 		`WHERE \`job_id\` IN (${jobs.map(() => '?').join(', ')})`
 	).all(...jobs.map(job => job.id));
 	const by_job = new Map<number, Partial<Record<ChatTranslationLanguage, string>>>();
 	for (const translation of translations)
 		by_job.set(translation.job_id,
 			{ ...(by_job.get(translation.job_id) ?? {}), [translation.language]: translation.content });
-	const bodies = jobs.length === 0 ? [] : db.query<{ job_id: number; translations: string }, number[]>(
+	const bodies = poll_source || jobs.length === 0 ? [] : db.query<{ job_id: number; translations: string }, number[]>(
 		`SELECT job_id, translations FROM chat_message_bodies WHERE job_id IN (${jobs.map(() => '?').join(',')})`
 	).all(...jobs.map(job => job.id));
 	const body_by_job = new Map(bodies.map(body => [body.job_id, JSON.parse(body.translations) as Record<string, ChatPart[]>]));
-	return attach_chat_parts(source_kind, messages).map(message => {
+	const messages_with_parts = poll_source ? messages : attach_chat_parts(source_kind, messages);
+	return messages_with_parts.map(message => {
 		const job = by_message.get(message.message_id);
 		return {
 			...message,

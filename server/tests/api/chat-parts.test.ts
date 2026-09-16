@@ -4,7 +4,9 @@ import { get_json_with_session, post, post_json } from '../support/http';
 import { db_run } from '../support/persistence';
 
 test('item parts survive sends, retries, history and inboxes across every Chat kind', async () => {
-	const { first, second, guild_id } = await make_guildmates('Tag Sender', 'Tag Reader', 'Tag Test Guild');
+	const { first, second, guild_id } = await make_guildmates(
+		'Tag Sender', 'Tag Reader', 'Tag Test Guild', { first: '1.5.14', second: '1.5.14' }
+	);
 	try {
 		const inbox = await get_json_with_session<{ conversations: any[] }>('/api/chat/conversations', first.session_token);
 		const support = inbox.json.conversations.find(conversation => conversation.conversation_kind === 'support');

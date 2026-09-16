@@ -113,7 +113,7 @@ import {
 	set_global_chat_enabled
 } from './global_chat';
 import { attach_translations, chat_translation_worker } from './chat_translation';
-import { add_poll_options, create_poll, has_polls_capability, list_poll_discussion_messages, list_polls, reconcile_poll_creators, send_poll_discussion_message, set_poll_reaction, set_poll_vote } from './polls';
+import { add_poll_options, can_view_polls, create_poll, delete_poll, has_polls_capability, list_poll_discussion_messages, list_polls, reconcile_poll_creators, send_poll_discussion_message, set_poll_open, set_poll_vote } from './polls';
 import {
 	acknowledge_deletion_return_claim,
 	associate_client_with_melvor_account,
@@ -164,7 +164,7 @@ export { get_support_unread_count, list_support_conversations, list_support_mess
 export { get_guild_chat_inbox, get_guild_chat_unread_count, has_guild_chat_capability, list_guild_chat_messages, moderate_guild_chat_message, send_guild_chat_message, set_guild_chat_enabled } from './guild_chat';
 export { get_global_chat_inbox, get_global_chat_unread_count, has_global_chat_capability, list_global_chat_messages, moderate_global_chat_message, send_global_chat_message, set_global_chat_enabled } from './global_chat';
 export { attach_translations, chat_translation_worker } from './chat_translation';
-export { add_poll_options, create_poll, has_polls_capability, list_poll_discussion_messages, list_polls, reconcile_poll_creators, send_poll_discussion_message, set_poll_reaction, set_poll_vote } from './polls';
+export { add_poll_options, can_view_polls, create_poll, delete_poll, has_polls_capability, list_poll_discussion_messages, list_polls, reconcile_poll_creators, send_poll_discussion_message, set_poll_open, set_poll_vote } from './polls';
 export { attach_reactions, reaction_updates, set_message_reaction } from './chat_reactions';
 export { acknowledge_deletion_return_claim, associate_client_with_melvor_account, cancel_deletion_on_authentication, cancel_scheduled_client_deletion, CLIENT_DELETION_MAINTENANCE_INTERVAL, create_deletion_return_claim, get_client_deletion_status, get_deletion_claim_view, has_deletion_returns, list_sibling_identities, parse_melvor_account, process_due_client_deletions, recover_deleted_client, schedule_client_deletion } from './identity';
 export { acknowledge_economy_receipt, economy_item_effects, pending_economy_receipts, run_economy_command } from './economy';

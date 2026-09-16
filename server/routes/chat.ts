@@ -5,7 +5,7 @@ import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
 import type { PetitionType } from '../council';
 
-const { CHAT_BUDGET_ENABLED, CHAT_BUDGET_ERROR, CHAT_PRIVACY_ERROR, attach_reactions, attach_translations, chat_translation_worker, db_get_single, delete_conversation, delete_message, get_chat_state, get_global_chat_inbox, get_guild_chat_inbox, has_global_chat_capability, has_guild_chat_capability, has_polls_capability, list_conversations, list_global_chat_messages, list_guild_chat_messages, list_messages, list_poll_discussion_messages, list_support_conversations, list_support_messages, moderate_global_chat_message, moderate_guild_chat_message, privacy_allows, reaction_updates, send_global_chat_message, send_guild_chat_message, send_message, send_poll_discussion_message, send_support_message, session_get_route, session_post_route, set_block, set_global_chat_enabled, set_guild_chat_enabled, set_message_reaction, set_messaging_enabled, start_conversation } = runtime;
+const { CHAT_BUDGET_ENABLED, CHAT_BUDGET_ERROR, CHAT_PRIVACY_ERROR, attach_reactions, attach_translations, can_view_polls, chat_translation_worker, db_get_single, delete_conversation, delete_message, get_chat_state, get_global_chat_inbox, get_guild_chat_inbox, get_request_mod_version, has_global_chat_capability, has_guild_chat_capability, has_polls_capability, list_conversations, list_global_chat_messages, list_guild_chat_messages, list_messages, list_poll_discussion_messages, list_support_conversations, list_support_messages, moderate_global_chat_message, moderate_guild_chat_message, privacy_allows, reaction_updates, send_global_chat_message, send_guild_chat_message, send_message, send_poll_discussion_message, send_support_message, session_get_route, session_post_route, set_block, set_global_chat_enabled, set_guild_chat_enabled, set_message_reaction, set_messaging_enabled, start_conversation } = runtime;
 
 export function register_chat_routes(): void {
 	function chat_error(status: 'bad_request' | 'missing' | 'privacy' | 'budget' | 'forbidden') {
@@ -118,13 +118,13 @@ export function register_chat_routes(): void {
 			return 400;
 		if (kind === 'global' && !has_global_chat_capability(url))
 			return 404;
-		if (kind === 'poll-discussion' && !has_polls_capability(url))
+		if (kind === 'poll-discussion' && (!has_polls_capability(url) || !can_view_polls(get_request_mod_version(req))))
 			return 404;
 		const result = kind === 'support'
 			? list_support_messages(client_id, conversation_id, team_id, before, after)
 			: kind === 'poll-discussion'
 				? conversation_id === null ? { status: 'bad_request' as const }
-					: list_poll_discussion_messages(client_id, conversation_id, before, after)
+					: list_poll_discussion_messages(client_id, get_request_mod_version(req), conversation_id, before, after)
 			: kind === 'guild'
 				? conversation_id === null ? { status: 'bad_request' as const }
 					: list_guild_chat_messages(client_id, conversation_id, before, after)
@@ -156,7 +156,7 @@ export function register_chat_routes(): void {
 			return 400;
 		if (kind === 'global' && !has_global_chat_capability(url))
 			return 404;
-		if (kind === 'poll-discussion' && !has_polls_capability(url))
+		if (kind === 'poll-discussion' && (!has_polls_capability(url) || !can_view_polls(get_request_mod_version(req))))
 			return 404;
 		if (typeof json.conversation_id !== 'number' || typeof json.message_id !== 'number' ||
 			typeof json.reaction !== 'string' || typeof json.reacted !== 'boolean')
@@ -172,7 +172,7 @@ export function register_chat_routes(): void {
 			return 400;
 		if (kind === 'global' && !has_global_chat_capability(url))
 			return 404;
-		if (kind === 'poll-discussion' && !has_polls_capability(url))
+		if (kind === 'poll-discussion' && (!has_polls_capability(url) || !can_view_polls(get_request_mod_version(req))))
 			return 404;
 		if ((json.conversation_id !== null && typeof json.conversation_id !== 'number') ||
 			(json.conversation_id === null && kind === 'private' && typeof json.client_id !== 'number') ||
@@ -187,7 +187,7 @@ export function register_chat_routes(): void {
 		if (parts === null) return 400;
 		const content = parts ? parts_text(parts) : json.content;
 		const result = kind === 'poll-discussion' ? send_poll_discussion_message(
-			client_id, json.conversation_id as number, json.idempotency_key, content, Date.now(), parts
+			client_id, get_request_mod_version(req), json.conversation_id as number, json.idempotency_key, content, Date.now(), parts
 		) : kind === 'support' ? send_support_message(
 			client_id,
 			json.conversation_id,

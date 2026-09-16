@@ -477,8 +477,11 @@ const state = ui.createStore({
 	poll_can_create: false,
 	poll_creator_content: '',
 	poll_creator_options: [''],
+	poll_creator_choice_mode: 'multi',
 	poll_creator_poll_id: null,
 	poll_creator_pending: false,
+	poll_delete_target: null,
+	poll_delete_pending: false,
 	poll_vote_throttle_until: {},
 	chat_unread: 0,
 	chat_client_id: null,
@@ -731,6 +734,10 @@ const state = ui.createStore({
 
 	get num_notifications() {
 		return this.num_guild_applicants + this.num_transfer_offers + this.num_market_sold_items + this.chat_unread;
+	},
+
+	get num_uninteracted_open_polls() {
+		return this.polls.filter(poll => poll.open === true && poll.interacted !== true).length;
 	},
 
 	get chat_latest_message_id() {
@@ -3523,17 +3530,21 @@ async function refresh_chat_conversations() {
 	const res = await api_get('/api/chat/conversations?capabilities=' + CHAT_CAPABILITIES);
 	if (!Array.isArray(res?.conversations))
 		return;
-	state.chat_conversations = res.conversations;
+	const conversations = [...res.conversations];
 	const polls = await api_get('/api/polls?capabilities=' + POLLS_CAPABILITY);
 	if (Array.isArray(polls?.polls)) {
 		state.polls = polls.polls;
 		state.poll_revision = polls.revision;
 		state.poll_can_create = polls.can_create === true;
-		state.chat_conversations.push({ conversation_kind: 'polls', conversation_id: 1,
+		conversations.push({ conversation_kind: 'polls', conversation_id: 1,
 			participant: { client_id: null, display_name: getLangString('MOD_MP_POLLS_TITLE'), icon_id: 'multiplayer' },
 			created_at: state.polls.at(-1)?.created_at ?? 0, latest_message: state.polls.at(-1) ?? null,
 			unread_count: 0, blocked: false });
 	}
+	state.chat_conversations = conversations;
+	if (selected?.conversation_kind === 'poll-discussion' &&
+		!state.polls.some(poll => poll.poll_id === selected.conversation_id))
+		state.close_chat_conversation();
 	state.global_chat_enabled = res.global_chat?.enabled !== false;
 	state.guild_chat_state = res.guild_chat ?? { affiliated: false, enabled: state.guild_chat_enabled };
 	state.guild_chat_enabled = state.guild_chat_state.enabled !== false;
@@ -3597,6 +3608,13 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 		const after = quiet && Number.isSafeInteger(state.poll_revision) ? '&after=' + state.poll_revision : '';
 		const res = await api_get('/api/polls?capabilities=' + POLLS_CAPABILITY + after);
 		if (!Array.isArray(res?.polls)) return false;
+		if (Array.isArray(res.deleted_poll_ids) && res.deleted_poll_ids.length > 0) {
+			const deleted = new Set(res.deleted_poll_ids);
+			state.polls = state.polls.filter(poll => !deleted.has(poll.poll_id));
+			if (state.selected_chat_conversation?.conversation_kind === 'poll-discussion' &&
+				deleted.has(state.selected_chat_conversation.conversation_id))
+				state.close_chat_conversation();
+		}
 		for (const poll of res.polls) {
 			const index = state.polls.findIndex(entry => entry.poll_id === poll.poll_id);
 			if (index < 0) state.polls.push(poll); else state.polls[index] = poll;
@@ -3661,8 +3679,11 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 				: [...state.chat_messages, ...additions].sort((a, b) => a.message_id - b.message_id);
 			if (prepend || cursor === '')
 				state.chat_has_more = res.has_more === true;
-			if (additions.length > 0)
+			if (additions.length > 0) {
+				if (!quiet && !prepend && cursor === '')
+					await state.scroll_chat_messages_to_bottom();
 				await refresh_chat_conversations();
+			}
 			if (should_scroll_for_additions)
 				await state.scroll_chat_messages_to_bottom();
 		} else if (!quiet) {

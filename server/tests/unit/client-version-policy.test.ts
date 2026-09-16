@@ -1,5 +1,13 @@
 import { expect, test } from 'bun:test';
-import { is_client_version_unsupported, is_minimum_supported_version } from '../../client-version-policy';
+import { is_client_version_at_least, is_client_version_unsupported, is_minimum_supported_version } from '../../client-version-policy';
+
+test('compares strict semantic client versions', () => {
+	expect(is_client_version_at_least('1.5.14', '1.5.14')).toBe(true);
+	expect(is_client_version_at_least('1.6.0', '1.5.14')).toBe(true);
+	expect(is_client_version_at_least('1.5.13', '1.5.14')).toBe(false);
+	expect(is_client_version_at_least('1.5.14-beta.1', '1.5.14')).toBe(false);
+	expect(is_client_version_at_least(null, '1.5.14')).toBe(false);
+});
 
 test('validates operator support floors at the feature boundary', () => {
 	expect(is_minimum_supported_version('1.5.10')).toBe(true);

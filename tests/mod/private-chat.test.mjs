@@ -141,6 +141,7 @@ test('implements jittered foreground conversation polling and cursor-based histo
 	assert.match(main, /'&reaction_after=' \+ state\.chat_reaction_revision/);
 	assert.match(main, /Array\.isArray\(res\.reaction_updates\)[\s\S]*message\.reactions = update\.reactions/);
 	assert.match(main, /should_scroll_for_additions = quiet && additions\.length > 0 && state\.chat_messages_are_at_bottom\(\)[\s\S]*await state\.scroll_chat_messages_to_bottom\(\)/);
+	assert.match(main, /if \(additions\.length > 0\) \{\s*if \(!quiet && !prepend && cursor === ''\)\s*await state\.scroll_chat_messages_to_bottom\(\);\s*await refresh_chat_conversations\(\);\s*\}/);
 	assert.match(main, /'&before=' \+ this\.chat_before_cursor/);
 	assert.match(main, /poll_id !== chat_poll_id \|\| !chat_page_visible \|\| !polling\.is_foreground\(document\)/);
 	assert.match(main, /polling\.chat_poll_delay\(\)/);
@@ -332,6 +333,13 @@ test('keeps translation client-only, per conversation, and never translates the 
 	assert.equal(context.get_chat_translation_language(), 'en');
 	assert.equal(context.is_chat_translation_language_changed(), false);
 	assert.deepEqual(writes.at(-1), ['chat_translation_preferences', { 'global:1': 'en' }]);
+	context.selected_chat_conversation = { conversation_kind: 'polls', conversation_id: 1 };
+	context.chat_translation_language_input = 'zh-CN';
+	context.set_chat_translation_enabled(true);
+	assert.equal(context.get_chat_message_content({ sender_id: 8, content: 'Question',
+		translations: { 'zh-CN': '问题' }, translation_status: 'complete' }), '问题');
+	assert.equal(context.get_chat_message_content({ sender_id: 8, content: 'Option',
+		translations: { 'zh-CN': '选项' }, translation_status: 'complete' }), '选项');
 });
 
 test('defaults zh-CN Global and Guild Chat translation on while preserving explicit opt-out and English', () => {

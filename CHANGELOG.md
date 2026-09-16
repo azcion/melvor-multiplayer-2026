@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.14
+
+- Added Single Choice and Multi-Choice Polls, persistent Open or Closed indicators, and moderator controls that stop voting without closing the Poll Discussion.
+- Fixed Chat opening briefly showing the oldest loaded Messages before moving to the latest Messages.
+- Added automatic translation of Poll questions and options in the selected Chat translation language, including backfill for existing Polls and refresh after translation completes.
+- Simplified Poll presentation by removing card reactions and notification bells while keeping reactions in Poll Discussions.
+
 ## 1.5.13
 
 - Fixed the Chat item tag picker so its item list scrolls correctly on mobile.

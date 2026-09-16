@@ -364,9 +364,9 @@
 								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600">{{ state.get_chat_participant_name(conversation) }}</div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ state.get_chat_plain_content(conversation.latest_message) }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge badge-danger" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
 							</button>
 						</div>
-						<div class="mp-chat-conversations" v-if="state.polls.length > 0">
+						<div class="mp-chat-conversations">
 							<button type="button" class="mp-chat-conversation" v-for="conversation in state.polls_chat_conversations" :key="'polls'" @click="state.open_chat_conversation(conversation)">
-								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600"><lang-string lang-id="MOD_MP_POLLS_TITLE"></lang-string></div><div class="font-size-sm text-muted"><lang-string lang-id="MOD_MP_POLLS_SUBTITLE"></lang-string></div></div>
+								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600"><lang-string lang-id="MOD_MP_POLLS_TITLE"></lang-string></div><div class="font-size-sm text-muted"><lang-string lang-id="MOD_MP_POLLS_SUBTITLE"></lang-string></div></div><span class="badge badge-info" v-if="state.num_uninteracted_open_polls > 0">{{ state.num_uninteracted_open_polls }}</span>
 							</button>
 						</div>
 					</section>
@@ -403,7 +403,7 @@
 					<div class="mp-chat-buttons">
 						<button type="button" class="btn btn-sm btn-secondary" @click="state.close_chat_conversation()"><i class="fa fa-chevron-left mr-1"></i><lang-string lang-id="MOD_MP_CHAT_BACK"></lang-string></button>
 						<button type="button" aria-haspopup="dialog" :aria-label="getLangString('MOD_MP_CHAT_TRANSLATION_TITLE')" class="btn btn-sm btn-primary mp-translation-button" :aria-pressed="state.is_chat_translation_enabled()" @click="state.show_chat_translation_modal()"><i class="fa fa-language"></i></button>
-						<button type="button" class="btn btn-sm btn-secondary mp-notifications-button" :aria-label="getLangString(state.is_chat_notifications_enabled() ? 'MOD_MP_CHAT_NOTIFICATIONS_ENABLED' : 'MOD_MP_CHAT_NOTIFICATIONS_DISABLED')" :aria-pressed="state.is_chat_notifications_enabled()" :disabled="state.chat_notifications_busy" @click="state.toggle_chat_notifications()"><i class="fa" :class="state.is_chat_notifications_enabled() ? 'fa-bell' : 'fa-bell-slash'" aria-hidden="true"></i></button>
+						<button type="button" class="btn btn-sm btn-secondary mp-notifications-button" v-if="state.selected_chat_conversation?.conversation_kind !== 'polls' && state.selected_chat_conversation?.conversation_kind !== 'poll-discussion'" :aria-label="getLangString(state.is_chat_notifications_enabled() ? 'MOD_MP_CHAT_NOTIFICATIONS_ENABLED' : 'MOD_MP_CHAT_NOTIFICATIONS_DISABLED')" :aria-pressed="state.is_chat_notifications_enabled()" :disabled="state.chat_notifications_busy" @click="state.toggle_chat_notifications()"><i class="fa" :class="state.is_chat_notifications_enabled() ? 'fa-bell' : 'fa-bell-slash'" aria-hidden="true"></i></button>
 					</div>
 					<button type="button" class="mp-chat-participant" v-if="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private'" @click="state.show_chat_actions_modal()" aria-haspopup="dialog">
 						<img class="skill-icon-xs" :src="state.get_chat_participant_icon()">
@@ -414,14 +414,14 @@
 						<span class="font-w600">{{ state.get_chat_participant_name() }}</span>
 					</div>
 				</div>
+				<div class="font-w600 mp-poll-question mp-poll-discussion-question" v-if="state.selected_chat_conversation?.conversation_kind === 'poll-discussion' && state.selected_chat_conversation?.poll" v-text="state.get_chat_message_content(state.selected_chat_conversation?.poll)"></div>
 				<div class="mp-chat-messages" role="log" aria-live="polite" v-if="state.selected_chat_conversation?.conversation_kind === 'polls'">
 					<div class="text-center text-muted" v-if="state.polls.length === 0"><lang-string lang-id="MOD_MP_POLLS_EMPTY"></lang-string></div>
 					<div class="mp-poll-card" v-for="poll in state.polls" :key="poll.poll_id">
 						<div class="mp-chat-message-meta"><button type="button" class="mp-chat-message-author" @click="state.show_chat_message_member(poll)"><img class="mp-chat-message-avatar" :src="state.get_chat_message_icon(poll)" alt=""><span class="font-w600">{{ poll.sender.display_name }}</span></button><time>{{ state.format_chat_time(poll.created_at) }}</time></div>
-						<div class="font-w600 mp-poll-question">{{ poll.content }}</div>
-						<button type="button" class="mp-poll-option" :class="{ 'mp-poll-option-selected': option.selected }" v-for="option in poll.options" :key="option.option_id" @click="state.toggle_poll_option(poll, option)"><span>{{ option.content }}</span><span class="badge badge-primary">{{ option.vote_count }}</span></button>
-						<div class="mp-chat-reactions"><button type="button" class="mp-chat-reaction-summary" :class="{ 'mp-chat-reaction-reacted': summary.reacted }" v-for="summary in poll.reactions" :key="summary.reaction" @click="state.toggle_chat_reaction(poll, summary.reaction)"><span>{{ summary.reaction }}</span><span>{{ summary.count }}</span></button><button type="button" class="mp-chat-reaction-add" @click="state.toggle_chat_reaction_picker(poll, $event)">☻<span aria-hidden="true">+</span></button></div>
-						<div class="mp-poll-actions"><button type="button" class="btn btn-sm btn-primary" @click="state.open_poll_discussion(poll)"><lang-string lang-id="MOD_MP_POLLS_GO_DISCUSSION"></lang-string></button><button type="button" class="btn btn-sm btn-secondary" v-if="poll.can_edit" @click="state.show_poll_creator(poll)"><lang-string lang-id="MOD_MP_POLLS_ADD_OPTIONS"></lang-string></button></div>
+						<div class="font-w600 mp-poll-question">{{ state.get_chat_message_content(poll) }}</div>
+						<button type="button" class="mp-poll-option" :class="{ 'mp-poll-option-selected': option.selected }" :disabled="!poll.open" v-for="option in poll.options" :key="option.option_id" @click="state.toggle_poll_option(poll, option)"><span>{{ state.get_chat_message_content(option) }}</span><span class="badge badge-primary">{{ option.vote_count }}</span></button>
+						<div class="mp-poll-actions"><button type="button" class="btn btn-sm btn-primary" @click="state.open_poll_discussion(poll)"><lang-string lang-id="MOD_MP_POLLS_GO_DISCUSSION"></lang-string></button><button type="button" class="btn btn-sm btn-secondary" v-if="poll.can_edit && poll.open" @click="state.show_poll_creator(poll)"><lang-string lang-id="MOD_MP_POLLS_ADD_OPTIONS"></lang-string></button><button type="button" class="btn btn-sm btn-outline-danger" v-if="poll.can_delete" @click="state.show_poll_delete_confirmation(poll)"><lang-string lang-id="MOD_MP_POLLS_DELETE"></lang-string></button><div class="mp-poll-indicators"><button type="button" class="badge border-0" :class="poll.open ? 'badge-success' : 'badge-secondary'" v-if="poll.can_manage" @click="state.toggle_poll_open(poll)"><lang-string :lang-id="poll.open ? 'MOD_MP_POLLS_OPEN' : 'MOD_MP_POLLS_CLOSED'"></lang-string></button><span class="badge" :class="poll.open ? 'badge-success' : 'badge-secondary'" v-else><lang-string :lang-id="poll.open ? 'MOD_MP_POLLS_OPEN' : 'MOD_MP_POLLS_CLOSED'"></lang-string></span><span class="badge badge-info"><lang-string :lang-id="poll.choice_mode === 'single' ? 'MOD_MP_POLLS_SINGLE_CHOICE' : 'MOD_MP_POLLS_MULTI_CHOICE'"></lang-string></span></div></div>
 					</div>
 				</div>
 				<div class="mp-chat-messages" role="log" aria-live="polite" v-else>
@@ -478,11 +478,24 @@
 <template id="template-mp-poll-creator-modal">
 	<form class="mp-poll-creator" @submit="state.submit_poll($event)">
 		<textarea class="mp-input-text" maxlength="1000" rows="3" v-if="!state.poll_creator_poll_id" v-model="state.poll_creator_content" :placeholder="getLangString('MOD_MP_POLLS_MESSAGE')"></textarea>
+		<label v-if="!state.poll_creator_poll_id"><span class="font-w600"><lang-string lang-id="MOD_MP_POLLS_CHOICE_MODE"></lang-string></span><select class="mp-input-text mt-1" v-model="state.poll_creator_choice_mode"><option value="single">{{ getLangString('MOD_MP_POLLS_SINGLE_CHOICE') }}</option><option value="multi">{{ getLangString('MOD_MP_POLLS_MULTI_CHOICE') }}</option></select></label>
 		<div class="mp-poll-creator-row" v-for="(option, index) in state.poll_creator_options" :key="index"><input class="mp-input-text" maxlength="200" v-model="state.poll_creator_options[index]" :placeholder="getLangString('MOD_MP_POLLS_OPTION')"><button type="button" class="btn btn-sm btn-outline-danger" :disabled="state.poll_creator_options.length === 1" @click="state.remove_poll_creator_option(index)">×</button></div>
 		<button type="button" class="btn btn-sm btn-secondary" @click="state.add_poll_creator_option()"><lang-string lang-id="MOD_MP_POLLS_ADD_OPTION"></lang-string></button>
 		<div class="mp-button-tray"><button type="submit" class="btn btn-primary" :disabled="state.poll_creator_pending"><lang-string lang-id="MOD_MP_POLLS_PUBLISH"></lang-string></button><button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button></div>
 		<div id="mp-modal-error" class="d-none text-danger"></div>
 	</form>
+</template>
+<template id="template-mp-poll-delete-confirm-modal">
+	<div class="mp-modal-text">
+		<div class="font-w600"><lang-string lang-id="MOD_MP_POLLS_DELETE_CONFIRM_TITLE"></lang-string></div>
+		<div><lang-string lang-id="MOD_MP_POLLS_DELETE_CONFIRM_INFO"></lang-string></div>
+		<span id="mp-modal-error" class="d-none text-danger"></span>
+	</div>
+	<button type="button" class="btn btn-danger" @click="state.delete_poll($event)">
+		<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+		<lang-string lang-id="MOD_MP_POLLS_DELETE"></lang-string>
+	</button>
+	<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
 </template>
 <template id="template-mp-chat-budget-info-modal">
 	<div class="mp-modal-text mp-chat-budget-info">

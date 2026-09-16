@@ -354,7 +354,7 @@ export function install_chat_actions(runtime) {
 				this.chat_reaction_picker_style = {};
 				return;
 			}
-			const bubble = event?.currentTarget?.closest?.('.mp-chat-message-bubble, .mp-poll-card');
+			const bubble = event?.currentTarget?.closest?.('.mp-chat-message-bubble');
 			const bubble_rect = bubble?.getBoundingClientRect?.();
 			this.chat_reaction_picker_message_id = message.message_id;
 			this.chat_reaction_picker_style = { visibility: 'hidden' };
@@ -397,14 +397,10 @@ export function install_chat_actions(runtime) {
 			this.chat_reaction_picker_style = {};
 			let res = null;
 			try {
-				const endpoint = conversation.conversation_kind === 'polls'
-					? '/api/polls/reaction?capabilities=polls-v1'
-					: conversation.conversation_kind === 'global'
+				const endpoint = conversation.conversation_kind === 'global'
 					? '/api/chat/messages/reaction?capabilities=global-chat-v1'
 					: '/api/chat/messages/reaction';
-				res = await api_post(endpoint, conversation.conversation_kind === 'polls' ? {
-					poll_id: message.poll_id, reaction, reacted
-				} : {
+				res = await api_post(endpoint, {
 					conversation_kind: conversation.conversation_kind ?? 'private',
 					conversation_id: conversation.conversation_id,
 					message_id: message.message_id,
@@ -415,8 +411,8 @@ export function install_chat_actions(runtime) {
 				log('Chat reaction failed (%s)', e);
 			}
 			delete this.chat_reaction_pending[pending_key];
-			if (res?.success && (Array.isArray(res.reactions) || res.poll)) {
-				message.reactions = res.poll?.reactions ?? res.reactions;
+			if (res?.success && Array.isArray(res.reactions)) {
+				message.reactions = res.reactions;
 				if (Number.isSafeInteger(res.reaction_revision))
 					message.reaction_revision = res.reaction_revision;
 			}
@@ -428,8 +424,16 @@ export function install_chat_actions(runtime) {
 			if (!this.poll_can_create) return;
 			this.poll_creator_content = poll?.content ?? '';
 			this.poll_creator_options = [''];
+			this.poll_creator_choice_mode = poll?.choice_mode ?? 'multi';
 			this.poll_creator_poll_id = poll?.poll_id ?? null;
 			queue_modal(poll ? 'MOD_MP_POLLS_ADD_OPTIONS' : 'MOD_MP_POLLS_CREATE', 'poll-creator-modal',
+				this.get_chat_participant_icon(), { showConfirmButton: false }, true, false);
+		},
+
+		show_poll_delete_confirmation(poll) {
+			if (!poll?.can_delete) return;
+			this.poll_delete_target = poll;
+			queue_modal('MOD_MP_POLLS_DELETE_CONFIRM_TITLE', 'poll-delete-confirm-modal',
 				this.get_chat_participant_icon(), { showConfirmButton: false }, true, false);
 		},
 
@@ -447,7 +451,8 @@ export function install_chat_actions(runtime) {
 			const editing = Number.isSafeInteger(this.poll_creator_poll_id);
 			const res = await api_post((editing ? '/api/polls/options' : '/api/polls/create') + '?capabilities=polls-v1',
 				editing ? { poll_id: this.poll_creator_poll_id, options } : {
-					idempotency_key: crypto.randomUUID(), content: this.poll_creator_content.trim(), options
+					idempotency_key: crypto.randomUUID(), content: this.poll_creator_content.trim(), options,
+					choice_mode: this.poll_creator_choice_mode
 				});
 			this.poll_creator_pending = false;
 			if (!res?.success) return show_modal_error(getLangString('MOD_MP_GENERIC_ERR'));
@@ -456,7 +461,30 @@ export function install_chat_actions(runtime) {
 			this.close_modal();
 		},
 
+		async delete_poll(event) {
+			const poll = this.poll_delete_target;
+			if (!poll?.can_delete || this.poll_delete_pending) return;
+			this.poll_delete_pending = true;
+			const $button = event.currentTarget;
+			show_button_spinner($button);
+			const res = await api_post('/api/polls/delete?capabilities=polls-v1', { poll_id: poll.poll_id });
+			this.poll_delete_pending = false;
+			if (!res?.success) {
+				hide_button_spinner($button);
+				return show_modal_error(getLangString('MOD_MP_GENERIC_ERR'));
+			}
+			this.polls = this.polls.filter(entry => entry.poll_id !== poll.poll_id);
+			this.poll_delete_target = null;
+			if (this.selected_chat_conversation?.conversation_kind === 'poll-discussion' &&
+				this.selected_chat_conversation.conversation_id === poll.poll_id)
+				this.close_chat_conversation();
+			this.close_modal();
+			notify('MOD_MP_POLLS_DELETED', 'success');
+			await refresh_chat_conversations();
+		},
+
 		async toggle_poll_option(poll, option) {
+			if (!poll.open) return;
 			const key = poll.poll_id + ':' + option.option_id;
 			if ((this.poll_vote_throttle_until[key] ?? 0) > now()) return;
 			this.poll_vote_throttle_until[key] = now() + 400;
@@ -464,6 +492,17 @@ export function install_chat_actions(runtime) {
 				poll_id: poll.poll_id, option_id: option.option_id, selected: !option.selected
 			});
 			if (Number.isFinite(res?.retry_after_ms)) this.poll_vote_throttle_until[key] = now() + res.retry_after_ms;
+			if (res?.poll) {
+				const index = this.polls.findIndex(entry => entry.poll_id === poll.poll_id);
+				if (index >= 0) this.polls[index] = res.poll;
+			}
+		},
+
+		async toggle_poll_open(poll) {
+			if (!poll.can_manage) return;
+			const res = await api_post('/api/polls/status?capabilities=polls-v1', {
+				poll_id: poll.poll_id, open: !poll.open
+			});
 			if (res?.poll) {
 				const index = this.polls.findIndex(entry => entry.poll_id === poll.poll_id);
 				if (index >= 0) this.polls[index] = res.poll;

@@ -25,6 +25,25 @@ function translation_database(): Database {
 			translated_at INTEGER NOT NULL,
 			PRIMARY KEY (job_id, language)
 		);
+		CREATE TABLE poll_translation_jobs (
+			id INTEGER PRIMARY KEY,
+			content TEXT NOT NULL,
+			detected_language TEXT,
+			state TEXT NOT NULL,
+			attempts INTEGER NOT NULL,
+			enqueued_at INTEGER NOT NULL,
+			available_at INTEGER NOT NULL,
+			last_attempt_at INTEGER,
+			completed_at INTEGER,
+			last_error_code TEXT
+		);
+		CREATE TABLE poll_translations (
+			job_id INTEGER NOT NULL,
+			language TEXT NOT NULL,
+			content TEXT NOT NULL,
+			translated_at INTEGER NOT NULL,
+			PRIMARY KEY (job_id, language)
+		);
 	`);
 	return database;
 }
@@ -34,6 +53,27 @@ function inert_timer() {
 }
 
 describe('Chat translation worker', () => {
+	test('shares the worker rate boundary with isolated Poll translation jobs', async () => {
+		const database = translation_database();
+		database.run("INSERT INTO poll_translation_jobs VALUES (1, 'Poll question', NULL, 'queued', 0, 1000, 1000, NULL, NULL, NULL)");
+		const worker = new ChatTranslationWorker({
+			key: 'test-key', region: 'northeurope', database, now: () => 1_000,
+			set_timer: inert_timer,
+			fetcher: async () => Response.json([{ detectedLanguage: { language: 'en' }, translations: [
+				{ to: 'en', text: 'Poll question' }, { to: 'zh-Hans', text: '投票问题' }
+			] }])
+		});
+		worker.start();
+		await worker.run_once();
+		expect(database.query('SELECT state, detected_language FROM poll_translation_jobs').get()).toEqual({
+			state: 'complete', detected_language: 'en'
+		});
+		expect(database.query('SELECT language, content FROM poll_translations').all()).toEqual([
+			{ language: 'zh-CN', content: '投票问题' }
+		]);
+		expect(database.query('SELECT * FROM chat_message_translations').all()).toEqual([]);
+	});
+
 	test('auto-detects once, requests both presets, and omits the detected source translation', async () => {
 		const database = translation_database();
 		database.run("INSERT INTO chat_translation_jobs VALUES (1, 'Hello', NULL, 'queued', 0, 1000, 1000, NULL, NULL, NULL)");
