@@ -50,13 +50,10 @@ describe('Charitree decay acceleration', () => {
 		const database = fixture_database();
 		const now = 1_800_000_000_000;
 		add_wish(database, now);
-		database.query("UPDATE `service_settings` SET `value` = ? WHERE `key` = 'charity_wish_promo_started_at'").run(String(now));
-		database.query("UPDATE `service_settings` SET `value` = ? WHERE `key` = 'charity_wish_promo_ends_at'").run(String(now + 24 * HOUR_MS));
-		database.query("UPDATE `service_settings` SET `value` = '12' WHERE `key` = 'charity_wish_promo_decay_hours'").run();
 
 		const context = get_charity_decay_context(1, database, now);
 		expect(context).not.toBeNull();
-		expect(get_effective_charity_expiry(now + 90 * HOUR_MS, context)).toBe(now + 6 * HOUR_MS);
+		expect(get_effective_charity_expiry(now + 90 * HOUR_MS, context)).toBe(now + 14 * HOUR_MS);
 		expect(get_effective_charity_expiry(now + 10 * HOUR_MS, context))
 			.toBe(now + CHARITY_DECAY_MINIMUM_REMAINING_MS);
 		expect(get_effective_charity_expiry(now + HOUR_MS, context)).toBe(now + HOUR_MS);
@@ -68,9 +65,6 @@ describe('Charitree decay acceleration', () => {
 		const now = 1_800_000_000_000;
 		const first_id = add_wish(database, now - HOUR_MS);
 		const second_id = add_wish(database, now);
-		database.query("UPDATE `service_settings` SET `value` = ? WHERE `key` = 'charity_wish_promo_started_at'").run(String(now - 2 * HOUR_MS));
-		database.query("UPDATE `service_settings` SET `value` = ? WHERE `key` = 'charity_wish_promo_ends_at'").run(String(now + 24 * HOUR_MS));
-		database.query("UPDATE `service_settings` SET `value` = '12' WHERE `key` = 'charity_wish_promo_decay_hours'").run();
 
 		const first_context = get_charity_decay_context(1, database, now);
 		expect(first_context?.activation_at).toBe(now - HOUR_MS);

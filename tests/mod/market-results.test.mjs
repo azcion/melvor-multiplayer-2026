@@ -100,9 +100,10 @@ test('captures Marketplace queries and ignores stale generations', async () => {
 	assert.match(search, /const item_id = state\.market_filter_item/);
 	assert.match(search, /const item_namespaces = get_local_item_namespaces\(\)/);
 	assert.match(search, /api_post\('\/api\/market\/catalog',[\s\S]*direction\s*\n?\s*\}/);
-	assert.match(search, /unresolved_item_ids = \(catalog\.item_ids \?\? \[\]\)\.filter\(item_id => !is_local_item_resolved\(item_id\)\)/);
+	assert.match(search, /unresolved_item_ids = \(catalog\.item_ids \?\? \[\]\)\.filter\(item_id =>[\s\S]*!is_local_item_resolved\(item_id\) \|\| is_market_item_hidden_by_discovery\(item_id\)/);
 	assert.match(search, /market_owner: item\.buyer \?\? item\.seller \?\? null/);
 	assert.match(search, /filter_items_for_owned_dlc\([\s\S]*res\.items \?\? \[\][\s\S]*item => item\.item_id[\s\S]*owned_dlc_namespaces/);
+	assert.match(search, /filter\(item => !is_market_item_hidden_by_discovery\(item\.item_id\)\)/);
 	assert.equal((search.match(/generation !== market_search_generation/g) ?? []).length, 2);
 	assert.match(search, /if \(generation === market_search_generation\)\s*state\.market_search_loading = false/);
 });
@@ -124,6 +125,8 @@ test('limits Marketplace discovery to locally owned official DLC', async () => {
 	assert.match(main, /owned_dlc_namespaces = client_runtime\.get_owned_dlc\(melvor_cloud_manager\)/);
 	assert.match(namespaces, /get_resolved_item_namespaces[\s\S]*is_item_available_for_owned_dlc[\s\S]*owned_dlc_namespaces/);
 	assert.match(filters, /return is_local_item_available\(item\.id\)/);
+	assert.match(main, /const MARKET_FILTER_EXCLUDED_ITEM_IDS = new Set\(\['melvorItA:Unknown_Chest'\]\)/);
+	assert.match(filters, /MARKET_FILTER_EXCLUDED_ITEM_IDS\.has\(item\.id\)/);
 	assert.match(filters, /sort_market_filter_items\(filter_items, state\.market_listings\)/);
 	assert.match(main, /has_sorted_market_filter_items = false;\s*state\.market_listings_loading = true/);
 	assert.match(actions, /async choose_market_filter\(\)[\s\S]*await update_market_listings\(\);[\s\S]*load_market_filter_items\(\)/);
@@ -271,6 +274,35 @@ test('exposes distinct buy-order creation and fulfillment flows', async () => {
 	assert.match(style, /.mp-market-create-buy-order-plus-vertical {[\s\S]*width: 2px[\s\S]*height: 100%/);
 	assert.doesNotMatch(templates, /item\.buyer\.icon_id/);
 	assert.match(templates, /item\.market_owner\.icon_id/);
+});
+
+test('enforces the Guild Temperance policy with character-local item discovery', async () => {
+	const [main, actions, templates, languages] = await Promise.all([
+		read_client_source(),
+		readFile(new URL('../../mod/client-actions-market-campaign-charity.mjs', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
+		Promise.all((await import('../../mod/localization.mjs')).MULTIPLAYER_SUPPORTED_LANGUAGES.map(async language => ({
+			language,
+			strings: JSON.parse(await readFile(new URL(`../../mod/data/lang/${language}.json`, import.meta.url), 'utf8'))
+		})))
+	]);
+
+	assert.match(main, /function is_market_item_discovered\(item_id\)[\s\S]*game\.stats\.itemFindCount\(item\) > 0/);
+	assert.match(main, /const eligible = this\.market_discovery_restriction_enabled[\s\S]*!is_market_item_hidden_by_discovery\(item\.id\)/);
+	assert.match(main, /function is_market_item_hidden_by_discovery\(item_id\)[\s\S]*state\.market_discovery_restriction_enabled[\s\S]*!is_market_item_discovered\(item_id\)/);
+	assert.match(main, /apply_market_discovery_policy\(catalog\)/);
+	assert.match(main, /apply_market_discovery_policy\(res\)/);
+	assert.match(actions, /api_post\('\/api\/market\/buy-order'[\s\S]*item_discovered: is_market_item_discovered\(item\.id\)/);
+	assert.match(actions, /api_post\('\/api\/market\/buy'[\s\S]*item_discovered: is_market_item_discovered\(state\.market_buy_item\.item_id\)/);
+	assert.match(actions, /api_post\('\/api\/market\/haggle'[\s\S]*item_discovered: is_market_item_discovered\(item\.item_id\)/);
+	assert.match(actions, /item\.direction === 'sell' && state\.market_discovery_restriction_enabled/);
+	assert.match(templates, /state\.market_discovery_restriction_enabled[\s\S]*MOD_MP_MARKET_TEMPERANCE_INFO/);
+	for (const { language, strings } of languages) {
+		assert.ok(strings.MOD_MP_COUNCIL_TYPE_TEMPERANCE, language);
+		assert.ok(strings.MOD_MP_COUNCIL_TYPE_INDULGENCE, language);
+		assert.ok(strings.MOD_MP_MARKET_DISCOVERY_REQUIRED, language);
+		assert.ok(strings.MOD_MP_MARKET_TEMPERANCE_INFO, language);
+	}
 });
 
 test('renders a responsive buy-order form with a calculated escrow breakdown', async () => {
@@ -567,6 +599,20 @@ test('places Haggle before the direct Marketplace action and exposes source-labe
 	assert.ok(result_actions.indexOf('MOD_MP_BUTTON_MARKET_HAGGLE') < result_actions.indexOf('MOD_MP_BUTTON_MARKET_BUY'));
 	assert.match(templates, /haggle\.claim && !haggle\.claim\.claimed[\s\S]*MOD_MP_BUTTON_CLAIM/);
 	assert.match(actions, /\/api\/market\/haggle[\s\S]*command_id: crypto\.randomUUID\(\)/);
+});
+
+test('keeps Haggle controls mounted while an accepted claim replaces active actions', async () => {
+	const templates = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
+	const transfers = templates.slice(
+		templates.indexOf('<div class="block tabbable w-100 mp-col mp-transfer-haggle"'),
+		templates.indexOf('\n\t\t\t\t\t<template v-for="gift"')
+	);
+
+	assert.match(transfers, /v-show="haggle\.claim && !haggle\.claim\.claimed"/);
+	assert.match(transfers, /v-show="\(!haggle\.claim \|\| haggle\.claim\.claimed\) && haggle\.status == 'active'"/);
+	assert.match(transfers, /v-show="haggle\.claim && haggle\.claim\.item_qty > 0"/);
+	assert.match(transfers, /v-show="haggle\.claim && haggle\.claim\.gp > 0"/);
+	assert.doesNotMatch(transfers, /v-(?:if|else-if)="haggle\.(?:claim|status)/);
 });
 
 test('splits Marketplace metric labels from values and keeps GP icons attached', async () => {

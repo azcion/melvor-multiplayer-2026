@@ -122,6 +122,7 @@ describe('SQLite persistence probe', () => {
 			'support_virtual_welcomes',
 			'trade_items',
 			'trade_offers',
+			'update_section_translations',
 			'update_sections'
 		]);
 	});

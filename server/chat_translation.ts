@@ -9,10 +9,14 @@ export const CHAT_TRANSLATION_REQUEST_INTERVAL_MS = 1_000;
 export const CHAT_TRANSLATION_REQUEST_TIMEOUT_MS = 10_000;
 export const CHAT_TRANSLATION_MAX_ATTEMPTS = 4;
 export const CHAT_TRANSLATION_PENDING_MS = 10_000;
+export const TRANSLATION_IDLE_POLL_MS = 30_000;
 
 type ChatTranslationLanguage = typeof CHAT_TRANSLATION_LANGUAGES[number];
-type TranslationQueue = 'chat' | 'poll';
-type TranslationJob = { queue: TranslationQueue; id: number; content: string; attempts: number; available_at: number };
+type TranslationQueue = 'chat' | 'poll' | 'update';
+type TranslationJob = { queue: TranslationQueue; id: number; content: string; language: ChatTranslationLanguage | null;
+	attempts: number; available_at: number };
+type TranslationResult = { detected_language: string;
+	translations: Array<{ language: ChatTranslationLanguage; content: string; parts?: ChatPart[] }> };
 type AzureTranslationResponse = Array<{
 	detectedLanguage?: { language?: string };
 	translations?: Array<{ text?: string; to?: string }>;
@@ -84,6 +88,7 @@ export class ChatTranslationWorker {
 		this.stopped = false;
 		this.database.query("UPDATE `chat_translation_jobs` SET `state` = 'queued' WHERE `state` = 'processing'").run();
 		this.database.query("UPDATE `poll_translation_jobs` SET `state` = 'queued' WHERE `state` = 'processing'").run();
+		this.database.query("UPDATE `update_section_translations` SET `state` = 'queued' WHERE `state` = 'processing'").run();
 		this.schedule(0);
 	}
 
@@ -112,15 +117,18 @@ export class ChatTranslationWorker {
 
 	private next_job(): TranslationJob | null {
 		return this.database.query<TranslationJob, []>(
-			"SELECT 'chat' AS `queue`, `id`, `content`, `attempts`, `available_at`, `enqueued_at` " +
+			"SELECT 'chat' AS `queue`, `id`, `content`, NULL AS `language`, `attempts`, `available_at`, `enqueued_at` " +
 			"FROM `chat_translation_jobs` WHERE `state` = 'queued' UNION ALL " +
-			"SELECT 'poll' AS `queue`, `id`, `content`, `attempts`, `available_at`, `enqueued_at` " +
-			"FROM `poll_translation_jobs` WHERE `state` = 'queued' ORDER BY `enqueued_at`, `queue`, `id` LIMIT 1"
+			"SELECT 'poll' AS `queue`, `id`, `content`, NULL AS `language`, `attempts`, `available_at`, `enqueued_at` " +
+			"FROM `poll_translation_jobs` WHERE `state` = 'queued' UNION ALL " +
+			"SELECT 'update' AS `queue`, `id`, `source_content` AS `content`, `language`, `attempts`, `available_at`, `enqueued_at` " +
+			"FROM `update_section_translations` WHERE `state` = 'queued' ORDER BY `enqueued_at`, `queue`, `id` LIMIT 1"
 		).get();
 	}
 
-	private job_table(queue: TranslationQueue): 'chat_translation_jobs' | 'poll_translation_jobs' {
-		return queue === 'chat' ? 'chat_translation_jobs' : 'poll_translation_jobs';
+	private job_table(queue: TranslationQueue): 'chat_translation_jobs' | 'poll_translation_jobs' | 'update_section_translations' {
+		return queue === 'chat' ? 'chat_translation_jobs' :
+			queue === 'poll' ? 'poll_translation_jobs' : 'update_section_translations';
 	}
 
 	private translations_table(queue: TranslationQueue): 'chat_message_translations' | 'poll_translations' {
@@ -131,8 +139,10 @@ export class ChatTranslationWorker {
 		if (this.stopped || this.running || !this.key)
 			return;
 		const job = this.next_job();
-		if (!job)
+		if (!job) {
+			this.schedule(TRANSLATION_IDLE_POLL_MS);
 			return;
+		}
 		const started_at = this.now();
 		const wait = Math.max(job.available_at, this.next_request_at) - started_at;
 		if (wait > 0) {
@@ -143,26 +153,51 @@ export class ChatTranslationWorker {
 		this.next_request_at = started_at + CHAT_TRANSLATION_REQUEST_INTERVAL_MS;
 		const job_table = this.job_table(job.queue);
 		const translations_table = this.translations_table(job.queue);
-		this.database.query(`UPDATE \`${job_table}\` SET \`state\` = 'processing', \`attempts\` = \`attempts\` + 1, ` +
-			'`last_attempt_at` = ? WHERE `id` = ?').run(started_at, job.id);
+		const claimed = job.queue === 'update'
+			? this.database.query("UPDATE `update_section_translations` SET `state` = 'processing', " +
+				'`attempts` = `attempts` + 1, `last_attempt_at` = ? ' +
+				"WHERE `id` = ? AND `source_content` = ? AND `state` = 'queued'").run(started_at, job.id, job.content)
+			: this.database.query(`UPDATE \`${job_table}\` SET \`state\` = 'processing', \`attempts\` = \`attempts\` + 1, ` +
+				"`last_attempt_at` = ? WHERE `id` = ? AND `state` = 'queued'").run(started_at, job.id);
+		if (claimed.changes === 0) {
+			this.running = false;
+			this.schedule(0);
+			return;
+		}
 		try {
 			const body = job.queue === 'chat' ? this.database.query<{ parts: string }, [number]>(
 				'SELECT parts FROM chat_message_bodies WHERE job_id = ?').get(job.id) : null;
 			const parts = body ? JSON.parse(body.parts) as ChatPart[] : undefined;
-			const result = parts && !parts.some(part => part.type === 'text' && /[\p{L}\p{N}]/u.test(part.text))
-				? { detected_language: 'und', translations: [] } : await this.translate(job.content, parts);
+			const translatable = /[\p{L}\p{N}]/u.test(job.content);
+			const result: TranslationResult = !translatable
+				? { detected_language: 'und', translations: job.queue === 'update' && job.language
+					? [{ language: job.language, content: job.content }] : [] }
+				: parts && !parts.some(part => part.type === 'text' && /[\p{L}\p{N}]/u.test(part.text))
+					? { detected_language: 'und', translations: [] } : await this.translate(job.content, parts);
 			const completed_at = this.now();
 			this.database.transaction(() => {
-				for (const translation of result.translations)
-					this.database.query(`INSERT INTO \`${translations_table}\` (\`job_id\`, \`language\`, \`content\`, \`translated_at\`) ` +
-						'VALUES (?, ?, ?, ?) ON CONFLICT (`job_id`, `language`) DO UPDATE SET ' +
-						'`content` = excluded.`content`, `translated_at` = excluded.`translated_at`')
-						.run(job.id, translation.language, translation.content, completed_at);
-				if (parts) this.database.query('UPDATE chat_message_bodies SET translations = ? WHERE job_id = ?')
-					.run(JSON.stringify(Object.fromEntries(result.translations.map(translation => [translation.language, translation.parts]))), job.id);
-				this.database.query(`UPDATE \`${job_table}\` SET \`state\` = 'complete', \`detected_language\` = ?, ` +
-					'`completed_at` = ?, `last_error_code` = NULL WHERE `id` = ?')
-					.run(result.detected_language, completed_at, job.id);
+				if (job.queue === 'update') {
+					const detected_language = client_language[result.detected_language];
+					const translation = result.translations.find(candidate => candidate.language === job.language);
+					const content = translation?.content ?? (detected_language === job.language ? job.content : null);
+					if (content === null)
+						throw { code: 'missing_target_translation' };
+					this.database.query("UPDATE `update_section_translations` SET `content` = ?, `state` = 'complete', " +
+						"`detected_language` = ?, `completed_at` = ?, `last_error_code` = NULL " +
+						"WHERE `id` = ? AND `source_content` = ? AND `state` = 'processing'")
+						.run(content, result.detected_language, completed_at, job.id, job.content);
+				} else {
+					for (const translation of result.translations)
+						this.database.query(`INSERT INTO \`${translations_table}\` (\`job_id\`, \`language\`, \`content\`, \`translated_at\`) ` +
+							'VALUES (?, ?, ?, ?) ON CONFLICT (`job_id`, `language`) DO UPDATE SET ' +
+							'`content` = excluded.`content`, `translated_at` = excluded.`translated_at`')
+							.run(job.id, translation.language, translation.content, completed_at);
+					if (parts) this.database.query('UPDATE chat_message_bodies SET translations = ? WHERE job_id = ?')
+						.run(JSON.stringify(Object.fromEntries(result.translations.map(translation => [translation.language, translation.parts]))), job.id);
+					this.database.query(`UPDATE \`${job_table}\` SET \`state\` = 'complete', \`detected_language\` = ?, ` +
+						'`completed_at` = ?, `last_error_code` = NULL WHERE `id` = ?')
+						.run(result.detected_language, completed_at, job.id);
+				}
 			}).immediate();
 		} catch (error) {
 			const failure = error as { retry_after_ms?: number; code?: string };
@@ -172,16 +207,22 @@ export class ChatTranslationWorker {
 			const available_at = this.now() + retry_after_ms;
 			if (failure.retry_after_ms !== undefined)
 				this.next_request_at = Math.max(this.next_request_at, available_at);
-			this.database.query(`UPDATE \`${job_table}\` SET \`state\` = ?, \`available_at\` = ?, \`last_error_code\` = ? ` +
-				'WHERE `id` = ?').run(dead ? 'dead' : 'queued', available_at,
-				failure.code ?? 'request_failed', job.id);
+			if (job.queue === 'update')
+				this.database.query('UPDATE `update_section_translations` SET `state` = ?, `available_at` = ?, ' +
+					'`last_error_code` = ? WHERE `id` = ? AND `source_content` = ? AND `state` = \'processing\'')
+					.run(dead ? 'dead' : 'queued', available_at, failure.code ?? 'request_failed', job.id, job.content);
+			else
+				this.database.query(`UPDATE \`${job_table}\` SET \`state\` = ?, \`available_at\` = ?, \`last_error_code\` = ? ` +
+					"WHERE `id` = ? AND `state` = 'processing'").run(dead ? 'dead' : 'queued', available_at,
+					failure.code ?? 'request_failed', job.id);
 			write_log('error', `message=${JSON.stringify('Azure Translator request failed')} ` +
 				`job_id=${job.id} code=${JSON.stringify(failure.code ?? 'request_failed')} attempt=${attempts}`);
 		} finally {
 			this.running = false;
 			const next = this.next_job();
-			if (next)
-				this.schedule(Math.max(0, Math.max(next.available_at, this.next_request_at) - this.now()));
+			this.schedule(next
+				? Math.max(0, Math.max(next.available_at, this.next_request_at) - this.now())
+				: TRANSLATION_IDLE_POLL_MS);
 		}
 	}
 

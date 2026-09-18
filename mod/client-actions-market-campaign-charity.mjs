@@ -28,6 +28,7 @@ export function install_market_campaign_charity_actions(runtime) {
 		is_button_spinning,
 		is_local_item_available = () => true,
 		is_local_item_resolved,
+		is_market_item_discovered,
 		load_market_filter_items,
 		numberWithCommas,
 		notify,
@@ -97,6 +98,8 @@ export function install_market_campaign_charity_actions(runtime) {
 			if (!is_local_item_available(item_id))
 				return;
 			if (state.market_active_tab === 'create-filter') {
+				if (state.market_discovery_restriction_enabled && !is_market_item_discovered(item_id))
+					return notify_error('MOD_MP_MARKET_DISCOVERY_REQUIRED');
 				const item = game.items.getObjectByID(item_id);
 				state.market_create_item = item_id;
 				state.market_create_price = item ? game.bank.getItemSalePrice(item) : 1;
@@ -146,6 +149,8 @@ export function install_market_campaign_charity_actions(runtime) {
 		show_market_buy_modal(item) {
 			if (!is_local_item_available(item?.item_id))
 				return;
+			if (state.market_discovery_restriction_enabled && !is_market_item_discovered(item.item_id))
+				return notify_error('MOD_MP_MARKET_DISCOVERY_REQUIRED');
 			this.market_buy_item = item;
 
 			const item_name = this.get_item_name(item.item_id);
@@ -166,6 +171,9 @@ export function install_market_campaign_charity_actions(runtime) {
 				return notify_error('MOD_MP_GENERIC_ERR');
 			if (!is_local_item_available(state.market_buy_item.item_id))
 				return;
+			if (state.market_discovery_restriction_enabled &&
+				!is_market_item_discovered(state.market_buy_item.item_id))
+				return notify_error('MOD_MP_MARKET_DISCOVERY_REQUIRED');
 
 			if (state.item_slider_value <= 0)
 				return notify_error('MOD_MP_MARKET_BUY_NOTHING');
@@ -182,6 +190,7 @@ export function install_market_campaign_charity_actions(runtime) {
 			const res = await api_post('/api/market/buy', {
 				id: state.market_buy_item.id,
 				qty: state.item_slider_value,
+				item_discovered: is_market_item_discovered(state.market_buy_item.item_id),
 				command_id: crypto.randomUUID()
 			});
 
@@ -283,6 +292,8 @@ export function install_market_campaign_charity_actions(runtime) {
 				return notify_error('MOD_MP_MARKET_CREATE_ITEM_REQUIRED');
 			if (!is_local_item_available(item.id))
 				return;
+			if (state.market_discovery_restriction_enabled && !is_market_item_discovered(item.id))
+				return notify_error('MOD_MP_MARKET_DISCOVERY_REQUIRED');
 
 			const item_qty = Number(this.market_create_qty);
 			const item_buy_price = Number(this.market_create_price);
@@ -301,6 +312,7 @@ export function install_market_campaign_charity_actions(runtime) {
 				item_id: item.id,
 				item_qty,
 				item_buy_price,
+				item_discovered: is_market_item_discovered(item.id),
 				command_id: crypto.randomUUID()
 			});
 			if (res?.success && await reconcile_economy_receipts([res.receipt])) {
@@ -375,6 +387,9 @@ export function install_market_campaign_charity_actions(runtime) {
 		show_market_haggle_modal(item) {
 			if (!is_local_item_available(item?.item_id))
 				return;
+			if (item.direction === 'sell' && state.market_discovery_restriction_enabled &&
+				!is_market_item_discovered(item.item_id))
+				return notify_error('MOD_MP_MARKET_DISCOVERY_REQUIRED');
 			this.market_haggle_item = item;
 			this.market_haggle_price = item.price;
 			queue_modal(getLangString('MOD_MP_MARKET_HAGGLE_TITLE'), 'market-haggle-modal',
@@ -403,6 +418,9 @@ export function install_market_campaign_charity_actions(runtime) {
 			const item = this.market_haggle_item;
 			if (!is_local_item_available(item?.item_id))
 				return;
+			if (item.direction === 'sell' && state.market_discovery_restriction_enabled &&
+				!is_market_item_discovered(item.item_id))
+				return notify_error('MOD_MP_MARKET_DISCOVERY_REQUIRED');
 			const requested_qty = this.item_slider_value;
 			const price = Number(this.market_haggle_price);
 			if (!item || !Number.isSafeInteger(requested_qty) || requested_qty <= 0 || !Number.isSafeInteger(price) || price <= 0)
@@ -421,7 +439,10 @@ export function install_market_campaign_charity_actions(runtime) {
 				return notify_error('MOD_MP_MARKET_NOT_ENOUGH_ITEM');
 			const $button = event.currentTarget;
 			show_button_spinner($button);
-			const res = await api_post('/api/market/haggle', { id: item.id, qty, price, command_id: crypto.randomUUID() });
+			const res = await api_post('/api/market/haggle', {
+				id: item.id, qty, price, item_discovered: is_market_item_discovered(item.item_id),
+				command_id: crypto.randomUUID()
+			});
 			if (res?.success && await reconcile_economy_receipts([res.receipt])) {
 				await close_modal_and_wait('market-haggle-modal');
 				await update_market_search();

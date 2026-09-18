@@ -39,6 +39,8 @@ test('wires Council petition controls, resolved-history toggle, and action descr
 	assert.match(templates, /can_raise_council_petition\('enclosure'\)/);
 	assert.match(templates, /can_raise_council_petition\('interdict'\)/);
 	assert.match(templates, /can_raise_council_petition\('heresy'\)/);
+	assert.match(templates, /can_raise_council_petition\('temperance'\)/);
+	assert.match(templates, /can_raise_council_petition\('indulgence'\)/);
 	assert.match(templates, /MOD_MP_COUNCIL_INGRATITUDE_DESCRIPTION/);
 	assert.match(templates, /MOD_MP_COUNCIL_SACRILEGE_DESCRIPTION/);
 	assert.match(templates, /MOD_MP_COUNCIL_BENEFICENCE_DESCRIPTION/);
@@ -66,9 +68,13 @@ test('wires Council petition controls, resolved-history toggle, and action descr
 	assert.equal(language.MOD_MP_COUNCIL_TYPE_ENCLOSURE, 'Petition of Enclosure');
 	assert.equal(language.MOD_MP_COUNCIL_TYPE_INTERDICT, 'Petition of Interdict');
 	assert.equal(language.MOD_MP_COUNCIL_TYPE_HERESY, 'Petition of Heresy');
+	assert.equal(language.MOD_MP_COUNCIL_TYPE_TEMPERANCE, 'Petition of Temperance');
+	assert.equal(language.MOD_MP_COUNCIL_TYPE_INDULGENCE, 'Petition of Indulgence');
+	assert.match(language.MOD_MP_COUNCIL_TEMPERANCE_CONFIRM, /items they have discovered/);
+	assert.match(language.MOD_MP_COUNCIL_INDULGENCE_CONFIRM, /before discovering that item/);
 	assert.equal(language.MOD_MP_COUNCIL_INTERDICT_DESCRIPTION, 'Call for every member Using Cheats to be confined to Social Only.');
 	assert.equal(language.MOD_MP_COUNCIL_HERESY_DESCRIPTION, 'Call for the Guild to tolerate heresy, allowing members Using Cheats full access once more.');
-	assert.match(templates, /\['charitree_beneficence', 'fellowship', 'heresy'\]/);
+	assert.match(templates, /\['charitree_beneficence', 'fellowship', 'heresy', 'indulgence'\]/);
 	assert.match(language.MOD_MP_COUNCIL_FELLOWSHIP_CONFIRM, /wait 4 hours/);
 	assert.match(language.MOD_MP_COUNCIL_ENCLOSURE_DESCRIPTION, /close its gates/);
 	assert.equal(language.MOD_MP_COUNCIL_APPELLATION_DESCRIPTION, 'Call for the Guild to take a new name.');

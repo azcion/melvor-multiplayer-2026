@@ -255,6 +255,43 @@ describe('Private Chat API', () => {
 		expect(self.status).toBe(400);
 	});
 
+	test('creates and sends new Private conversations across Guild and Guildless boundaries', async () => {
+		const first_guild = await register_guild_client('Cross Guild Sender', 'Cross Guild One');
+		const second_guild = await register_guild_client('Cross Guild Recipient', 'Cross Guild Two');
+		const first_guildless = await register_client('Guildless Sender');
+		const second_guildless = await register_client('Guildless Recipient');
+
+		const cross_guild = await send_chat(
+			first_guild.session_token, null, 'Across Guilds', undefined, second_guild.client_id
+		);
+		const guildless = await send_chat(
+			first_guildless.session_token, null, 'Without Guilds', undefined, second_guildless.client_id
+		);
+
+		expect(cross_guild.json.success).toBe(true);
+		expect(guildless.json.success).toBe(true);
+		expect((await messages(
+			second_guild.session_token, cross_guild.json.message?.conversation_id as number
+		)).json.messages[0].content).toBe('Across Guilds');
+		expect((await messages(
+			second_guildless.session_token, guildless.json.message?.conversation_id as number
+		)).json.messages[0].content).toBe('Without Guilds');
+	});
+
+	test('keeps privacy opt-out authoritative for a new cross-Guild Private conversation', async () => {
+		const sender = await register_guild_client('Private Cross Sender', 'Private Cross One');
+		const recipient = await register_guild_client('Private Cross Recipient', 'Private Cross Two');
+		await post_json('/api/chat/privacy', { messaging_enabled: false }, recipient.session_token);
+
+		const sent = await send_chat(sender.session_token, null, 'Not delivered', undefined, recipient.client_id);
+
+		expect(sent.json.error_lang).toBe('MOD_MP_CHAT_RECIPIENT_UNAVAILABLE');
+		expect(await db_count(
+			'SELECT COUNT(*) AS count FROM `chat_conversations` WHERE `participant_low_id` = ? AND `participant_high_id` = ?',
+			[Math.min(sender.client_id, recipient.client_id), Math.max(sender.client_id, recipient.client_id)]
+		)).toBe(0);
+	});
+
 	test('shares privacy-filtered chat profiles across Guilds without current activity', async () => {
 		const pair = await make_guildmates('Profile Subject', 'Profile Guildmate', 'Visible Guild');
 		const outsider = await register_client('Profile Outsider');

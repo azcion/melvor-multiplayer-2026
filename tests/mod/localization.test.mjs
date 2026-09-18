@@ -140,7 +140,8 @@ test('localization inventory covers runtime and server errors without unused ent
 		dynamic.add('MOD_MP_MARKET_HAGGLE_STATUS_' + state);
 	for (const state of ['ACTIVE', 'GRANTED', 'DENIED', 'LAPSED', 'WITHDRAWN'])
 		dynamic.add('MOD_MP_COUNCIL_OUTCOME_' + state);
-	for (const action of ['WINNOWING', 'FELLOWSHIP', 'ENCLOSURE', 'INTERDICT', 'HERESY', 'INGRATITUDE', 'SACRILEGE', 'BENEFICENCE']) {
+	for (const action of ['WINNOWING', 'FELLOWSHIP', 'ENCLOSURE', 'INTERDICT', 'HERESY', 'TEMPERANCE', 'INDULGENCE',
+		'INGRATITUDE', 'SACRILEGE', 'BENEFICENCE']) {
 		for (const suffix of ['CONFIRM', 'PROPOSAL'])
 			dynamic.add(`MOD_MP_COUNCIL_${action}_${suffix}`);
 	}

@@ -64,19 +64,26 @@ test('deduplicates items when marketplace and recent picker categories overlap',
 });
 
 function context() {
-	const game = { items: { getObjectByID: id => id === sword.item_id ? { name: '青铜剑' } : undefined } };
+	const item = { id: sword.item_id, name: '青铜剑', media: 'sword.png', wikiName: 'Bronze_Sword' };
+	const market_page = { id: 'multiplayer:Multiplayer_Market' };
+	const game = { items: { getObjectByID: id => id === sword.item_id ? item : undefined }, pages: { getObjectByID: id => id === market_page.id ? market_page : undefined } };
 	const state = { chat_item_drafts: {}, chat_drafts: {}, chat_draft: '', chat_translation_preferences: { 'private:2': 'en' },
 		chat_client_id: 1, selected_chat_conversation: { conversation_kind: 'private', conversation_id: 1, participant: { client_id: 2 } },
 		chat_sending_conversations: {}, chat_pending_sends: {}, chat_messages: [],
+		is_guild_member: true, is_social_only: false, selected_chat_item_id: '', chat_item_market_checked: false,
 		get chat_sending() { return false; }, scroll_chat_messages_to_bottom: async () => {} };
 	let response = null;
 	const requests = [];
+	const opened = [], pages = [];
 	const runtime = { document: { querySelector: () => null }, state, game, chat_items: items, get_chat_conversation_key: conversation => conversation ? 'private:' + conversation.participant.client_id : null,
 		getLangString: id => id, crypto: { randomUUID: () => String(Math.random()) }, chat_view_generation: 1,
-		api_post: async (url, payload) => { requests.push(payload); return response; }, log() {},
+		api_post: async (url, payload) => { requests.push(payload); return typeof response === 'function' ? response(url, payload) : response; }, log() {},
+		queue_modal: (...args) => { state.queued_modal = args; }, openLink: url => opened.push(url), changePage: page => pages.push(page),
+		get_local_item_namespaces: () => ['melvorD'], update_market_search: async () => { state.market_searches = (state.market_searches ?? 0) + 1; },
 		refresh_chat_conversations: async () => {}, start_chat_polling() {}, now: () => 0 };
 	Object.assign(state, install_chat_actions(runtime));
-	return { state, requests, set_response: value => { response = value; } };
+	state.close_modal_and_wait = async template => { state.closed_modal = template; };
+	return { state, requests, opened, pages, market_page, set_response: value => { response = value; } };
 }
 
 test('rendering resolves item names independently of chat translation and keeps missing items readable', () => {
@@ -88,6 +95,40 @@ test('rendering resolves item names independently of chat translation and keeps 
 	assert.equal(state.get_chat_plain_content({ parts: [stardust] }), 'Golden Stardust');
 	assert.deepEqual(state.get_chat_message_parts({ ...message, sender_id: 1 }), message.parts);
 	assert.deepEqual(state.get_chat_message_parts({ content: '<img onerror=x>', sender_id: 1 }), [text('<img onerror=x>')]);
+});
+
+test('item actions use the native wiki name and open a matching marketplace direction', async () => {
+	const { state, requests, opened, pages, market_page, set_response } = context();
+	state.show_chat_item_actions(sword.item_id);
+	assert.equal(state.selected_chat_item_id, sword.item_id);
+	assert.equal(state.queued_modal[1], 'chat-item-actions-modal');
+	assert.equal(state.queued_modal[0], '青铜剑');
+	assert.equal(state.queued_modal[4], false);
+	state.open_chat_item_wiki();
+	assert.deepEqual(opened, ['https://wiki.melvoridle.com/w/Bronze_Sword']);
+
+	set_response((_url, payload) => ({ success: true, total_items: payload.direction === 'buy' ? 1 : 0 }));
+	await state.check_chat_item_marketplace();
+	assert.deepEqual(requests.map(request => request.direction), ['sell', 'buy']);
+	assert.ok(requests.every(request => request.item_id === sword.item_id && request.item_namespaces[0] === 'melvorD'));
+	assert.equal(state.market_direction, 'buy');
+	assert.equal(state.market_filter_item, sword.item_id);
+	assert.equal(state.closed_modal, 'chat-item-actions-modal');
+	assert.deepEqual(pages, [market_page]);
+	assert.equal(state.market_searches, 1);
+});
+
+test('item marketplace check prefers Sell Listings and locks an empty result until reopen', async () => {
+	const { state, set_response } = context();
+	state.show_chat_item_actions(sword.item_id);
+	set_response((_url, payload) => ({ success: true, total_items: payload.direction === 'sell' ? 2 : 1 }));
+	await state.check_chat_item_marketplace();
+	assert.equal(state.market_direction, 'sell');
+
+	state.show_chat_item_actions(sword.item_id);
+	set_response(() => ({ success: true, total_items: 0 }));
+	await state.check_chat_item_marketplace();
+	assert.equal(state.chat_item_market_checked, true);
 });
 
 test('sends structured tags, reuses identical retries, and changes the key when same-named item identity changes', async () => {
@@ -154,4 +195,20 @@ test('picker renders changing results without Petite Vue structural directives',
 	assert.doesNotMatch(picker, /get_chat_item_results\(\).*v-(?:if|show)/);
 	assert.match(style, /\.mp-chat-item-results \{[\s\S]*overflow-y: scroll;[\s\S]*-webkit-overflow-scrolling: touch;[\s\S]*touch-action: pan-y;[\s\S]*overscroll-behavior-y: contain;/);
 	assert.match(style, /\.mp-chat-item-picker-modal-popup \.swal2-html-container \{[\s\S]*overflow: visible;/);
+});
+
+test('rendered message item tags expose the item actions modal', async () => {
+	const [chat_items, templates, style] = await Promise.all([
+		readFile(new URL('../../mod/chat-items.mjs', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8')
+	]);
+	assert.match(chat_items, /document\.createElement\(editing \? 'span' : 'button'\)/);
+	assert.match(chat_items, /state\.show_chat_item_actions\(part\.item_id\)/);
+	assert.match(templates, /template-mp-chat-item-actions-modal/);
+	assert.match(templates, /MOD_MP_CHAT_ITEM_WIKI/);
+	assert.match(templates, /state\.check_chat_item_marketplace\(\$event\)/);
+	assert.match(templates, /class="btn mp-actions-marketplace" v-show=/);
+	assert.match(style, /\.mp-chat-item-actions \{[\s\S]*flex-direction: column/);
+	assert.match(style, /\.mp-chat-item-actions \.btn-outline-secondary \{[\s\S]*color: #fff;/);
 });

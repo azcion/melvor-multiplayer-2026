@@ -41,6 +41,7 @@ const CHARITY_WEIRD_GLOOP_ID = 'melvorD:Weird_Gloop';
 
 const MARKET_ITEMS_PER_PAGE = 30;
 const MARKET_FILTER_ITEMS_LIMIT = 24;
+const MARKET_FILTER_EXCLUDED_ITEM_IDS = new Set(['melvorItA:Unknown_Chest']);
 const EQUIPMENT_SYNC_DELAY = 150;
 const STATUS_SYNC_DELAY = 150;
 const STATUS_MIN_SYNC_INTERVAL = 10 * 1000;
@@ -381,6 +382,7 @@ const state = ui.createStore({
 	market_filter_items: [],
 	market_search_loading: false,
 	market_listings_loading: false,
+	market_discovery_restriction_enabled: false,
 	market_sort: 'recent',
 	market_completed: [],
 	market_fulfillment_notice_items: [],
@@ -388,6 +390,8 @@ const state = ui.createStore({
 
 	market_total_items: 0,
 	market_current_page: 1,
+	selected_chat_item_id: '',
+	chat_item_market_checked: false,
 
 	events: {
 		friend_requests: [],
@@ -462,7 +466,8 @@ const state = ui.createStore({
 	chat_recent_items: [],
 	chat_pending_sends: {},
 	chat_sending_conversations: {},
-	chat_reaction_choices: ['👍', '👎', '❤️', '😂', '😭', '💀', '👀', '🔥', '💯', '🎉', '🤔', '😮', '😬', '😡', '🗿', '🙏', '👏', '😎'],
+	chat_reaction_choices: ['👍', '👎', '❤️', '😂', '😭', '💀', '👀', '🔥', '💯', '🎉', '🤔', '😮', '😬', '😡', '🗿', '👋', '👏', '😎'],
+	chat_reaction_random_choices: [],
 	chat_reaction_revision: null,
 	chat_reaction_picker_message_id: null,
 	chat_reaction_picker_style: {},
@@ -1045,9 +1050,12 @@ const state = ui.createStore({
 
 	get market_filter_items_filtered() {
 		const search = this.market_filter_search_sanitized;
+		const eligible = this.market_discovery_restriction_enabled
+			? this.market_filter_items.filter(item => !is_market_item_hidden_by_discovery(item.id))
+			: this.market_filter_items;
 		const items = search.length === 0
-			? this.market_filter_items
-			: this.market_filter_items.filter(item => item.name_lower.includes(search));
+			? eligible
+			: eligible.filter(item => item.name_lower.includes(search));
 
 		return items.slice(0, MARKET_FILTER_ITEMS_LIMIT);
 	},
@@ -1109,6 +1117,7 @@ function create_action_runtime() {
 		close_modal_and_wait,
 		destroy_selected_transfer_inventory,
 		get_chat_conversation_key,
+		get_local_item_namespaces,
 		get_client_events,
 		get_friends,
 		getLangString,
@@ -1123,6 +1132,7 @@ function create_action_runtime() {
 		is_button_spinning,
 		is_local_item_available,
 		is_local_item_resolved,
+		is_market_item_discovered,
 		load_market_filter_items,
 		sort_market_filter_items,
 		log,
@@ -1165,6 +1175,7 @@ function create_action_runtime() {
 		update_market_haggles,
 		update_market_page,
 		update_market_search,
+		openLink,
 		update_transfer_contents,
 		update_raid_nav,
 		formatNumber,
@@ -1800,6 +1811,28 @@ function get_local_item_namespaces() {
 		.filter(namespace => item_visibility.is_item_available_for_owned_dlc(`${namespace}:Item`, owned_dlc_namespaces));
 }
 
+function is_market_item_discovered(item_id) {
+	const item = game.items.getObjectByID(item_id);
+	return item !== undefined && game.stats.itemFindCount(item) > 0;
+}
+
+function is_market_item_hidden_by_discovery(item_id) {
+	return state.market_discovery_restriction_enabled && !is_market_item_discovered(item_id);
+}
+
+function apply_market_discovery_policy(response) {
+	if (typeof response?.market_discovery_restriction_enabled !== 'boolean')
+		return;
+	const changed = state.market_discovery_restriction_enabled !== response.market_discovery_restriction_enabled;
+	state.market_discovery_restriction_enabled = response.market_discovery_restriction_enabled;
+	if (!changed)
+		return;
+	has_sorted_market_filter_items = false;
+	if (state.market_discovery_restriction_enabled && state.market_create_item !== null &&
+		!is_market_item_discovered(state.market_create_item))
+		state.market_create_item = null;
+}
+
 function add_bank_item(item_id, amount, found = false) {
 	const currency = transfer_currency_support?.get_transfer_currency(game, item_id)?.currency;
 	if (currency !== undefined)
@@ -2179,6 +2212,7 @@ async function update_market_listings() {
 	state.market_listings_loading = true;
 	try {
 		const res = await api_get('/api/market/listings');
+		apply_market_discovery_policy(res);
 		state.market_listings = (res?.items ?? []).map(item => ({
 			...item,
 			direction: item.direction ?? 'sell',
@@ -2234,7 +2268,8 @@ async function update_market_search() {
 	try {
 		let unresolved_item_ids;
 		if (item_id !== null)
-			unresolved_item_ids = [];
+			unresolved_item_ids = !is_local_item_resolved(item_id) || is_market_item_hidden_by_discovery(item_id)
+				? [item_id] : [];
 		else {
 			const catalog = await api_post('/api/market/catalog', {
 				item_namespaces,
@@ -2242,12 +2277,14 @@ async function update_market_search() {
 			});
 			if (generation !== market_search_generation)
 				return;
+			apply_market_discovery_policy(catalog);
 			if (!catalog?.success) {
 				state.market_results = [];
 				state.market_total_items = 0;
 				return;
 			}
-			unresolved_item_ids = (catalog.item_ids ?? []).filter(item_id => !is_local_item_resolved(item_id));
+			unresolved_item_ids = (catalog.item_ids ?? []).filter(item_id =>
+				!is_local_item_resolved(item_id) || is_market_item_hidden_by_discovery(item_id));
 		}
 
 		const res = await api_post('/api/market/search', {
@@ -2260,12 +2297,13 @@ async function update_market_search() {
 		});
 		if (generation !== market_search_generation)
 			return;
+		apply_market_discovery_policy(res);
 		if (res?.success) {
 			state.market_current_page = res.page;
 			state.market_total_items = res.total_items;
 			state.market_results = item_visibility.filter_items_for_owned_dlc(
 				res.items ?? [], item => item.item_id, owned_dlc_namespaces
-			).map(item => ({
+			).filter(item => !is_market_item_hidden_by_discovery(item.item_id)).map(item => ({
 				...item,
 				direction: item.direction ?? direction,
 				market_owner: item.buyer ?? item.seller ?? null
@@ -2282,7 +2320,7 @@ async function update_market_search() {
 
 function load_market_filter_items() {
 	const filter_items = [...game.items.registeredObjects].map(e => e[1]).filter(item => {
-		if (item.category === '')
+		if (item.category === '' || MARKET_FILTER_EXCLUDED_ITEM_IDS.has(item.id))
 			return false;
 
 		return is_local_item_available(item.id);
@@ -4099,6 +4137,7 @@ async function refresh_council(page = 0, append = false) {
 			state.council_resolved_page = res.resolved_page ?? page;
 			state.council_has_more = res.has_more === true;
 			state.council_available_petition_types = res.available_petition_types ?? [];
+			apply_market_discovery_policy(res);
 		}
 	} finally {
 		state.council_loading = false;

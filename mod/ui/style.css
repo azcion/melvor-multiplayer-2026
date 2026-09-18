@@ -954,6 +954,20 @@ input.form-control[type="number"] {
 	width: fit-content;
 }
 
+.mp-chat-item-actions {
+	display: flex;
+	flex-direction: column;
+	gap: .75rem;
+}
+
+.mp-chat-item-actions .btn {
+	width: 100%;
+}
+
+.mp-chat-item-actions .btn-outline-secondary {
+	color: #fff;
+}
+
 .mp-chat-message-bubble {
 	position: relative;
 	width: fit-content;
@@ -3261,13 +3275,19 @@ mp-chat-composer { display: block; min-width: 0; }
 .mp-chat-item {
 	display: inline;
 	padding: 1px 3px;
+	border: 0;
 	border-radius: 4px;
 	background: rgba(149, 175, 223, .12);
+	color: inherit;
 	box-decoration-break: clone;
 	-webkit-box-decoration-break: clone;
+	font: inherit;
 	font-weight: 600;
+	line-height: inherit;
 	unicode-bidi: isolate;
 }
+.mp-chat-message-body .mp-chat-item { cursor: pointer; }
+.mp-chat-editor .mp-chat-item, .mp-chat-item:disabled { cursor: default; }
 .mp-chat-item img {
 	width: 1.15em;
 	height: 1.15em;

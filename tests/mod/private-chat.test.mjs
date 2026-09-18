@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { install_chat_actions } from '../../mod/client-actions-chat.mjs';
+import {
+	CHAT_REACTION_EMOJI_VERSION,
+	CHAT_REACTION_RANDOM_CANDIDATES,
+	install_chat_actions
+} from '../../mod/client-actions-chat.mjs';
 import { read_client_source } from './source.mjs';
 
 const root = new URL('../../', import.meta.url);
@@ -446,6 +450,7 @@ test('renders the curated reaction picker and applies aggregate reaction toggles
 	);
 	const requests = [];
 	let current_time = 1000;
+	let random_value = 0;
 	const actions = install_chat_actions({
 		api_post: async (endpoint, body) => {
 			requests.push({ endpoint, body });
@@ -454,11 +459,14 @@ test('renders the curated reaction picker and applies aggregate reaction toggles
 		},
 		getLangString: id => id,
 		log() {},
-		now: () => current_time
+		now: () => current_time,
+		random: () => random_value
 	});
 	const message = { message_id: 42, reactions: [{ reaction: '🔥', count: 1, reacted: false }] };
 	const state = {
 		selected_chat_conversation: { conversation_kind: 'guild', conversation_id: 9 },
+		chat_reaction_choices: ['👍', '👎', '❤️', '😂', '😭', '💀', '👀', '🔥', '💯', '🎉', '🤔', '😮', '😬', '😡', '🗿', '👋', '👏', '😎'],
+		chat_reaction_random_choices: [],
 		chat_reaction_picker_message_id: null,
 		chat_reaction_picker_style: {},
 		chat_reaction_pending: {},
@@ -469,20 +477,38 @@ test('renders the curated reaction picker and applies aggregate reaction toggles
 
 	await actions.toggle_chat_reaction_picker.call(state, message);
 	assert.equal(state.chat_reaction_picker_message_id, 42);
+	const first_random_choices = [...state.chat_reaction_random_choices];
+	assert.equal(CHAT_REACTION_EMOJI_VERSION, '16.0');
+	assert.equal(first_random_choices.length, 6);
+	assert.equal(new Set(first_random_choices).size, 6);
+	assert.ok(first_random_choices.every(reaction => CHAT_REACTION_RANDOM_CANDIDATES.includes(reaction)));
+	assert.ok(first_random_choices.every(reaction => !state.chat_reaction_choices.includes(reaction)));
+	await actions.toggle_chat_reaction_picker.call(state, message);
+	random_value = .999999;
+	await actions.toggle_chat_reaction_picker.call(state, message);
+	assert.notDeepEqual(state.chat_reaction_random_choices, first_random_choices);
 	await actions.toggle_chat_reaction.call(state, message, '🔥');
 	await actions.toggle_chat_reaction.call(state, message, '🔥');
 	current_time += 1000;
 	await actions.toggle_chat_reaction.call(state, message, '🔥');
+	state.selected_chat_conversation = { conversation_kind: 'poll-discussion', conversation_id: 3 };
+	current_time += 1000;
+	await actions.toggle_chat_reaction.call(state, message, '💯');
 	assert.deepEqual(requests, [{ endpoint: '/api/chat/messages/reaction', body: {
 		conversation_kind: 'guild', conversation_id: 9, message_id: 42, reaction: '🔥', reacted: true
 	} }, { endpoint: '/api/chat/messages/reaction', body: {
 		conversation_kind: 'guild', conversation_id: 9, message_id: 42, reaction: '🔥', reacted: false
+	} }, { endpoint: '/api/chat/messages/reaction?capabilities=polls-v1', body: {
+		conversation_kind: 'poll-discussion', conversation_id: 3, message_id: 42, reaction: '💯', reacted: true
 	} }]);
-	assert.deepEqual(message.reactions, [{ reaction: '🔥', count: 2, reacted: false }]);
-	assert.equal(message.reaction_revision, 2);
+	assert.deepEqual(message.reactions, [{ reaction: '💯', count: 2, reacted: true }]);
+	assert.equal(message.reaction_revision, 3);
 	assert.equal(state.chat_reaction_picker_message_id, null);
 
+	assert.match(main, /chat_reaction_choices: \['👍', '👎', '❤️', '😂', '😭', '💀', '👀', '🔥', '💯', '🎉', '🤔', '😮', '😬', '😡', '🗿', '👋', '👏', '😎'\]/);
+	assert.doesNotMatch(main, /chat_reaction_choices:[^\n]*🙏/);
 	assert.match(chat_view, /state\.chat_reaction_choices/);
+	assert.match(chat_view, /state\.chat_reaction_random_choices/);
 	assert.match(chat_view, />☻<span aria-hidden="true">\+<\/span>/);
 	assert.ok(chat_view.indexOf('class="mp-chat-reaction-picker"') > chat_view.indexOf('class="block-content mp-chat-compose"'));
 	assert.match(chat_view, /v-for="summary in message\.reactions"/);

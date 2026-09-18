@@ -1,3 +1,77 @@
+// Generated from Unicode Emoji 16.0 emoji-test.txt.
+// Only fully-qualified, single-code-point emoji are included, excluding the fixed picker set.
+export const CHAT_REACTION_EMOJI_VERSION = '16.0';
+export const CHAT_REACTION_RANDOM_CANDIDATES = Object.freeze([
+	"😀", "😃", "😄", "😁", "😆", "😅", "🤣", "🙂", "🙃", "🫠", "😉", "😊", "😇", "🥰", "😍", "🤩", "😘", "😗", "😚", "😙",
+	"🥲", "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🫢", "🫣", "🤫", "🫡", "🤐", "🤨", "😐", "😑", "😶", "🫥", "😏",
+	"😒", "🙄", "🤥", "🫨", "😌", "😔", "😪", "🤤", "😴", "🫩", "😷", "🤒", "🤕", "🤢", "🤮", "🤧", "🥵", "🥶", "🥴", "😵",
+	"🤯", "🤠", "🥳", "🥸", "🤓", "🧐", "😕", "🫤", "😟", "🙁", "😯", "😲", "😳", "🥺", "🥹", "😦", "😧", "😨", "😰", "😥",
+	"😢", "😱", "😖", "😣", "😞", "😓", "😩", "😫", "🥱", "😤", "😠", "🤬", "😈", "👿", "💩", "🤡", "👹", "👺", "👻", "👽",
+	"👾", "🤖", "😺", "😸", "😹", "😻", "😼", "😽", "🙀", "😿", "😾", "🙈", "🙉", "🙊", "💌", "💘", "💝", "💖", "💗", "💓",
+	"💞", "💕", "💟", "💔", "🩷", "🧡", "💛", "💚", "💙", "🩵", "💜", "🤎", "🖤", "🩶", "🤍", "💋", "💢", "💥", "💫", "💦",
+	"💨", "💬", "💭", "💤", "🤚", "✋", "🖖", "🫱", "🫲", "🫳", "🫴", "🫷", "🫸", "👌", "🤌", "🤏", "🤞", "🫰", "🤟", "🤘",
+	"🤙", "👈", "👉", "👆", "🖕", "👇", "🫵", "✊", "👊", "🤛", "🤜", "🙌", "🫶", "👐", "🤲", "🤝", "🙏", "💅", "🤳", "💪",
+	"🦾", "🦿", "🦵", "🦶", "👂", "🦻", "👃", "🧠", "🫀", "🫁", "🦷", "🦴", "👅", "👄", "🫦", "👶", "🧒", "👦", "👧", "🧑",
+	"👱", "👨", "🧔", "👩", "🧓", "👴", "👵", "🙍", "🙎", "🙅", "🙆", "💁", "🙋", "🧏", "🙇", "🤦", "🤷", "👮", "💂", "🥷",
+	"👷", "🫅", "🤴", "👸", "👳", "👲", "🧕", "🤵", "👰", "🤰", "🫃", "🫄", "🤱", "👼", "🎅", "🤶", "🦸", "🦹", "🧙", "🧚",
+	"🧛", "🧜", "🧝", "🧞", "🧟", "🧌", "💆", "💇", "🚶", "🧍", "🧎", "🏃", "💃", "🕺", "👯", "🧖", "🧗", "🤺", "🏇", "🏂",
+	"🏄", "🚣", "🏊", "🚴", "🚵", "🤸", "🤼", "🤽", "🤾", "🤹", "🧘", "🛀", "🛌", "👭", "👫", "👬", "💏", "💑", "👤", "👥",
+	"🫂", "👪", "👣", "🫆", "🐵", "🐒", "🦍", "🦧", "🐶", "🐕", "🦮", "🐩", "🐺", "🦊", "🦝", "🐱", "🐈", "🦁", "🐯", "🐅",
+	"🐆", "🐴", "🫎", "🫏", "🐎", "🦄", "🦓", "🦌", "🦬", "🐮", "🐂", "🐃", "🐄", "🐷", "🐖", "🐗", "🐽", "🐏", "🐑", "🐐",
+	"🐪", "🐫", "🦙", "🦒", "🐘", "🦣", "🦏", "🦛", "🐭", "🐁", "🐀", "🐹", "🐰", "🐇", "🦫", "🦔", "🦇", "🐻", "🐨", "🐼",
+	"🦥", "🦦", "🦨", "🦘", "🦡", "🐾", "🦃", "🐔", "🐓", "🐣", "🐤", "🐥", "🐦", "🐧", "🦅", "🦆", "🦢", "🦉", "🦤", "🪶",
+	"🦩", "🦚", "🦜", "🪽", "🪿", "🐸", "🐊", "🐢", "🦎", "🐍", "🐲", "🐉", "🦕", "🦖", "🐳", "🐋", "🐬", "🦭", "🐟", "🐠",
+	"🐡", "🦈", "🐙", "🐚", "🪸", "🪼", "🦀", "🦞", "🦐", "🦑", "🦪", "🐌", "🦋", "🐛", "🐜", "🐝", "🪲", "🐞", "🦗", "🪳",
+	"🦂", "🦟", "🪰", "🪱", "🦠", "💐", "🌸", "💮", "🪷", "🌹", "🥀", "🌺", "🌻", "🌼", "🌷", "🪻", "🌱", "🪴", "🌲", "🌳",
+	"🌴", "🌵", "🌾", "🌿", "🍀", "🍁", "🍂", "🍃", "🪹", "🪺", "🍄", "🪾", "🍇", "🍈", "🍉", "🍊", "🍋", "🍌", "🍍", "🥭",
+	"🍎", "🍏", "🍐", "🍑", "🍒", "🍓", "🫐", "🥝", "🍅", "🫒", "🥥", "🥑", "🍆", "🥔", "🥕", "🌽", "🫑", "🥒", "🥬", "🥦",
+	"🧄", "🧅", "🥜", "🫘", "🌰", "🫚", "🫛", "🫜", "🍞", "🥐", "🥖", "🫓", "🥨", "🥯", "🥞", "🧇", "🧀", "🍖", "🍗", "🥩",
+	"🥓", "🍔", "🍟", "🍕", "🌭", "🥪", "🌮", "🌯", "🫔", "🥙", "🧆", "🥚", "🍳", "🥘", "🍲", "🫕", "🥣", "🥗", "🍿", "🧈",
+	"🧂", "🥫", "🍱", "🍘", "🍙", "🍚", "🍛", "🍜", "🍝", "🍠", "🍢", "🍣", "🍤", "🍥", "🥮", "🍡", "🥟", "🥠", "🥡", "🍦",
+	"🍧", "🍨", "🍩", "🍪", "🎂", "🍰", "🧁", "🥧", "🍫", "🍬", "🍭", "🍮", "🍯", "🍼", "🥛", "☕", "🫖", "🍵", "🍶", "🍾",
+	"🍷", "🍸", "🍹", "🍺", "🍻", "🥂", "🥃", "🫗", "🥤", "🧋", "🧃", "🧉", "🧊", "🥢", "🍴", "🥄", "🔪", "🫙", "🏺", "🌍",
+	"🌎", "🌏", "🌐", "🗾", "🧭", "🌋", "🗻", "🧱", "🪨", "🪵", "🛖", "🏠", "🏡", "🏢", "🏣", "🏤", "🏥", "🏦", "🏨", "🏩",
+	"🏪", "🏫", "🏬", "🏭", "🏯", "🏰", "💒", "🗼", "🗽", "⛪", "🕌", "🛕", "🕍", "🕋", "⛲", "⛺", "🌁", "🌃", "🌄", "🌅",
+	"🌆", "🌇", "🌉", "🎠", "🛝", "🎡", "🎢", "💈", "🎪", "🚂", "🚃", "🚄", "🚅", "🚆", "🚇", "🚈", "🚉", "🚊", "🚝", "🚞",
+	"🚋", "🚌", "🚍", "🚎", "🚐", "🚑", "🚒", "🚓", "🚔", "🚕", "🚖", "🚗", "🚘", "🚙", "🛻", "🚚", "🚛", "🚜", "🛵", "🦽",
+	"🦼", "🛺", "🚲", "🛴", "🛹", "🛼", "🚏", "⛽", "🛞", "🚨", "🚥", "🚦", "🛑", "🚧", "⚓", "🛟", "⛵", "🛶", "🚤", "🚢",
+	"🛫", "🛬", "🪂", "💺", "🚁", "🚟", "🚠", "🚡", "🚀", "🛸", "🧳", "⌛", "⏳", "⌚", "⏰", "🕛", "🕧", "🕐", "🕜", "🕑",
+	"🕝", "🕒", "🕞", "🕓", "🕟", "🕔", "🕠", "🕕", "🕡", "🕖", "🕢", "🕗", "🕣", "🕘", "🕤", "🕙", "🕥", "🕚", "🕦", "🌑",
+	"🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘", "🌙", "🌚", "🌛", "🌜", "🌝", "🌞", "🪐", "⭐", "🌟", "🌠", "🌌", "⛅", "🌀",
+	"🌈", "🌂", "☔", "⚡", "⛄", "💧", "🌊", "🎃", "🎄", "🎆", "🎇", "🧨", "✨", "🎈", "🎊", "🎋", "🎍", "🎎", "🎏", "🎐",
+	"🎑", "🧧", "🎀", "🎁", "🎫", "🏆", "🏅", "🥇", "🥈", "🥉", "⚽", "⚾", "🥎", "🏀", "🏐", "🏈", "🏉", "🎾", "🥏", "🎳",
+	"🏏", "🏑", "🏒", "🥍", "🏓", "🏸", "🥊", "🥋", "🥅", "⛳", "🎣", "🤿", "🎽", "🎿", "🛷", "🥌", "🎯", "🪀", "🪁", "🔫",
+	"🎱", "🔮", "🪄", "🎮", "🎰", "🎲", "🧩", "🧸", "🪅", "🪩", "🪆", "🃏", "🀄", "🎴", "🎭", "🎨", "🧵", "🪡", "🧶", "🪢",
+	"👓", "🥽", "🥼", "🦺", "👔", "👕", "👖", "🧣", "🧤", "🧥", "🧦", "👗", "👘", "🥻", "🩱", "🩲", "🩳", "👙", "👚", "🪭",
+	"👛", "👜", "👝", "🎒", "🩴", "👞", "👟", "🥾", "🥿", "👠", "👡", "🩰", "👢", "🪮", "👑", "👒", "🎩", "🎓", "🧢", "🪖",
+	"📿", "💄", "💍", "💎", "🔇", "🔈", "🔉", "🔊", "📢", "📣", "📯", "🔔", "🔕", "🎼", "🎵", "🎶", "🎤", "🎧", "📻", "🎷",
+	"🪗", "🎸", "🎹", "🎺", "🎻", "🪕", "🥁", "🪘", "🪇", "🪈", "🪉", "📱", "📲", "📞", "📟", "📠", "🔋", "🪫", "🔌", "💻",
+	"💽", "💾", "💿", "📀", "🧮", "🎥", "🎬", "📺", "📷", "📸", "📹", "📼", "🔍", "🔎", "💡", "🔦", "🏮", "🪔", "📔", "📕",
+	"📖", "📗", "📘", "📙", "📚", "📓", "📒", "📃", "📜", "📄", "📰", "📑", "🔖", "💰", "🪙", "💴", "💵", "💶", "💷", "💸",
+	"💳", "🧾", "💹", "📧", "📨", "📩", "📤", "📥", "📦", "📫", "📪", "📬", "📭", "📮", "📝", "💼", "📁", "📂", "📅", "📆",
+	"📇", "📈", "📉", "📊", "📋", "📌", "📍", "📎", "📏", "📐", "🔒", "🔓", "🔏", "🔐", "🔑", "🔨", "🪓", "💣", "🪃", "🏹",
+	"🪚", "🔧", "🪛", "🔩", "🦯", "🔗", "🪝", "🧰", "🧲", "🪜", "🪏", "🧪", "🧫", "🧬", "🔬", "🔭", "📡", "💉", "🩸", "💊",
+	"🩹", "🩼", "🩺", "🩻", "🚪", "🛗", "🪞", "🪟", "🪑", "🚽", "🪠", "🚿", "🛁", "🪤", "🪒", "🧴", "🧷", "🧹", "🧺", "🧻",
+	"🪣", "🧼", "🫧", "🪥", "🧽", "🧯", "🛒", "🚬", "🪦", "🧿", "🪬", "🪧", "🪪", "🏧", "🚮", "🚰", "♿", "🚹", "🚺", "🚻",
+	"🚼", "🚾", "🛂", "🛃", "🛄", "🛅", "🚸", "⛔", "🚫", "🚳", "🚭", "🚯", "🚱", "🚷", "📵", "🔞", "🔃", "🔄", "🔙", "🔚",
+	"🔛", "🔜", "🔝", "🛐", "🕎", "🔯", "🪯", "♈", "♉", "♊", "♋", "♌", "♍", "♎", "♏", "♐", "♑", "♒", "♓", "⛎",
+	"🔀", "🔁", "🔂", "⏩", "⏪", "🔼", "⏫", "🔽", "⏬", "🎦", "🔅", "🔆", "📶", "🛜", "📳", "📴", "➕", "➖", "➗", "🟰",
+	"❓", "❔", "❕", "❗", "💱", "💲", "🔱", "📛", "🔰", "⭕", "✅", "❌", "❎", "➰", "➿", "🫟", "🔟", "🔠", "🔡", "🔢",
+	"🔣", "🔤", "🆎", "🆑", "🆒", "🆓", "🆔", "🆕", "🆖", "🆗", "🆘", "🆙", "🆚", "🈁", "🈶", "🈯", "🉐", "🈹", "🈚", "🈲",
+	"🉑", "🈸", "🈴", "🈳", "🈺", "🈵", "🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "🟤", "⚫", "⚪", "🟥", "🟧", "🟨", "🟩", "🟦",
+	"🟪", "🟫", "⬛", "⬜", "◾", "◽", "🔶", "🔷", "🔸", "🔹", "🔺", "🔻", "💠", "🔘", "🔳", "🔲", "🏁", "🚩", "🎌", "🏴",
+]);
+
+export function sample_chat_reactions(excluded_reactions, count = 6, random = Math.random) {
+	const excluded = new Set(excluded_reactions ?? []);
+	const pool = CHAT_REACTION_RANDOM_CANDIDATES.filter(reaction => !excluded.has(reaction));
+	for (let index = pool.length - 1; index > 0; index--) {
+		const swap = Math.floor(random() * (index + 1));
+		[pool[index], pool[swap]] = [pool[swap], pool[index]];
+	}
+	return pool.slice(0, Math.max(0, count));
+}
+
 export function install_chat_actions(runtime) {
 	const {
 		document,
@@ -9,6 +83,7 @@ export function install_chat_actions(runtime) {
 		crypto,
 		game,
 		get_chat_conversation_key,
+		get_local_item_namespaces = () => [],
 		getLangString,
 		get_instance_storage_item = () => undefined,
 		hide_button_spinner,
@@ -18,6 +93,7 @@ export function install_chat_actions(runtime) {
 		nativeManager,
 		next_tick = () => Promise.resolve(),
 		now = () => Date.now(),
+		random = Math.random,
 		notify,
 		queue_modal,
 		refresh_chat_conversations,
@@ -29,6 +105,8 @@ export function install_chat_actions(runtime) {
 		stop_chat_polling,
 		update_chat_nav = () => {},
 		update_market_listings = async () => {},
+		update_market_search = async () => {},
+		openLink = globalThis.openLink,
 		schedule_timeout = (callback, delay) => setTimeout(callback, delay),
 	} = runtime;
 	const items = runtime.chat_items;
@@ -110,6 +188,65 @@ export function install_chat_actions(runtime) {
 
 		get_chat_item_count_label() {
 			return `${this.chat_draft.trim().length} / 1000`;
+		},
+
+		show_chat_item_actions(item_id) {
+			const item = game.items.getObjectByID(item_id);
+			if (!item || !items.official_chat_item(item_id)) return;
+			this.selected_chat_item_id = item_id;
+			this.chat_item_market_checked = false;
+			queue_modal(item.name, 'chat-item-actions-modal', item.media, {
+				showConfirmButton: false,
+				didClose: () => {
+					this.selected_chat_item_id = '';
+					this.chat_item_market_checked = false;
+				}
+			}, false);
+		},
+
+		open_chat_item_wiki() {
+			const item = game.items.getObjectByID(this.selected_chat_item_id);
+			if (!item?.wikiName || typeof openLink !== 'function') return;
+			openLink(`https://wiki.melvoridle.com/w/${item.wikiName}`);
+		},
+
+		async check_chat_item_marketplace(event) {
+			if (this.chat_item_market_checked || !this.is_guild_member || this.is_social_only) return;
+			const item_id = this.selected_chat_item_id;
+			if (!game.items.getObjectByID(item_id)) return;
+			const $button = event?.currentTarget;
+			if ($button && is_button_spinning($button)) return;
+			if ($button) show_button_spinner($button);
+			try {
+				const request = direction => api_post('/api/market/search', {
+					page: 1,
+					sort: 'recent',
+					direction,
+					item_id,
+					item_namespaces: get_local_item_namespaces(),
+					unresolved_item_ids: []
+				});
+				const [sell, buy] = await Promise.all([request('sell'), request('buy')]);
+				if (!sell?.success || !buy?.success) {
+					show_modal_error(getLangString(sell?.error_lang ?? buy?.error_lang ?? 'MOD_MP_GENERIC_ERR'));
+					return;
+				}
+				const direction = sell.total_items > 0 ? 'sell' : buy.total_items > 0 ? 'buy' : null;
+				if (direction === null) {
+					this.chat_item_market_checked = true;
+					return;
+				}
+				this.market_active_tab = 'search';
+				this.market_direction = direction;
+				this.market_sort = 'recent';
+				this.market_filter_item = item_id;
+				this.market_current_page = 1;
+				await this.close_modal_and_wait('chat-item-actions-modal');
+				changePage(game.pages.getObjectByID('multiplayer:Multiplayer_Market'));
+				await update_market_search();
+			} finally {
+				if ($button) hide_button_spinner($button);
+			}
 		},
 
 		async show_chat_item_picker(composer) {
@@ -354,6 +491,7 @@ export function install_chat_actions(runtime) {
 				this.chat_reaction_picker_style = {};
 				return;
 			}
+			this.chat_reaction_random_choices = sample_chat_reactions(this.chat_reaction_choices, 6, random);
 			const bubble = event?.currentTarget?.closest?.('.mp-chat-message-bubble');
 			const bubble_rect = bubble?.getBoundingClientRect?.();
 			this.chat_reaction_picker_message_id = message.message_id;
@@ -399,7 +537,9 @@ export function install_chat_actions(runtime) {
 			try {
 				const endpoint = conversation.conversation_kind === 'global'
 					? '/api/chat/messages/reaction?capabilities=global-chat-v1'
-					: '/api/chat/messages/reaction';
+					: conversation.conversation_kind === 'poll-discussion'
+						? '/api/chat/messages/reaction?capabilities=polls-v1'
+						: '/api/chat/messages/reaction';
 				res = await api_post(endpoint, {
 					conversation_kind: conversation.conversation_kind ?? 'private',
 					conversation_id: conversation.conversation_id,

@@ -319,7 +319,9 @@ test('wires completion-log discovery, first-find receipt, and per-stack expiry i
 	assert.equal(language.MOD_MP_CHARITY_INFO_OFFERINGS_GLOOP, 'Weird Gloop');
 	assert.equal(language.MOD_MP_CHARITY_INFO_LEAVES_CHANCE, "taking a chance on what's underneath");
 	assert.equal(language.MOD_MP_CHARITY_INFO_LEAVES_BONUS_EFFECT, '5% for 7 days');
-	assert.equal(language.MOD_MP_CHARITY_INFO_WISHES_MATURING, '4 days maturing');
+	assert.equal(language.MOD_MP_CHARITY_INFO_WISHES_MATURING, '20 hours maturing');
+	assert.equal(language.MOD_MP_CHARITY_INFO_OFFERINGS_DECAY_TIME,
+		'20 hours while a Wish is active, or 4 days otherwise');
 	assert.equal(language.MOD_MP_CHARITY_INFO_WISHES_RIPE, 'Ripe');
 	assert.equal(language.MOD_MP_CHARITY_INFO_WISHES_PENALTY, 'Shuffle Bonus by 10');
 	assert.equal(language.MOD_MP_CHARITY_INFO_WISHES_ACTIVE, 'one active Wish');

@@ -44,6 +44,20 @@ function translation_database(): Database {
 			translated_at INTEGER NOT NULL,
 			PRIMARY KEY (job_id, language)
 		);
+		CREATE TABLE update_section_translations (
+			id INTEGER PRIMARY KEY,
+			source_content TEXT NOT NULL,
+			content TEXT,
+			language TEXT NOT NULL,
+			detected_language TEXT,
+			state TEXT NOT NULL,
+			attempts INTEGER NOT NULL,
+			enqueued_at INTEGER NOT NULL,
+			available_at INTEGER NOT NULL,
+			last_attempt_at INTEGER,
+			completed_at INTEGER,
+			last_error_code TEXT
+		);
 	`);
 	return database;
 }
@@ -102,6 +116,64 @@ describe('Chat translation worker', () => {
 		expect(database.query('SELECT language, content FROM chat_message_translations').all()).toEqual([
 			{ language: 'zh-CN', content: '你好' }
 		]);
+		worker.stop();
+		database.close();
+	});
+
+	test('stores Updates translations in their dedicated table', async () => {
+		const database = translation_database();
+		database.run("INSERT INTO update_section_translations VALUES (1, 'Dev note', NULL, 'zh-CN', NULL, 'queued', 0, 1000, 1000, NULL, NULL, NULL)");
+		const worker = new ChatTranslationWorker({
+			key: 'test-key', region: 'northeurope', database, now: () => 1_000,
+			set_timer: inert_timer,
+			fetcher: async () => Response.json([{ detectedLanguage: { language: 'en' }, translations: [
+				{ to: 'en', text: 'Dev note' }, { to: 'zh-Hans', text: '开发者说明' }
+			] }])
+		});
+		worker.start();
+		await worker.run_once();
+		expect(database.query(
+			'SELECT content, state, detected_language, attempts FROM update_section_translations'
+		).get()).toEqual({ content: '开发者说明', state: 'complete', detected_language: 'en', attempts: 1 });
+		expect(database.query('SELECT * FROM chat_message_translations').all()).toEqual([]);
+		expect(database.query('SELECT * FROM poll_translations').all()).toEqual([]);
+		worker.stop();
+		database.close();
+	});
+
+	test('preserves symbol-only Updates content without calling Azure', async () => {
+		const database = translation_database();
+		database.run("INSERT INTO update_section_translations VALUES (1, '🍋', NULL, 'zh-CN', NULL, 'queued', 0, 1000, 1000, NULL, NULL, NULL)");
+		const worker = new ChatTranslationWorker({
+			key: 'test-key', database, now: () => 1_000, set_timer: inert_timer,
+			fetcher: async () => { throw Error('must not translate'); }
+		});
+		worker.start();
+		await worker.run_once();
+		expect(database.query('SELECT content, state, detected_language FROM update_section_translations').get())
+			.toEqual({ content: '🍋', state: 'complete', detected_language: 'und' });
+		worker.stop();
+		database.close();
+	});
+
+	test('does not publish an Updates translation after its source changes', async () => {
+		const database = translation_database();
+		database.run("INSERT INTO update_section_translations VALUES (1, 'Old note', NULL, 'zh-CN', NULL, 'queued', 0, 1000, 1000, NULL, NULL, NULL)");
+		const worker = new ChatTranslationWorker({
+			key: 'test-key', database, now: () => 1_000, set_timer: inert_timer,
+			fetcher: async () => {
+				database.run("UPDATE update_section_translations SET source_content = 'New note', content = NULL, " +
+					"state = 'queued', attempts = 0 WHERE id = 1");
+				return Response.json([{ detectedLanguage: { language: 'en' }, translations: [
+					{ to: 'zh-Hans', text: '旧说明' }
+				] }]);
+			}
+		});
+		worker.start();
+		await worker.run_once();
+		expect(database.query(
+			'SELECT source_content, content, state, attempts FROM update_section_translations'
+		).get()).toEqual({ source_content: 'New note', content: null, state: 'queued', attempts: 0 });
 		worker.stop();
 		database.close();
 	});

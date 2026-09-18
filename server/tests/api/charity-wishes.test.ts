@@ -21,44 +21,27 @@ async function add_shuffle_events(owner_key: string, count: number, now = Date.n
 }
 
 afterEach(async () => {
-	await db_run("UPDATE `service_settings` SET `value` = '0' WHERE `key` IN ('charity_wish_promo_started_at', 'charity_wish_promo_ends_at', 'charity_wish_promo_decay_hours')");
 	await db_run('DELETE FROM `charity_decay_activations`');
 });
 
 describe('Charitree Wishes', () => {
-	test('uses the timed promo duration only while the operator window is active', async () => {
-		const active = await register_guild_client('Promo Wish Owner', 'Promo Wish Guild', '1.5.7');
-		await attach_account(active.client_id, 'Promo Wish Account');
-		const before = Date.now();
-		await db_run("UPDATE `service_settings` SET `value` = ? WHERE `key` = 'charity_wish_promo_ends_at'", [before + 24 * 60 * 60 * 1000]);
+	test('gives every new Wish a 20-hour maturation timer', async () => {
+		const active = await register_guild_client('Wish Owner', 'Wish Guild', '1.5.7');
+		await attach_account(active.client_id, 'Wish Account');
 		const made = await post_json<{ success: boolean; wish_id: number }>('/api/charity/wish/make', {
 			item_id: 'melvorAoD:Torn_Parchment', qty: 1, command_id: crypto.randomUUID()
 		}, active.session_token);
 		expect(made.json.success).toBe(true);
-		const promoted = await db_all<{ created_at: number; matures_at: number }>(
+		const wishes = await db_all<{ created_at: number; matures_at: number }>(
 			'SELECT `created_at`, `matures_at` FROM `charity_wishes` WHERE `id` = ?', [made.json.wish_id]
 		);
-		expect(promoted[0]!.matures_at - promoted[0]!.created_at).toBe(60 * 60 * 1000);
-
-		await db_run("UPDATE `service_settings` SET `value` = ? WHERE `key` = 'charity_wish_promo_ends_at'", [before - 1]);
-		const normal = await register_guild_client('Normal Wish Owner', 'Normal Wish Guild', '1.5.7');
-		await attach_account(normal.client_id, 'Normal Wish Account');
-		const ordinary = await post_json<{ success: boolean; wish_id: number }>('/api/charity/wish/make', {
-			item_id: 'melvorAoD:Torn_Parchment', qty: 1, command_id: crypto.randomUUID()
-		}, normal.session_token);
-		const unpromoted = await db_all<{ created_at: number; matures_at: number }>(
-			'SELECT `created_at`, `matures_at` FROM `charity_wishes` WHERE `id` = ?', [ordinary.json.wish_id]
-		);
-		expect(unpromoted[0]!.matures_at - unpromoted[0]!.created_at).toBe(4 * 24 * 60 * 60 * 1000);
+		expect(wishes[0]!.matures_at - wishes[0]!.created_at).toBe(20 * 60 * 60 * 1000);
 	});
 
 	test('presents accelerated item expiry only while a non-Ripe Wish keeps the Guild eligible', async () => {
 		const client = await register_guild_client('Decay Promo Owner', 'Decay Promo Guild', '1.5.7');
 		await attach_account(client.client_id, 'Decay Promo Account');
 		const now = Date.now();
-		await db_run("UPDATE `service_settings` SET `value` = ? WHERE `key` = 'charity_wish_promo_started_at'", [now]);
-		await db_run("UPDATE `service_settings` SET `value` = ? WHERE `key` = 'charity_wish_promo_ends_at'", [now + 24 * 60 * 60 * 1000]);
-		await db_run("UPDATE `service_settings` SET `value` = '12' WHERE `key` = 'charity_wish_promo_decay_hours'");
 		const made = await post_json<{ success: boolean; wish_id: number }>('/api/charity/wish/make', {
 			item_id: 'melvorAoD:Torn_Parchment', qty: 1, command_id: crypto.randomUUID()
 		}, client.session_token);
@@ -94,9 +77,6 @@ describe('Charitree Wishes', () => {
 		const client = await register_guild_client('Decay Ripening Owner', 'Decay Ripening Guild', '1.5.7');
 		await attach_account(client.client_id, 'Decay Ripening Account');
 		const now = Date.now();
-		await db_run("UPDATE `service_settings` SET `value` = ? WHERE `key` = 'charity_wish_promo_started_at'", [now - 3 * 60 * 60 * 1000]);
-		await db_run("UPDATE `service_settings` SET `value` = ? WHERE `key` = 'charity_wish_promo_ends_at'", [now + 24 * 60 * 60 * 1000]);
-		await db_run("UPDATE `service_settings` SET `value` = '12' WHERE `key` = 'charity_wish_promo_decay_hours'");
 		const made = await post_json<{ success: boolean; wish_id: number }>('/api/charity/wish/make', {
 			item_id: 'melvorAoD:Torn_Parchment', qty: 1, command_id: crypto.randomUUID()
 		}, client.session_token);

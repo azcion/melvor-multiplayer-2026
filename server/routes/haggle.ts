@@ -4,7 +4,7 @@ import type { HandlerResult, JsonSerializable } from '../http';
 import { add_inbox_gp, add_inbox_items, get_inbox_source_name } from '../inbox';
 import { GP_TRANSFER_CAP } from '../transfer-caps';
 
-const { db, get_client_guild_id, is_social_only_client, is_valid_uuid, run_economy_command,
+const { db, get_client_guild_id, is_market_discovery_restricted, is_social_only_client, is_valid_uuid, run_economy_command,
 	market_completed_cached, session_get_route, session_post_route } = runtime;
 
 const HAGGLE_LIFETIME = 72 * 60 * 60 * 1000;
@@ -135,6 +135,9 @@ export function register_haggle_routes(): void {
 			).get(listing_id);
 			if (lot === null || lot.client_id === client_id)
 				return { success: false, error_lang: 'MOD_MP_MARKET_HAGGLE_INVALID' };
+			if (lot.direction === 'sell' && is_market_discovery_restricted(lot.guild_id) &&
+				json.item_discovered !== true)
+				return { success: false, error_lang: 'MOD_MP_MARKET_DISCOVERY_REQUIRED' };
 			const max_item_qty = Math.floor(GP_TRANSFER_CAP / Math.max(lot.price, offer_price));
 			const capped_item_qty = Math.min(item_qty, max_item_qty);
 			if (capped_item_qty < 1 || lot.available < capped_item_qty)

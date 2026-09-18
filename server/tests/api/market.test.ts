@@ -20,6 +20,7 @@ type MarketListing = {
 type MarketListings = {
 	success: boolean;
 	items: MarketListing[];
+	market_discovery_restriction_enabled?: boolean;
 };
 
 type MarketSearch = {
@@ -71,6 +72,56 @@ async function wait_for_listing(
 }
 
 describe('market API', () => {
+	test('requires discovery assertions for Temperance Buy Orders, purchases, and Sell-listing Haggles', async () => {
+		const pair = await make_guildmates('Temperance Buyer', 'Temperance Seller', 'Temperance Market');
+		const direct_item_id = 'melvorD:Temperance_Direct_Item';
+		const haggle_item_id = 'melvorD:Temperance_Haggle_Item';
+		await post_json('/api/market/sell', {
+			item_id: direct_item_id, item_qty: 4, item_sell_price: 7, command_id: crypto.randomUUID()
+		}, pair.second.session_token);
+		await post_json('/api/market/sell', {
+			item_id: haggle_item_id, item_qty: 4, item_sell_price: 9, command_id: crypto.randomUUID()
+		}, pair.second.session_token);
+		await db_run(
+			'UPDATE `guilds` SET `market_discovery_restriction_enabled` = 1 WHERE `id` = ?',
+			[pair.guild_id]
+		);
+
+		const listings = await get_listings(pair.second);
+		expect(listings).toMatchObject({ market_discovery_restriction_enabled: true });
+		const direct = listings.items.find(item => item.item_id === direct_item_id)!;
+		const haggle = listings.items.find(item => item.item_id === haggle_item_id)!;
+
+		const hidden_order = await post_json<{ success: boolean; error_lang: string }>('/api/market/buy-order', {
+			item_id: 'melvorD:Temperance_Requested_Item', item_qty: 1, item_buy_price: 5,
+			command_id: crypto.randomUUID(), item_discovered: false
+		}, pair.first.session_token);
+		expect(hidden_order.json).toMatchObject({ success: false, error_lang: 'MOD_MP_MARKET_DISCOVERY_REQUIRED' });
+		const discovered_order = await post_json<{ success: boolean }>('/api/market/buy-order', {
+			item_id: 'melvorD:Temperance_Requested_Item', item_qty: 1, item_buy_price: 5,
+			command_id: crypto.randomUUID(), item_discovered: true
+		}, pair.first.session_token);
+		expect(discovered_order.json.success).toBe(true);
+
+		const hidden_purchase = await post_json<{ success: boolean; error_lang: string }>('/api/market/buy', {
+			id: direct.id, qty: 1, command_id: crypto.randomUUID(), item_discovered: false
+		}, pair.first.session_token);
+		expect(hidden_purchase.json).toMatchObject({ success: false, error_lang: 'MOD_MP_MARKET_DISCOVERY_REQUIRED' });
+		const discovered_purchase = await post_json<{ success: boolean }>('/api/market/buy', {
+			id: direct.id, qty: 1, command_id: crypto.randomUUID(), item_discovered: true
+		}, pair.first.session_token);
+		expect(discovered_purchase.json.success).toBe(true);
+
+		const hidden_haggle = await post_json<{ success: boolean; error_lang: string }>('/api/market/haggle', {
+			id: haggle.id, qty: 1, price: 8, command_id: crypto.randomUUID(), item_discovered: false
+		}, pair.first.session_token);
+		expect(hidden_haggle.json).toMatchObject({ success: false, error_lang: 'MOD_MP_MARKET_DISCOVERY_REQUIRED' });
+		const discovered_haggle = await post_json<{ success: boolean }>('/api/market/haggle', {
+			id: haggle.id, qty: 1, price: 8, command_id: crypto.randomUUID(), item_discovered: true
+		}, pair.first.session_token);
+		expect(discovered_haggle.json.success).toBe(true);
+	});
+
 	test('expires inactive sell listings and buy orders into a dedicated Inbox source', async () => {
 		const pair = await make_guildmates('Expiry Buyer', 'Expiry Seller', 'Expiry Guild');
 		const sell_item_id = 'melvorD:Expiry_Logs';

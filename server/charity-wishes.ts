@@ -5,8 +5,7 @@ import type { Database } from 'bun:sqlite';
 import type { JsonObject } from './http';
 import type * as db_row from './db/types/db_types';
 
-export const CHARITY_WISH_MATURING_MS = 4 * 24 * 60 * 60 * 1000;
-export const CHARITY_WISH_PROMO_MATURING_MS = 60 * 60 * 1000;
+export const CHARITY_WISH_MATURING_MS = 20 * 60 * 60 * 1000;
 export const CHARITY_WISH_AUTO_CLAIM_MS = 96 * 60 * 60 * 1000;
 export const CHARITY_SHUFFLE_BONUS_LIMIT = 20;
 export const CHARITY_WISH_SHUFFLE_PENALTY = 10;
@@ -17,13 +16,8 @@ const WEIRD_GLOOP_GP_VALUE = 1000n;
 type WishCommandKind = 'make' | 'forsake' | 'pick';
 type CatalogEntry = { id: string; max_item_value: number };
 
-export function get_charity_wish_maturing_ms(now = Date.now(), database: Database = db): number {
-	const raw_ends_at = database.query<{ value: string }, []>(
-		"SELECT `value` FROM `service_settings` WHERE `key` = 'charity_wish_promo_ends_at'"
-	).get()?.value;
-	const ends_at = Number(raw_ends_at);
-	return Number.isSafeInteger(ends_at) && ends_at > now
-		? CHARITY_WISH_PROMO_MATURING_MS : CHARITY_WISH_MATURING_MS;
+export function get_charity_wish_maturing_ms(): number {
+	return CHARITY_WISH_MATURING_MS;
 }
 
 const catalog_data = JSON.parse(readFileSync(new URL('./openable-wish-values.json', import.meta.url), 'utf8')) as unknown;

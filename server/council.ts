@@ -15,7 +15,9 @@ export const PETITION_TYPES = [
 	'fellowship',
 	'enclosure',
 	'interdict',
-	'heresy'
+	'heresy',
+	'temperance',
+	'indulgence'
 ] as const;
 export const PETITION_CHOICES = ['aye', 'nay'] as const;
 
@@ -61,6 +63,8 @@ export function get_petition_conflict_subject(type: PetitionType, target_members
 		return 'guild:admission';
 	if (type === 'interdict' || type === 'heresy')
 		return 'guild:cheat-policy';
+	if (type === 'temperance' || type === 'indulgence')
+		return 'guild:market-discovery-policy';
 	if (type === 'winnowing')
 		return 'guild:winnowing';
 	if (!Number.isSafeInteger(target_membership_id) || (target_membership_id as number) < 1)

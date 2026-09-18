@@ -8,7 +8,9 @@ import { client_uses_legacy_transfer_protocol } from '../transfer-compatibility'
 import { cancel_listing_haggles } from './haggle';
 import { expire_market_listings, expire_market_listings_now } from '../market-expiry';
 
-const { MARKET_ITEMS_PER_PAGE, db, db_get_all, db_get_single, get_client_guild_id, is_social_only_client, is_valid_item_id, is_valid_uuid, market_completed_cached, parse_market_excluded_item_ids, parse_market_namespaces, remove_player_cache_entry, run_economy_command, session_get_route, session_post_route } = runtime;
+const { MARKET_ITEMS_PER_PAGE, db, db_get_all, db_get_single, get_client_guild_id, is_market_discovery_restricted,
+	is_social_only_client, is_valid_item_id, is_valid_uuid, market_completed_cached, parse_market_excluded_item_ids,
+	parse_market_namespaces, remove_player_cache_entry, run_economy_command, session_get_route, session_post_route } = runtime;
 
 type MarketDirection = 'sell' | 'buy';
 
@@ -146,6 +148,8 @@ export function register_market_routes(): void {
 			expire_market_listings_now();
 			if (is_social_only_client(client_id))
 				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
+			if (is_market_discovery_restricted(guild_id) && json.item_discovered !== true)
+				return { success: false, error_lang: 'MOD_MP_MARKET_DISCOVERY_REQUIRED' };
 			const updated_at = Date.now();
 			const existing = db.query<Pick<db_row.market_items, 'id' | 'qty' | 'escrow_gp'>, [number, number, string, number]>(
 				' SELECT `id`, `qty`, `escrow_gp` FROM `market_items` WHERE `guild_id` = ? AND `client_id` = ? AND `direction` = \'buy\' AND `item_id` = ? AND `price` = ?'
@@ -189,6 +193,8 @@ export function register_market_routes(): void {
 				.get(lot_id, guild_id) as db_row.market_items | null;
 			if (lot === null || lot.available <= 0)
 				return { error_lang: 'MOD_MP_MARKET_BUY_ERROR_INVALID' };
+			if (is_market_discovery_restricted(guild_id) && json.item_discovered !== true)
+				return { success: false, error_lang: 'MOD_MP_MARKET_DISCOVERY_REQUIRED' };
 			if (lot.client_id === client_id)
 				return { error_lang: 'MOD_MP_MARKET_BUY_ERROR_SELF' };
 			const final_qty = Math.min(lot.available, buy_qty);
@@ -299,7 +305,8 @@ export function register_market_routes(): void {
 					reserved: row.reserved, haggled: row.haggled, price: row.price, payout: row.payout };
 		}
 
-		return { success: true, items };
+		return { success: true, items,
+			market_discovery_restriction_enabled: is_market_discovery_restricted(guild_id) };
 	});
 
 	session_post_route('/api/market/payout', async (req, url, client_id, json): Promise<HandlerResult> => {
@@ -426,7 +433,8 @@ export function register_market_routes(): void {
 		if (namespace_parameters === null)
 			return 400; // Bad Request
 		if (namespace_parameters.length === 0)
-			return { success: true, item_ids: [] };
+			return { success: true, item_ids: [],
+				market_discovery_restriction_enabled: is_market_discovery_restricted(guild_id) };
 
 		const item_ids = await db_get_all(
 			'SELECT DISTINCT `item_id` FROM `market_items` WHERE `guild_id` = ? AND `client_id` != ? AND `direction` = ? ' +
@@ -434,7 +442,8 @@ export function register_market_routes(): void {
 			') ORDER BY `item_id`',
 			[guild_id, client_id, direction, ...namespace_parameters]
 		);
-		return { success: true, item_ids: item_ids.map(row => row.item_id) };
+		return { success: true, item_ids: item_ids.map(row => row.item_id),
+			market_discovery_restriction_enabled: is_market_discovery_restricted(guild_id) };
 	});
 
 	session_post_route('/api/market/search', async (req, url, client_id, json): Promise<HandlerResult> => {
@@ -526,6 +535,7 @@ export function register_market_routes(): void {
 				seller: { display_name: row.display_name, icon_id: row.icon_id }
 			} as JsonSerializable));
 
-		return { success: true, total_items, page, items };
+		return { success: true, total_items, page, items,
+			market_discovery_restriction_enabled: is_market_discovery_restricted(guild_id) };
 	});
 }

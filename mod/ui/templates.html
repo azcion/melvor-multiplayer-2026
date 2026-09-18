@@ -471,6 +471,7 @@
 			</div>
 			<div class="mp-chat-reaction-picker" v-if="state.chat_reaction_picker_message_id !== null" :style="state.chat_reaction_picker_style">
 				<button type="button" v-for="reaction in state.chat_reaction_choices" :key="reaction" @click="state.toggle_chat_reaction(state.get_chat_reaction_picker_message(), reaction)">{{ reaction }}</button>
+				<button type="button" v-for="reaction in state.chat_reaction_random_choices" :key="reaction" @click="state.toggle_chat_reaction(state.get_chat_reaction_picker_message(), reaction)">{{ reaction }}</button>
 			</div>
 		</div>
 	</div>
@@ -505,6 +506,21 @@
 		<div class="mp-chat-budget-info-effect"><span class="font-w600"><lang-string lang-id="MOD_MP_CHAT_BUDGET_LEVEL_120_LABEL"></lang-string></span><span><lang-string lang-id="MOD_MP_CHAT_BUDGET_LEVEL_120"></lang-string></span></div>
 	</div>
 	<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
+</template>
+<template id="template-mp-chat-item-actions-modal">
+	<div class="mp-chat-item-actions">
+		<button type="button" class="btn btn-outline-secondary" @click="state.open_chat_item_wiki()">
+			<img class="skill-icon-xxs mr-2" src="assets/media/main/wiki_logo.svg?2" alt="">
+			<lang-string lang-id="MOD_MP_CHAT_ITEM_WIKI"></lang-string>
+		</button>
+		<button type="button" class="btn mp-actions-marketplace" v-show="state.is_guild_member && !state.is_social_only" :disabled="state.chat_item_market_checked" @click="state.check_chat_item_marketplace($event)">
+			<div class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></div>
+			<lang-string lang-id="MOD_MP_CHAT_ITEM_MARKETPLACE"></lang-string>
+		</button>
+		<div class="text-muted" role="status" v-if="state.chat_item_market_checked"><lang-string lang-id="MOD_MP_CHAT_ITEM_MARKETPLACE_NONE"></lang-string></div>
+	</div>
+	<div id="mp-modal-error" class="d-none text-danger mt-2"></div>
+	<button type="button" class="btn btn-secondary mt-3" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
 </template>
 <template id="template-mp-chat-message-actions-modal">
 	<div class="mp-chat-modal-actions">
@@ -694,6 +710,14 @@
 			<div><span class="font-w600"><lang-string lang-id="MOD_MP_COUNCIL_TYPE_HERESY"></lang-string></span><button type="button" class="btn btn-sm btn-success" @click="state.show_council_petition_modal('heresy')"><lang-string lang-id="MOD_MP_COUNCIL_RAISE_ACTION"></lang-string></button></div>
 			<em><lang-string lang-id="MOD_MP_COUNCIL_HERESY_DESCRIPTION"></lang-string></em>
 		</div>
+		<div class="mp-council-type-action" v-if="state.can_raise_council_petition('temperance')">
+			<div><span class="font-w600"><lang-string lang-id="MOD_MP_COUNCIL_TYPE_TEMPERANCE"></lang-string></span><button type="button" class="btn btn-sm btn-danger" @click="state.show_council_petition_modal('temperance')"><lang-string lang-id="MOD_MP_COUNCIL_RAISE_ACTION"></lang-string></button></div>
+			<em><lang-string lang-id="MOD_MP_COUNCIL_TEMPERANCE_DESCRIPTION"></lang-string></em>
+		</div>
+		<div class="mp-council-type-action" v-if="state.can_raise_council_petition('indulgence')">
+			<div><span class="font-w600"><lang-string lang-id="MOD_MP_COUNCIL_TYPE_INDULGENCE"></lang-string></span><button type="button" class="btn btn-sm btn-success" @click="state.show_council_petition_modal('indulgence')"><lang-string lang-id="MOD_MP_COUNCIL_RAISE_ACTION"></lang-string></button></div>
+			<em><lang-string lang-id="MOD_MP_COUNCIL_INDULGENCE_DESCRIPTION"></lang-string></em>
+		</div>
 		<div class="mp-council-type-action" v-if="state.can_raise_council_petition('charitree_ingratitude')">
 			<div><span class="font-w600"><lang-string lang-id="MOD_MP_COUNCIL_TYPE_CHARITREE_INGRATITUDE"></lang-string></span><button type="button" class="btn btn-sm btn-danger" @click="state.show_council_petition_modal('charitree_ingratitude')"><lang-string lang-id="MOD_MP_COUNCIL_RAISE_ACTION"></lang-string></button></div>
 			<em><lang-string lang-id="MOD_MP_COUNCIL_INGRATITUDE_DESCRIPTION"></lang-string></em>
@@ -746,7 +770,7 @@
 	<div class="mp-council-petition-description"><em>{{ state.get_council_action_confirm(state.council_type) }}</em></div>
 	<div class="text-danger mt-3" v-if="state.council_error">{{ state.council_error }}</div>
 	<div class="mp-button-tray mt-3">
-		<button type="button" class="btn" :class="['charitree_beneficence', 'fellowship', 'heresy'].includes(state.council_type) ? 'btn-success' : 'btn-danger'" @click="state.submit_council_petition($event, state.council_type)"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_RAISE"></lang-string></button>
+		<button type="button" class="btn" :class="['charitree_beneficence', 'fellowship', 'heresy', 'indulgence'].includes(state.council_type) ? 'btn-success' : 'btn-danger'" @click="state.submit_council_petition($event, state.council_type)"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_RAISE"></lang-string></button>
 		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
 	</div>
 </template>
@@ -1344,6 +1368,9 @@
 		<div :class="{ 'mp-guild-locked': !state.is_guild_member }" v-if="!state.is_social_only">
 		<div class="block block-rounded p-4 mp-guild-required">
 			<lang-string lang-id="MOD_MP_GUILD_REQUIRED_INFO"></lang-string>
+		</div>
+		<div class="block block-rounded p-3" v-show="state.is_guild_member && state.market_discovery_restriction_enabled">
+			<lang-string lang-id="MOD_MP_MARKET_TEMPERANCE_INFO"></lang-string>
 		</div>
 		<div class="row row-deck gutters-tiny mp-market-tabs">
 			<div>
@@ -2062,23 +2089,23 @@
 									</a>
 								</mp-item-icon>
 							</div>
-							<div class="mp-transfer-haggle-claim" v-if="haggle.claim && !haggle.claim.claimed">
+							<div class="mp-transfer-haggle-claim" v-show="haggle.claim && !haggle.claim.claimed">
 								<span class="mp-market-item-label"><lang-string lang-id="MOD_MP_MARKET_HAGGLE_CLAIM_CONTENTS"></lang-string></span>
-								<span v-if="haggle.claim.item_qty > 0">{{ numberWithCommas(haggle.claim.item_qty) }} × {{ state.get_item_name(haggle.claim.item_id) }}</span>
-								<span v-if="haggle.claim.gp > 0">{{ numberWithCommas(haggle.claim.gp) }} GP</span>
+								<span v-show="haggle.claim && haggle.claim.item_qty > 0">{{ numberWithCommas(haggle.claim.item_qty) }} × {{ state.get_item_name(haggle.claim.item_id) }}</span>
+								<span v-show="haggle.claim && haggle.claim.gp > 0">{{ numberWithCommas(haggle.claim.gp) }} GP</span>
 							</div>
 						</div>
 						<div class="p-3 mp-transfer-buttons">
-							<button type="button" class="btn btn-success m-1" v-if="haggle.claim && !haggle.claim.claimed" @click="state.respond_market_haggle($event, haggle, 'claim')">
+							<button type="button" class="btn btn-success m-1" v-show="haggle.claim && !haggle.claim.claimed" @click="state.respond_market_haggle($event, haggle, 'claim')">
 								<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 								<lang-string lang-id="MOD_MP_BUTTON_CLAIM"></lang-string>
 							</button>
-							<template v-else-if="haggle.status == 'active'">
-								<button type="button" class="btn btn-success m-1" v-if="haggle.is_turn" @click="state.respond_market_haggle($event, haggle, 'accept')">
+							<div v-show="(!haggle.claim || haggle.claim.claimed) && haggle.status == 'active'">
+								<button type="button" class="btn btn-success m-1" v-show="haggle.is_turn" @click="state.respond_market_haggle($event, haggle, 'accept')">
 									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 									<lang-string lang-id="MOD_MP_BUTTON_ACCEPT"></lang-string>
 								</button>
-								<button type="button" class="btn btn-warning m-1" v-if="haggle.is_turn" @click="state.respond_market_haggle($event, haggle, 'counter')">
+								<button type="button" class="btn btn-warning m-1" v-show="haggle.is_turn" @click="state.respond_market_haggle($event, haggle, 'counter')">
 									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 									<lang-string lang-id="MOD_MP_BUTTON_MARKET_HAGGLE_BACK"></lang-string>
 								</button>
@@ -2086,7 +2113,7 @@
 									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 									<lang-string :lang-id="!haggle.is_initiator && haggle.is_turn ? 'MOD_MP_BUTTON_REJECT' : 'MOD_MP_BUTTON_CANCEL'"></lang-string>
 								</button>
-							</template>
+							</div>
 						</div>
 					</div>
 					<template v-for="gift in state.gifts">

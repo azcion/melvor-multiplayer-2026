@@ -4,8 +4,6 @@ import { revoke_installation } from './installations';
 import { db, get_service_setting } from './db';
 import { make_audit_context, run_with_audit_context } from './audit-context';
 import { CHARITY_KNOWN_CURRENCY_VALUATIONS } from './charity-values';
-import { CHARITY_WISH_PROMO_MATURING_MS } from './charity-wishes';
-import { CHARITY_NORMAL_DECAY_MS } from './charity-decay';
 import { is_minimum_supported_version } from './client-version-policy';
 import { remove_charity_contributor_quantity } from './charity-contributors';
 import {
@@ -32,9 +30,6 @@ const MAX_GUILD_DIAGNOSTIC_ACTIVITY = 20;
 const MAX_CHARITREE_VALUE_CATALOG_BYTES = 4 * 1024 * 1024;
 const MAX_CHARITREE_VALUE_CATALOG_ITEMS = 100000;
 const MAX_CHARITREE_EXPIRY_SECONDS = 31 * 24 * 60 * 60;
-const MAX_CHARITY_WISH_PROMO_HOURS = 31 * 24;
-const MIN_CHARITY_DECAY_HOURS = 2;
-const MAX_CHARITY_DECAY_HOURS = CHARITY_NORMAL_DECAY_MS / (60 * 60 * 1000) - 1;
 const MAX_SUPPORT_MESSAGE_LENGTH = 1000;
 
 function usage(output: AdminOutput): number {
@@ -62,9 +57,6 @@ function usage(output: AdminOutput): number {
   bun run admin.ts charity reset-all
   bun run admin.ts charity repair-bank-receipt CLIENT_ID RECEIPT_ID ITEM_ID QTY confirm
   bun run admin.ts charity set-expiry GUILD_ID ITEM_ID EXPECTED_QTY SECONDS confirm
-  bun run admin.ts charity wish-promo status|stop
-  bun run admin.ts charity wish-promo stagger confirm
-  bun run admin.ts charity wish-promo start PROMO_HOURS [DECAY_HOURS] confirm
   bun run admin.ts charity backfill-values < charitree-item-values.json
   bun run admin.ts economy-receipt rollback-duplicate-charity CLIENT_ID RECEIPT_ID confirm`);
 	return 2;
@@ -385,69 +377,6 @@ function parse_icon_collection_limit(kind: string | undefined, value: string | u
 
 function set_setting(key: string, value: string): void {
 	db.query('UPDATE `service_settings` SET `value` = ? WHERE `key` = ?').run(value, key);
-}
-
-function run_charity_wish_promo(args: string[], output: AdminOutput): number {
-	const [, , action, argument] = args;
-	const now = Date.now();
-	if (action === 'status' && args.length === 3) {
-		const started_at = Number(get_service_setting('charity_wish_promo_started_at'));
-		const ends_at = Number(get_service_setting('charity_wish_promo_ends_at'));
-		const decay_hours = Number(get_service_setting('charity_wish_promo_decay_hours'));
-		output.log(`charity_wish_promo=${Number.isSafeInteger(ends_at) && ends_at > now ? 'active' : 'inactive'}`);
-		output.log(`charity_wish_promo_started_at=${Number.isSafeInteger(started_at) && started_at > 0 ? started_at : 0}`);
-		output.log(`charity_wish_promo_ends_at=${Number.isSafeInteger(ends_at) && ends_at > 0 ? ends_at : 0}`);
-		output.log(`charity_wish_promo_decay_hours=${Number.isSafeInteger(decay_hours) && decay_hours > 0 ? decay_hours : 0}`);
-		return 0;
-	}
-	if (action === 'stop' && args.length === 3) {
-		db.transaction(() => {
-			set_setting('charity_wish_promo_started_at', '0');
-			set_setting('charity_wish_promo_ends_at', '0');
-			set_setting('charity_wish_promo_decay_hours', '0');
-		}).immediate();
-		output.log('Charitree Wish promo stopped. Existing timers were not changed.');
-		return 0;
-	}
-	if (action === 'stagger' && args.length === 4 && argument === 'confirm') {
-		const updated = db.query(
-			'WITH eligible AS (' +
-				'SELECT `id`, ROW_NUMBER() OVER (PARTITION BY `guild_id` ORDER BY `matures_at`, `id`) - 1 AS `wish_index` ' +
-				'FROM `charity_wishes` WHERE `matures_at` > ? AND `progress_gp` < `required_gp`' +
-			') UPDATE `charity_wishes` SET `matures_at` = ? + 60000 + (' +
-				'SELECT `wish_index` * 1000 FROM eligible WHERE eligible.`id` = `charity_wishes`.`id`' +
-			') WHERE `id` IN (SELECT `id` FROM eligible)'
-		).run(now + 60000, now);
-		output.log(`charity_wishes_staggered=${updated.changes}`);
-		return 0;
-	}
-	const promo_hours = parse_positive_integer(argument);
-	const decay_hours = args.length === 6 ? parse_positive_integer(args[4]) : 0;
-	const confirmation = args.length === 6 ? args[5] : args[4];
-	if (action === 'start' && (args.length === 5 || args.length === 6) && confirmation === 'confirm' &&
-		promo_hours !== null && promo_hours <= MAX_CHARITY_WISH_PROMO_HOURS && decay_hours !== null &&
-		(decay_hours === 0 || (decay_hours >= MIN_CHARITY_DECAY_HOURS && decay_hours <= MAX_CHARITY_DECAY_HOURS))) {
-		const previous_ends_at = Number(get_service_setting('charity_wish_promo_ends_at'));
-		const previous_started_at = Number(get_service_setting('charity_wish_promo_started_at'));
-		const started_at = previous_ends_at > now && Number.isSafeInteger(previous_started_at) &&
-			previous_started_at > 0 && previous_started_at <= now ? previous_started_at : now;
-		const ends_at = now + promo_hours * 60 * 60 * 1000;
-		const updated = db.transaction(() => {
-			set_setting('charity_wish_promo_started_at', String(started_at));
-			set_setting('charity_wish_promo_ends_at', String(ends_at));
-			set_setting('charity_wish_promo_decay_hours', String(decay_hours));
-			return db.query(
-				'UPDATE `charity_wishes` SET `matures_at` = ? WHERE `matures_at` > ? ' +
-				'AND `progress_gp` < `required_gp`'
-			).run(now + CHARITY_WISH_PROMO_MATURING_MS, now + CHARITY_WISH_PROMO_MATURING_MS).changes;
-		}).immediate();
-		output.log(`charity_wish_promo_started_at=${started_at}`);
-		output.log(`charity_wish_promo_ends_at=${ends_at}`);
-		output.log(`charity_wish_promo_decay_hours=${decay_hours}`);
-		output.log(`charity_wishes_accelerated=${updated}`);
-		return 0;
-	}
-	return usage(output);
 }
 
 function is_release_version(value: string | undefined): value is string {
@@ -980,13 +909,6 @@ function run_admin_command(args: string[], output: AdminOutput = console_output)
 			output.log(`released_mod_version=${get_service_setting('released_mod_version') || 'none'}`);
 			output.log(`minimum_supported_mod_version=${get_service_setting('minimum_supported_mod_version') || 'none'}`);
 			output.log(`charitree_value_backfill_pending=${get_service_setting('charity_value_backfill_pending') ?? '0'}`);
-			const wish_promo_started_at = Number(get_service_setting('charity_wish_promo_started_at'));
-			const wish_promo_ends_at = Number(get_service_setting('charity_wish_promo_ends_at'));
-			const wish_promo_decay_hours = Number(get_service_setting('charity_wish_promo_decay_hours'));
-			output.log(`charity_wish_promo=${Number.isSafeInteger(wish_promo_ends_at) && wish_promo_ends_at > Date.now() ? 'active' : 'inactive'}`);
-			output.log(`charity_wish_promo_started_at=${Number.isSafeInteger(wish_promo_started_at) && wish_promo_started_at > 0 ? wish_promo_started_at : 0}`);
-			output.log(`charity_wish_promo_ends_at=${Number.isSafeInteger(wish_promo_ends_at) && wish_promo_ends_at > 0 ? wish_promo_ends_at : 0}`);
-			output.log(`charity_wish_promo_decay_hours=${Number.isSafeInteger(wish_promo_decay_hours) && wish_promo_decay_hours > 0 ? wish_promo_decay_hours : 0}`);
 			output.log(`identities=${identity_count}`);
 			output.log(`disabled_identities=${disabled_count}`);
 			return 0;
@@ -1055,8 +977,6 @@ function run_admin_command(args: string[], output: AdminOutput = console_output)
 			return inspect_support_message(message_id, output);
 		}
 		case 'charity': {
-			if (action === 'wish-promo')
-				return run_charity_wish_promo(args, output);
 			if (action === 'reset-all' && args.length === 2)
 				return reset_all_charity_timers(output);
 			if (action === 'set-expiry' && args.length === 7 && args[6] === 'confirm') {

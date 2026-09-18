@@ -81,7 +81,7 @@ test('wires Wish creation, presentation, owner actions, and Inbox naming', async
 	assert.equal(english.MOD_MP_INBOX_SOURCE_WISH_GRANTED, 'Wish Granted');
 	assert.equal(english.MOD_MP_SIDEBAR_CHARITY_WISH, 'wish');
 	assert.equal(english.MOD_MP_SIDEBAR_CHARITY_PICK, 'pick');
-	assert.equal(english.MOD_MP_CHARITY_WISH_INTRO, 'Place a Wish upon the Charitree. It matures for four days, then ripens by absorbing the value of decayed offerings.');
+	assert.equal(english.MOD_MP_CHARITY_WISH_INTRO, 'Place a Wish upon the Charitree. It matures for 20 hours, then ripens by absorbing the value of decayed offerings.');
 	assert.equal(english.MOD_MP_CHARITY_WISH_SEARCH, 'Search');
 	assert.equal(english.MOD_MP_CHARITY_WISH_QUANTITY, 'Quantity (up to 100)');
 	assert.equal(english.MOD_MP_CHARITY_WISH_INVALID, 'Choose an eligible item and a quantity from 1 to 100.');

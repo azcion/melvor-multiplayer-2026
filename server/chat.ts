@@ -430,11 +430,7 @@ export function send_message(
 				const target = db.query<{ id: number }, [number]>(
 					'SELECT `id` FROM `clients` WHERE `id` = ? AND `deleted_at` IS NULL LIMIT 1'
 				).get(target_id as number);
-				const guildmates = db.query<{ shared: number }, [number, number]>(
-					'SELECT EXISTS(SELECT 1 FROM `guild_memberships` AS a JOIN `guild_memberships` AS b ' +
-					'ON b.`guild_id` = a.`guild_id` WHERE a.`client_id` = ? AND b.`client_id` = ?) AS `shared`'
-				).get(client_id, target_id as number) as { shared: number };
-				if (target === null || guildmates.shared !== 1)
+				if (target === null)
 					return { status: 'missing' };
 				conversation = { id: 0, participant_low_id: low_id, participant_high_id: high_id, created_at: now };
 			}

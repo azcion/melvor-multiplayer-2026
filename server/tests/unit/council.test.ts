@@ -48,6 +48,8 @@ describe('Council petition rules', () => {
 		expect(is_petition_type('enclosure')).toBe(true);
 		expect(is_petition_type('interdict')).toBe(true);
 		expect(is_petition_type('heresy')).toBe(true);
+		expect(is_petition_type('temperance')).toBe(true);
+		expect(is_petition_type('indulgence')).toBe(true);
 		expect(is_petition_type('charitree_clearing')).toBe(false);
 		expect(is_petition_type('execute_sql')).toBe(false);
 		expect(is_petition_choice('aye')).toBe(true);
@@ -64,6 +66,8 @@ describe('Council petition rules', () => {
 		expect(get_petition_conflict_subject('enclosure')).toBe('guild:admission');
 		expect(get_petition_conflict_subject('interdict')).toBe('guild:cheat-policy');
 		expect(get_petition_conflict_subject('heresy')).toBe('guild:cheat-policy');
+		expect(get_petition_conflict_subject('temperance')).toBe('guild:market-discovery-policy');
+		expect(get_petition_conflict_subject('indulgence')).toBe('guild:market-discovery-policy');
 		expect(get_petition_conflict_subject('winnowing')).toBe('guild:winnowing');
 		expect(get_petition_conflict_subject('banishment', 42)).toBe('membership:42');
 	});
@@ -298,6 +302,62 @@ describe('Council petition rules', () => {
 		database.run(
 			'INSERT INTO `guild_petitions` (`guild_id`, `guild_name`, `type`, `conflict_subject`, `petitioner_id`, `created_at`, `expires_at`) ' +
 			"VALUES(2, 'Policy Guild', 'heresy', 'guild:cheat-policy', 1, 5, 6)"
+		);
+		expect(database.query('PRAGMA foreign_key_check').all()).toEqual([]);
+		database.close();
+	});
+
+	test('preserves Petition children while adding the Guild Marketplace discovery policy', () => {
+		const database = new Database(':memory:', { strict: true });
+		for (const migration of migrations.filter(entry => entry.version < 100)) {
+			if (migration.foreign_keys_disabled)
+				database.run('PRAGMA foreign_keys = OFF');
+			database.transaction(() => database.run(migration.sql)).immediate();
+			if (migration.foreign_keys_disabled)
+				database.run('PRAGMA foreign_keys = ON');
+		}
+		database.run(
+			'INSERT INTO `clients` (`id`, `client_identifier`, `client_key`, `friend_code`, `display_name`, `icon_id`) VALUES ' +
+			"(1, 'market-policy-member', 'key-1', 'friend-1', 'Policy Member', 'melvorD:Plant'), " +
+			"(2, 'market-policy-return', 'key-2', 'friend-2', 'Policy Return', 'melvorD:Plant')"
+		);
+		database.run("INSERT INTO `guilds` (`id`, `name`, `icon_id`) VALUES(2, 'Policy Guild', 'melvorD:Farmlands')");
+		database.run(
+			'INSERT INTO `guild_petitions` (`id`, `guild_id`, `guild_name`, `type`, `conflict_subject`, ' +
+			'`petitioner_id`, `proposed_name`, `created_at`, `expires_at`) ' +
+			"VALUES(1, 2, 'Policy Guild', 'appellation', 'guild:name', 1, 'Renamed Guild', 1, 2)"
+		);
+		database.run('INSERT INTO `guild_petition_voters` (`petition_id`, `client_id`) VALUES(1, 1)');
+		database.run(
+			"INSERT INTO `guild_petition_votes` (`petition_id`, `client_id`, `choice`, `submitted_at`) " +
+			"VALUES(1, 1, 'aye', 1)"
+		);
+		database.run(
+			'INSERT INTO `banishment_returns` (`petition_id`, `client_id`, `guild_id`, `guild_name`, `created_at`) ' +
+			"VALUES(1, 2, 2, 'Policy Guild', 1)"
+		);
+
+		const migration = migrations.find(entry => entry.version === 100);
+		expect(migration?.foreign_keys_disabled).toBe(true);
+		database.run('PRAGMA foreign_keys = OFF');
+		database.transaction(() => {
+			database.run(migration!.sql);
+			expect(database.query('PRAGMA foreign_key_check').all()).toEqual([]);
+		}).immediate();
+		database.run('PRAGMA foreign_keys = ON');
+
+		expect(database.query('SELECT choice FROM `guild_petition_votes`').get()).toEqual({ choice: 'aye' });
+		expect(database.query('SELECT client_id FROM `banishment_returns`').get()).toEqual({ client_id: 2 });
+		expect(database.query('SELECT market_discovery_restriction_enabled FROM `guilds`').get())
+			.toEqual({ market_discovery_restriction_enabled: 0 });
+		database.run(
+			'INSERT INTO `guild_petitions` (`guild_id`, `guild_name`, `type`, `conflict_subject`, `petitioner_id`, `created_at`, `expires_at`) ' +
+			"VALUES(2, 'Policy Guild', 'temperance', 'guild:market-discovery-policy', 1, 3, 4)"
+		);
+		database.run("UPDATE `guild_petitions` SET `subject_locked` = 0 WHERE `type` = 'temperance'");
+		database.run(
+			'INSERT INTO `guild_petitions` (`guild_id`, `guild_name`, `type`, `conflict_subject`, `petitioner_id`, `created_at`, `expires_at`) ' +
+			"VALUES(2, 'Policy Guild', 'indulgence', 'guild:market-discovery-policy', 1, 5, 6)"
 		);
 		expect(database.query('PRAGMA foreign_key_check').all()).toEqual([]);
 		database.close();

@@ -88,7 +88,7 @@ export function search_items(catalog, query, recent = [], limit = 30) {
 export function register_chat_elements({ game, state, getLangString, document, HTMLElement, customElements }) {
 	function item_node(part, editing = false) {
 		const item = game.items.getObjectByID(part.item_id);
-		const chip = document.createElement('span');
+		const chip = document.createElement(editing ? 'span' : 'button');
 		chip.className = 'mp-chat-item' + (item ? '' : ' mp-chat-item-unavailable');
 		chip.dataset.itemId = part.item_id;
 		chip.contentEditable = 'false';
@@ -101,6 +101,11 @@ export function register_chat_elements({ game, state, getLangString, document, H
 		}
 		chip.append(document.createTextNode(item?.name ?? `${getLangString('MOD_MP_MARKET_UNKNOWN_ITEM')} (${fallback_item_name(part.item_id)})`));
 		if (editing) chip.setAttribute('role', 'img');
+		else {
+			chip.type = 'button';
+			chip.disabled = !item;
+			chip.addEventListener('click', () => state.show_chat_item_actions(part.item_id));
+		}
 		return chip;
 	}
 	function append_parts(host, parts, editing = false) {

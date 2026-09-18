@@ -1,6 +1,7 @@
 import { db, get_or_create_melvor_account, type MelvorAccountInput } from './db';
 import type * as db_row from './db/types/db_types';
 import { execute_client_deletion, type DeletionExecution } from './identity_deletion';
+import { reassign_poll_owner } from './poll-ownership';
 
 export type { MelvorAccountInput } from './db';
 
@@ -43,10 +44,16 @@ export function associate_client_with_melvor_account(
 		return matching === null ? 'mismatch' : 'matching';
 	}
 	const account_id = get_or_create_melvor_account(account);
-	const updated = db.query(
-		'UPDATE `clients` SET `melvor_account_id` = ? WHERE `id` = ? AND `melvor_account_id` IS NULL'
-	).run(account_id, client_id);
-	if (updated.changes === 1)
+	const associated = db.transaction(() => {
+		const updated = db.query(
+			'UPDATE `clients` SET `melvor_account_id` = ? WHERE `id` = ? AND `melvor_account_id` IS NULL'
+		).run(account_id, client_id);
+		if (updated.changes !== 1)
+			return false;
+		reassign_poll_owner(`client:${client_id}`, `account:${account_id}`);
+		return true;
+	}).immediate();
+	if (associated)
 		return 'associated';
 	const current = db.query<{ melvor_account_id: number | null }, [number]>(
 		'SELECT `melvor_account_id` FROM `clients` WHERE `id` = ?'

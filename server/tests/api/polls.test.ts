@@ -87,6 +87,21 @@ describe('Polls Chat', () => {
 			`/api/chat/messages?conversation_kind=poll-discussion&conversation_id=${poll_id}&${capability}`,
 			creator.session_token);
 		expect(discussion.json.messages[0].content).toBe('Why I voted this way');
+		const discussion_message_id = discussion.json.messages[0].message_id;
+		const compatible_reaction = await post_json<{ success: boolean; reactions: any[] }>(
+			'/api/chat/messages/reaction', {
+				conversation_kind: 'poll-discussion', conversation_id: poll_id,
+				message_id: discussion_message_id, reaction: '💯', reacted: true
+			}, voter.session_token);
+		expect(compatible_reaction.response.status).toBe(200);
+		expect(compatible_reaction.json).toMatchObject({
+			success: true, reactions: [{ reaction: '💯', count: 1, reacted: true }]
+		});
+		const old_client = await register_client('Old Poll Reactor', undefined, '1.5.13');
+		expect((await post('/api/chat/messages/reaction', {
+			conversation_kind: 'poll-discussion', conversation_id: poll_id,
+			message_id: discussion_message_id, reaction: '👍', reacted: true
+		}, old_client.session_token)).status).toBe(404);
 
 		const reader = await register_client('Poll Reader Two', undefined, '1.5.14');
 		const visible = await get_json_with_session<{ polls: unknown[] }>('/api/polls?' + capability, reader.session_token);
@@ -137,6 +152,95 @@ describe('Polls Chat', () => {
 		const reopened = await post_json<{ poll: any }>('/api/polls/status?' + capability,
 			{ poll_id, open: true }, creator.session_token);
 		expect(reopened.json.poll.open).toBe(true);
+	});
+
+	test('shares selections, interaction state, and throttling across linked sibling characters', async () => {
+		const creator = await register_client('Account Poll Creator', undefined, '1.5.14');
+		const account = { cloud_username: 'Poll Account', playfab_id: crypto.randomUUID() };
+		const first_sibling = await register_client('Account Poll One', account, '1.5.14');
+		const second_sibling = await register_client('Account Poll Two', account, '1.5.14');
+		await db_run("UPDATE `clients` SET `client_identifier` = 'retired-' || `id` WHERE `client_identifier` = ?",
+			['11111111-1111-4111-8111-111111111111']);
+		await db_run('UPDATE `clients` SET `client_identifier` = ? WHERE `id` = ?',
+			['11111111-1111-4111-8111-111111111111', creator.client_id]);
+		const created = await post_json<{ poll: any }>('/api/polls/create?' + capability, {
+			idempotency_key: crypto.randomUUID(), content: 'One vote per account?', options: ['One', 'Two'], choice_mode: 'single'
+		}, creator.session_token);
+		const poll_id = created.json.poll.poll_id;
+		const [first, second] = created.json.poll.options;
+
+		const initial = await post_json<{ success: boolean; poll: any }>('/api/polls/vote?' + capability,
+			{ poll_id, option_id: first.option_id, selected: true }, first_sibling.session_token);
+		expect(initial.json.success).toBe(true);
+		const sibling_view = await get_json_with_session<{ polls: any[] }>('/api/polls?' + capability, second_sibling.session_token);
+		expect(sibling_view.json.polls.find(poll => poll.poll_id === poll_id)).toMatchObject({
+			interacted: true,
+			options: [
+				{ option_id: first.option_id, vote_count: 1, selected: true },
+				{ option_id: second.option_id, vote_count: 0, selected: false }
+			]
+		});
+
+		const throttled = await post_json<{ success: boolean; retry_after_ms: number }>('/api/polls/vote?' + capability,
+			{ poll_id, option_id: second.option_id, selected: true }, second_sibling.session_token);
+		expect(throttled.json.success).toBe(false);
+		expect(throttled.json.retry_after_ms).toBeGreaterThan(0);
+		await Bun.sleep(360);
+		const switched = await post_json<{ success: boolean; poll: any }>('/api/polls/vote?' + capability,
+			{ poll_id, option_id: second.option_id, selected: true }, second_sibling.session_token);
+		expect(switched.json.poll.options.map((option: any) => [option.vote_count, option.selected]))
+			.toEqual([[0, false], [1, true]]);
+
+		const account_id = (await db_all<{ id: number }>(
+			'SELECT `id` FROM `melvor_accounts` WHERE `playfab_id` = ?', [account.playfab_id]
+		))[0].id;
+		expect(await db_all<{ owner_key: string; client_id: number }>(
+			'SELECT `owner_key`, `client_id` FROM `poll_votes` WHERE `poll_id` = ?', [poll_id]
+		)).toEqual([{ owner_key: `account:${account_id}`, client_id: second_sibling.client_id }]);
+		expect((await db_all<{ count: number }>(
+			'SELECT COUNT(*) AS `count` FROM `poll_interactions` WHERE `poll_id` = ?', [poll_id]
+		))[0].count).toBe(1);
+		expect((await db_all<{ count: number }>(
+			'SELECT COUNT(*) AS `count` FROM `poll_vote_throttles` WHERE `poll_id` = ?', [poll_id]
+		))[0].count).toBe(1);
+	});
+
+	test('moves a legacy character Poll state into its account when the character becomes linked', async () => {
+		const creator = await register_client('Legacy Poll Creator', undefined, '1.5.14');
+		const legacy = await register_client('Legacy Poll Voter', undefined, '1.5.14');
+		const account = { cloud_username: 'Legacy Poll Account', playfab_id: crypto.randomUUID() };
+		const sibling = await register_client('Linked Poll Sibling', account, '1.5.14');
+		await db_run("UPDATE `clients` SET `client_identifier` = 'retired-' || `id` WHERE `client_identifier` = ?",
+			['11111111-1111-4111-8111-111111111111']);
+		await db_run('UPDATE `clients` SET `client_identifier` = ? WHERE `id` = ?',
+			['11111111-1111-4111-8111-111111111111', creator.client_id]);
+		const created = await post_json<{ poll: any }>('/api/polls/create?' + capability, {
+			idempotency_key: crypto.randomUUID(), content: 'Merge legacy choices?', options: ['One', 'Two'], choice_mode: 'multi'
+		}, creator.session_token);
+		const poll_id = created.json.poll.poll_id;
+		const [first, second] = created.json.poll.options;
+		await post_json('/api/polls/vote?' + capability,
+			{ poll_id, option_id: first.option_id, selected: true }, legacy.session_token);
+		await post_json('/api/polls/vote?' + capability,
+			{ poll_id, option_id: second.option_id, selected: true }, sibling.session_token);
+
+		const associated = await post_json<{ session_token?: string }>('/api/authenticate', {
+			client_identifier: legacy.client_identifier,
+			client_key: legacy.client_key,
+			...account
+		});
+		expect(associated.response.status).toBe(200);
+		const merged = await get_json_with_session<{ polls: any[] }>('/api/polls?' + capability, sibling.session_token);
+		expect(merged.json.polls.find(poll => poll.poll_id === poll_id)).toMatchObject({
+			interacted: true,
+			options: [
+				{ option_id: first.option_id, vote_count: 1, selected: true },
+				{ option_id: second.option_id, vote_count: 1, selected: true }
+			]
+		});
+		expect((await db_all<{ count: number }>(
+			'SELECT COUNT(DISTINCT `owner_key`) AS `count` FROM `poll_votes` WHERE `poll_id` = ?', [poll_id]
+		))[0].count).toBe(1);
 	});
 
 	test('lets the authorized administrator delete a published poll and publishes the deletion', async () => {

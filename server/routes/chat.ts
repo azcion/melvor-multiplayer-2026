@@ -156,7 +156,10 @@ export function register_chat_routes(): void {
 			return 400;
 		if (kind === 'global' && !has_global_chat_capability(url))
 			return 404;
-		if (kind === 'poll-discussion' && (!has_polls_capability(url) || !can_view_polls(get_request_mod_version(req))))
+		// 1.5.14 omitted the Polls capability from this one request even though the
+		// explicit conversation kind proves intent. Retain the version gate while
+		// accepting that released client until its corrected successor is adopted.
+		if (kind === 'poll-discussion' && !can_view_polls(get_request_mod_version(req)))
 			return 404;
 		if (typeof json.conversation_id !== 'number' || typeof json.message_id !== 'number' ||
 			typeof json.reaction !== 'string' || typeof json.reacted !== 'boolean')

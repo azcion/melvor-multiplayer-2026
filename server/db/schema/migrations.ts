@@ -9,6 +9,7 @@ import { migrations_051_060 } from './migrations/051-060';
 import { migrations_071_080 } from './migrations/071-080';
 import { migrations_081_090 } from './migrations/081-090';
 import { migrations_091_100 } from './migrations/091-100';
+import { migrations_101_110 } from './migrations/101-110';
 
 export const migrations: Migration[] = [
 	...migrations_001_010,
@@ -21,4 +22,5 @@ export const migrations: Migration[] = [
 	...migrations_071_080,
 	...migrations_081_090,
 	...migrations_091_100,
+	...migrations_101_110,
 ];

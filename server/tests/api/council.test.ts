@@ -7,7 +7,8 @@ import { SHADOWED_AFTER } from '../../shadowed';
 type PetitionView = {
 	petition_id: number;
 	type: 'appellation' | 'heraldry' | 'banishment' | 'winnowing' | 'charitree_ingratitude' |
-		'charitree_sacrilege' | 'charitree_beneficence' | 'fellowship' | 'enclosure' | 'interdict' | 'heresy';
+		'charitree_sacrilege' | 'charitree_beneficence' | 'fellowship' | 'enclosure' | 'interdict' | 'heresy' |
+		'temperance' | 'indulgence';
 	proposal: Record<string, unknown>;
 	lifecycle: 'active' | 'granted' | 'denied' | 'lapsed';
 	execution_state: 'not_applicable' | 'pending' | 'running' | 'succeeded' | 'failed';
@@ -23,6 +24,7 @@ async function get_council(session_token: string, page = 0) {
 	const result = await get_json_with_session<{
 		petitions: PetitionView[];
 		available_petition_types: PetitionView['type'][];
+		market_discovery_restriction_enabled: boolean;
 		resolved_page: number;
 		has_more: boolean;
 	}>(`/api/guilds/council?page=${page}`, session_token);
@@ -571,6 +573,44 @@ describe('Council API', () => {
 			'/api/events', pair.first.session_token
 		);
 		expect(voluntary.json).toMatchObject({ social_mode: 'social', social_mode_enforcement: null });
+	});
+
+	test('toggles Marketplace discovery restrictions through exclusive Temperance and Indulgence Petitions', async () => {
+		const pair = await make_guildmates('Temperance Petitioner', 'Temperance Voter', 'Temperance Guild');
+
+		let council = await get_council(pair.first.session_token);
+		expect(council).toMatchObject({ market_discovery_restriction_enabled: false });
+		expect(council.available_petition_types).toContain('temperance');
+		expect(council.available_petition_types).not.toContain('indulgence');
+		const premature_indulgence = await post_json<{ error_lang: string }>('/api/guilds/petitions/raise', {
+			type: 'indulgence'
+		}, pair.first.session_token);
+		expect(premature_indulgence.json.error_lang)
+			.toBe('MOD_MP_COUNCIL_MARKET_DISCOVERY_POLICY_UNAVAILABLE');
+
+		const temperance = await post_json<{ petition_id: number }>('/api/guilds/petitions/raise', {
+			type: 'temperance'
+		}, pair.first.session_token);
+		await post_json('/api/guilds/petitions/vote', {
+			petition_id: temperance.json.petition_id,
+			choice: 'aye'
+		}, pair.second.session_token);
+		council = await get_council(pair.first.session_token);
+		expect(council).toMatchObject({ market_discovery_restriction_enabled: true });
+		expect(council.available_petition_types).toContain('indulgence');
+		expect(council.available_petition_types).not.toContain('temperance');
+
+		const indulgence = await post_json<{ petition_id: number }>('/api/guilds/petitions/raise', {
+			type: 'indulgence'
+		}, pair.first.session_token);
+		await post_json('/api/guilds/petitions/vote', {
+			petition_id: indulgence.json.petition_id,
+			choice: 'aye'
+		}, pair.second.session_token);
+		council = await get_council(pair.first.session_token);
+		expect(council).toMatchObject({ market_discovery_restriction_enabled: false });
+		expect(council.available_petition_types).toContain('temperance');
+		expect(council.available_petition_types).not.toContain('indulgence');
 	});
 
 	test('keeps post-snapshot members ineligible and conceals the active tally', async () => {

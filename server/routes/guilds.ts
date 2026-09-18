@@ -68,10 +68,12 @@ export function register_guilds_routes(): void {
 				return { status: 'forbidden' as const };
 
 			const guild = db.query(
-				'SELECT `type`, `name`, `charitree_enabled`, `cheat_restriction_enabled` FROM `guilds` WHERE `id` = ? LIMIT 1'
+				'SELECT `type`, `name`, `charitree_enabled`, `cheat_restriction_enabled`, ' +
+				'`market_discovery_restriction_enabled` FROM `guilds` WHERE `id` = ? LIMIT 1'
 			).get(
 				membership.guild_id
-			) as { type: GuildType; name: string; charitree_enabled: number; cheat_restriction_enabled: number } | null;
+			) as { type: GuildType; name: string; charitree_enabled: number; cheat_restriction_enabled: number;
+				market_discovery_restriction_enabled: number } | null;
 			if (guild === null)
 				return { status: 'forbidden' as const };
 			if (guild.type === FREE_FELLOWSHIP_TYPE)
@@ -82,6 +84,9 @@ export function register_guilds_routes(): void {
 			if ((petition_type === 'interdict' && guild.cheat_restriction_enabled !== 0) ||
 				(petition_type === 'heresy' && guild.cheat_restriction_enabled !== 1))
 				return { status: 'cheat_policy_unavailable' as const };
+			if ((petition_type === 'temperance' && guild.market_discovery_restriction_enabled !== 0) ||
+				(petition_type === 'indulgence' && guild.market_discovery_restriction_enabled !== 1))
+				return { status: 'market_discovery_policy_unavailable' as const };
 			expire_charity_items(now, membership.guild_id);
 			if (petition_type === 'charitree_ingratitude') {
 				const has_contents = db.query(
@@ -206,6 +211,8 @@ export function register_guilds_routes(): void {
 			return { error_lang: 'MOD_MP_COUNCIL_ADMISSION_UNAVAILABLE' };
 		if (result.status === 'cheat_policy_unavailable')
 			return { error_lang: 'MOD_MP_COUNCIL_CHEAT_POLICY_UNAVAILABLE' };
+		if (result.status === 'market_discovery_policy_unavailable')
+			return { error_lang: 'MOD_MP_COUNCIL_MARKET_DISCOVERY_POLICY_UNAVAILABLE' };
 		return { success: true, petition_id: result.petition_id };
 	});
 

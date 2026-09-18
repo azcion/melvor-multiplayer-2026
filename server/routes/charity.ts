@@ -171,7 +171,7 @@ export function register_charity_routes(): void {
 			const wish = db.query<{ id: number }, [number, number, number, string, number, number, number, number]>(
 				'INSERT INTO `charity_wishes` (`guild_id`, `owner_client_id`, `melvor_account_id`, `item_id`, `qty`, ' +
 				'`required_gp`, `created_at`, `matures_at`) VALUES(?, ?, ?, ?, ?, ?, ?, ?) RETURNING `id`'
-			).get(membership.guild_id, client_id, account_id, item_id, qty, required_gp, now, now + get_charity_wish_maturing_ms(now)) as { id: number };
+			).get(membership.guild_id, client_id, account_id, item_id, qty, required_gp, now, now + get_charity_wish_maturing_ms()) as { id: number };
 			return { success: true, wish_id: wish.id };
 		});
 		return result ?? 400;

@@ -158,4 +158,182 @@ export const migrations_091_100: Migration[] = [{
 		INSERT INTO poll_interactions (poll_id, client_id, interacted_at)
 		SELECT poll_id, client_id, MIN(created_at) FROM poll_votes GROUP BY poll_id, client_id;
 	`
+}, {
+	version: 98,
+	sql: `
+		CREATE TABLE poll_votes_new (
+			poll_id INTEGER NOT NULL REFERENCES polls (id) ON DELETE CASCADE,
+			option_id INTEGER NOT NULL REFERENCES poll_options (id) ON DELETE CASCADE,
+			owner_key TEXT NOT NULL CHECK (owner_key GLOB 'account:[0-9]*' OR owner_key GLOB 'client:[0-9]*'),
+			client_id INTEGER NOT NULL REFERENCES clients (id),
+			created_at INTEGER NOT NULL CHECK (created_at BETWEEN 0 AND 9007199254740991),
+			PRIMARY KEY (option_id, owner_key)
+		);
+		INSERT INTO poll_votes_new (poll_id, option_id, owner_key, client_id, created_at)
+		SELECT poll_id, option_id, owner_key, client_id, created_at
+		FROM (
+			SELECT vote.poll_id, vote.option_id,
+				CASE WHEN client.melvor_account_id IS NULL THEN 'client:' || client.id
+					ELSE 'account:' || client.melvor_account_id END AS owner_key,
+				vote.client_id, vote.created_at,
+				ROW_NUMBER() OVER (
+					PARTITION BY vote.poll_id,
+						CASE WHEN client.melvor_account_id IS NULL THEN 'client:' || client.id
+							ELSE 'account:' || client.melvor_account_id END,
+						CASE WHEN poll.choice_mode = 'single' THEN 0 ELSE vote.option_id END
+					ORDER BY vote.created_at DESC, vote.client_id DESC, vote.option_id DESC
+				) AS owner_rank
+			FROM poll_votes AS vote
+			JOIN polls AS poll ON poll.id = vote.poll_id
+			JOIN clients AS client ON client.id = vote.client_id
+		)
+		WHERE owner_rank = 1;
+		DROP TABLE poll_votes;
+		ALTER TABLE poll_votes_new RENAME TO poll_votes;
+		CREATE INDEX idx_poll_votes_poll ON poll_votes (poll_id, option_id);
+
+		CREATE TABLE poll_vote_throttles_new (
+			poll_id INTEGER NOT NULL REFERENCES polls (id) ON DELETE CASCADE,
+			owner_key TEXT NOT NULL CHECK (owner_key GLOB 'account:[0-9]*' OR owner_key GLOB 'client:[0-9]*'),
+			last_mutated_at INTEGER NOT NULL CHECK (last_mutated_at BETWEEN 0 AND 9007199254740991),
+			PRIMARY KEY (poll_id, owner_key)
+		);
+		INSERT INTO poll_vote_throttles_new (poll_id, owner_key, last_mutated_at)
+		SELECT throttle.poll_id,
+			CASE WHEN client.melvor_account_id IS NULL THEN 'client:' || client.id
+				ELSE 'account:' || client.melvor_account_id END,
+			MAX(throttle.last_mutated_at)
+		FROM poll_vote_throttles AS throttle
+		JOIN clients AS client ON client.id = throttle.client_id
+		GROUP BY throttle.poll_id,
+			CASE WHEN client.melvor_account_id IS NULL THEN 'client:' || client.id
+				ELSE 'account:' || client.melvor_account_id END;
+		DROP TABLE poll_vote_throttles;
+		ALTER TABLE poll_vote_throttles_new RENAME TO poll_vote_throttles;
+
+		CREATE TABLE poll_interactions_new (
+			poll_id INTEGER NOT NULL REFERENCES polls (id) ON DELETE CASCADE,
+			owner_key TEXT NOT NULL CHECK (owner_key GLOB 'account:[0-9]*' OR owner_key GLOB 'client:[0-9]*'),
+			interacted_at INTEGER NOT NULL CHECK (interacted_at BETWEEN 0 AND 9007199254740991),
+			PRIMARY KEY (poll_id, owner_key)
+		);
+		INSERT INTO poll_interactions_new (poll_id, owner_key, interacted_at)
+		SELECT interaction.poll_id,
+			CASE WHEN client.melvor_account_id IS NULL THEN 'client:' || client.id
+				ELSE 'account:' || client.melvor_account_id END,
+			MIN(interaction.interacted_at)
+		FROM poll_interactions AS interaction
+		JOIN clients AS client ON client.id = interaction.client_id
+		GROUP BY interaction.poll_id,
+			CASE WHEN client.melvor_account_id IS NULL THEN 'client:' || client.id
+				ELSE 'account:' || client.melvor_account_id END;
+		DROP TABLE poll_interactions;
+		ALTER TABLE poll_interactions_new RENAME TO poll_interactions;
+		CREATE INDEX idx_poll_interactions_owner ON poll_interactions (owner_key, poll_id);
+
+		DELETE FROM poll_deletions;
+	`
+}, {
+	version: 99,
+	sql: `
+		UPDATE charity_wishes
+		SET matures_at = MIN(matures_at, created_at + 72000000)
+		WHERE progress_gp < required_gp;
+		UPDATE service_settings SET value = '0'
+		WHERE key IN (
+			'charity_wish_promo_started_at',
+			'charity_wish_promo_ends_at',
+			'charity_wish_promo_decay_hours'
+		);
+	`
+}, {
+	version: 100,
+	foreign_keys_disabled: true,
+	sql: `
+		ALTER TABLE guilds ADD COLUMN market_discovery_restriction_enabled INTEGER NOT NULL DEFAULT 0
+			CHECK (market_discovery_restriction_enabled IN (0, 1));
+
+		CREATE TABLE guild_petitions_new (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			guild_id INTEGER NOT NULL,
+			guild_name TEXT NOT NULL,
+			type TEXT NOT NULL CHECK (type IN (
+				'appellation', 'heraldry', 'banishment', 'winnowing', 'charitree_ingratitude',
+				'charitree_sacrilege', 'charitree_beneficence', 'fellowship', 'enclosure',
+				'interdict', 'heresy', 'temperance', 'indulgence'
+			)),
+			conflict_subject TEXT NOT NULL,
+			subject_locked INTEGER NOT NULL DEFAULT 1 CHECK (subject_locked IN (0, 1)),
+			petitioner_id INTEGER NOT NULL,
+			proposed_name TEXT,
+			proposed_icon_id TEXT,
+			target_client_id INTEGER,
+			target_membership_id INTEGER,
+			charitree_expires_before INTEGER CHECK (
+				charitree_expires_before IS NULL OR charitree_expires_before >= 0
+			),
+			created_at INTEGER NOT NULL CHECK (created_at >= 0),
+			expires_at INTEGER NOT NULL CHECK (expires_at >= created_at),
+			resolved_at INTEGER CHECK (resolved_at IS NULL OR resolved_at >= created_at),
+			lifecycle TEXT NOT NULL DEFAULT 'active'
+				CHECK (lifecycle IN ('active', 'granted', 'denied', 'lapsed', 'withdrawn')),
+			execution_state TEXT NOT NULL DEFAULT 'not_applicable'
+				CHECK (execution_state IN ('not_applicable', 'pending', 'running', 'succeeded', 'failed')),
+			execution_attempts INTEGER NOT NULL DEFAULT 0 CHECK (execution_attempts >= 0),
+			execution_last_attempt_at INTEGER CHECK (
+				execution_last_attempt_at IS NULL OR execution_last_attempt_at >= 0
+			),
+			execution_failure_category TEXT,
+			execution_failure_message TEXT,
+			execution_effect TEXT,
+			CHECK (
+				(type = 'appellation' AND proposed_name IS NOT NULL AND proposed_icon_id IS NULL
+					AND target_client_id IS NULL AND target_membership_id IS NULL
+					AND charitree_expires_before IS NULL) OR
+				(type = 'heraldry' AND proposed_name IS NULL AND proposed_icon_id IS NOT NULL
+					AND target_client_id IS NULL AND target_membership_id IS NULL
+					AND charitree_expires_before IS NULL) OR
+				(type = 'banishment' AND proposed_name IS NULL AND proposed_icon_id IS NULL
+					AND target_client_id IS NOT NULL AND target_membership_id IS NOT NULL
+					AND charitree_expires_before IS NULL) OR
+				(type = 'charitree_ingratitude' AND proposed_name IS NULL AND proposed_icon_id IS NULL
+					AND target_client_id IS NULL AND target_membership_id IS NULL
+					AND charitree_expires_before IS NOT NULL) OR
+				(type IN ('winnowing', 'charitree_sacrilege', 'charitree_beneficence', 'fellowship',
+					'enclosure', 'interdict', 'heresy', 'temperance', 'indulgence')
+					AND proposed_name IS NULL AND proposed_icon_id IS NULL
+					AND target_client_id IS NULL AND target_membership_id IS NULL
+					AND charitree_expires_before IS NULL)
+			),
+			FOREIGN KEY (petitioner_id) REFERENCES clients (id),
+			FOREIGN KEY (target_client_id) REFERENCES clients (id)
+		);
+		INSERT INTO guild_petitions_new (
+			id, guild_id, guild_name, type, conflict_subject, subject_locked, petitioner_id,
+			proposed_name, proposed_icon_id, target_client_id, target_membership_id,
+			charitree_expires_before, created_at, expires_at, resolved_at, lifecycle,
+			execution_state, execution_attempts, execution_last_attempt_at,
+			execution_failure_category, execution_failure_message, execution_effect
+		)
+		SELECT
+			id, guild_id, guild_name, type, conflict_subject, subject_locked, petitioner_id,
+			proposed_name, proposed_icon_id, target_client_id, target_membership_id,
+			charitree_expires_before, created_at, expires_at, resolved_at, lifecycle,
+			execution_state, execution_attempts, execution_last_attempt_at,
+			execution_failure_category, execution_failure_message, execution_effect
+		FROM guild_petitions;
+		DROP TABLE guild_petitions;
+		ALTER TABLE guild_petitions_new RENAME TO guild_petitions;
+		CREATE UNIQUE INDEX idx_guild_petitions_locked_subject
+			ON guild_petitions (guild_id, conflict_subject) WHERE subject_locked = 1;
+		CREATE INDEX idx_guild_petitions_history
+			ON guild_petitions (guild_id, lifecycle, resolved_at DESC, id DESC);
+		CREATE INDEX idx_guild_petitions_expiry
+			ON guild_petitions (expires_at) WHERE lifecycle = 'active';
+		CREATE INDEX idx_guild_petitions_petitioner
+			ON guild_petitions (petitioner_id, lifecycle);
+		CREATE INDEX idx_guild_petitions_execution
+			ON guild_petitions (execution_state, execution_last_attempt_at, id)
+			WHERE execution_state IN ('pending', 'running', 'failed');
+	`
 }];

@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.5.16
+
+- Added Petition of Temperance and Petition of Indulgence, allowing Guilds to require members to discover items before creating Buy Orders or buying from Sell Listings, or restore unrestricted Marketplace trading.
+- Fixed accepting a Marketplace Haggle locking up other Multiplayer UI actions.
+- Made Charitree Wish timing permanent: Wishes mature in 20 hours, and offerings decay in 20 hours while a Maturing or Ripening Wish is active instead of the standard four days.
+- Expanded the Chat reaction picker to four rows, keeping the original 18 reactions and adding six randomized Unicode 16.0 emoji on each open.
+
+## 1.5.15
+
+- Made Chat item tags clickable, with quick actions to open the item's Melvor Wiki page or find its Sell Listings and Buy Orders in the Marketplace.
+- Fixed reactions in Poll Discussions failing with a request error.
+
 ## 1.5.14
 
 - Added Single Choice and Multi-Choice Polls, persistent Open or Closed indicators, and moderator controls that stop voting without closing the Poll Discussion.

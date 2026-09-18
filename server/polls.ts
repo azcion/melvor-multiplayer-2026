@@ -2,6 +2,7 @@ import { save_chat_parts, same_chat_parts, type ChatPart } from './chat_parts';
 import { attach_translations } from './chat_translation';
 import { db } from './db';
 import { is_client_version_at_least } from './client-version-policy';
+import { get_poll_owner_key } from './poll-ownership';
 
 export const POLLS_CAPABILITY = 'polls-v1';
 export const POLLS_MINIMUM_CLIENT_VERSION = '1.5.14';
@@ -49,6 +50,7 @@ function next_revision(): number {
 }
 
 function poll_view(client_id: number, poll_id: number) {
+	const owner_key = get_poll_owner_key(client_id);
 	const poll = db.query<{ id: number; creator_id: number; content: string; choice_mode: 'single' | 'multi';
 		closed_at: number | null; created_at: number; revision: number;
 		reaction_revision: number; display_name: string; icon_id: string }, [number]>(
@@ -57,14 +59,14 @@ function poll_view(client_id: number, poll_id: number) {
 	).get(poll_id);
 	if (!poll)
 		return null;
-	const interacted = db.query<{ interacted: number }, [number, number]>(
-		' SELECT EXISTS(SELECT 1 FROM `poll_interactions` WHERE `poll_id` = ? AND `client_id` = ?) AS `interacted`'
-	).get(poll_id, client_id)?.interacted === 1;
-	const raw_options = db.query<{ option_id: number; content: string; position: number; vote_count: number; selected: number }, [number, number]>(
-		'SELECT option.`id` AS `option_id`, option.`content`, option.`position`, COUNT(vote.`client_id`) AS `vote_count`, ' +
-		'MAX(vote.`client_id` = ?) AS `selected` FROM `poll_options` AS option LEFT JOIN `poll_votes` AS vote ' +
+	const interacted = db.query<{ interacted: number }, [number, string]>(
+		' SELECT EXISTS(SELECT 1 FROM `poll_interactions` WHERE `poll_id` = ? AND `owner_key` = ?) AS `interacted`'
+	).get(poll_id, owner_key)?.interacted === 1;
+	const raw_options = db.query<{ option_id: number; content: string; position: number; vote_count: number; selected: number }, [string, number]>(
+		'SELECT option.`id` AS `option_id`, option.`content`, option.`position`, COUNT(vote.`owner_key`) AS `vote_count`, ' +
+		'MAX(vote.`owner_key` = ?) AS `selected` FROM `poll_options` AS option LEFT JOIN `poll_votes` AS vote ' +
 		'ON vote.`option_id` = option.`id` WHERE option.`poll_id` = ? GROUP BY option.`id` ORDER BY option.`position`'
-	).all(client_id, poll_id);
+	).all(owner_key, poll_id);
 	const options = attach_translations('poll-option', client_id, raw_options.map(option => ({
 		...option, message_id: option.option_id, sender_id: poll.creator_id, selected: option.selected === 1
 	})));
@@ -191,26 +193,29 @@ export function set_poll_vote(client_id: number, mod_version: string | null, pol
 		return { status: 'missing' };
 	if (option.closed_at !== null)
 		return { status: 'forbidden' };
-	const latest = db.query<{ last_mutated_at: number }, [number, number]>(
-		'SELECT `last_mutated_at` FROM `poll_vote_throttles` WHERE `poll_id` = ? AND `client_id` = ?'
-	).get(poll_id, client_id)?.last_mutated_at;
+	const owner_key = get_poll_owner_key(client_id);
+	const latest = db.query<{ last_mutated_at: number }, [number, string]>(
+		'SELECT `last_mutated_at` FROM `poll_vote_throttles` WHERE `poll_id` = ? AND `owner_key` = ?'
+	).get(poll_id, owner_key)?.last_mutated_at;
 	if (latest !== undefined && latest + POLL_VOTE_THROTTLE_MS > now)
 		return { status: 'throttled', retry_after_ms: latest + POLL_VOTE_THROTTLE_MS - now };
 	db.transaction(() => {
 		if (selected)
-			db.query('INSERT INTO `poll_interactions` (`poll_id`, `client_id`, `interacted_at`) VALUES (?, ?, ?) ON CONFLICT DO NOTHING')
-				.run(poll_id, client_id, now);
+			db.query('INSERT INTO `poll_interactions` (`poll_id`, `owner_key`, `interacted_at`) VALUES (?, ?, ?) ON CONFLICT DO NOTHING')
+				.run(poll_id, owner_key, now);
 		if (selected && option.choice_mode === 'single')
-			db.query('DELETE FROM `poll_votes` WHERE `poll_id` = ? AND `client_id` = ? AND `option_id` <> ?')
-				.run(poll_id, client_id, option_id);
+			db.query('DELETE FROM `poll_votes` WHERE `poll_id` = ? AND `owner_key` = ? AND `option_id` <> ?')
+				.run(poll_id, owner_key, option_id);
 		const changed = selected
-			? db.query('INSERT INTO `poll_votes` (`poll_id`, `option_id`, `client_id`, `created_at`) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING').run(poll_id, option_id, client_id, now).changes
-			: db.query('DELETE FROM `poll_votes` WHERE `poll_id` = ? AND `option_id` = ? AND `client_id` = ?').run(poll_id, option_id, client_id).changes;
+			? db.query('INSERT INTO `poll_votes` (`poll_id`, `option_id`, `owner_key`, `client_id`, `created_at`) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING')
+				.run(poll_id, option_id, owner_key, client_id, now).changes
+			: db.query('DELETE FROM `poll_votes` WHERE `poll_id` = ? AND `option_id` = ? AND `owner_key` = ?')
+				.run(poll_id, option_id, owner_key).changes;
 		if (changed > 0)
 			db.query('UPDATE `polls` SET `revision` = ? WHERE `id` = ?').run(next_revision(), poll_id);
-		db.query('INSERT INTO `poll_vote_throttles` (`poll_id`, `client_id`, `last_mutated_at`) VALUES (?, ?, ?) ' +
-			'ON CONFLICT (`poll_id`, `client_id`) DO UPDATE SET `last_mutated_at` = excluded.`last_mutated_at`')
-			.run(poll_id, client_id, now);
+		db.query('INSERT INTO `poll_vote_throttles` (`poll_id`, `owner_key`, `last_mutated_at`) VALUES (?, ?, ?) ' +
+			'ON CONFLICT (`poll_id`, `owner_key`) DO UPDATE SET `last_mutated_at` = excluded.`last_mutated_at`')
+			.run(poll_id, owner_key, now);
 	}).immediate();
 	return { status: 'ok', value: { poll: poll_view(client_id, poll_id)!, retry_after_ms: POLL_VOTE_THROTTLE_MS } };
 }

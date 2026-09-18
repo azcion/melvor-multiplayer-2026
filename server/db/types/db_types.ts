@@ -387,6 +387,7 @@ export type guilds = {
 	icon_id: string;
 	charitree_enabled: number;
 	cheat_restriction_enabled: number;
+	market_discovery_restriction_enabled: number;
 	created_at: number | null;
 };
 
@@ -417,7 +418,8 @@ export type guild_petitions = {
 	guild_id: number;
 	guild_name: string;
 	type: 'appellation' | 'heraldry' | 'banishment' | 'winnowing' | 'charitree_ingratitude' |
-		'charitree_sacrilege' | 'charitree_beneficence' | 'fellowship' | 'enclosure' | 'interdict' | 'heresy';
+		'charitree_sacrilege' | 'charitree_beneficence' | 'fellowship' | 'enclosure' | 'interdict' | 'heresy' |
+		'temperance' | 'indulgence';
 	conflict_subject: string;
 	subject_locked: number;
 	petitioner_id: number;

@@ -171,7 +171,7 @@ export { acknowledge_economy_receipt, economy_item_effects, pending_economy_rece
 export { acknowledge_victory_cache, abandon_assault, activate_raid, get_raid_state, get_victory_cache, reserve_assault, settle_assault } from './raid';
 export { CHARITY_KNOWN_CURRENCY_VALUATIONS, get_charity_known_valuation } from './charity-values';
 export { BACKEND_VERSION } from './version';
-export { CHARITY_SHUFFLE_BONUS_LIMIT, CHARITY_WISH_AUTO_CLAIM_MS, CHARITY_WISH_MATURING_MS, CHARITY_WISH_PROMO_MATURING_MS, CHARITY_WISH_SHUFFLE_PENALTY, CHARITY_WISH_VALUES, auto_claim_due_charity_wishes, get_charity_shuffle_owner_key, get_charity_wish_account, get_charity_wish_maturing_ms, grant_charity_wish_to_inbox,
+export { CHARITY_SHUFFLE_BONUS_LIMIT, CHARITY_WISH_AUTO_CLAIM_MS, CHARITY_WISH_MATURING_MS, CHARITY_WISH_SHUFFLE_PENALTY, CHARITY_WISH_VALUES, auto_claim_due_charity_wishes, get_charity_shuffle_owner_key, get_charity_wish_account, get_charity_wish_maturing_ms, grant_charity_wish_to_inbox,
 	list_charity_wishes, normalize_charity_shuffle_events, run_charity_wish_command, settle_departing_charity_wish } from './charity-wishes';
 export { get_charity_decay_context, get_effective_charity_expiry } from './charity-decay';
 export {
@@ -1173,7 +1173,8 @@ export function claim_council_action(now = Date.now()): db_row.guild_petitions |
 		const petition = db.query(
 			"SELECT * FROM `guild_petitions` WHERE `lifecycle` = 'granted' " +
 			"AND `type` IN ('appellation', 'heraldry', 'banishment', 'winnowing', 'charitree_ingratitude', " +
-		"'charitree_sacrilege', 'charitree_beneficence', 'fellowship', 'enclosure', 'interdict', 'heresy') AND (" +
+			"'charitree_sacrilege', 'charitree_beneficence', 'fellowship', 'enclosure', 'interdict', 'heresy', " +
+			"'temperance', 'indulgence') AND (" +
 			"`execution_state` = 'pending' OR " +
 			"(`execution_state` = 'failed' AND `execution_last_attempt_at` <= ?) OR " +
 			"(`execution_state` = 'running' AND `execution_last_attempt_at` <= ?)) " +
@@ -1439,6 +1440,19 @@ export function apply_council_guild_action(petition: db_row.guild_petitions): st
 				'SELECT `client_id` FROM `guild_memberships` WHERE `guild_id` = ?)'
 			).run(petition.guild_id);
 		return updated.changes === 1 ? (enabled === 1 ? 'interdicted' : 'tolerated') : 'already_applied_or_absent';
+	}
+	if (petition.type === 'temperance' || petition.type === 'indulgence') {
+		const enabled = petition.type === 'temperance' ? 1 : 0;
+		const updated = db.query(
+			'UPDATE `guilds` SET `market_discovery_restriction_enabled` = ? WHERE `id` = ? ' +
+			'AND `market_discovery_restriction_enabled` != ?'
+		).run(enabled, petition.guild_id, enabled);
+		if (updated.changes === 1)
+			db.query(
+				'UPDATE `clients` SET `event_revision` = `event_revision` + 1 WHERE `id` IN (' +
+				'SELECT `client_id` FROM `guild_memberships` WHERE `guild_id` = ?)'
+			).run(petition.guild_id);
+		return updated.changes === 1 ? (enabled === 1 ? 'tempered' : 'indulged') : 'already_applied_or_absent';
 	}
 	if (petition.type === 'charitree_ingratitude') {
 		const clear = db.transaction(() => {
@@ -2057,6 +2071,12 @@ export async function get_client_guild_id(client_id: number): Promise<number | n
 	return membership?.guild_id ?? null;
 }
 
+export function is_market_discovery_restricted(guild_id: number): boolean {
+	return db.query<{ enabled: number }, [number]>(
+		'SELECT `market_discovery_restriction_enabled` AS `enabled` FROM `guilds` WHERE `id` = ? LIMIT 1'
+	).get(guild_id)?.enabled === 1;
+}
+
 export async function guild_membership_exists(client_id_a: number, client_id_b: number): Promise<boolean> {
 	return db_exists(
 		'SELECT 1 FROM `guild_memberships` AS a JOIN `guild_memberships` AS b ON b.`guild_id` = a.`guild_id` ' +
@@ -2378,14 +2398,17 @@ export async function get_council_petitions(guild_id: number, client_id: number,
 	) as CouncilPetitionRow[];
 
 	const guild = await db_get_single(
-		'SELECT g.`type`, g.`charitree_enabled`, g.`cheat_restriction_enabled`, (EXISTS(SELECT 1 FROM `charity_items` WHERE `guild_id` = g.`id`) OR ' +
+		'SELECT g.`type`, g.`charitree_enabled`, g.`cheat_restriction_enabled`, ' +
+			'g.`market_discovery_restriction_enabled`, ' +
+			'(EXISTS(SELECT 1 FROM `charity_items` WHERE `guild_id` = g.`id`) OR ' +
 			'EXISTS(SELECT 1 FROM `charity_wishes` WHERE `guild_id` = g.`id`)) AS `has_contents`, ' +
 			'EXISTS(SELECT 1 FROM `guild_memberships` AS membership ' +
 			'JOIN `clients` AS client ON client.`id` = membership.`client_id` ' +
 			'WHERE membership.`guild_id` = g.`id` AND client.`last_multiplayer_active_at` < ?) AS `has_shadowed` ' +
 			'FROM `guilds` AS g WHERE g.`id` = ? LIMIT 1',
 		[shadowed_cutoff(), guild_id]
-	) as { type: GuildType; charitree_enabled: number; cheat_restriction_enabled: number; has_contents: number; has_shadowed: number } | null;
+	) as { type: GuildType; charitree_enabled: number; cheat_restriction_enabled: number;
+		market_discovery_restriction_enabled: number; has_contents: number; has_shadowed: number } | null;
 	const available_petition_types: PetitionType[] = ['appellation', 'heraldry', 'banishment'];
 	if (guild?.has_shadowed === 1)
 		available_petition_types.push('winnowing');
@@ -2397,6 +2420,10 @@ export async function get_council_petitions(guild_id: number, client_id: number,
 		available_petition_types.push('heresy');
 	else if (guild?.cheat_restriction_enabled === 0)
 		available_petition_types.push('interdict');
+	if (guild?.market_discovery_restriction_enabled === 1)
+		available_petition_types.push('indulgence');
+	else if (guild?.market_discovery_restriction_enabled === 0)
+		available_petition_types.push('temperance');
 	if (guild?.charitree_enabled === 1) {
 		available_petition_types.push('charitree_sacrilege');
 		if (guild.has_contents === 1)
@@ -2410,6 +2437,7 @@ export async function get_council_petitions(guild_id: number, client_id: number,
 			petition_to_player_view(row, client_id)
 		),
 		available_petition_types,
+		market_discovery_restriction_enabled: guild?.market_discovery_restriction_enabled === 1,
 		resolved_page,
 		has_more: resolved.length > COUNCIL_HISTORY_PAGE_SIZE
 	};

@@ -4,7 +4,7 @@ set -eu
 
 repo_root="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 project_name="${MELVOR_TEST_PROJECT:-melvor-mp-test-$$}"
-server_port="${MELVOR_TEST_SERVER_PORT:-$((40000 + $$ % 20000))}"
+server_port="${MELVOR_TEST_SERVER_PORT:-0}"
 server_args_file=""
 node_args_file=""
 compose_owned=0

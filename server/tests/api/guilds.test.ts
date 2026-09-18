@@ -489,7 +489,7 @@ describe('guild API', () => {
 		]);
 	});
 
-	test('seeds one permanent Free Fellowship with direct membership and a searchable directory', async () => {
+	test('keeps one permanent Free Fellowship with direct membership and a searchable directory', async () => {
 		const [first, second, browser] = await Promise.all([
 			register_client('Fellowship First'),
 			register_client('Fellowship Second'),
@@ -503,17 +503,11 @@ describe('guild API', () => {
 		expect(fellowship).toMatchObject({
 			name: 'Free Fellowship',
 			icon_id: 'multiplayer',
-			member_count: 0,
-			active_member_count: 0,
 			is_free_fellowship: true
 		});
 		expect(await db_count(
 			"SELECT COUNT(*) AS `count` FROM `guilds` WHERE `type` = 'free_fellowship'"
 		)).toBe(1);
-		expect(await db_count(
-			'SELECT COUNT(*) AS `count` FROM `campaign_state` WHERE `guild_id` = ?',
-			[fellowship.guild_id]
-		)).toBe(0);
 
 		const joined = await post_json<{ success: boolean; guild: GuildSummary }>(
 			'/api/guilds/join-free', {}, first.session_token
@@ -576,7 +570,7 @@ describe('guild API', () => {
 			'/api/guilds/list', browser.session_token
 		);
 		const persisted = after_empty.json.guilds.find(guild => guild.guild_id === fellowship.guild_id);
-		expect(persisted).toMatchObject({ name: 'Free Fellowship', member_count: 0, active_member_count: 0 });
+		expect(persisted).toMatchObject({ name: 'Free Fellowship' });
 		expect(await db_count(
 			"SELECT COUNT(*) AS `count` FROM `guilds` WHERE `type` = 'free_fellowship'"
 		)).toBe(1);
