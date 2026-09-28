@@ -6,6 +6,11 @@ export type CharityContributor = {
 	icon_id: string;
 };
 
+export type ConsumedCharityContribution = {
+	client_id: number;
+	qty: number;
+};
+
 export function add_charity_contribution(guild_id: number, item_id: string, client_id: number, qty: number,
 	contributed_at: number, database: Database = db): void {
 	database.query(
@@ -15,17 +20,18 @@ export function add_charity_contribution(guild_id: number, item_id: string, clie
 }
 
 export function consume_charity_contributions(guild_id: number, item_id: string, stack_qty: number, take_qty: number,
-	database: Database = db): void {
+	database: Database = db): ConsumedCharityContribution[] {
 	const attributed_qty = database.query<{ qty: number }, [number, string]>(
 		'SELECT COALESCE(SUM(`qty`), 0) AS `qty` FROM `charity_contribution_lots` ' +
 		'WHERE `guild_id` = ? AND `item_id` = ?'
 	).get(guild_id, item_id)?.qty ?? 0;
 	let remaining = Math.max(0, take_qty - Math.max(0, stack_qty - attributed_qty));
-	if (remaining === 0) return;
-	const lots = database.query<{ id: number; qty: number }, [number, string]>(
-		'SELECT `id`, `qty` FROM `charity_contribution_lots` WHERE `guild_id` = ? AND `item_id` = ? ' +
+	if (remaining === 0) return [];
+	const lots = database.query<{ id: number; client_id: number; qty: number }, [number, string]>(
+		'SELECT `id`, `client_id`, `qty` FROM `charity_contribution_lots` WHERE `guild_id` = ? AND `item_id` = ? ' +
 		'ORDER BY `contributed_at`, `id`'
 	).all(guild_id, item_id);
+	const consumed_by_client = new Map<number, number>();
 	for (const lot of lots) {
 		if (remaining === 0) break;
 		const consumed = Math.min(remaining, lot.qty);
@@ -34,8 +40,10 @@ export function consume_charity_contributions(guild_id: number, item_id: string,
 		else
 			database.query('UPDATE `charity_contribution_lots` SET `qty` = `qty` - ? WHERE `id` = ?')
 				.run(consumed, lot.id);
+		consumed_by_client.set(lot.client_id, (consumed_by_client.get(lot.client_id) ?? 0) + consumed);
 		remaining -= consumed;
 	}
+	return [...consumed_by_client].map(([client_id, qty]) => ({ client_id, qty }));
 }
 
 export function remove_charity_contributor_quantity(guild_id: number, item_id: string, client_id: number, qty: number,

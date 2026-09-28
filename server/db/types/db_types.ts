@@ -33,6 +33,56 @@ export type charity_items = {
 	value_per_item: number | null;
 };
 
+export type crucible_guilds = {
+	guild_id: number;
+	is_open: number;
+	processed_minute: number;
+	created_at: number;
+};
+
+export type crucible_offerings = {
+	id: number;
+	guild_id: number;
+	item_id: string;
+	qty: number;
+	value_currency_id: string | null;
+	value_per_item: number | null;
+	meld_points: number;
+	generation: number;
+	created_at: number;
+	refreshed_at: number;
+	is_untimed: number;
+	valuation_source: 'client' | 'server' | 'migration';
+};
+
+export type crucible_contribution_lots = {
+	id: number;
+	offering_id: number;
+	client_id: number;
+	qty: number;
+	contributed_at: number;
+	source_kind: 'cast' | 'clear' | 'expedition' | 'migration';
+	source_id: string | null;
+	locked_until: number | null;
+};
+
+export type crucible_wishes = {
+	id: number;
+	guild_id: number;
+	owner_client_id: number;
+	melvor_account_id: number;
+	item_id: string;
+	qty: number;
+	required_gp: number;
+	progress_gp: number;
+	formation_points: number;
+	created_at: number;
+	formed_at: number | null;
+	melded_at: number | null;
+	auto_deliver_at: number | null;
+	delivered_at: number | null;
+};
+
 export type charity_contribution_lots = {
 	id: number;
 	guild_id: number;
@@ -123,6 +173,7 @@ export type clients = {
 	gp_visible: number,
 	game_mode_visible: number,
 	active_mods_visible: number,
+	dev_tag_visible: number,
 	cheats_detected_at: number | null,
 	messaging_enabled: number,
 	messaging_credits: number,
@@ -324,6 +375,37 @@ export type gp_snapshots = {
 	amount: number;
 };
 
+export type dev_work_tracking_sessions = {
+	id: number;
+	client_id: number;
+	work_type: 'woodcutting';
+	started_at: number;
+	ended_at: number | null;
+	end_reason: 'check_in' | 'activity_stopped' | null;
+	elapsed_ms: number | null;
+	target_work_ms: number | null;
+	total_work_ms: number | null;
+	timeline_credit_ms: number | null;
+	statistics_credit_ms: number | null;
+	credited_ms: number | null;
+};
+
+export type dev_work_tracking_activity_events = {
+	id: number;
+	session_id: number;
+	observed_at: number;
+	activities: string;
+	activity_count: number;
+};
+
+export type dev_work_tracking_stat_snapshots = {
+	id: number;
+	session_id: number;
+	phase: 'start' | 'check_in' | 'stop';
+	observed_at: number;
+	statistics: string;
+};
+
 export type service_settings = {
 	key: string;
 	value: string;
@@ -419,7 +501,7 @@ export type guild_petitions = {
 	guild_name: string;
 	type: 'appellation' | 'heraldry' | 'banishment' | 'winnowing' | 'charitree_ingratitude' |
 		'charitree_sacrilege' | 'charitree_beneficence' | 'fellowship' | 'enclosure' | 'interdict' | 'heresy' |
-		'temperance' | 'indulgence';
+		'temperance' | 'indulgence' | 'crucible_purging' | 'crucible_sealing' | 'crucible_unsealing';
 	conflict_subject: string;
 	subject_locked: number;
 	petitioner_id: number;
@@ -564,6 +646,7 @@ export type inbox_claims = {
 	client_id: number;
 	created_at: number;
 	acknowledged_at: number | null;
+	campaign_refund_included: number;
 };
 
 export type inbox_claim_items = {

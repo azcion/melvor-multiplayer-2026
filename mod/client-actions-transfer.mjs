@@ -1,7 +1,7 @@
 const TRANSFER_CONFIRMATIONS = Object.freeze({
 	donate: {
-		info_lang_id: 'MOD_MP_TRANSFER_CONFIRM_DONATE',
-		action_lang_id: 'MOD_MP_TRANSFER_CONFIRM_DONATE_ACTION'
+		info_lang_id: 'MOD_MP_CRUCIBLE_CONFIRM_CAST',
+		action_lang_id: 'MOD_MP_CRUCIBLE_CAST'
 	},
 	counter_trade: {
 		info_lang_id: 'MOD_MP_TRANSFER_CONFIRM_COUNTER_TRADE',
@@ -30,6 +30,7 @@ const TRANSFER_CONFIRMATIONS = Object.freeze({
 });
 
 export function install_transfer_actions(runtime) {
+	let raid_confirmation_tier = null;
 	const {
 		state,
 		GIFT_FLAG_RETURNED,
@@ -86,8 +87,7 @@ export function install_transfer_actions(runtime) {
 		stop_status_observer,
 		trade_returns,
 		transfer_inventory,
-		update_campaign_nav,
-		update_market_haggles,
+	update_market_haggles,
 		update_market_listings,
 		update_market_page,
 		update_market_search,
@@ -151,6 +151,10 @@ export function install_transfer_actions(runtime) {
 		},
 
 		get_inbox_group_title(group) {
+			if (group?.source_type === 'raid_assault') {
+				const tier = getLangString('MOD_MP_RAID_TIER').replace('%s', group.source_name);
+				return getLangString('MOD_MP_INBOX_SOURCE_RAID_ASSAULT').replace('%s', tier);
+			}
 			const lang_ids = {
 				market_bought: 'MOD_MP_INBOX_SOURCE_MARKET_BOUGHT',
 				market_sold: 'MOD_MP_INBOX_SOURCE_MARKET_SOLD',
@@ -161,11 +165,11 @@ export function install_transfer_actions(runtime) {
 				charitree: 'MOD_MP_INBOX_SOURCE_CHARITREE',
 				wish_granted: 'MOD_MP_INBOX_SOURCE_WISH_GRANTED',
 				raid_victory_cache: 'MOD_MP_INBOX_SOURCE_RAID',
-				campaign: 'MOD_MP_INBOX_SOURCE_CAMPAIGN',
 				gift_received: 'MOD_MP_INBOX_SOURCE_GIFT_RECEIVED',
 				gift_returned: 'MOD_MP_INBOX_SOURCE_GIFT_RETURNED',
 				trade_completed: 'MOD_MP_INBOX_SOURCE_TRADE_COMPLETED',
 				trade_cancelled: 'MOD_MP_INBOX_SOURCE_TRADE_CANCELLED',
+				campaign_refund: 'MOD_MP_INBOX_SOURCE_CAMPAIGN_REFUND',
 				other: 'MOD_MP_INBOX_SOURCE_OTHER'
 			};
 			const title = getLangString(lang_ids[group?.source_type] ?? lang_ids.other);
@@ -229,17 +233,62 @@ export function install_transfer_actions(runtime) {
 			const remaining = timestamp - this.raid_update_time;
 			if (remaining <= 0)
 				return 'now';
-			const hours = Math.floor(remaining / 3_600_000);
-			const minutes = Math.ceil((remaining % 3_600_000) / 60_000);
+			const total_minutes = Math.ceil(remaining / 60_000);
+			const hours = Math.floor(total_minutes / 60);
+			const minutes = total_minutes % 60;
+			if (hours >= 24)
+				return `${Math.floor(hours / 24)}d ${hours % 24}h`;
 			return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 		},
 
 		get_raid_monster_icon(tier) {
-			return ctx.getResourceUrl('assets/raid_plant_t1.png');
+			return ctx.getResourceUrl(`assets/raid-boss-t${tier}.png`);
+		},
+
+		get_raid_monster_name(tier) {
+			return game.monsters.getObjectByID(`multiplayer:Raid_Tier_${tier}`)?.name ??
+				getLangString('MOD_MP_RAID_TIER').replace('%s', String(tier));
+		},
+
+		get_raid_nav_icon() {
+			return ctx.getResourceUrl('assets/raid-nav.png');
 		},
 
 		get_raid_tier_progress(tier) {
-			return [0, 1000, 1800, 3000, 4500][tier] ?? 0;
+			return this.raid_tier_progress[tier] ?? 0;
+		},
+
+		is_raid_tier_unlocked(tier) {
+			return tier === 1 || this.raid_state.unlocked_tiers?.includes(tier - 1) === true;
+		},
+
+		can_assault_raid_tier(tier) {
+			return this.raid_can_assault && this.is_raid_tier_unlocked(tier);
+		},
+
+		show_raid_assault_confirmation(tier) {
+			if (!this.can_assault_raid_tier(tier))
+				return;
+			this.raid_confirmation_full_hp = runtime.raid_combat?.has_full_hitpoints(game.combat.player) === true;
+			if (queue_modal('MOD_MP_RAID_BEGIN_ASSAULT', 'raid-assault-confirm-modal', this.get_raid_nav_icon(), {
+				showConfirmButton: false,
+				didClose: () => { raid_confirmation_tier = null; }
+			}, true, false))
+				raid_confirmation_tier = tier;
+		},
+
+		async confirm_raid_assault() {
+			const tier = raid_confirmation_tier;
+			if (tier === null)
+				return;
+			if (!this.can_assault_raid_tier(tier) || runtime.raid_combat === null)
+				return;
+			this.raid_confirmation_full_hp = runtime.raid_combat.has_full_hitpoints(game.combat.player);
+			if (!this.raid_confirmation_full_hp)
+				return;
+			raid_confirmation_tier = null;
+			await close_modal_and_wait('raid-assault-confirm-modal');
+			await this.begin_raid_assault(tier);
 		},
 
 		async activate_raid() {
@@ -256,10 +305,10 @@ export function install_transfer_actions(runtime) {
 		},
 
 		async begin_raid_assault(tier) {
-			if (!this.raid_can_assault || runtime.raid_combat === null)
+			if (!this.can_assault_raid_tier(tier) || runtime.raid_combat === null)
 				return;
 			if (!runtime.raid_combat.has_full_hitpoints(game.combat.player)) {
-				this.raid_error = getLangString('MOD_MP_RAID_FULL_HP_REQUIRED');
+				this.show_raid_assault_confirmation(tier);
 				return;
 			}
 			this.raid_action_pending = true;
@@ -590,6 +639,28 @@ export function install_transfer_actions(runtime) {
 				this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 			}
 			this.active_mods_visibility_pending = false;
+		},
+
+		async set_dev_tag_visibility(event) {
+			if (!this.dev_tag_eligible || this.dev_tag_visibility_pending)
+				return;
+			event.preventDefault();
+			const desired = !this.dev_tag_visible;
+			this.dev_tag_visibility_pending = true;
+			this.member_actions_error = '';
+			let res = null;
+			try {
+				res = await api_post('/api/client/dev-tag/visibility', { visible: desired });
+			} catch (e) {
+				log('Dev tag visibility update failed (%s)', e);
+			}
+			if (res?.success) {
+				this.dev_tag_visible = res.visible;
+				await refresh_guild_state(true);
+			} else {
+				this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+			}
+			this.dev_tag_visibility_pending = false;
 		},
 
 		async view_member_active_mods(event) {

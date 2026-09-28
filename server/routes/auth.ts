@@ -1,7 +1,11 @@
 import { API_VERSIONS } from '../api-contract';
+import { get_account_tags, get_dev_tag_visibility } from '../account_tags';
+import { is_client_version_at_least } from '../client-version-policy';
 import { authenticate_installation, enroll_installation } from '../installations';
 import { is_installation_id, parse_device_diagnostics } from '../diagnostics';
 import { mark_rejection } from '../diagnostics';
+import { release_campaign_refunds } from '../campaign-retirement';
+import { RAID_TIER_PROGRESS } from '../raid';
 import * as runtime from '../app-runtime';
 import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
@@ -82,6 +86,8 @@ export function register_auth_routes(): void {
 
 		identify_request(req, client_row.id, client_runtime?.mod_version, session_device);
 		const session_token = await generate_session_token(client_row.id, client_runtime?.mod_version ?? null, session_device, installation_auth ? String(json.installation_id).toLowerCase() : null);
+		if (is_client_version_at_least(client_runtime?.mod_version, '1.6.0'))
+			release_campaign_refunds(client_row.id);
 		log('client', 'authorized client session for identity {%d}', client_row.id);
 
 		return { session_token, friend_code: client_row.friend_code, display_name: client_row.display_name,
@@ -92,11 +98,15 @@ export function register_auth_routes(): void {
 			gp_visible: client_row.gp_visible === 1,
 			game_mode_visible: client_row.game_mode_visible === 1,
 			active_mods_visible: client_row.active_mods_visible === 1,
+			dev_tag: get_dev_tag_visibility(client_row.id),
 			chat: get_chat_state(client_row.id),
+			...(is_client_version_at_least(client_runtime?.mod_version, '1.6.0')
+				? { account_tags: get_account_tags(client_row.id) } : {}),
 			installation_auth_supported: true, backend_version: BACKEND_VERSION,
 			server_owned_pets: true,
+			raid_tier_progress: RAID_TIER_PROGRESS,
 			charity: await get_client_charity_state(client_row.id, client_runtime?.mod_version, Date.now(), true),
-			owned_pet_ids: get_owned_pet_ids(client_row.id),
+			owned_pet_ids: get_owned_pet_ids(client_row.id, client_runtime?.mod_version),
 			released_mod_version: get_released_mod_version(),
 			minimum_supported_mod_version: get_minimum_supported_mod_version(),
 			deletion_cancelled, identity_recovered };
@@ -145,11 +155,15 @@ export function register_auth_routes(): void {
 			social_mode_enforcement: get_client_social_mode_enforcement(client_id),
 			equipment_visible: true, skills_visible: true, activity_visible: true, gp_visible: true, game_mode_visible: true,
 			active_mods_visible: true,
+			dev_tag: get_dev_tag_visibility(client_id),
 			chat: get_chat_state(client_id),
+			...(is_client_version_at_least(client_runtime?.mod_version, '1.6.0')
+				? { account_tags: get_account_tags(client_id) } : {}),
 			installation_auth_supported: true, backend_version: BACKEND_VERSION,
 			server_owned_pets: true,
+			raid_tier_progress: RAID_TIER_PROGRESS,
 			charity: await get_client_charity_state(client_id, client_runtime?.mod_version, Date.now(), true),
-			owned_pet_ids: get_owned_pet_ids(client_id),
+			owned_pet_ids: get_owned_pet_ids(client_id, client_runtime?.mod_version),
 			released_mod_version: get_released_mod_version(),
 			minimum_supported_mod_version: get_minimum_supported_mod_version() };
 	}))))), ['POST', 'OPTIONS']);

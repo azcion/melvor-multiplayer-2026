@@ -74,7 +74,7 @@ test('a blocked receipt still hydrates incoming Gifts without advancing the reco
 		enter_unsupported_multiplayer: () => false,
 		check_released_mod_version() {},
 		reconcile_economy_receipts: async () => false,
-		reconcile_campaign_event() {}, invalidate_guild_state() {}, update_chat_nav() {},
+		invalidate_guild_state() {}, update_chat_nav() {},
 		reconcile_guild_member_social_modes() {}, update_transfer_inventory_nav() {}, update_multiplayer_nav() {},
 		set_instance_storage_item() {}, leave_social_only_disabled_page() {},
 		reconcile_pending_gifts: async () => { contents++; }

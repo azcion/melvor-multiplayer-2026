@@ -1,7 +1,9 @@
 import { db } from './db';
+import { chat_shadow_visibility } from './chat_shadowban';
 import { can_access_support_conversation } from './support_chat';
+import { is_expedition_tester } from './account_tags';
 
-export type ChatMessageKind = 'private' | 'guild' | 'global' | 'support' | 'poll-discussion';
+export type ChatMessageKind = 'private' | 'guild' | 'global' | 'testers' | 'support' | 'poll-discussion';
 
 type ReactionRow = {
 	message_id: number;
@@ -26,6 +28,7 @@ const reaction_tables: Record<ChatMessageKind, string> = {
 	private: 'chat_message_reactions',
 	guild: 'guild_chat_message_reactions',
 	global: 'global_chat_message_reactions',
+	testers: 'global_chat_message_reactions',
 	support: 'support_message_reactions',
 	'poll-discussion': 'poll_discussion_message_reactions'
 };
@@ -34,11 +37,12 @@ const message_tables: Record<ChatMessageKind, string> = {
 	private: 'chat_messages',
 	guild: 'guild_chat_messages',
 	global: 'global_chat_messages',
+	testers: 'global_chat_messages',
 	support: 'support_messages',
 	'poll-discussion': 'poll_discussion_messages'
 };
 
-const conversation_columns: Record<Exclude<ChatMessageKind, 'global'>, string> = {
+const conversation_columns: Record<Exclude<ChatMessageKind, 'global' | 'testers'>, string> = {
 	private: 'conversation_id',
 	guild: 'guild_id',
 	support: 'conversation_id',
@@ -47,42 +51,53 @@ const conversation_columns: Record<Exclude<ChatMessageKind, 'global'>, string> =
 
 function message_is_visible(client_id: number, kind: ChatMessageKind, conversation_id: number, message_id: number): boolean {
 	if (kind === 'private') {
-		return db.query<{ visible: number }, [number, number, number, number]>(
+		return db.query<{ visible: number }, [number, number, number, number, number, number]>(
 			'SELECT EXISTS(SELECT 1 FROM `chat_messages` AS message ' +
 			'JOIN `chat_participants` AS participant ON participant.`conversation_id` = message.`conversation_id` ' +
+			'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` ' +
 			'WHERE message.`id` = ? AND message.`conversation_id` = ? AND participant.`client_id` = ? ' +
+			`AND ${chat_shadow_visibility()} ` +
 			'AND message.`id` > participant.`hidden_through_message_id` ' +
 			'AND NOT EXISTS (SELECT 1 FROM `chat_message_deletions` AS deletion ' +
 			'WHERE deletion.`message_id` = message.`id` AND deletion.`client_id` = ?)) AS `visible`'
-		).get(message_id, conversation_id, client_id, client_id)?.visible === 1;
+		).get(message_id, conversation_id, client_id, client_id, client_id, client_id)?.visible === 1;
 	}
 	if (kind === 'guild') {
-		return db.query<{ visible: number }, [number, number, number]>(
+		return db.query<{ visible: number }, [number, number, number, number, number]>(
 			'SELECT EXISTS(SELECT 1 FROM `guild_chat_messages` AS message ' +
 			'JOIN `guild_memberships` AS membership ON membership.`guild_id` = message.`guild_id` ' +
 			'JOIN `clients` AS client ON client.`id` = membership.`client_id` ' +
+			'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` ' +
 			'WHERE message.`id` = ? AND message.`guild_id` = ? AND client.`id` = ? AND client.`guild_chat_enabled` = 1 ' +
+			`AND ${chat_shadow_visibility()} ` +
 			'AND NOT EXISTS (SELECT 1 FROM `guild_chat_message_moderation` AS moderation ' +
 			'WHERE moderation.`message_id` = message.`id`)) AS `visible`'
-		).get(message_id, conversation_id, client_id)?.visible === 1;
+		).get(message_id, conversation_id, client_id, client_id, client_id)?.visible === 1;
 	}
-	if (kind === 'global') {
-		return conversation_id === 1 && db.query<{ visible: number }, [number, number]>(
+	if (kind === 'global' || kind === 'testers') {
+		return conversation_id === 1 && db.query<{ visible: number }, [number, number, number, number]>(
 			'SELECT EXISTS(SELECT 1 FROM `global_chat_messages` AS message JOIN `clients` AS client ON client.`id` = ? ' +
-			'WHERE message.`id` = ? AND client.`global_chat_enabled` = 1 AND client.`deleted_at` IS NULL ' +
+			'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` ' +
+			'WHERE message.`id` = ? AND message.`channel` = ' + (kind === 'global' ? "'global'" : "'testers'") +
+			' AND client.`deleted_at` IS NULL ' + (kind === 'global' ? 'AND client.`global_chat_enabled` = 1 ' : '') +
+			`AND ${chat_shadow_visibility()} ` +
 			'AND NOT EXISTS (SELECT 1 FROM `global_chat_message_moderation` AS moderation ' +
 			'WHERE moderation.`message_id` = message.`id`)) AS `visible`'
-		).get(client_id, message_id)?.visible === 1;
+		).get(client_id, message_id, client_id, client_id)?.visible === 1;
 	}
 	if (kind === 'poll-discussion') {
-		return db.query<{ visible: number }, [number, number]>(
-			'SELECT EXISTS(SELECT 1 FROM `poll_discussion_messages` WHERE `id` = ? AND `poll_id` = ?) AS `visible`'
-		).get(message_id, conversation_id)?.visible === 1;
+		return db.query<{ visible: number }, [number, number, number, number]>(
+			'SELECT EXISTS(SELECT 1 FROM `poll_discussion_messages` AS message ' +
+			'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` ' +
+			'WHERE message.`id` = ? AND message.`poll_id` = ? AND ' +
+			`${chat_shadow_visibility()}) AS \`visible\``
+		).get(message_id, conversation_id, client_id, client_id)?.visible === 1;
 	}
 	if (!can_access_support_conversation(client_id, conversation_id))
 		return false;
 	return db.query<{ visible: number }, [number, number]>(
-		'SELECT EXISTS(SELECT 1 FROM `support_messages` AS message WHERE message.`id` = ? AND message.`conversation_id` = ? ' +
+		'SELECT EXISTS(SELECT 1 FROM `support_messages` AS message ' +
+		'WHERE message.`id` = ? AND message.`conversation_id` = ? ' +
 		'AND NOT EXISTS (SELECT 1 FROM `support_message_moderation` AS moderation ' +
 		'WHERE moderation.`message_id` = message.`id`)) AS `visible`'
 	).get(message_id, conversation_id)?.visible === 1;
@@ -121,9 +136,10 @@ export function reaction_updates(kind: ChatMessageKind, client_id: number, conve
 	if (!Number.isSafeInteger(conversation_id) || conversation_id < 1 ||
 		(after_revision !== null && (!Number.isSafeInteger(after_revision) || after_revision < 0)))
 		return { status: 'bad_request' as const };
-	const conversation_clause = kind === 'global' ? '' : ` WHERE \`${conversation_columns[kind]}\` = ?`;
-	const conversation_values = kind === 'global' ? [] : [conversation_id];
-	if (kind === 'global' && conversation_id !== 1)
+	const conversation_clause = kind === 'global' || kind === 'testers'
+		? ` WHERE channel = '${kind}'` : ` WHERE \`${conversation_columns[kind]}\` = ?`;
+	const conversation_values = kind === 'global' || kind === 'testers' ? [] : [conversation_id];
+	if ((kind === 'global' || kind === 'testers') && conversation_id !== 1)
 		return { status: 'bad_request' as const };
 	if (after_revision === null) {
 		const row = db.query<{ reaction_revision: number }, number[]>(
@@ -158,6 +174,8 @@ export function set_message_reaction(client_id: number, kind: ChatMessageKind, c
 	if (!Number.isSafeInteger(conversation_id) || conversation_id < 1 ||
 		!Number.isSafeInteger(message_id) || message_id < 1 || typeof reaction !== 'string' || typeof reacted !== 'boolean')
 		return { status: 'bad_request' as const };
+	if (kind === 'testers' && !is_expedition_tester(client_id))
+		return { status: 'missing' as const };
 	if (!message_is_visible(client_id, kind, conversation_id, message_id))
 		return { status: 'missing' as const };
 	return db.transaction(() => {

@@ -72,7 +72,7 @@ test('real API and mod recovery expose Gifts during a blocked receipt and never 
 		social_mode: { SOCIAL_MODE_FULL: 'full', SOCIAL_MODE_SOCIAL: 'social' },
 		enter_unsupported_multiplayer: () => false, check_released_mod_version() {},
 		api_get: async endpoint => (await request(endpoint, undefined, recipient.session_token)).json,
-		reconcile_economy_receipts: reconcile, reconcile_campaign_event() {}, invalidate_guild_state() {}, update_chat_nav() {},
+		reconcile_economy_receipts: reconcile, invalidate_guild_state() {}, update_chat_nav() {},
 		reconcile_guild_member_social_modes() {}, update_transfer_inventory_nav() {}, update_multiplayer_nav() {},
 		set_instance_storage_item() {}, leave_social_only_disabled_page() {},
 		reconcile_pending_gifts: () => contents = request('/api/transfers/get_contents', {

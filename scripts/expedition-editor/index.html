@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Expedition Chamber Editor</title>
+	<link rel="stylesheet" href="/editor.css">
+	<script type="module" src="/editor.mjs"></script>
+</head>
+<body>
+	<header class="topbar">
+		<div class="brand"><span class="brand-mark" aria-hidden="true">✦</span><div><strong>Expedition Chamber Editor</strong><small>Authored content · two-player baseline</small></div></div>
+		<div class="top-actions"><span id="save-status" role="status">Loading…</span><button id="reload" type="button" class="quiet">Reload file</button><button id="save" type="button" class="primary" disabled>Save changes</button></div>
+	</header>
+	<div class="shell">
+		<aside class="sidebar" aria-label="Chambers">
+			<label class="search-label" for="search">Find a chamber</label>
+			<input id="search" type="search" placeholder="Search name or ID" autocomplete="off">
+			<div class="sidebar-caption"><span id="chamber-count">Chambers</span><span id="preview-count"></span></div>
+			<nav id="chamber-list" aria-label="Choose chamber"></nav>
+		</aside>
+		<main id="editor" tabindex="-1">
+			<div class="empty">Loading Chamber data…</div>
+		</main>
+	</div>
+	<div id="message" class="message" role="alert" hidden></div>
+</body>
+</html>

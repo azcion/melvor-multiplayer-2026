@@ -31,6 +31,8 @@ type RequestHeaders = NonNullable<RequestInit['headers']>;
 const journaled_mutations = new Set([
 	'/api/campaign/claim', '/api/campaign/contribute', '/api/charity/donate', '/api/charity/shuffle', '/api/charity/take',
 	'/api/charity/wish/make', '/api/charity/wish/forsake', '/api/charity/wish/pick',
+	'/api/crucible/cast', '/api/crucible/reclaim', '/api/crucible/clear',
+	'/api/crucible/wish/make', '/api/crucible/wish/cancel', '/api/crucible/wish/claim',
 	'/api/gift/accept', '/api/gift/decline', '/api/gift/discard', '/api/gift/send',
 	'/api/market/buy', '/api/market/buy-order', '/api/market/cancel', '/api/market/claim-legacy-payouts', '/api/market/destroy',
 	'/api/market/fulfill', '/api/market/haggle', '/api/market/haggle/accept', '/api/market/haggle/claim',

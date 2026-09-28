@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { get_events, make_guildmates, register_guild_client } from '../support/fixtures';
-import { get_json_with_session, post, post_json } from '../support/http';
+import { get_json_with_session, post, post_json, register_client } from '../support/http';
 import type { RegisteredClient } from '../support/http';
 import { wait_for } from '../support/wait';
 import { db_all, db_run } from '../support/persistence';
@@ -32,6 +32,7 @@ type MarketSearch = {
 		direction?: 'sell' | 'buy';
 		item_id: string;
 		available: number;
+		qty?: number;
 		price: number;
 		seller?: {
 			display_name: string;
@@ -72,6 +73,64 @@ async function wait_for_listing(
 }
 
 describe('market API', () => {
+	test('retains completed listings for 1.6.0 while older clients see available results', async () => {
+		const pair = await make_guildmates('Market History Buyer', 'Market History Seller', 'Market History Guild',
+			{ first: '1.6.0', second: '1.5.16' });
+		const item_id = 'melvorD:History_Apple';
+		await post_json('/api/market/sell', { item_id, item_qty: 10, item_sell_price: 5 }, pair.second.session_token);
+		const listing = await wait_for_listing(pair.second, item_id);
+		const search = (client: RegisteredClient, available_only = false) =>
+			post_json<MarketSearch>('/api/market/search', { direction: 'sell', item_id, available_only }, client.session_token);
+		expect((await search(pair.first)).json.items).toMatchObject([{ available: 10, qty: 10 }]);
+		await post_json('/api/market/buy', { id: listing.id, qty: 5, item_discovered: true }, pair.first.session_token);
+		expect((await search(pair.first)).json.items).toMatchObject([{ available: 5, qty: 10 }]);
+		await post_json('/api/market/buy', { id: listing.id, qty: 5, item_discovered: true }, pair.first.session_token);
+		expect((await search(pair.first)).json.items).toMatchObject([{ available: 0, qty: 10 }]);
+		expect((await search(pair.first, true)).json.items).toEqual([]);
+		expect((await search(pair.second)).json.items).toEqual([]);
+		expect((await get_listings(pair.second)).items).toEqual([]);
+		const departure = await post_json<{ success: boolean }>('/api/guilds/leave', {}, pair.second.session_token);
+		expect(departure.json.success).toBe(true);
+		const sold_out_at = Date.now() - 19 * 60 * 60 * 1000;
+		await db_run('UPDATE `market_items` SET `updated_at` = ? WHERE `id` = ?', [sold_out_at, listing.id]);
+		expect((await search(pair.first)).json.items).toMatchObject([{ available: 0, qty: 10 }]);
+		await db_run('UPDATE `market_items` SET `updated_at` = ? WHERE `id` = ?',
+			[Date.now() - 21 * 60 * 60 * 1000, listing.id]);
+		expect((await search(pair.first)).json.items).toEqual([]);
+	});
+
+	test('retains filled buy orders and zero-available listings held by active Haggles', async () => {
+		const pair = await make_guildmates('History Order Owner', 'History Order Seller', 'History Order Guild',
+			{ first: '1.6.0', second: '1.5.16' });
+		const viewer = await register_client('History Order Viewer', undefined, '1.6.0');
+		await db_run('INSERT INTO `guild_memberships` (`guild_id`, `client_id`) VALUES (?, ?)',
+			[pair.guild_id, viewer.client_id]);
+		const item_id = 'melvorD:History_Order_Apple';
+		await post_json('/api/market/buy-order', { item_id, item_qty: 10, item_buy_price: 5,
+			item_discovered: true }, pair.first.session_token);
+		const listing = await wait_for_listing(pair.first, item_id);
+		const created = await post_json<{ haggle_id: string }>('/api/market/haggle', {
+			id: listing.id, qty: 10, price: 5
+		}, pair.second.session_token);
+		expect(created.json.haggle_id).toBeTruthy();
+		await db_run('UPDATE `market_items` SET `updated_at` = ? WHERE `id` = ?',
+			[Date.now() - 21 * 60 * 60 * 1000, listing.id]);
+		const held = await post_json<MarketSearch>('/api/market/search', { direction: 'buy', item_id }, pair.second.session_token);
+		expect(held.json.items).toEqual([]);
+		expect(await wait_for_listing(pair.first, item_id)).toMatchObject({ available: 0, reserved: 10 });
+		expect((await post_json<MarketSearch>('/api/market/search', { direction: 'buy', item_id },
+			viewer.session_token)).json.items).toMatchObject([{ available: 0, qty: 10 }]);
+		const view = await get_json_with_session<{ haggles: Array<{ revision: number }> }>(
+			'/api/market/haggles', pair.first.session_token);
+		await post_json('/api/market/haggle/accept', { id: created.json.haggle_id,
+			revision: view.json.haggles[0].revision }, pair.first.session_token);
+		expect(await wait_for_listing(pair.first, item_id)).toMatchObject({ available: 0, reserved: 0, qty: 10 });
+		expect((await post_json<MarketSearch>('/api/market/search', { direction: 'buy', item_id },
+			viewer.session_token)).json.items).toMatchObject([{ available: 0, qty: 10 }]);
+		await db_run('UPDATE `market_items` SET `updated_at` = ? WHERE `id` = ?',
+			[Date.now() - 21 * 60 * 60 * 1000, listing.id]);
+		expect((await get_listings(pair.first)).items).toEqual([]);
+	});
 	test('requires discovery assertions for Temperance Buy Orders, purchases, and Sell-listing Haggles', async () => {
 		const pair = await make_guildmates('Temperance Buyer', 'Temperance Seller', 'Temperance Market');
 		const direct_item_id = 'melvorD:Temperance_Direct_Item';

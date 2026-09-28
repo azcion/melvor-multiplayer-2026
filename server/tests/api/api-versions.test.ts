@@ -19,15 +19,11 @@ test('publishes only the v2 API contract', async () => {
 	expect((await request('/api/v99/events')).status).toBe(404);
 });
 
-test('serves reads only through GET and does not expose legacy aliases', async () => {
+test('serves reads only through GET', async () => {
 	const client = await register_client('V2 Reads');
 	const get_response = await get_with_session('/api/events', client.session_token);
 	expect(get_response.status).toBe(200);
 	expect((await post('/api/events', {}, client.session_token)).status).toBe(405);
-	expect((await request('/api/v1/events', { method: 'POST', body: '{}' })).status).toBe(404);
-	expect((await request('/api/v1/events', { method: 'OPTIONS', headers: {
-		Origin: 'https://play.melvoridle.com', 'Access-Control-Request-Method': 'GET'
-	} })).status).toBe(404);
 });
 
 test('requires UUID command IDs for every economy route', async () => {
@@ -66,25 +62,27 @@ test('accepts current status payloads and preserves split status updates', async
 	}, pair.first.session_token)).status).toBe(400);
 });
 
-test('does not apply removed pre-1.5.9 client gates', async () => {
-	const old = await register_client('Old Runtime', undefined, '1.4.5');
-	const response = await post('/api/market/sell', {}, old.session_token);
-	expect(response.status).not.toBe(403);
-});
-
-test('blocks ordinary traffic for feature-aware clients below the operator support floor', async () => {
+test('blocks every client below the operator support floor while preserving feature-aware update delivery', async () => {
 	const { db_run } = await import('../support/persistence');
-	await db_run("UPDATE `service_settings` SET `value` = '9.9.9' WHERE `key` = 'minimum_supported_mod_version'");
+	await db_run("UPDATE `service_settings` SET `value` = '1.5.16' WHERE `key` = 'minimum_supported_mod_version'");
 	try {
 		const feature_aware = await register_client('Unsupported Runtime', undefined, '1.5.10');
 		const legacy = await register_client('Legacy Runtime Floor', undefined, '1.5.9');
+		const unreported = await register_client('Unreported Runtime Floor');
+		const malformed = await register_client('Malformed Runtime Floor', undefined, 'development');
+		const current = await register_client('Current Runtime Floor', undefined, '1.5.16');
 		const blocked = await get_with_session('/api/identities', feature_aware.session_token);
 		expect(blocked.status).toBe(426);
-		expect(await blocked.json()).toEqual({ minimum_supported_mod_version: '9.9.9' });
+		expect(await blocked.json()).toEqual({ minimum_supported_mod_version: '1.5.16' });
 		const events = await get_json_with_session<{ minimum_supported_mod_version: string }>('/api/events', feature_aware.session_token);
 		expect(events.response.status).toBe(200);
-		expect(events.json.minimum_supported_mod_version).toBe('9.9.9');
-		expect((await get_with_session('/api/identities', legacy.session_token)).status).toBe(200);
+		expect(events.json.minimum_supported_mod_version).toBe('1.5.16');
+		for (const session_token of [legacy.session_token, unreported.session_token, malformed.session_token]) {
+			expect((await get_with_session('/api/identities', session_token)).status).toBe(426);
+			expect((await get_with_session('/api/events', session_token)).status).toBe(426);
+			expect((await post('/api/client/status/sync', { activities: [] }, session_token)).status).toBe(426);
+		}
+		expect((await get_with_session('/api/identities', current.session_token)).status).toBe(200);
 	} finally {
 		await db_run("UPDATE `service_settings` SET `value` = '' WHERE `key` = 'minimum_supported_mod_version'");
 	}

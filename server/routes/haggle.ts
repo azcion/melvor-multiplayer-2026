@@ -250,14 +250,8 @@ export function register_haggle_routes(): void {
 			if (changed.changes === 0)
 				return { success: false, error_lang: 'MOD_MP_MARKET_HAGGLE_STALE' };
 			if (haggle.listing_id !== null) {
-				const listing = db.query<Pick<db_row.market_items, 'available' | 'reserved'>, [number]>(
-					'SELECT `available`, `reserved` FROM `market_items` WHERE `id` = ?'
-				).get(haggle.listing_id);
-				if (listing?.available === 0 && listing.reserved === haggle.item_qty)
-					db.query('DELETE FROM `market_items` WHERE `id` = ?').run(haggle.listing_id);
-				else
-					db.query('UPDATE `market_items` SET `reserved` = `reserved` - ?, `haggled` = `haggled` + ?, `updated_at` = ? WHERE `id` = ?')
-						.run(haggle.item_qty, haggle.item_qty, now, haggle.listing_id);
+				db.query('UPDATE `market_items` SET `reserved` = `reserved` - ?, `haggled` = `haggled` + ?, `updated_at` = ? WHERE `id` = ?')
+					.run(haggle.item_qty, haggle.item_qty, now, haggle.listing_id);
 			}
 			market_completed_cached.delete(haggle.owner_id);
 			const buyer_id = haggle.direction === 'sell' ? haggle.initiator_id : haggle.owner_id;

@@ -5,6 +5,7 @@ import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
 import type { PetitionType } from '../council';
 import { record_guild_activity } from '../guild-activity';
 import { add_inbox_gp } from '../inbox';
+import { replay_economy_command } from '../economy';
 
 const { apply_campaign_completion, db, db_get_single, ensure_guild_campaign, get_campaign_history, get_campaign_item_gp_value, get_campaign_pet_id, get_campaign_rankings, get_client_guild_id, get_owned_pet_ids, has_owned_pet, is_social_only_client, persist_campaign_completion, run_economy_command, session_get_route, session_post_route } = runtime;
 
@@ -30,7 +31,7 @@ export function register_campaign_routes(): void {
 			return {
 				active: true,
 				history, rankings,
-				owned_pet_ids: get_owned_pet_ids(client_id),
+				owned_pet_ids: get_owned_pet_ids(client_id, runtime.get_request_mod_version(req)),
 				campaign_id: campaign.campaign_id,
 				contribution: contribution?.item_amount ?? 0,
 				item_id: campaign.item_id,
@@ -41,13 +42,17 @@ export function register_campaign_routes(): void {
 			return {
 				active: false,
 				history, rankings,
-				owned_pet_ids: get_owned_pet_ids(client_id),
-				next_campaign: campaign.next_active_timestamp
+				owned_pet_ids: get_owned_pet_ids(client_id, runtime.get_request_mod_version(req)),
+				next_campaign: runtime.campaign_is_draining()
+					? runtime.paused_campaign_next() : campaign.next_active_timestamp
 			} as JsonSerializable;
 		}
 	});
 
 	session_post_route('/api/campaign/claim', async (req, url, client_id, json): Promise<HandlerResult> => {
+		const replay = replay_economy_command(client_id, json.command_id, 'campaign-claim');
+		if (replay !== undefined) return replay ?? 400;
+		if (runtime.campaign_is_retired()) return 410;
 		const guild_id = await get_client_guild_id(client_id);
 		if (guild_id === null)
 			return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
@@ -61,6 +66,7 @@ export function register_campaign_routes(): void {
 			return 400; // Bad Request
 
 		const result = run_economy_command(client_id, json.command_id, 'campaign-claim', () => {
+			if (runtime.campaign_is_retired()) return { success: false };
 			if (is_social_only_client(client_id))
 				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 			const completion = db.query(
@@ -98,6 +104,9 @@ export function register_campaign_routes(): void {
 	});
 
 	session_post_route('/api/campaign/contribute', async (req, url, client_id, json): Promise<HandlerResult> => {
+		const replay = replay_economy_command(client_id, json.command_id, 'campaign-contribute');
+		if (replay !== undefined) return replay ?? 400;
+		if (runtime.campaign_is_retired()) return 410;
 		const guild_id = await get_client_guild_id(client_id);
 		if (guild_id === null)
 			return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
@@ -121,6 +130,7 @@ export function register_campaign_routes(): void {
 
 		let completed_at: number | null = null;
 		const result = run_economy_command(client_id, json.command_id, 'campaign-contribute', () => {
+			if (runtime.campaign_is_retired()) return { success: false };
 			if (is_social_only_client(client_id))
 				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 			const contribution = db.query(
@@ -140,7 +150,7 @@ export function register_campaign_routes(): void {
 				).run(client_id, campaign.active_id, contributing_amount);
 				const updated = db.query(
 					'UPDATE `campaign_state` SET `item_current` = MIN(`item_amount`, `item_current` + ?) ' +
-					'WHERE `id` = ? AND `guild_id` = ? RETURNING `item_current`'
+					'WHERE `id` = ? AND `guild_id` = ? AND `complete` = 0 RETURNING `item_current`'
 				).get(contributing_amount, campaign.active_id, campaign.guild_id) as { item_current: number } | null;
 				if (updated === null)
 					return { success: false };

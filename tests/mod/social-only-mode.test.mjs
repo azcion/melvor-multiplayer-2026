@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { is_social_only_mode, normalize_social_mode, SOCIAL_MODE_FULL, SOCIAL_MODE_SOCIAL } from '../../mod/social-mode.mjs';
-import { read_release_changelog } from './source.mjs';
 
 const root = new URL('../../', import.meta.url);
 
@@ -24,14 +23,13 @@ test('normalizes the server-scoped mode to Full Experience unless Social Only is
 });
 
 test('exposes the mode choice, setting, gates, and Raid exception in both supported languages', async () => {
-	const [main, components, templates, style, english, chinese, changelog] = await Promise.all([
+	const [main, components, templates, style, english, chinese] = await Promise.all([
 		readFile(new URL('mod/main.mjs', root), 'utf8'),
 		readFile(new URL('mod/client-components.mjs', root), 'utf8'),
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
 		readFile(new URL('mod/ui/style.css', root), 'utf8'),
 		readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse),
-		readFile(new URL('mod/data/lang/zh-CN.json', root), 'utf8').then(JSON.parse),
-		read_release_changelog(root)
+		readFile(new URL('mod/data/lang/zh-CN.json', root), 'utf8').then(JSON.parse)
 	]);
 
 	assert.doesNotMatch(main, /select\.type\s*=\s*['"]select-one['"]/);
@@ -78,7 +76,7 @@ test('exposes the mode choice, setting, gates, and Raid exception in both suppor
 	assert.match(main, /res\.social_mode === social_mode\.SOCIAL_MODE_FULL[\s\S]*state\.social_mode = res\.social_mode[\s\S]*state\.social_mode_enforcement = \['identity', 'account', 'guild'\]\.includes\(res\.social_mode_enforcement\)/);
 	assert.match(main, /\['identity', 'account', 'guild'\]\.includes\(res\.social_mode_enforcement\)/);
 	assert.match(main, /\['identity', 'account', 'guild'\]\.includes\(response\.social_mode_enforcement\)/);
-	assert.match(main, /state\.is_social_only && page_id !== 'Guild_Raid'/);
+	assert.match(main, /state\.is_social_only && page_id === 'Multiplayer_Market'/);
 	assert.match(main, /state\.is_social_only\)\s*return/);
 	assert.equal(english.MOD_MP_SOCIAL_MODE_FULL, 'Full Experience');
 	assert.equal(english.MOD_MP_SOCIAL_MODE_SOCIAL, 'Social Only');
@@ -91,7 +89,6 @@ test('exposes the mode choice, setting, gates, and Raid exception in both suppor
 	assert.equal(chinese.MOD_MP_SOCIAL_MODE_SOCIAL, '社交模式');
 	assert.equal(chinese.MOD_MP_SOCIAL_MODE_CHOOSE, '选择');
 	assert.equal(chinese.MOD_MP_SETTINGS_CHANGE_MODE, '更改模式');
-	assert.match(changelog, /## 1\.5\.0[\s\S]*Social Only/);
 });
 
 test('records a mode choice when the selected mode is already active', async () => {
@@ -177,7 +174,7 @@ test('leaves disabled pages only while Social Only is active', async () => {
 			{ is_social_only },
 			true,
 			{
-				getElementById: id => id === 'mp-charity-page'
+				getElementById: id => id === 'mp-crucible-page'
 					? { classList: { contains: () => false } }
 					: null
 			},

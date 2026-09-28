@@ -169,10 +169,10 @@
 				"name": "Raid Boss Fortification", "media": "assets/raid_tier_1.svg", "target": "Self",
 				"statGroups": [{
 					"name": "fortification",
-					"modifiers": { "flatResistance": [{ "damageTypeID": "melvorD:Normal", "value": 99 }] }
+					"modifiers": { "flatResistance": [{ "damageTypeID": "melvorD:Normal", "value": 1 }] }
 				}],
 				"behaviours": [{
-					"type": "ModifyStats", "statGroupName": "fortification", "newValue": 1,
+					"type": "ModifyStats", "statGroupName": "fortification", "newValue": 99,
 					"triggersOn": [{ "type": "EffectApplied" }]
 				}],
 				"effectGroups": ["melvorD:Buff"]
@@ -183,11 +183,11 @@
 				"timers": [{ "name": "vulnerability" }],
 				"statGroups": [{
 					"name": "vulnerability",
-					"modifiers": { "flatResistance": [{ "damageTypeID": "melvorD:Normal", "value": -66 }] }
+					"modifiers": { "flatResistance": [{ "damageTypeID": "melvorD:Normal", "value": -1 }] }
 				}],
 				"behaviours": [
 					{
-						"type": "ModifyStats", "statGroupName": "vulnerability", "newValue": 1,
+						"type": "ModifyStats", "statGroupName": "vulnerability", "newValue": 66,
 						"triggersOn": [{ "type": "EffectApplied" }]
 					},
 					{
@@ -204,40 +204,40 @@
 		],
 		"monsters": [
 			{
-				"id": "Raid_Tier_1", "name": "Raid Monster I (Placeholder)", "media": "assets/raid_plant_t1.png",
+				"id": "Raid_Tier_1", "name": "The Mossbound Hollow", "media": "assets/raid-boss-t1.png",
 				"levels": { "Hitpoints": 50, "Attack": 25, "Strength": 25, "Defence": 25, "Ranged": 1, "Magic": 1 },
 				"equipmentStats": [{ "key": "attackSpeed", "value": 8000 }], "ignoreCompletion": true,
-				"attackType": "melee", "specialAttacks": ["multiplayer:Raid_Tier_1_Assault"], "overrideSpecialChances": [100], "passives": [], "combatEffects": [{ "effectID": "multiplayer:Raid_Boss_Fortified", "appliesWhen": "StartOfFight" }, { "effectID": "multiplayer:Raid_Boss_Vulnerable", "appliesWhen": "PostAttack" }], "lootChance": 100,
-				"lootTable": [{ "itemID": "melvorF:Summoning_Familiar_Wolf", "minQuantity": 10, "maxQuantity": 15, "weight": 3 }, { "itemID": "melvorF:Eyeball", "minQuantity": 2, "maxQuantity": 4, "weight": 1 }],
+				"attackType": "melee", "specialAttacks": ["multiplayer:Raid_Tier_1_Assault"], "overrideSpecialChances": [100], "passives": [], "combatEffects": [{ "effectID": "multiplayer:Raid_Boss_Fortified", "appliesWhen": "StartOfFight" }, { "effectID": "multiplayer:Raid_Boss_Vulnerable", "appliesWhen": "PostAttack" }], "lootChance": 0,
+				"lootTable": [],
 				"canSlayer": false, "isBoss": true, "selectedSpell": "melvorD:WindStrike"
 			},
 			{
-				"id": "Raid_Tier_2", "name": "Raid Monster II (Placeholder)", "media": "assets/raid_plant_t1.png",
+				"id": "Raid_Tier_2", "name": "The Entwined Hollow", "media": "assets/raid-boss-t2.png",
 				"levels": { "Hitpoints": 150, "Attack": 65, "Strength": 65, "Defence": 65, "Ranged": 1, "Magic": 1 },
 				"equipmentStats": [{ "key": "attackSpeed", "value": 8000 }, { "key": "meleeStrengthBonus", "value": 25 }], "ignoreCompletion": true,
-				"attackType": "melee", "specialAttacks": ["multiplayer:Raid_Tier_2_Assault"], "overrideSpecialChances": [100], "passives": [], "combatEffects": [{ "effectID": "multiplayer:Raid_Boss_Fortified", "appliesWhen": "StartOfFight" }, { "effectID": "multiplayer:Raid_Boss_Vulnerable", "appliesWhen": "PostAttack" }], "lootChance": 100,
-				"lootTable": [{ "itemID": "melvorF:Summoning_Familiar_Minotaur", "minQuantity": 15, "maxQuantity": 25, "weight": 3 }, { "itemID": "melvorF:Large_Horn", "minQuantity": 3, "maxQuantity": 6, "weight": 1 }],
+				"attackType": "melee", "specialAttacks": ["multiplayer:Raid_Tier_2_Assault"], "overrideSpecialChances": [100], "passives": [], "combatEffects": [{ "effectID": "multiplayer:Raid_Boss_Fortified", "appliesWhen": "StartOfFight" }, { "effectID": "multiplayer:Raid_Boss_Vulnerable", "appliesWhen": "PostAttack" }], "lootChance": 0,
+				"lootTable": [],
 				"canSlayer": false, "isBoss": true, "selectedSpell": "melvorD:WindStrike"
 			},
 			{
-				"id": "Raid_Tier_3", "name": "Raid Monster III (Placeholder)", "media": "assets/raid_plant_t1.png",
+				"id": "Raid_Tier_3", "name": "The Lithic Hollow", "media": "assets/raid-boss-t3.png",
 				"levels": { "Hitpoints": 900, "Attack": 100, "Strength": 100, "Defence": 100, "Ranged": 1, "Magic": 1 },
 				"equipmentStats": [{ "key": "attackSpeed", "value": 8000 }, { "key": "meleeStrengthBonus", "value": 80 }], "ignoreCompletion": true,
-				"attackType": "melee", "specialAttacks": ["multiplayer:Raid_Tier_3_Assault"], "overrideSpecialChances": [100], "passives": [], "combatEffects": [{ "effectID": "multiplayer:Raid_Boss_Fortified", "appliesWhen": "StartOfFight" }, { "effectID": "multiplayer:Raid_Boss_Vulnerable", "appliesWhen": "PostAttack" }], "lootChance": 100,
-				"lootTable": [{ "itemID": "melvorF:Summoning_Familiar_Yak", "minQuantity": 25, "maxQuantity": 40, "weight": 3 }, { "itemID": "melvorD:Diamond", "minQuantity": 2, "maxQuantity": 4, "weight": 1 }],
+				"attackType": "melee", "specialAttacks": ["multiplayer:Raid_Tier_3_Assault"], "overrideSpecialChances": [100], "passives": [], "combatEffects": [{ "effectID": "multiplayer:Raid_Boss_Fortified", "appliesWhen": "StartOfFight" }, { "effectID": "multiplayer:Raid_Boss_Vulnerable", "appliesWhen": "PostAttack" }], "lootChance": 0,
+				"lootTable": [],
 				"canSlayer": false, "isBoss": true, "selectedSpell": "melvorD:WindStrike"
 			},
 			{
-				"id": "Raid_Tier_4", "name": "Raid Monster IV (Placeholder)", "media": "assets/raid_plant_t1.png",
+				"id": "Raid_Tier_4", "name": "The Reliquary Hollow", "media": "assets/raid-boss-t4.png",
 				"levels": { "Hitpoints": 1500, "Attack": 125, "Strength": 125, "Defence": 125, "Ranged": 1, "Magic": 1 },
 				"equipmentStats": [{ "key": "attackSpeed", "value": 8000 }, { "key": "meleeStrengthBonus", "value": 140 }], "ignoreCompletion": true,
-				"attackType": "melee", "specialAttacks": ["multiplayer:Raid_Tier_4_Assault"], "overrideSpecialChances": [100], "passives": [], "combatEffects": [{ "effectID": "multiplayer:Raid_Boss_Fortified", "appliesWhen": "StartOfFight" }, { "effectID": "multiplayer:Raid_Boss_Vulnerable", "appliesWhen": "PostAttack" }], "lootChance": 100,
-				"lootTable": [{ "itemID": "melvorF:Summoning_Familiar_Dragon", "minQuantity": 35, "maxQuantity": 55, "weight": 3 }, { "itemID": "melvorD:Dragon_Bones", "minQuantity": 4, "maxQuantity": 8, "weight": 1 }],
+				"attackType": "melee", "specialAttacks": ["multiplayer:Raid_Tier_4_Assault"], "overrideSpecialChances": [100], "passives": [], "combatEffects": [{ "effectID": "multiplayer:Raid_Boss_Fortified", "appliesWhen": "StartOfFight" }, { "effectID": "multiplayer:Raid_Boss_Vulnerable", "appliesWhen": "PostAttack" }], "lootChance": 0,
+				"lootTable": [],
 				"canSlayer": false, "isBoss": true, "selectedSpell": "melvorD:WindStrike"
 			}
 		],
 		"combatAreas": [{
-			"id": "Guild_Raid", "name": "Guild Raid", "media": "assets/raid_plant_t1.png",
+			"id": "Guild_Raid", "name": "Guild Raid", "media": "assets/raid-nav.png",
 			"monsterIDs": ["multiplayer:Raid_Tier_1", "multiplayer:Raid_Tier_2", "multiplayer:Raid_Tier_3", "multiplayer:Raid_Tier_4"],
 			"difficulty": [1, 4], "entryRequirements": []
 		}],
@@ -302,48 +302,44 @@
 				}
 			},
 			{
-				"id": "Charity_Tree",
-				"customName": "MOD_MP_PAGE_CHARITREE",
-				"media": "assets/charity_tree.svg",
-				"containerID": "mp-charity-page",
-				"headerBgClass": "mp-charity-bg",
+				"id": "Crucible",
+				"customName": "MOD_MP_PAGE_CRUCIBLE",
+				"media": "assets/crucible.png",
+				"containerID": "mp-crucible-page",
+				"headerBgClass": "mp-crucible-bg",
 				"hasGameGuide": false,
 				"canBeDefault": false,
 				"sidebarItem": {
 					"categoryID": "Multiplayer",
-					"icon": "assets/charity_tree.svg",
-					"asideClass": "badge mp-charity-nav",
-					"aside": "pick",
-					"asideLangID": "MOD_MP_SIDEBAR_CHARITY_PICK"
+					"icon": "assets/crucible.png",
+					"asideClass": "badge mp-crucible-nav",
+					"aside": ""
 				}
 			},
 			{
-				"id": "Campaign_Effort",
-				"customName": "MOD_MP_PAGE_CAMPAIGN",
-				"media": "assets/campaigns.svg",
-				"containerID": "mp-campaign-page",
-				"headerBgClass": "mp-campaign-bg",
+				"id": "Expedition",
+				"customName": "MOD_MP_PAGE_EXPEDITION",
+				"media": "assets/expedition-nav.png",
+				"containerID": "mp-expedition-page",
+				"headerBgClass": "mp-expedition-bg",
 				"hasGameGuide": false,
 				"canBeDefault": false,
 				"sidebarItem": {
 					"categoryID": "Multiplayer",
-					"icon": "assets/campaigns.svg",
-					"asideClass": "badge mp-campaign-nav",
-					"aside": "Inactive",
-					"asideLangID": "MOD_MP_SIDEBAR_CAMPAIGN_INACTIVE"
+					"icon": "assets/expedition-nav.png"
 				}
 			},
 			{
 				"id": "Guild_Raid",
 				"customName": "MOD_MP_PAGE_RAID",
-				"media": "assets/raid_plant_t1.png",
+				"media": "assets/raid-nav.png",
 				"containerID": "mp-raid-page",
 				"headerBgClass": "mp-raid-bg",
 				"hasGameGuide": false,
 				"canBeDefault": false,
 				"sidebarItem": {
 					"categoryID": "Multiplayer",
-					"icon": "assets/raid_plant_t1.png",
+					"icon": "assets/raid-nav.png",
 					"asideClass": "badge mp-raid-nav",
 					"aside": "0"
 				}
@@ -367,16 +363,6 @@
 		]
 	},
 	"dependentData": [{
-		"namespace": "melvorTotH",
-		"modifications": {
-			"monsters": [
-				{ "id": "multiplayer:Raid_Tier_1", "lootTable": { "add": [{ "itemID": "melvorTotH:Ectoplasm", "minQuantity": 2, "maxQuantity": 4, "weight": 1 }] } },
-				{ "id": "multiplayer:Raid_Tier_2", "lootTable": { "add": [{ "itemID": "melvorTotH:Raw_Ghost_Fish", "minQuantity": 2, "maxQuantity": 4, "weight": 1 }] } },
-				{ "id": "multiplayer:Raid_Tier_3", "lootTable": { "add": [{ "itemID": "melvorTotH:Zephyte", "minQuantity": 1, "maxQuantity": 2, "weight": 1 }] } },
-				{ "id": "multiplayer:Raid_Tier_4", "lootTable": { "add": [{ "itemID": "melvorTotH:Ectoplasm", "minQuantity": 6, "maxQuantity": 10, "weight": 1 }, { "itemID": "melvorTotH:Zephyte", "minQuantity": 2, "maxQuantity": 3, "weight": 1 }] } }
-			]
-		}
-	}, {
 		"namespace": "melvorItA",
 		"data": {
 			"attacks": [

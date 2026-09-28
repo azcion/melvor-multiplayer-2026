@@ -1,4 +1,5 @@
 import { save_chat_parts, same_chat_parts, type ChatPart } from './chat_parts';
+import { chat_shadow_visibility, is_chat_shadowbanned } from './chat_shadowban';
 import { db } from './db';
 
 export const CHAT_MESSAGE_PAGE_SIZE = 20;
@@ -197,16 +198,18 @@ export function get_chat_state(client_id: number, now = Date.now()) {
 }
 
 export function get_unread_chat_count(client_id: number): number {
-	const row = db.query<{ count: number }, [number]>(
+	const row = db.query<{ count: number }, [number, number, number]>(
 		'SELECT COUNT(*) AS `count` FROM `chat_messages` AS m ' +
 		'JOIN `chat_participants` AS p ON p.`conversation_id` = m.`conversation_id` AND p.`client_id` = ? ' +
+		'JOIN `clients` AS sender ON sender.`id` = m.`sender_id` ' +
 		'WHERE m.`sender_id` != p.`client_id` ' +
+		`AND ${chat_shadow_visibility('m')} ` +
 		'AND m.`id` > p.`hidden_through_message_id` ' +
 		'AND NOT EXISTS(SELECT 1 FROM `chat_message_reads` AS r ' +
 			'WHERE r.`message_id` = m.`id` AND r.`client_id` = p.`client_id`) ' +
 		'AND NOT EXISTS(SELECT 1 FROM `chat_message_deletions` AS d ' +
 			'WHERE d.`message_id` = m.`id` AND d.`client_id` = p.`client_id`)'
-	).get(client_id);
+	).get(client_id, client_id, client_id);
 	return row?.count ?? 0;
 }
 
@@ -240,6 +243,10 @@ export function list_conversations(client_id: number) {
 			JOIN participant_conversations AS c ON c.id = m.conversation_id
 			JOIN clients AS sender ON sender.id = m.sender_id
 			WHERE m.id > c.hidden_through_message_id
+			AND (m.shadow_hidden = 0 OR sender.melvor_account_id =
+				(SELECT melvor_account_id FROM clients WHERE id = ?1)
+				OR EXISTS (SELECT 1 FROM chat_shadow_observers
+					WHERE observer_account_id = (SELECT melvor_account_id FROM clients WHERE id = ?1)))
 			AND NOT EXISTS(SELECT 1 FROM chat_message_deletions AS d
 				WHERE d.message_id = m.id AND d.client_id = ?1)
 		), unread AS (
@@ -354,7 +361,7 @@ export function list_messages(
 	const participant = db.query<{ hidden_through_message_id: number }, [number, number]>(
 		'SELECT `hidden_through_message_id` FROM `chat_participants` WHERE `conversation_id` = ? AND `client_id` = ?'
 	).get(conversation_id, client_id) as { hidden_through_message_id: number };
-	const values: Array<number> = [conversation_id, participant.hidden_through_message_id, client_id];
+	const values: Array<number> = [conversation_id, participant.hidden_through_message_id, client_id, client_id, client_id];
 	let cursor = '';
 	let order = 'DESC';
 	let limit = CHAT_MESSAGE_PAGE_SIZE + 1;
@@ -372,6 +379,7 @@ export function list_messages(
 		'JOIN `clients` AS sender ON sender.`id` = m.`sender_id` ' +
 		'WHERE m.`conversation_id` = ? AND m.`id` > ? ' +
 		'AND NOT EXISTS(SELECT 1 FROM `chat_message_deletions` AS d WHERE d.`message_id` = m.`id` AND d.`client_id` = ?) ' +
+		`AND ${chat_shadow_visibility('m')} ` +
 		cursor + ` ORDER BY m.\`id\` ${order} LIMIT ${limit}`
 	).all(...values);
 	const page_limit = after === null ? CHAT_MESSAGE_PAGE_SIZE : MAX_INCREMENTAL_MESSAGES;
@@ -453,9 +461,9 @@ export function send_message(
 			insert_participant.run(conversation.id, conversation.participant_high_id);
 		}
 		const result = db.query(
-			'INSERT INTO `chat_messages` (`conversation_id`, `sender_id`, `idempotency_key`, `content`, `created_at`) ' +
-			'VALUES(?, ?, ?, ?, ?)'
-		).run(conversation.id, client_id, idempotency_key, trimmed, now);
+			'INSERT INTO `chat_messages` (`conversation_id`, `sender_id`, `idempotency_key`, `content`, `created_at`, `shadow_hidden`) ' +
+			'VALUES(?, ?, ?, ?, ?, ?)'
+		).run(conversation.id, client_id, idempotency_key, trimmed, now, is_chat_shadowbanned(client_id) ? 1 : 0);
 		save_chat_parts('private', Number(result.lastInsertRowid), parts);
 		if (CHAT_BUDGET_ENABLED) {
 			budget.credits--;

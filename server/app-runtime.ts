@@ -1,3 +1,4 @@
+import { dev_tag_kind } from './account_tags';
 import { replay_economy_command } from './economy';
 import { create_api_server, validate_api_command, ECONOMY_COMMAND_KINDS } from './api-contract';
 import { createHash } from 'node:crypto';
@@ -57,7 +58,9 @@ import { get_campaign_item_gp_value, get_campaign_item_gp_values } from './campa
 import { record_guild_activity } from './guild-activity';
 import type * as db_row from './db/types/db_types';
 import { BACKEND_VERSION } from './version';
-import { is_client_version_unsupported } from './client-version-policy';
+import { MINIMUM_SUPPORTED_VERSION_FEATURE, is_client_version_at_least, is_client_version_unsupported } from './client-version-policy';
+import { is_admin } from './admin_identity';
+import { catch_up_expedition_before_activity } from './guild-expedition';
 import {
 	CHARITY_PET_ID,
 	CAMPAIGN_PET_IDS,
@@ -146,7 +149,8 @@ import {
 	settle_assault,
 	type RaidOutcome
 } from './raid';
-import { add_charity_gloop, auto_claim_due_charity_wishes, distribute_charity_wish_progress_from_stack, get_charity_shuffle_owner_key, normalize_charity_shuffle_events, settle_departing_charity_wish } from './charity-wishes';
+import { add_charity_gloop, auto_claim_due_charity_wishes, destroy_charity_wishes, distribute_charity_wish_progress_from_stack, get_charity_shuffle_owner_key, normalize_charity_shuffle_events, settle_departing_charity_wish } from './charity-wishes';
+import { apply_crucible_petition, crucible_migration_complete, is_crucible_petition_type, settle_departing_crucible_wish } from './crucible-council';
 import { CHARITY_NORMAL_DECAY_MS, get_charity_decay_context, get_effective_charity_expiry } from './charity-decay';
 // #endregion
 export { db, db_get_single, db_execute, db_insert, db_exists, db_get_all, db_run, get_service_setting, register_client } from './db';
@@ -171,8 +175,9 @@ export { acknowledge_economy_receipt, economy_item_effects, pending_economy_rece
 export { acknowledge_victory_cache, abandon_assault, activate_raid, get_raid_state, get_victory_cache, reserve_assault, settle_assault } from './raid';
 export { CHARITY_KNOWN_CURRENCY_VALUATIONS, get_charity_known_valuation } from './charity-values';
 export { BACKEND_VERSION } from './version';
-export { CHARITY_SHUFFLE_BONUS_LIMIT, CHARITY_WISH_AUTO_CLAIM_MS, CHARITY_WISH_MATURING_MS, CHARITY_WISH_SHUFFLE_PENALTY, CHARITY_WISH_VALUES, auto_claim_due_charity_wishes, get_charity_shuffle_owner_key, get_charity_wish_account, get_charity_wish_maturing_ms, grant_charity_wish_to_inbox,
+export { CHARITY_SHUFFLE_BONUS_LIMIT, CHARITY_WISH_AUTO_CLAIM_MS, CHARITY_WISH_MATURING_MS, CHARITY_WISH_SHUFFLE_PENALTY, CHARITY_WISH_VALUES, add_charity_gloop, apply_taken_charity_wish_bonuses, auto_claim_due_charity_wishes, destroy_charity_wishes, get_charity_shuffle_owner_key, get_charity_wish_account, get_charity_wish_maturing_ms, grant_charity_wish_to_inbox,
 	list_charity_wishes, normalize_charity_shuffle_events, run_charity_wish_command, settle_departing_charity_wish } from './charity-wishes';
+export { settle_departing_crucible_wish } from './crucible-council';
 export { get_charity_decay_context, get_effective_charity_expiry } from './charity-decay';
 export {
 	CHARITY_PET_ID,
@@ -253,6 +258,8 @@ export type PlayerStatusActiveActivity = Exclude<PlayerStatusActivity, { type: '
 
 export type GuildMemberRow = {
 	client_id: number;
+	raid_defeats: number;
+	melvor_account_id: number | null;
 	social_mode: SocialMode;
 	display_name: string;
 	icon_id: string;
@@ -274,6 +281,7 @@ export type GuildMemberRow = {
 	game_mode_visible: number;
 	game_mode_id: string | null;
 	active_mods_visible: number;
+	dev_tag_visible: number;
 	active_mods_available: number;
 	cheats_detected_at: number | null;
 	language: string | null;
@@ -288,7 +296,8 @@ export const CHEAT_MOD_NAMES = new Set([
 	'God Mode',
 	'dev.Console',
 	'[Creative Mode] God mode w/ Loot + XP Multipliers',
-	'Melvor Cheat Suite'
+	'Melvor Cheat Suite',
+	'Cheat Chest'
 ]);
 
 export function is_using_cheats(cheats_detected_at: number | null, now = Date.now()): boolean {
@@ -549,6 +558,8 @@ export function charity_state_from_values({
 }
 
 export async function get_client_charity_state(client_id: number, _mod_version: string | null | undefined, now = Date.now(), server_owned_pets = true): Promise<CharityState> {
+	if (get_service_setting('crucible_cutover') === '1')
+		return { enabled: false, eligible: false, next_opportunity_at: 0 };
 	const row = await db_get_single(
 		' SELECT membership.`charitree_take_available_at`, guild.`charitree_enabled`, ' +
 		'client.`social_mode`, client.`last_charity`, client.`last_bonus_charity` ' +
@@ -1106,6 +1117,7 @@ export function unlock_winnowing_targets(petition_id: number) {
 }
 
 export function expire_charity_items_now(now = Date.now(), guild_id?: number): number {
+	if (get_service_setting('crucible_cutover') === '1') return 0;
 	const preserve_unknown_values = get_service_setting('charity_value_backfill_pending') === '1' ? 1 : 0;
 	type ExpirableCharityItem = Pick<db_row.charity_items,
 		'guild_id' | 'item_id' | 'qty' | 'expires_at' | 'value_currency_id' | 'value_per_item'>;
@@ -1174,14 +1186,18 @@ export function claim_council_action(now = Date.now()): db_row.guild_petitions |
 			"SELECT * FROM `guild_petitions` WHERE `lifecycle` = 'granted' " +
 			"AND `type` IN ('appellation', 'heraldry', 'banishment', 'winnowing', 'charitree_ingratitude', " +
 			"'charitree_sacrilege', 'charitree_beneficence', 'fellowship', 'enclosure', 'interdict', 'heresy', " +
-			"'temperance', 'indulgence') AND (" +
+			"'temperance', 'indulgence', 'crucible_purging', 'crucible_sealing', 'crucible_unsealing') AND (" +
 			"`execution_state` = 'pending' OR " +
 			"(`execution_state` = 'failed' AND `execution_last_attempt_at` <= ?) OR " +
 			"(`execution_state` = 'running' AND `execution_last_attempt_at` <= ?)) " +
+			"AND (? = 0 OR `type` NOT LIKE 'charitree_%') " +
+			"AND (? = 1 OR `type` NOT LIKE 'crucible_%') " +
 			'ORDER BY `id` LIMIT 1'
 		).get(
 			now - PETITION_FAILED_RETRY_AFTER,
-			now - PETITION_RUNNING_STALE_AFTER
+			now - PETITION_RUNNING_STALE_AFTER,
+			get_service_setting('crucible_cutover') === '1' ? 1 : 0,
+			crucible_migration_complete() ? 1 : 0
 		) as db_row.guild_petitions;
 		if (petition === null)
 			return null;
@@ -1333,6 +1349,7 @@ export function apply_banishment_target(
 		record_guild_activity({ guild_id: petition.guild_id, event_type: 'banished', actor_client_id: target_client_id,
 			source_key: `petition:${petition.id}:membership:${membership.id}:banished`, created_at: now });
 		settle_departing_charity_wish(target_client_id, petition.guild_id, now);
+		settle_departing_crucible_wish(target_client_id, petition.guild_id, now);
 		db.query('DELETE FROM `guild_memberships` WHERE `id` = ?').run(membership.id);
 		const remaining = db.query(
 			'SELECT COUNT(*) AS `count` FROM `guild_memberships` WHERE `guild_id` = ?'
@@ -1403,6 +1420,10 @@ export function apply_winnowing_action(petition: db_row.guild_petitions): string
 }
 
 export function apply_council_guild_action(petition: db_row.guild_petitions): string {
+	if (petition.type.startsWith('charitree_') && get_service_setting('crucible_cutover') === '1')
+		return 'retired_at_crucible_cutover';
+	if (is_crucible_petition_type(petition.type))
+		return apply_crucible_petition(petition);
 	if (petition.type === 'appellation') {
 		const updated = db.query('UPDATE `guilds` SET `name` = ? WHERE `id` = ?').run(
 			petition.proposed_name,
@@ -1456,37 +1477,30 @@ export function apply_council_guild_action(petition: db_row.guild_petitions): st
 	}
 	if (petition.type === 'charitree_ingratitude') {
 		const clear = db.transaction(() => {
-			const wish_owners = db.query<{ owner_client_id: number }, [number]>(
-				'SELECT wish.`owner_client_id` FROM `charity_wishes` AS wish ' +
+			const captured_wishes = db.query<db_row.charity_wishes, [number]>(
+				'SELECT wish.* FROM `charity_wishes` AS wish ' +
 					'JOIN `guild_petition_charity_wishes` AS captured ON captured.`wish_id` = wish.`id` ' +
 					'WHERE captured.`petition_id` = ?'
 			).all(petition.id);
 			const items = db.query(
 				'DELETE FROM `charity_items` WHERE `guild_id` = ? AND `expires_at` <= ?'
 			).run(petition.guild_id, petition.charitree_expires_before).changes;
-			const wishes = db.query(
-				'DELETE FROM `charity_wishes` WHERE `id` IN (' +
-				'SELECT `wish_id` FROM `guild_petition_charity_wishes` WHERE `petition_id` = ?)'
-			).run(petition.id).changes;
-			for (const owner_client_id of new Set(wish_owners.map(wish => wish.owner_client_id)))
-				normalize_charity_shuffle_events(get_charity_shuffle_owner_key(owner_client_id), false);
+			const wishes = destroy_charity_wishes(captured_wishes, Date.now(), db);
 			return items + wishes;
 		}).immediate();
 		return clear > 0 ? 'cleared' : 'already_empty';
 	}
 	if (petition.type === 'charitree_sacrilege') {
 		const disable = db.transaction(() => {
-			const wish_owners = db.query<{ owner_client_id: number }, [number]>(
-				'SELECT `owner_client_id` FROM `charity_wishes` WHERE `guild_id` = ?'
+			const destroyed_wishes = db.query<db_row.charity_wishes, [number]>(
+				'SELECT * FROM `charity_wishes` WHERE `guild_id` = ?'
 			).all(petition.guild_id);
 			const updated = db.query(
 				'UPDATE `guilds` SET `charitree_enabled` = 0 WHERE `id` = ? AND `charitree_enabled` = 1'
 			).run(petition.guild_id);
 			const removed = db.query('DELETE FROM `charity_items` WHERE `guild_id` = ?').run(petition.guild_id);
-			const wishes = db.query('DELETE FROM `charity_wishes` WHERE `guild_id` = ?').run(petition.guild_id);
-			for (const owner_client_id of new Set(wish_owners.map(wish => wish.owner_client_id)))
-				normalize_charity_shuffle_events(get_charity_shuffle_owner_key(owner_client_id), false);
-			return { updated: updated.changes, removed: removed.changes + wishes.changes };
+			const wishes = destroy_charity_wishes(destroyed_wishes, Date.now(), db);
+			return { updated: updated.changes, removed: removed.changes + wishes };
 		});
 		const result = disable.immediate();
 		if (result.updated === 0)
@@ -1546,6 +1560,7 @@ export function maintain_council() {
 }
 
 export function maintain_charity() {
+	if (get_service_setting('crucible_cutover') === '1') return;
 	try {
 		expire_charity_items();
 	} catch (error) {
@@ -1646,7 +1661,33 @@ export function forget_guild_campaign(guild_id: number) {
 	guild_campaigns.delete(guild_id);
 }
 
+export function campaign_is_draining(): boolean {
+	return get_service_setting('campaign_retirement_phase') !== 'active';
+}
+
+export function campaign_is_retired(): boolean {
+	return get_service_setting('campaign_retirement_phase') === 'retired';
+}
+
+export function paused_campaign_next(): number {
+	return Date.now() + 24 * 60 * 60 * 1000;
+}
+
 export async function start_new_campaign(guild_id: number): Promise<GuildCampaign | null> {
+	if (campaign_is_draining()) {
+		const existing = guild_campaigns.get(guild_id);
+		if (existing === undefined && await db_exists(
+			'SELECT 1 FROM campaign_state WHERE guild_id = ? AND complete = 0 LIMIT 1', [guild_id]))
+			return load_campaign_state(guild_id);
+		const campaign = existing ?? empty_guild_campaign(guild_id);
+		if (campaign.restart_timer !== null)
+			clearTimeout(campaign.restart_timer);
+		campaign.restart_timer = null;
+		if (campaign.active_id === 0)
+			campaign.next_active_timestamp = paused_campaign_next();
+		guild_campaigns.set(guild_id, campaign);
+		return campaign;
+	}
 	if (!(await db_exists('SELECT 1 FROM `guilds` WHERE `id` = ? LIMIT 1', [guild_id]))) {
 		forget_guild_campaign(guild_id);
 		return null;
@@ -1687,6 +1728,7 @@ export async function start_new_campaign(guild_id: number): Promise<GuildCampaig
 	campaign.pct = 0;
 	campaign.restart_timer = null;
 	campaign.active_id = db.transaction(() => {
+		if (campaign_is_draining()) return 0;
 		const inserted = db.query(
 			'INSERT INTO `campaign_state` ' +
 			'(`guild_id`, `campaign_id`, `item_id`, `item_amount`, `required_contributors`) ' +
@@ -1697,6 +1739,11 @@ export async function start_new_campaign(guild_id: number): Promise<GuildCampaig
 			source_key: `campaign:${inserted.id}:started` });
 		return inserted.id;
 	}).immediate();
+	if (campaign.active_id === 0) {
+		campaign.next_active_timestamp = paused_campaign_next();
+		guild_campaigns.set(guild_id, campaign);
+		return campaign;
+	}
 	guild_campaigns.set(guild_id, campaign);
 
 	log(
@@ -1711,6 +1758,7 @@ export async function start_new_campaign(guild_id: number): Promise<GuildCampaig
 }
 
 export async function update_campaign_progress(campaign: GuildCampaign) {
+	if (campaign_is_retired()) return;
 	campaign.pct = campaign.item_current / campaign.item_total;
 
 	if (campaign.item_current >= campaign.item_total)
@@ -1718,6 +1766,7 @@ export async function update_campaign_progress(campaign: GuildCampaign) {
 }
 
 export function persist_campaign_completion(campaign: GuildCampaign): number | null {
+	if (campaign_is_retired()) return null;
 	const completed_id = campaign.active_id;
 	if (completed_id === 0)
 		return null;
@@ -1726,7 +1775,9 @@ export function persist_campaign_completion(campaign: GuildCampaign): number | n
 	const next_active_timestamp = completed_at + CAMPAIGN_RESTART_TIMER;
 	const completed = db.query(
 		'UPDATE `campaign_state` SET `complete` = 1, `campaign_next` = ? ' +
-		'WHERE `id` = ? AND `guild_id` = ? AND `complete` = 0 RETURNING `id`'
+		"WHERE `id` = ? AND `guild_id` = ? AND `complete` = 0 " +
+		"AND NOT EXISTS (SELECT 1 FROM service_settings WHERE key = 'campaign_retirement_phase' AND value = 'retired') " +
+		'RETURNING `id`'
 	).get(next_active_timestamp, completed_id, campaign.guild_id);
 	if (completed === null)
 		return null;
@@ -1808,7 +1859,11 @@ export async function load_campaign_state(guild_id: number): Promise<GuildCampai
 export async function ensure_guild_campaign(guild_id: number): Promise<GuildCampaign | null> {
 	const cached = guild_campaigns.get(guild_id);
 	if (cached !== undefined) {
-		if (cached.active_id === 0 && cached.next_active_timestamp <= Date.now())
+		if (campaign_is_retired() && cached.active_id > 0) {
+			forget_guild_campaign(guild_id);
+			return load_campaign_state(guild_id);
+		}
+		if (cached.active_id === 0 && !campaign_is_draining() && cached.next_active_timestamp <= Date.now())
 			return start_new_campaign(guild_id);
 		return cached;
 	}
@@ -1816,6 +1871,7 @@ export async function ensure_guild_campaign(guild_id: number): Promise<GuildCamp
 }
 
 export async function resize_unprogressed_campaign(guild_id: number) {
+	if (campaign_is_retired()) return;
 	const campaign = guild_campaigns.get(guild_id);
 	if (campaign === undefined || campaign.active_id === 0 || campaign.item_current > 0)
 		return;
@@ -1834,7 +1890,9 @@ export async function resize_unprogressed_campaign(guild_id: number) {
 	const item_total = per_contributor_goal * required_contributors;
 	const updated = await db_get_single(
 		'UPDATE `campaign_state` SET `item_amount` = ?, `required_contributors` = ? ' +
-		'WHERE `id` = ? AND `guild_id` = ? AND `item_current` = 0 RETURNING `item_amount`',
+		"WHERE `id` = ? AND `guild_id` = ? AND `item_current` = 0 AND `complete` = 0 " +
+		"AND NOT EXISTS (SELECT 1 FROM service_settings WHERE key = 'campaign_retirement_phase' AND value = 'retired') " +
+		'RETURNING `item_amount`',
 		[item_total, required_contributors, campaign.active_id, guild_id]
 	);
 	if (updated === null)
@@ -1851,6 +1909,13 @@ export async function resize_unprogressed_campaign(guild_id: number) {
 }
 
 export function schedule_campaign_restart(campaign: GuildCampaign) {
+	if (campaign_is_draining()) {
+		if (campaign.restart_timer !== null)
+			clearTimeout(campaign.restart_timer);
+		campaign.restart_timer = null;
+		campaign.next_active_timestamp = paused_campaign_next();
+		return;
+	}
 	const current_time = Date.now();
 	if (current_time >= campaign.next_active_timestamp) {
 		void start_new_campaign(campaign.guild_id);
@@ -1884,6 +1949,7 @@ export async function get_campaign_progress(client_id: number) {
 }
 
 export async function add_campaign_auto_progress(campaign: GuildCampaign, item_qty: number) {
+	if (campaign_is_retired()) return;
 	const contribution_cap = Math.floor(campaign.item_total * CAMPAIGN_AUTO_CONTRIBUTION_CAP);
 	const updated = await db_get_single(
 		CAMPAIGN_AUTO_PROGRESS_SQL,
@@ -1927,6 +1993,10 @@ export async function get_campaign_rankings(client_id: number) {
 }
 
 export async function tick_campaign_baseline_advancement() {
+	if (campaign_is_retired()) {
+		schedule_campaign_baseline_advancement();
+		return;
+	}
 	for (const campaign of guild_campaigns.values()) {
 		if (campaign.active_id === 0)
 			continue;
@@ -2136,7 +2206,7 @@ export function get_guild_member_owned_dlc(member: Pick<GuildMemberRow, 'owned_d
 	return [];
 }
 
-export function guild_member_from_row(member: GuildMemberRow, now = Date.now()) {
+export function guild_member_from_row(member: GuildMemberRow, now = Date.now(), admin_view = false) {
 	const status_activity = get_guild_member_status_activity(member);
 	const account_age = member.account_creation_date !== null &&
 		Number.isSafeInteger(member.account_creation_date) && member.account_creation_date > 0
@@ -2144,6 +2214,9 @@ export function guild_member_from_row(member: GuildMemberRow, now = Date.now()) 
 		: null;
 	return {
 		client_id: member.client_id,
+		raid_defeats: member.raid_defeats,
+		dev_badge: member.dev_tag_visible === 1 && dev_tag_kind(member.melvor_account_id) === 'dev',
+		sae_dev_badge: member.dev_tag_visible === 1 && dev_tag_kind(member.melvor_account_id) === 'sae_dev',
 		social_mode: member.social_mode,
 		display_name: member.display_name,
 		icon_id: member.icon_id,
@@ -2163,8 +2236,8 @@ export function guild_member_from_row(member: GuildMemberRow, now = Date.now()) 
 		gp: member.gp_visible === 1 ? member.gp_amount : null,
 		game_mode_visible: member.game_mode_visible === 1,
 		game_mode_id: member.game_mode_visible === 1 ? member.game_mode_id : null,
-		active_mods_visible: member.active_mods_visible === 1,
-		active_mods_available: member.active_mods_visible === 1 && member.active_mods_available === 1,
+		active_mods_visible: member.active_mods_visible === 1 || admin_view,
+		active_mods_available: (member.active_mods_visible === 1 || admin_view) && member.active_mods_available === 1,
 		using_cheats: is_using_cheats(member.cheats_detected_at, now),
 		language: member.language,
 		owned_dlc: get_guild_member_owned_dlc(member),
@@ -2173,7 +2246,7 @@ export function guild_member_from_row(member: GuildMemberRow, now = Date.now()) 
 	};
 }
 
-export async function get_guild_members(guild_id: number, shadowed = false, now = Date.now()) {
+export async function get_guild_members(guild_id: number, viewer_id: number, shadowed = false, now = Date.now()) {
 	const cutoff = shadowed_cutoff(now);
 	const activity_filter = shadowed
 		? ' AND (c.`last_multiplayer_active_at` = 0 OR c.`last_multiplayer_active_at` < ?)'
@@ -2192,9 +2265,11 @@ export async function get_guild_members(guild_id: number, shadowed = false, now 
 		'ss.`activity_action_id` AS `status_activity_action_id`, ss.`activity_area_id` AS `status_activity_area_id`, ss.`activities` AS `status_activities`, ' +
 		'ss.`account_creation_date`, ss.`total_skill_level`, ' +
 		'c.`gp_visible`, gps.`amount` AS `gp_amount`, c.`game_mode_visible`, runtime.`game_mode_id`, ' +
-		'c.`active_mods_visible`, (runtime.`active_mods` IS NOT NULL AND runtime.`active_mods` <> \'[]\') AS `active_mods_available`, c.`cheats_detected_at`, ' +
+		'c.`dev_tag_visible`, c.`active_mods_visible`, (runtime.`active_mods` IS NOT NULL AND runtime.`active_mods` <> \'[]\') AS `active_mods_available`, c.`cheats_detected_at`, ' +
 		'runtime.`language`, runtime.`owned_dlc`, ' +
-		'c.`last_multiplayer_active_at`, joined_activity.`created_at` AS `joined_at` ' +
+		'c.`last_multiplayer_active_at`, c.`melvor_account_id`, joined_activity.`created_at` AS `joined_at`, ' +
+		'COALESCE((SELECT SUM(totals.`defeats`) FROM `raid_defeat_totals` AS totals ' +
+		'WHERE totals.`client_id` = c.`id`), 0) AS `raid_defeats` ' +
 		'FROM `guild_memberships` AS m ' +
 		'JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
 		'JOIN `guilds` AS g ON g.`id` = m.`guild_id` ' +
@@ -2208,13 +2283,15 @@ export async function get_guild_members(guild_id: number, shadowed = false, now 
 		'ORDER BY c.`last_multiplayer_active_at` DESC, c.`display_name` COLLATE NOCASE, c.`id`',
 		[now - CHEAT_USE_WINDOW, now, guild_id, cutoff]
 	) as GuildMemberRow[];
-	return members.map(member => guild_member_from_row(member, now));
+	const admin_view = is_admin(viewer_id);
+	return members.map(member => guild_member_from_row(member, now, admin_view));
 }
 
 export async function get_guild_member_directory(
 	guild_id: number,
 	page: number,
 	search: string,
+	viewer_id: number,
 	shadowed = false,
 	now = Date.now()
 ) {
@@ -2239,9 +2316,11 @@ export async function get_guild_member_directory(
 				'ss.`activity_action_id` AS `status_activity_action_id`, ss.`activity_area_id` AS `status_activity_area_id`, ss.`activities` AS `status_activities`, ' +
 				'ss.`account_creation_date`, ss.`total_skill_level`, ' +
 				'c.`gp_visible`, gps.`amount` AS `gp_amount`, c.`game_mode_visible`, runtime.`game_mode_id`, ' +
-				'c.`active_mods_visible`, (runtime.`active_mods` IS NOT NULL AND runtime.`active_mods` <> \'[]\') AS `active_mods_available`, c.`cheats_detected_at`, ' +
+				'c.`dev_tag_visible`, c.`active_mods_visible`, (runtime.`active_mods` IS NOT NULL AND runtime.`active_mods` <> \'[]\') AS `active_mods_available`, c.`cheats_detected_at`, ' +
 				'runtime.`language`, runtime.`owned_dlc`, ' +
-				'c.`last_multiplayer_active_at`, joined_activity.`created_at` AS `joined_at` ' +
+				'c.`last_multiplayer_active_at`, c.`melvor_account_id`, joined_activity.`created_at` AS `joined_at`, ' +
+				'COALESCE((SELECT SUM(totals.`defeats`) FROM `raid_defeat_totals` AS totals ' +
+				'WHERE totals.`client_id` = c.`id`), 0) AS `raid_defeats` ' +
 			'FROM `guild_memberships` AS m JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
 			'JOIN `guilds` AS g ON g.`id` = m.`guild_id` ' +
 			'LEFT JOIN `melvor_accounts` AS account ON account.`id` = c.`melvor_account_id` ' +
@@ -2263,8 +2342,9 @@ export async function get_guild_member_directory(
 		)
 	]);
 
+	const admin_view = is_admin(viewer_id);
 	return {
-		members: (members as GuildMemberRow[]).map(member => guild_member_from_row(member, now)),
+		members: (members as GuildMemberRow[]).map(member => guild_member_from_row(member, now, admin_view)),
 		page,
 		page_size: GUILD_MEMBER_PAGE_SIZE,
 		search,
@@ -2316,7 +2396,9 @@ export async function get_guild_applicants(client_id: number) {
 export async function has_guild_departure_blocker(client_id: number): Promise<boolean> {
 	const blockers = await db_get_single(
 		'SELECT ' +
-		'EXISTS(SELECT 1 FROM `market_items` WHERE `client_id` = ?) OR ' +
+		'EXISTS(SELECT 1 FROM `market_items` WHERE `client_id` = ? AND (' +
+			'`available` > 0 OR `reserved` > 0 OR `escrow_gp` > 0 OR ' +
+			'(`direction` = \'sell\' AND (`qty` - `available` - `reserved` - `haggled`) * `price` > `payout`))) OR ' +
 		'EXISTS(SELECT 1 FROM `gifts` WHERE `client_id` = ? OR (`sender_id` = ? AND (`flags` & ?) = 0)) OR ' +
 		'EXISTS(SELECT 1 FROM `trade_offers` WHERE `sender_id` = ? OR `recipient_id` = ?) OR ' +
 		'EXISTS(SELECT 1 FROM `resolved_trade_offers` WHERE `client_id` = ?) AS `blocked`',
@@ -2371,7 +2453,15 @@ export function petition_to_player_view(row: CouncilPetitionRow, client_id: numb
 	};
 }
 
-export async function get_council_petitions(guild_id: number, client_id: number, resolved_page: number) {
+export async function get_council_petitions(guild_id: number, client_id: number, resolved_page: number,
+	crucible_client = false) {
+	const cutover = get_service_setting('crucible_cutover') === '1';
+	const excluded = crucible_client
+		? (crucible_migration_complete()
+			? " AND p.`type` NOT LIKE 'charitree_%'"
+			: " AND p.`type` NOT LIKE 'charitree_%' AND p.`type` NOT LIKE 'crucible_%'")
+		: cutover ? " AND p.`type` NOT LIKE 'charitree_%' AND p.`type` NOT LIKE 'crucible_%'"
+			: " AND p.`type` NOT LIKE 'crucible_%'";
 	const select =
 		'SELECT p.*, target.`display_name` AS `target_display_name`, target.`icon_id` AS `target_icon_id`, ' +
 		'(SELECT COUNT(*) FROM `guild_petition_winnowing_targets` WHERE `petition_id` = p.`id`) AS `winnowing_target_count`, ' +
@@ -2382,11 +2472,12 @@ export async function get_council_petitions(guild_id: number, client_id: number,
 		'EXISTS(SELECT 1 FROM `guild_petition_voters` WHERE `petition_id` = p.`id` AND `client_id` = ?) AS `is_eligible` ' +
 		'FROM `guild_petitions` AS p LEFT JOIN `clients` AS target ON target.`id` = p.`target_client_id` ';
 	const active = await db_get_all(
-		select + "WHERE p.`guild_id` = ? AND p.`lifecycle` = 'active' ORDER BY p.`created_at` DESC, p.`id` DESC",
+		select + "WHERE p.`guild_id` = ? AND p.`lifecycle` = 'active'" + excluded +
+			' ORDER BY p.`created_at` DESC, p.`id` DESC',
 		[client_id, client_id, guild_id]
 	) as CouncilPetitionRow[];
 	const resolved = await db_get_all(
-		select + "WHERE p.`guild_id` = ? AND p.`lifecycle` IN ('granted', 'denied', 'lapsed') " +
+		select + "WHERE p.`guild_id` = ? AND p.`lifecycle` IN ('granted', 'denied', 'lapsed')" + excluded + ' ' +
 		'ORDER BY p.`resolved_at` DESC, p.`id` DESC LIMIT ? OFFSET ?',
 		[
 			client_id,
@@ -2424,12 +2515,23 @@ export async function get_council_petitions(guild_id: number, client_id: number,
 		available_petition_types.push('indulgence');
 	else if (guild?.market_discovery_restriction_enabled === 0)
 		available_petition_types.push('temperance');
-	if (guild?.charitree_enabled === 1) {
+	if (!crucible_client && !cutover && guild?.charitree_enabled === 1) {
 		available_petition_types.push('charitree_sacrilege');
 		if (guild.has_contents === 1)
 			available_petition_types.push('charitree_ingratitude');
-	} else if (guild?.charitree_enabled === 0) {
+	} else if (!crucible_client && !cutover && guild?.charitree_enabled === 0) {
 		available_petition_types.push('charitree_beneficence');
+	}
+	if (crucible_client && crucible_migration_complete()) {
+		const crucible = db.query<{ is_open: number }, [number]>(
+			'SELECT is_open FROM crucible_guilds WHERE guild_id = ?').get(guild_id);
+		if (crucible?.is_open === 1) {
+			available_petition_types.push('crucible_sealing');
+			if (db.query('SELECT 1 FROM crucible_offerings WHERE guild_id = ? UNION ALL ' +
+				'SELECT 1 FROM crucible_wishes WHERE guild_id = ? LIMIT 1').get(guild_id, guild_id) !== null)
+				available_petition_types.push('crucible_purging');
+		} else if (crucible?.is_open === 0)
+			available_petition_types.push('crucible_unsealing');
 	}
 
 	return {
@@ -2870,7 +2972,7 @@ export function validate_session_request(handler: SessionRequestHandler, json_bo
 		const path = url.pathname.replace(/^\/api\/v\d+\//, '/api/');
 		if (is_client_version_unsupported(session.mod_version, minimum_supported_mod_version)) {
 			mark_rejection(req, 'unsupported_mod_version');
-			if (path === '/api/events')
+			if (path === '/api/events' && is_client_version_at_least(session.mod_version, MINIMUM_SUPPORTED_VERSION_FEATURE))
 				return Response.json({ revision: 0, unchanged: true, minimum_supported_mod_version });
 			return Response.json({ minimum_supported_mod_version }, { status: 426 });
 		}
@@ -2903,6 +3005,7 @@ export function validate_session_request(handler: SessionRequestHandler, json_bo
 			}
 
 			const now = Date.now();
+			catch_up_expedition_before_activity(client_id, expire_charity_items_now, now);
 			if (now - (client_activity_writes.get(client_id) ?? 0) >= CLIENT_ACTIVITY_WRITE_INTERVAL) {
 				db.query('UPDATE `clients` SET `last_multiplayer_active_at` = ? WHERE `id` = ?')
 					.run(now, client_id);

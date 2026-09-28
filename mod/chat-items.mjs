@@ -2,11 +2,62 @@ export const CHAT_ITEM_LIMIT = 20;
 export const CHAT_LENGTH_LIMIT = 1000;
 export const official_chat_item = id => typeof id === 'string' &&
 	/^(melvorD|melvorF|melvorTotH|melvorAoD|melvorItA):[A-Za-z0-9_]+$/.test(id);
+export const MULTIPLAYER_FEATURE_NAMES = Object.freeze({
+	Chat: 'Chat', Guild: 'Guild', Transfer_Items: 'Transfers', Multiplayer_Market: 'Marketplace',
+	Crucible: 'Crucible', Expedition: 'Expedition', Guild_Raid: 'Raid', Updates: 'Updates'
+});
+const MULTIPLAYER_FEATURE_LANG_IDS = Object.freeze({
+	Chat: 'MOD_MP_PAGE_CHAT', Guild: 'MOD_MP_PAGE_GUILD', Transfer_Items: 'MOD_MP_PAGE_TRANSFER_ITEMS',
+	Multiplayer_Market: 'MOD_MP_PAGE_MARKET', Crucible: 'MOD_MP_PAGE_CRUCIBLE',
+	Expedition: 'MOD_MP_PAGE_EXPEDITION', Guild_Raid: 'MOD_MP_PAGE_RAID', Updates: 'MOD_MP_PAGE_UPDATES'
+});
+const FEATURE_SIDEBAR_ORDER = [
+	'melvorD:Shop', 'melvorD:Bank',
+	...Object.keys(MULTIPLAYER_FEATURE_NAMES).map(id => `multiplayer:${id}`),
+	'melvorD:Combat',
+	...['Attack', 'Strength', 'Defence', 'Hitpoints', 'Ranged', 'Magic', 'Prayer', 'Slayer']
+		.map(id => `melvorD:${id}`),
+	'melvorItA:Corruption',
+	'melvorD:Farming', 'melvorD:Township',
+	...['Woodcutting', 'Fishing', 'Firemaking', 'Cooking', 'Mining', 'Smithing', 'Thieving',
+		'Fletching', 'Crafting', 'Runecrafting', 'Herblore', 'Agility', 'Summoning', 'Astrology', 'AltMagic']
+		.map(id => `melvorD:${id}`),
+	'melvorAoD:Cartography', 'melvorAoD:Archaeology', 'melvorItA:Harvesting'
+];
+const FEATURE_SIDEBAR_RANK = new Map(FEATURE_SIDEBAR_ORDER.map((id, index) => [id, index]));
+export const official_chat_feature = id => typeof id === 'string' &&
+	(/^(melvorD|melvorF|melvorTotH|melvorAoD|melvorItA):[A-Za-z0-9_]+$/.test(id) ||
+		(id.startsWith('multiplayer:') && Object.hasOwn(MULTIPLAYER_FEATURE_NAMES, id.slice('multiplayer:'.length))));
+export const fallback_feature_name = id => MULTIPLAYER_FEATURE_NAMES[id?.slice('multiplayer:'.length)] ??
+	id?.split(':')[1]?.replaceAll('_', ' ') ?? id;
+export function feature_name(game, getLangString, id) {
+	if (id?.startsWith('multiplayer:')) {
+		const lang_id = MULTIPLAYER_FEATURE_LANG_IDS[id.slice('multiplayer:'.length)];
+		if (lang_id) return getLangString(lang_id).replace(/\s*[（(][^）)]*[）)]\s*$/u, '');
+	}
+	return game.skills?.getObjectByID?.(id)?.name ?? game.pages?.getObjectByID?.(id)?.name ?? fallback_feature_name(id);
+}
+export function feature_media(game, id) {
+	return game.skills?.getObjectByID?.(id)?.media ?? game.pages?.getObjectByID?.(id)?.media ?? null;
+}
+export function feature_catalog(game, getLangString) {
+	const ids = [
+		...Object.keys(MULTIPLAYER_FEATURE_NAMES).map(id => `multiplayer:${id}`),
+		...[...game.skills?.registeredObjects?.values?.() ?? []].map(skill => skill.id),
+		'melvorD:Combat', 'melvorD:Bank', 'melvorD:Shop'
+	];
+	return [...new Set(ids)].filter(id => official_chat_feature(id) && feature_media(game, id))
+		.map(id => ({ id, name: feature_name(game, getLangString, id), media: feature_media(game, id) }))
+		.sort((a, b) => (FEATURE_SIDEBAR_RANK.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+			(FEATURE_SIDEBAR_RANK.get(b.id) ?? Number.MAX_SAFE_INTEGER) ||
+			a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+}
 
 export function compact_parts(parts, trim = false) {
 	const result = [];
 	for (const part of parts) {
 		if (part.type === 'item' && official_chat_item(part.item_id)) result.push({ type: 'item', item_id: part.item_id });
+		else if (part.type === 'feature' && official_chat_feature(part.feature_id)) result.push({ type: 'feature', feature_id: part.feature_id });
 		else if (part.type === 'text' && part.text) {
 			const last = result.at(-1);
 			if (last?.type === 'text') last.text += part.text;
@@ -21,10 +72,11 @@ export function compact_parts(parts, trim = false) {
 }
 
 export const fallback_item_name = id => id.split(':')[1]?.replaceAll('_', ' ') ?? id;
-export const fallback_text = parts => parts.map(part => part.type === 'text' ? part.text : `[${fallback_item_name(part.item_id)}]`).join('');
+export const fallback_text = parts => parts.map(part => part.type === 'text' ? part.text : part.type === 'item' ?
+	`[${fallback_item_name(part.item_id)}]` : `$${fallback_feature_name(part.feature_id)}`).join('');
 export const parts_length = parts => parts.reduce((length, part) => length + (part.type === 'text' ? part.text.length : 1), 0);
 export const valid_parts = parts => fallback_text(compact_parts(parts, true)).length <= CHAT_LENGTH_LIMIT &&
-	parts.filter(part => part.type === 'item').length <= CHAT_ITEM_LIMIT;
+	parts.filter(part => part.type !== 'text').length <= CHAT_ITEM_LIMIT;
 
 export function replace_parts(parts, start, end, inserted) {
 	const before = [], after = [];
@@ -38,6 +90,19 @@ export function replace_parts(parts, start, end, inserted) {
 		offset += length;
 	}
 	return compact_parts([...before, ...inserted, ...after]);
+}
+
+export function chat_item_shortcut_range(parts, caret, character, committed = false) {
+	if (character !== '#' && character !== '＃' && character !== '$' && character !== '＄') return null;
+	const start = caret - (committed ? character.length : 0);
+	if (start < 0) return null;
+	if (committed) {
+		const through_caret = replace_parts(parts, caret, parts_length(parts), []);
+		if (through_caret.at(-1)?.type !== 'text' || !through_caret.at(-1).text.endsWith(character)) return null;
+	}
+	const preceding = replace_parts(parts, start, parts_length(parts), []);
+	const text = fallback_text(preceding);
+	return !text || /\s$/.test(text) ? [start, start + character.length] : null;
 }
 
 export function item_catalog(game, listings = []) {
@@ -66,7 +131,7 @@ function unique_items(items) {
 	});
 }
 
-export function search_items(catalog, query, recent = [], limit = 30) {
+export function search_items(catalog, query, recent = [], limit = 100) {
 	const search = query.trim().toLocaleLowerCase();
 	const unique_catalog = unique_items(catalog);
 	if (!search) {
@@ -108,9 +173,33 @@ export function register_chat_elements({ game, state, getLangString, document, H
 		}
 		return chip;
 	}
+	function feature_node(part, editing = false) {
+		const name = feature_name(game, getLangString, part.feature_id);
+		const media = feature_media(game, part.feature_id);
+		const chip = document.createElement(editing ? 'span' : 'button');
+		chip.className = 'mp-chat-item mp-chat-feature' + (media ? '' : ' mp-chat-item-unavailable');
+		chip.dataset.featureId = part.feature_id;
+		chip.contentEditable = 'false';
+		chip.title = name;
+		chip.setAttribute('aria-label', name);
+		if (media) {
+			const image = document.createElement('img');
+			image.src = media; image.alt = ''; image.draggable = false;
+			chip.append(image);
+		}
+		chip.append(document.createTextNode(name));
+		if (editing) chip.setAttribute('role', 'img');
+		else {
+			chip.type = 'button';
+			chip.disabled = !state.can_open_chat_feature(part.feature_id);
+			chip.addEventListener('click', () => state.open_chat_feature(part.feature_id));
+		}
+		return chip;
+	}
 	function append_parts(host, parts, editing = false) {
 		const fragment = document.createDocumentFragment();
-		for (const part of parts) fragment.append(part.type === 'text' ? document.createTextNode(part.text) : item_node(part, editing));
+		for (const part of parts) fragment.append(part.type === 'text' ? document.createTextNode(part.text) :
+			part.type === 'feature' ? feature_node(part, editing) : item_node(part, editing));
 		host.replaceChildren(fragment);
 	}
 	class ChatMessage extends HTMLElement {
@@ -146,9 +235,19 @@ export function register_chat_elements({ game, state, getLangString, document, H
 			};
 			document.addEventListener('selectionchange', this.on_selection_change);
 			this.editor.addEventListener('beforeinput', event => this.before_input(event));
-			this.editor.addEventListener('input', () => { if (!this.composing) this.read_input(); });
-			this.editor.addEventListener('compositionstart', () => { this.composing = true; });
-			this.editor.addEventListener('compositionend', () => { this.composing = false; this.read_input(); });
+			this.editor.addEventListener('input', () => {
+				if (this.composing) return;
+				this.read_input();
+				this.open_composed_shortcut();
+				this.composition_trigger = null;
+			});
+			this.editor.addEventListener('compositionstart', () => { this.composing = true; this.composition_trigger = null; });
+			this.editor.addEventListener('compositionend', event => {
+				this.composing = false;
+				this.composition_trigger = event.data;
+				this.read_input();
+				this.open_composed_shortcut();
+			});
 			this.editor.addEventListener('keydown', event => {
 				if (event.isComposing || this.composing) return;
 				if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
@@ -190,6 +289,7 @@ export function register_chat_elements({ game, state, getLangString, document, H
 			for (const node of host.childNodes) {
 				if (node.nodeType === 3) parts.push({ type: 'text', text: node.textContent });
 				else if (node.dataset?.itemId && official_chat_item(node.dataset.itemId)) parts.push({ type: 'item', item_id: node.dataset.itemId });
+				else if (node.dataset?.featureId && official_chat_feature(node.dataset.featureId)) parts.push({ type: 'feature', feature_id: node.dataset.featureId });
 				else if (node.nodeName === 'BR') parts.push({ type: 'text', text: '\n' });
 				else {
 					if (['DIV', 'P'].includes(node.nodeName) && parts.length) parts.push({ type: 'text', text: '\n' });
@@ -247,6 +347,16 @@ export function register_chat_elements({ game, state, getLangString, document, H
 			append_parts(this.editor, this.parts, true); this.set_selection(...selection);
 			this.record(selection); this.publish();
 		}
+		open_composed_shortcut() {
+			const [start, end] = this.selection();
+			if (start !== end) return;
+			const trigger = this.composition_trigger;
+			const shortcut = chat_item_shortcut_range(this.parts, end, trigger, true);
+			if (shortcut) {
+				this.composition_trigger = null;
+				this.open_picker(shortcut, true, trigger === '$' || trigger === '＄' ? 'feature' : 'item');
+			}
+		}
 		undo(direction) {
 			const index = this.history_index + direction;
 			if (!this.history[index]) return;
@@ -259,12 +369,11 @@ export function register_chat_elements({ game, state, getLangString, document, H
 			if (type === 'historyUndo' || type === 'historyRedo') { event.preventDefault(); this.undo(type === 'historyUndo' ? -1 : 1); return; }
 			if (type === 'insertText' && event.data !== null) {
 				const selection = this.selection();
-				if (event.data === '#' && selection[0] === selection[1]) {
-					const preceding = replace_parts(this.parts, selection[0], parts_length(this.parts), []);
-					const text = fallback_text(preceding);
-					if (!text || /\s$/.test(text)) {
-						event.preventDefault(); this.replace_selection([{ type: 'text', text: '#' }], selection);
-						this.open_picker([selection[0], selection[0] + 1], true); return;
+				if (selection[0] === selection[1]) {
+					const shortcut = chat_item_shortcut_range(this.parts, selection[0], event.data);
+					if (shortcut) {
+						event.preventDefault(); this.replace_selection([{ type: 'text', text: event.data }], selection);
+						this.open_picker(shortcut, true, event.data === '$' || event.data === '＄' ? 'feature' : 'item'); return;
 					}
 				}
 				event.preventDefault(); this.replace_selection([{ type: 'text', text: event.data }]); return;
@@ -291,21 +400,29 @@ export function register_chat_elements({ game, state, getLangString, document, H
 			if (start === end) return;
 			const prefix = replace_parts(this.parts, end, parts_length(this.parts), []);
 			const selected = replace_parts(prefix, 0, start, []);
-			const text = selected.map(part => part.type === 'text' ? part.text : game.items.getObjectByID(part.item_id)?.name ?? fallback_item_name(part.item_id)).join('');
+			const text = selected.map(part => part.type === 'text' ? part.text : part.type === 'feature' ?
+				feature_name(game, getLangString, part.feature_id) : game.items.getObjectByID(part.item_id)?.name ?? fallback_item_name(part.item_id)).join('');
 			event.preventDefault(); event.clipboardData?.setData('text/plain', text);
 			if (cut) this.replace_selection([], [start, end]);
 		}
-		open_picker(selection = this.selection(), trigger = false) {
+		open_picker(selection = this.selection(), trigger = false, kind = 'item') {
 			if (this.hasAttribute('disabled') || this.composing) return;
 			this.picker_selection = selection;
 			this.picker_restore_selection = trigger ? [selection[1], selection[1]] : selection;
 			this.picker_item_id = null;
-			state.show_chat_item_picker(this);
+			this.picker_feature_id = null;
+			if (kind === 'feature') state.show_chat_feature_picker(this);
+			else state.show_chat_item_picker(this);
 		}
 		insert_item(id) {
 			if (!official_chat_item(id) || !game.items.getObjectByID(id)) return;
 			this.editor.focus();
 			this.replace_selection([{ type: 'item', item_id: id }, { type: 'text', text: ' ' }], this.picker_selection);
+		}
+		insert_feature(id) {
+			if (!official_chat_feature(id) || !feature_media(game, id)) return;
+			this.editor.focus();
+			this.replace_selection([{ type: 'feature', feature_id: id }, { type: 'text', text: ' ' }], this.picker_selection);
 		}
 	}
 	customElements.define('mp-chat-message-body', ChatMessage);

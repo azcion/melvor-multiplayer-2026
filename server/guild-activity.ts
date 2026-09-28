@@ -72,12 +72,15 @@ export function record_guild_activity(input: ActivityInput): boolean {
 	return inserted.changes === 1;
 }
 
-export function get_guild_activity(guild_id: number, viewer_client_id: number, cursor: { created_at: number; id: number } | null) {
+export function get_guild_activity(guild_id: number, viewer_client_id: number,
+	cursor: { created_at: number; id: number } | null, include_legacy: boolean) {
 	const rows = db.query(
 		'SELECT `id`, `event_type`, `actor_client_id`, `actor_display_name`, `metadata`, `created_at`, ' +
 		'`buyer_client_id`, `buyer_display_name`, `seller_client_id`, `seller_display_name`, `item_id`, `quantity` ' +
 		'FROM `guild_activity_events` WHERE `guild_id` = ? ' +
 		'AND (`buyer_client_id` IS NULL OR `buyer_client_id` = ? OR `seller_client_id` = ?) ' +
+		(include_legacy ? '' : "AND `event_type` NOT IN ('charitree_donated', 'campaign_started', " +
+			"'campaign_completed', 'campaign_contributed') ") +
 		(cursor === null ? '' : 'AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?)) ') +
 		'ORDER BY `created_at` DESC, `id` DESC LIMIT ?'
 	).all(...(cursor === null

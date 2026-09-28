@@ -10,6 +10,10 @@ import { migrations_071_080 } from './migrations/071-080';
 import { migrations_081_090 } from './migrations/081-090';
 import { migrations_091_100 } from './migrations/091-100';
 import { migrations_101_110 } from './migrations/101-110';
+import { migrations_111_120 } from './migrations/111-120';
+import { migrations_121_130 } from './migrations/121-130';
+import { migrations_131_140 } from './migrations/131-140';
+import { migrations_141_150 } from './migrations/141-150';
 
 export const migrations: Migration[] = [
 	...migrations_001_010,
@@ -23,4 +27,8 @@ export const migrations: Migration[] = [
 	...migrations_081_090,
 	...migrations_091_100,
 	...migrations_101_110,
+	...migrations_111_120,
+	...migrations_121_130,
+	...migrations_131_140,
+	...migrations_141_150,
 ];

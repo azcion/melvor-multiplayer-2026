@@ -16,6 +16,10 @@ export const ECONOMY_COMMAND_KINDS: Readonly<Record<string, string>> = {
 	'/api/charity/donate': 'charity-donate',
 	'/api/charity/shuffle': 'charity-shuffle',
 	'/api/charity/take': 'charity-take',
+	'/api/crucible/cast': 'crucible-cast',
+	'/api/crucible/reclaim': 'crucible-reclaim',
+	'/api/crucible/clear': 'crucible-clear',
+	'/api/expedition/supply/donate': 'expedition-supply-donate',
 	'/api/gift/accept': 'gift-accept',
 	'/api/gift/decline': 'gift-decline',
 	'/api/gift/discard': 'gift-discard',
@@ -47,7 +51,10 @@ export const REPLAY_COMMAND_PATHS = new Set([
 	...ECONOMY_COMMAND_PATHS,
 	'/api/charity/wish/make',
 	'/api/charity/wish/forsake',
-	'/api/charity/wish/pick'
+	'/api/charity/wish/pick',
+	'/api/crucible/wish/make',
+	'/api/crucible/wish/cancel',
+	'/api/crucible/wish/claim'
 ]);
 
 export function validate_api_command(req: Request, json: JsonObject | null): boolean {

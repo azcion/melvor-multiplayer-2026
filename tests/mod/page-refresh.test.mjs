@@ -124,40 +124,23 @@ test('runs a visible-only page callback once when the page opens', async () => {
 	assert.deepEqual(visibility_changes, [true]);
 });
 
-test('stops the Charitree clock when hidden and preserves unchanged inventory', async () => {
-	const main = await read_client_source(root);
-	const clock_start = main.indexOf('function update_charity_clock');
-	const clock_source = main.slice(clock_start, main.indexOf('function set_charity_page_visible', clock_start));
-	const inventory = [{ id: 'test:item', expires_at: 2_000 }];
-	const state = { charity_update_time: 0, charity_tree_inventory: inventory };
-	const update_charity_clock = new Function('state', 'Date', `
-		${clock_source}
-		return update_charity_clock;
-	`)(state, { now: () => 1_000 });
-
-	update_charity_clock();
-	assert.equal(state.charity_tree_inventory, inventory);
-	state.charity_tree_inventory.push({ id: 'test:expired', expires_at: 500 });
-	update_charity_clock();
-	assert.deepEqual(state.charity_tree_inventory, [inventory[0]]);
-
-	const interface_setup = main.slice(main.indexOf('ctx.onInterfaceReady'), main.indexOf('function setup_account_menu'));
-	assert.match(interface_setup, /on_page_toggle\('mp-charity-page',[\s\S]*?\}, false\)/);
-	assert.match(main, /ctx\.onCharacterSelectionLoaded\(\(\) => \{\s*set_charity_page_visible\(false\)/);
+test('refreshes the Crucible only while its page is visible', async () => {
+ const main = await read_client_source(root);
+ const clock = main.slice(main.indexOf('function set_charity_page_visible'), main.indexOf('// #endregion', main.indexOf('function set_charity_page_visible')));
+ assert.match(clock, /clearInterval\(charity_clock_timer\)/);
+ assert.match(clock, /if \(!charity_page_visible\)\s*return/);
+ assert.match(clock, /state\.refresh_crucible\(true\)/);
+ assert.match(clock, /polling\.is_foreground\(document\)/);
+ const setup = main.slice(main.indexOf('ctx.onInterfaceReady'), main.indexOf('function setup_account_menu'));
+ assert.match(setup, /on_page_toggle\('mp-crucible-page'/);
+ assert.match(main, /ctx\.onCharacterSelectionLoaded\(\(\) => \{\s*set_charity_page_visible\(false\)/);
 });
 
-test('keeps reactive Guild state off Melvor page visibility containers', async () => {
-	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
-
-	for (const page of ['market', 'campaign', 'charity']) {
-		const page_root = new RegExp(
-			`<div class="content d-none" id="mp-${page}-page">\\s*` +
-			`<div class="block block-rounded p-4" v-if="state\\.is_social_only">[\\s\\S]*?` +
-			`<div :class="\\{ 'mp-guild-locked': !state\\.is_guild_member \\}" v-if="!state\\.is_social_only">`
-		);
-
-		assert.match(templates, page_root);
-	}
+test('keeps reactive Guild state scoped to its page', async () => {
+ const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
+ assert.match(templates, /id="mp-market-page"/);
+ assert.match(templates, /id="mp-crucible-page"/);
+ assert.match(templates, /id="mp-crucible-page">[\s\S]*v-else-if="!state\.is_guild_member"/);
 });
 
 test('mounts each Multiplayer page in one isolated Petite Vue scope', async () => {
@@ -194,7 +177,7 @@ test('keeps unresolved owned listings visible only as destroyable placeholders',
 	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
 	const market_page = templates.slice(
 		templates.indexOf('<template id="template-mp-market-page">'),
-		templates.indexOf('<template id="template-mp-charity-page">')
+		templates.indexOf('<template id="template-mp-crucible-page">')
 	);
 
 	assert.match(main, /unresolved: !is_local_item_resolved\(item\.item_id\)/);
@@ -212,7 +195,7 @@ test('adds non-draggable item tooltips to resolved Marketplace icons', async () 
 	]);
 	const market_page = templates.slice(
 		templates.indexOf('<template id="template-mp-market-page">'),
-		templates.indexOf('<template id="template-mp-charity-page">')
+		templates.indexOf('<template id="template-mp-crucible-page">')
 	);
 	const item_tooltip = main.slice(
 		main.indexOf('class MPItemIcon'),

@@ -57,3 +57,30 @@ test('item parts survive sends, retries, history and inboxes across every Chat k
 		await db_run('UPDATE clients SET client_identifier = ? WHERE id = ?', [first.client_identifier, first.client_id]);
 	}
 });
+
+test('feature tags stay structured for 1.6.0 and readable for 1.5.16', async () => {
+	const { first, second } = await make_guildmates(
+		'Feature Sender', 'Legacy Reader', 'Feature Tag Guild', { first: '1.6.0', second: '1.5.16' }
+	);
+	const parts = [{ type: 'text', text: 'Try ' }, { type: 'feature', feature_id: 'multiplayer:Guild_Raid' },
+		{ type: 'text', text: ' and ' }, { type: 'feature', feature_id: 'melvorD:Cooking' }];
+	const payload = { conversation_kind: 'private', conversation_id: null, client_id: second.client_id,
+		idempotency_key: crypto.randomUUID(), content: 'ignored', parts };
+	const sent = await post_json<{ message: any }>('/api/chat/messages/send', payload, first.session_token);
+	expect(sent.response.status).toBe(200);
+	expect(sent.json.message.parts).toEqual(parts);
+	expect(sent.json.message.content).toBe('Try $Raid and $Cooking');
+	const conversation_id = sent.json.message.conversation_id;
+	const new_history = await get_json_with_session<{ messages: any[] }>(
+		`/api/chat/messages?conversation_id=${conversation_id}`, first.session_token);
+	expect(new_history.json.messages[0].parts).toEqual(parts);
+	const old_history = await get_json_with_session<{ messages: any[] }>(
+		`/api/chat/messages?conversation_id=${conversation_id}`, second.session_token);
+	expect(old_history.json.messages[0].content).toBe('Try $Raid and $Cooking');
+	expect(old_history.json.messages[0].parts).toBeUndefined();
+	const inbox = await get_json_with_session<{ conversations: any[] }>('/api/chat/conversations', second.session_token);
+	expect(inbox.json.conversations.find(conversation => conversation.conversation_id === conversation_id)
+		?.latest_message.parts).toBeUndefined();
+	expect((await post('/api/chat/messages/send', { ...payload, idempotency_key: crypto.randomUUID(),
+		client_id: first.client_id, conversation_id }, second.session_token)).status).toBe(400);
+});

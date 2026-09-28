@@ -176,31 +176,3 @@ test('summarizes fulfilled items and combines repeated item receipts', () => {
 		]
 	});
 });
-
-test('hydrates Campaign event state before a blocked receipt can stop event reconciliation', async () => {
-	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
-	const events = main.slice(
-		main.indexOf('async function get_client_events_request'),
-		main.indexOf('function start_client_event_polling')
-	);
-
-	assert.ok(events.indexOf('reconcile_campaign_event(res.campaign)') <
-		events.indexOf('reconcile_economy_receipts(pending_economy_receipts'));
-});
-
-test('submits Campaign claims without client-calculated rewards', async () => {
-	const actions = await readFile(
-		new URL('../../mod/client-actions-market-campaign-charity.mjs', import.meta.url),
-		'utf8'
-	);
-	const claim = actions.slice(
-		actions.indexOf('async claim_campaign_reward'),
-		actions.indexOf('// #endregion', actions.indexOf('async claim_campaign_reward'))
-	);
-
-	assert.doesNotMatch(claim, /const reward_value/);
-	assert.doesNotMatch(claim, /game\.petManager/);
-	assert.match(claim, /api_post\('\/api\/campaign\/claim', \{[\s\S]*campaign_id: campaign\.id,[\s\S]*command_id: crypto\.randomUUID\(\)/);
-	assert.doesNotMatch(claim, /value:/);
-	assert.match(claim, /campaign\.taken = res\.reward_value/);
-});

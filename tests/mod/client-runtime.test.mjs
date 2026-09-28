@@ -35,8 +35,6 @@ test('applies the support floor only to feature-aware 1.5.10 and later clients',
 	assert.equal(is_mod_version_unsupported('1.5.10', '1.5.11'), true);
 	assert.equal(is_mod_version_unsupported('1.5.11', '1.5.11'), false);
 	assert.equal(is_mod_version_unsupported('1.6.0', '1.5.11'), false);
-	assert.equal(is_mod_version_unsupported('1.5.9', '1.5.11'), false);
-	assert.equal(is_mod_version_unsupported('development', '1.5.11'), false);
 	assert.equal(is_mod_version_unsupported('1.5.10', null), false);
 });
 

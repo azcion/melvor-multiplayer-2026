@@ -7,8 +7,18 @@ import type { PetitionType } from '../council';
 import { get_guild_activity, parse_guild_activity_cursor } from '../guild-activity';
 import { record_guild_activity } from '../guild-activity';
 import { cancel_client_haggles } from './haggle';
+import { is_client_version_at_least } from '../client-version-policy';
+import { crucible_migration_complete, is_crucible_petition_type, settle_departing_crucible_wish, snapshot_crucible_petition } from '../crucible-council';
 
 const { DIRECT_JOIN_CHARITREE_LOCK, FREE_FELLOWSHIP_TYPE, GiftFlags, PETITION_LIFETIME, PUBLIC_GUILD_TYPE, db, db_get_all, db_get_single, db_run, ensure_guild_campaign, expire_charity_items, expire_petitions, forget_guild_campaign, get_client_charity_state, get_client_display, get_client_guild_id, get_council_petitions, get_guild_applicants, get_guild_capabilities, get_guild_established_at, get_guild_member_directory, get_guild_members, get_guild_summary, get_guild_type, get_petition_conflict_subject, get_petition_resolution, guild_summary_from_row, has_guild_departure_blocker, is_petition_choice, is_petition_type, is_valid_guild_icon_id, parse_guild_name, process_council_actions, resize_unprogressed_campaign, session_get_route, session_post_route, settle_departing_charity_wish, shadowed_cutoff, unlock_winnowing_targets } = runtime;
+
+function petition_visible_to_version(type: string, req: Request): boolean {
+	if (type.startsWith('charitree_') && runtime.get_service_setting('crucible_cutover') === '1')
+		return false;
+	const version = runtime.get_request_mod_version(req);
+	const crucible_client = version === 'development' || is_client_version_at_least(version, '1.6.0');
+	return crucible_client ? !type.startsWith('charitree_') : !type.startsWith('crucible_');
+}
 
 export function register_guilds_routes(): void {
 	session_get_route('/api/guilds/activity', async (req, url, client_id): Promise<HandlerResult> => {
@@ -18,7 +28,9 @@ export function register_guilds_routes(): void {
 		const cursor = parse_guild_activity_cursor(url.searchParams.get('cursor'));
 		if (cursor === false)
 			return 400;
-		return get_guild_activity(guild_id, client_id, cursor);
+		const version = runtime.get_request_mod_version(req);
+		const include_legacy = version !== 'development' && !is_client_version_at_least(version, '1.6.0');
+		return get_guild_activity(guild_id, client_id, cursor, include_legacy);
 	});
 	session_get_route('/api/guilds/council', async (req, url, client_id) => {
 		expire_petitions();
@@ -37,7 +49,9 @@ export function register_guilds_routes(): void {
 		if (!Number.isSafeInteger(resolved_page) || resolved_page < 0)
 			return 400; // Bad Request
 
-		return await get_council_petitions(membership.guild_id, client_id, resolved_page);
+		const version = runtime.get_request_mod_version(req);
+		return await get_council_petitions(membership.guild_id, client_id, resolved_page,
+			version === 'development' || is_client_version_at_least(version, '1.6.0'));
 	});
 
 	session_post_route('/api/guilds/petitions/raise', async (req, url, client_id, json): Promise<HandlerResult> => {
@@ -45,6 +59,12 @@ export function register_guilds_routes(): void {
 			return 400; // Bad Request
 
 		const petition_type = json.type;
+		const version = runtime.get_request_mod_version(req);
+		const crucible_client = version === 'development' || is_client_version_at_least(version, '1.6.0');
+		if ((petition_type.startsWith('charitree_') && crucible_client) ||
+			(is_crucible_petition_type(petition_type) && !crucible_client)) return 400;
+		if (petition_type.startsWith('charitree_') && runtime.get_service_setting('crucible_cutover') === '1')
+			return 426;
 		const proposed_name = petition_type === 'appellation' ? parse_guild_name(json.name) : null;
 		const proposed_icon_id = petition_type === 'heraldry' && is_valid_guild_icon_id(json.icon_id) ? json.icon_id : null;
 		let target_client_id: number | null = null;
@@ -76,6 +96,20 @@ export function register_guilds_routes(): void {
 				market_discovery_restriction_enabled: number } | null;
 			if (guild === null)
 				return { status: 'forbidden' as const };
+			if (is_crucible_petition_type(petition_type)) {
+				if (!crucible_migration_complete()) return { status: 'crucible_unavailable' as const };
+				const crucible = db.query<{ is_open: number }, [number]>(
+					'SELECT is_open FROM crucible_guilds WHERE guild_id = ?').get(membership.guild_id);
+				if (crucible === null) return { status: 'crucible_unavailable' as const };
+				if ((petition_type === 'crucible_unsealing' && crucible.is_open !== 0) ||
+					(petition_type !== 'crucible_unsealing' && crucible.is_open !== 1))
+					return { status: 'crucible_unavailable' as const };
+				if (petition_type === 'crucible_purging' && db.query(
+					'SELECT 1 FROM crucible_offerings WHERE guild_id = ? UNION ALL ' +
+					'SELECT 1 FROM crucible_wishes WHERE guild_id = ? LIMIT 1'
+				).get(membership.guild_id, membership.guild_id) === null)
+					return { status: 'crucible_unavailable' as const };
+			}
 			if (guild.type === FREE_FELLOWSHIP_TYPE)
 				return { status: 'unavailable' as const };
 			if ((petition_type === 'fellowship' && guild.type !== 'private') ||
@@ -185,6 +219,8 @@ export function register_guilds_routes(): void {
 					'INSERT INTO `guild_petition_charity_wishes` (`petition_id`, `wish_id`) ' +
 					'SELECT ?, `id` FROM `charity_wishes` WHERE `guild_id` = ?'
 				).run(petition.id, membership.guild_id);
+			if (is_crucible_petition_type(petition_type))
+				snapshot_crucible_petition(petition.id, membership.guild_id, petition_type);
 			db.query(
 				'INSERT INTO `guild_petition_voters` (`petition_id`, `client_id`) ' +
 				'SELECT ?, membership.`client_id` FROM `guild_memberships` AS membership ' +
@@ -207,6 +243,8 @@ export function register_guilds_routes(): void {
 			return { error_lang: 'MOD_MP_GUILD_COUNCIL_UNAVAILABLE' };
 		if (result.status === 'charitree_unavailable')
 			return { error_lang: 'MOD_MP_COUNCIL_CHARITREE_UNAVAILABLE' };
+		if (result.status === 'crucible_unavailable')
+			return { error: 'Crucible petition is unavailable.' };
 		if (result.status === 'admission_unavailable')
 			return { error_lang: 'MOD_MP_COUNCIL_ADMISSION_UNAVAILABLE' };
 		if (result.status === 'cheat_policy_unavailable')
@@ -228,7 +266,7 @@ export function register_guilds_routes(): void {
 			const petition = db.query('SELECT * FROM `guild_petitions` WHERE `id` = ? LIMIT 1').get(
 				petition_id
 			) as db_row.guild_petitions;
-			if (petition === null)
+			if (petition === null || !petition_visible_to_version(petition.type, req))
 				return { status: 'missing' as const };
 			const guild = db.query('SELECT `type` FROM `guilds` WHERE `id` = ? LIMIT 1').get(
 				petition.guild_id
@@ -322,7 +360,7 @@ export function register_guilds_routes(): void {
 			const petition = db.query('SELECT * FROM `guild_petitions` WHERE `id` = ? LIMIT 1').get(
 				petition_id
 			) as db_row.guild_petitions;
-			if (petition === null)
+			if (petition === null || !petition_visible_to_version(petition.type, req))
 				return 'missing';
 			const guild = db.query('SELECT `type` FROM `guilds` WHERE `id` = ? LIMIT 1').get(
 				petition.guild_id
@@ -402,7 +440,7 @@ export function register_guilds_routes(): void {
 		if (!Number.isSafeInteger(page) || page < 0 || search.length > 64)
 			return 400; // Bad Request
 
-		return await get_guild_member_directory(guild_id, page, search);
+		return await get_guild_member_directory(guild_id, page, search, client_id);
 	});
 
 	session_get_route('/api/guilds/members/shadowed', async (req, url, client_id) => {
@@ -416,7 +454,7 @@ export function register_guilds_routes(): void {
 		if (!Number.isSafeInteger(page) || page < 0 || search.length > 64)
 			return 400; // Bad Request
 
-		return await get_guild_member_directory(guild_id, page, search, true);
+		return await get_guild_member_directory(guild_id, page, search, client_id, true);
 	});
 
 	session_get_route('/api/guilds/state', async (req, url, client_id): Promise<HandlerResult> => {
@@ -430,7 +468,7 @@ export function register_guilds_routes(): void {
 				? FREE_FELLOWSHIP_TYPE
 				: guild.is_public === true ? PUBLIC_GUILD_TYPE : 'private';
 			const member_directory = guild_type === FREE_FELLOWSHIP_TYPE
-				? await get_guild_member_directory(guild_id, 0, '')
+				? await get_guild_member_directory(guild_id, 0, '', client_id)
 				: null;
 			const charitree = await db_get_single(
 				'SELECT `charitree_enabled` FROM `guilds` WHERE `id` = ? LIMIT 1',
@@ -446,7 +484,7 @@ export function register_guilds_routes(): void {
 					charitree_enabled: charitree?.charitree_enabled === 1,
 					capabilities: get_guild_capabilities(guild_type)
 				},
-				members: member_directory?.members ?? await get_guild_members(guild_id),
+				members: member_directory?.members ?? await get_guild_members(guild_id, client_id),
 				...(member_directory === null ? {} : { member_directory }),
 				applicants: await get_guild_applicants(client_id)
 			};
@@ -664,7 +702,9 @@ export function register_guilds_routes(): void {
 
 			const blocker = db.query(
 				'SELECT ' +
-				'EXISTS(SELECT 1 FROM `market_items` WHERE `client_id` = ?) OR ' +
+				'EXISTS(SELECT 1 FROM `market_items` WHERE `client_id` = ? AND (' +
+					'`available` > 0 OR `reserved` > 0 OR `escrow_gp` > 0 OR ' +
+					'(`direction` = \'sell\' AND (`qty` - `available` - `reserved` - `haggled`) * `price` > `payout`))) OR ' +
 				'EXISTS(SELECT 1 FROM `gifts` WHERE `client_id` = ? OR (`sender_id` = ? AND (`flags` & ?) = 0)) OR ' +
 				'EXISTS(SELECT 1 FROM `trade_offers` WHERE `sender_id` = ? OR `recipient_id` = ?) OR ' +
 				'EXISTS(SELECT 1 FROM `resolved_trade_offers` WHERE `client_id` = ?) AS `blocked`'
@@ -675,6 +715,7 @@ export function register_guilds_routes(): void {
 			record_guild_activity({ guild_id: membership.guild_id, event_type: 'left', actor_client_id: client_id,
 				source_key: `membership:${membership.id}:left` });
 			settle_departing_charity_wish(client_id, membership.guild_id);
+			settle_departing_crucible_wish(client_id, membership.guild_id);
 			db.query('DELETE FROM `guild_memberships` WHERE `client_id` = ?').run(client_id);
 			const remaining = db.query(
 				'SELECT COUNT(*) AS `count` FROM `guild_memberships` WHERE `guild_id` = ?'

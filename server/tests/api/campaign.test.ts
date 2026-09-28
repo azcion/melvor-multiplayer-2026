@@ -37,8 +37,8 @@ async function get_campaign_info(session_token: string): Promise<ActiveCampaign>
 }
 
 describe('campaign API', () => {
-	test('exposes active campaign and initial player progress', async () => {
-		const client = await register_guild_client('Campaign Info');
+	test('keeps the legacy Campaign API available to 1.5.16 clients', async () => {
+		const client = await register_guild_client('Campaign Info', 'Campaign Legacy', '1.5.16');
 		const info = await get_campaign_info(client.session_token);
 		const events = await get_events(client);
 

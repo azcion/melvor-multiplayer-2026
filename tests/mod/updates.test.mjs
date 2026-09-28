@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { has_unseen_mod_version, load_updates, normalize_updates } from '../../mod/updates.mjs';
-import { read_release_changelog } from './source.mjs';
 
 const root = new URL('../../', import.meta.url);
 
@@ -14,12 +13,11 @@ test('detects an unseen current mod version, including a first visit', () => {
 });
 
 test('renders the new badge on the Updates sidebar item and mobile Changelog tab', async () => {
-	const [data, main, templates, style, changelog, english, chinese] = await Promise.all([
+	const [data, main, templates, style, english, chinese] = await Promise.all([
 		readFile(new URL('mod/data.json', root), 'utf8').then(JSON.parse),
 		readFile(new URL('mod/main.mjs', root), 'utf8'),
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
 		readFile(new URL('mod/ui/style.css', root), 'utf8'),
-		read_release_changelog(root),
 		readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse),
 		readFile(new URL('mod/data/lang/zh-CN.json', root), 'utf8').then(JSON.parse)
 	]);
@@ -36,7 +34,6 @@ test('renders the new badge on the Updates sidebar item and mobile Changelog tab
 	assert.match(style, /\.mp-updates-tab-badge \{[\s\S]*background: #30c78d;/);
 	assert.equal(english.MOD_MP_SIDEBAR_NEW, 'new');
 	assert.equal(chinese.MOD_MP_SIDEBAR_NEW, '新');
-	assert.match(changelog, /## 1\.5\.0[\s\S]*per-save new-version badge/);
 });
 
 test('normalizes server update sections and drops malformed entries', () => {

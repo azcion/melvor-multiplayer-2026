@@ -65,3 +65,36 @@ test('removes the Raid contributor ceiling while preserving Raid children', () =
 	expect(database.query('PRAGMA foreign_key_check').all()).toEqual([]);
 	database.close();
 });
+
+test('backfills Raid defeat totals without granting tier unlocks', () => {
+	const database = new Database(':memory:', { strict: true });
+	database.run('CREATE TABLE clients (id INTEGER PRIMARY KEY)');
+	database.run('CREATE TABLE guild_raid_assaults (id TEXT PRIMARY KEY, client_id INTEGER, ' +
+		'tier INTEGER, outcome TEXT)');
+	database.run('INSERT INTO clients(id) VALUES(1), (2)');
+	database.run("INSERT INTO guild_raid_assaults(id, client_id, tier, outcome) VALUES " +
+		"('a', 1, 2, 'success'), ('b', 1, 2, 'success'), ('c', 1, 2, 'death'), " +
+		"('d', 1, 3, 'success'), ('e', 2, 2, 'success')");
+	const migration = migrations.find(entry => entry.version === 148);
+	expect(migration).toBeDefined();
+	apply_migration(database, migration!);
+	expect(database.query('SELECT client_id, tier, defeats FROM raid_defeat_totals ORDER BY client_id, tier').all())
+		.toEqual([
+			{ client_id: 1, tier: 2, defeats: 2 },
+			{ client_id: 1, tier: 3, defeats: 1 },
+			{ client_id: 2, tier: 2, defeats: 1 }
+		]);
+	expect(database.query('SELECT DISTINCT fortified_resistance FROM guild_raid_assaults').all())
+		.toEqual([{ fortified_resistance: 99 }]);
+	const unlock_migration = migrations.find(entry => entry.version === 150);
+	expect(unlock_migration).toBeDefined();
+	apply_migration(database, unlock_migration!);
+	expect(database.query('SELECT * FROM raid_tier_unlocks').all()).toEqual([]);
+	expect(database.query('SELECT client_id, tier, defeats FROM raid_defeat_totals ORDER BY client_id, tier').all())
+		.toEqual([
+			{ client_id: 1, tier: 2, defeats: 2 },
+			{ client_id: 1, tier: 3, defeats: 1 },
+			{ client_id: 2, tier: 2, defeats: 1 }
+		]);
+	database.close();
+});

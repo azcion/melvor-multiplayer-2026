@@ -11,7 +11,9 @@ export const CAMPAIGN_AUTO_PROGRESS_SQL =
 	'`item_current` = `item_current` + MIN(?, `item_amount` - `item_current`, ? - `auto_contribution`), ' +
 	'`auto_contribution` = `auto_contribution` + ' +
 	'MIN(?, `item_amount` - `item_current`, ? - `auto_contribution`) ' +
-	'WHERE `id` = ? AND `guild_id` = ? RETURNING `item_current`, `auto_contribution`';
+	"WHERE `id` = ? AND `guild_id` = ? AND `complete` = 0 " +
+	"AND NOT EXISTS (SELECT 1 FROM service_settings WHERE key = 'campaign_retirement_phase' AND value = 'retired') " +
+	'RETURNING `item_current`, `auto_contribution`';
 
 export function round_campaign_estimate(estimate: number): number {
 	const normalized_estimate = Math.max(estimate, 1);

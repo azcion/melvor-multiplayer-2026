@@ -1,4 +1,5 @@
 import { db } from './db';
+import type { Database } from 'bun:sqlite';
 import type { DeviceDiagnostics } from './diagnostics';
 import { get_request_identity } from './http';
 
@@ -27,7 +28,7 @@ export type AuditEventInput = {
 	details?: Record<string, string | number | boolean | null>;
 };
 
-export type AuditPositionKind = 'charitree' | 'gift' | 'inbox' | 'client';
+export type AuditPositionKind = 'charitree' | 'crucible' | 'gift' | 'inbox' | 'client';
 
 export function audit_command_source(kind: string, client_id: number, command_id: unknown): string {
 	return typeof command_id === 'string'
@@ -42,8 +43,8 @@ export function audit_position_key(kind: AuditPositionKind, owner_id: number | s
 	return String(owner_id);
 }
 
-function display_name(client_id: number): string {
-	const row = db.query<{ display_name: string }, [number]>(
+function display_name(client_id: number, database: Database = db): string {
+	const row = database.query<{ display_name: string }, [number]>(
 		'SELECT `display_name` FROM `clients` WHERE `id` = ?'
 	).get(client_id);
 	if (row === null)
@@ -51,8 +52,8 @@ function display_name(client_id: number): string {
 	return row.display_name;
 }
 
-function guild_name(guild_id: number): string {
-	const row = db.query<{ name: string }, [number]>(
+function guild_name(guild_id: number, database: Database = db): string {
+	const row = database.query<{ name: string }, [number]>(
 		'SELECT `name` FROM `guilds` WHERE `id` = ?'
 	).get(guild_id);
 	if (row === null)
@@ -66,13 +67,13 @@ function request_device(actor: AuditActor): DeviceDiagnostics | null {
 	return get_request_identity(actor.request)?.device ?? null;
 }
 
-export function record_audit_event(input: AuditEventInput): number {
+export function record_audit_event(input: AuditEventInput, database: Database = db): number {
 	const actor_client_id = input.actor.kind === 'client' ? input.actor.client_id : null;
 	const actor_display_name = actor_client_id === null
 		? (input.actor.kind === 'operator' ? input.actor.name?.trim() || null : null)
-		: display_name(actor_client_id);
+		: display_name(actor_client_id, database);
 	const device = request_device(input.actor);
-	const inserted = db.query<{ id: number }, [
+	const inserted = database.query<{ id: number }, [
 		number, string, string, number | null, string | null, number | null, string | null,
 		string | null, string, string | null, string | null, string | null, string | null,
 		string | null, string | null, string
@@ -84,19 +85,19 @@ export function record_audit_event(input: AuditEventInput): number {
 	).get(
 		input.occurred_at ?? Date.now(), input.event_type, input.actor.kind, actor_client_id,
 		actor_display_name, input.guild_id ?? null,
-		input.guild_id === undefined ? null : guild_name(input.guild_id), input.command_id ?? null,
+		input.guild_id === undefined ? null : guild_name(input.guild_id, database), input.command_id ?? null,
 		input.source_key, device?.installation_id ?? null, device?.platform ?? null,
 		device?.distribution ?? null, device?.app_channel ?? null, device?.app_version ?? null,
 		device?.app_build ?? null, JSON.stringify(input.details ?? {})
 	) as { id: number };
 
 	for (const participant of input.participants ?? []) {
-		db.query(
+		database.query(
 			'INSERT INTO `audit_event_participants` (`event_id`, `role`, `client_id`, `display_name`) VALUES(?, ?, ?, ?)'
-		).run(inserted.id, participant.role, participant.client_id, display_name(participant.client_id));
+		).run(inserted.id, participant.role, participant.client_id, display_name(participant.client_id, database));
 	}
 	(input.values ?? []).forEach((value, ordinal) => {
-		db.query(
+		database.query(
 			'INSERT INTO `audit_event_values` (`event_id`, `ordinal`, `value_kind`, `object_id`, `quantity`, `direction`) ' +
 			'VALUES(?, ?, ?, ?, ?, ?)'
 		).run(inserted.id, ordinal, value.value_kind ?? (value.object_id === 'melvorD:GP' ? 'currency' : 'item'),
@@ -112,17 +113,17 @@ export function link_audit_events(event_id: number, relation: string, related_ev
 }
 
 export function create_audit_lot(event_id: number, object_id: string, quantity: number,
-	position_kind: AuditPositionKind, position_key: string): number {
-	const lot = db.query<{ id: number }, [number, string, number]>(
+	position_kind: AuditPositionKind, position_key: string, database: Database = db): number {
+	const lot = database.query<{ id: number }, [number, string, number]>(
 		'INSERT INTO `audit_value_lots` (`created_by_event_id`, `object_id`, `original_quantity`) VALUES(?, ?, ?) RETURNING `id`'
 	).get(event_id, object_id, quantity) as { id: number };
-	db.query(
+	database.query(
 		'INSERT INTO `audit_value_lot_positions` (`lot_id`, `position_kind`, `position_key`, `quantity`) VALUES(?, ?, ?, ?)'
 	).run(lot.id, position_kind, position_key, quantity);
-	const ordinal = db.query<{ ordinal: number }, [number]>(
+	const ordinal = database.query<{ ordinal: number }, [number]>(
 		'SELECT COALESCE(MAX(`ordinal`) + 1, 0) AS `ordinal` FROM `audit_value_movements` WHERE `event_id` = ?'
 	).get(event_id)?.ordinal ?? 0;
-	db.query(
+	database.query(
 		'INSERT INTO `audit_value_movements` (`event_id`, `ordinal`, `lot_id`, `to_kind`, `to_key`, `object_id`, `quantity`) ' +
 		'VALUES(?, ?, ?, ?, ?, ?, ?)'
 	).run(event_id, ordinal, lot.id, position_kind, position_key, object_id, quantity);
@@ -130,12 +131,13 @@ export function create_audit_lot(event_id: number, object_id: string, quantity: 
 }
 
 export function move_audit_value(event_id: number, object_id: string, quantity: number,
-	from_kind: AuditPositionKind, from_key: string, to_kind: AuditPositionKind | null, to_key: string | null): number {
+	from_kind: AuditPositionKind, from_key: string, to_kind: AuditPositionKind | null, to_key: string | null,
+	database: Database = db): number {
 	let remaining = quantity;
-	let ordinal = db.query<{ ordinal: number }, [number]>(
+	let ordinal = database.query<{ ordinal: number }, [number]>(
 		'SELECT COALESCE(MAX(`ordinal`) + 1, 0) AS `ordinal` FROM `audit_value_movements` WHERE `event_id` = ?'
 	).get(event_id)?.ordinal ?? 0;
-	const positions = db.query<{ lot_id: number; quantity: number }, [string, string, string]>(
+	const positions = database.query<{ lot_id: number; quantity: number }, [string, string, string]>(
 		'SELECT position.`lot_id`, position.`quantity` FROM `audit_value_lot_positions` AS position ' +
 		'JOIN `audit_value_lots` AS lot ON lot.`id` = position.`lot_id` ' +
 		'WHERE position.`position_kind` = ? AND position.`position_key` = ? AND lot.`object_id` = ? ' +
@@ -146,21 +148,21 @@ export function move_audit_value(event_id: number, object_id: string, quantity: 
 			break;
 		const moved = Math.min(position.quantity, remaining);
 		if (moved === position.quantity) {
-			db.query('DELETE FROM `audit_value_lot_positions` WHERE `lot_id` = ? AND `position_kind` = ? AND `position_key` = ?')
+			database.query('DELETE FROM `audit_value_lot_positions` WHERE `lot_id` = ? AND `position_kind` = ? AND `position_key` = ?')
 				.run(position.lot_id, from_kind, from_key);
 		} else {
-			db.query('UPDATE `audit_value_lot_positions` SET `quantity` = `quantity` - ? ' +
+			database.query('UPDATE `audit_value_lot_positions` SET `quantity` = `quantity` - ? ' +
 				'WHERE `lot_id` = ? AND `position_kind` = ? AND `position_key` = ?')
 				.run(moved, position.lot_id, from_kind, from_key);
 		}
 		if (to_kind !== null && to_key !== null) {
-			db.query(
+			database.query(
 				'INSERT INTO `audit_value_lot_positions` (`lot_id`, `position_kind`, `position_key`, `quantity`) ' +
 				'VALUES(?, ?, ?, ?) ON CONFLICT (`lot_id`, `position_kind`, `position_key`) ' +
 				'DO UPDATE SET `quantity` = `quantity` + excluded.`quantity`'
 			).run(position.lot_id, to_kind, to_key, moved);
 		}
-		db.query(
+		database.query(
 			'INSERT INTO `audit_value_movements` (`event_id`, `ordinal`, `lot_id`, `from_kind`, `from_key`, ' +
 			'`to_kind`, `to_key`, `object_id`, `quantity`) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)'
 		).run(event_id, ordinal++, position.lot_id, from_kind, from_key, to_kind, to_key, object_id, moved);
@@ -170,22 +172,23 @@ export function move_audit_value(event_id: number, object_id: string, quantity: 
 }
 
 export function create_missing_audit_lot(event_id: number, object_id: string, quantity: number,
-	position_kind: AuditPositionKind, position_key: string): void {
+	position_kind: AuditPositionKind, position_key: string, database: Database = db): void {
 	if (quantity > 0)
-		create_audit_lot(event_id, object_id, quantity, position_kind, position_key);
+		create_audit_lot(event_id, object_id, quantity, position_kind, position_key, database);
 }
 
 export function move_audit_value_with_fallback(event_id: number, object_id: string, quantity: number,
-	from_kind: AuditPositionKind, from_key: string, to_kind: AuditPositionKind | null, to_key: string | null): void {
-	const moved = move_audit_value(event_id, object_id, quantity, from_kind, from_key, to_kind, to_key);
+	from_kind: AuditPositionKind, from_key: string, to_kind: AuditPositionKind | null, to_key: string | null,
+	database: Database = db): void {
+	const moved = move_audit_value(event_id, object_id, quantity, from_kind, from_key, to_kind, to_key, database);
 	if (moved === quantity)
 		return;
 	const missing = quantity - moved;
 	if (to_kind !== null && to_key !== null)
-		create_audit_lot(event_id, object_id, missing, to_kind, to_key);
+		create_audit_lot(event_id, object_id, missing, to_kind, to_key, database);
 	else {
-		create_audit_lot(event_id, object_id, missing, from_kind, from_key);
-		move_audit_value(event_id, object_id, missing, from_kind, from_key, null, null);
+		create_audit_lot(event_id, object_id, missing, from_kind, from_key, database);
+		move_audit_value(event_id, object_id, missing, from_kind, from_key, null, null, database);
 	}
 }
 

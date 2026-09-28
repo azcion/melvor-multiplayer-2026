@@ -10,7 +10,7 @@ pursue collective goals, face Guild Raids, and shape your community together.
 - Group chat, private chat, in-app support chat.
 - Public and private Guilds, or the Free Fellowship.
 - Trading, gifting, the Marketplace, and Charitree.
-- Cooperative Campaigns and Guild Raids.
+- Cooperative Guild goals and Guild Raids.
 - Showing off profiles for equipment, skill levels, GP, and current activity.
 - Guild Council petitions, so members can shape their Guild together.
 

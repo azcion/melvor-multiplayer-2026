@@ -154,6 +154,45 @@ async function send_guild_message(
 }
 
 describe('Private Chat API', () => {
+	test('lets account observers read and react to shadow-hidden Private Messages', async () => {
+		const sender = await register_client('Private Shadow Sender', {
+			cloud_username: 'PrivateShadowSender', playfab_id: 'PRIVATE-SHADOW-SENDER'
+		});
+		const observer = await register_client('Private Shadow Observer', {
+			cloud_username: 'PrivateShadowObserver', playfab_id: 'PRIVATE-SHADOW-OBSERVER'
+		});
+		await db_run(
+			'UPDATE `melvor_accounts` SET `chat_shadowbanned` = 1 WHERE `id` = ' +
+			'(SELECT `melvor_account_id` FROM `clients` WHERE `id` = ?)', [sender.client_id]
+		);
+		const sent = await send_chat(sender.session_token, null, 'Hidden Private reply', undefined, observer.client_id);
+		const conversation_id = sent.json.message?.conversation_id as number;
+		const message_id = sent.json.message?.message_id as number;
+		expect((await messages(observer.session_token, conversation_id)).json.messages).toEqual([]);
+
+		await db_run(
+			'INSERT INTO `chat_shadow_observers` (`observer_account_id`, `granted_at`) ' +
+			'SELECT `melvor_account_id`, ? FROM `clients` WHERE `id` = ?', [Date.now(), observer.client_id]
+		);
+		expect((await messages(observer.session_token, conversation_id)).json.messages.map(message => message.message_id))
+			.toEqual([message_id]);
+		expect((await conversations(observer.session_token)).json.conversations.find(
+			conversation => conversation.conversation_kind === 'private'
+		)).toMatchObject({
+			latest_message: { message_id }, unread_count: 0
+		});
+		expect((await set_reaction(observer.session_token, conversation_id, message_id, '👀', true)).json.reactions)
+			.toEqual([{ reaction: '👀', count: 1, reacted: true }]);
+
+		const before = await get_json_with_session<{ revision: number; chat_unread: number }>('/api/events', observer.session_token);
+		await send_chat(sender.session_token, conversation_id, 'Live hidden reply');
+		const after = await get_json_with_session<{ revision: number; unchanged?: boolean; chat_unread: number }>(
+			`/api/events?revision=${before.json.revision}`, observer.session_token
+		);
+		expect(after.json.unchanged).not.toBe(true);
+		expect(after.json.chat_unread).toBe(before.json.chat_unread + 1);
+	});
+
 	test('aggregates unrestricted reactions and tracks each viewer independently', async () => {
 		const pair = await make_guildmates('Reaction Writer', 'Reaction Reader');
 		const outsider = await register_client('Reaction Outsider');
@@ -545,6 +584,55 @@ describe('Private Chat API', () => {
 });
 
 describe('Global Chat API', () => {
+	test('snapshots shadow visibility on new Messages while preserving older and later unshadowed Messages', async () => {
+		const sender = await register_client('Shadow Sender', { cloud_username: 'ShadowCloud', playfab_id: 'SHADOW-ACCOUNT' });
+		const sibling = await register_client('Shadow Sibling', { cloud_username: 'OtherLabel', playfab_id: 'SHADOW-ACCOUNT' });
+		const outsider = await register_client('Shadow Outsider');
+		const observer = await register_client('Shadow Observer', {
+			cloud_username: 'ShadowObserver', playfab_id: 'SHADOW-OBSERVER'
+		});
+		const existing_id = (await send_global_message(sender.session_token, 'Existing public Message')).json.message?.message_id;
+		if (typeof existing_id !== 'number') throw new Error('Existing Global Message was not created');
+		await db_run(
+			'UPDATE `melvor_accounts` SET `chat_shadowbanned` = 1 WHERE `id` = ' +
+			'(SELECT `melvor_account_id` FROM `clients` WHERE `id` = ?)', [sender.client_id]
+		);
+		const shadow_id = (await send_global_message(sender.session_token, 'Shadow-hidden Message')).json.message?.message_id;
+		if (typeof shadow_id !== 'number') throw new Error('Shadow-hidden Global Message was not created');
+		await db_run(
+			'UPDATE `melvor_accounts` SET `chat_shadowbanned` = 0 WHERE `id` = ' +
+			'(SELECT `melvor_account_id` FROM `clients` WHERE `id` = ?)', [sender.client_id]
+		);
+		const later_id = (await send_global_message(sender.session_token, 'Later public Message')).json.message?.message_id;
+		if (typeof later_id !== 'number') throw new Error('Later Global Message was not created');
+		for (const session_token of [sender.session_token, sibling.session_token]) {
+			const visible_ids = (await global_messages(session_token)).json.messages.map(message => message.message_id);
+			expect(visible_ids).toContain(existing_id);
+			expect(visible_ids).toContain(shadow_id);
+			expect(visible_ids).toContain(later_id);
+		}
+		const outsider_ids = (await global_messages(outsider.session_token)).json.messages.map(message => message.message_id);
+		expect(outsider_ids).toContain(existing_id);
+		expect(outsider_ids).not.toContain(shadow_id);
+		expect(outsider_ids).toContain(later_id);
+		expect((await global_messages(observer.session_token)).json.messages.map(message => message.message_id))
+			.not.toContain(shadow_id);
+		await db_run(
+			'INSERT INTO `chat_shadow_observers` (`observer_account_id`, `granted_at`) ' +
+			'SELECT `melvor_account_id`, ? FROM `clients` WHERE `id` = ?', [Date.now(), observer.client_id]
+		);
+		expect((await global_messages(observer.session_token)).json.messages.map(message => message.message_id))
+			.toEqual(expect.arrayContaining([existing_id, shadow_id, later_id]));
+		expect((await post_json<{ reactions: Message['reactions'] }>(
+			`/api/chat/messages/reaction?${GLOBAL_CHAT_CAPABILITY}`, {
+				conversation_kind: 'global', conversation_id: 1, message_id: shadow_id, reaction: '👀', reacted: true
+			}, observer.session_token
+		)).json.reactions).toEqual([{ reaction: '👀', count: 1, reacted: true }]);
+		expect((await global_inbox(outsider.session_token)).json.conversations.find(
+			entry => entry.conversation_kind === 'global')?.latest_message?.message_id).toBe(later_id);
+		await db_run('DELETE FROM `global_chat_messages` WHERE `id` IN (?, ?, ?)', [existing_id, shadow_id, later_id]);
+	});
+
 	test('capability-gates one server-wide conversation for Guildless clients', async () => {
 		const sender = await register_client('Global Sender');
 		const reader = await register_client('Global Reader');
@@ -644,6 +732,42 @@ describe('Global Chat API', () => {
 });
 
 describe('Guild Chat API', () => {
+	test('lets account observers read shadow-hidden Messages in their own Guild', async () => {
+		const pair = await make_guildmates('Guild Shadow Sender', 'Guild Shadow Observer');
+		await db_run(
+			"INSERT INTO `melvor_accounts` (`cloud_username`, `playfab_id`, `created_at`) VALUES (?, ?, ?)",
+			['GuildShadowSender', 'GUILD-SHADOW-SENDER', Date.now()]
+		);
+		await db_run(
+			'UPDATE `clients` SET `melvor_account_id` = (SELECT `id` FROM `melvor_accounts` WHERE `playfab_id` = ?) ' +
+			'WHERE `id` = ?', ['GUILD-SHADOW-SENDER', pair.first_id]
+		);
+		await db_run(
+			"INSERT INTO `melvor_accounts` (`cloud_username`, `playfab_id`, `created_at`) VALUES (?, ?, ?)",
+			['GuildShadowObserver', 'GUILD-SHADOW-OBSERVER', Date.now()]
+		);
+		await db_run(
+			'UPDATE `clients` SET `melvor_account_id` = (SELECT `id` FROM `melvor_accounts` WHERE `playfab_id` = ?) ' +
+			'WHERE `id` = ?', ['GUILD-SHADOW-OBSERVER', pair.second_id]
+		);
+		await db_run(
+			'UPDATE `melvor_accounts` SET `chat_shadowbanned` = 1 WHERE `id` = ' +
+			'(SELECT `melvor_account_id` FROM `clients` WHERE `id` = ?)', [pair.first_id]
+		);
+		const sent = await send_guild_message(pair.first.session_token, pair.guild_id, 'Hidden Guild Message');
+		const message_id = sent.json.message?.message_id as number;
+		expect((await guild_messages(pair.second.session_token, pair.guild_id)).json.messages).toEqual([]);
+		await db_run(
+			'INSERT INTO `chat_shadow_observers` (`observer_account_id`, `granted_at`) ' +
+			'SELECT `melvor_account_id`, ? FROM `clients` WHERE `id` = ?', [Date.now(), pair.second_id]
+		);
+		expect((await guild_messages(pair.second.session_token, pair.guild_id)).json.messages.map(message => message.message_id))
+			.toEqual([message_id]);
+		expect((await post_json<{ reactions: Message['reactions'] }>('/api/chat/messages/reaction', {
+			conversation_kind: 'guild', conversation_id: pair.guild_id, message_id, reaction: '👀', reacted: true
+		}, pair.second.session_token)).json.reactions).toEqual([{ reaction: '👀', count: 1, reacted: true }]);
+	});
+
 	test('capability-gates one canonical Guild conversation and admits later members with read history', async () => {
 		const owner = await register_guild_client('Guild Chat Owner', 'Canonical Chat Guild');
 		const old_inbox = await conversations(owner.session_token);
@@ -857,6 +981,10 @@ describe('Support Chat API', () => {
 			'INSERT INTO `support_team_memberships` ' +
 			'(`team_id`, `client_id`, `member_display_name`, `created_at`) VALUES(?, ?, ?, ?)',
 			[support.support_team_id, member.client_id, 'Support Revision Member', Date.now()]
+		);
+		await db_run(
+			'UPDATE `melvor_accounts` SET `chat_shadowbanned` = 1 WHERE `id` = ' +
+			'(SELECT `melvor_account_id` FROM `clients` WHERE `id` = ?)', [player.client_id]
 		);
 
 		const player_before = await get_json_with_session<{ revision: number }>('/api/events', player.session_token);

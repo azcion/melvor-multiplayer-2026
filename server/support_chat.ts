@@ -405,7 +405,8 @@ export function list_support_messages(client_id: number, conversation_id: number
 	if (before !== null) { cursor = ' AND `id` < ?'; values.push(before); }
 	else if (after !== null) { cursor = ' AND `id` > ?'; values.push(after); order = 'ASC'; limit = MAX_INCREMENTAL_MESSAGES + 1; }
 	const rows = db.query<Message, number[]>(
-		'SELECT * FROM `support_messages` AS message WHERE `conversation_id` = ? AND NOT EXISTS ' +
+		'SELECT message.* FROM `support_messages` AS message ' +
+		'WHERE `conversation_id` = ? AND NOT EXISTS ' +
 		'(SELECT 1 FROM `support_message_moderation` AS moderation WHERE moderation.`message_id` = message.`id`)' +
 		cursor.replaceAll('`id`', 'message.`id`') + ` ORDER BY message.\`id\` ${order} LIMIT ${limit}`
 	).all(...values);

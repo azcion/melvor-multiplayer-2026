@@ -7,6 +7,23 @@ export const RAID_MONSTER_IDS = Object.freeze({
 });
 
 const TERMINAL_OUTCOMES = new Set(['success', 'death', 'flee', 'abandoned']);
+const FORTIFIED_EFFECT_ID = 'multiplayer:Raid_Boss_Fortified';
+const VULNERABLE_EFFECT_ID = 'multiplayer:Raid_Boss_Vulnerable';
+
+export function raid_resistance_from_defeats(defeats) {
+	return 99 - Math.min(24, Math.floor(Math.max(0, defeats) / 6));
+}
+
+export function apply_raid_resistance(monster, resistance) {
+	if (!Number.isSafeInteger(resistance) || resistance < 75 || resistance > 99)
+		throw new Error('Invalid Raid fortified resistance.');
+	for (const [effect, active] of monster?.activeEffects ?? []) {
+		if (effect.id === FORTIFIED_EFFECT_ID)
+			active.setStats('fortification', resistance);
+		if (effect.id === VULNERABLE_EFFECT_ID)
+			active.setStats('vulnerability', resistance - 33);
+	}
+}
 
 function monster_id(value) {
 	return value?.id ?? value?.localID ?? null;
@@ -47,7 +64,11 @@ export class RaidCombatController {
 		if (!Number.isSafeInteger(reservation?.combat_deadline) || reservation.combat_deadline <= this.now())
 			throw new Error('Raid Assault reservation has expired.');
 
-		this.active = { ...reservation, monster_id: RAID_MONSTER_IDS[reservation.tier] };
+		const fortified_resistance = reservation.fortified_resistance ?? 99;
+		if (!Number.isSafeInteger(fortified_resistance) ||
+			fortified_resistance < 75 || fortified_resistance > 99)
+			throw new Error('Invalid Raid fortified resistance.');
+		this.active = { ...reservation, fortified_resistance, monster_id: RAID_MONSTER_IDS[reservation.tier] };
 		this.schedule_expiry();
 		return this.active;
 	}
@@ -125,6 +146,11 @@ export class RaidCombatController {
 
 export function install_raid_combat_hooks(ctx, controller, combat_manager_class, game, navigate_page = () => {}) {
 	let lethal_hit = false;
+	const adjust_effects = () => {
+		if (controller.active !== null && is_raid_monster(game.combat.selectedMonster))
+			apply_raid_resistance(game.combat.monster, controller.active.fortified_resistance);
+	};
+	game.combat.monster?.on?.('effectApplied', () => queueMicrotask(adjust_effects));
 
 	ctx.patch(combat_manager_class, 'selectMonster').replace(function(original, monster, area) {
 		if (!is_raid_monster(monster))
@@ -180,6 +206,7 @@ export function install_raid_combat_hooks(ctx, controller, combat_manager_class,
 				throw new Error('Raid combat content is unavailable.');
 			}
 			game.combat.selectMonster(monster, area);
+			adjust_effects();
 			navigate_page(game.pages.getObjectByID('melvorD:Combat'));
 		},
 		flush: () => controller.flush(),

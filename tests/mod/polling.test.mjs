@@ -137,7 +137,7 @@ test('refreshes event state after relevant navigation and successful mutations o
 	);
 
 	for (const endpoint of ['/api/gift/send', '/api/trade/accept', '/api/friends/add', '/api/guilds/apply',
-		'/api/market/buy', '/api/campaign/contribute', '/api/chat/messages/send'])
+		'/api/market/buy', '/api/chat/messages/send'])
 		assert.match(mutations, new RegExp(endpoint.replaceAll('/', '\\/')));
 	for (const endpoint of ['/api/client/status/sync', '/api/client/equipment/sync', '/api/market/search'])
 		assert.doesNotMatch(mutations, new RegExp(endpoint.replaceAll('/', '\\/')));
@@ -154,7 +154,6 @@ test('bounds requests and releases guarded page loaders from finally blocks', ()
 	for (const [function_name, loading_flag] of [
 		['update_market_listings', 'market_listings_loading'],
 		['update_market_search', 'market_search_loading'],
-		['update_campaign_info', 'campaign_loading'],
 		['request_charity_tree_contents', 'charity_tree_loading'],
 		['update_transfer_contents', 'is_updating_transfer_contents'],
 		['refresh_chat_messages', 'chat_messages_loading'],

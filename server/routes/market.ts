@@ -7,12 +7,18 @@ import { add_inbox_gp, add_inbox_items, get_inbox_source_name } from '../inbox';
 import { client_uses_legacy_transfer_protocol } from '../transfer-compatibility';
 import { cancel_listing_haggles } from './haggle';
 import { expire_market_listings, expire_market_listings_now } from '../market-expiry';
+import { is_client_version_at_least } from '../client-version-policy';
 
 const { MARKET_ITEMS_PER_PAGE, db, db_get_all, db_get_single, get_client_guild_id, is_market_discovery_restricted,
 	is_social_only_client, is_valid_item_id, is_valid_uuid, market_completed_cached, parse_market_excluded_item_ids,
 	parse_market_namespaces, remove_player_cache_entry, run_economy_command, session_get_route, session_post_route } = runtime;
 
 type MarketDirection = 'sell' | 'buy';
+
+function can_view_completed_market_listings(req: Request): boolean {
+	const version = runtime.get_request_mod_version(req);
+	return version === 'development' || is_client_version_at_least(version, '1.6.0');
+}
 
 function parse_market_direction(value: unknown): MarketDirection | null {
 	if (value === undefined)
@@ -61,14 +67,10 @@ function claim_legacy_market_payouts(client_id: number): number {
 		const payout = gross === null ? null : safe_market_sum(gross, -lot.payout);
 		if (payout === null || payout < 0)
 			continue;
-		const ended = lot.available === 0 && lot.reserved === 0;
-		if (ended) {
-			db.query('DELETE FROM `market_items` WHERE `id` = ?').run(lot.id);
-			remove_player_cache_entry(market_completed_cached, client_id, lot.id);
-		} else if (payout > 0) {
-			db.query('UPDATE `market_items` SET `payout` = `payout` + ?, `updated_at` = ? WHERE `id` = ?')
+		if (payout > 0)
+			db.query('UPDATE `market_items` SET `payout` = `payout` + ?, ' +
+				'`updated_at` = CASE WHEN `available` = 0 THEN `updated_at` ELSE ? END WHERE `id` = ?')
 				.run(payout, Date.now(), lot.id);
-		}
 		if (payout > 0) {
 			add_inbox_gp(client_id, payout, { type: 'market_sold' });
 			total += payout;
@@ -202,18 +204,13 @@ export function register_market_routes(): void {
 			if (final_cost === null)
 				return { error_lang: 'MOD_MP_MARKET_VALUE_TOO_LARGE' };
 			const new_item_qty = Math.max(lot.available - final_qty, 0);
-			const updated = new_item_qty === 0 && lot.reserved === 0
-				? db.query(
-					'DELETE FROM `market_items` WHERE `id` = ? AND `direction` = \'sell\' AND `available` = ?'
-				).run(lot_id, lot.available)
-				: db.query(
+			const updated = db.query(
 					'UPDATE `market_items` SET `available` = `available` - ?, `payout` = `payout` + ?, `updated_at` = ? ' +
 					'WHERE `id` = ? AND `direction` = \'sell\' AND `available` = ?'
 				).run(final_qty, final_cost, Date.now(), lot_id, lot.available);
 			if (updated.changes === 0)
 				return { error_lang: 'MOD_MP_MARKET_BUY_ERROR_INVALID' };
-			if (new_item_qty === 0 && lot.reserved === 0)
-				remove_player_cache_entry(market_completed_cached, lot.client_id, lot.id);
+			remove_player_cache_entry(market_completed_cached, lot.client_id, lot.id);
 			const buyer_name = get_inbox_source_name(client_id);
 			const seller_name = get_inbox_source_name(lot.client_id);
 			add_inbox_items(client_id, [{ item_id: lot.item_id, qty: final_qty }],
@@ -257,11 +254,7 @@ export function register_market_routes(): void {
 				return { error_lang: 'MOD_MP_MARKET_FULFILL_ERROR_INVALID' };
 			const new_item_qty = Math.max(lot.available - final_qty, 0);
 			const updated_at = Date.now();
-			const updated = new_item_qty === 0 && lot.reserved === 0
-				? db.query(
-					'DELETE FROM `market_items` WHERE `id` = ? AND `direction` = \'buy\' AND `available` = ? AND `escrow_gp` = ?'
-				).run(lot_id, lot.available, lot.escrow_gp)
-				: db.query(
+			const updated = db.query(
 					'UPDATE `market_items` SET `available` = `available` - ?, `escrow_gp` = `escrow_gp` - ?, `updated_at` = ? ' +
 					'WHERE `id` = ? AND `direction` = \'buy\' AND `available` = ? AND `escrow_gp` = ?'
 				).run(final_qty, final_cost, updated_at, lot_id, lot.available, lot.escrow_gp);
@@ -291,7 +284,9 @@ export function register_market_routes(): void {
 		expire_market_listings();
 
 		const results = await db_get_all(
-			'SELECT * FROM `market_items` WHERE `guild_id` = ? AND `client_id` = ?',
+			'SELECT * FROM `market_items` WHERE `guild_id` = ? AND `client_id` = ?' +
+				(can_view_completed_market_listings(req) ? '' :
+					' AND (`available` > 0 OR `reserved` > 0 OR (`direction` = \'sell\' AND (`qty` - `haggled`) * `price` > `payout`))'),
 			[guild_id, client_id]
 		);
 		const items = Array<JsonSerializable>(results.length);
@@ -328,13 +323,9 @@ export function register_market_routes(): void {
 				return { success: false };
 			const payout_available = (lot.qty - lot.available - lot.reserved - lot.haggled) * lot.price - lot.payout;
 			const ended = lot.available === 0 && lot.reserved === 0;
-			if (ended) {
-				db.query('DELETE FROM `market_items` WHERE `id` = ?').run(lot.id);
-				remove_player_cache_entry(market_completed_cached, client_id, lot.id);
-			} else {
-				db.query('UPDATE `market_items` SET `payout` = `payout` + ?, `updated_at` = ? WHERE `id` = ?')
-					.run(payout_available, Date.now(), lot.id);
-			}
+			db.query('UPDATE `market_items` SET `payout` = `payout` + ?, ' +
+				'`updated_at` = CASE WHEN `available` = 0 THEN `updated_at` ELSE ? END WHERE `id` = ?')
+				.run(payout_available, Date.now(), lot.id);
 			add_inbox_gp(client_id, payout_available, { type: 'market_sold' });
 			return { success: true, payout: payout_available, ended, effects: [] };
 		});
@@ -438,7 +429,8 @@ export function register_market_routes(): void {
 
 		const item_ids = await db_get_all(
 			'SELECT DISTINCT `item_id` FROM `market_items` WHERE `guild_id` = ? AND `client_id` != ? AND `direction` = ? ' +
-			'AND `available` > 0 AND (' + namespace_parameters.map(() => '`item_id` LIKE ? ESCAPE \'\\\'').join(' OR ') +
+			(can_view_completed_market_listings(req) ? '' : 'AND `available` > 0 ') +
+			'AND (' + namespace_parameters.map(() => '`item_id` LIKE ? ESCAPE \'\\\'').join(' OR ') +
 			') ORDER BY `item_id`',
 			[guild_id, client_id, direction, ...namespace_parameters]
 		);
@@ -496,9 +488,11 @@ export function register_market_routes(): void {
 		const price_sort = typeof json.sort === 'number'
 			? (json.sort === 0 ? 'DESC' : 'ASC')
 			: (direction === 'sell' ? 'ASC' : 'DESC');
+		const new_market_view = can_view_completed_market_listings(req);
+		const available_only = !new_market_view || json.available_only === true;
 		const where = ' FROM `market_items` AS m JOIN `clients` AS owner ON owner.`id` = m.`client_id` ' +
 			'WHERE m.`guild_id` = ? AND m.`client_id` != ? AND m.`direction` = ? ' +
-			'AND m.`available` > 0' + item_filter;
+			(available_only ? 'AND m.`available` > 0' : '') + item_filter;
 		const paginate = !has_namespace_filter || has_exact_item_filter;
 		const requested_page = typeof json.page === 'number' && Number.isSafeInteger(json.page)
 			? Math.max(json.page, 1)
@@ -511,7 +505,7 @@ export function register_market_routes(): void {
 			? ' LIMIT ' + MARKET_ITEMS_PER_PAGE + ' OFFSET ' + ((page - 1) * MARKET_ITEMS_PER_PAGE)
 			: '';
 		const result = await db_get_all(
-			'SELECT m.`id`, m.`item_id`, m.`available`, m.`price`, owner.`display_name`, owner.`icon_id`' +
+			'SELECT m.`id`, m.`item_id`, m.`available`, m.`qty`, m.`price`, owner.`display_name`, owner.`icon_id`' +
 			where + ' ORDER BY ' + (recent
 				? 'COALESCE(m.`updated_at`, m.`published_at`) DESC, m.`id` DESC'
 				: 'm.`price` ' + price_sort + ', m.`id` ' + price_sort) + page_clause,
@@ -522,6 +516,7 @@ export function register_market_routes(): void {
 				id: row.id,
 				item_id: row.item_id,
 				available: row.available,
+				...(new_market_view ? { qty: row.qty } : {}),
 				price: row.price,
 				direction,
 				buyer: { display_name: row.display_name, icon_id: row.icon_id }
@@ -530,6 +525,7 @@ export function register_market_routes(): void {
 				id: row.id,
 				item_id: row.item_id,
 				available: row.available,
+				...(new_market_view ? { qty: row.qty } : {}),
 				price: row.price,
 				direction,
 				seller: { display_name: row.display_name, icon_id: row.icon_id }

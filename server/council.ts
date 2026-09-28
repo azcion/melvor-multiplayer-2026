@@ -17,7 +17,10 @@ export const PETITION_TYPES = [
 	'interdict',
 	'heresy',
 	'temperance',
-	'indulgence'
+	'indulgence',
+	'crucible_purging',
+	'crucible_sealing',
+	'crucible_unsealing'
 ] as const;
 export const PETITION_CHOICES = ['aye', 'nay'] as const;
 
@@ -59,6 +62,8 @@ export function get_petition_conflict_subject(type: PetitionType, target_members
 		return 'guild:icon';
 	if (type.startsWith('charitree_'))
 		return 'guild:charitree';
+	if (type.startsWith('crucible_'))
+		return 'guild:crucible';
 	if (type === 'fellowship' || type === 'enclosure')
 		return 'guild:admission';
 	if (type === 'interdict' || type === 'heresy')

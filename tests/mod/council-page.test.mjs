@@ -32,18 +32,18 @@ test('wires Council petition controls, resolved-history toggle, and action descr
 	assert.match(templates, /can_raise_council_petition\('winnowing'\)/);
 	assert.match(templates, /MOD_MP_COUNCIL_WINNOWING_DESCRIPTION/);
 	assert.match(templates, /petition\.type === 'winnowing'[\s\S]*petition\.proposal\.target_count/);
-	assert.match(templates, /can_raise_council_petition\('charitree_ingratitude'\)/);
-	assert.match(templates, /can_raise_council_petition\('charitree_sacrilege'\)/);
-	assert.match(templates, /can_raise_council_petition\('charitree_beneficence'\)/);
+	assert.match(templates, /can_raise_council_petition\('crucible_purging'\)/);
+	assert.match(templates, /can_raise_council_petition\('crucible_sealing'\)/);
+	assert.match(templates, /can_raise_council_petition\('crucible_unsealing'\)/);
 	assert.match(templates, /can_raise_council_petition\('fellowship'\)/);
 	assert.match(templates, /can_raise_council_petition\('enclosure'\)/);
 	assert.match(templates, /can_raise_council_petition\('interdict'\)/);
 	assert.match(templates, /can_raise_council_petition\('heresy'\)/);
 	assert.match(templates, /can_raise_council_petition\('temperance'\)/);
 	assert.match(templates, /can_raise_council_petition\('indulgence'\)/);
-	assert.match(templates, /MOD_MP_COUNCIL_INGRATITUDE_DESCRIPTION/);
-	assert.match(templates, /MOD_MP_COUNCIL_SACRILEGE_DESCRIPTION/);
-	assert.match(templates, /MOD_MP_COUNCIL_BENEFICENCE_DESCRIPTION/);
+	assert.match(templates, /MOD_MP_COUNCIL_CRUCIBLE_PURGING_DESCRIPTION/);
+	assert.match(templates, /MOD_MP_COUNCIL_CRUCIBLE_SEALING_DESCRIPTION/);
+	assert.match(templates, /MOD_MP_COUNCIL_CRUCIBLE_UNSEALING_DESCRIPTION/);
 	assert.match(templates, /submit_council_petition\(\$event, state\.council_type\)/);
 	assert.match(style, /\.mp-council-threshold[\s\S]*left: 50%/);
 	assert.match(style, /\.mp-council-petition-description[\s\S]*text-align: center/);
@@ -61,9 +61,9 @@ test('wires Council petition controls, resolved-history toggle, and action descr
 	assert.equal(language.MOD_MP_COUNCIL_TYPE_BANISHMENT, 'Petition for Banishment');
 	assert.equal(language.MOD_MP_COUNCIL_TYPE_WINNOWING, 'Petition of Winnowing');
 	assert.match(language.MOD_MP_COUNCIL_WINNOWING_CONFIRM, /remains Shadowed/);
-	assert.equal(language.MOD_MP_COUNCIL_TYPE_CHARITREE_INGRATITUDE, 'Petition of Ingratitude');
-	assert.equal(language.MOD_MP_COUNCIL_TYPE_CHARITREE_SACRILEGE, 'Petition of Sacrilege');
-	assert.equal(language.MOD_MP_COUNCIL_TYPE_CHARITREE_BENEFICENCE, 'Petition of Beneficence');
+	assert.equal(language.MOD_MP_COUNCIL_TYPE_CRUCIBLE_PURGING, 'Petition of Purging');
+	assert.equal(language.MOD_MP_COUNCIL_TYPE_CRUCIBLE_SEALING, 'Petition of Sealing');
+	assert.equal(language.MOD_MP_COUNCIL_TYPE_CRUCIBLE_UNSEALING, 'Petition of Unsealing');
 	assert.equal(language.MOD_MP_COUNCIL_TYPE_FELLOWSHIP, 'Petition of Fellowship');
 	assert.equal(language.MOD_MP_COUNCIL_TYPE_ENCLOSURE, 'Petition of Enclosure');
 	assert.equal(language.MOD_MP_COUNCIL_TYPE_INTERDICT, 'Petition of Interdict');
@@ -74,7 +74,7 @@ test('wires Council petition controls, resolved-history toggle, and action descr
 	assert.match(language.MOD_MP_COUNCIL_INDULGENCE_CONFIRM, /before discovering that item/);
 	assert.equal(language.MOD_MP_COUNCIL_INTERDICT_DESCRIPTION, 'Call for every member Using Cheats to be confined to Social Only.');
 	assert.equal(language.MOD_MP_COUNCIL_HERESY_DESCRIPTION, 'Call for the Guild to tolerate heresy, allowing members Using Cheats full access once more.');
-	assert.match(templates, /\['charitree_beneficence', 'fellowship', 'heresy', 'indulgence'\]/);
+	assert.match(templates, /\['crucible_unsealing', 'fellowship', 'heresy', 'indulgence'\]/);
 	assert.match(language.MOD_MP_COUNCIL_FELLOWSHIP_CONFIRM, /wait 4 hours/);
 	assert.match(language.MOD_MP_COUNCIL_ENCLOSURE_DESCRIPTION, /close its gates/);
 	assert.equal(language.MOD_MP_COUNCIL_APPELLATION_DESCRIPTION, 'Call for the Guild to take a new name.');
@@ -87,36 +87,18 @@ test('wires Council petition controls, resolved-history toggle, and action descr
 	assert.match(templates, /:placeholder="getLangString\('MOD_MP_PLACEHOLDER_SEARCH_COMBAT_LOCATIONS'\)"/);
 });
 
-test('hides the felled Charitree and its donation action until restored', async () => {
-	const [templates, main, style, language_text] = await Promise.all([
-		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		read_client_source(root),
-		readFile(new URL('mod/ui/style.css', root), 'utf8'),
-		readFile(new URL('mod/data/lang/en.json', root), 'utf8')
-	]);
-	const language = JSON.parse(language_text);
-	const charitree_page = templates.slice(
-		templates.indexOf('<template id="template-mp-charity-page">'),
-		templates.indexOf('<template id="template-mp-transfer-page">')
-	);
-
-	assert.match(main, /get is_charitree_enabled\(\)/);
-	assert.match(main, /sidebar\.category\('Multiplayer'\)\.item\('multiplayer:Charity_Tree'\)/);
-	assert.match(main, /nav_item\.rootEl\?\.classList\.toggle\('mp-nav-unavailable', state\.multiplayer_unsupported \|\| !state\.is_charitree_enabled\)/);
-	assert.match(main, /document\.querySelector\('\.mp-charity-nav'\)/);
-	assert.match(main, /state\.is_charitree_enabled && state\.can_take_charity/);
-	assert.doesNotMatch(main, /nav_item\.(hide|show)\(\)/);
-	assert.match(main, /state\.events\.guild_applicants = state\.guild_applicants;\s*update_multiplayer_nav\(\);/);
-	assert.match(charitree_page, /v-show="state\.is_guild_member && !state\.charity_server_supported"/);
-	assert.match(charitree_page, /MOD_MP_CHARITY_SERVER_UNSUPPORTED/);
-	assert.match(charitree_page, /MOD_MP_CHARITY_DISABLED_INFO/);
-	assert.match(charitree_page, /v-show="state\.is_guild_member && state\.charity_server_supported && !state\.is_charitree_enabled"/);
-	assert.match(charitree_page, /v-show="state\.charity_server_supported && state\.is_charitree_enabled"/);
-	assert.match(charitree_page, /<div class="mp-charitree-timer"><mp-lang-string-f lang-id="MOD_MP_CHARITY_EXPIRES_IN" :lang-arg-1="state\.format_charity_expiry\(item\.expires_at\)"><\/mp-lang-string-f><\/div>/);
-	assert.match(style, /\.mp-charitree-item \.mp-charitree-timer\s*\{\s*all: unset;\s*position: absolute;\s*top: -2px;\s*left: -2px;\s*background: #424242;[\s\S]*font-size: 9px;\s*\}/);
-	assert.match(style, /\.mp-charity-nav[\s\S]*background-color: #28a745/);
-	assert.equal(language.MOD_MP_CHARITY_EXPIRES_IN, '%s');
-	assert.equal(language.MOD_MP_SIDEBAR_CHARITY_PICK, 'pick');
-	assert.match(templates, /state\.is_guild_member && state\.is_charitree_enabled && !state\.has_destroyable_transfer_items/);
-	assert.equal(language.MOD_MP_CHARITY_DISABLED, 'This Guild has forsaken the Charitree.');
+test('shows the sealed Crucible and keeps its Cast controls guarded', async () => {
+ const [templates, main, actions, english] = await Promise.all([
+  readFile(new URL('mod/ui/templates.html', root), 'utf8'),
+  read_client_source(root),
+  readFile(new URL('mod/client-crucible.mjs', root), 'utf8'),
+  readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse)
+ ]);
+ const page = templates.slice(templates.indexOf('<template id="template-mp-crucible-page">'), templates.indexOf('<template id="template-mp-transfer-page">'));
+ assert.match(main, /multiplayer:Crucible/);
+ assert.match(page, /!state\.crucible\.is_open/);
+ assert.match(page, /MOD_MP_CRUCIBLE_SEALED/);
+ assert.match(actions, /!state\.crucible\?\.is_open/);
+ assert.match(main, /bank_crucible_cast:/);
+ assert.equal(english.MOD_MP_PAGE_CRUCIBLE, 'Crucible');
 });

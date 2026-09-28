@@ -3,8 +3,8 @@ export const MULTIPLAYER_PAGE_LANG_IDS = Object.freeze({
 	Guild: 'MOD_MP_PAGE_GUILD',
 	Transfer_Items: 'MOD_MP_PAGE_TRANSFER_ITEMS',
 	Multiplayer_Market: 'MOD_MP_PAGE_MARKET',
-	Charity_Tree: 'MOD_MP_PAGE_CHARITREE',
-	Campaign_Effort: 'MOD_MP_PAGE_CAMPAIGN',
+	Crucible: 'MOD_MP_PAGE_CRUCIBLE',
+	Expedition: 'MOD_MP_PAGE_EXPEDITION',
 	Guild_Raid: 'MOD_MP_PAGE_RAID',
 	Updates: 'MOD_MP_PAGE_UPDATES'
 });
@@ -38,7 +38,9 @@ export function localize_multiplayer_page_names({ game, sidebar, getLangString, 
 export function create_localized_language_fetch(base_fetch, load_mod_language) {
 	return async lang => {
 		const language = await base_fetch(lang);
-		await load_mod_language(lang, language);
+		await load_mod_language('en', language);
+		if (lang !== 'en')
+			await load_mod_language(lang, language);
 		return language;
 	};
 }

@@ -143,6 +143,71 @@ describe('administration CLI', () => {
 		verification.close();
 	});
 
+	test('enforces account Chat shadowbans and moderates Global Messages independently', async () => {
+		const database_path = fixture_database();
+		const database = new Database(database_path, { strict: true });
+		database.run("INSERT INTO melvor_accounts (cloud_username, playfab_id, created_at) VALUES ('Cloud', 'shadow', 1)");
+		database.run('UPDATE clients SET melvor_account_id = 1 WHERE id = 1');
+		database.run("INSERT INTO global_chat_messages (sender_id, idempotency_key, content, created_at) VALUES (1, 'key', 'body', 1)");
+		database.run('INSERT INTO global_chat_message_moderation (message_id, deleted_at) VALUES (1, 2)');
+		database.close();
+		const refused = await run_admin(database_path, 'global-chat-message', 'restore', '1');
+		expect(refused.exit_code).toBe(1);
+		expect(refused.stderr).toContain('unless it was sent during a Chat shadowban');
+		const enforced = await run_admin(database_path, 'chat-shadowban', 'enforce', '1');
+		expect(enforced.exit_code).toBe(0);
+		expect(enforced.stdout).toContain('affected_identities=1');
+		const writable = new Database(database_path, { strict: true });
+		writable.run("INSERT INTO global_chat_messages (sender_id, idempotency_key, content, created_at, shadow_hidden) VALUES (1, 'shadow', 'shadow body', 3, 1)");
+		writable.run('INSERT INTO global_chat_message_moderation (message_id, deleted_at) VALUES (2, 4)');
+		writable.close();
+		const restored = await run_admin(database_path, 'global-chat-message', 'restore', '2');
+		expect(restored.exit_code).toBe(0);
+		expect(restored.stdout).toContain('sender-account-only');
+		const hidden = await run_admin(database_path, 'global-chat-message', 'hide', '1');
+		expect(hidden.exit_code).toBe(0);
+		expect(hidden.stdout).toContain('hidden for everyone');
+		const verification = new Database(database_path, { readonly: true, strict: true });
+		expect(verification.query('SELECT chat_shadowbanned FROM melvor_accounts WHERE id = 1').get())
+			.toEqual({ chat_shadowbanned: 1 });
+		expect(verification.query('SELECT message_id FROM global_chat_message_moderation ORDER BY message_id').all())
+			.toEqual([{ message_id: 1 }]);
+		verification.close();
+	});
+
+	test('grants and revokes account-wide Chat shadow observer access', async () => {
+		const database_path = fixture_database();
+		const database = new Database(database_path, { strict: true });
+		database.run("INSERT INTO melvor_accounts (cloud_username, playfab_id, created_at) VALUES ('Observer', 'observer', 1)");
+		database.run('UPDATE clients SET melvor_account_id = 1 WHERE id = 1');
+		const initial_revision = database.query<{ event_revision: number }, []>(
+			'SELECT `event_revision` FROM `clients` WHERE `id` = 1'
+		).get()?.event_revision ?? 0;
+		database.close();
+
+		const granted = await run_admin(database_path, 'chat-shadow-observer', 'grant', '1');
+		expect(granted.exit_code).toBe(0);
+		expect(granted.stdout).toContain('observer_added=yes');
+		const repeated = await run_admin(database_path, 'chat-shadow-observer', 'grant', '1');
+		expect(repeated.exit_code).toBe(0);
+		expect(repeated.stdout).toContain('observer_added=already_granted');
+
+		const granted_state = new Database(database_path, { readonly: true, strict: true });
+		expect(granted_state.query('SELECT observer_account_id FROM chat_shadow_observers').all())
+			.toEqual([{ observer_account_id: 1 }]);
+		expect(granted_state.query<{ event_revision: number }, []>(
+			'SELECT `event_revision` FROM `clients` WHERE `id` = 1'
+		).get()?.event_revision).toBe(initial_revision + 2);
+		granted_state.close();
+
+		const revoked = await run_admin(database_path, 'chat-shadow-observer', 'revoke', '1');
+		expect(revoked.exit_code).toBe(0);
+		expect(revoked.stdout).toContain('observer_removed=yes');
+		const verification = new Database(database_path, { readonly: true, strict: true });
+		expect(verification.query('SELECT observer_account_id FROM chat_shadow_observers').all()).toEqual([]);
+		verification.close();
+	});
+
 	test('corrects only an unread member-authored Support Message with the expected digest', async () => {
 		const database_path = fixture_database();
 		const database = new Database(database_path, { strict: true });

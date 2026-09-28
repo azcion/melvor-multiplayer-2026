@@ -33,7 +33,6 @@ export function is_minimum_supported_version(value: unknown): value is string {
 export function is_client_version_unsupported(actual: unknown, minimum: unknown): boolean {
 	const parsed_actual = parse_version(actual);
 	const parsed_minimum = parse_version(minimum);
-	const feature = parse_version(MINIMUM_SUPPORTED_VERSION_FEATURE)!;
-	return parsed_actual !== null && parsed_minimum !== null &&
-		compare_versions(parsed_actual, feature) >= 0 && compare_versions(parsed_actual, parsed_minimum) < 0;
+	return parsed_minimum !== null &&
+		(parsed_actual === null || compare_versions(parsed_actual, parsed_minimum) < 0);
 }

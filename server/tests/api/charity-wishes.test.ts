@@ -164,6 +164,84 @@ describe('Charitree Wishes', () => {
 		expect(await db_count('SELECT COUNT(*) AS `count` FROM `charity_items` WHERE `guild_id` = ?', [pair.guild_id])).toBe(1);
 	});
 
+	test('credits taken contribution lots tenfold to their Wishes and spreads directed overflow immediately', async () => {
+		const pair = await make_guildmates('Taken Bonus Bob', 'Taken Bonus Albert', 'Taken Bonus Guild', {
+			first: '1.5.7', second: '1.5.7'
+		});
+		const lucy = await register_client('Taken Bonus Lucy', undefined, '1.5.7');
+		const dave = await register_client('Taken Bonus Dave', undefined, '1.5.7');
+		for (const client of [lucy, dave])
+			await db_run('INSERT INTO `guild_memberships` (`client_id`, `guild_id`) VALUES(?, ?)',
+				[client.client_id, pair.guild_id]);
+		await attach_account(pair.first_id, 'Taken Bonus Bob Account');
+		await attach_account(pair.second_id, 'Taken Bonus Albert Account');
+		await attach_account(lucy.client_id, 'Taken Bonus Lucy Account');
+		await attach_account(dave.client_id, 'Taken Bonus Dave Account');
+		for (const client of [pair.first, pair.second, dave])
+			await post_json('/api/charity/wish/make', {
+				item_id: 'melvorAoD:Torn_Parchment', qty: 1, command_id: crypto.randomUUID()
+			}, client.session_token);
+		await db_run(
+			'UPDATE `charity_wishes` SET `required_gp` = CASE WHEN `owner_client_id` = ? THEN 100 ELSE 1000 END, ' +
+			'`created_at` = CASE WHEN `owner_client_id` = ? THEN `created_at` ELSE 0 END, ' +
+			'`matures_at` = CASE WHEN `owner_client_id` = ? THEN `matures_at` ELSE 0 END WHERE `guild_id` = ?',
+			[pair.first_id, pair.first_id, pair.first_id, pair.guild_id]
+		);
+		const item_id = 'exampleMod:Taken_Bonus_Stack';
+		await post_json('/api/charity/donate', {
+			items: [{ id: item_id, qty: 10, value_currency_id: 'melvorD:GP', value_per_item: 10 }], donation_value: 0
+		}, pair.first.session_token);
+		await post_json('/api/charity/donate', {
+			items: [{ id: item_id, qty: 1, value_currency_id: 'melvorD:GP', value_per_item: 10 }], donation_value: 0
+		}, pair.second.session_token);
+
+		const taken = await post_json<{ success: boolean }>('/api/charity/take', {
+			item_id, command_id: crypto.randomUUID()
+		}, lucy.session_token);
+		expect(taken.json.success).toBe(true);
+		const progress = await db_all<{ owner_client_id: number; progress_gp: number; ripe_at: number | null }>(
+			'SELECT `owner_client_id`, `progress_gp`, `ripe_at` FROM `charity_wishes` ' +
+			'WHERE `guild_id` = ? ORDER BY `owner_client_id`', [pair.guild_id]
+		);
+		expect(progress).toEqual([
+			{ owner_client_id: pair.first_id, progress_gp: 100, ripe_at: null },
+			{ owner_client_id: pair.second_id, progress_gp: 550, ripe_at: null },
+			{ owner_client_id: dave.client_id, progress_gp: 450, ripe_at: null }
+		]);
+		const contents = await get_json_with_session<{ wishes: Array<{ owned: boolean; phase: string; progress_gp: number }> }>(
+			'/api/charity/contents', pair.first.session_token
+		);
+		expect(contents.json.wishes.find(wish => wish.owned)).toMatchObject({ phase: 'maturing', progress_gp: 100 });
+		expect((await post_json<{ success: boolean; error_lang: string }>('/api/charity/wish/pick', {
+			command_id: crypto.randomUUID()
+		}, pair.first.session_token)).json).toEqual({
+			success: false, error_lang: 'MOD_MP_CHARITY_WISH_NOT_RIPE'
+		});
+	});
+
+	test('does not reward a contribution taken by another character on the same account', async () => {
+		const pair = await make_guildmates('Same Account Donor', 'Same Account Taker', 'Same Account Bonus', {
+			first: '1.5.7', second: '1.5.7'
+		});
+		await attach_account(pair.first_id, 'Same Account Bonus');
+		const [account] = await db_all<{ melvor_account_id: number }>(
+			'SELECT `melvor_account_id` FROM `clients` WHERE `id` = ?', [pair.first_id]
+		);
+		await db_run('UPDATE `clients` SET `melvor_account_id` = ? WHERE `id` = ?',
+			[account?.melvor_account_id, pair.second_id]);
+		await post_json('/api/charity/wish/make', {
+			item_id: 'melvorAoD:Torn_Parchment', qty: 1, command_id: crypto.randomUUID()
+		}, pair.first.session_token);
+		const item_id = 'exampleMod:Same_Account_Bonus';
+		await post_json('/api/charity/donate', {
+			items: [{ id: item_id, qty: 1, value_currency_id: 'melvorD:GP', value_per_item: 100 }], donation_value: 0
+		}, pair.first.session_token);
+		await post_json('/api/charity/take', { item_id, command_id: crypto.randomUUID() }, pair.second.session_token);
+		expect((await db_all<{ progress_gp: number }>(
+			'SELECT `progress_gp` FROM `charity_wishes` WHERE `owner_client_id` = ?', [pair.first_id]
+		))[0]?.progress_gp).toBe(0);
+	});
+
 	test('makes, ripens, picks, and replays one Wish without an Economy Receipt', async () => {
 		const client = await register_guild_client('Wish Owner', 'Wish Lifecycle', '1.5.7');
 		await attach_account(client.client_id, 'Wish Lifecycle Account');
@@ -231,7 +309,8 @@ describe('Charitree Wishes', () => {
 		}, client.session_token);
 		const now = Date.now();
 		await db_run(
-			'UPDATE `charity_wishes` SET `progress_gp` = `required_gp`, `ripe_at` = ? WHERE `id` = ?',
+			'UPDATE `charity_wishes` SET `progress_gp` = `required_gp`, `created_at` = 0, `matures_at` = 0, ' +
+			'`ripe_at` = ? WHERE `id` = ?',
 			[now, made.json.wish_id]
 		);
 
@@ -262,6 +341,70 @@ describe('Charitree Wishes', () => {
 			command_id: crypto.randomUUID()
 		}, client.session_token)).json.success).toBe(true);
 		expect((await make()).json.success).toBe(true);
+	});
+
+	test('recycles a forsaken Maturing Wish\'s progress into Ripening Wishes', async () => {
+		const pair = await make_guildmates('Wish Progress Keeper', 'Wish Progress Forsaker', 'Wish Recycling', {
+			first: '1.5.7', second: '1.5.7'
+		});
+		await attach_account(pair.first_id, 'Wish Progress Keeper Account');
+		await attach_account(pair.second_id, 'Wish Progress Forsaker Account');
+		for (const client of [pair.first, pair.second])
+			await post_json('/api/charity/wish/make', {
+				item_id: 'melvorAoD:Torn_Parchment', qty: 1, command_id: crypto.randomUUID()
+			}, client.session_token);
+		await db_run(
+			'UPDATE `charity_wishes` SET `required_gp` = 100, `progress_gp` = CASE WHEN `owner_client_id` = ? THEN 25 ELSE 0 END, ' +
+			'`created_at` = CASE WHEN `owner_client_id` = ? THEN `created_at` ELSE 0 END, ' +
+			'`matures_at` = CASE WHEN `owner_client_id` = ? THEN `matures_at` ELSE 0 END WHERE `guild_id` = ?',
+			[pair.second_id, pair.second_id, pair.second_id, pair.guild_id]
+		);
+		expect((await post_json<{ success: boolean }>('/api/charity/wish/forsake', {
+			command_id: crypto.randomUUID()
+		}, pair.second.session_token)).json.success).toBe(true);
+		expect(await db_all<{ owner_client_id: number; progress_gp: number }>(
+			'SELECT `owner_client_id`, `progress_gp` FROM `charity_wishes` WHERE `guild_id` = ?', [pair.guild_id]
+		)).toEqual([{ owner_client_id: pair.first_id, progress_gp: 25 }]);
+	});
+
+	test('recycles all Ingratitude targets only after removing them from distribution', async () => {
+		const pair = await make_guildmates('Wish Petition One', 'Wish Petition Two', 'Wish Petition', {
+			first: '1.5.7', second: '1.5.7'
+		});
+		await attach_account(pair.first_id, 'Wish Petition Account One');
+		await attach_account(pair.second_id, 'Wish Petition Account Two');
+		for (const client of [pair.first, pair.second])
+			await post_json('/api/charity/wish/make', {
+				item_id: 'melvorAoD:Torn_Parchment', qty: 1, command_id: crypto.randomUUID()
+			}, client.session_token);
+		await db_run(
+			'UPDATE `charity_wishes` SET `created_at` = 0, `matures_at` = 0, `required_gp` = 100, ' +
+			'`progress_gp` = CASE WHEN `owner_client_id` = ? THEN 10 ELSE 20 END WHERE `guild_id` = ?',
+			[pair.first_id, pair.guild_id]
+		);
+		const raised = await post_json<{ success: boolean; petition_id: number }>('/api/guilds/petitions/raise', {
+			type: 'charitree_ingratitude'
+		}, pair.first.session_token);
+		expect(raised.json.success).toBe(true);
+
+		const survivor = await register_client('Wish Petition Survivor', undefined, '1.5.7');
+		await db_run('INSERT INTO `guild_memberships` (`client_id`, `guild_id`) VALUES(?, ?)',
+			[survivor.client_id, pair.guild_id]);
+		await attach_account(survivor.client_id, 'Wish Petition Survivor Account');
+		await post_json('/api/charity/wish/make', {
+			item_id: 'melvorAoD:Torn_Parchment', qty: 1, command_id: crypto.randomUUID()
+		}, survivor.session_token);
+		await db_run(
+			'UPDATE `charity_wishes` SET `created_at` = 0, `matures_at` = 0, `required_gp` = 100 ' +
+			'WHERE `owner_client_id` = ?', [survivor.client_id]
+		);
+		for (const client of [pair.first, pair.second])
+			await post_json('/api/guilds/petitions/vote', {
+				petition_id: raised.json.petition_id, choice: 'aye'
+			}, client.session_token);
+		expect(await db_all<{ owner_client_id: number; progress_gp: number }>(
+			'SELECT `owner_client_id`, `progress_gp` FROM `charity_wishes` WHERE `guild_id` = ?', [pair.guild_id]
+		)).toEqual([{ owner_client_id: survivor.client_id, progress_gp: 30 }]);
 	});
 
 	test('caps the effective Shuffle Bonus while preserving Wish headroom and discarding overflow', async () => {
@@ -348,7 +491,7 @@ describe('Charitree Wishes', () => {
 		const wish = await db_all<{ id: number }>(
 			'SELECT `id` FROM `charity_wishes` WHERE `owner_client_id` = ?', [client.client_id]
 		);
-		await db_run('UPDATE `charity_wishes` SET `progress_gp` = `required_gp` WHERE `id` = ?', [wish[0]?.id]);
+		await db_run('UPDATE `charity_wishes` SET `progress_gp` = `required_gp`, `created_at` = 0, `matures_at` = 0 WHERE `id` = ?', [wish[0]?.id]);
 		await post_json('/api/social-mode/set', { mode: 'social', command_id: crypto.randomUUID() }, client.session_token);
 		const picked = await post_json<{ success: boolean; error_lang: string }>('/api/charity/wish/pick', {
 			command_id: crypto.randomUUID()

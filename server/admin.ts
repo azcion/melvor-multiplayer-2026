@@ -1,11 +1,16 @@
 import { createHash } from 'node:crypto';
 import { record_audit_event } from './audit';
+import { EXPEDITION_TESTER_TAG, is_expedition_tester } from './account_tags';
 import { revoke_installation } from './installations';
 import { db, get_service_setting } from './db';
 import { make_audit_context, run_with_audit_context } from './audit-context';
 import { CHARITY_KNOWN_CURRENCY_VALUATIONS } from './charity-values';
 import { is_minimum_supported_version } from './client-version-policy';
 import { remove_charity_contributor_quantity } from './charity-contributors';
+import { migrate_charitree_to_crucible } from './crucible-migration';
+import { preview_campaign_retirement, settle_campaign_retirement } from './campaign-retirement';
+import { preview_raid_cutover, settle_raid_cutover } from './raid';
+import { BACKEND_VERSION } from './version';
 import {
 	ICON_CATALOG_SETTING_KEYS,
 	MAX_ICON_CATALOG_BYTES,
@@ -51,6 +56,10 @@ function usage(output: AdminOutput): number {
   bun run admin.ts support-message inspect MESSAGE_ID
   bun run admin.ts support-message correct MESSAGE_ID EXPECTED_SHA256 confirm < REPLACEMENT_TEXT
   bun run admin.ts social-mode enforce|clear identity|account ID
+  bun run admin.ts chat-shadowban enforce|clear CLIENT_ID
+  bun run admin.ts chat-shadow-observer grant|revoke CLIENT_ID
+  bun run admin.ts tester-tag grant|revoke CLIENT_ID
+  bun run admin.ts global-chat-message hide|restore MESSAGE_ID
   bun run admin.ts global-chat-throttle server clear|MAX_MESSAGES WINDOW_SECONDS
   bun run admin.ts global-chat-throttle client CLIENT_ID clear|MAX_MESSAGES WINDOW_SECONDS
   bun run admin.ts charity reset CLIENT_ID
@@ -58,6 +67,13 @@ function usage(output: AdminOutput): number {
   bun run admin.ts charity repair-bank-receipt CLIENT_ID RECEIPT_ID ITEM_ID QTY confirm
   bun run admin.ts charity set-expiry GUILD_ID ITEM_ID EXPECTED_QTY SECONDS confirm
   bun run admin.ts charity backfill-values < charitree-item-values.json
+  bun run admin.ts crucible migrate confirm
+  bun run admin.ts crucible cutover confirm
+  bun run admin.ts campaign drain confirm
+  bun run admin.ts campaign preview CUTOVER_MS
+  bun run admin.ts campaign settle CUTOVER_MS confirm
+  bun run admin.ts raid preview CUTOVER_MS
+  bun run admin.ts raid cutover CUTOVER_MS confirm
   bun run admin.ts economy-receipt rollback-duplicate-charity CLIENT_ID RECEIPT_ID confirm`);
 	return 2;
 }
@@ -355,6 +371,119 @@ function set_social_mode_enforcement(args: string[], output: AdminOutput): numbe
 	}
 	output.log(`Social Only enforcement ${action === 'enforce' ? 'enabled' : 'cleared'} for ${scope} ${id}.`);
 	output.log(`affected_identities=${affected}`);
+	return 0;
+}
+
+function set_chat_shadowban(args: string[], output: AdminOutput): number {
+	const [, action, raw_client_id] = args;
+	const client_id = parse_positive_integer(raw_client_id);
+	if (args.length !== 3 || !['enforce', 'clear'].includes(action ?? '') || client_id === null)
+		return usage(output);
+	const result = db.transaction(() => {
+		const client = db.query<{ account_id: number | null }, [number]>(
+			'SELECT `melvor_account_id` AS `account_id` FROM `clients` WHERE `id` = ? LIMIT 1'
+		).get(client_id);
+		if (client === null) return { status: 'missing' as const };
+		if (client.account_id === null) return { status: 'unlinked' as const };
+		db.query('UPDATE `melvor_accounts` SET `chat_shadowbanned` = ? WHERE `id` = ?')
+			.run(action === 'enforce' ? 1 : 0, client.account_id);
+		db.query('UPDATE `clients` SET `event_revision` = `event_revision` + 1 WHERE `melvor_account_id` = ?')
+			.run(client.account_id);
+		const identities = db.query<{ count: number }, [number]>(
+			'SELECT COUNT(*) AS `count` FROM `clients` WHERE `melvor_account_id` = ?'
+		).get(client.account_id)?.count ?? 0;
+		return { status: 'ok' as const, account_id: client.account_id, identities };
+	}).immediate();
+	if (result.status === 'missing') {
+		output.error(`Multiplayer identity ${client_id} does not exist.`);
+		return 1;
+	}
+	if (result.status === 'unlinked') {
+		output.error(`Multiplayer identity ${client_id} is not linked to a Melvor account.`);
+		return 1;
+	}
+	output.log(`Chat shadowban ${action === 'enforce' ? 'enabled' : 'cleared'} for account ${result.account_id}.`);
+	output.log(`affected_identities=${result.identities}`);
+	return 0;
+}
+
+function set_chat_shadow_observer(args: string[], output: AdminOutput): number {
+	const [, action, raw_client_id] = args;
+	const client_id = parse_positive_integer(raw_client_id);
+	if (args.length !== 3 || !['grant', 'revoke'].includes(action ?? '') || client_id === null)
+		return usage(output);
+	const result = db.transaction(() => {
+		const client = db.query<{ account_id: number | null }, [number]>(
+			'SELECT `melvor_account_id` AS `account_id` FROM `clients` WHERE `id` = ? LIMIT 1'
+		).get(client_id);
+		if (client === null) return { status: 'missing' as const };
+		if (client.account_id === null) return { status: 'unlinked' as const };
+		const changed = action === 'grant'
+			? db.query(
+				'INSERT INTO `chat_shadow_observers` (`observer_account_id`, `granted_at`) VALUES(?, ?) ' +
+				'ON CONFLICT DO NOTHING'
+			).run(client.account_id, Date.now()).changes
+			: db.query('DELETE FROM `chat_shadow_observers` WHERE `observer_account_id` = ?')
+				.run(client.account_id).changes;
+		db.query('UPDATE `clients` SET `event_revision` = `event_revision` + 1 WHERE `melvor_account_id` = ?')
+			.run(client.account_id);
+		const identities = db.query<{ count: number }, [number]>(
+			'SELECT COUNT(*) AS `count` FROM `clients` WHERE `melvor_account_id` = ?'
+		).get(client.account_id)?.count ?? 0;
+		return { status: 'ok' as const, account_id: client.account_id, identities, changed };
+	}).immediate();
+	if (result.status === 'missing') {
+		output.error(`Multiplayer identity ${client_id} does not exist.`);
+		return 1;
+	}
+	if (result.status === 'unlinked') {
+		output.error(`Multiplayer identity ${client_id} is not linked to a Melvor account.`);
+		return 1;
+	}
+	output.log(`Chat shadow observer access ${action === 'grant' ? 'granted to' : 'revoked from'} account ${result.account_id}.`);
+	output.log(`affected_identities=${result.identities}`);
+	output.log(`observer_${action === 'grant' ? 'added' : 'removed'}=${result.changed === 1 ? 'yes' : 'already_' + (action === 'grant' ? 'granted' : 'revoked')}`);
+	return 0;
+}
+
+function set_global_chat_message_moderation(args: string[], output: AdminOutput): number {
+	const action = args[1];
+	const message_id = parse_positive_integer(args[2]);
+	if (args.length !== 3 || !['hide', 'restore'].includes(action ?? '') || message_id === null)
+		return usage(output);
+	const result = db.transaction(() => {
+		const message = db.query<{ sender_id: number; account_id: number | null; shadow_hidden: number }, [number]>(
+			'SELECT message.`sender_id`, sender.`melvor_account_id` AS `account_id`, ' +
+			'message.`shadow_hidden` ' +
+			'FROM `global_chat_messages` AS message JOIN `clients` AS sender ON sender.`id` = message.`sender_id` ' +
+			"WHERE message.`id` = ? AND message.`channel` = 'global' LIMIT 1"
+		).get(message_id);
+		if (message === null) return { status: 'missing' as const };
+		if (action === 'restore' && (message.account_id === null || message.shadow_hidden !== 1))
+			return { status: 'not_shadow_hidden' as const };
+		const changed = action === 'hide'
+			? db.query('INSERT INTO `global_chat_message_moderation` (`message_id`, `deleted_at`) VALUES(?, ?) ON CONFLICT DO NOTHING')
+				.run(message_id, Date.now()).changes
+			: db.query('DELETE FROM `global_chat_message_moderation` WHERE `message_id` = ?').run(message_id).changes;
+		if (action === 'hide')
+			db.query('UPDATE `clients` SET `event_revision` = `event_revision` + 1 WHERE `global_chat_enabled` = 1').run();
+		else
+			db.query('UPDATE `clients` SET `event_revision` = `event_revision` + 1 WHERE `melvor_account_id` = ?')
+				.run(message.account_id);
+		return { status: 'ok' as const, sender_id: message.sender_id, account_id: message.account_id, changed };
+	}).immediate();
+	if (result.status === 'missing') {
+		output.error(`Global Message ${message_id} does not exist.`);
+		return 1;
+	}
+	if (result.status === 'not_shadow_hidden') {
+		output.error(`Global Message ${message_id} cannot be restored unless it was sent during a Chat shadowban.`);
+		return 1;
+	}
+	output.log(`Global Message ${message_id} is ${action === 'hide' ? 'hidden for everyone' : 'sender-account-only'}.`);
+	output.log(`sender_id=${result.sender_id}`);
+	output.log(`account_id=${result.account_id}`);
+	output.log(`moderation_${action === 'hide' ? 'added' : 'removed'}=${result.changed === 1 ? 'yes' : action === 'hide' ? 'already_hidden' : 'already_restored'}`);
 	return 0;
 }
 
@@ -882,10 +1011,92 @@ function run_admin_command(args: string[], output: AdminOutput = console_output)
 	const [command, action, argument] = args;
 
 	switch (command) {
+		case 'raid': {
+			const cutover_at = parse_positive_integer(argument);
+			if (cutover_at === null || (action === 'preview' && args.length !== 3) ||
+				(action === 'cutover' && (args.length !== 4 || args[3] !== 'confirm')) ||
+				(action !== 'preview' && action !== 'cutover')) return usage(output);
+			try {
+				output.log(JSON.stringify(action === 'preview'
+					? preview_raid_cutover(cutover_at) : settle_raid_cutover(cutover_at)));
+				return 0;
+			} catch (error) {
+				output.error(error instanceof Error ? error.message : 'Raid cutover failed');
+				return 1;
+			}
+		}
+		case 'campaign': {
+			if (action === 'drain' && argument === 'confirm' && args.length === 3) {
+				if (get_service_setting('campaign_retirement_phase') === 'retired') {
+					output.error('Campaign retirement has already settled.');
+					return 1;
+				}
+				set_setting('campaign_retirement_phase', 'draining');
+				output.log('Campaigns are draining; active Campaigns continue, and no new Campaign can start.');
+				return 0;
+			}
+			const cutover_at = parse_positive_integer(argument);
+			if (cutover_at === null || (action === 'preview' && args.length !== 3) ||
+				(action === 'settle' && (args.length !== 4 || args[3] !== 'confirm')) ||
+				(action !== 'preview' && action !== 'settle'))
+				return usage(output);
+			if (action === 'settle' && BACKEND_VERSION <= 217) {
+				output.error('Campaign retirement requires a backend version after preparation version 217.');
+				return 1;
+			}
+			try {
+				output.log(JSON.stringify(action === 'preview'
+					? preview_campaign_retirement(cutover_at) : settle_campaign_retirement(cutover_at)));
+				return 0;
+			} catch (error) {
+				output.error(error instanceof Error ? error.message : 'Campaign retirement failed');
+				return 1;
+			}
+		}
+		case 'crucible': {
+			if ((action !== 'migrate' && action !== 'cutover') || argument !== 'confirm' || args.length !== 3)
+				return usage(output);
+			try {
+				output.log(JSON.stringify(migrate_charitree_to_crucible(Date.now(), db, action === 'cutover')));
+				return 0;
+			} catch (error) {
+				output.error(error instanceof Error ? error.message : 'Crucible migration failed');
+				return 1;
+			}
+		}
 		case 'updates':
 			return run_updates_command(args, output);
 		case 'social-mode':
 			return set_social_mode_enforcement(args, output);
+		case 'chat-shadowban':
+			return set_chat_shadowban(args, output);
+		case 'chat-shadow-observer':
+			return set_chat_shadow_observer(args, output);
+		case 'tester-tag': {
+			const client_id = parse_positive_integer(argument);
+			if (args.length !== 3 || (action !== 'grant' && action !== 'revoke') || client_id === null)
+				return usage(output);
+			const account = db.query<{ account_id: number; cloud_username: string }, [number]>(
+				'SELECT account.id AS account_id, account.cloud_username FROM clients AS client ' +
+				'JOIN melvor_accounts AS account ON account.id = client.melvor_account_id WHERE client.id = ?'
+			).get(client_id);
+			if (account === null) {
+				output.error(`Identity ${client_id} has no linked Melvor account.`);
+				return 1;
+			}
+			if (action === 'grant') {
+				db.query('INSERT INTO melvor_account_tags (account_id, tag, granted_at) VALUES (?, ?, ?) ' +
+					'ON CONFLICT (account_id, tag) DO NOTHING').run(account.account_id, EXPEDITION_TESTER_TAG, Date.now());
+			} else {
+				db.query('DELETE FROM melvor_account_tags WHERE account_id = ? AND tag = ?')
+					.run(account.account_id, EXPEDITION_TESTER_TAG);
+			}
+			output.log(JSON.stringify({ account_id: account.account_id, account: account.cloud_username,
+				tag: EXPEDITION_TESTER_TAG, granted: is_expedition_tester(client_id) }));
+			return 0;
+		}
+		case 'global-chat-message':
+			return set_global_chat_message_moderation(args, output);
 		case 'global-chat-throttle':
 			return set_global_chat_throttle(args, output);
 		case 'status': {
@@ -909,6 +1120,14 @@ function run_admin_command(args: string[], output: AdminOutput = console_output)
 			output.log(`released_mod_version=${get_service_setting('released_mod_version') || 'none'}`);
 			output.log(`minimum_supported_mod_version=${get_service_setting('minimum_supported_mod_version') || 'none'}`);
 			output.log(`charitree_value_backfill_pending=${get_service_setting('charity_value_backfill_pending') ?? '0'}`);
+			output.log(`crucible_cutover=${get_service_setting('crucible_cutover') ?? '0'}`);
+			output.log(`campaign_retirement_phase=${get_service_setting('campaign_retirement_phase') ?? 'active'}`);
+			const raid_cutover = db.query<{ cutover_at: number; resume_at: number }, []>(
+				'SELECT `cutover_at`, `resume_at` FROM `raid_cutover` WHERE `id` = 1').get();
+			output.log(`raid_cutover_at=${raid_cutover?.cutover_at ?? 'none'}`);
+			output.log(`raid_resume_at=${raid_cutover?.resume_at ?? 'none'}`);
+			output.log(`active_raids=${(db.query<{ count: number }, [number]>(
+				'SELECT COUNT(*) AS `count` FROM `guild_raids` WHERE `expires_at` > ?').get(Date.now()))?.count ?? 0}`);
 			output.log(`identities=${identity_count}`);
 			output.log(`disabled_identities=${disabled_count}`);
 			return 0;

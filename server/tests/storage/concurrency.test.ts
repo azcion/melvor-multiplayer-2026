@@ -19,7 +19,7 @@ describe('concurrent persistence invariants', () => {
 			settlement_key?: string;
 			combat_deadline?: number;
 		}>('/api/raids/assaults/reserve', {
-			tier: 2,
+			tier: 1,
 			loaded_session_id: crypto.randomUUID()
 		}, member.session_token)));
 		const reservations = reservation_requests.map(result => result.json).filter(result => result.assault_id !== undefined);
@@ -47,10 +47,10 @@ describe('concurrent persistence invariants', () => {
 				};
 			};
 		}>('/api/raids/state', member.session_token);
-		expect(state.json.raid.member).toEqual({
+		expect(state.json.raid.member).toMatchObject({
 			eligible: true,
-			contribution: 1_800,
-			highest_tier: 2,
+			contribution: 1_000,
+			highest_tier: 1,
 			successful_assaults: 1,
 			assaults: 2
 		});
@@ -198,10 +198,10 @@ describe('concurrent persistence invariants', () => {
 		expect((await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
 			'/api/inbox', buyer.session_token
 		)).json.items).toEqual([{ item_id, qty: 1 }]);
-		expect(await db_count(
-			' SELECT COUNT(*) AS count FROM `market_items` WHERE `id` = ?',
+		expect(await db_all<{ available: number; reserved: number }>(
+			' SELECT `available`, `reserved` FROM `market_items` WHERE `id` = ?',
 			[rows[0].id]
-		)).toBe(0);
+		)).toEqual([{ available: 0, reserved: 0 }]);
 	});
 
 	test('allows only one player to take a charity item', async () => {

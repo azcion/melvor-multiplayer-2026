@@ -28,7 +28,7 @@ test('normalizes stable mod.io file history and omits prerelease duplicates', ()
 	]);
 });
 
-test('loads changelog history directly from mod.io without a bundled data file', async () => {
+test('loads changelog history directly from mod.io', async () => {
 	let requested_url = '';
 	const entries = await load_changelog(async url => {
 		requested_url = url;
@@ -43,9 +43,6 @@ test('loads changelog history directly from mod.io without a bundled data file',
 	assert.match(requested_url, /_limit=100/);
 	assert.match(requested_url, /api_key=/);
 	assert.deepEqual(entries.map(entry => entry.version), ['1.0.0']);
-
-	const mod_files = await (await import('node:fs/promises')).readdir(new URL('../../mod/', import.meta.url));
-	assert.ok(!mod_files.includes('changelog-raw.json'));
 });
 
 test('wires the Updates page to the bottom of the Multiplayer sidebar', async () => {

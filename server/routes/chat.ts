@@ -1,4 +1,8 @@
-import { normalize_chat_parts, parts_text, attach_chat_parts } from '../chat_parts';
+import { normalize_chat_parts, parts_text, attach_chat_parts, compatible_chat_parts } from '../chat_parts';
+import { is_client_version_at_least } from '../client-version-policy';
+import { get_account_tags } from '../account_tags';
+import { get_tester_chat_inbox, list_tester_chat_messages, moderate_tester_chat_message, send_tester_chat_message } from '../tester_chat';
+import { is_admin } from '../admin_identity';
 import * as runtime from '../app-runtime';
 import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
@@ -20,7 +24,11 @@ export function register_chat_routes(): void {
 		return 400;
 	}
 
-	session_get_route('/api/chat/state', async (req, url, client_id) => get_chat_state(client_id));
+	session_get_route('/api/chat/state', async (req, url, client_id) => ({
+		...get_chat_state(client_id),
+		...(is_client_version_at_least(get_request_mod_version(req), '1.6.0')
+			? { account_tags: get_account_tags(client_id) } : {})
+	}));
 
 	session_get_route('/api/chat/profile', async (req, url, client_id): Promise<HandlerResult> => {
 		const subject_id = Number(url.searchParams.get('client_id'));
@@ -43,6 +51,7 @@ export function register_chat_routes(): void {
 		if (profile === null)
 			return 404;
 		const account_creation_date = profile.account_creation_date;
+		const admin_view = is_admin(client_id);
 		return {
 			client_id: subject_id,
 			display_name: profile.display_name,
@@ -57,31 +66,37 @@ export function register_chat_routes(): void {
 			total_skill_level: profile.skills_visible === 1 ? profile.total_skill_level : null,
 			game_mode_visible: profile.game_mode_visible === 1,
 			game_mode_id: profile.game_mode_visible === 1 ? profile.game_mode_id : null,
-			active_mods_visible: profile.active_mods_visible === 1,
-			active_mods_available: profile.active_mods_visible === 1 && profile.active_mods_available === 1,
+			active_mods_visible: profile.active_mods_visible === 1 || admin_view,
+			active_mods_available: (profile.active_mods_visible === 1 || admin_view) && profile.active_mods_available === 1,
 			language: profile.language,
 			guild_name: profile.guild_name
 		};
 	});
 
 	session_get_route('/api/chat/conversations', async (req, url, client_id) => {
+		const supports_features = is_client_version_at_least(get_request_mod_version(req), '1.6.0');
 		const global_chat = has_global_chat_capability(url) ? get_global_chat_inbox(client_id) : null;
+		const tester_chat = is_client_version_at_least(get_request_mod_version(req), '1.6.0')
+			? get_tester_chat_inbox(client_id) : null;
 		const guild_chat = has_guild_chat_capability(url) ? get_guild_chat_inbox(client_id) : null;
 		const conversations = [
 			...list_conversations(client_id),
 			...(global_chat?.conversation === null || global_chat === null ? [] : [global_chat.conversation]),
+			...(tester_chat === null ? [] : [tester_chat]),
 			...(guild_chat?.conversation === null || guild_chat === null ? [] : [guild_chat.conversation]),
 			...list_support_conversations(client_id)
 		].sort((a, b) => (b.latest_message?.created_at ?? b.created_at) -
 			(a.latest_message?.created_at ?? a.created_at));
-		for (const kind of ['private', 'guild', 'global', 'support']) {
+		for (const kind of ['private', 'guild', 'global', 'testers', 'support']) {
 			const matching = conversations.filter(conversation => (conversation.conversation_kind ?? 'private') === kind);
-			const latest = attach_chat_parts(kind, matching.flatMap(conversation => conversation.latest_message ? [conversation.latest_message] : []));
+			const latest = attach_chat_parts(kind === 'testers' ? 'global' : kind,
+				matching.flatMap(conversation => conversation.latest_message ? [conversation.latest_message] : []));
 			const by_id = new Map(latest.map(message => [message.message_id, message]));
 			for (const conversation of matching)
 				if (conversation.latest_message && conversation.latest_message.message_id > 0) {
 					const parts = by_id.get(conversation.latest_message.message_id)?.parts;
 					if (parts) Object.assign(conversation.latest_message, { parts });
+					compatible_chat_parts(conversation.latest_message, supports_features);
 				}
 		}
 		return {
@@ -112,11 +127,13 @@ export function register_chat_routes(): void {
 		const before = before_parameter === null ? null : Number(before_parameter);
 		const after = after_parameter === null ? null : Number(after_parameter);
 		const reaction_after = reaction_after_parameter === null ? null : Number(reaction_after_parameter);
-		if (kind !== 'private' && kind !== 'support' && kind !== 'guild' && kind !== 'global' && kind !== 'poll-discussion')
+		if (kind !== 'private' && kind !== 'support' && kind !== 'guild' && kind !== 'global' && kind !== 'testers' && kind !== 'poll-discussion')
 			return 400;
 		if (reaction_after !== null && (!Number.isSafeInteger(reaction_after) || reaction_after < 0))
 			return 400;
 		if (kind === 'global' && !has_global_chat_capability(url))
+			return 404;
+		if (kind === 'testers' && !is_client_version_at_least(get_request_mod_version(req), '1.6.0'))
 			return 404;
 		if (kind === 'poll-discussion' && (!has_polls_capability(url) || !can_view_polls(get_request_mod_version(req))))
 			return 404;
@@ -128,6 +145,9 @@ export function register_chat_routes(): void {
 			: kind === 'guild'
 				? conversation_id === null ? { status: 'bad_request' as const }
 					: list_guild_chat_messages(client_id, conversation_id, before, after)
+				: kind === 'testers'
+					? conversation_id === null ? { status: 'bad_request' as const }
+						: list_tester_chat_messages(client_id, conversation_id, before, after)
 				: kind === 'global'
 					? conversation_id === null ? { status: 'bad_request' as const }
 						: list_global_chat_messages(client_id, conversation_id, before, after)
@@ -145,16 +165,20 @@ export function register_chat_routes(): void {
 		return {
 			...result.value,
 			...reaction_result.value,
-			messages: attach_translations(kind, client_id,
+			messages: attach_translations(kind === 'testers' ? 'global' : kind, client_id,
 				attach_reactions(kind, client_id, result.value.messages))
+				.map(message => compatible_chat_parts(message,
+					is_client_version_at_least(get_request_mod_version(req), '1.6.0')))
 		};
 	});
 
 	session_post_route('/api/chat/messages/reaction', async (req, url, client_id, json) => {
 		const kind = json.conversation_kind ?? 'private';
-		if (kind !== 'private' && kind !== 'support' && kind !== 'guild' && kind !== 'global' && kind !== 'poll-discussion')
+		if (kind !== 'private' && kind !== 'support' && kind !== 'guild' && kind !== 'global' && kind !== 'testers' && kind !== 'poll-discussion')
 			return 400;
 		if (kind === 'global' && !has_global_chat_capability(url))
+			return 404;
+		if (kind === 'testers' && !is_client_version_at_least(get_request_mod_version(req), '1.6.0'))
 			return 404;
 		// 1.5.14 omitted the Polls capability from this one request even though the
 		// explicit conversation kind proves intent. Retain the version gate while
@@ -171,9 +195,11 @@ export function register_chat_routes(): void {
 
 	session_post_route('/api/chat/messages/send', async (req, url, client_id, json) => {
 		const kind = json.conversation_kind ?? 'private';
-		if (kind !== 'private' && kind !== 'support' && kind !== 'guild' && kind !== 'global' && kind !== 'poll-discussion')
+		if (kind !== 'private' && kind !== 'support' && kind !== 'guild' && kind !== 'global' && kind !== 'testers' && kind !== 'poll-discussion')
 			return 400;
 		if (kind === 'global' && !has_global_chat_capability(url))
+			return 404;
+		if (kind === 'testers' && !is_client_version_at_least(get_request_mod_version(req), '1.6.0'))
 			return 404;
 		if (kind === 'poll-discussion' && (!has_polls_capability(url) || !can_view_polls(get_request_mod_version(req))))
 			return 404;
@@ -181,6 +207,7 @@ export function register_chat_routes(): void {
 			(json.conversation_id === null && kind === 'private' && typeof json.client_id !== 'number') ||
 			(kind === 'guild' && typeof json.conversation_id !== 'number') ||
 			(kind === 'global' && typeof json.conversation_id !== 'number') ||
+			(kind === 'testers' && typeof json.conversation_id !== 'number') ||
 			(kind === 'poll-discussion' && typeof json.conversation_id !== 'number') ||
 			(kind === 'support' && typeof json.support_team_id !== 'number') ||
 			typeof json.idempotency_key !== 'string' ||
@@ -188,6 +215,8 @@ export function register_chat_routes(): void {
 			return 400;
 		const parts = json.parts === undefined ? undefined : normalize_chat_parts(json.parts);
 		if (parts === null) return 400;
+		if (parts?.some(part => part.type === 'feature') &&
+			!is_client_version_at_least(get_request_mod_version(req), '1.6.0')) return 400;
 		const content = parts ? parts_text(parts) : json.content;
 		const result = kind === 'poll-discussion' ? send_poll_discussion_message(
 			client_id, get_request_mod_version(req), json.conversation_id as number, json.idempotency_key, content, Date.now(), parts
@@ -203,6 +232,11 @@ export function register_chat_routes(): void {
 			json.idempotency_key,
 			content, Date.now(), parts
 		) : kind === 'global' ? send_global_chat_message(
+			client_id,
+			json.conversation_id as number,
+			json.idempotency_key,
+			content, Date.now(), parts
+		) : kind === 'testers' ? send_tester_chat_message(
 			client_id,
 			json.conversation_id as number,
 			json.idempotency_key,
@@ -224,7 +258,9 @@ export function register_chat_routes(): void {
 			budget_enabled: CHAT_BUDGET_ENABLED
 		};
 		Object.assign(response, result.value as JsonObject);
-		response.message = attach_chat_parts(kind, [result.value.message])[0] as JsonObject;
+		response.message = compatible_chat_parts(
+			attach_chat_parts(kind === 'testers' ? 'global' : kind, [result.value.message])[0]!,
+			is_client_version_at_least(get_request_mod_version(req), '1.6.0')) as JsonObject;
 		if (kind === 'support')
 			response.budget = get_chat_state(client_id).budget;
 		return response;
@@ -253,10 +289,13 @@ export function register_chat_routes(): void {
 
 	session_post_route('/api/chat/messages/delete-for-all', async (req, url, client_id, json) => {
 		if (typeof json.message_id !== 'number' ||
-			(json.conversation_kind !== 'global' && json.conversation_kind !== 'guild'))
+			(json.conversation_kind !== 'global' && json.conversation_kind !== 'guild' && json.conversation_kind !== 'testers'))
 			return 400;
+		if (json.conversation_kind === 'testers' && !is_client_version_at_least(get_request_mod_version(req), '1.6.0'))
+			return 404;
 		const result = json.conversation_kind === 'global'
 			? moderate_global_chat_message(client_id, json.message_id)
+			: json.conversation_kind === 'testers' ? moderate_tester_chat_message(client_id, json.message_id)
 			: moderate_guild_chat_message(client_id, json.message_id);
 		return result.status === 'ok' ? { success: true, ...result.value } : chat_error(result.status);
 	});

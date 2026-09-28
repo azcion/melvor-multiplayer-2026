@@ -1,11 +1,14 @@
 import { save_chat_parts, same_chat_parts, type ChatPart } from './chat_parts';
+import { chat_shadow_visibility, is_chat_shadowbanned } from './chat_shadowban';
 import { attach_translations } from './chat_translation';
 import { db } from './db';
 import { is_client_version_at_least } from './client-version-policy';
 import { get_poll_owner_key } from './poll-ownership';
+import { is_admin } from './admin_identity';
 
 export const POLLS_CAPABILITY = 'polls-v1';
 export const POLLS_MINIMUM_CLIENT_VERSION = '1.5.14';
+const POLL_DISCUSSION_UNREAD_MINIMUM_CLIENT_VERSION = '1.6.0';
 const POLL_VOTE_THROTTLE_MS = 350;
 const allowed_creator_identifiers = new Set<string>();
 
@@ -33,6 +36,8 @@ export function can_view_polls(mod_version: string | null): boolean {
 }
 
 export function can_create_poll(client_id: number): boolean {
+	if (is_admin(client_id))
+		return true;
 	const identifier = db.query<{ client_identifier: string }, [number]>(
 		'SELECT `client_identifier` FROM `clients` WHERE `id` = ? AND `deleted_at` IS NULL'
 	).get(client_id)?.client_identifier;
@@ -83,7 +88,8 @@ function poll_view(client_id: number, poll_id: number) {
 }
 
 export function list_polls(client_id: number, mod_version: string | null, after_revision: number | null): PollResult<{
-	polls: NonNullable<ReturnType<typeof poll_view>>[]; deleted_poll_ids: number[]; revision: number; can_create: boolean
+	polls: NonNullable<ReturnType<typeof poll_view>>[]; deleted_poll_ids: number[]; revision: number; can_create: boolean;
+	discussion_unread_counts?: Record<number, number>
 }> {
 	if (after_revision !== null && (!Number.isSafeInteger(after_revision) || after_revision < 0))
 		return { status: 'bad_request' };
@@ -99,9 +105,21 @@ export function list_polls(client_id: number, mod_version: string | null, after_
 	const revision = db.query<{ revision: number }, []>(
 		"SELECT CAST(`value` AS INTEGER) AS `revision` FROM `service_settings` WHERE `key` = 'poll_revision'"
 	).get()?.revision ?? 0;
+	const discussion_unread_counts: Record<number, number> = {};
+	if (is_client_version_at_least(mod_version, POLL_DISCUSSION_UNREAD_MINIMUM_CLIENT_VERSION)) {
+		const unread = db.query<{ poll_id: number; unread_count: number }, [number, number, number, number]>(
+			'SELECT message.`poll_id`, COUNT(*) AS `unread_count` FROM `poll_discussion_messages` AS message ' +
+			'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` ' +
+			'LEFT JOIN `poll_discussion_read_state` AS read ON read.`poll_id` = message.`poll_id` AND read.`client_id` = ? ' +
+			'WHERE message.`id` > COALESCE(read.`last_read_message_id`, 0) AND message.`sender_id` != ? ' +
+			'AND ' + chat_shadow_visibility() + ' GROUP BY message.`poll_id`'
+		).all(client_id, client_id, client_id, client_id);
+		for (const row of unread) discussion_unread_counts[row.poll_id] = row.unread_count;
+	}
 	return { status: 'ok', value: {
 		polls: rows.map(row => poll_view(client_id, row.id)).filter(value => value !== null), deleted_poll_ids,
-		revision, can_create: can_create_poll(client_id)
+		revision, can_create: can_create_poll(client_id),
+		...(is_client_version_at_least(mod_version, POLL_DISCUSSION_UNREAD_MINIMUM_CLIENT_VERSION) ? { discussion_unread_counts } : {})
 	} };
 }
 
@@ -256,10 +274,18 @@ export function list_poll_discussion_messages(client_id: number, mod_version: st
 	const values = before !== null ? [poll_id, before] : after !== null ? [poll_id, after] : [poll_id];
 	const rows = db.query<DiscussionMessage, number[]>(
 		'SELECT message.*, sender.`display_name`, sender.`icon_id` FROM `poll_discussion_messages` AS message ' +
-		'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` WHERE message.`poll_id` = ?' + clause +
+		'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` ' +
+		'WHERE message.`poll_id` = ? AND ' + chat_shadow_visibility() + clause +
 		' ORDER BY message.`id` DESC LIMIT 21'
-	).all(...values);
+	).all(values[0] as number, client_id, client_id, ...values.slice(1));
 	const has_more = rows.length > 20;
+	if (is_client_version_at_least(mod_version, POLL_DISCUSSION_UNREAD_MINIMUM_CLIENT_VERSION) && rows.length > 0) {
+		const last_read_message_id = rows[0]!.id;
+		db.query('INSERT INTO `poll_discussion_read_state` (`poll_id`, `client_id`, `last_read_message_id`) VALUES (?, ?, ?) ' +
+			'ON CONFLICT (`poll_id`, `client_id`) DO UPDATE SET `last_read_message_id` = ' +
+			'MAX(`poll_discussion_read_state`.`last_read_message_id`, excluded.`last_read_message_id`)')
+			.run(poll_id, client_id, last_read_message_id);
+	}
 	return { status: 'ok', value: { messages: rows.slice(0, 20).reverse().map(discussion_message_view), has_more } };
 }
 
@@ -278,8 +304,8 @@ export function send_poll_discussion_message(client_id: number, mod_version: str
 		if (existing) return existing.poll_id === poll_id && existing.content === trimmed &&
 			same_chat_parts('poll-discussion', existing.id, parts) ? existing.id : null;
 		const created = Number(db.query(
-			'INSERT INTO `poll_discussion_messages` (`poll_id`, `sender_id`, `idempotency_key`, `content`, `created_at`) VALUES (?, ?, ?, ?, ?)'
-		).run(poll_id, client_id, idempotency_key, trimmed, now).lastInsertRowid);
+			'INSERT INTO `poll_discussion_messages` (`poll_id`, `sender_id`, `idempotency_key`, `content`, `created_at`, `shadow_hidden`) VALUES (?, ?, ?, ?, ?, ?)'
+		).run(poll_id, client_id, idempotency_key, trimmed, now, is_chat_shadowbanned(client_id) ? 1 : 0).lastInsertRowid);
 		save_chat_parts('poll-discussion', created, parts);
 		return created;
 	}).immediate();

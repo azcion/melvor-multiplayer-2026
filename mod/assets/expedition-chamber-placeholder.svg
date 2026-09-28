@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 320" role="img" aria-label="Chamber illustration placeholder">
+  <rect width="640" height="320" fill="#122631"/>
+  <path d="M0 252 92 218l57 17 91-92 75 39 87-96 100 90 67-27 71 58v113H0Z" fill="#24414a"/>
+  <path d="M0 278 95 246l70 14 88-81 75 36 91-96 86 93 72-31 63 55" fill="none" stroke="#79a397" stroke-width="3" opacity=".65"/>
+  <path d="M210 320V188q110-125 220 0v132" fill="#142a33" stroke="#b1c7b3" stroke-width="5"/>
+  <path d="M261 320V206q59-75 118 0v114" fill="#31505a" stroke="#78948c" stroke-width="3"/>
+  <path d="M320 199v121M261 259h118" stroke="#759b94" stroke-width="2"/>
+  <circle cx="320" cy="86" r="18" fill="none" stroke="#ddc48c" stroke-width="3"/>
+  <path d="M320 52v16m0 36v16m-34-34h16m36 0h16" stroke="#ddc48c" stroke-width="3"/>
+</svg>

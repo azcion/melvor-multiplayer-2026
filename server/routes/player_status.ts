@@ -3,6 +3,10 @@ import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
 import type { PetitionType } from '../council';
+import { observe_dev_work_tracking, parse_work_statistics } from './expedition';
+import { observe_expedition_work } from '../expedition-work';
+import { is_admin } from '../admin_identity';
+import { get_dev_tag_visibility } from '../account_tags';
 
 const { db, db_execute, db_get_all, db_get_single, guild_membership_exists, parse_player_status_account_creation_date, parse_player_status_activities, parse_player_status_skills, parse_player_status_total_skill_level, session_get_route, session_post_route, status_snapshot_activities, status_snapshot_activity } = runtime;
 
@@ -18,7 +22,9 @@ export function register_player_status_routes(): void {
 			'LEFT JOIN `client_runtime_snapshots` AS runtime ON runtime.`client_id` = c.`id` ' +
 			'WHERE c.`id` = ? LIMIT 1', [subject_id]
 		) as { active_mods_visible: number; active_mods: string | null } | null;
-		if (subject?.active_mods_visible !== 1)
+		if (subject === null)
+			return { error_lang: 'MOD_MP_ACTIVE_MODS_SHARING_DISABLED' };
+		if (subject.active_mods_visible !== 1 && !is_admin(client_id))
 			return { error_lang: 'MOD_MP_ACTIVE_MODS_SHARING_DISABLED' };
 		if (subject.active_mods === null)
 			return { error_lang: 'MOD_MP_ACTIVE_MODS_NOT_AVAILABLE' };
@@ -69,15 +75,18 @@ export function register_player_status_routes(): void {
 		const has_account_creation_date = Object.hasOwn(json, 'account_creation_date');
 		const has_total_skill_level = Object.hasOwn(json, 'total_skill_level');
 		const has_gp = Object.hasOwn(json, 'gp');
+		const has_work_statistics = Object.hasOwn(json, 'work_statistics');
 		const skills = has_skills ? parse_player_status_skills(json.skills) : null;
 		const activities = has_activities ? parse_player_status_activities(json.activities) : null;
 		const account_creation_date = has_account_creation_date ? parse_player_status_account_creation_date(json.account_creation_date) : null;
 		const total_skill_level = has_total_skill_level ? parse_player_status_total_skill_level(json.total_skill_level) : null;
 		const gp = has_gp && Number.isSafeInteger(json.gp) && (json.gp as number) >= 0 ? json.gp as number : null;
-		if ((!has_skills && !has_activities && !has_account_creation_date && !has_total_skill_level && !has_gp) ||
+		const work_statistics = has_work_statistics ? parse_work_statistics(json.work_statistics) : null;
+		if ((!has_skills && !has_activities && !has_account_creation_date && !has_total_skill_level && !has_gp && !has_work_statistics) ||
 			(has_skills && skills === null) ||
 			(has_activities && activities === null) || (has_account_creation_date && account_creation_date === undefined) ||
-			(has_total_skill_level && total_skill_level === undefined) || (has_gp && gp === null))
+			(has_total_skill_level && total_skill_level === undefined) || (has_gp && gp === null) ||
+			(has_work_statistics && work_statistics === null))
 			return 400; // Bad Request
 
 		const save_snapshot = db.transaction(() => {
@@ -133,7 +142,12 @@ export function register_player_status_routes(): void {
 		});
 
 		save_snapshot.immediate();
-		return { success: true };
+		const work_tracking_stopped = activities === null ? null :
+			observe_dev_work_tracking(client_id, activities, work_statistics);
+		const expedition_work_stopped = activities === null ? null :
+			observe_expedition_work(client_id, activities, work_statistics);
+		return { success: true, ...(work_tracking_stopped === null ? {} : { work_tracking_stopped }),
+			...(expedition_work_stopped === null ? {} : { expedition_work_stopped }) };
 	});
 
 	const set_split_visibility = (
@@ -194,6 +208,17 @@ export function register_player_status_routes(): void {
 			client_id
 		]);
 
+		return { success: true, visible: json.visible };
+	});
+
+	session_post_route('/api/client/dev-tag/visibility', async (req, url, client_id, json) => {
+		if (typeof json.visible !== 'boolean')
+			return 400; // Bad Request
+		if (!get_dev_tag_visibility(client_id).eligible)
+			return 403; // Forbidden
+		await db_execute('UPDATE `clients` SET `dev_tag_visible` = ? WHERE `id` = ?', [
+			json.visible ? 1 : 0, client_id
+		]);
 		return { success: true, visible: json.visible };
 	});
 

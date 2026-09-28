@@ -200,133 +200,25 @@ test('finds the next Charitree opportunity from the chances available to the pla
 	assert.equal(get_charitree_next_opportunity(10_000, 2_000, true, day), 2_000 + day);
 });
 
-test('wires completion-log discovery, first-find receipt, and per-stack expiry into the Charitree page', async () => {
-	const [main, templates, style, language_source] = await Promise.all([
-		read_client_source(root),
-		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
-		readFile(new URL('mod/ui/style.css', root), 'utf8'),
-		readFile(new URL('mod/data/lang/en.json', root), 'utf8')
-	]);
-	const language = JSON.parse(language_source);
-
-	assert.match(main, /game\.stats\.itemFindCount\(item\) > 0/);
-	assert.match(main, /item_id === 'melvorD:GP' \|\| is_transfer_currency\(item_id\)/);
-	assert.match(main, /receipt\.kind === 'charity-take' && !state\.is_charity_item_discovered\(item_id\)/);
-	assert.match(main, /qty: this\.get_charity_take_quantity\(item\)/);
-	assert.match(main, /item_remaining_qty/);
-	assert.match(main, /game\.bank\.addItemByID\(item_id, amount, false, found, true\)/);
-	assert.match(main, /const CHARITY_CLOCK_INTERVAL = 30 \* 1000;/);
-	assert.match(main, /setInterval\(\(\) => \{[\s\S]*update_charity_clock\(\);[\s\S]*request_charity_tree_contents\(true, false\);[\s\S]*\}, CHARITY_CLOCK_INTERVAL\)/);
-	assert.doesNotMatch(main, /setInterval\(update_charity_clock, 1000\)/);
-	assert.match(main, /get charity_next_opportunity_at\(\)/);
-	assert.match(main, /charity_next_opportunity_timestamp: 0/);
-	assert.match(main, /get charity_next_opportunity_at\(\) \{\s*return state\.charity_next_opportunity_timestamp;/);
-	assert.doesNotMatch(main, /return state\.charity_next_opportunity_at;/);
-	assert.match(main, /charity_server_supported/);
-	assert.match(main, /apply_charity_state\(response\.charity\)/);
-	assert.match(main, /apply_charity_state\(res\.charity\)/);
-	assert.match(main, /void refresh_guild_state\(\)\.then\(\(\) => request_charity_tree_contents\(\)\);/);
-	assert.doesNotMatch(main, /charity_timeout/);
-	assert.doesNotMatch(main, /charity_bonus_timeout/);
-	assert.match(main, /get transfer_inventory_donation_value\(\)/);
-	assert.match(main, /function get_charity_item_valuation\(item_id\)/);
-	assert.match(main, /value_currency_id, value_per_item/);
-	const charity_valuation_function = main.slice(
-		main.indexOf('function get_charity_item_valuation'),
-		main.indexOf('function update_bank_action_modal_header')
-	);
-	assert.doesNotMatch(charity_valuation_function, /get_transfer_currency/);
-	assert.match(main, /\.\.\.get_charity_item_valuation\(item.id\)/);
-	assert.match(main, /zero_gp_count/);
-	assert.match(main, /currency_count/);
-	assert.match(main, /sellsFor\?\.currency !== game\.gp/);
-	assert.match(main, /Summoning_Familiar_/);
-	assert.match(main, /run_pending_economy_action\('charity_donate', '\/api\/charity\/donate', \{ items, donation_value \}\)/);
-	assert.doesNotMatch(main, /charitree_rules\.get_charitree_pet_chance\(donation_value\)/);
-	assert.doesNotMatch(main, /game\.petManager/);
-	assert.match(templates, /state\.format_charity_expiry\(item\.expires_at\)/);
-	assert.match(templates, /role="timer"/);
-	assert.match(templates, /state\.charity_next_opportunity_formatted/);
-	const charitree_page = templates.slice(
-		templates.indexOf('<template id="template-mp-charity-page">'),
-		templates.indexOf('<template id="template-mp-transfer-page">')
-	);
-	assert.match(charitree_page, /class="mp-charitree-window-copy">[\s\S]*<details class="mp-charitree-info-section">/);
-	assert.equal((charitree_page.match(/<details class="mp-charitree-info-section/g) ?? []).length, 3);
-	assert.doesNotMatch(charitree_page, /<details class="mp-charitree-info-section[^>]* open/);
-	assert.match(charitree_page, /MOD_MP_CHARITY_INFO_OFFERINGS_TITLE[\s\S]*fa-chevron-down[\s\S]*fa-chevron-up[\s\S]*<\/summary>/);
-	assert.match(charitree_page, /MOD_MP_CHARITY_INFO_OFFERINGS_INTRO_PREFIX[\s\S]*MOD_MP_CHARITY_INFO_OFFERINGS_LIMIT[\s\S]*MOD_MP_CHARITY_INFO_OFFERINGS_UNDISCOVERED[\s\S]*MOD_MP_CHARITY_INFO_OFFERINGS_DECAY_PREFIX/);
-	assert.match(charitree_page, /MOD_MP_CHARITY_INFO_NEXT_PICK[\s\S]*MOD_MP_CHARITY_INFO_AVAILABLE_NOW[\s\S]*MOD_MP_CHARITY_INFO_NEXT_PICK_IN[\s\S]*state\.charity_next_opportunity_formatted/);
-	assert.match(charitree_page, /MOD_MP_CHARITY_INFO_LEAVES_TITLE[\s\S]*MOD_MP_CHARITY_INFO_LEAVES_CHANCE[\s\S]*MOD_MP_CHARITY_INFO_LEAVES_BONUS_EFFECT[\s\S]*state\.show_charity_shuffle\(\)[\s\S]*state\.charity_shuffle_bonus\(\)/);
-	assert.match(charitree_page, /MOD_MP_CHARITY_INFO_WISHES_TITLE[\s\S]*MOD_MP_CHARITY_INFO_WISHES_MATURING[\s\S]*MOD_MP_CHARITY_INFO_WISHES_PENALTY[\s\S]*MOD_MP_CHARITY_INFO_WISHES_ACTIVE[\s\S]*state\.show_charity_wish_modal\(\)/);
-	assert.doesNotMatch(charitree_page, /<hr class="my-4">/);
-	assert.doesNotMatch(charitree_page, /skill-icon-xxs/);
-	assert.match(charitree_page, /v-show="state\.can_take_charity"[\s\S]*MOD_MP_CHARITY_INFO_AVAILABLE_NOW[\s\S]*v-show="!state\.can_take_charity"[\s\S]*role="timer"/);
-	assert.match(templates, /state\.selected_charity_take_block/);
-	assert.match(templates, /mp-charitree-new-item/);
-	assert.match(templates, /mp-charitree-lock/);
-	assert.match(templates, /state\.selected_charity_take_warning/);
-	assert.match(templates, /MOD_MP_CHARITY_TAKE_AMOUNT/);
-	assert.match(templates, /state\.selected_charity_take_amount/);
-	assert.match(main, /get selected_charity_take_amount\(\) \{[\s\S]*getLangString\('MOD_MP_CHARITY_ENTIRE_STACK'\)[\s\S]*formatNumber\(this\.selected_charity_take_quantity\)/);
-	assert.match(main, /get_charity_leaf_coverage\([\s\S]*item_id === 'melvorD:GP' \|\| is_transfer_currency\(item_id\),[\s\S]*this\.is_charity_item_discovered\(item_id\)/);
-	assert.match(main, /charity_shuffle_count/);
-	assert.match(main, /this\.charity_shuffle_count/);
-	assert.match(charitree_page, /<template v-for="item of state\.charity_tree_entries">[\s\S]*<mp-item-icon v-else-if="!state\.get_charity_leaf_coverage\(item\)\.covered" class="bank-item pointer-enabled m-2 mp-charitree-item"[\s\S]*:data-item-id="item\.id"/);
-	assert.match(charitree_page, /item\.id === 'melvorD:Weird_Gloop' && item\.qty > 0/);
-	assert.match(charitree_page, /<img class="bank-img mp-charitree-img" :src="state\.get_item_icon\(item\.id\)" :class="\{ 'mp-charitree-border': state\.selected_charity_item_id === item\.id \}">/);
-	assert.match(charitree_page, /<div v-else class="bank-item pointer-enabled m-2 mp-charitree-item mp-charitree-leaf" :class="\[`mp-charitree-leaf-coverage-\$\{state\.get_charity_leaf_coverage\(item\)\.percentage\}`[\s\S]*<img class="bank-img mp-charitree-img" src="https:\/\/cdn2-main\.melvor\.net\/assets\/media\/bank\/Golden_Leaf\.png" :class="\{ 'mp-charitree-border': state\.selected_charity_item_id === item\.id \}">/);
-	assert.doesNotMatch(charitree_page, /<img class="bank-img p-3"/);
-	assert.doesNotMatch(charitree_page, /'border border-4x border-success'/);
-	assert.doesNotMatch(charitree_page, /<div v-else[\s\S]*:data-item-id="item\.id"/);
-	assert.match(style, /\.mp-charitree-new-item \{/);
-	assert.match(style, /\.mp-charitree-item \.mp-charitree-border \{[\s\S]*padding: \.75rem;[\s\S]*border-width: \.25rem;/);
-	assert.match(style, /\.mp-charitree-item \.mp-charitree-img \{[\s\S]*padding: 1rem;[\s\S]*border: 0 solid #46c37b;[\s\S]*border-radius: 6px;/);
-	assert.ok(style.indexOf('.mp-charitree-item .mp-charitree-img {') < style.indexOf('.mp-charitree-item .mp-charitree-border {'));
-	assert.match(style, /\.mp-charitree-item\.mp-charitree-leaf \.mp-charitree-border \{[\s\S]*padding: \.25rem;[\s\S]*border-width: \.25rem;/);
-	assert.match(style, /\.mp-charitree-item\.mp-charitree-leaf \.mp-charitree-img \{[\s\S]*transform: scaleX\(-100%\) rotate\(90deg\);[\s\S]*padding: \.5rem;/);
-	assert.ok(style.indexOf('.mp-charitree-item.mp-charitree-leaf .mp-charitree-img {') < style.indexOf('.mp-charitree-item.mp-charitree-leaf .mp-charitree-border {'));
-	const leaf_filters = new Map([
-		[0, -80], [5, -50], [15, -20], [30, -10], [50, 0], [70, 10], [85, 50], [95, 60], [100, 80]
-	]);
-	for (const [percentage, degrees] of leaf_filters) {
-		assert.match(style, new RegExp(
-			`\\.mp-charitree-item\\.mp-charitree-leaf\\.mp-charitree-leaf-coverage-${percentage} \\.mp-charitree-img \\{\\s*filter: hue-rotate\\(${degrees}deg\\);`
-		));
-	}
-	const last_percentage_filter = style.indexOf('.mp-charitree-item.mp-charitree-leaf.mp-charitree-leaf-coverage-100');
-	const new_item_filter = style.indexOf('.mp-charitree-item.mp-charitree-leaf.mp-charitree-new-item');
-	assert.ok(last_percentage_filter >= 0 && new_item_filter > last_percentage_filter);
-	assert.match(style, /\.mp-charitree-item\.mp-charitree-leaf\.mp-charitree-new-item \.mp-charitree-img \{\s*filter: hue-rotate\(-130deg\);/);
-	assert.match(style, /\.mp-charitree-new-item \{[\s\S]*border-radius: 6\.5px;/);
-	assert.doesNotMatch(style, /box-sizing: content-box/);
-	assert.match(style, /outline: 2px solid rgb\(45 210 75\);/);
-	assert.match(style, /box-shadow: 0 0 8px 2px rgb\(45 210 75 \/ 75%\);/);
-	assert.match(style, /\.mp-charitree-window-copy \{[\s\S]*flex-direction: column;/);
-	assert.match(style, /\.mp-charitree-info-section summary \{[\s\S]*cursor: pointer;[\s\S]*list-style: none;/);
-	assert.match(style, /\.mp-charitree-info-section\[open\] \.mp-charitree-info-chevron-down \{[\s\S]*display: none;/);
-	assert.match(style, /\.mp-charitree-info-section\[open\] \.mp-charitree-info-chevron-up \{[\s\S]*display: inline-block;/);
-	assert.doesNotMatch(style, /mp-item-icon\.mp-charitree-new-item > a/);
-	assert.doesNotMatch(style, /mp-charitree-new-item-glow/);
-	assert.equal(language.MOD_MP_CHARITY_INFO_AVAILABLE_NOW, 'Available now');
-	assert.equal(language.MOD_MP_CHARITY_INFO_NEXT_PICK_IN, 'in %s');
-	assert.equal(language.MOD_MP_CHARITY_SERVER_UNSUPPORTED, 'Charitree claiming requires a newer multiplayer server. Update the server and reload the game.');
-	assert.equal(language.MOD_MP_CHARITY_TAKE_AMOUNT, 'Claiming:');
-	assert.equal(language.MOD_MP_CHARITY_ENTIRE_STACK, 'entire stack');
-	assert.equal(language.MOD_MP_CHARITY_INFO_OFFERINGS_TITLE, 'Offerings');
-	assert.equal(language.MOD_MP_CHARITY_INFO_OFFERINGS_LIMIT, 'half of your current balance');
-	assert.equal(language.MOD_MP_CHARITY_INFO_OFFERINGS_UNDISCOVERED, 'Undiscovered');
-	assert.equal(language.MOD_MP_CHARITY_INFO_OFFERINGS_GLOOP, 'Weird Gloop');
-	assert.equal(language.MOD_MP_CHARITY_INFO_LEAVES_CHANCE, "taking a chance on what's underneath");
-	assert.equal(language.MOD_MP_CHARITY_INFO_LEAVES_BONUS_EFFECT, '5% for 7 days');
-	assert.equal(language.MOD_MP_CHARITY_INFO_WISHES_MATURING, '20 hours maturing');
-	assert.equal(language.MOD_MP_CHARITY_INFO_OFFERINGS_DECAY_TIME,
-		'20 hours while a Wish is active, or 4 days otherwise');
-	assert.equal(language.MOD_MP_CHARITY_INFO_WISHES_RIPE, 'Ripe');
-	assert.equal(language.MOD_MP_CHARITY_INFO_WISHES_PENALTY, 'Shuffle Bonus by 10');
-	assert.equal(language.MOD_MP_CHARITY_INFO_WISHES_ACTIVE, 'one active Wish');
-	assert.equal(language.MOD_MP_CHARITY_UNDISCOVERED_STACK,
-		'This offering is undiscovered. You may claim only one; the rest will remain upon the Charitree.');
+test('wires first-find receipt and progress-based Slag into the Crucible page', async () => {
+ const [main, actions, templates] = await Promise.all([
+  read_client_source(root),
+  readFile(new URL('mod/client-crucible.mjs', root), 'utf8'),
+  readFile(new URL('mod/ui/templates.html', root), 'utf8')
+ ]);
+ const page = templates.slice(templates.indexOf('<template id="template-mp-crucible-page">'), templates.indexOf('<template id="template-mp-transfer-page">'));
+ assert.match(main, /game\.stats\.itemFindCount\(item\) > 0/);
+ assert.match(main, /receipt\.kind === 'crucible-reclaim'/);
+ assert.match(main, /game\.bank\.addItemByID\(item_id, amount, false, found, true\)/);
+ assert.match(actions, /get_crucible_slag_coverage/);
+ assert.match(actions, /get_crucible_reclaim_quantity/);
+ assert.match(page, /mp-crucible-heat-track[\s\S]*mp-crucible-grid/);
+ assert.match(page, /state\.crucible_select_offering\(item\)/);
+ assert.match(page, /state\.crucible_select_wish\(wish\)/);
+ assert.match(page, /mp-item-icon v-if="!state\.crucible_slag\(item\)\.covered" :data-item-id="item\.id"/);
+ assert.match(page, /mp-item-icon :data-item-id="wish\.item_id"/);
+ assert.match(page, /state\.crucible_reclaim\(item\)/);
+ assert.match(page, /state\.crucible_slag\(item\)\.covered/);
 });
 
 test('clears Charitree state when the server omits the state payload', async () => {

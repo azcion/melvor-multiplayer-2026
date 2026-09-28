@@ -213,6 +213,8 @@ export function install_common_actions(runtime) {
 		get_chat_participant_icon(conversation = this.selected_chat_conversation) {
 			if (conversation?.conversation_kind === 'global')
 				return ctx.getResourceUrl('assets/multiplayer.svg');
+			if (conversation?.conversation_kind === 'testers')
+				return ctx.getResourceUrl('assets/expedition-nav.png');
 			if (conversation?.conversation_kind === 'polls' || conversation?.conversation_kind === 'poll-discussion')
 				return ctx.getResourceUrl('assets/polls-icon.svg');
 			if (conversation?.conversation_kind === 'guild')
@@ -234,6 +236,8 @@ export function install_common_actions(runtime) {
 		get_chat_participant_name(conversation = this.selected_chat_conversation) {
 			return conversation?.conversation_kind === 'global'
 				? getLangString('MOD_MP_CHAT_CATEGORY_GLOBAL')
+				: conversation?.conversation_kind === 'testers'
+					? getLangString('MOD_MP_TESTER_CHAT_TITLE')
 				: conversation?.participant?.display_name ?? '';
 		},
 
@@ -248,7 +252,8 @@ export function install_common_actions(runtime) {
 
 		can_moderate_chat_messages() {
 			const kind = this.selected_chat_conversation?.conversation_kind;
-			return (kind === 'global' || kind === 'guild') && this.selected_chat_conversation?.can_moderate === true;
+			return (kind === 'global' || kind === 'guild' || kind === 'testers') &&
+				this.selected_chat_conversation?.can_moderate === true;
 		},
 
 		get_pet_icon(id) {

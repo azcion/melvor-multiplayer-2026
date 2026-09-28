@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile, readdir } from 'node:fs/promises';
+import { access, readFile, readdir } from 'node:fs/promises';
 import test from 'node:test';
 import {
 	MULTIPLAYER_PAGE_LANG_IDS,
@@ -32,19 +32,39 @@ test('declares every packaged locale and falls back unsupported languages to Eng
 	assert.equal(resolve_multiplayer_language('unsupported'), 'en');
 });
 
-test('translated locales preserve every English key and formatting placeholder', async () => {
+test('translated locales preserve formatting placeholders and inherit missing English entries', async () => {
 	const english = await readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse);
-	const english_keys = Object.keys(english);
 
 	for (const language of MULTIPLAYER_SUPPORTED_LANGUAGES) {
 		const translations = await readFile(new URL(`mod/data/lang/${language}.json`, root), 'utf8').then(JSON.parse);
-		assert.deepEqual(Object.keys(translations), english_keys, `${language} keys must match English`);
-		for (const key of english_keys) {
+		for (const key of Object.keys(translations)) {
+			assert.equal(typeof english[key], 'string', `${language}:${key} must exist in English`);
 			assert.equal(typeof translations[key], 'string', `${language}:${key} must be text`);
 			assert.notEqual(translations[key].trim(), '', `${language}:${key} must not be empty`);
 			assert.equal(placeholder_signature(translations[key]), placeholder_signature(english[key]),
 				`${language}:${key} placeholders must match English`);
 		}
+	}
+});
+
+test('every packaged locale labels both Raid reward groups and the tier', async () => {
+	for (const language of MULTIPLAYER_SUPPORTED_LANGUAGES) {
+		const translations = await readFile(new URL(`mod/data/lang/${language}.json`, root), 'utf8').then(JSON.parse);
+		for (const key of ['MOD_MP_INBOX_SOURCE_RAID', 'MOD_MP_INBOX_SOURCE_RAID_ASSAULT', 'MOD_MP_RAID_TIER'])
+			assert.ok(translations[key]?.trim(), `${language}:${key} must be translated`);
+		assert.equal(placeholder_signature(translations.MOD_MP_INBOX_SOURCE_RAID_ASSAULT), 1);
+		assert.equal(placeholder_signature(translations.MOD_MP_RAID_TIER), 1);
+	}
+});
+
+test('every shipped locale covers the Crucible feature strings', async () => {
+	const english = await readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse);
+	const crucible_keys = Object.keys(english).filter(key => key.includes('CRUCIBLE'));
+	assert.ok(crucible_keys.length > 60);
+	for (const language of MULTIPLAYER_SUPPORTED_LANGUAGES) {
+		const translations = await readFile(new URL(`mod/data/lang/${language}.json`, root), 'utf8').then(JSON.parse);
+		for (const key of crucible_keys)
+			assert.ok(translations[key]?.trim(), `${language}:${key} must be translated`);
 	}
 });
 
@@ -62,14 +82,34 @@ test('routes Multiplayer sidebar page names and text badges through localization
 	}
 
 	assert.equal(language.MOD_MP_MENU_HEADER, 'Multiplayer');
-	assert.equal(pages.find(page => page.id === 'Charity_Tree').sidebarItem.asideLangID,
-		'MOD_MP_SIDEBAR_CHARITY_PICK');
-	assert.equal(pages.find(page => page.id === 'Campaign_Effort').sidebarItem.asideLangID,
-		'MOD_MP_SIDEBAR_CAMPAIGN_INACTIVE');
+	assert.equal(language.MOD_MP_PAGE_EXPEDITION, 'Expedition (preview)');
+	for (const locale of MULTIPLAYER_SUPPORTED_LANGUAGES.filter(locale => locale !== 'en')) {
+		const translations = await readFile(new URL(`mod/data/lang/${locale}.json`, root), 'utf8').then(JSON.parse);
+		assert.equal(translations.MOD_MP_PAGE_EXPEDITION, locale === 'zh-CN' ? '远征（预览）' : undefined,
+			`${locale} should use the requested Expedition translation scope`);
+	}
+	assert.equal(pages.find(page => page.id === 'Crucible').sidebarItem.asideClass,
+		'badge mp-crucible-nav');
 	const raid_page = pages.find(page => page.id === 'Guild_Raid');
 	assert.equal(raid_page.sidebarItem.aside, '0');
 	assert.equal(raid_page.sidebarItem.asideLangID, undefined);
 	assert.deepEqual(Object.keys(MULTIPLAYER_PAGE_LANG_IDS), pages.map(page => page.id));
+});
+
+test('removes the Campaign feature while retaining Campaign pet options', async () => {
+	const [data, pets] = await Promise.all([
+		readFile(new URL('mod/data.json', root), 'utf8').then(JSON.parse),
+		readFile(new URL('mod/data/pets.json', root), 'utf8').then(JSON.parse)
+	]);
+	assert.equal(data.data.pages.some(page => page.id === 'Campaign_Effort'), false);
+	await assert.rejects(access(new URL('mod/data/campaigns.json', root)));
+
+	const campaign_pets = pets.filter(pet => pet.id.includes('_Campaign_'));
+	assert.equal(campaign_pets.length, 6);
+	for (const pet of campaign_pets) {
+		assert.match(pet.media, /^assets\/pet_/);
+		await access(new URL(`mod/${pet.media}`, root));
+	}
 });
 
 test('page names and rendered sidebar labels follow the active language', () => {
@@ -98,19 +138,24 @@ test('language fetch preserves the base dictionary and adds mod translations', a
 	const base_language = { BASE_KEY: 'Base value' };
 	const fetch_language = create_localized_language_fetch(
 		async () => base_language,
-		async (_lang, language) => { language.MOD_KEY = 'Mod value'; }
+		async (lang, language) => { language.MOD_KEY = lang === 'en' ? 'English value' : 'Mod value'; }
 	);
 
 	assert.equal(await fetch_language('en'), base_language);
+	assert.deepEqual(base_language, { BASE_KEY: 'Base value', MOD_KEY: 'English value' });
+	await fetch_language('de');
 	assert.deepEqual(base_language, { BASE_KEY: 'Base value', MOD_KEY: 'Mod value' });
 });
 
 test('templates contain no static English placeholders or reviewed text literals', async () => {
 	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
-	assert.doesNotMatch(templates, /\splaceholder="[A-Za-z]/);
-	assert.doesNotMatch(templates, /\s(?:aria-label|title)="[A-Za-z]/);
-	assert.doesNotMatch(templates, />\s*(?:Loading\.\.\.|Load more|Space:)\s*</);
-	assert.doesNotMatch(templates, />\s*[A-Za-z][^<{]*\{\{/);
+	assert.match(templates, /<template id="template-mp-expedition-page">/);
+	// Expedition's preview page and modals intentionally use English copy with locale fallback.
+	const localized_templates = templates.replace(/<template id="template-mp-expedition-[^"]+">[\s\S]*?<\/template>/g, '');
+	assert.doesNotMatch(localized_templates, /\splaceholder="[A-Za-z]/);
+	assert.doesNotMatch(localized_templates, /\s(?:aria-label|title)="[A-Za-z]/);
+	assert.doesNotMatch(localized_templates, />\s*(?:Loading\.\.\.|Load more|Space:)\s*</);
+	assert.doesNotMatch(localized_templates, />\s*[A-Za-z][^<{]*\{\{/);
 });
 
 async function runtime_sources(directory) {
@@ -134,6 +179,8 @@ test('localization inventory covers runtime and server errors without unused ent
 	]);
 	const sources = client + '\n' + server;
 	const literals = new Set([...sources.matchAll(/['"](MOD_MP_[A-Z0-9_]+)['"]/g)].map(match => match[1]));
+	// Keep historical English keys paired with shipped Charitree translations for 1.5.16.
+	const legacy = new Set(Object.keys(await readFile(new URL('mod/data/lang/zh-CN.json', root), 'utf8').then(JSON.parse)));
 	// These families are assembled at runtime, including inside HTML bindings.
 	const dynamic = new Set();
 	for (const state of ['ACTIVE', 'ACCEPTED', 'CLAIMED', 'CANCELLED', 'REJECTED', 'EXPIRED'])
@@ -141,21 +188,21 @@ test('localization inventory covers runtime and server errors without unused ent
 	for (const state of ['ACTIVE', 'GRANTED', 'DENIED', 'LAPSED', 'WITHDRAWN'])
 		dynamic.add('MOD_MP_COUNCIL_OUTCOME_' + state);
 	for (const action of ['WINNOWING', 'FELLOWSHIP', 'ENCLOSURE', 'INTERDICT', 'HERESY', 'TEMPERANCE', 'INDULGENCE',
-		'INGRATITUDE', 'SACRILEGE', 'BENEFICENCE']) {
+		'INGRATITUDE', 'SACRILEGE', 'BENEFICENCE', 'CRUCIBLE_PURGING', 'CRUCIBLE_SEALING',
+		'CRUCIBLE_UNSEALING']) {
 		for (const suffix of ['CONFIRM', 'PROPOSAL'])
 			dynamic.add(`MOD_MP_COUNCIL_${action}_${suffix}`);
 	}
 	for (const event of ['JOINED', 'LEFT', 'BANISHED', 'CHARITREE_DONATED', 'RAID_STARTED', 'RAID_BOSS_DEFEATED',
 		'RAID_COMPLETED', 'MARKET_LISTING_CREATED', 'MARKET_BOUGHT', 'MARKET_BOUGHT_BY', 'MARKET_SOLD',
-		'MARKET_SOLD_TO', 'PETITION_RAISED', 'PETITION_CARRIED', 'PETITION_DEFEATED', 'CAMPAIGN_STARTED',
-		'CAMPAIGN_COMPLETED', 'CAMPAIGN_CONTRIBUTED'])
+		'MARKET_SOLD_TO', 'PETITION_RAISED', 'PETITION_CARRIED', 'PETITION_DEFEATED'])
 		dynamic.add('MOD_MP_GUILD_ACTIVITY_' + event);
 	for (const key of [...literals, ...dynamic]) {
 		if (!key.endsWith('_'))
 			assert.equal(typeof english[key], 'string', `Missing runtime key: ${key}`);
 	}
 	for (const key of Object.keys(english))
-		assert.ok(literals.has(key) || dynamic.has(key), `Unused localization key: ${key}`);
+		assert.ok(literals.has(key) || dynamic.has(key) || legacy.has(key), `Unused localization key: ${key}`);
 });
 
 test('Chinese Marketplace activity keeps quantity item and counterparty in source order', async () => {

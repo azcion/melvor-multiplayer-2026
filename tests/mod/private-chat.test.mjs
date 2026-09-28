@@ -30,7 +30,7 @@ test('adds a first-class Chat page, inbox, unread indicators, and Guild-roster i
 	assert.equal(chat_page.media, 'https://cdn2-main.melvor.net/assets/media/bank/message_in_a_bottle.png');
 	assert.equal(chat_page.sidebarItem.icon, 'https://cdn2-main.melvor.net/assets/media/bank/message_in_a_bottle.png');
 	assert.equal(chat_page.sidebarItem.asideClass, 'badge mp-chat-nav');
-	for (const page_id of ['Chat', 'Transfer_Items', 'Charity_Tree', 'Campaign_Effort', 'Guild_Raid']) {
+	for (const page_id of ['Chat', 'Transfer_Items', 'Crucible', 'Guild_Raid']) {
 		const page = data.data.pages.find(entry => entry.id === page_id);
 		assert.match(page.sidebarItem.asideClass, /^badge mp-[a-z-]+-nav$/);
 	}

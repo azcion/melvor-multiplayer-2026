@@ -29,9 +29,19 @@ test('silently honors server throttle delays while preserving the Global Chat dr
 	const main = await read_client_source(root);
 
 	assert.match(main, /conversation_kind === 'global'[\s\S]*messages\/send\?capabilities=global-chat-v1/);
-	assert.match(main, /Number\.isFinite\(res\?\.retry_after_ms\)[\s\S]*global_chat_cooling_down = true/);
-	assert.match(main, /setTimeout\([\s\S]*state\.global_chat_cooling_down = false/);
+	assert.match(main, /conversation_kind === 'global' \? 'global_chat_cooling_down' : 'tester_chat_cooling_down'/);
+	assert.match(main, /this\[state_key\] = true;[\s\S]*setTimeout\(\(\) => \{ state\[state_key\] = false; \}, res\.retry_after_ms\)/);
 	assert.match(main, /kind !== 'global' \|\| !this\.global_chat_cooling_down/);
 	assert.match(main, /if \(res\?\.success\)[\s\S]*this\.chat_drafts\[conversation_key\] = ''/);
-	assert.match(main, /else if \(is_current_view\(\) && !\(conversation_kind === 'global'/);
+	assert.match(main, /else if \(is_current_view\(\) &&\s*!\(\(conversation_kind === 'global' \|\| conversation_kind === 'testers'\)/);
+});
+
+test('shows a localized read-only footer instead of the composer to non-testers', async () => {
+	const [templates, english] = await Promise.all([
+		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
+		readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse)
+	]);
+	const chat_view = templates.slice(templates.indexOf('<template id="template-mp-chat-page">'));
+	assert.match(chat_view, /class="block-content mp-chat-compose" v-else-if="state\.selected_chat_conversation\?\.conversation_kind === 'testers' && state\.selected_chat_conversation\?\.can_send !== true">\s*<div class="mp-chat-disabled-message"><lang-string lang-id="MOD_MP_TESTER_CHAT_READ_ONLY"><\/lang-string><\/div>\s*<\/div>\s*<div class="block-content mp-chat-compose" v-else-if="state\.selected_chat_conversation\?\.synthetic_unsupported !== true">/);
+	assert.match(english.MOD_MP_TESTER_CHAT_READ_ONLY, /Expedition testers/);
 });

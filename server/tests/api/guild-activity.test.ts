@@ -69,6 +69,25 @@ describe('Guild Activity', () => {
 		})).status).toBe(400);
 	});
 
+	test('hides legacy Campaign and Charitree events only from 1.6.0 Activity pages', async () => {
+		const pair = await make_guildmates('Legacy Feed', 'Crucible Feed', 'Versioned Activity',
+			{ first: '1.5.16', second: '1.6.0' });
+		const kinds = ['joined', 'campaign_started', 'campaign_completed', 'campaign_contributed',
+			'charitree_donated'];
+		for (let index = 0; index < 25; index++)
+			await db_run('INSERT INTO `guild_activity_events` (`guild_id`, `event_type`, `source_key`, `created_at`) ' +
+				'VALUES (?, ?, ?, ?)', [pair.guild_id, kinds[index % kinds.length],
+				`versioned:${index}`, 1_000 + index]);
+		const modern_first = await activity(pair.second.session_token);
+		expect(modern_first.json.events).toHaveLength(7);
+		expect(modern_first.json.next_cursor).toBeNull();
+		expect(modern_first.json.events.every(event => event.event_type === 'joined')).toBe(true);
+		const legacy_first = await activity(pair.first.session_token);
+		expect(legacy_first.json.events).toHaveLength(20);
+		expect(legacy_first.json.next_cursor).not.toBeNull();
+		expect(legacy_first.json.events.some(event => event.event_type === 'charitree_donated')).toBe(true);
+	});
+
 	test('throttles noisy successful actions without suppressing their underlying mutations', async () => {
 		const client = await register_guild_client('Activity Donor', 'Donation Guild');
 		const first = await post_json<{ success: boolean }>('/api/charity/donate', {

@@ -4,7 +4,7 @@ const source_files = [
 	'mod/main.mjs',
 	'mod/client-actions-common.mjs',
 	'mod/client-actions-chat.mjs',
-	'mod/client-actions-market-campaign-charity.mjs',
+	'mod/client-actions-market-charity.mjs',
 	'mod/client-actions-trading.mjs',
 	'mod/client-actions-transfer.mjs',
 	'mod/client-actions-social.mjs',

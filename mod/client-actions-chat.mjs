@@ -111,6 +111,7 @@ export function install_chat_actions(runtime) {
 	} = runtime;
 	const items = runtime.chat_items;
 	let item_picker_composer = null;
+	let feature_picker_composer = null;
 	let notifications_next_toggle_at = 0;
 	const reaction_throttle_ms = 1000;
 	const translation_wait_ms = 10000;
@@ -279,6 +280,124 @@ export function install_chat_actions(runtime) {
 			document.querySelector('mp-chat-composer')?.open_picker();
 		},
 
+		show_chat_feature_picker(composer) {
+			feature_picker_composer = composer;
+			this.chat_feature_search = '';
+			this.chat_feature_catalog = items.feature_catalog(game, getLangString);
+			queue_modal('MOD_MP_CHAT_TAG_FEATURE', 'chat-feature-picker-modal', undefined, {
+				showConfirmButton: false,
+				customClass: { popup: 'mp-chat-item-picker-modal-popup' },
+				didOpen: () => {
+					this.render_chat_feature_results();
+					document.querySelector('.mp-chat-feature-search')?.focus();
+				},
+				didClose: () => {
+					if (feature_picker_composer === composer) feature_picker_composer = null;
+					if (composer.isConnected && composer.key === get_chat_conversation_key(state.selected_chat_conversation)) {
+						if (composer.picker_feature_id) composer.insert_feature(composer.picker_feature_id);
+						else {
+							composer.editor.focus();
+							composer.set_selection(...composer.picker_restore_selection);
+						}
+					}
+				}
+			});
+		},
+
+		open_chat_feature_picker() {
+			document.querySelector('mp-chat-composer')?.open_picker(undefined, false, 'feature');
+		},
+
+		get_chat_feature_results() {
+			const search = this.chat_feature_search.trim().toLocaleLowerCase();
+			return (this.chat_feature_catalog ?? []).filter(feature => !search ||
+				feature.name.toLocaleLowerCase().includes(search) ||
+				feature.id.split(':')[1].replaceAll('_', ' ').toLocaleLowerCase().includes(search));
+		},
+
+		update_chat_feature_search(event) {
+			this.chat_feature_search = event.target.value;
+			this.render_chat_feature_results();
+		},
+
+		render_chat_feature_results() {
+			const host = document.querySelector('.mp-chat-feature-results');
+			const empty = document.querySelector('.mp-chat-feature-empty');
+			if (!host || !empty) return;
+			const results = this.get_chat_feature_results();
+			const fragment = document.createDocumentFragment();
+			for (const feature of results) {
+				const button = document.createElement('button');
+				button.type = 'button';
+				button.className = 'mp-chat-item-result mp-chat-feature-result';
+				button.addEventListener('click', () => state.choose_chat_feature(feature.id));
+				button.addEventListener('keydown', event => state.handle_chat_feature_result_key(event, feature.id));
+				const image = document.createElement('img');
+				image.src = feature.media; image.alt = ''; image.draggable = false;
+				const name = document.createElement('span');
+				name.textContent = feature.name;
+				button.append(image, name); fragment.append(button);
+			}
+			host.replaceChildren(fragment);
+			empty.classList.toggle('d-none', results.length !== 0);
+		},
+
+		choose_chat_feature(id) {
+			const composer = feature_picker_composer;
+			if (!composer?.isConnected || composer.key !== get_chat_conversation_key(this.selected_chat_conversation)) return;
+			if (!(this.chat_feature_catalog ?? []).some(feature => feature.id === id)) return;
+			composer.picker_feature_id = id;
+			this.close_modal();
+		},
+
+		handle_chat_feature_search_key(event) {
+			if (event.isComposing) return;
+			if (event.key === 'ArrowDown') {
+				event.preventDefault(); document.querySelector('.mp-chat-feature-result')?.focus();
+			} else if (event.key === 'Enter') {
+				event.preventDefault(); const first = this.get_chat_feature_results()[0]; if (first) this.choose_chat_feature(first.id);
+			}
+		},
+
+		handle_chat_feature_result_key(event, id) {
+			if (event.key === 'Enter' || event.key === ' ') {
+				event.preventDefault(); this.choose_chat_feature(id); return;
+			}
+			if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+			event.preventDefault();
+			const next = event.key === 'ArrowDown' ? event.currentTarget.nextElementSibling : event.currentTarget.previousElementSibling;
+			(next ?? document.querySelector('.mp-chat-feature-search'))?.focus();
+		},
+
+		get_chat_feature_page(id) {
+			if (!items.official_chat_feature(id)) return null;
+			const skill = game.skills?.getObjectByID?.(id);
+			return game.pages?.getObjectByID?.(id) ??
+				(skill ? [...game.pages?.registeredObjects?.values?.() ?? []]
+					.find(page => page.skills?.some(page_skill => page_skill.id === id)) : null) ??
+				(['Attack', 'Strength', 'Defence', 'Hitpoints', 'Ranged', 'Magic', 'Prayer', 'Slayer']
+					.includes(id.split(':')[1]) ? game.pages?.getObjectByID?.('melvorD:Combat') : null);
+		},
+
+		can_open_chat_feature(id) {
+			const page = this.get_chat_feature_page(id);
+			if (!page) return false;
+			if (!id.startsWith('multiplayer:')) return true;
+			if (id === 'multiplayer:Chat' || id === 'multiplayer:Updates') return true;
+			if (this.multiplayer_unsupported) return false;
+			if (id === 'multiplayer:Transfer_Items') return this.has_transfer_access === true;
+			if (id === 'multiplayer:Crucible') return this.is_guild_member && !this.is_social_only;
+			if (id === 'multiplayer:Multiplayer_Market' || id === 'multiplayer:Guild_Raid' || id === 'multiplayer:Expedition')
+				return this.is_guild_member && !(id === 'multiplayer:Multiplayer_Market' && this.is_social_only) &&
+					!(id === 'multiplayer:Expedition' && !this.account_tags?.includes('expedition-tester'));
+			return true;
+		},
+
+		open_chat_feature(id) {
+			if (!this.can_open_chat_feature(id)) return;
+			changePage(this.get_chat_feature_page(id));
+		},
+
 		get_chat_item_results() {
 			return items.search_items(this.chat_item_catalog, this.chat_item_search,
 				[...this.chat_item_order_ids, ...this.chat_recent_items]);
@@ -354,6 +473,7 @@ export function install_chat_actions(runtime) {
 
 		get_chat_plain_content(message) {
 			return (message.parts ?? [{ type: 'text', text: message.content ?? '' }]).map(part => part.type === 'text' ? part.text :
+				part.type === 'feature' ? items.feature_name(game, getLangString, part.feature_id) :
 				game.items.getObjectByID(part.item_id)?.name ?? items.fallback_item_name(part.item_id)).join('');
 		},
 
@@ -370,7 +490,8 @@ export function install_chat_actions(runtime) {
 
 		get_chat_notification_unread(conversations = this.chat_conversations) {
 			return conversations.reduce((total, conversation) => total +
-				(this.is_chat_notifications_enabled(conversation) ? conversation.unread_count ?? 0 : 0), 0);
+				(this.is_chat_notifications_enabled(conversation) && conversation.contributes_unread !== false
+					? conversation.unread_count ?? 0 : 0), 0);
 		},
 
 		toggle_chat_notifications() {
@@ -520,6 +641,7 @@ export function install_chat_actions(runtime) {
 		async toggle_chat_reaction(message, reaction) {
 			const conversation = this.selected_chat_conversation;
 			if (!conversation || !Number.isSafeInteger(message?.message_id) || message.message_id < 1 ||
+				(conversation.conversation_kind === 'testers' && conversation.can_send !== true) ||
 				typeof reaction !== 'string')
 				return;
 			const pending_key = (conversation.conversation_kind ?? 'private') + '\n' + conversation.conversation_id + '\n' +
@@ -887,9 +1009,10 @@ export function install_chat_actions(runtime) {
 			const view_generation = runtime.chat_view_generation;
 			const content = this.chat_draft.trim();
 			const draft_parts = this.get_chat_draft_parts();
-			const parts = draft_parts.some(part => part.type === 'item') ? items.compact_parts(draft_parts, true) : undefined;
+			const parts = draft_parts.some(part => part.type !== 'text') ? items.compact_parts(draft_parts, true) : undefined;
 			const parts_key = JSON.stringify(parts ?? null);
 			if (!conversation || conversation_key === null || content.length === 0 || content.length > 1000 ||
+				(conversation.conversation_kind === 'testers' && conversation.can_send !== true) ||
 				this.chat_sending_conversations[conversation_key] === true || !this.is_chat_item_draft_valid())
 				return;
 			this.chat_sending_conversations[conversation_key] = true;
@@ -935,12 +1058,13 @@ export function install_chat_actions(runtime) {
 			const is_current_view = () => view_generation === runtime.chat_view_generation &&
 				get_chat_conversation_key(this.selected_chat_conversation) === conversation_key;
 			try {
-				if (conversation_kind === 'global' && Number.isFinite(res?.retry_after_ms) && res.retry_after_ms > 0) {
-					clearTimeout(runtime.global_chat_cooldown_timer);
-					this.global_chat_cooling_down = true;
-					runtime.global_chat_cooldown_timer = setTimeout(() => {
-						state.global_chat_cooling_down = false;
-					}, res.retry_after_ms);
+				if ((conversation_kind === 'global' || conversation_kind === 'testers') &&
+					Number.isFinite(res?.retry_after_ms) && res.retry_after_ms > 0) {
+					const timer_key = conversation_kind === 'global' ? 'global_chat_cooldown_timer' : 'tester_chat_cooldown_timer';
+					const state_key = conversation_kind === 'global' ? 'global_chat_cooling_down' : 'tester_chat_cooling_down';
+					clearTimeout(runtime[timer_key]);
+					this[state_key] = true;
+					runtime[timer_key] = setTimeout(() => { state[state_key] = false; }, res.retry_after_ms);
 				}
 				if (res?.success) {
 					conversation.conversation_id = res.message.conversation_id;
@@ -952,7 +1076,7 @@ export function install_chat_actions(runtime) {
 						this.chat_budget = res.budget;
 					this.chat_budget_enabled = res.budget_enabled !== false;
 					if (this.chat_drafts[conversation_key]?.trim() === content &&
-						JSON.stringify(this.chat_item_drafts?.[conversation_key]?.some(part => part.type === 'item') ?
+						JSON.stringify(this.chat_item_drafts?.[conversation_key]?.some(part => part.type !== 'text') ?
 							items.compact_parts(this.chat_item_drafts[conversation_key], true) : null) === parts_key) {
 						this.chat_drafts[conversation_key] = '';
 						if (this.chat_item_drafts) delete this.chat_item_drafts[conversation_key];
@@ -960,7 +1084,8 @@ export function install_chat_actions(runtime) {
 					await refresh_chat_conversations();
 					if (is_current_view())
 						start_chat_polling();
-				} else if (is_current_view() && !(conversation_kind === 'global' && Number.isFinite(res?.retry_after_ms))) {
+				} else if (is_current_view() &&
+					!((conversation_kind === 'global' || conversation_kind === 'testers') && Number.isFinite(res?.retry_after_ms))) {
 					this.chat_error = getLangString(res?.error_lang ?? 'MOD_MP_CHAT_SEND_FAILED');
 				}
 			} finally {

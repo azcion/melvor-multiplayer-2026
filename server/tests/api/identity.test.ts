@@ -95,7 +95,8 @@ describe('identity API', () => {
 			'God Mode',
 			'dev.Console',
 			'[Creative Mode] God mode w/ Loot + XP Multipliers',
-			'Melvor Cheat Suite'
+			'Melvor Cheat Suite',
+			'Cheat Chest'
 		];
 		const client = await register_client('Cheat Report Test');
 		let previous_detection = 0;

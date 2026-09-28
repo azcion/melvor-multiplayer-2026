@@ -174,7 +174,7 @@ export function register_client(
 		).run(client_id, display_name, created_at, audit_event.id);
 		db.query(
 			'INSERT INTO `global_chat_read_state` (`client_id`, `last_read_message_id`) ' +
-			'SELECT ?, COALESCE(MAX(`id`), 0) FROM `global_chat_messages`'
+			"SELECT ?, COALESCE(MAX(`id`), 0) FROM `global_chat_messages` WHERE `channel` = 'global'"
 		).run(client_id);
 
 		return {

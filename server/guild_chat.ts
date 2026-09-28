@@ -1,7 +1,8 @@
 import { save_chat_parts, same_chat_parts, type ChatPart } from './chat_parts';
 import { db } from './db';
 import { CHAT_MESSAGE_MAX_LENGTH, CHAT_MESSAGE_PAGE_SIZE } from './chat';
-import { is_chat_moderator } from './chat_moderation';
+import { is_admin } from './admin_identity';
+import { chat_shadow_visibility, is_chat_shadowbanned } from './chat_shadowban';
 
 export const GUILD_CHAT_CAPABILITY = 'guild-chat-v1';
 
@@ -91,17 +92,22 @@ export function get_guild_chat_inbox(client_id: number) {
 		return { state: { affiliated: true, enabled: false }, conversation: null };
 
 	const last_read_message_id = ensure_read_state(client_id, access.guild_id);
-	const latest = db.query<GuildChatMessage, [number]>(
+	const latest = db.query<GuildChatMessage, [number, number, number]>(
 		'SELECT message.*, sender.`display_name`, sender.`icon_id` FROM `guild_chat_messages` AS message ' +
-		'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` WHERE message.`guild_id` = ? ' +
+		'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` ' +
+		'WHERE message.`guild_id` = ? ' +
 		'AND NOT EXISTS (SELECT 1 FROM `guild_chat_message_moderation` AS moderation ' +
-		'WHERE moderation.`message_id` = message.`id`) ORDER BY message.`id` DESC LIMIT 1'
-	).get(access.guild_id);
-	const unread_count = db.query<{ count: number }, [number, number, number]>(
-		'SELECT COUNT(*) AS `count` FROM `guild_chat_messages` AS message WHERE message.`guild_id` = ? ' +
+		'WHERE moderation.`message_id` = message.`id`) AND ' + chat_shadow_visibility() +
+		' ORDER BY message.`id` DESC LIMIT 1'
+	).get(access.guild_id, client_id, client_id);
+	const unread_count = db.query<{ count: number }, [number, number, number, number, number]>(
+		'SELECT COUNT(*) AS `count` FROM `guild_chat_messages` AS message ' +
+		'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` ' +
+		'WHERE message.`guild_id` = ? ' +
 		'AND message.`id` > ? AND message.`sender_id` != ? AND NOT EXISTS ' +
-		'(SELECT 1 FROM `guild_chat_message_moderation` AS moderation WHERE moderation.`message_id` = message.`id`)'
-	).get(access.guild_id, last_read_message_id, client_id)?.count ?? 0;
+		'(SELECT 1 FROM `guild_chat_message_moderation` AS moderation WHERE moderation.`message_id` = message.`id`) ' +
+		'AND ' + chat_shadow_visibility()
+	).get(access.guild_id, last_read_message_id, client_id, client_id, client_id)?.count ?? 0;
 	const moderation_count = db.query<{ count: number }, [number]>(
 		'SELECT COUNT(*) AS `count` FROM `guild_chat_message_moderation` AS moderation ' +
 		'JOIN `guild_chat_messages` AS message ON message.`id` = moderation.`message_id` ' +
@@ -119,7 +125,7 @@ export function get_guild_chat_inbox(client_id: number) {
 			latest_message: latest === null ? null : message_view(latest),
 			unread_count,
 			moderation_count,
-			can_moderate: is_chat_moderator(client_id),
+			can_moderate: is_admin(client_id),
 			blocked: false
 		}
 	};
@@ -146,7 +152,7 @@ export function list_guild_chat_messages(
 		return { status: 'missing' };
 	ensure_read_state(client_id, guild_id);
 
-	const values: number[] = [guild_id];
+	const values: number[] = [guild_id, client_id, client_id];
 	let cursor = '';
 	let order = 'DESC';
 	let limit = CHAT_MESSAGE_PAGE_SIZE + 1;
@@ -161,9 +167,10 @@ export function list_guild_chat_messages(
 	}
 	const rows = db.query<GuildChatMessage, number[]>(
 		'SELECT message.*, sender.`display_name`, sender.`icon_id` FROM `guild_chat_messages` AS message ' +
-		'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` WHERE message.`guild_id` = ? ' +
+		'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` ' +
+		'WHERE message.`guild_id` = ? ' +
 		'AND NOT EXISTS (SELECT 1 FROM `guild_chat_message_moderation` AS moderation ' +
-		'WHERE moderation.`message_id` = message.`id`)' + cursor +
+		'WHERE moderation.`message_id` = message.`id`) AND ' + chat_shadow_visibility() + cursor +
 		` ORDER BY message.\`id\` ${order} LIMIT ${limit}`
 	).all(...values);
 	const page_limit = after === null ? CHAT_MESSAGE_PAGE_SIZE : MAX_INCREMENTAL_MESSAGES;
@@ -208,9 +215,9 @@ export function send_guild_chat_message(
 			return { status: 'ok', value: { message_id: duplicate.id } };
 		}
 		const created = db.query(
-			'INSERT INTO `guild_chat_messages` (`guild_id`, `sender_id`, `idempotency_key`, `content`, `created_at`) ' +
-			'VALUES(?, ?, ?, ?, ?)'
-		).run(guild_id, client_id, idempotency_key, trimmed, now);
+			'INSERT INTO `guild_chat_messages` (`guild_id`, `sender_id`, `idempotency_key`, `content`, `created_at`, `shadow_hidden`) ' +
+			'VALUES(?, ?, ?, ?, ?, ?)'
+		).run(guild_id, client_id, idempotency_key, trimmed, now, is_chat_shadowbanned(client_id) ? 1 : 0);
 		save_chat_parts('guild', Number(created.lastInsertRowid), parts);
 		return { status: 'ok', value: { message_id: Number(created.lastInsertRowid) } };
 	});
@@ -221,7 +228,7 @@ export function send_guild_chat_message(
 }
 
 export function moderate_guild_chat_message(client_id: number, message_id: number, now = Date.now()) {
-	if (!Number.isSafeInteger(message_id) || message_id < 1 || !is_chat_moderator(client_id))
+	if (!Number.isSafeInteger(message_id) || message_id < 1 || !is_admin(client_id))
 		return { status: 'missing' as const };
 	const access = current_access(client_id);
 	if (access === null || access.guild_chat_enabled !== 1)

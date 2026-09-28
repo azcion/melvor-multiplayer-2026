@@ -11,6 +11,17 @@
 		"customDescription": "MOD_MP_PET_DESC_CHARITY"
 	},
 	{
+		"id": "Multiplayer_Pet_Crucible",
+		"media": "assets/multiplayer.svg",
+		"name": "MOD_MP_PET_NAME_CRUCIBLE",
+		"scaleChanceWithMasteryPool": false,
+		"ignoreCompletion": false,
+		"modifiers": {},
+		"activeInRaid": false,
+		"hint": "MOD_MP_PAGE_CRUCIBLE",
+		"customDescription": "MOD_MP_PET_DESC_CRUCIBLE"
+	},
+	{
 		"id": "Multiplayer_Pet_Campaign_Jungle",
 		"media": "assets/pet_tiki_mask.svg",
 		"name": "MOD_MP_PET_NAME_CAMPAIGN_JUNGLE",

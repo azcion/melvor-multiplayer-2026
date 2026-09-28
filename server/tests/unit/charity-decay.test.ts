@@ -60,7 +60,7 @@ describe('Charitree decay acceleration', () => {
 		database.close();
 	});
 
-	test('keeps one activation through overlapping Wishes and restores canonical expiry when none remain', () => {
+	test('keeps acceleration through fully funded Maturing Wishes and restores it after maturation', () => {
 		const database = fixture_database();
 		const now = 1_800_000_000_000;
 		const first_id = add_wish(database, now - HOUR_MS);
@@ -71,7 +71,8 @@ describe('Charitree decay acceleration', () => {
 		database.query('UPDATE `charity_wishes` SET `progress_gp` = `required_gp` WHERE `id` = ?').run(first_id);
 		expect(get_charity_decay_context(1, database, now + HOUR_MS)?.activation_at).toBe(now - HOUR_MS);
 		database.query('UPDATE `charity_wishes` SET `progress_gp` = `required_gp` WHERE `id` = ?').run(second_id);
-		expect(get_charity_decay_context(1, database, now + HOUR_MS)).toBeNull();
+		expect(get_charity_decay_context(1, database, now + HOUR_MS)?.activation_at).toBe(now - HOUR_MS);
+		expect(get_charity_decay_context(1, database, now + 5 * 24 * HOUR_MS)).toBeNull();
 		expect(database.query('SELECT 1 FROM `charity_decay_activations` WHERE `guild_id` = 1').get()).toBeNull();
 		expect(get_effective_charity_expiry(now + 10 * HOUR_MS, null)).toBe(now + 10 * HOUR_MS);
 		database.close();

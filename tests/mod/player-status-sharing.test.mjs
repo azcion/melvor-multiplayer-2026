@@ -121,7 +121,8 @@ test('ships captured custom skill icons for every shared-status surface', async 
 
 test('observes status changes without heartbeats and sends bounded partial snapshots', async () => {
 	const main = await read_client_source(root);
-	const capture = main.slice(main.indexOf('function capture_status_skills'), main.indexOf('function schedule_status_sync'));
+	const capture = main.slice(main.indexOf('function capture_status_skills'), main.indexOf('function format_expedition_activities')) +
+		main.slice(main.indexOf('function capture_status_snapshot'), main.indexOf('function update_local_status_member'));
 	const watcher = main.slice(main.indexOf('function observe_status_changes'), main.indexOf('function watch_equipment_view_actions'));
 
 	assert.match(capture, /status_activities\.capture_status_activities\(game\)/);

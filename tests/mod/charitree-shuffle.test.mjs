@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
-import { install_market_campaign_charity_actions } from '../../mod/client-actions-market-campaign-charity.mjs';
+import { install_market_charity_actions } from '../../mod/client-actions-market-charity.mjs';
 import * as charitree_rules from '../../mod/charitree-rules.mjs';
 import * as transfer_currency_support from '../../mod/transfer-currencies.mjs';
 import { create_pending_economy_actions } from '../../mod/pending-economy-actions.mjs';
 import { apply_economy_receipt } from '../../mod/economy-receipts.mjs';
+import { install_crucible_actions } from '../../mod/client-crucible.mjs';
 
 test('confirmation captures one offering, deducts through a once-only receipt, and refreshes the tree', async () => {
 	const game = { slayerCoins: { id: 'melvorD:SlayerCoins', amount: 10000 } };
@@ -37,7 +38,7 @@ test('confirmation captures one offering, deducts through a once-only receipt, a
 		},
 		reconcile: async receipts => receipts.every(r => ['applied', 'already-applied'].includes(apply_economy_receipt(r, processed, adapter)))
 	});
-	const actions = install_market_campaign_charity_actions({
+	const actions = install_market_charity_actions({
 		state, game, charitree_rules, transfer_currency_support, is_social_only: () => false,
 		queue_modal: (...args) => { modal = args; return true; }, notify() {}, notify_error() {},
 		close_modal_and_wait: async template_id => {
@@ -78,7 +79,7 @@ test('clears an offer when the shared modal queue rejects it so Shuffle Leaves c
 	const state = { charity_shuffle_offer: null };
 	let queue_result = false;
 	let queue_calls = 0;
-	const actions = install_market_campaign_charity_actions({
+	const actions = install_market_charity_actions({
 		state, game, charitree_rules, transfer_currency_support, is_social_only: () => false,
 		queue_modal: () => { queue_calls++; return queue_result; }, notify() {}, notify_error() {}
 	});
@@ -106,7 +107,7 @@ test('max preview aggregates simulated offerings and submits them as one economy
 	};
 	let modal;
 	let submitted;
-	const actions = install_market_campaign_charity_actions({
+	const actions = install_market_charity_actions({
 		state, game, charitree_rules, transfer_currency_support, is_social_only: () => false,
 		queue_modal: (...args) => { modal = args; return true; }, notify() {}, notify_error() {},
 		close_modal_and_wait: async template_id => {
@@ -145,7 +146,7 @@ test('clears the single-shuffle offer when Max is cancelled so Shuffle Leaves ca
 		owned_pet_ids: []
 	};
 	const modals = [];
-	const actions = install_market_campaign_charity_actions({
+	const actions = install_market_charity_actions({
 		state, game, charitree_rules, transfer_currency_support, is_social_only: () => false,
 		queue_modal: (...args) => { modals.push(args); return true; }, notify() {}, notify_error() {},
 		close_modal_and_wait: async template_id => assert.equal(template_id, 'charity-shuffle-modal')
@@ -162,7 +163,7 @@ test('clears the single-shuffle offer when Max is cancelled so Shuffle Leaves ca
 test('clears an offer when modal queueing throws before rethrowing the failure', () => {
 	const game = { slayerCoins: { id: 'melvorD:SlayerCoins', amount: 10000 } };
 	const state = { charity_shuffle_offer: null };
-	const actions = install_market_campaign_charity_actions({
+	const actions = install_market_charity_actions({
 		state, game, charitree_rules, transfer_currency_support, is_social_only: () => false,
 		queue_modal: () => { throw new Error('queue unavailable'); }, notify() {}, notify_error() {}
 	});
@@ -172,35 +173,56 @@ test('clears an offer when modal queueing throws before rethrowing the failure',
 	assert.equal(state.charity_shuffle_offer, null);
 });
 
-test('shuffle UI sits between the description and offerings and keeps pricing rules out of its copy', async () => {
-	const [html, main, actions, style] = await Promise.all([
-		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
-		readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8'),
-		readFile(new URL('../../mod/client-actions-market-campaign-charity.mjs', import.meta.url), 'utf8'),
-		readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8')
-	]);
-	const page = html.slice(html.indexOf('<template id="template-mp-charity-page">'));
-	const modal_template = html.slice(html.indexOf('<template id="template-mp-charity-shuffle-modal">'));
-	assert.ok(page.indexOf('<!-- Leaves -->') < page.indexOf('state.show_charity_shuffle()'));
-	assert.ok(page.indexOf('state.show_charity_shuffle()') < page.indexOf('v-for="item of state.charity_tree_entries"'));
-	const description = page.slice(page.indexOf('<div class="mp-charitree-window-copy">'), page.indexOf('<div class="block tabbable'));
-	assert.match(description, /<!-- Leaves -->[\s\S]*<div class="pt-2 d-flex align-items-center"[\s\S]*state\.show_charity_shuffle\(\)/);
-	assert.match(description, /MOD_MP_CHARITY_INFO_OFFERINGS_DECAY_PREFIX[\s\S]*MOD_MP_CHARITY_INFO_LEAVES_CHANCE_PREFIX[\s\S]*MOD_MP_CHARITY_INFO_LEAVES_BONUS_EFFECT/);
-	assert.match(description, /MOD_MP_CHARITY_SHUFFLE[\s\S]*MOD_MP_CHARITY_SHUFFLE_BONUS_LABEL[\s\S]*state\.charity_shuffle_bonus\(\)/);
-	assert.match(modal_template, /MOD_MP_CHARITY_SHUFFLE_INTRO[\s\S]*MOD_MP_CHARITY_SHUFFLE_PRICE/);
-	assert.match(modal_template, /state\.charity_shuffle_currency\(\)\?\.currency\?\.media[\s\S]*state\.charity_shuffle_currency\(\)\?\.shorthand/);
-	assert.match(modal_template, /MOD_MP_CHARITY_SHUFFLE_BONUS[\s\S]*state\.charity_shuffle_bonus\(\)/);
-	assert.match(modal_template, /MOD_MP_CHARITY_SHUFFLE_COVERAGE[\s\S]*MOD_MP_CHARITY_SHUFFLE_INFO/);
-	assert.match(style, /\.mp-charity-shuffle-max-offers\s*\{[\s\S]*align-items: center;/);
-	for (const language of ['en', 'zh-CN']) {
-		const strings = JSON.parse(await readFile(new URL(`../../mod/data/lang/${language}.json`, import.meta.url), 'utf8'));
-		const copy = Object.entries(strings).filter(([key]) => key.includes('CHARITY_SHUFFL')).map(([, value]) => value).join(' ');
-		assert.doesNotMatch(copy, /0\.1|1,?000|hash|algorithm|ratio/i);
-		assert.equal((strings.MOD_MP_CHARITY_SHUFFLE_BONUS.match(/%s/g) ?? []).length, 1);
-		assert.equal((strings.MOD_MP_CHARITY_SHUFFLE_BONUS_LABEL.match(/%s/g) ?? []).length, 1);
-	}
-	assert.match(actions, /run_pending_economy_action\('charity_shuffle'[\s\S]*await minimum_loader;[\s\S]*close_modal_and_wait/);
-	assert.match(modal_template, /MOD_MP_BUTTON_MAX[\s\S]*template-mp-charity-shuffle-max-modal[\s\S]*charity_shuffle_max_totals/);
-	assert.match(actions, /request_charity_tree_contents\(true, false\)/);
-	assert.match(main, /setInterval\(\(\) => \{[\s\S]*request_charity_tree_contents\(true, false\)/);
+test('quotes paid Slag clearing before sending the receipt-backed action', async () => {
+ const [page, actions, english] = await Promise.all([
+  readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
+  readFile(new URL('../../mod/client-crucible.mjs', import.meta.url), 'utf8'),
+  readFile(new URL('../../mod/data/lang/en.json', import.meta.url), 'utf8').then(JSON.parse)
+ ]);
+ assert.match(page, /state\.crucible_clear\(false\)/);
+ assert.match(page, /state\.crucible_clear\(true\)/);
+ assert.match(actions, /quote_clearings\(count\)/);
+ assert.match(actions, /queue_modal\('MOD_MP_CRUCIBLE_CLEAR', 'crucible-clear-modal'/);
+ assert.match(page, /state\.crucible_clear_totals/);
+ assert.match(actions, /run_pending_economy_action\('crucible_clear', '\/api\/crucible\/clear'/);
+ assert.equal(english.MOD_MP_CRUCIBLE_CLEAR_QUOTE, 'Increase your Slag clearing bonus by 1 level.');
+ assert.equal(english.MOD_MP_CRUCIBLE_CLEAR_MAX_QUOTE, 'This will max out your Slag clearing bonus.');
+ assert.match(page, /state\.crucible_clear_max \? 'MOD_MP_CRUCIBLE_CLEAR_MAX_QUOTE' : 'MOD_MP_CRUCIBLE_CLEAR_QUOTE'/);
+});
+
+test('Crucible Max quotes aggregate display by currency while keeping sequential balances for submission', async () => {
+	const gp = { id: 'gp', amount: 10000, media: 'gp.png', name: 'Gold' };
+	const sc = { id: 'sc', amount: 10000, media: 'sc.png', name: 'Slayer Coins' };
+	const entries = [{ id: 'gp', shorthand: 'GP', currency: gp }, { id: 'sc', shorthand: 'SC', currency: sc }];
+	const state = { crucible: { is_open: true, active_wish: null, level: 17 }, crucible_busy: false };
+	let submitted;
+	let modal;
+	const actions = install_crucible_actions({
+		state, game: {}, transfer_currency_support: {
+			get_transfer_currencies: () => entries,
+			get_transfer_currency_cap: () => 1000,
+			is_transfer_currency: () => true
+		},
+		queue_modal: (...args) => { modal = args; },
+		run_pending_economy_action: async (...args) => { submitted = args; return { success: true }; },
+		close_modal_and_wait: async () => {}, notify() {}, notify_error() {},
+		filter_local_available_items: values => values
+	}, {});
+	Object.assign(state, actions);
+	const original_random = Math.random;
+	const sequence = [0, .9, 0];
+	try { Math.random = () => sequence.shift(); await state.crucible_clear(true); }
+	finally { Math.random = original_random; }
+	assert.equal(modal[1], 'crucible-clear-modal');
+	assert.equal(state.crucible_clear_max, true);
+	assert.deepEqual(state.crucible_clear_totals.map(row => [row.currency_id, row.qty]), [['gp', 19], ['sc', 10]]);
+	assert.deepEqual(state.crucible_clear_offers.map(row => [row.currency_id, row.balance, row.qty]),
+		[['gp', 10000, 10], ['sc', 10000, 10], ['gp', 9990, 9]]);
+	await state.crucible_confirm_clear();
+	assert.equal(submitted[1], '/api/crucible/clear');
+	assert.deepEqual(submitted[2].offers.map(row => row.qty), [10, 10, 9]);
+	const next_random = Math.random;
+	try { Math.random = () => 0; await state.crucible_clear(false); }
+	finally { Math.random = next_random; }
+	assert.equal(state.crucible_clear_max, false);
 });

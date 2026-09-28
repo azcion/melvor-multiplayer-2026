@@ -62,15 +62,18 @@ function resolve_raid_attack(tier, player, { landed = true, barrier = false, imm
 
 test('registers and mounts the Guild Raid page as a first-class multiplayer view', () => {
 	const page = data.data.pages.find(entry => entry.id === 'Guild_Raid');
-	const charitree = data.data.pages.find(entry => entry.id === 'Charity_Tree');
+	const crucible = data.data.pages.find(entry => entry.id === 'Crucible');
 	assert.equal(page.customName, 'MOD_MP_PAGE_RAID');
-	assert.equal(language.MOD_MP_PAGE_CHARITREE, 'Charitree');
+	assert.equal(language.MOD_MP_PAGE_CRUCIBLE, 'Crucible');
 	assert.equal(language.MOD_MP_PAGE_RAID, 'Raid (preview)');
 	assert.equal(language.MOD_MP_RAID_TITLE, 'Raid (preview)');
+	assert.equal(language.MOD_MP_RAID_READY_TITLE, "It's time.");
 	assert.equal(page.containerID, 'mp-raid-page');
 	assert.equal(page.sidebarItem.asideClass, 'badge mp-raid-nav');
-	assert.equal(charitree.customName, 'MOD_MP_PAGE_CHARITREE');
+	assert.equal(crucible.customName, 'MOD_MP_PAGE_CRUCIBLE');
 	assert.equal(page.sidebarItem.aside, '0');
+	assert.equal(page.media, 'assets/raid-nav.png');
+	assert.equal(page.sidebarItem.icon, 'assets/raid-nav.png');
 	assert.equal(page.sidebarItem.asideLangID, undefined);
 	assert.equal(data.data.pages[data.data.pages.findIndex(entry => entry.id === 'Guild_Raid') + 1].id, 'Updates');
 	assert.match(style, /\.mp-raid-nav[\s\S]*background-color: #5b4aa1/);
@@ -78,10 +81,12 @@ test('registers and mounts the Guild Raid page as a first-class multiplayer view
 	assert.match(style, /\.mp-raid-nav\.mp-raid-active[\s\S]*background-color: #8f3030/);
 	assert.equal(language.MOD_MP_SIDEBAR_RAID_ACTIVE, 'active');
 	assert.match(templates, /template-mp-raid-page/);
+	assert.doesNotMatch(templates, /lang-id="MOD_MP_RAID_READY_INFO"/);
 	assert.doesNotMatch(templates, /MOD_MP_RAID_GUILD_EVENT/);
 	assert.doesNotMatch(templates, /template-mp-dropdown|state\.open_raid_page\(\)/);
 	assert.doesNotMatch(templates, /MOD_MP_RAID_FELLOWSHIP_EXCLUDED/);
-	assert.match(main, /on_page_toggle\('mp-raid-page'[\s\S]*Promise\.all\(\[get_client_events\(\), refresh_raid_state\(\)\]\)/);
+	assert.match(main, /on_page_toggle\('mp-raid-page', set_raid_page_visible\)/);
+	assert.match(main, /function set_raid_page_visible[\s\S]*Promise\.all\(\[get_client_events\(\), refresh_raid_state\(\)\]\)/);
 	assert.match(main, /aside\.textContent = active \? getLangString\('MOD_MP_SIDEBAR_RAID_ACTIVE'\) : ''/);
 	assert.match(main, /aside\.hidden = !active/);
 	assert.match(main, /update_raid_nav\(\)/);
@@ -133,23 +138,122 @@ test('wires reservation before combat and durable victory-cache reconciliation',
 	assert.match(main, /api\/raids\/assaults\/abandon/);
 	assert.match(main, /!runtime\.raid_combat\.has_full_hitpoints\(game\.combat\.player\)/);
 	assert.doesNotMatch(main, /!raid_module\.has_full_hitpoints\(game\.combat\.player\)/);
-	assert.equal(language.MOD_MP_RAID_FULL_HP_REQUIRED, 'Restore to 100% Hitpoints before beginning a Raid Assault.');
+	assert.equal(language.MOD_MP_RAID_FULL_HP_REQUIRED, 'Restore to 100% HP before beginning an Assault.');
 	assert.match(main, /runtime\.raid_combat\.has_active\(\)/);
 	assert.match(main, /runtime\.raid_combat\.start\(reservation\)/);
 	assert.match(main, /processed_raid_cache_ids/);
 	assert.match(main, /api\/raids\/cache\/acknowledge/);
 });
 
-test('renders all placeholder combat tiers and cooperative Raid state', () => {
+test('confirms a selected Raid tier before reserving its Assault', async () => {
+	const calls = [];
+	let dismiss_modal;
+	const state = { raid_can_assault: true, raid_action_pending: false, raid_error: '',
+		raid_state: { unlocked_tiers: [2] } };
+	const runtime = {
+		state,
+		ctx: { getResourceUrl: path => `mod-resource://${path}` },
+		queue_modal: (...args) => {
+			calls.push(['modal', args[1], args[2]]);
+			dismiss_modal = args[3].didClose;
+			return true;
+		},
+		close_modal_and_wait: async template => { calls.push(['close', template]); },
+		api_post: async (path, body) => {
+			calls.push(['reserve', path, body.tier]);
+			return { assault_id: 'assault-1' };
+		},
+		refresh_raid_state: async () => { calls.push(['refresh']); },
+		raid_combat: {
+			has_full_hitpoints: () => true,
+			start: reservation => { calls.push(['combat', reservation.assault_id]); }
+		},
+		game: { combat: { player: {} } },
+		getLangString: key => key,
+		raid_loaded_session_id: 'session-1'
+	};
+	Object.assign(state, install_transfer_actions(runtime));
+	state.show_raid_assault_confirmation(3);
+	assert.deepEqual(calls, [['modal', 'raid-assault-confirm-modal', 'mod-resource://assets/raid-nav.png']]);
+	dismiss_modal();
+	await state.confirm_raid_assault();
+	assert.equal(calls.length, 1);
+	state.show_raid_assault_confirmation(3);
+	await state.confirm_raid_assault();
+	assert.deepEqual(calls, [
+		['modal', 'raid-assault-confirm-modal', 'mod-resource://assets/raid-nav.png'],
+		['modal', 'raid-assault-confirm-modal', 'mod-resource://assets/raid-nav.png'],
+		['close', 'raid-assault-confirm-modal'],
+		['reserve', '/api/raids/assaults/reserve', 3],
+		['combat', 'assault-1'],
+		['refresh']
+	]);
+	await state.confirm_raid_assault();
+	assert.equal(calls.length, 6);
+	assert.match(templates, /@click="state\.show_raid_assault_confirmation\(tier\)"/);
+	assert.match(templates, /template-mp-raid-assault-confirm-modal[\s\S]*MOD_MP_RAID_ASSAULT_WARNING[\s\S]*state\.confirm_raid_assault\(\)[\s\S]*MOD_MP_BUTTON_CANCEL/);
+});
+
+test('locks Raid tiers per character and blocks confirmation below full HP', async () => {
+	let modal_count = 0;
+	let reserve_count = 0;
+	const state = { raid_can_assault: true, raid_state: { unlocked_tiers: [1] } };
+	const runtime = {
+		state,
+		ctx: { getResourceUrl: path => path },
+		queue_modal: () => { modal_count++; return true; },
+		api_post: async () => { reserve_count++; return {}; },
+		raid_combat: { has_full_hitpoints: () => false },
+		game: { combat: { player: {} } }
+	};
+	Object.assign(state, install_transfer_actions(runtime));
+	assert.equal(state.is_raid_tier_unlocked(1), true);
+	assert.equal(state.is_raid_tier_unlocked(2), true);
+	assert.equal(state.is_raid_tier_unlocked(3), false);
+	state.show_raid_assault_confirmation(3);
+	assert.equal(modal_count, 0);
+	state.show_raid_assault_confirmation(2);
+	assert.equal(modal_count, 1);
+	assert.equal(state.raid_confirmation_full_hp, false);
+	await state.confirm_raid_assault();
+	assert.equal(reserve_count, 0);
+	assert.match(templates, /mp-raid-tier-locked/);
+	assert.match(templates, /:disabled="!state\.can_assault_raid_tier\(tier\)"/);
+	assert.match(templates, /v-if="!state\.raid_confirmation_full_hp"[^>]*>.*MOD_MP_RAID_FULL_HP_REQUIRED/);
+	assert.match(templates, /:disabled="!state\.raid_confirmation_full_hp"[^>]*@click="state\.confirm_raid_assault\(\)"/);
+	assert.match(templates, /class="mp-raid-tier-image"><img :src="state\.is_raid_tier_unlocked\(tier\) \? state\.get_raid_monster_icon\(tier\) : state\.get_raid_nav_icon\(\)"/);
+	assert.match(style, /\.mp-raid-tier-image\s*\{[^}]*aspect-ratio: 1;[^}]*place-items: center;/);
+	assert.match(style, /\.mp-raid-tier-locked \.mp-raid-tier-image > img\s*\{\s*filter: brightness\(\.15\);\s*max-width: 144px;/);
+	assert.match(style, /\.mp-raid-tier\s*\{[^}]*grid-template-rows: auto 1fr auto auto;/);
+	assert.match(style, /\.mp-raid-tier\s*\{[^}]*overflow: hidden;/);
+});
+
+test('Raid HP bar shows remaining health and shrinks with damage', () => {
+	const getter = main.match(/get raid_progress_pct\(\) \{([\s\S]*?)\n\t\},/)?.[1];
+	assert.ok(getter);
+	const remaining_percent = new Function(`return function() {${getter}}`)();
+	assert.equal(remaining_percent.call({ raid: { remaining_health: 7500, max_health: 7500 } }), 100);
+	assert.equal(remaining_percent.call({ raid: { remaining_health: 2250, max_health: 7500 } }), 30);
+	assert.equal(remaining_percent.call({ raid: { remaining_health: 0, max_health: 7500 } }), 0);
+	assert.match(style, /\.mp-raid-health \.progress-bar\s*\{\s*background: #8f3030;/);
+	assert.match(templates, /class="progress mp-raid-health"><div class="progress-bar" :style="\{ width: state\.raid_progress_pct \+ '%' \}"/);
+});
+
+test('renders all four combat tiers and cooperative Raid state', () => {
 	assert.equal(data.data.monsters.filter(monster => monster.id.startsWith('Raid_Tier_')).length, 4);
 	assert.match(templates, /v-for="tier in \[1, 2, 3, 4\]"/);
 	assert.match(templates, /state\.raid\?\.remaining_health/);
 	assert.match(templates, /state\.raid\?\.leaderboard/);
+	assert.match(templates, /state\.raid\?\.member\?\.next_assault_grant_at/);
+	assert.match(templates, /MOD_MP_RAID_NEXT_ASSAULTS/);
+	assert.doesNotMatch(templates, /state\.raid\?\.contribution_cap/);
+	assert.match(main, /state\.raid_tier_progress = response\.raid_tier_progress/);
+	assert.match(main, /return this\.raid_tier_progress\[tier\] \?\? 0/);
 });
 
 test('keeps Raid overview bindings safe before the server state arrives', () => {
 	const raid_page = templates.slice(templates.indexOf('template-mp-raid-page'), templates.indexOf('template-mp-updates-page'));
-	for (const property of ['remaining_health', 'max_health', 'secured', 'active', 'expires_at', 'member', 'contribution_cap', 'leaderboard'])
+	for (const property of ['remaining_health', 'max_health', 'secured', 'active', 'expires_at', 'member', 'leaderboard'])
 		assert.doesNotMatch(raid_page, new RegExp(`state\\.raid\\.${property}\\b`));
 	assert.match(raid_page, /state\.raid\?\.remaining_health/);
 	assert.match(raid_page, /state\.raid\?\.leaderboard/);
@@ -160,7 +264,27 @@ test('resolves the packaged Raid monster icon through the mod context', () => {
 		ctx: { getResourceUrl: path => `mod-resource://${path}` }
 	});
 
-	assert.equal(actions.get_raid_monster_icon(1), 'mod-resource://assets/raid_plant_t1.png');
+	for (const tier of [1, 2, 3, 4]) {
+		const asset = `assets/raid-boss-t${tier}.png`;
+		assert.equal(data.data.monsters.find(monster => monster.id === `Raid_Tier_${tier}`).media, asset);
+		assert.equal(actions.get_raid_monster_icon(tier), `mod-resource://${asset}`);
+	}
+	assert.equal(data.data.combatAreas.find(area => area.id === 'Guild_Raid').media, 'assets/raid-nav.png');
+	assert.equal(actions.get_raid_nav_icon(), 'mod-resource://assets/raid-nav.png');
+	assert.match(templates, /class="mp-raid-hero" :src="state\.get_raid_nav_icon\(\)"/);
+});
+
+test('shows the renamed Raid bosses from the registered Monsters', () => {
+	const names = ['The Mossbound Hollow', 'The Entwined Hollow', 'The Lithic Hollow', 'The Reliquary Hollow'];
+	const monsters = data.data.monsters.filter(monster => monster.id.startsWith('Raid_Tier_'));
+	assert.deepEqual(monsters.map(monster => monster.name), names);
+	const actions = install_transfer_actions({
+		game: { monsters: { getObjectByID: id => monsters.find(monster => `multiplayer:${monster.id}` === id) } },
+		getLangString: () => 'Tier %s'
+	});
+	assert.equal(actions.get_raid_monster_name(2), names[1]);
+	assert.equal(actions.get_raid_monster_name(5), 'Tier 5');
+	assert.match(templates, /state\.get_raid_monster_name\(tier\)/);
 });
 
 test('gives every Raid boss 99% opening resistance and a six-second post-attack vulnerability', () => {
@@ -177,18 +301,18 @@ test('gives every Raid boss 99% opening resistance and a six-second post-attack 
 		'multiplayer:Raid_Boss_Fortified,multiplayer:Raid_Boss_Vulnerable'));
 	assert.equal(fortified.templateID, 'melvorD:EndOfFightRemoval');
 	assert.equal(fortified.target, 'Self');
-	assert.equal(resistance_value(fortified), 99);
+	assert.equal(resistance_value(fortified), 1);
 	assert.equal(vulnerable.templateID, 'melvorD:EndOfFightRemoval');
 	assert.equal(vulnerable.target, 'Self');
-	assert.equal(resistance_value(vulnerable), -66);
-	assert.equal(resistance_value(fortified) + resistance_value(vulnerable), 33);
+	assert.equal(resistance_value(vulnerable), -1);
+	assert.equal(resistance_value(fortified) * 99 + resistance_value(vulnerable) * 66, 33);
 	assert.deepEqual(vulnerable.timers, [{ name: 'vulnerability' }]);
 	assert.deepEqual(fortified.behaviours.find(behaviour => behaviour.type === 'ModifyStats'), {
-		type: 'ModifyStats', statGroupName: 'fortification', newValue: 1,
+		type: 'ModifyStats', statGroupName: 'fortification', newValue: 99,
 		triggersOn: [{ type: 'EffectApplied' }]
 	});
 	assert.deepEqual(vulnerable.behaviours.find(behaviour => behaviour.type === 'ModifyStats'), {
-		type: 'ModifyStats', statGroupName: 'vulnerability', newValue: 1,
+		type: 'ModifyStats', statGroupName: 'vulnerability', newValue: 66,
 		triggersOn: [{ type: 'EffectApplied' }]
 	});
 	assert.deepEqual(vulnerable.behaviours.find(behaviour => behaviour.type === 'StartTimer'), {
@@ -330,12 +454,11 @@ test('allows a minimum-HP player with Auto Eat I and enough food to survive repe
 	assert.ok(food < 100);
 });
 
-test('uses the registered Full Version IDs for full-game raid materials', () => {
-	const loot_ids = data.data.monsters
-		.flatMap(monster => monster.lootTable)
-		.map(loot => loot.itemID);
-	assert.ok(loot_ids.includes('melvorF:Eyeball'));
-	assert.ok(loot_ids.includes('melvorF:Large_Horn'));
-	assert.ok(!loot_ids.includes('melvorD:Eyeball'));
-	assert.ok(!loot_ids.includes('melvorD:Large_Horn'));
+test('leaves Raid Monsters without native loot for server Inbox delivery', () => {
+	for (const monster of data.data.monsters) {
+		assert.equal(monster.lootChance, 0);
+		assert.deepEqual(monster.lootTable, []);
+	}
+	assert.equal(data.dependentData.some(entry => entry.namespace === 'melvorTotH' &&
+		entry.modifications?.monsters?.some(monster => monster.id.startsWith('multiplayer:Raid_Tier_'))), false);
 });

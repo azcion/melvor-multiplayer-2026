@@ -334,6 +334,50 @@ describe('player status API', () => {
 		expect(visible_owner).toMatchObject({ gp_visible: true, gp: 60_000 });
 	});
 
+	test('lets only tagged accounts hide Dev badges per character', async () => {
+		const pair = await make_guildmates('Tagged Character', 'Other Character');
+		await db_run(
+			"INSERT OR IGNORE INTO `melvor_accounts` (`id`, `cloud_username`, `playfab_id`, `created_at`) VALUES (15, 'dev-test-account', 'dev-test-playfab', 1)"
+		);
+		await db_run('UPDATE `clients` SET `melvor_account_id` = 15 WHERE `id` = ?', [pair.first_id]);
+		const other_character = await register_client('Tagged Sibling');
+		const other_id = (await db_all<{ id: number }>('SELECT `id` FROM `clients` WHERE `client_identifier` = ?',
+			[other_character.client_identifier]))[0].id;
+		await db_run('UPDATE `clients` SET `melvor_account_id` = 15 WHERE `id` = ?', [other_id]);
+		const before = await get_json_with_session<{ members: Array<{ client_id: number; dev_badge: boolean }> }>(
+			'/api/guilds/state', pair.second.session_token);
+		const rejected = await post('/api/client/dev-tag/visibility', { visible: false }, pair.second.session_token);
+		const malformed = await post('/api/client/dev-tag/visibility', { visible: 'false' }, pair.first.session_token);
+		const hidden = await post_json<{ success: boolean; visible: boolean }>(
+			'/api/client/dev-tag/visibility', { visible: false }, pair.first.session_token);
+		const after = await get_json_with_session<{ members: Array<{ client_id: number; dev_badge: boolean }> }>(
+			'/api/guilds/state', pair.second.session_token);
+		const sibling = await post_json<{ dev_tag: { eligible: boolean; visible: boolean } }>(
+			'/api/authenticate', { client_identifier: other_character.client_identifier, client_key: other_character.client_key, cloud_username: 'dev-test-account', playfab_id: 'dev-test-playfab' });
+		const owner = await post_json<{ session_token: string; dev_tag: { eligible: boolean; visible: boolean } }>(
+			'/api/authenticate', { client_identifier: pair.first.client_identifier, client_key: pair.first.client_key, cloud_username: 'dev-test-account', playfab_id: 'dev-test-playfab' });
+		expect(before.json.members.find(member => member.client_id === pair.first_id)?.dev_badge).toBe(true);
+		expect(rejected.status).toBe(403);
+		expect(malformed.status).toBe(400);
+		expect(hidden.json).toEqual({ success: true, visible: false });
+		expect(after.json.members.find(member => member.client_id === pair.first_id)?.dev_badge).toBe(false);
+		expect(owner.json.dev_tag).toEqual({ eligible: true, visible: false });
+		expect(sibling.json.dev_tag).toEqual({ eligible: true, visible: true });
+		await db_run(
+			"INSERT OR IGNORE INTO `melvor_accounts` (`id`, `cloud_username`, `playfab_id`, `created_at`) VALUES (12, 'sae-test-account', 'sae-test-playfab', 1)"
+		);
+		await db_run('UPDATE `clients` SET `melvor_account_id` = 12 WHERE `id` = ?', [pair.second_id]);
+		const sae_before = await get_json_with_session<{ members: Array<{ client_id: number; sae_dev_badge: boolean }> }>(
+			'/api/guilds/state', owner.json.session_token);
+		const sae_hidden = await post_json<{ success: boolean; visible: boolean }>(
+			'/api/client/dev-tag/visibility', { visible: false }, pair.second.session_token);
+		const sae_after = await get_json_with_session<{ members: Array<{ client_id: number; sae_dev_badge: boolean }> }>(
+			'/api/guilds/state', owner.json.session_token);
+		expect(sae_before.json.members.find(member => member.client_id === pair.second_id)?.sae_dev_badge).toBe(true);
+		expect(sae_hidden.json).toEqual({ success: true, visible: false });
+		expect(sae_after.json.members.find(member => member.client_id === pair.second_id)?.sae_dev_badge).toBe(false);
+	});
+
 	test('shares the latest game mode by default and preserves the runtime snapshot on opt-out', async () => {
 		const pair = await make_guildmates('Mode Visibility Owner', 'Mode Visibility Viewer');
 		await db_run(
@@ -456,6 +500,52 @@ describe('player status API', () => {
 			active_mods_available: false
 		});
 		expect(viewed.json.error_lang).toBe('MOD_MP_ACTIVE_MODS_NOT_AVAILABLE');
+	});
+
+	test('lets an exact admin identity inspect hidden mod lists through profiles and the API', async () => {
+		const pair = await make_guildmates('Hidden Mods Owner', 'Hidden Mods Guild Viewer');
+		const admin = await register_client('Hidden Mods Admin');
+		const outsider = await register_client('Hidden Mods Outsider');
+		await db_run('UPDATE `clients` SET `client_identifier` = ? WHERE `id` = ?',
+			['RESTART-ADMIN-MODS', admin.client_id]);
+		await db_run('UPDATE `clients` SET `client_identifier` = ? WHERE `id` = ?',
+			['RESTART-ADMIN-GUILD', pair.second_id]);
+		await db_run('INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `reported_at`) VALUES (?, ?, ?, ?)',
+			[pair.first_id, '1.5.17', JSON.stringify(['Multiplayer', 'Private Mod']), Date.now()]);
+		await post_json('/api/client/active-mods/visibility', { visible: false }, pair.first.session_token);
+
+		const guild_hidden = await get_json_with_session<{ members: Array<{ client_id: number; active_mods_visible: boolean }> }>(
+			'/api/guilds/state', pair.first.session_token);
+		const admin_guild_state = await get_json_with_session<{
+			members: Array<{ client_id: number; active_mods_visible: boolean; active_mods_available: boolean }>;
+		}>('/api/guilds/state', pair.second.session_token);
+		const admin_guild_directory = await get_json_with_session<{
+			members: Array<{ client_id: number; active_mods_visible: boolean; active_mods_available: boolean }>;
+		}>('/api/guilds/members?page=0&search=', pair.second.session_token);
+		const admin_guild_list = await get_json_with_session<{ active_mods: string[] }>(
+			`/api/guilds/active-mods?client_id=${pair.first_id}`, pair.second.session_token);
+		const admin_profile = await get_json_with_session<{ active_mods_visible: boolean; active_mods_available: boolean }>(
+			`/api/chat/profile?client_id=${pair.first_id}`, admin.session_token);
+		const outsider_profile = await get_json_with_session<{ active_mods_visible: boolean; active_mods_available: boolean }>(
+			`/api/chat/profile?client_id=${pair.first_id}`, outsider.session_token);
+		const admin_mods = await get_json_with_session<{ active_mods: string[] }>(
+			`/api/chat/active-mods?client_id=${pair.first_id}`, admin.session_token);
+		const outsider_mods = await get_json_with_session<{ error_lang: string }>(
+			`/api/chat/active-mods?client_id=${pair.first_id}`, outsider.session_token);
+		const admin_guild_mods = await get_json_with_session<{ error_lang: string }>(
+			`/api/guilds/active-mods?client_id=${pair.first_id}`, admin.session_token);
+
+		expect(guild_hidden.json.members.find(member => member.client_id === pair.first_id)?.active_mods_visible).toBe(false);
+		expect(admin_guild_state.json.members.find(member => member.client_id === pair.first_id))
+			.toMatchObject({ active_mods_visible: true, active_mods_available: true });
+		expect(admin_guild_directory.json.members.find(member => member.client_id === pair.first_id))
+			.toMatchObject({ active_mods_visible: true, active_mods_available: true });
+		expect(admin_guild_list.json.active_mods).toEqual(['Multiplayer', 'Private Mod']);
+		expect(admin_profile.json).toMatchObject({ active_mods_visible: true, active_mods_available: true });
+		expect(outsider_profile.json).toMatchObject({ active_mods_visible: false, active_mods_available: false });
+		expect(admin_mods.json.active_mods).toEqual(['Multiplayer', 'Private Mod']);
+		expect(outsider_mods.json.error_lang).toBe('MOD_MP_ACTIVE_MODS_SHARING_DISABLED');
+		expect(admin_guild_mods.json.error_lang).toBe('MOD_MP_GUILD_MEMBERSHIP_MISSING');
 	});
 
 	test('includes only the minimal activity descriptor in the Free Fellowship directory', async () => {

@@ -307,7 +307,7 @@ export function install_social_actions(runtime) {
 		},
 
 		show_council_petition_modal(type) {
-			if (is_social_only() && type.startsWith('charitree_'))
+			if (is_social_only() && (type.startsWith('charitree_') || type.startsWith('crucible_')))
 				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			this.close_modal();
 			this.council_type = type;
@@ -338,7 +338,7 @@ export function install_social_actions(runtime) {
 		},
 
 		async submit_council_petition(event, type, target_client_id = null) {
-			if (is_social_only() && type.startsWith('charitree_'))
+			if (is_social_only() && (type.startsWith('charitree_') || type.startsWith('crucible_')))
 				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			const payload = { type };
 			if (type === 'appellation') {
@@ -405,7 +405,7 @@ export function install_social_actions(runtime) {
 
 		can_raise_council_petition(type) {
 			return this.council_available_petition_types.includes(type) &&
-				(!is_social_only() || !type.startsWith('charitree_'));
+				(!is_social_only() || (!type.startsWith('charitree_') && !type.startsWith('crucible_')));
 		},
 
 		get_council_action_key(type) {

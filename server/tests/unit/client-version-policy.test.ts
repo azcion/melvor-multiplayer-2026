@@ -17,10 +17,11 @@ test('validates operator support floors at the feature boundary', () => {
 	expect(is_minimum_supported_version('latest')).toBe(false);
 });
 
-test('classifies only feature-aware clients below the configured floor', () => {
+test('classifies every client below the configured floor, including unknown versions', () => {
 	expect(is_client_version_unsupported('1.5.10', '1.5.11')).toBe(true);
 	expect(is_client_version_unsupported('1.5.11', '1.5.11')).toBe(false);
-	expect(is_client_version_unsupported('1.5.9', '1.5.11')).toBe(false);
-	expect(is_client_version_unsupported(null, '1.5.11')).toBe(false);
+	expect(is_client_version_unsupported('1.5.9', '1.5.11')).toBe(true);
+	expect(is_client_version_unsupported(null, '1.5.11')).toBe(true);
+	expect(is_client_version_unsupported('development', '1.5.11')).toBe(true);
 	expect(is_client_version_unsupported('1.5.10', null)).toBe(false);
 });

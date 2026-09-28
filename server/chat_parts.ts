@@ -1,19 +1,31 @@
 import { db } from './db';
 
-export type ChatPart = { type: 'text'; text: string } | { type: 'item'; item_id: string };
+export type ChatPart = { type: 'text'; text: string } | { type: 'item'; item_id: string } |
+	{ type: 'feature'; feature_id: string };
 export const OFFICIAL_CHAT_ITEM = /^(melvorD|melvorF|melvorTotH|melvorAoD|melvorItA):[A-Za-z0-9_]+$/;
+export const OFFICIAL_CHAT_FEATURE = /^(melvorD|melvorF|melvorTotH|melvorAoD|melvorItA):[A-Za-z0-9_]+$/;
+export const MULTIPLAYER_CHAT_FEATURES = new Map([
+	['multiplayer:Chat', 'Chat'], ['multiplayer:Guild', 'Guild'],
+	['multiplayer:Transfer_Items', 'Transfers'], ['multiplayer:Multiplayer_Market', 'Marketplace'],
+	['multiplayer:Crucible', 'Crucible'], ['multiplayer:Expedition', 'Expedition'],
+	['multiplayer:Guild_Raid', 'Raid'], ['multiplayer:Updates', 'Updates']
+]);
 export const MAX_CHAT_ITEMS = 20;
 
+export function feature_name(id: string): string {
+	return MULTIPLAYER_CHAT_FEATURES.get(id) ?? id.split(':')[1]!.replaceAll('_', ' ');
+}
+
 export function parts_text(parts: ChatPart[]): string {
-	return parts.map(part => part.type === 'text' ? part.text :
-		`[${part.item_id.split(':')[1]!.replaceAll('_', ' ')}]`).join('');
+	return parts.map(part => part.type === 'text' ? part.text : part.type === 'item' ?
+		`[${part.item_id.split(':')[1]!.replaceAll('_', ' ')}]` : `$${feature_name(part.feature_id)}`).join('');
 }
 
 // Normalize at the request boundary. Plain clients retain their existing string contract.
 export function normalize_chat_parts(value: unknown): ChatPart[] | null {
 	if (!Array.isArray(value) || value.length > 100 || value.length === 0) return null;
 	const parts: ChatPart[] = [];
-	let items = 0;
+	let tags = 0;
 	for (const part of value) {
 		if (!part || typeof part !== 'object') return null;
 		if (part.type === 'text' && typeof part.text === 'string' && part.text.length <= 1000) {
@@ -24,8 +36,13 @@ export function normalize_chat_parts(value: unknown): ChatPart[] | null {
 			else if (text) parts.push({ type: 'text', text });
 		} else if (part.type === 'item' && typeof part.item_id === 'string' &&
 			part.item_id.length <= 256 && OFFICIAL_CHAT_ITEM.test(part.item_id)) {
-			if (++items > MAX_CHAT_ITEMS) return null;
+			if (++tags > MAX_CHAT_ITEMS) return null;
 			parts.push({ type: 'item', item_id: part.item_id });
+		} else if (part.type === 'feature' && typeof part.feature_id === 'string' &&
+			part.feature_id.length <= 256 && (OFFICIAL_CHAT_FEATURE.test(part.feature_id) ||
+				MULTIPLAYER_CHAT_FEATURES.has(part.feature_id))) {
+			if (++tags > MAX_CHAT_ITEMS) return null;
+			parts.push({ type: 'feature', feature_id: part.feature_id });
 		} else return null;
 	}
 	const first = parts[0], last = parts.at(-1);
@@ -37,7 +54,7 @@ export function normalize_chat_parts(value: unknown): ChatPart[] | null {
 }
 
 export function save_chat_parts(kind: string, message_id: number, parts?: ChatPart[]): void {
-	if (!parts?.some(part => part.type === 'item')) return;
+	if (!parts?.some(part => part.type !== 'text')) return;
 	db.query('INSERT INTO chat_message_bodies (job_id, parts) SELECT id, ? FROM chat_translation_jobs ' +
 		'WHERE source_kind = ? AND message_id = ?').run(JSON.stringify(parts), kind, message_id);
 }
@@ -46,7 +63,7 @@ export function same_chat_parts(kind: string, message_id: number, parts?: ChatPa
 	const existing = db.query<{ parts: string }, [string, number]>('SELECT body.parts FROM chat_message_bodies body ' +
 		'JOIN chat_translation_jobs job ON job.id = body.job_id WHERE job.source_kind = ? AND job.message_id = ?')
 		.get(kind, message_id);
-	return (existing?.parts ?? null) === (parts?.some(part => part.type === 'item') ? JSON.stringify(parts) : null);
+	return (existing?.parts ?? null) === (parts?.some(part => part.type !== 'text') ? JSON.stringify(parts) : null);
 }
 
 export function attach_chat_parts<T extends { message_id: number }>(kind: string, messages: T[]):
@@ -58,6 +75,20 @@ export function attach_chat_parts<T extends { message_id: number }>(kind: string
 	).all(kind, ...messages.map(message => message.message_id));
 	const by_id = new Map(rows.map(row => [row.message_id, JSON.parse(row.parts) as ChatPart[]]));
 	return messages.map(message => by_id.has(message.message_id) ? { ...message, parts: by_id.get(message.message_id)! } : message);
+}
+
+export function compatible_chat_parts<T extends { parts?: ChatPart[]; translation_parts?: Record<string, ChatPart[]> }>(
+	message: T, supports_features: boolean
+): T {
+	if (supports_features) return message;
+	if (message.parts?.some(part => part.type === 'feature')) delete message.parts;
+	if (message.translation_parts) {
+		const supported = Object.fromEntries(Object.entries(message.translation_parts)
+			.filter(([, parts]) => !parts.some(part => part.type === 'feature')));
+		if (Object.keys(supported).length > 0) message.translation_parts = supported;
+		else delete message.translation_parts;
+	}
+	return message;
 }
 
 const escape_html = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;')
@@ -84,7 +115,7 @@ function decode_html(text: string): string {
 // Accept only the tiny HTML grammar we generated. Never pass returned markup to a browser HTML sink.
 export function translated_parts(html: string, source: ChatPart[]): ChatPart[] {
 	if (html.length > 20000) throw { code: 'invalid_translation_markup' };
-	const items = source.filter(part => part.type === 'item');
+	const tags = source.filter(part => part.type !== 'text');
 	const seen = new Set<number>();
 	const parts: ChatPart[] = [];
 	let cursor = 0;
@@ -96,12 +127,12 @@ export function translated_parts(html: string, source: ChatPart[]): ChatPart[] {
 	for (const match of html.matchAll(marker)) {
 		add_text(html.slice(cursor, match.index));
 		const index = Number(match[1]);
-		if (String(index) !== match[1] || !items[index] || seen.has(index)) throw { code: 'invalid_translation_markers' };
+		if (String(index) !== match[1] || !tags[index] || seen.has(index)) throw { code: 'invalid_translation_markers' };
 		seen.add(index);
-		parts.push(items[index]!);
+		parts.push(tags[index]!);
 		cursor = match.index! + match[0].length;
 	}
 	add_text(html.slice(cursor));
-	if (seen.size !== items.length || parts_text(parts).length > 5000) throw { code: 'invalid_translation_markers' };
+	if (seen.size !== tags.length || parts_text(parts).length > 5000) throw { code: 'invalid_translation_markers' };
 	return parts;
 }

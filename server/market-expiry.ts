@@ -6,24 +6,28 @@ import { expire_market_haggles } from './routes/haggle';
 const { db, market_completed_cached, remove_player_cache_entry, report_error } = runtime;
 
 export const MARKET_LISTING_LIFETIME = 14 * 24 * 60 * 60 * 1000;
+export const MARKET_SOLD_OUT_LIFETIME = 20 * 60 * 60 * 1000;
 const MARKET_MAINTENANCE_INTERVAL = 60 * 1000;
 const EXPIRED_MARKET_SOURCE = { type: 'market_expired' } as const;
 
 export function expire_market_listings_now(now = Date.now()): number {
 	expire_market_haggles(now);
 	const cutoff = now - MARKET_LISTING_LIFETIME;
-	const expired = db.query<db_row.market_items, [number]>(
-		'SELECT * FROM `market_items` WHERE COALESCE(`updated_at`, `published_at`) <= ? ' +
+	const sold_out_cutoff = now - MARKET_SOLD_OUT_LIFETIME;
+	const expired = db.query<db_row.market_items, [number, number]>(
+		'SELECT * FROM `market_items` WHERE ((`available` > 0 AND COALESCE(`updated_at`, `published_at`) <= ?) ' +
+		'OR (`available` = 0 AND COALESCE(`updated_at`, `published_at`) <= ?)) ' +
 		'AND `reserved` = 0 AND NOT EXISTS (' +
 			'SELECT 1 FROM `market_haggles` WHERE `listing_id` = `market_items`.`id` AND `status` = \'active\'' +
 		') ORDER BY COALESCE(`updated_at`, `published_at`), `id`'
-	).all(cutoff);
+	).all(cutoff, sold_out_cutoff);
 	let count = 0;
 	for (const lot of expired) {
 		const removed = db.query(
-			'DELETE FROM `market_items` WHERE `id` = ? AND COALESCE(`updated_at`, `published_at`) <= ? ' +
+			'DELETE FROM `market_items` WHERE `id` = ? AND ((`available` > 0 AND COALESCE(`updated_at`, `published_at`) <= ?) ' +
+			'OR (`available` = 0 AND COALESCE(`updated_at`, `published_at`) <= ?)) ' +
 			'AND `reserved` = 0 RETURNING `id`'
-		).get(lot.id, cutoff);
+		).get(lot.id, cutoff, sold_out_cutoff);
 		if (removed === null)
 			continue;
 		remove_player_cache_entry(market_completed_cached, lot.client_id, lot.id);

@@ -6,6 +6,7 @@ import { install_chat_actions } from '../../mod/client-actions-chat.mjs';
 
 const sword = { type: 'item', item_id: 'melvorD:Bronze_Sword' };
 const stardust = { type: 'item', item_id: 'melvorTotH:Golden_Stardust' };
+const raid_feature = { type: 'feature', feature_id: 'multiplayer:Guild_Raid' };
 const text = text => ({ type: 'text', text });
 
 test('edits text around atomic item tags and preserves independent repeated occurrences', () => {
@@ -20,6 +21,30 @@ test('edits text around atomic item tags and preserves independent repeated occu
 	assert.equal(items.valid_parts([text('a'.repeat(1001))]), false);
 });
 
+test('feature tags keep stable IDs and list Multiplayer pages, skills, Bank, Shop, and Combat with icons', () => {
+	const pages = new Map([
+		['multiplayer:Guild_Raid', { id: 'multiplayer:Guild_Raid', media: 'raid.png' }],
+		...['Combat', 'Bank', 'Shop'].map(name => [`melvorD:${name}`, { id: `melvorD:${name}`, name, media: `${name}.png` }])
+	]);
+	const skills = ['melvorD:Cooking', 'melvorD:Farming', 'melvorItA:Corruption',
+		'melvorAoD:Cartography', 'melvorItA:Harvesting', 'melvorTotH:FutureSkill']
+		.map(id => ({ id, name: id.split(':')[1], media: `${id}.png` }));
+	const registered_skills = new Map(skills.map(skill => [skill.id, skill]));
+	const game = { pages: { getObjectByID: id => pages.get(id) }, skills: {
+		registeredObjects: registered_skills, getObjectByID: id => registered_skills.get(id)
+	} };
+	const catalog = items.feature_catalog(game, id => id === 'MOD_MP_PAGE_RAID' ? 'Raid (preview)' : id);
+	assert.deepEqual(catalog.map(feature => feature.id),
+		['melvorD:Shop', 'melvorD:Bank', 'multiplayer:Guild_Raid', 'melvorD:Combat',
+			'melvorItA:Corruption', 'melvorD:Farming', 'melvorD:Cooking',
+			'melvorAoD:Cartography', 'melvorItA:Harvesting', 'melvorTotH:FutureSkill']);
+	assert.deepEqual(catalog.find(feature => feature.id === 'multiplayer:Guild_Raid'),
+		{ id: 'multiplayer:Guild_Raid', name: 'Raid', media: 'raid.png' });
+	assert.deepEqual(items.compact_parts([raid_feature]), [raid_feature]);
+	assert.equal(items.fallback_text([raid_feature]), '$Raid');
+	assert.equal(items.valid_parts(Array(21).fill(raid_feature)), false);
+});
+
 test('picker includes only discovered registered official items without Bank, category or DLC ownership filters', () => {
 	const registeredObjects = new Map(['melvorD', 'melvorF', 'melvorTotH', 'melvorAoD', 'melvorItA', 'mod', 'multiplayer']
 		.map((namespace, index) => [`${namespace}:Item`, { id: `${namespace}:Item`, name: `Item ${index}`, category: '', media: 'local.png' }]));
@@ -30,7 +55,68 @@ test('picker includes only discovered registered official items without Bank, ca
 	assert.equal(items.search_items(catalog, '', ['melvorItA:Item'])[0].id, 'melvorItA:Item');
 	assert.equal(items.search_items(catalog, 'ITEM 3')[0].id, 'melvorAoD:Item');
 	assert.equal(items.search_items([{ id: sword.item_id, name: '青铜剑' }], 'bronze sword')[0].name, '青铜剑');
-	assert.equal(items.search_items(Array.from({ length: 100 }, (_, i) => ({ id: `melvorD:Item_${i}`, name: 'Item' })), '').length, 30);
+	const many_items = Array.from({ length: 101 }, (_, i) => ({ id: `melvorD:Item_${i}`, name: 'Item' }));
+	assert.equal(items.search_items(many_items, '').length, 100);
+	assert.equal(items.search_items(many_items, 'Item').length, 100);
+});
+
+test('ASCII and fullwidth item and feature shortcuts work at word starts before and after IME composition', () => {
+	for (const trigger of ['#', '＃', '$', '＄']) {
+		assert.deepEqual(items.chat_item_shortcut_range([], 0, trigger), [0, 1]);
+		assert.deepEqual(items.chat_item_shortcut_range([text('hello ')], 6, trigger), [6, 7]);
+		assert.deepEqual(items.chat_item_shortcut_range([text(`hello ${trigger}`)], 7, trigger, true), [6, 7]);
+		assert.equal(items.chat_item_shortcut_range([text('hello')], 5, trigger), null);
+		assert.equal(items.chat_item_shortcut_range([text(`hello${trigger}`)], 6, trigger, true), null);
+		assert.equal(items.chat_item_shortcut_range([text('hello x')], 7, trigger, true), null);
+	}
+});
+
+test('composer opens the item picker for direct and composed fullwidth hash input', () => {
+	let ChatComposer;
+	items.register_chat_elements({ HTMLElement: class {}, customElements: {
+		define(name, element) { if (name === 'mp-chat-composer') ChatComposer = element; }
+	} });
+	const composer = new ChatComposer();
+	const opened = [];
+	composer.parts = [text('hello ')];
+	composer.selection = () => [6, 6];
+	composer.replace_selection = inserted => { composer.parts = [text('hello ' + inserted[0].text)]; };
+	composer.open_picker = (range, trigger) => opened.push({ range, trigger });
+	let prevented = false;
+	composer.before_input({ inputType: 'insertText', data: '＃', preventDefault() { prevented = true; } });
+	assert.equal(prevented, true);
+	assert.deepEqual(opened, [{ range: [6, 7], trigger: true }]);
+	assert.deepEqual(composer.parts, [text('hello ＃')]);
+
+	opened.length = 0;
+	composer.composition_trigger = '＃';
+	composer.selection = () => [7, 7];
+	composer.open_composed_shortcut();
+	assert.deepEqual(opened, [{ range: [6, 7], trigger: true }]);
+	assert.equal(composer.composition_trigger, null);
+});
+
+test('composer routes dollar shortcuts to the feature picker and preserves the typed character', () => {
+	let ChatComposer;
+	items.register_chat_elements({ HTMLElement: class {}, customElements: {
+		define(name, element) { if (name === 'mp-chat-composer') ChatComposer = element; }
+	} });
+	for (const trigger of ['$', '＄']) {
+		const composer = new ChatComposer();
+		const opened = [];
+		composer.parts = [text('go ')];
+		composer.selection = () => [3, 3];
+		composer.replace_selection = inserted => { composer.parts = [text('go ' + inserted[0].text)]; };
+		composer.open_picker = (range, automatic, kind) => opened.push({ range, automatic, kind });
+		composer.before_input({ inputType: 'insertText', data: trigger, preventDefault() {} });
+		assert.deepEqual(opened, [{ range: [3, 4], automatic: true, kind: 'feature' }]);
+		assert.deepEqual(composer.parts, [text('go ' + trigger)]);
+		opened.length = 0;
+		composer.composition_trigger = trigger;
+		composer.selection = () => [4, 4];
+		composer.open_composed_shortcut();
+		assert.deepEqual(opened, [{ range: [3, 4], automatic: true, kind: 'feature' }]);
+	}
 });
 
 test('orders discovered chat items by own Buy Orders, Sell Orders, then name', () => {
@@ -76,14 +162,15 @@ function context() {
 	const requests = [];
 	const opened = [], pages = [];
 	const runtime = { document: { querySelector: () => null }, state, game, chat_items: items, get_chat_conversation_key: conversation => conversation ? 'private:' + conversation.participant.client_id : null,
-		getLangString: id => id, crypto: { randomUUID: () => String(Math.random()) }, chat_view_generation: 1,
+		getLangString: id => id === 'MOD_MP_PAGE_MARKET' ? 'Marketplace' : id,
+		crypto: { randomUUID: () => String(Math.random()) }, chat_view_generation: 1,
 		api_post: async (url, payload) => { requests.push(payload); return typeof response === 'function' ? response(url, payload) : response; }, log() {},
 		queue_modal: (...args) => { state.queued_modal = args; }, openLink: url => opened.push(url), changePage: page => pages.push(page),
 		get_local_item_namespaces: () => ['melvorD'], update_market_search: async () => { state.market_searches = (state.market_searches ?? 0) + 1; },
 		refresh_chat_conversations: async () => {}, start_chat_polling() {}, now: () => 0 };
 	Object.assign(state, install_chat_actions(runtime));
 	state.close_modal_and_wait = async template => { state.closed_modal = template; };
-	return { state, requests, opened, pages, market_page, set_response: value => { response = value; } };
+	return { state, game, requests, opened, pages, market_page, set_response: value => { response = value; } };
 }
 
 test('rendering resolves item names independently of chat translation and keeps missing items readable', () => {
@@ -149,6 +236,36 @@ test('sends structured tags, reuses identical retries, and changes the key when 
 	assert.equal(state.chat_item_drafts['private:2'], undefined);
 });
 
+test('feature tags send stable IDs and open their page from Chat', async () => {
+	const { state, requests, pages, market_page, set_response } = context();
+	const market = { type: 'feature', feature_id: market_page.id };
+	state.update_chat_item_draft('private:2', [text('See '), market]);
+	await state.send_chat_message();
+	assert.deepEqual(requests[0].parts, [text('See '), market]);
+	assert.equal(requests[0].content, 'See $Marketplace');
+	assert.equal(state.get_chat_plain_content({ parts: [text('See '), market] }), 'See Marketplace');
+	state.open_chat_feature(market_page.id);
+	assert.deepEqual(pages, [market_page]);
+	state.is_social_only = true;
+	assert.equal(state.can_open_chat_feature(market_page.id), false);
+	state.open_chat_feature(market_page.id);
+	assert.deepEqual(pages, [market_page]);
+	set_response({ success: true, message: { message_id: 1, conversation_id: 1 } });
+	await state.send_chat_message();
+	assert.deepEqual(requests[1].parts, requests[0].parts);
+});
+
+test('skill tags resolve a shared Melvor page through its registered skills', () => {
+	const { state, game, pages } = context();
+	const magic = { id: 'melvorD:Magic', name: 'Magic', media: 'magic.png' };
+	const combat_page = { id: 'melvorD:Combat', skills: [magic] };
+	game.skills = { getObjectByID: id => id === magic.id ? magic : undefined };
+	game.pages.registeredObjects = new Map([[combat_page.id, combat_page]]);
+	assert.equal(state.can_open_chat_feature(magic.id), true);
+	state.open_chat_feature(magic.id);
+	assert.deepEqual(pages, [combat_page]);
+});
+
 test('a tag-only draft is sendable and oversized drafts remain editable without sending', async () => {
 	const { state, requests } = context();
 	state.update_chat_item_draft('private:2', [sword]);
@@ -195,6 +312,20 @@ test('picker renders changing results without Petite Vue structural directives',
 	assert.doesNotMatch(picker, /get_chat_item_results\(\).*v-(?:if|show)/);
 	assert.match(style, /\.mp-chat-item-results \{[\s\S]*overflow-y: scroll;[\s\S]*-webkit-overflow-scrolling: touch;[\s\S]*touch-action: pan-y;[\s\S]*overscroll-behavior-y: contain;/);
 	assert.match(style, /\.mp-chat-item-picker-modal-popup \.swal2-html-container \{[\s\S]*overflow: visible;/);
+});
+
+test('feature picker and tags include feature icons and separate picker controls', async () => {
+	const [main, chat_items, templates] = await Promise.all([
+		readFile(new URL('../../mod/client-actions-chat.mjs', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/chat-items.mjs', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8')
+	]);
+	assert.match(templates, /MOD_MP_CHAT_TAG_FEATURE[^<]*>\$Feature<\/lang-string>/);
+	assert.match(templates, /template-mp-chat-feature-picker-modal/);
+	assert.match(templates, /MOD_MP_CHAT_FEATURE_SEARCH_HINT/);
+	assert.match(templates, /mp-chat-feature-results[^>]*@touchmove="state\.stop_icon_scroll_propagation/);
+	assert.match(main, /render_chat_feature_results\(\)[\s\S]*image\.src = feature\.media/);
+	assert.match(chat_items, /function feature_node\([\s\S]*image\.src = media;[\s\S]*state\.open_chat_feature\(part\.feature_id\)/);
 });
 
 test('rendered message item tags expose the item actions modal', async () => {

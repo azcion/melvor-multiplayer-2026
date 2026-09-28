@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 180" role="img" aria-label="Exit illustration placeholder">
+  <rect width="400" height="180" fill="#142b35"/>
+  <path d="M0 141 58 105l41 17 65-55 48 24 64-46 68 60 56-21v96H0Z" fill="#29434d"/>
+  <path d="M130 180v-60a70 70 0 0 1 140 0v60" fill="#0e202b" stroke="#a5bdb2" stroke-width="4"/>
+  <path d="M166 180v-57a34 34 0 0 1 68 0v57" fill="#45616a" stroke="#718d8a" stroke-width="2"/>
+  <path d="M200 94v86" stroke="#c4aa79" stroke-width="3"/>
+  <path d="M45 150h55m200 0h55" stroke="#8ca89b" stroke-width="3" opacity=".7"/>
+</svg>

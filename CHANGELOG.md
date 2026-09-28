@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.6.0
+
+- Added an Expedition preview for tagged Guild testers, with shared Chamber work, supply donations, passage votes, Journey history, and a fixed route from The Rift through Prismatic Descent, Glassroot Terraces, Buried Observatory, Prismatic Orrery, and Voidwatch Threshold to The Hollow Star; added a readable Expedition Chat conversation for all 1.6.0 players, with sending and reactions reserved for testers.
+- Added the Crucible as the 1.6.0 successor to Charitree, with merged Offerings, Guild-wide Heat that speeds Melds, Wishes funded by Melded value, Weird Gloop, Reclaim and Slag clearing, Council petitions, and translations in every supported language.
+- Removed the Campaign page and client actions while preserving Campaign pets and icon options; retained Campaign state and legacy API access for supported 1.5.16 clients.
+- Kept partially filled and sold-out Marketplace listings visible with remaining and original quantities, a Show Available filter, and disabled actions at zero availability; sold-out listings expire after 20 hours unless held by an active Haggle, while 1.5.16 clients retain their existing view.
+- Fixed repeated errors when opening Transfers with an active Marketplace Haggle that has no claim yet.
+- Expanded Guild Raids with uncapped personal contribution, a countdown to the next Assault grant, per-character boss tier unlocks, immediate tier rewards in the Inbox, and an Assault confirmation showing the full-HP requirement.
+- Added lifetime Raid defeat totals to Guild members and tier cards, with current non-Shadowed members' tier wins reducing the boss's initial Normal resistance from 99% toward a 75% floor.
+- Added unread Message counts to Poll Discussions without adding them to Chat navigation totals.
+- Added clickable Chat feature tags through $ or ＄, with icons for Multiplayer pages, Melvor skills, Combat, Bank, and Shop; the picker follows sidebar order, and older clients see readable feature names.
+- Added account-wide Dev and SAE Dev Guild roster badges with character-level visibility controls.
+- Added account-wide Chat shadowbans and moderator observer access, and let configured admins view hidden active-mod lists through the shared admin identity list used for Chat and Poll management.
+- Set the minimum supported client version to 1.5.16, including clients with missing or invalid version reports.
+
 ## 1.5.16
 
 - Added Petition of Temperance and Petition of Indulgence, allowing Guilds to require members to discover items before creating Buy Orders or buying from Sell Listings, or restore unrestricted Marketplace trading.

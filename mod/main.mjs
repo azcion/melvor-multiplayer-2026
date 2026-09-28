@@ -37,6 +37,10 @@ const GIFT_FLAG_RETURNED = 1 << 0;
 
 const CHARITY_CHECK_TIMEOUT = 10 * 1000; // 10 seconds
 const CHARITY_CLOCK_INTERVAL = 30 * 1000; // 30 seconds
+const EXPEDITION_CLOCK_INTERVAL = 30 * 1000;
+const EXPEDITION_STATE_REFRESH_INTERVAL = 30 * 1000;
+const EXPEDITION_VOTE_COOLDOWN = 1000;
+const EXPEDITION_CHECK_IN_COOLDOWN = 10 * 1000;
 const CHARITY_WEIRD_GLOOP_ID = 'melvorD:Weird_Gloop';
 
 const MARKET_ITEMS_PER_PAGE = 30;
@@ -119,6 +123,7 @@ let trade_returns = null;
 let transfer_inventory = null;
 let item_visibility = null;
 let charitree_rules = null;
+let crucible_rules = null;
 let client_runtime = null;
 let connection_diagnostics = null;
 let installation_store = null;
@@ -128,6 +133,8 @@ let connected_backend_version = null;
 let game_mode_sharing = null;
 let localization = null;
 let status_activities = null;
+let expedition_tasks = null;
+let expedition_view = null;
 let status_statistics = null;
 let icon_catalog_discovery = null;
 let icon_catalog_collection = null;
@@ -185,6 +192,10 @@ let social_mode_choice_selection = false;
 
 let last_charity_check = 0;
 let charity_clock_timer = null;
+let expedition_clock_timer = null;
+let raid_clock_timer = null;
+let guild_raid_badge_timer = null;
+let last_expedition_state_refresh_at = 0;
 let charity_page_visible = false;
 
 let has_sorted_market_filter_items = false;
@@ -268,11 +279,16 @@ const state = ui.createStore({
 	game_mode_visibility_pending: false,
 	active_mods_visible: true,
 	active_mods_visibility_pending: false,
+	dev_tag_eligible: false,
+	dev_tag_visible: true,
+	dev_tag_visibility_pending: false,
 	messaging_enabled: true,
 	chat_privacy_pending: false,
 	global_chat_enabled: true,
+	account_tags: [],
 	global_chat_participation_pending: false,
 	global_chat_cooling_down: false,
+	tester_chat_cooling_down: false,
 	guild_chat_enabled: true,
 	guild_chat_participation_pending: false,
 	guild_chat_state: { affiliated: false, enabled: true },
@@ -345,21 +361,20 @@ const state = ui.createStore({
 	owned_pet_ids: [],
 	charity_update_time: Date.now(),
 	charity_tree_loading: false,
-
-	campaign_data: {},
-	campaign_active: false,
-	campaign_id: '',
-	campaign_next_timestamp: 0,
-	campaign_item_id: '',
-	campaign_pct: 0,
-	campaign_item_total: 0,
-	campaign_contribution: 0,
-	campaign_max_contribution: 0,
-	campaign_loading: false,
-	campaign_has_data: false,
-	campaign_history: [],
-	campaign_rankings: {},
-	campaign_update_time: Date.now(),
+	crucible: null,
+	crucible_loading: false,
+	crucible_busy: false,
+	crucible_error: '',
+	crucible_wish_item_id: '',
+	crucible_wish_qty: 1,
+	crucible_wish_search: '',
+	crucible_panels_open: { wishes: true, clearing: true, offerings: true },
+	crucible_clear_offers: [],
+	crucible_clear_max: false,
+	crucible_clear_totals: [],
+	crucible_selected_offering_id: null,
+	crucible_selected_wish_id: null,
+	crucible_clock_time: Date.now(),
 
 	market_active_tab: 'search',
 	market_direction: 'sell',
@@ -384,6 +399,7 @@ const state = ui.createStore({
 	market_listings_loading: false,
 	market_discovery_restriction_enabled: false,
 	market_sort: 'recent',
+	market_available_only: false,
 	market_completed: [],
 	market_fulfillment_notice_items: [],
 	market_fulfillment_notice_order_count: 0,
@@ -461,6 +477,8 @@ const state = ui.createStore({
 	chat_drafts: {},
 	chat_item_drafts: {},
 	chat_item_search: '',
+	chat_feature_search: '',
+	chat_feature_catalog: [],
 	chat_item_catalog: [],
 	chat_item_order_ids: [],
 	chat_recent_items: [],
@@ -500,10 +518,35 @@ const state = ui.createStore({
 	identity_notice_requester: '',
 	identity_notice_time: '',
 	raid_state: { affiliation: 'none', cache_pending: false },
+	raid_tier_progress: {},
 	raid_loading: false,
 	raid_action_pending: false,
 	raid_error: '',
+	raid_confirmation_full_hp: false,
 	raid_update_time: Date.now(),
+	expedition_tracking_active: false,
+	expedition_tracking_loading: false,
+	expedition_debug_text: '',
+	expedition_debug_action: '',
+	expedition_state: null,
+	expedition_personal: null,
+	expedition_loading: false,
+	expedition_clock_time: Date.now(),
+	expedition_active_activities: [],
+	expedition_action_pending: false,
+	expedition_vote_cooldown_until: 0,
+	expedition_check_in_cooldown_until: 0,
+	expedition_pending_report: null,
+	expedition_catalog: null,
+	expedition_supply_item_id: '',
+	expedition_supply_qty: 1,
+	expedition_supply_filter: 'food',
+	expedition_mobile_tab: 'chamber',
+	expedition_snow: null,
+	expedition_snow_controls_enabled: false,
+	expedition_snow_stats: null,
+	expedition_phase_visit_id: null,
+	expedition_phase_open: { arrival: true, exploration: true, departure: true },
 	// #endregion
 
 	// #region COMPUTED PROPS
@@ -752,7 +795,9 @@ const state = ui.createStore({
 	get chat_can_send() {
 		const kind = this.selected_chat_conversation?.conversation_kind ?? 'private';
 		return (kind !== 'private' || (this.messaging_enabled && (!this.chat_budget_enabled || this.chat_budget.credits > 0))) &&
+			(kind !== 'testers' || this.selected_chat_conversation?.can_send === true) &&
 			(kind !== 'global' || !this.global_chat_cooling_down) &&
+			(kind !== 'testers' || !this.tester_chat_cooling_down) &&
 			this.chat_draft.trim().length > 0 &&
 			this.is_chat_item_draft_valid() &&
 			!this.chat_sending;
@@ -791,6 +836,10 @@ const state = ui.createStore({
 
 	get global_chat_conversations() {
 		return this.chat_conversations.filter(conversation => conversation.conversation_kind === 'global');
+	},
+
+	get tester_chat_conversations() {
+		return this.chat_conversations.filter(conversation => conversation.conversation_kind === 'testers');
 	},
 
 	get polls_chat_conversations() {
@@ -838,8 +887,8 @@ const state = ui.createStore({
 	},
 
 	get raid_progress_pct() {
-		return this.raid === null ? 0 : Math.max(0, Math.min(100,
-			((this.raid.max_health - this.raid.remaining_health) / this.raid.max_health) * 100));
+		return this.raid === null || this.raid.max_health <= 0 ? 0 : Math.max(0, Math.min(100,
+			(this.raid.remaining_health / this.raid.max_health) * 100));
 	},
 
 	get raid_can_assault() {
@@ -942,58 +991,31 @@ const state = ui.createStore({
 		return entry && Number.isSafeInteger(qty) && qty >= 1 && qty <= 100 ? entry.max_item_value * qty * 5 : 0;
 	},
 
+	get eligible_crucible_wish_items() {
+		return (this.crucible?.wish_catalog ?? []).map(entry => {
+			const item = game.items.getObjectByID(entry.id);
+			return item && game.stats.itemFindCount(item) > 0 ? { ...entry, name: item.name } : null;
+		}).filter(Boolean).sort((left, right) => right.max_item_value - left.max_item_value || left.name.localeCompare(right.name));
+	},
+
+	get filtered_crucible_wish_items() {
+		const search = String(this.crucible_wish_search ?? '').trim().toLocaleLowerCase();
+		return this.eligible_crucible_wish_items.filter(item => search === '' ||
+			String(item.name).toLocaleLowerCase().includes(search));
+	},
+
+	get crucible_wish_item_name() {
+		return this.eligible_crucible_wish_items.find(item => item.id === this.crucible_wish_item_id)?.name ?? '';
+	},
+
+	get crucible_wish_requirement() {
+		const entry = this.crucible?.wish_catalog?.find(item => item.id === this.crucible_wish_item_id);
+		const qty = Number(this.crucible_wish_qty);
+		return entry && Number.isSafeInteger(qty) && qty >= 1 && qty <= 100 ? entry.max_item_value * qty * 5 : 0;
+	},
+
 	charity_wish_progress_percentage(wish) {
 		return !wish || wish.phase === 'ripe' ? null : Math.min(99, Math.floor(wish.progress_gp * 100 / wish.required_gp));
-	},
-
-	get campaign_item_current() {
-		return Math.round(this.campaign_item_total * this.campaign_pct);
-	},
-
-	get campaign_item_name() {
-		const item = game.items.getObjectByID(state.campaign_item_id);
-		return item?.name ?? 'Unknown Item';
-	},
-
-	get campaign_item_icon() {
-		return this.get_item_icon(state.campaign_item_id);
-	},
-
-	get campaign_item_owned_qty() {
-		const item = game.items.getObjectByID(state.campaign_item_id);
-		return item === undefined ? 0 : game.bank.getQty(item);
-	},
-
-	get campaign_max_solo_contrib() {
-		return this.campaign_max_contribution;
-	},
-
-	get campaign_max_solo_contrib_reached() {
-		return this.campaign_contribution >= this.campaign_max_solo_contrib;
-	},
-
-	get campaign_contribution_remaining() {
-		return Math.max(this.campaign_max_solo_contrib - this.campaign_contribution, 0);
-	},
-
-	get campaign_item_remaining() {
-		return Math.max(this.campaign_item_total - this.campaign_item_current, 0);
-	},
-
-	get campaign_next_formatted() {
-		const delta = this.campaign_next_timestamp - this.campaign_update_time;
-		const seconds = Math.floor(delta / 1000);
-		
-		if (seconds < 60)
-			return 'less than a minute';
-		
-		const minutes = Math.floor(seconds / 60);
-		const hours = Math.floor(minutes / 60);
-		
-		if (hours > 0)
-			return `${hours} ${hours !== 1 ? 'hours' : 'hour'}`;
-		
-		return `${minutes} ${minutes !== 1 ? 'minutes' : 'minute'}`;
 	},
 
 	get market_buy_price_formatted() {
@@ -1102,7 +1124,9 @@ function create_action_runtime() {
 		api_post,
 		run_pending_economy_action,
 		run_pending_charity_wish_action,
+		run_pending_crucible_wish_action,
 		request_charity_tree_contents,
+		filter_local_available_items,
 		add_currency_to_transfer,
 		add_gp_to_transfer,
 		apply_charity_state,
@@ -1110,6 +1134,8 @@ function create_action_runtime() {
 		claim_inbox,
 		capture_equipment_snapshot,
 		capture_status_snapshot,
+		begin_expedition_woodcutting_tracking,
+		check_in_expedition_tracking,
 		format_status_account_age,
 		invalidate_status_icon_collection,
 		close_account_dropdown,
@@ -1168,7 +1194,6 @@ function create_action_runtime() {
 		stop_gp_sampling,
 		stop_status_observer,
 		unmount_connected_modal_components,
-		update_campaign_nav,
 		update_charitree_nav,
 		update_multiplayer_nav,
 		update_market_listings,
@@ -1428,6 +1453,531 @@ function capture_status_activities() {
 	return status_activities.capture_status_activities(game);
 }
 
+function capture_expedition_work_statistics() {
+	const definitions = [
+		['melvorD:Woodcutting', 'Woodcutting', [1]],
+		['melvorD:Fishing', 'Fishing', [3]],
+		['melvorD:Firemaking', 'Firemaking', [2]],
+		['melvorD:Cooking', 'Cooking', [2]],
+		['melvorD:Mining', 'Mining', [2]],
+		['melvorD:Smithing', 'Smithing', [2]],
+		['melvorD:Thieving', 'Thieving', [4]],
+		['melvorD:Fletching', 'Fletching', [2]],
+		['melvorD:Crafting', 'Crafting', [1]],
+		['melvorD:Runecrafting', 'Runecrafting', [1]],
+		['melvorD:Herblore', 'Herblore', [1]],
+		['melvorD:Agility', 'Agility', [3]],
+		['melvorD:Summoning', 'Summoning', [1]],
+		['melvorD:Astrology', 'Astrology', [0]],
+		['melvorD:AltMagic', 'Magic', [1]],
+		['melvorAoD:Archaeology', 'Archaeology', [2]],
+		['melvorAoD:Cartography', 'Cartography', [1, 3, 9]],
+		['melvorItA:Harvesting', 'Harvesting', [1]],
+		['melvorD:Combat', 'Combat', [7, 8]]
+	];
+	const time_ms = {};
+	for (const [skill_id, tracker_name, stat_ids] of definitions) {
+		const tracker = game.stats?.[tracker_name];
+		if (typeof tracker?.get !== 'function')
+			continue;
+		const value = stat_ids.reduce((sum, stat_id) => sum + Number(tracker.get(stat_id) ?? 0), 0);
+		if (Number.isSafeInteger(value) && value >= 0)
+			time_ms[skill_id] = value;
+	}
+	return { version: 1, time_ms };
+}
+
+function format_expedition_activities(activities) {
+	const lines = (activities ?? []).map(activity => activity.type === 'skill'
+		? expedition_text('MOD_MP_EXPEDITION_DEBUG_SKILL', activity.skill_id, activity.action_id)
+		: expedition_text('MOD_MP_EXPEDITION_DEBUG_COMBAT', activity.area_id ??
+			getLangString('MOD_MP_EXPEDITION_DEBUG_UNKNOWN_AREA')));
+	return getLangString('MOD_MP_EXPEDITION_DEBUG_DETECTED_WORK') + '\n' +
+		(lines.length === 0 ? '- ' + getLangString('MOD_MP_EXPEDITION_DEBUG_NONE') :
+			lines.map(line => '- ' + line).join('\n'));
+}
+
+function format_expedition_elapsed(elapsed_ms) {
+	const total_seconds = Math.max(0, Math.floor(Number(elapsed_ms) / 1000));
+	const hours = Math.floor(total_seconds / 3600);
+	const minutes = Math.floor((total_seconds % 3600) / 60);
+	const seconds = total_seconds % 60;
+	return `${hours}h ${minutes}m ${seconds}s`;
+}
+
+function format_expedition_debug_report(report, activities, include_timestamps = false) {
+	const fields = [
+		['SERVER_WALL_TIME', format_expedition_elapsed(report.elapsed_ms)],
+		['WOODCUTTING_DELTA', format_expedition_elapsed(report.target_work_ms)],
+		['ELIGIBLE_WORK', format_expedition_elapsed(report.total_work_ms)],
+		['TIMELINE_CREDIT', format_expedition_elapsed(report.timeline_credit_ms)],
+		['STATISTICS_CREDIT', format_expedition_elapsed(report.statistics_credit_ms)],
+		['FINAL_CREDIT', format_expedition_elapsed(report.credited_ms)],
+		['CONCURRENCY', Number(report.concurrency_factor).toFixed(3) + 'x']
+	];
+	const lines = fields.map(([field, value]) => expedition_text('MOD_MP_EXPEDITION_DEBUG_' + field, value));
+	if (include_timestamps)
+		lines.push(`started_at=${report.started_at}`, `server_now=${report.server_now}`);
+	return lines.join('\n') + '\n\n' + format_expedition_activities(activities);
+}
+
+async function refresh_expedition_tracking() {
+	if (!state.is_connected || !state.is_guild_member || state.expedition_tracking_loading)
+		return;
+	state.expedition_tracking_loading = true;
+	try {
+		const result = await api_get('/api/expedition/work-tracking');
+		state.expedition_tracking_active = result?.active === true;
+	} finally {
+		state.expedition_tracking_loading = false;
+	}
+}
+
+const EXPEDITION_PENDING_KEY = 'expedition_pending_report';
+const EXPEDITION_CHAMBER_ART = {
+	entrance: 'entrance', prismatic_descent: 'prismatic-descent',
+	glassroot_terraces: 'glassroot-terraces', buried_observatory: 'buried-observatory',
+	prismatic_orrery: 'prismatic-orrery', voidwatch_threshold: 'voidwatch-threshold',
+	hollow_star: 'hollow-star'
+};
+const EXPEDITION_EXIT_ART = {
+	'Prismatic Descent': 'prismatic-descent', 'Glassroot Terraces': 'glassroot-terraces',
+	'Buried Observatory': 'buried-observatory', 'Prismatic Orrery': 'prismatic-orrery',
+	'Voidwatch Threshold': 'voidwatch-threshold', 'The Hollow Star': 'hollow-star'
+};
+let last_expedition_work_observed_at = 0;
+
+function expedition_hours(milliseconds) {
+	return (Math.max(0, Number(milliseconds) || 0) / 3_600_000).toFixed(2);
+}
+
+function expedition_points(points_micros) {
+	return new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 })
+		.format(Math.max(0, Number(points_micros) || 0) / 1_000_000);
+}
+
+function expedition_text(key, ...values) {
+	let index = 0;
+	return getLangString(key).replace(/%s/g, () => String(values[index++] ?? ''));
+}
+
+function expedition_status(kind, value) {
+	const key = `MOD_MP_EXPEDITION_${kind}_${String(value ?? '').toUpperCase()}`;
+	return loadedLangJson?.[key] ? getLangString(key) : String(value ?? '');
+}
+
+function expedition_time_remaining(timestamp) {
+	return charitree_rules.format_charitree_remaining(timestamp, state.expedition_clock_time);
+}
+
+function expedition_time_since(timestamp) {
+	const minutes = Math.max(0, Math.floor((state.expedition_clock_time - Number(timestamp)) / 60_000) || 0);
+	const days = Math.floor(minutes / 1440);
+	const hours = Math.floor((minutes % 1440) / 60);
+	return days > 0 ? `${days}d ${hours}h` : hours > 0 ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
+}
+
+function set_expedition_page_visible(is_visible) {
+	clearInterval(expedition_clock_timer);
+	expedition_clock_timer = null;
+	if (!is_visible) return;
+	state.expedition_clock_time = Date.now();
+	state.expedition_active_activities = capture_status_activities();
+	expedition_clock_timer = setInterval(() => { state.expedition_clock_time = Date.now(); }, EXPEDITION_CLOCK_INTERVAL);
+	void refresh_expedition_state();
+}
+
+function expedition_notify(message, theme = 'success') {
+	notifyPlayer({ media: ctx.getResourceUrl('assets/multiplayer.svg') }, message, theme, 1);
+}
+
+function start_expedition_action_cooldown(field, duration) {
+	const until = Date.now() + duration;
+	state[field] = until;
+	setTimeout(() => { if (state[field] === until) state[field] = 0; }, duration);
+}
+
+function expedition_percent(task) {
+	return Math.min(100, Math.floor(100 * ((task.player_ms ?? 0) + (task.system_ms ?? 0)) / task.target_ms));
+}
+
+function expedition_work_name(skill_id) {
+	if (skill_id === 'melvorD:Combat') return getLangString('MOD_MP_EXPEDITION_SKILL_COMBAT');
+	if (skill_id === 'melvorD:AltMagic') return getLangString('MOD_MP_EXPEDITION_SKILL_ALT_MAGIC');
+	return expedition_view.work_skill_name(game, skill_id);
+}
+
+function expedition_work_icon(skill_id) {
+	return expedition_view.work_skill_icon(game, skill_id);
+}
+
+function expedition_can_track(task, activities = state.expedition_active_activities) {
+	return expedition_tasks.can_track_task(task, activities);
+}
+
+function expedition_remaining(task) {
+	const remaining = expedition_tasks.task_remaining(task);
+	if (remaining === 'Complete') return getLangString('MOD_MP_EXPEDITION_COMPLETE');
+	return expedition_text('MOD_MP_EXPEDITION_TIME_REMAINING', remaining.slice(0, -' remaining'.length));
+}
+
+function expedition_progress_width(milliseconds, task) {
+	return task.target_ms > 0 ? Math.min(100, 100 * Math.max(0, milliseconds || 0) / task.target_ms) + '%' : '0%';
+}
+
+function expedition_other_player_ms(task) {
+	return Math.max(0, (task.player_ms ?? 0) - (task.personal_ms ?? 0));
+}
+
+function expedition_contribution_time(milliseconds) {
+	return expedition_tasks.task_contribution_time(milliseconds);
+}
+
+function expedition_progress_description(task) {
+	const contributions = [
+		['MOD_MP_EXPEDITION_YOUR_WORK_TIME', task.personal_ms],
+		['MOD_MP_EXPEDITION_OTHER_WORK_TIME', expedition_other_player_ms(task)],
+		['MOD_MP_EXPEDITION_ASSISTANCE_TIME', task.system_ms]
+	].map(([key, milliseconds]) => [key, expedition_contribution_time(milliseconds)])
+		.filter(([, time]) => time !== null)
+		.map(([key, time]) => expedition_text(key, time));
+	return `${expedition_remaining(task)}. ${expedition_text('MOD_MP_EXPEDITION_PERCENT_COMPLETE', expedition_percent(task))}${contributions.length ? `. ${contributions.join('; ')}` : ''}.`;
+}
+
+function toggle_expedition_phase(phase) {
+	if (!['arrival', 'exploration', 'departure'].includes(phase)) return;
+	state.expedition_phase_open = {
+		...state.expedition_phase_open,
+		[phase]: !state.expedition_phase_open[phase]
+	};
+}
+
+async function refresh_expedition_state(reconnect = false) {
+	if (!state.is_connected || state.expedition_loading) return;
+	state.expedition_loading = true;
+	try {
+		if (state.expedition_catalog === null) {
+			const catalog = await api_get('/api/expedition/supply/catalog');
+			if (catalog?.version === 1) state.expedition_catalog = catalog.items;
+		}
+		const result = await api_get('/api/expedition/state');
+		if (result?.contract_version === 1) {
+			last_expedition_state_refresh_at = Date.now();
+			expedition_view.sync_phase_state(state, result.expedition?.chamber);
+			state.expedition_state = result;
+		} else if (result?.error_lang) {
+			state.expedition_state = null;
+			expedition_notify(getLangString(result.error_lang), 'danger');
+			state.expedition_personal = await api_get('/api/expedition/personal');
+		}
+		const pending = get_instance_storage_item(EXPEDITION_PENDING_KEY);
+		state.expedition_pending_report = pending && typeof pending === 'object' ? pending : null;
+		if (state.expedition_pending_report) await retry_expedition_report(true);
+		else if (expedition_view.tracked_task_ended(result))
+			await submit_expedition_work('stop', null, true);
+		else if (reconnect) {
+			const tracking = result?.tracking ?? state.expedition_personal?.tracking;
+			const history = state.expedition_personal?.history?.find(entry => entry.expedition_id === tracking?.expedition_id);
+			if (tracking && !tracking.pending_boundary_at && history?.status !== 'inactive' && result?.expedition?.status !== 'inactive')
+				await submit_expedition_work('check-in', tracking.task_id, true);
+		}
+	} finally {
+		state.expedition_loading = false;
+	}
+}
+
+function expedition_supply_choices() {
+	const catalog = state.expedition_catalog ?? {};
+	return get_bank_item_ids()
+		.filter(id => catalog[id]?.kind === state.expedition_supply_filter)
+		.map(id => ({ id, qty: expedition_supply_owned(id), value: catalog[id].value_per_item,
+			name: game.items.getObjectByID(id)?.name ?? id }))
+		.filter(item => item.qty > 0)
+		.sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
+}
+
+function expedition_supply_owned(item_id) {
+	const item = game.items.getObjectByID(item_id);
+	return item ? game.bank.getQty(item) : 0;
+}
+
+function show_expedition_supply_modal() {
+	state.expedition_supply_filter = 'food';
+	state.expedition_supply_item_id = '';
+	state.expedition_supply_qty = 1;
+	queue_modal('MOD_MP_EXPEDITION_UI_CHOOSE_SUPPLIES', 'expedition-supply-modal', 'assets/multiplayer.svg', {
+		showConfirmButton: false,
+		customClass: { popup: 'mp-charity-wish-modal-popup' }
+	});
+}
+
+function select_expedition_supply(item) {
+	state.expedition_supply_item_id = item.id;
+	state.expedition_supply_qty = 1;
+}
+
+function update_expedition_supply_qty(event) {
+	const input = event.target;
+	if (input.value === '') {
+		state.expedition_supply_qty = '';
+		return;
+	}
+	const max = expedition_supply_owned(state.expedition_supply_item_id);
+	const value = Number(input.value);
+	if (!Number.isFinite(value) || max < 1) return;
+	const qty = Math.max(1, Math.min(max, Math.trunc(value)));
+	state.expedition_supply_qty = qty;
+	input.value = String(qty);
+}
+
+function expedition_supply_estimate() {
+	const item = state.expedition_catalog?.[state.expedition_supply_item_id];
+	const qty = Number(state.expedition_supply_qty);
+	if (!item || !Number.isSafeInteger(qty) || qty < 1) return '0.000';
+	const each = item.value_currency_id === 'melvorD:GP' && item.value_per_item > 0
+		? item.value_per_item : 1;
+	const prior = state.expedition_state?.supply_score?.value_gp_equiv ?? 0;
+	return (10 * Math.log10(1 + (prior + each * qty) / 1000) -
+		10 * Math.log10(1 + prior / 1000)).toFixed(3);
+}
+
+async function donate_expedition_supply() {
+	if (state.expedition_action_pending || state.is_social_only) return;
+	const expedition = state.expedition_state?.expedition;
+	const item_id = state.expedition_supply_item_id;
+	const qty = Number(state.expedition_supply_qty);
+	if (expedition?.status !== 'registration' || !expedition.registered ||
+		!state.expedition_catalog?.[item_id] || !Number.isSafeInteger(qty) || qty < 1 ||
+		qty > expedition_supply_owned(item_id)) return;
+	state.expedition_action_pending = true;
+	try {
+		const result = await run_pending_economy_action('expedition_supply_donate',
+			'/api/expedition/supply/donate', {
+				expedition_id: expedition.id, item_id, qty, source: 'bank',
+				...get_charity_item_valuation(item_id)
+			});
+		if (result?.success) {
+			state.expedition_supply_qty = 1;
+			await close_modal_and_wait('expedition-supply-modal');
+			await refresh_expedition_state();
+			expedition_notify(expedition_text('MOD_MP_EXPEDITION_EP_ADDED', expedition_points(result.delta_micros)));
+		} else expedition_notify(result?.error === 'catalog_mismatch'
+			? getLangString('MOD_MP_EXPEDITION_CATALOG_MISMATCH')
+			: result?.error ?? getLangString('MOD_MP_EXPEDITION_SUPPLY_DONATION_FAILED'), 'danger');
+	} finally {
+		state.expedition_action_pending = false;
+	}
+}
+
+async function register_expedition() {
+	if (state.expedition_action_pending) return;
+	state.expedition_action_pending = true;
+	try {
+		const result = await api_post('/api/expedition/register', { operation_id: crypto.randomUUID() });
+		if (result?.success) await refresh_expedition_state();
+		else expedition_notify(result?.error_lang ? getLangString(result.error_lang) : getLangString('MOD_MP_EXPEDITION_REGISTRATION_FAILED'), 'danger');
+	} finally {
+		state.expedition_action_pending = false;
+	}
+}
+
+async function retry_expedition_report(automatic = false) {
+	const pending = state.expedition_pending_report;
+	if (!pending || state.expedition_action_pending) return;
+	state.expedition_action_pending = true;
+	try {
+		let result = await api_post(pending.endpoint, pending.payload);
+		if (automatic && result === null) result = await api_post(pending.endpoint, pending.payload);
+		if (result?.pending) {
+			remove_instance_storage_item(EXPEDITION_PENDING_KEY);
+			state.expedition_pending_report = null;
+			const personal = await api_get('/api/expedition/personal');
+			if (personal?.contract_version === 1) state.expedition_personal = personal;
+			if (!personal?.tracking || personal.tracking.session_id !== result.tracking?.session_id) {
+				expedition_notify(getLangString('MOD_MP_EXPEDITION_WORK_UNVERIFIED'), 'danger');
+			} else expedition_notify(getLangString('MOD_MP_EXPEDITION_WORK_ZERO_AFTER_BOUNDARY'), 'danger');
+		} else if (result?.success) {
+			remove_instance_storage_item(EXPEDITION_PENDING_KEY);
+			state.expedition_pending_report = null;
+			const credited = result.settlement?.credited_ms ?? 0;
+			let notice = result.settlement
+				? expedition_text('MOD_MP_EXPEDITION_HOURS_CREDITED', expedition_hours(credited), expedition_status('REASON', result.settlement.reason), result.tracking ? getLangString('MOD_MP_EXPEDITION_TRACKING_CONTINUES') : getLangString('MOD_MP_EXPEDITION_TRACKING_ENDED'))
+				: result.tracking ? getLangString('MOD_MP_EXPEDITION_TRACKING_ACCEPTED') : getLangString('MOD_MP_EXPEDITION_TASK_TRACKING_ENDED');
+			if (result.warning === 'task_unavailable')
+				notice += getLangString('MOD_MP_EXPEDITION_TASK_UNAVAILABLE');
+			if (result.warning === 'fresh_snapshot_required')
+				notice += getLangString('MOD_MP_EXPEDITION_FRESH_SNAPSHOT');
+			expedition_notify(notice);
+			const refreshed = await api_get('/api/expedition/state');
+			if (refreshed?.contract_version === 1) state.expedition_state = refreshed;
+			else state.expedition_personal = await api_get('/api/expedition/personal');
+		} else {
+			const terminal = new Set(['task_unavailable', 'activity_required', 'expedition_unavailable', 'work_source_unavailable',
+				'invalid_capture_time', 'boundary_capture_mismatch', 'tracking_identity_mismatch', 'no_active_tracking', 'operation_conflict',
+				'claim_pending']);
+			if (terminal.has(result?.error)) {
+				remove_instance_storage_item(EXPEDITION_PENDING_KEY);
+				state.expedition_pending_report = null;
+			}
+			expedition_notify(result?.error === 'activity_required'
+				? getLangString('MOD_MP_EXPEDITION_ACTIVITY_REQUIRED')
+				: result?.error ?? getLangString('MOD_MP_EXPEDITION_WORK_REPORT_FAILED'), 'danger');
+		}
+	} finally {
+		state.expedition_action_pending = false;
+	}
+}
+
+async function submit_expedition_work(kind, task_id = null, automatic = false) {
+	if (state.expedition_action_pending || state.expedition_pending_report) return;
+	if (kind === 'check-in' && !automatic && Date.now() < state.expedition_check_in_cooldown_until) return;
+	const expedition = state.expedition_state?.expedition;
+	const tracking = state.expedition_state?.tracking ?? state.expedition_personal?.tracking;
+	if (tracking?.pending_boundary_at) return;
+	const activities = capture_status_activities();
+	if (kind === 'start') {
+		state.expedition_active_activities = activities;
+		const task = expedition?.chamber?.tasks?.find(entry => entry.task_id === task_id);
+		if (!expedition_can_track(task, activities)) {
+			expedition_notify(getLangString('MOD_MP_EXPEDITION_ACTIVITY_REQUIRED'), 'danger');
+			return;
+		}
+	}
+	const expedition_id = kind === 'start' ? expedition?.id : tracking?.expedition_id;
+	const visit_id = kind === 'start' ? expedition?.chamber?.visit_id : tracking?.visit_id;
+	if (!expedition_id || !visit_id) return;
+	const payload = {
+		operation_id: crypto.randomUUID(), expedition_id, visit_id,
+		task_id, captured_at: Date.now(),
+		activities, statistics: capture_expedition_work_statistics()
+	};
+	const pending = { endpoint: `/api/expedition/task/${kind}`, payload };
+	set_instance_storage_item(EXPEDITION_PENDING_KEY, pending);
+	state.expedition_pending_report = pending;
+	if (kind === 'check-in' && !automatic)
+		start_expedition_action_cooldown('expedition_check_in_cooldown_until', EXPEDITION_CHECK_IN_COOLDOWN);
+	await retry_expedition_report(automatic);
+}
+
+async function vote_expedition_exit(exit_id) {
+	if (state.expedition_action_pending || Date.now() < state.expedition_vote_cooldown_until) return;
+	const expedition = state.expedition_state?.expedition;
+	if (!expedition?.chamber) return;
+	state.expedition_action_pending = true;
+	start_expedition_action_cooldown('expedition_vote_cooldown_until', EXPEDITION_VOTE_COOLDOWN);
+	try {
+		const result = await api_post('/api/expedition/vote', {
+			operation_id: crypto.randomUUID(), expedition_id: expedition.id,
+			visit_id: expedition.chamber.visit_id, exit_id
+		});
+		if (result?.success) {
+			expedition_notify(getLangString('MOD_MP_EXPEDITION_VOTE_RECORDED'));
+			const refreshed = await api_get('/api/expedition/state');
+			if (refreshed?.contract_version === 1) state.expedition_state = refreshed;
+		} else expedition_notify(result?.error ?? getLangString('MOD_MP_EXPEDITION_VOTE_FAILED'), 'danger');
+	} finally {
+		state.expedition_action_pending = false;
+	}
+}
+
+async function debug_advance_expedition(action, task_id = null) {
+	if (!state.expedition_state?.debug_enabled || state.expedition_action_pending) return;
+	const expedition = state.expedition_state.expedition;
+	if (!expedition) return;
+	state.expedition_action_pending = true;
+	try {
+		const result = await api_post('/api/expedition/debug/advance', {
+			expedition_id: expedition.id, visit_id: expedition.chamber?.visit_id ?? null,
+			action, task_id
+		});
+		if (result?.success) {
+			expedition_notify(getLangString('MOD_MP_EXPEDITION_TEST_ADVANCE_APPLIED'));
+			const refreshed = await api_get('/api/expedition/state');
+			if (refreshed?.contract_version === 1) state.expedition_state = refreshed;
+		} else expedition_notify(result?.error ?? getLangString('MOD_MP_EXPEDITION_TEST_ADVANCE_FAILED'), 'danger');
+	} finally {
+		state.expedition_action_pending = false;
+	}
+}
+
+function show_expedition_debug_confirmation(action) {
+	if (!state.expedition_state?.debug_enabled || !['cancel', 'wipe'].includes(action)) return;
+	state.expedition_debug_action = action;
+	queue_modal(action === 'cancel' ? 'MOD_MP_EXPEDITION_UI_CANCEL_EXPEDITION' : 'MOD_MP_EXPEDITION_UI_WIPE_DATA',
+		'expedition-debug-confirm-modal', 'assets/multiplayer.svg', { showConfirmButton: false });
+}
+
+async function confirm_expedition_debug_action() {
+	if (!state.expedition_state?.debug_enabled || state.expedition_action_pending) return;
+	const action = state.expedition_debug_action;
+	if (!['cancel', 'wipe'].includes(action)) return;
+	state.expedition_action_pending = true;
+	try {
+		const result = await api_post(`/api/expedition/debug/${action}`, action === 'cancel'
+			? { expedition_id: state.expedition_state.expedition?.id }
+			: { current_expedition_id: ['registration', 'active'].includes(state.expedition_state.expedition?.status)
+				? state.expedition_state.expedition.id : null, confirm: 'WIPE EXPEDITION DATA' });
+		if (!result?.success) {
+			expedition_notify(getLangString('MOD_MP_EXPEDITION_TEST_ACTION_FAILED'), 'danger');
+			return;
+		}
+		await close_modal_and_wait('expedition-debug-confirm-modal');
+		if (action === 'wipe') {
+			remove_instance_storage_item(EXPEDITION_PENDING_KEY);
+			state.expedition_pending_report = null;
+			state.expedition_personal = null;
+		}
+		await refresh_expedition_state();
+		expedition_notify(action === 'wipe' ? getLangString('MOD_MP_EXPEDITION_DATA_WIPED') : getLangString('MOD_MP_EXPEDITION_CANCELLED'));
+	} finally {
+		state.expedition_action_pending = false;
+	}
+}
+
+async function begin_expedition_woodcutting_tracking() {
+	if (state.expedition_tracking_loading)
+		return;
+	const activities = capture_status_activities();
+	state.expedition_debug_text = format_expedition_activities(activities);
+	const woodcutting = activities.some(activity =>
+		activity.type === 'skill' && activity.skill_id === 'melvorD:Woodcutting');
+	if (!woodcutting) {
+		state.expedition_debug_text += '\n\n' + getLangString('MOD_MP_EXPEDITION_DEBUG_WOODCUTTING_MISSING');
+		return;
+	}
+	state.expedition_tracking_loading = true;
+	try {
+		const statistics = capture_expedition_work_statistics();
+		const result = await api_post('/api/expedition/work-tracking/start', { activities, statistics });
+		state.expedition_tracking_active = result?.active === true;
+		state.expedition_debug_text += result?.success === true
+			? '\n\n' + getLangString('MOD_MP_EXPEDITION_DEBUG_TRACKING_STARTED')
+			: '\n\n' + getLangString('MOD_MP_EXPEDITION_DEBUG_TRACKING_REJECTED');
+	} finally {
+		state.expedition_tracking_loading = false;
+	}
+}
+
+async function check_in_expedition_tracking() {
+	if (state.expedition_tracking_loading)
+		return;
+	state.expedition_tracking_loading = true;
+	try {
+		const activities = capture_status_activities();
+		const statistics = capture_expedition_work_statistics();
+		const result = await api_post('/api/expedition/work-tracking/check-in', { activities, statistics });
+		state.expedition_tracking_active = false;
+		addModalToQueue({
+			title: getLangString('MOD_MP_EXPEDITION_CHECK_IN_TITLE'),
+			text: result?.success === true ? format_expedition_debug_report(result, activities, true)
+				: getLangString('MOD_MP_EXPEDITION_DEBUG_NO_TRACKING'),
+			icon: result?.success === true ? 'info' : 'warning'
+		});
+	} finally {
+		state.expedition_tracking_loading = false;
+	}
+}
+
 function capture_status_snapshot() {
 	const activities = capture_status_activities();
 	return {
@@ -1560,8 +2110,12 @@ async function flush_status_sync() {
 		payload.account_creation_date = snapshot.account_creation_date;
 		payload.total_skill_level = snapshot.total_skill_level;
 	}
-	if (serialized_activities !== last_synced_status_activities)
+	if (serialized_activities !== last_synced_status_activities ||
+		(state.expedition_state?.tracking && !state.expedition_pending_report &&
+			Date.now() - last_expedition_work_observed_at >= 15 * 60_000))
 		payload.activities = snapshot.activities;
+	if (payload.activities !== undefined)
+		payload.work_statistics = capture_expedition_work_statistics();
 	if (snapshot.gp !== null && snapshot.gp !== last_synced_gp)
 		payload.gp = snapshot.gp;
 	if (payload.skills === undefined && payload.account_creation_date === undefined &&
@@ -1599,8 +2153,29 @@ async function flush_status_sync() {
 			last_synced_status_statistics = serialized_statistics;
 		if (payload.activities !== undefined)
 			last_synced_status_activities = serialized_activities;
+		if (payload.work_statistics !== undefined && state.expedition_state?.tracking)
+			last_expedition_work_observed_at = Date.now();
 		if (payload.gp !== undefined)
 			last_synced_gp = payload.gp;
+		if (res.work_tracking_stopped) {
+			state.expedition_tracking_active = false;
+			const stopped = res.work_tracking_stopped;
+			addModalToQueue({
+				title: getLangString('MOD_MP_EXPEDITION_STOPPED_TITLE'),
+				text: format_expedition_debug_report(stopped, stopped.activities),
+				icon: 'info'
+			});
+		}
+		if (res.expedition_work_stopped?.pending) {
+			expedition_notify(getLangString('MOD_MP_EXPEDITION_ACTIVITY_CHANGED_PENDING'));
+			void refresh_expedition_state();
+		} else if (res.expedition_work_stopped?.success) {
+			expedition_notify(expedition_text('MOD_MP_EXPEDITION_ACTIVITY_CHANGED_CREDIT',
+				expedition_hours(res.expedition_work_stopped.credited_ms),
+				expedition_status('REASON', res.expedition_work_stopped.reason)));
+			if (state.expedition_state) state.expedition_state.tracking = null;
+			void refresh_expedition_state();
+		}
 	}
 	else {
 		status_sync_failures = Math.min(status_sync_failures + 1, 5);
@@ -1621,6 +2196,8 @@ function observe_status_changes() {
 	const snapshot = capture_status_snapshot();
 	const serialized_activities = serialize_status_activities(snapshot.activities);
 	const serialized_statistics = serialize_status_statistics(snapshot);
+	if (serialized_activities !== last_observed_status_activities)
+		state.expedition_active_activities = snapshot.activities;
 	if (serialized_activities === last_observed_status_activities &&
 		serialized_statistics === last_observed_status_statistics)
 		return;
@@ -1953,6 +2530,33 @@ function is_charity_wish_endpoint(endpoint) {
 		endpoint === '/api/charity/wish/pick';
 }
 
+async function run_pending_crucible_wish_action(kind, endpoint, payload = {}) {
+	const storage_key = `pending_crucible_wish:${kind}`;
+	let pending = get_instance_storage_item(storage_key);
+	if (pending === undefined) {
+		pending = { endpoint, payload: { ...payload, command_id: crypto.randomUUID() } };
+		set_instance_storage_item(storage_key, pending);
+		if (JSON.stringify(get_instance_storage_item(storage_key)) !== JSON.stringify(pending)) return null;
+	}
+	if (pending?.endpoint !== endpoint || typeof pending?.payload?.command_id !== 'string') return null;
+	const result = await api_post_without_economy_journal(pending.endpoint, pending.payload);
+	if (result?.success === true || result?.success === false || typeof result?.error_lang === 'string')
+		remove_instance_storage_item(storage_key);
+	return result;
+}
+
+async function recover_pending_crucible_wish_actions() {
+	for (const kind of ['make', 'cancel', 'claim']) {
+		const key = `pending_crucible_wish:${kind}`;
+		const pending = get_instance_storage_item(key);
+		if (pending?.endpoint !== `/api/crucible/wish/${kind}` || typeof pending?.payload?.command_id !== 'string')
+			continue;
+		const result = await api_post_without_economy_journal(pending.endpoint, pending.payload);
+		if (result?.success === true || result?.success === false || typeof result?.error_lang === 'string')
+			remove_instance_storage_item(key);
+	}
+}
+
 async function run_pending_charity_wish_action(kind, endpoint, payload = {}) {
 	const storage_key = `pending_charity_wish:${kind}`;
 	let pending = get_instance_storage_item(storage_key);
@@ -1989,7 +2593,7 @@ function load_social_mode() {
 function leave_social_only_disabled_page() {
 	if (!interface_ready || !state.is_social_only)
 		return;
-	const disabled_pages = ['mp-charity-page', 'mp-campaign-page', 'mp-market-page'];
+	const disabled_pages = ['mp-crucible-page', 'mp-market-page'];
 	if (disabled_pages.some(id => {
 		const page = document.getElementById(id);
 		return page !== null && !page.classList.contains('d-none');
@@ -2023,6 +2627,7 @@ async function request_social_mode(next) {
 		state.market_completed = [];
 		state.market_results = [];
 		state.charity_tree_inventory = [];
+		state.crucible = null;
 		state.charity_shuffled_at = null;
 		state.charity_shuffle_count = 0;
 		state.charity_currency_locks = [];
@@ -2261,6 +2866,7 @@ async function update_market_search() {
 	const generation = ++market_search_generation;
 	const page = state.market_current_page;
 	const sort = state.market_sort;
+	const available_only = state.market_available_only;
 	const direction = state.market_direction;
 	const item_id = state.market_filter_item;
 	const item_namespaces = get_local_item_namespaces();
@@ -2290,6 +2896,7 @@ async function update_market_search() {
 		const res = await api_post('/api/market/search', {
 			page,
 			sort,
+			available_only,
 			direction,
 			...(item_id === null ? {} : { item_id }),
 			item_namespaces,
@@ -2338,64 +2945,8 @@ function load_market_filter_items() {
 }
 // #endregion
 
-// #region CAMPAIGN FUNCTIONS
-async function update_campaign_info(force_reload = false) {
-	state.campaign_update_time = Date.now();
-
-	if (!state.is_guild_member || state.is_social_only)
-		return;
-
-	if (state.campaign_loading || (!force_reload && state.campaign_has_data))
-		return;
-
-	state.campaign_loading = true;
-	try {
-		const res = await api_get('/api/campaign/info');
-
-		if (res !== null && !res.error_lang) {
-			state.campaign_has_data = true;
-			state.campaign_history = res.history;
-			state.campaign_rankings = res.rankings;
-			if (Array.isArray(res.owned_pet_ids))
-				state.owned_pet_ids = res.owned_pet_ids;
-
-			if (res.active) {
-				state.campaign_id = res.campaign_id;
-				state.campaign_item_id = res.item_id;
-				state.campaign_item_total = res.item_total;
-				state.campaign_contribution = res.contribution;
-				state.campaign_max_contribution = res.max_contribution;
-			} else {
-				state.campaign_next_timestamp = res.next_campaign;
-			}
-
-		} else {
-			notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
-		}
-	} finally {
-		state.campaign_loading = false;
-	}
-}
-
-async function load_campaign_data(ctx) {
-	state.campaign_data = await ctx.loadData('data/campaigns.json');
-}
-
 function set_nav_ready(aside, ready) {
 	aside.classList.toggle('mp-nav-ready', ready);
-}
-
-function update_campaign_nav() {
-	const aside = document.querySelector('.mp-campaign-nav');
-	if (!aside)
-		return;
-
-	set_nav_ready(aside, true);
-
-	if (state.campaign_active)
-		aside.textContent = Math.floor(state.campaign_pct * 100) + '%';
-	else
-		aside.textContent = getLangString('MOD_MP_SIDEBAR_CAMPAIGN_INACTIVE');
 }
 
 function update_raid_nav() {
@@ -2479,19 +3030,15 @@ function watch_chat_nav() {
 }
 
 function update_charitree_nav() {
-	const nav_item = sidebar.category('Multiplayer').item('multiplayer:Charity_Tree');
-	nav_item.rootEl?.classList.toggle('mp-nav-unavailable', state.multiplayer_unsupported || !state.is_charitree_enabled);
-
-	const aside = document.querySelector('.mp-charity-nav');
+	const nav_item = sidebar.category('Multiplayer').item('multiplayer:Crucible');
+	nav_item.rootEl?.classList.toggle('mp-nav-unavailable', state.multiplayer_unsupported || !state.is_guild_member || state.is_social_only);
+	const aside = document.querySelector('.mp-crucible-nav');
 	if (!aside)
 		return;
-
-	const ready = state.guild_state_loaded;
-	const wish_ready = state.is_charitree_enabled && (state.charity_wishes ?? []).some(wish =>
-		wish.phase === 'ripe' && wish.owned === true);
-	const wish_available = state.is_charitree_enabled && (state.charity_wish_catalog ?? []).length > 0 &&
-		state.charity_active_wish !== true;
-	const pick_available = state.is_charitree_enabled && state.can_take_charity;
+	const ready = state.guild_state_loaded && state.crucible !== null;
+	const wish_ready = (state.crucible?.wishes ?? []).some(wish => wish.phase === 'melded' && wish.owned);
+	const reclaim_available = state.crucible?.is_open &&
+		(state.crucible?.next_reclaim_at ?? 0) <= Date.now();
 	aside.classList.toggle('mp-charitree-wish', wish_ready);
 	set_nav_ready(aside, ready);
 	if (!ready) {
@@ -2499,16 +3046,13 @@ function update_charitree_nav() {
 		return;
 	}
 
-	aside.textContent = wish_ready || wish_available
-		? getLangString('MOD_MP_SIDEBAR_CHARITY_WISH')
-		: pick_available
-			? getLangString('MOD_MP_SIDEBAR_CHARITY_PICK')
-			: '';
+	aside.textContent = wish_ready ? getLangString('MOD_MP_CRUCIBLE_WISH_READY')
+		: reclaim_available ? getLangString('MOD_MP_CRUCIBLE_RECLAIM') : '';
 }
 
 function update_multiplayer_nav() {
 	const multiplayer_category = sidebar.category('Multiplayer');
-	for (const page_id of ['Guild', 'Transfer_Items', 'Charity_Tree', 'Multiplayer_Market', 'Campaign_Effort', 'Guild_Raid'])
+	for (const page_id of ['Guild', 'Transfer_Items', 'Crucible', 'Multiplayer_Market', 'Expedition', 'Guild_Raid'])
 		multiplayer_category.item('multiplayer:' + page_id).rootEl?.classList.toggle('mp-nav-unavailable', state.multiplayer_unsupported);
 	const guild_aside = document.querySelector('.mp-guild-nav');
 	if (guild_aside !== null) {
@@ -2525,10 +3069,11 @@ function update_multiplayer_nav() {
 		updates_aside.hidden = !state.updates_new;
 	}
 
-	for (const page_id of ['Multiplayer_Market', 'Campaign_Effort', 'Guild_Raid']) {
+	for (const page_id of ['Multiplayer_Market', 'Expedition', 'Guild_Raid']) {
 		const nav_item = multiplayer_category.item('multiplayer:' + page_id);
 		nav_item.rootEl?.classList.toggle('mp-nav-unavailable', state.multiplayer_unsupported || !state.is_guild_member ||
-			(state.is_social_only && page_id !== 'Guild_Raid'));
+			(state.is_social_only && page_id === 'Multiplayer_Market') ||
+			(page_id === 'Expedition' && !state.account_tags?.includes('expedition-tester')));
 	}
 
 	const transfer_nav_item = multiplayer_category.item('multiplayer:Transfer_Items');
@@ -2612,11 +3157,12 @@ function set_charity_page_visible(is_visible) {
 	charity_clock_timer = null;
 	if (!charity_page_visible)
 		return;
-	update_charity_clock();
+	void state.refresh_crucible(true);
 	charity_clock_timer = setInterval(() => {
-		update_charity_clock();
+		state.crucible_clock_time = Date.now();
+		update_charitree_nav();
 		if (state.is_connected && polling.is_foreground(document))
-			void request_charity_tree_contents(true, false);
+			void state.refresh_crucible(true);
 	}, CHARITY_CLOCK_INTERVAL);
 }
 // #endregion
@@ -3094,7 +3640,8 @@ function reconcile_economy_receipts(receipts) {
 				add_bank_item: (item_id, qty) => add_bank_item(
 					item_id,
 					qty,
-					receipt.kind === 'charity-take' && !state.is_charity_item_discovered(item_id)
+					(receipt.kind === 'charity-take' || receipt.kind === 'crucible-reclaim') &&
+						!state.is_charity_item_discovered(item_id)
 				),
 				remove_bank_item: (item_id, qty) => {
 					const currency = transfer_currency_support?.get_transfer_currency(game, item_id)?.currency;
@@ -3412,10 +3959,14 @@ async function api_post(endpoint, payload, major = selected_api_major) {
 const EVENT_AFFECTING_MUTATIONS = new Set([
 	'/api/banishment/returns/acknowledge',
 	'/api/banishment/returns/claim',
-	'/api/campaign/claim',
-	'/api/campaign/contribute',
 	'/api/charity/donate',
 	'/api/charity/take',
+	'/api/crucible/cast',
+	'/api/crucible/reclaim',
+	'/api/crucible/clear',
+	'/api/crucible/wish/make',
+	'/api/crucible/wish/cancel',
+	'/api/crucible/wish/claim',
 	'/api/chat/block',
 	'/api/chat/conversations/delete',
 	'/api/chat/conversations/start',
@@ -3531,6 +4082,14 @@ function set_session_token(token) {
 	session_token = token;
 	session_generation++;
 	state.is_connected = true;
+	state.expedition_state = null;
+	state.expedition_personal = null;
+	state.expedition_pending_report = null;
+	state.expedition_catalog = null;
+	state.expedition_vote_cooldown_until = 0;
+	state.expedition_check_in_cooldown_until = 0;
+	last_expedition_state_refresh_at = 0;
+	last_expedition_work_observed_at = 0;
 	last_synced_equipment = null;
 	last_synced_status_skills = null;
 	last_synced_status_activities = null;
@@ -3548,6 +4107,7 @@ function set_session_token(token) {
 	stop_gp_sampling();
 	invalidate_guild_state();
 	log('client session authenticated');
+	void refresh_expedition_state(true);
 }
 
 async function refresh_chat_state() {
@@ -3556,6 +4116,7 @@ async function refresh_chat_state() {
 		return;
 	state.messaging_enabled = res.messaging_enabled !== false;
 	state.global_chat_enabled = res.global_chat_enabled !== false;
+	if (Array.isArray(res.account_tags)) state.account_tags = res.account_tags;
 	state.guild_chat_enabled = res.guild_chat_enabled !== false;
 	state.chat_client_id = res.client_id;
 	state.chat_budget_enabled = res.budget_enabled !== false;
@@ -3572,6 +4133,9 @@ async function refresh_chat_conversations() {
 	const polls = await api_get('/api/polls?capabilities=' + POLLS_CAPABILITY);
 	if (Array.isArray(polls?.polls)) {
 		state.polls = polls.polls;
+		if (polls.discussion_unread_counts)
+			for (const poll of state.polls)
+				poll.discussion_unread_count = polls.discussion_unread_counts[poll.poll_id] ?? 0;
 		state.poll_revision = polls.revision;
 		state.poll_can_create = polls.can_create === true;
 		conversations.push({ conversation_kind: 'polls', conversation_id: 1,
@@ -3596,7 +4160,8 @@ async function refresh_chat_conversations() {
 			conversation.support_team_id === selected.support_team_id
 		);
 		if (current) {
-			const moderation_changed = (current.conversation_kind === 'guild' || current.conversation_kind === 'global') &&
+			const moderation_changed = (current.conversation_kind === 'guild' || current.conversation_kind === 'global' ||
+				current.conversation_kind === 'testers') &&
 				Number.isSafeInteger(selected.moderation_count) &&
 				Number.isSafeInteger(current.moderation_count) &&
 				current.moderation_count !== selected.moderation_count;
@@ -3605,7 +4170,8 @@ async function refresh_chat_conversations() {
 				state.close_chat_conversation();
 				await state.open_chat_conversation(current);
 			}
-		} else if (selected.conversation_kind === 'guild' || selected.conversation_kind === 'global') {
+		} else if (selected.conversation_kind === 'guild' || selected.conversation_kind === 'global' ||
+			selected.conversation_kind === 'testers') {
 			state.close_chat_conversation();
 		}
 	}
@@ -3657,6 +4223,9 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 			const index = state.polls.findIndex(entry => entry.poll_id === poll.poll_id);
 			if (index < 0) state.polls.push(poll); else state.polls[index] = poll;
 		}
+		if (res.discussion_unread_counts)
+			for (const poll of state.polls)
+				poll.discussion_unread_count = res.discussion_unread_counts[poll.poll_id] ?? 0;
 		state.poll_revision = res.revision;
 		state.poll_can_create = res.can_create === true;
 		return true;
@@ -3684,6 +4253,10 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 			state.selected_chat_conversation?.support_team_id !== conversation.support_team_id)
 			return false;
 		if (Array.isArray(res?.messages)) {
+			if (kind === 'poll-discussion' && res.messages.length > 0) {
+				const poll = state.polls.find(poll => poll.poll_id === conversation_id);
+				if (poll) poll.discussion_unread_count = 0;
+			}
 			const known = new Set(state.chat_messages.map(message => message.message_id));
 			const additions = res.messages.filter(message => !known.has(message.message_id));
 			for (const incoming of res.messages) {
@@ -3880,15 +4453,13 @@ async function refresh_guild_state_request() {
 			state.market_results = [];
 			state.market_listings = [];
 			state.charity_tree_inventory = [];
+			state.crucible = null;
 			state.charity_shuffled_at = null;
 			state.charity_shuffle_count = 0;
 			state.charity_currency_locks = [];
 			state.charity_shuffle_offer = null;
 			state.charity_shuffle_max_offers = [];
 			state.charity_shuffle_supported = false;
-			state.campaign_has_data = false;
-			state.campaign_history = [];
-			state.campaign_rankings = {};
 		}
 
 		return res;
@@ -4059,6 +4630,14 @@ async function refresh_guild_page() {
 		await refresh_guild_list();
 }
 
+function set_guild_page_visible(is_visible) {
+	clearInterval(guild_raid_badge_timer);
+	guild_raid_badge_timer = null;
+	if (!is_visible) return;
+	void refresh_guild_page();
+	guild_raid_badge_timer = setInterval(() => void refresh_guild_state(true), 120_000);
+}
+
 async function refresh_raid_state() {
 	state.raid_update_time = Date.now();
 	state.raid_loading = true;
@@ -4074,6 +4653,18 @@ async function refresh_raid_state() {
 	} finally {
 		state.raid_loading = false;
 	}
+}
+
+function set_raid_page_visible(is_visible) {
+	clearInterval(raid_clock_timer);
+	raid_clock_timer = null;
+	if (!is_visible) return;
+	state.raid_update_time = Date.now();
+	void Promise.all([get_client_events(), refresh_raid_state()]);
+	raid_clock_timer = setInterval(() => {
+		state.raid_update_time = Date.now();
+		void refresh_raid_state();
+	}, 60_000);
 }
 
 async function reconcile_raid_cache() {
@@ -4163,31 +4754,6 @@ async function get_client_events(reconcile_gifts = true) {
 	}
 }
 
-function reconcile_campaign_event(campaign) {
-	if (typeof campaign !== 'object' || campaign === null || typeof campaign.active !== 'boolean')
-		return;
-	if (state.campaign_active && !campaign.active) {
-		// campaign no longer active, ditch known data client-side
-		state.campaign_id = '';
-		state.campaign_item_id = '';
-		state.campaign_item_total = 0;
-		state.campaign_contribution = 0;
-		state.campaign_max_contribution = 0;
-	}
-
-	const campaign_state_changed = state.campaign_active !== campaign.active;
-
-	state.campaign_pct = campaign.pct;
-	state.campaign_active = campaign.active;
-
-	if (campaign_state_changed) {
-		state.campaign_has_data = false;
-		update_campaign_info();
-	}
-
-	update_campaign_nav();
-}
-
 async function get_client_events_request(reconcile_gifts, request_generation) {
 	const endpoint = client_events_hydrated
 		? '/api/events?revision=' + client_event_revision + '&capabilities=' + CHAT_CAPABILITIES
@@ -4196,6 +4762,12 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 	if (res !== null && request_generation === session_generation) {
 		if (enter_unsupported_multiplayer(res.minimum_supported_mod_version))
 			return res;
+		if (state.expedition_state?.tracking && !state.expedition_pending_report &&
+			Date.now() - last_expedition_work_observed_at >= 15 * 60_000)
+			schedule_status_sync(0);
+		if (state.expedition_state?.tracking && !state.expedition_pending_report && !state.expedition_action_pending &&
+			Date.now() - last_expedition_state_refresh_at >= EXPEDITION_STATE_REFRESH_INTERVAL)
+			void refresh_expedition_state();
 		check_released_mod_version(res.released_mod_version);
 		if (res.unchanged === true) {
 			void economy_command_journal?.recover();
@@ -4203,9 +4775,9 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 		}
 		economy_commands_ready = false;
 		client_events_have_pending = polling.has_pending_events(res);
-		reconcile_campaign_event(res.campaign);
 		invalidate_guild_state();
 		state.events.friend_requests = res.friend_requests;
+		if (Array.isArray(res.account_tags)) state.account_tags = res.account_tags;
 		state.events.guild_applicants = res.guild_applicants ?? [];
 		state.market_completed = res.market_completed;
 		state.market_haggle_pending = res.haggle_pending ?? 0;
@@ -4370,6 +4942,7 @@ export async function setup(ctx) {
 	gift_contents = await ctx.loadModule('gift-contents.mjs');
 	item_visibility = await ctx.loadModule('item-visibility.mjs');
 	charitree_rules = await ctx.loadModule('charitree-rules.mjs');
+	crucible_rules = await ctx.loadModule('crucible-rules.mjs');
 	client_runtime = await ctx.loadModule('client-runtime.mjs');
 	connection_diagnostics = await ctx.loadModule('connection-diagnostics.mjs');
 	let installation_local_storage;
@@ -4381,6 +4954,10 @@ export async function setup(ctx) {
 	game_mode_sharing = await ctx.loadModule('game-mode-sharing.mjs');
 	localization = await ctx.loadModule('localization.mjs');
 	status_activities = await ctx.loadModule('status-activities.mjs');
+	expedition_tasks = await ctx.loadModule('expedition-tasks.mjs');
+	expedition_view = await ctx.loadModule('expedition-view.mjs');
+	const expedition_snow = await ctx.loadModule('expedition-snow.mjs');
+	state.expedition_snow = { ...expedition_snow.DEFAULT_SNOW_SETTINGS };
 	status_statistics = await ctx.loadModule('status-statistics.mjs');
 	icon_catalog_discovery = await ctx.loadModule('icon-catalog-discovery.mjs');
 	icon_catalog_collection = await ctx.loadModule('icon-catalog-collection.mjs');
@@ -4401,7 +4978,8 @@ export async function setup(ctx) {
 	const { install_common_actions } = await ctx.loadModule('client-actions-common.mjs');
 	const { install_chat_actions } = await ctx.loadModule('client-actions-chat.mjs');
 	const chat_items = await ctx.loadModule('chat-items.mjs');
-	const { install_market_campaign_charity_actions } = await ctx.loadModule('client-actions-market-campaign-charity.mjs');
+	const { install_market_charity_actions } = await ctx.loadModule('client-actions-market-charity.mjs');
+	const { install_crucible_actions } = await ctx.loadModule('client-crucible.mjs');
 	const { install_trading_actions } = await ctx.loadModule('client-actions-trading.mjs');
 	const { install_transfer_actions } = await ctx.loadModule('client-actions-transfer.mjs');
 	const { install_social_actions } = await ctx.loadModule('client-actions-social.mjs');
@@ -4411,6 +4989,60 @@ export async function setup(ctx) {
 	Object.assign(
 		state,
 		{
+			reset_expedition_snow: () => { state.expedition_snow = { ...expedition_snow.DEFAULT_SNOW_SETTINGS }; },
+			refresh_expedition_state,
+			register_expedition,
+			retry_expedition_report,
+			submit_expedition_work,
+			vote_expedition_exit,
+			debug_advance_expedition,
+			show_expedition_debug_confirmation,
+			confirm_expedition_debug_action,
+			expedition_supply_choices,
+			expedition_supply_owned,
+			expedition_supply_estimate,
+			expedition_points,
+			expedition_time_remaining,
+			expedition_time_since,
+			show_expedition_supply_modal,
+			select_expedition_supply,
+			update_expedition_supply_qty,
+			donate_expedition_supply,
+			expedition_hours,
+			expedition_contribution_time,
+			expedition_percent,
+			expedition_work_name,
+			expedition_work_icon,
+			expedition_can_track,
+			expedition_remaining,
+			expedition_progress_width,
+			expedition_other_player_ms,
+			expedition_progress_description,
+			expedition_arrival_complete: chamber => expedition_view.arrival_complete(chamber),
+			expedition_phase_tasks: (chamber, phase, stage) =>
+				expedition_view.phase_tasks(chamber, phase, stage, state.expedition_state?.tracking),
+			expedition_phase_summary: (chamber, phase) => {
+				const tasks = expedition_view.phase_tasks(chamber, phase);
+				return expedition_text('MOD_MP_EXPEDITION_PHASE_SUMMARY',
+					tasks.filter(task => task.completed_at != null).length, tasks.length);
+			},
+			expedition_text,
+			expedition_status,
+			expedition_display_label: (label, count, chamber_id) =>
+				expedition_view.display_expedition_label(label, count, getLangString, chamber_id),
+			expedition_tracking_title: (chamber, tracking) => expedition_view.tracking_task_title(chamber, tracking, getLangString),
+			expedition_passage_name: (slot, count) => count === 1
+				? getLangString('MOD_MP_EXPEDITION_THE_PASSAGE')
+				: getLangString('MOD_MP_EXPEDITION_PASSAGE_' + slot),
+			toggle_expedition_phase,
+			expedition_chamber_art_url: id => ctx.getResourceUrl(EXPEDITION_CHAMBER_ART[id]
+				? `assets/expedition-chambers/${EXPEDITION_CHAMBER_ART[id]}.png`
+				: 'assets/expedition-chamber-placeholder.svg'),
+			expedition_exit_art_url: label => ctx.getResourceUrl(EXPEDITION_EXIT_ART[label]
+				? `assets/expedition-chambers/${EXPEDITION_EXIT_ART[label]}.png`
+				: 'assets/expedition-exit-placeholder.svg'),
+			expedition_exit_gateway_url: (chamber_id, slot) => ctx.getResourceUrl(
+				`assets/expedition-exit-gateways/${expedition_view.passage_gateway(chamber_id, slot)}.png`),
 			choose_social_mode: mode => {
 				social_mode_choice_selection = true;
 				state.close_modal();
@@ -4431,7 +5063,8 @@ export async function setup(ctx) {
 		},
 		install_common_actions(action_runtime),
 		install_chat_actions(action_runtime),
-		install_market_campaign_charity_actions(action_runtime),
+		install_market_charity_actions(action_runtime),
+		install_crucible_actions(action_runtime, crucible_rules),
 		install_trading_actions(action_runtime),
 		install_transfer_actions(action_runtime),
 		install_social_actions(action_runtime)
@@ -4463,8 +5096,11 @@ export async function setup(ctx) {
 		},
 		settle: async terminal => {
 			const result = await api_post_response('/api/raids/assaults/settle', terminal);
-			if (result.response?.status === 200)
+			if (result.response?.status === 200) {
+				if (result.json?.outcome === 'success')
+					void update_inbox();
 				return result.json;
+			}
 			if ([404, 409].includes(result.response?.status)) {
 				log('discarding terminal Raid Assault result after final server response %d', result.response.status);
 				return { success: true };
@@ -4519,8 +5155,6 @@ export async function setup(ctx) {
 	await ctx.gameData.addPackage('data.json');
 	localize_multiplayer_page_names();
 
-	load_campaign_data(ctx);
-
 	ctx.onCharacterLoaded(() => {
 		raid_combat.clear_loaded_combat();
 		raid_loaded_session_id = crypto.randomUUID();
@@ -4539,6 +5173,7 @@ export async function setup(ctx) {
 	});
 	ctx.onCharacterSelectionLoaded(() => {
 		set_charity_page_visible(false);
+		set_expedition_page_visible(false);
 		raid_combat?.abandon();
 	});
 
@@ -4552,6 +5187,12 @@ export async function setup(ctx) {
 	
 	ctx.onInterfaceReady(() => {
 		interface_ready = true;
+		if (!customElements.get('mp-expedition-snow')) customElements.define('mp-expedition-snow',
+			expedition_snow.create_expedition_snow_element({
+				get_settings: () => state.expedition_snow,
+				on_stats: stats => { if (state.expedition_snow_controls_enabled) state.expedition_snow_stats = stats; },
+				measure: () => state.expedition_snow_controls_enabled
+			}));
 		const setup_interface = $main_container => {
 			setup_account_menu();
 			watch_chat_nav();
@@ -4561,7 +5202,7 @@ export async function setup(ctx) {
 			update_multiplayer_nav();
 			update_raid_nav();
 
-			for (const page of ['guild', 'raid', 'chat', 'transfer', 'charity', 'campaign', 'market', 'updates'])
+			for (const page of ['guild', 'raid', 'expedition', 'chat', 'transfer', 'crucible', 'market', 'updates'])
 				make_scoped_template(page + '-page', $main_container);
 			void refresh_changelog();
 			void refresh_updates();
@@ -4572,10 +5213,9 @@ export async function setup(ctx) {
 			show_pending_banishment_notice();
 			show_pending_identity_notices();
 
-			on_page_toggle('mp-guild-page', refresh_guild_page, true);
-			on_page_toggle('mp-raid-page', async () => {
-				await Promise.all([get_client_events(), refresh_raid_state()]);
-			}, true);
+			on_page_toggle('mp-guild-page', set_guild_page_visible, true);
+			on_page_toggle('mp-raid-page', set_raid_page_visible);
+			on_page_toggle('mp-expedition-page', set_expedition_page_visible);
 			on_page_toggle('mp-chat-page', is_visible => {
 				chat_page_visible = is_visible;
 				if (is_visible && state.is_connected) {
@@ -4587,17 +5227,14 @@ export async function setup(ctx) {
 					stop_chat_polling();
 				}
 			});
-			on_page_toggle('mp-charity-page', async is_visible => {
+			on_page_toggle('mp-crucible-page', async is_visible => {
 				set_charity_page_visible(is_visible);
 				if (!is_visible)
 					return;
 				await Promise.all([get_client_events(), refresh_guild_state()]);
-				await request_charity_tree_contents(true);
+				await recover_pending_crucible_wish_actions();
+				await state.refresh_crucible(true);
 			}, false);
-			on_page_toggle('mp-campaign-page', async () => {
-				await Promise.all([get_client_events(), refresh_guild_state()]);
-				await update_campaign_info(true);
-			}, true);
 			on_page_toggle('mp-market-page', async () => {
 				await Promise.all([get_client_events(), refresh_guild_state()]);
 				await update_market_page(true);
@@ -4797,7 +5434,7 @@ const BANK_ACTION_TITLE_LANG_IDS = {
 	'': 'MOD_MP_BANK_ACTIONS_TITLE',
 	transfer: 'MOD_MP_BANK_ACTION_TRANSFER',
 	market: 'MOD_MP_BANK_ACTION_MARKET',
-	charity: 'MOD_MP_BANK_ACTION_CHARITY'
+	crucible: 'MOD_MP_BANK_ACTION_CRUCIBLE'
 };
 
 function get_bank_action_item() {
@@ -4900,12 +5537,13 @@ async function submit_bank_action(event) {
 			return;
 		}
 
-		if (state.bank_action_mode === 'charity') {
-			if (!state.is_charitree_enabled) {
-				notify_error('MOD_MP_CHARITY_DISABLED');
+		if (state.bank_action_mode === 'crucible') {
+			await state.refresh_crucible();
+			if (!state.crucible?.is_open) {
+				notify_error('MOD_MP_CRUCIBLE_SEALED');
 				return;
 			}
-			const res = await run_pending_economy_action('bank_charity_donate:' + item.id, '/api/charity/donate', {
+			const res = await run_pending_economy_action('bank_crucible_cast:' + item.id, '/api/crucible/cast', {
 				items: [{ id: item.id, qty, ...get_charity_item_valuation(item.id) }],
 				source: 'bank',
 				donation_value: get_bank_action_donation_value(item, qty)
@@ -4914,11 +5552,10 @@ async function submit_bank_action(event) {
 				notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 				return;
 			}
-			last_charity_check = 0;
-			notify('MOD_MP_CHARITY_DONATED');
+			notify('MOD_MP_CRUCIBLE_CAST_DONE');
 			if (typeof res.pet_id === 'string' && !state.owned_pet_ids.includes(res.pet_id))
 				state.owned_pet_ids = [...state.owned_pet_ids, res.pet_id];
-			update_charitree_nav();
+			await state.refresh_crucible(true);
 			state.close_modal();
 		}
 	} catch (e) {
@@ -4994,8 +5631,11 @@ async function patch_localization(ctx) {
 		fetch_mod_localization
 	);
 
-	if (loadedLangJson !== undefined)
-		await fetch_mod_localization(setLang);
+	if (loadedLangJson !== undefined) {
+		await fetch_mod_localization('en');
+		if (setLang !== 'en')
+			await fetch_mod_localization(setLang);
+	}
 }
 
 async function start_multiplayer_session() {
@@ -5168,6 +5808,8 @@ function activate_multiplayer_identity(response) {
 	state.charity_eligible = false;
 	state.charity_next_opportunity_timestamp = 0;
 	state.charity_server_supported = false;
+	state.raid_tier_progress = response.raid_tier_progress && typeof response.raid_tier_progress === 'object'
+		? response.raid_tier_progress : {};
 	apply_charity_state(response.charity);
 	state.social_mode = social_mode.normalize_social_mode(response.social_mode);
 	state.social_mode_enforcement = ['identity', 'account', 'guild'].includes(response.social_mode_enforcement)
@@ -5180,8 +5822,11 @@ function activate_multiplayer_identity(response) {
 	state.gp_visible = response.gp_visible !== false;
 	state.game_mode_visible = response.game_mode_visible !== false;
 	state.active_mods_visible = response.active_mods_visible !== false;
+	state.dev_tag_eligible = response.dev_tag?.eligible === true;
+	state.dev_tag_visible = response.dev_tag?.visible !== false;
 	state.messaging_enabled = response.chat?.messaging_enabled !== false;
 	state.global_chat_enabled = response.chat?.global_chat_enabled !== false;
+	state.account_tags = Array.isArray(response.account_tags) ? response.account_tags : [];
 	state.guild_chat_enabled = response.chat?.guild_chat_enabled !== false;
 	state.guild_chat_state = { affiliated: false, enabled: state.guild_chat_enabled };
 	state.chat_client_id = response.chat?.client_id ?? null;
@@ -5201,7 +5846,7 @@ function activate_multiplayer_identity(response) {
 	start_client_event_polling(true);
 	if (chat_page_visible)
 		void refresh_chat_page();
-	void refresh_guild_state().then(() => request_charity_tree_contents());
+	void refresh_guild_state().then(() => state.refresh_crucible());
 	void raid_combat?.flush();
 	void refresh_raid_state();
 	void refresh_identities();

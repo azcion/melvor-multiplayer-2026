@@ -156,10 +156,11 @@ describe('campaign balancing', () => {
 		database.run(
 			'CREATE TABLE campaign_state (' +
 			'id INTEGER PRIMARY KEY, guild_id INTEGER, item_amount INTEGER, ' +
-			'item_current INTEGER, auto_contribution INTEGER)'
+			'item_current INTEGER, auto_contribution INTEGER, complete INTEGER DEFAULT 0)'
 		);
+		database.run('CREATE TABLE service_settings (key TEXT PRIMARY KEY, value TEXT)');
 		database.run(
-			'INSERT INTO campaign_state VALUES (?, ?, ?, ?, ?)',
+			'INSERT INTO campaign_state (id, guild_id, item_amount, item_current, auto_contribution) VALUES (?, ?, ?, ?, ?)',
 			[1, 1, 1000, 200, 0]
 		);
 		const update = database.query(CAMPAIGN_AUTO_PROGRESS_SQL);

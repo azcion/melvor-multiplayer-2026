@@ -234,7 +234,7 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	}));
 	expect(raid.json.raid).toMatchObject({
 		raid_id: state.raid_id,
-		remaining_health: 8_000,
+		remaining_health: 9_000,
 		member: { contribution: 1_000, successful_assaults: 1, assaults: 2 }
 	});
 	expect(council.json.petitions).toContainEqual(expect.objectContaining({

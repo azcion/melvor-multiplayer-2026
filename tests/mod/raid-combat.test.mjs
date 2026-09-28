@@ -5,7 +5,9 @@ import {
 	RAID_MONSTER_IDS,
 	has_full_hitpoints,
 	install_raid_combat_hooks,
-	is_raid_monster
+	is_raid_monster,
+	apply_raid_resistance,
+	raid_resistance_from_defeats
 } from '../../mod/raid-combat.mjs';
 
 function memory_storage(initial = null) {
@@ -61,6 +63,7 @@ function combat_harness() {
 	});
 	const combat = event_source({
 		player: event_source(),
+		monster: event_source({ activeEffects: new Map() }),
 		selectedMonster: undefined,
 		resetActionState() {
 			this.selectedMonster = undefined;
@@ -76,6 +79,35 @@ test('only treats a finite current/max HP pair at equality as full health', () =
 	assert.equal(has_full_hitpoints({ hitpoints: 99, stats: { maxHitpoints: 100 } }), false);
 	assert.equal(has_full_hitpoints({ hitpoints: 100, stats: { maxHitpoints: 101 } }), false);
 	assert.equal(has_full_hitpoints({ hitpoints: 100 }), false);
+});
+
+test('lowers fortified resistance at every sixth Guild defeat while preserving 33 weak resistance', () => {
+	assert.deepEqual([0, 5, 6, 143, 144, 999].map(raid_resistance_from_defeats),
+		[99, 99, 98, 76, 75, 75]);
+	const groups = new Map();
+	const monster = { activeEffects: new Map([
+		[{ id: 'multiplayer:Raid_Boss_Fortified' }, { setStats: (name, value) => groups.set(name, value) }],
+		[{ id: 'multiplayer:Raid_Boss_Vulnerable' }, { setStats: (name, value) => groups.set(name, value) }]
+	]) };
+	apply_raid_resistance(monster, 75);
+	assert.equal(groups.get('fortification'), 75);
+	assert.equal(groups.get('vulnerability'), 42);
+	assert.equal(groups.get('fortification') - groups.get('vulnerability'), 33);
+});
+
+test('applies reserved resistance when native Raid effects appear during combat', async () => {
+	const { combat, controller } = combat_harness();
+	const values = new Map();
+	combat.monster.activeEffects = new Map([
+		[{ id: 'multiplayer:Raid_Boss_Fortified' }, { setStats: (name, value) => values.set(name, value) }],
+		[{ id: 'multiplayer:Raid_Boss_Vulnerable' }, { setStats: (name, value) => values.set(name, value) }]
+	]);
+	controller.begin(reservation({ fortified_resistance: 98 }));
+	combat.selectedMonster = { id: RAID_MONSTER_IDS[1] };
+	combat.monster.emit('effectApplied');
+	await Promise.resolve();
+	assert.deepEqual([...values.entries()], [['fortification', 98], ['vulnerability', 65]]);
+	controller.abandon_loaded_combat();
 });
 
 test('exposes the full-health gate through the installed combat integration', () => {

@@ -132,7 +132,7 @@ test('renders only pending Haggles in the Transfers Pending section', async () =
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
 		readFile(new URL('mod/ui/style.css', root), 'utf8')
 	]);
-	const market_page = templates.slice(templates.indexOf('<template id="template-mp-market-page">'), templates.indexOf('<template id="template-mp-charity-page">'));
+	const market_page = templates.slice(templates.indexOf('<template id="template-mp-market-page">'), templates.indexOf('<template id="template-mp-crucible-page">'));
 	const transfer_page = templates.slice(templates.indexOf('<template id="template-mp-transfer-page">'), templates.indexOf('<template id="template-mp-gift-friend-modal">'));
 	const pending = transfer_page.slice(transfer_page.indexOf('id="mp-transfers-pending"'));
 
@@ -186,7 +186,7 @@ test('offers Add Currency independently of the Outbox contents', async () => {
 		readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse)
 	]);
 	const page = templates.slice(templates.indexOf('<template id="template-mp-transfer-page">'), templates.indexOf('<template id="template-mp-gift-friend-modal">'));
-	const add_currency_modal = templates.slice(templates.indexOf('<template id="template-mp-add-currency-modal">'), templates.indexOf('<template id="template-mp-campaign-contribute-modal">'));
+	const add_currency_modal = templates.slice(templates.indexOf('<template id="template-mp-add-currency-modal">'), templates.indexOf('<template id="template-mp-market-buy-modal">'));
 	const outbox = page.slice(page.indexOf('id="mp-transfers-outbox"'), page.indexOf('id="mp-transfers-pending"'));
 	const button_tray = outbox.slice(outbox.indexOf('<div class="p-3 mp-transfer-buttons"'), outbox.indexOf('</section>'));
 
@@ -244,7 +244,7 @@ test('confirms the requested Transfer actions before sending them', async () => 
 	assert.match(templates, /get_transfer_confirmation_action_lang_id\(\)/);
 
 	for (const [action, info_lang_id, action_lang_id] of [
-		['donate', 'MOD_MP_TRANSFER_CONFIRM_DONATE', 'MOD_MP_TRANSFER_CONFIRM_DONATE_ACTION'],
+		['donate', 'MOD_MP_CRUCIBLE_CONFIRM_CAST', 'MOD_MP_CRUCIBLE_CAST'],
 		['counter_trade', 'MOD_MP_TRANSFER_CONFIRM_COUNTER_TRADE', 'MOD_MP_TRANSFER_CONFIRM_COUNTER_TRADE_ACTION'],
 		['cancel_trade', 'MOD_MP_TRANSFER_CONFIRM_CANCEL_TRADE', 'MOD_MP_TRANSFER_CONFIRM_CANCEL_TRADE_ACTION'],
 		['cancel_haggle', 'MOD_MP_MARKET_HAGGLE_CONFIRM_CANCEL', 'MOD_MP_MARKET_HAGGLE_CONFIRM_CANCEL_ACTION'],

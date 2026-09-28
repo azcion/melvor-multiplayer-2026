@@ -10,10 +10,10 @@ export type CharityDecayContext = {
 };
 
 function sync_decay_activation(guild_id: number, now: number, database: Database): number | null {
-	const active_wish = database.query<{ created_at: number }, [number]>(
+	const active_wish = database.query<{ created_at: number }, [number, number]>(
 		'SELECT MIN(`created_at`) AS `created_at` FROM `charity_wishes` ' +
-		'WHERE `guild_id` = ? AND `progress_gp` < `required_gp`'
-	).get(guild_id);
+		'WHERE `guild_id` = ? AND (`matures_at` > ? OR `progress_gp` < `required_gp`)'
+	).get(guild_id, now);
 	if (active_wish?.created_at === null || active_wish?.created_at === undefined) {
 		database.query('DELETE FROM `charity_decay_activations` WHERE `guild_id` = ?').run(guild_id);
 		return null;
