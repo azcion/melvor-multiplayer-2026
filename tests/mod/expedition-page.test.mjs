@@ -1,11 +1,42 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 import { read_client_source } from './source.mjs';
 import { create_pending_economy_actions } from '../../mod/pending-economy-actions.mjs';
 import { apply_economy_receipt } from '../../mod/economy-receipts.mjs';
 
 const root = new URL('../../', import.meta.url);
+
+test('alerts once when tracking ends or switches, while continuing check-ins stay quiet', async () => {
+	const main = await read_client_source(root);
+	const notices = [];
+	const notify = runInNewContext(main.slice(main.indexOf('let last_expedition_tracking_notice_session'),
+		main.indexOf('function start_expedition_action_cooldown')) + '\nnotify_expedition_tracking_ended;', {
+		addModalToQueue: notice => notices.push(notice), getLangString: key => key, session_generation: 0
+	});
+	const previous = { session_id: 1, expedition_id: 2, visit_id: 3, task_id: 'study' };
+	notify(null, previous, 'Started');
+	notify(previous, { ...previous, session_id: 4 }, 'Checked in');
+	assert.equal(notices.length, 0);
+	notify(previous, null, 'Stopped');
+	notify(previous, null, 'Replayed');
+	assert.equal(notices.length, 1);
+	assert.equal(notices[0].text, 'Stopped');
+	assert.equal(notices[0].timer, 4000);
+	assert.equal(notices[0].showConfirmButton, false);
+	const switched = { ...previous, session_id: 5 };
+	notify(switched, { ...switched, task_id: 'scout' }, 'Switched');
+	assert.equal(notices.length, 2);
+	const boundary = { ...previous, session_id: 6, pending_boundary_at: 100 };
+	notify({ ...boundary, pending_boundary_at: null }, boundary, 'Verification pending');
+	notify(boundary, null, 'Settled later');
+	assert.equal(notices.length, 3);
+	assert.equal(notices[2].text, 'Verification pending');
+	const completed = { ...previous, session_id: 7 };
+	notify(completed, { ...completed, visit_id: 8 }, 'Chamber changed');
+	assert.equal(notices.length, 4);
+});
 
 test('recovers one Expedition supply command and applies its receipt once after reload', async () => {
 	const saved = new Map();

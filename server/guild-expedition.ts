@@ -128,7 +128,6 @@ export function debug_wipe_expedition_data(guild_id: number, expected_current_id
 			db.query('DELETE FROM expedition_ep_balances WHERE client_id = ?').run(client_id);
 			if (balance > 0) db.query('INSERT INTO expedition_ep_balances (client_id, points_micros) VALUES (?, ?)')
 				.run(client_id, balance);
-			db.query('DELETE FROM expedition_supply_scores WHERE client_id = ?').run(client_id);
 		}
 		return runs.length;
 	}).immediate();

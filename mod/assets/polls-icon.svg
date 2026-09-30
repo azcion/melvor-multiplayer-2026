@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="523" height="492" viewBox="0 0 523 492">
+  <!-- Transparent background; artwork bounds are tight to the viewBox. -->
+  <circle cx="73.5" cy="73.5" r="73.5" fill="#0B9951"/>
+  <circle cx="73.5" cy="73.5" r="45.5" fill="#2BDE78"/>
+
+  <rect x="198" y="50" width="325" height="48" rx="24" fill="#95A1B6"/>
+
+  <circle cx="73.5" cy="248.5" r="59" fill="none" stroke="#95A1B6" stroke-width="29"/>
+  <rect x="198" y="223" width="325" height="48" rx="24" fill="#95A1B6"/>
+
+  <circle cx="73.5" cy="419" r="59" fill="none" stroke="#95A1B6" stroke-width="29"/>
+  <rect x="198" y="392" width="325" height="48" rx="24" fill="#95A1B6"/>
+</svg>

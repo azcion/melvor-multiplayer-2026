@@ -5,6 +5,18 @@ export function can_track_task(task, activities) {
 			: activity.type === 'combat' && skill_ids.includes('melvorD:Combat'));
 }
 
+export function tracked_skill_ids(expedition_state, activities) {
+	const tracking = expedition_state?.tracking;
+	const chamber = expedition_state?.expedition?.chamber;
+	if (!tracking || tracking.pending_boundary_at || tracking.claim || tracking.visit_id !== chamber?.visit_id)
+		return [];
+	const task = chamber.tasks?.find(task => task.task_id === tracking.task_id);
+	if (!task || task.completed_at != null) return [];
+	const accepted = task.evidence?.skill_ids ?? [];
+	return [...new Set((activities ?? []).map(activity => activity.type === 'combat' ? 'melvorD:Combat'
+		: activity.type === 'skill' ? activity.skill_id : null).filter(id => accepted.includes(id)))];
+}
+
 export function task_remaining(task) {
 	const remaining_ms = Math.max(0, (task.target_ms ?? 0) - (task.player_ms ?? 0) - (task.system_ms ?? 0));
 	if (remaining_ms === 0) return 'Complete';

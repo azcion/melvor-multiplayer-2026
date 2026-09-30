@@ -42,6 +42,93 @@ async function restore_v1_content(expedition_id: number, visit_id: number) {
 }
 
 describe('Expedition verified work', () => {
+	test('accepts clocks ahead or behind and records the measured offset', async () => {
+		for (const offset of [-86_400_000, 86_400_000]) {
+			const { guild, expedition_id, visit_id, task } = await entrance();
+			const report = { ...request(expedition_id, visit_id, 'start', task), captured_at: Date.now() + offset };
+			const started = await post_json<any>('/api/expedition/task/start', report, guild.first.session_token);
+			expect(started.json.success).toBe(true);
+			expect(started.json.clock.reported_capture_at).toBe(report.captured_at);
+			expect(started.json.clock.effective_capture_at).toBe(started.json.tracking.started_at);
+			const rows = await db_all('SELECT start_clock_offset_ms FROM expedition_work_sessions WHERE id = ?',
+				[started.json.tracking.session_id]);
+			expect(rows[0]!.start_clock_offset_ms).toBe(report.captured_at - started.json.tracking.started_at);
+		}
+	});
+
+	test('reconciles skewed clocks conservatively and replays settlement once', async () => {
+		for (const reported_elapsed of [-60_000, 30_000, 3_600_000]) {
+			const { guild, expedition_id, visit_id, task } = await entrance();
+			const initial = { ...request(expedition_id, visit_id, 'start', task), captured_at: Date.now() + 86_400_000 };
+			const started = await post_json<any>('/api/expedition/task/start', initial, guild.first.session_token);
+			const start_at = Date.now() - 60_000;
+			const offset = initial.captured_at - started.json.tracking.started_at;
+			await db_run('UPDATE expedition_work_sessions SET started_at = ?, last_observed_at = ? WHERE id = ?',
+				[start_at, start_at, started.json.tracking.session_id]);
+			const report = { ...request(expedition_id, visit_id, 'check-in', undefined, 3_600_000),
+				captured_at: start_at + offset + reported_elapsed };
+			const checked = await post_json<any>('/api/expedition/task/check-in', report, guild.first.session_token);
+			expect(checked.json.success).toBe(true);
+			expect(checked.json.tracking).toBeTruthy();
+			expect(checked.json.settlement.elapsed_ms).toBeGreaterThanOrEqual(Math.max(0, Math.min(60_000, reported_elapsed)));
+			expect(checked.json.settlement.elapsed_ms).toBeLessThan(65_000);
+			if (reported_elapsed <= 30_000)
+				expect(checked.json.settlement.elapsed_ms).toBe(Math.max(0, reported_elapsed));
+			expect(checked.json.settlement.credited_ms).toBeLessThanOrEqual(checked.json.settlement.elapsed_ms);
+			expect((await post_json<any>('/api/expedition/task/check-in', report, guild.first.session_token)).json)
+				.toEqual(checked.json);
+			const rows = await db_all('SELECT start_clock_offset_ms FROM expedition_work_sessions WHERE id = ?',
+				[checked.json.tracking.session_id]);
+			expect(rows[0]!.start_clock_offset_ms).toBe(report.captured_at - checked.json.tracking.started_at);
+		}
+	});
+
+	test('preserves skewed pending capture times through dissolution and exact retries', async () => {
+		const { guild, expedition_id, visit_id, task } = await entrance();
+		const initial = { ...request(expedition_id, visit_id, 'start', task), captured_at: Date.now() + 86_400_000 };
+		const started = await post_json<any>('/api/expedition/task/start', initial, guild.first.session_token);
+		await db_run('UPDATE expedition_work_sessions SET started_at = ?, last_observed_at = ? WHERE id = ?',
+			[Date.now() - 60_000, Date.now() - 60_000, started.json.tracking.session_id]);
+		const missing = { ...request(expedition_id, visit_id, 'stop'), captured_at: Date.now() + 86_400_000,
+			statistics: { version: 1, time_ms: {} } };
+		const pending = await post_json<any>('/api/expedition/task/stop', missing, guild.first.session_token);
+		expect(pending.json.pending).toBe(true);
+		await post_json('/api/guilds/leave', {}, guild.first.session_token);
+		await post_json('/api/guilds/leave', {}, guild.second.session_token);
+		const claims = await db_all('SELECT start_clock_offset_ms, pending_reported_capture_at FROM expedition_work_claims WHERE session_id = ?',
+			[started.json.tracking.session_id]);
+		expect(claims[0]!.pending_reported_capture_at).toBe(missing.captured_at);
+		expect(claims[0]!.start_clock_offset_ms).toBe(initial.captured_at - started.json.tracking.started_at);
+		const retry = { ...missing, operation_id: crypto.randomUUID() };
+		const retried = await post_json<any>('/api/expedition/task/stop', retry, guild.first.session_token);
+		expect(retried.json.pending).toBe(true);
+		expect(retried.json.clock.effective_capture_at).toBe(pending.json.clock.effective_capture_at);
+		const substituted = await post_json<any>('/api/expedition/task/stop',
+			{ ...retry, operation_id: crypto.randomUUID(), statistics: stats(60_000) }, guild.first.session_token);
+		expect(substituted.json.error).toBe('original_snapshot_missing');
+		const moved = await post_json<any>('/api/expedition/task/stop',
+			{ ...retry, operation_id: crypto.randomUUID(), captured_at: missing.captured_at + 1 }, guild.first.session_token);
+		expect(moved.json.error).toBe('boundary_capture_mismatch');
+	});
+
+	test('accepts a nearby skewed snapshot after an automatic stop without credit beyond the boundary', async () => {
+		const { guild, expedition_id, visit_id, task } = await entrance();
+		const initial = { ...request(expedition_id, visit_id, 'start', task), captured_at: Date.now() - 86_400_000 };
+		const started = await post_json<any>('/api/expedition/task/start', initial, guild.first.session_token);
+		const start_at = Date.now() - 60_000;
+		await db_run('UPDATE expedition_work_sessions SET started_at = ?, last_observed_at = ? WHERE id = ?',
+			[start_at, start_at, started.json.tracking.session_id]);
+		const stopped = await post_json<any>('/api/client/status/sync', { activities: [] }, guild.first.session_token);
+		const boundary = stopped.json.expedition_work_stopped.boundary_at;
+		const offset = initial.captured_at - started.json.tracking.started_at;
+		const checked = await post_json<any>('/api/expedition/task/stop',
+			{ ...request(expedition_id, visit_id, 'stop', undefined, 60_000), captured_at: boundary + offset + 15_000 },
+			guild.first.session_token);
+		expect(checked.json.success).toBe(true);
+		expect(checked.json.clock.effective_capture_at).toBe(boundary);
+		expect(checked.json.settlement.credited_ms).toBeLessThanOrEqual(boundary - start_at);
+	});
+
 	test('requires qualifying activity before starting task tracking', async () => {
 		const { guild, expedition_id, visit_id, task, unrelated } = await entrance();
 		for (const activities of [[], [unrelated]]) {
@@ -50,7 +137,8 @@ describe('Expedition verified work', () => {
 				guild.first.session_token);
 			expect(start.json).toEqual({ success: false, error: 'activity_required' });
 		}
-		expect(await db_all('SELECT id FROM expedition_work_sessions')).toEqual([]);
+		expect(await db_all('SELECT id FROM expedition_work_sessions WHERE client_id = ?',
+			[guild.first.client_id])).toEqual([]);
 		const active = await post_json<{ success: boolean; tracking: { task_id: string } }>(
 			'/api/expedition/task/start', request(expedition_id, visit_id, 'start', task), guild.first.session_token);
 		expect(active.json.success).toBe(true);
@@ -78,7 +166,7 @@ describe('Expedition verified work', () => {
 			'/api/expedition/task/start', request(expedition_id, visit_id, 'start', task), guild.first.session_token);
 		expect(start.json.success).toBe(true);
 		const hour_ago = Date.now() - 3_600_000;
-		await db_run('UPDATE expedition_work_sessions SET started_at = ? WHERE id = ?', [hour_ago, start.json.tracking.session_id]);
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ? WHERE id = ?', [hour_ago, start.json.tracking.session_id]);
 		const check = request(expedition_id, visit_id, 'check-in', undefined, 3_600_000);
 		const settled = await post_json<{ success: boolean; settlement: { credited_ms: number; guild_ms: number };
 			points_micros: number }>('/api/expedition/task/check-in', check, guild.first.session_token);
@@ -105,7 +193,7 @@ describe('Expedition verified work', () => {
 		expect(stale.json.error).toBe('task_unavailable');
 		const started = await post_json<{ tracking: { session_id: number } }>(
 			'/api/expedition/task/start', request(expedition_id, visit_id, 'start', task), guild.first.session_token);
-		await db_run('UPDATE expedition_work_sessions SET started_at = ? WHERE id = ?',
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ? WHERE id = ?',
 			[Date.now() - 3_600_000, started.json.tracking.session_id]);
 		const checked = await post_json<{ settlement: { credited_ms: number; reason: string } }>(
 			'/api/expedition/task/stop', request(expedition_id, visit_id, 'stop', undefined, 0), guild.first.session_token);
@@ -117,7 +205,7 @@ describe('Expedition verified work', () => {
 		const { guild, expedition_id, visit_id, task } = await entrance();
 		const started = await post_json<{ tracking: { session_id: number } }>(
 			'/api/expedition/task/start', request(expedition_id, visit_id, 'start', task), guild.first.session_token);
-		await db_run('UPDATE expedition_work_sessions SET started_at = ?, last_observed_at = ? WHERE id = ?',
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
 			[Date.now() - 3_600_000, Date.now() - 3_600_000, started.json.tracking.session_id]);
 		const missing = { ...request(expedition_id, visit_id, 'stop', undefined, 0),
 			statistics: { version: 1, time_ms: {} } };
@@ -143,7 +231,7 @@ describe('Expedition verified work', () => {
 		const { guild, expedition_id, visit_id, task } = await entrance();
 		const started = await post_json<{ tracking: { session_id: number } }>(
 			'/api/expedition/task/start', request(expedition_id, visit_id, 'start', task), guild.first.session_token);
-		await db_run('UPDATE expedition_work_sessions SET started_at = ? WHERE id = ?',
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ? WHERE id = ?',
 			[Date.now() - 3_600_000, started.json.tracking.session_id]);
 		const missing = { ...request(expedition_id, visit_id, 'stop', undefined, 0),
 			statistics: { version: 1, time_ms: {} } };
@@ -163,7 +251,7 @@ describe('Expedition verified work', () => {
 		const { guild, expedition_id, visit_id, task } = await entrance();
 		const started = await post_json<{ tracking: { session_id: number } }>(
 			'/api/expedition/task/start', request(expedition_id, visit_id, 'start', task), guild.first.session_token);
-		await db_run('UPDATE expedition_work_sessions SET started_at = ?, last_observed_at = ? WHERE id = ?',
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
 			[Date.now() - 3_600_000, Date.now() - 3_600_000, started.json.tracking.session_id]);
 		await post_json('/api/guilds/leave', {}, guild.first.session_token);
 		await post_json('/api/guilds/leave', {}, guild.second.session_token);
@@ -190,7 +278,7 @@ describe('Expedition verified work', () => {
 		const started = await post_json<{ tracking: { session_id: number } }>(
 			'/api/expedition/task/start', request(expedition_id, visit_id, 'start', task), guild.first.session_token);
 		const captured_at = Date.now() - 2 * 3_600_000;
-		await db_run('UPDATE expedition_work_sessions SET started_at = ?, last_observed_at = ? WHERE id = ?',
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
 			[captured_at - 3_600_000, captured_at - 3_600_000, started.json.tracking.session_id]);
 		await post_json('/api/guilds/leave', {}, guild.first.session_token);
 		await post_json('/api/guilds/leave', {}, guild.second.session_token);
@@ -206,7 +294,7 @@ describe('Expedition verified work', () => {
 		const { guild, expedition_id, visit_id, task } = await entrance();
 		const started = await post_json<{ tracking: { session_id: number } }>(
 			'/api/expedition/task/start', request(expedition_id, visit_id, 'start', task), guild.first.session_token);
-		await db_run('UPDATE expedition_work_sessions SET started_at = ?, last_observed_at = ? WHERE id = ?',
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
 			[Date.now() - 3_600_000, Date.now() - 3_600_000, started.json.tracking.session_id]);
 		const report = request(expedition_id, visit_id, 'stop', undefined, 3_600_000);
 		const stopped = await post_json<any>('/api/client/status/sync', { activities: [] }, guild.first.session_token);
@@ -228,7 +316,7 @@ describe('Expedition verified work', () => {
 		const { guild, expedition_id, visit_id, task } = await entrance();
 		const started = await post_json<{ tracking: { session_id: number } }>(
 			'/api/expedition/task/start', request(expedition_id, visit_id, 'start', task), guild.first.session_token);
-		await db_run('UPDATE expedition_work_sessions SET started_at = ?, last_observed_at = ? WHERE id = ?',
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
 			[Date.now() - 3_600_000, Date.now() - 3_600_000, started.json.tracking.session_id]);
 		await post_json('/api/guilds/leave', {}, guild.first.session_token);
 		const settled = await post_json<any>('/api/expedition/task/stop',
@@ -245,7 +333,7 @@ describe('Expedition verified work', () => {
 		const started = await post_json<{ tracking: { session_id: number } }>(
 			'/api/expedition/task/start', request(expedition_id, visit_id, 'start', task), guild.first.session_token);
 		const two_hours_ago = Date.now() - 2 * 3_600_000;
-		await db_run('UPDATE expedition_work_sessions SET started_at = ?, last_observed_at = ? WHERE id = ?',
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
 			[two_hours_ago, two_hours_ago, started.json.tracking.session_id]);
 		await db_run('UPDATE expedition_membership_tenures SET started_at = ?, ended_at = ? WHERE id = ' +
 			'(SELECT tenure_id FROM expedition_work_sessions WHERE id = ?)',
@@ -264,7 +352,7 @@ describe('Expedition verified work', () => {
 		const started = await post_json<{ tracking: { session_id: number } }>(
 			'/api/expedition/task/start', request(expedition_id, visit_id, 'start', task), guild.first.session_token);
 		const captured_at = Date.now() - 2 * 3_600_000;
-		await db_run('UPDATE expedition_work_sessions SET started_at = ?, last_observed_at = ? WHERE id = ?',
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
 			[captured_at - 3_600_000, captured_at - 3_600_000, started.json.tracking.session_id]);
 		const report = request(expedition_id, visit_id, 'stop', undefined, 3_600_000);
 		report.captured_at = captured_at;
@@ -280,7 +368,7 @@ describe('Expedition verified work', () => {
 		const { guild, expedition_id, visit_id, task } = await entrance();
 		const started = await post_json<{ tracking: { session_id: number } }>(
 			'/api/expedition/task/start', request(expedition_id, visit_id, 'start', task), guild.first.session_token);
-		await db_run('UPDATE expedition_work_sessions SET started_at = ?, last_observed_at = ? WHERE id = ?',
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
 			[Date.now() - 3_600_000, Date.now() - 3_600_000, started.json.tracking.session_id]);
 		await db_run("UPDATE expeditions SET status = 'inactive', ended_at = ?, current_visit_id = NULL WHERE id = ?",
 			[Date.now(), expedition_id]);
@@ -298,7 +386,7 @@ describe('Expedition verified work', () => {
 		const { guild, expedition_id, visit_id, task } = await entrance();
 		const started = await post_json<{ tracking: { session_id: number } }>(
 			'/api/expedition/task/start', request(expedition_id, visit_id, 'start', task), guild.first.session_token);
-		await db_run('UPDATE expedition_work_sessions SET started_at = ?, last_observed_at = ? WHERE id = ?',
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
 			[Date.now() - 3_600_000, Date.now() - 3_600_000, started.json.tracking.session_id]);
 		await db_run('UPDATE expedition_visits SET departed_at = ? WHERE id = ?', [Date.now(), visit_id]);
 		await db_run('INSERT INTO expedition_visits (expedition_id, chamber_id, entered_at, participant_count, charted_on_arrival) ' +
@@ -325,7 +413,7 @@ describe('Expedition verified work', () => {
 		const second = await post_json<{ tracking: { session_id: number } }>(
 			'/api/expedition/task/start', request(expedition_id, visit_id, 'start', task), guild.second.session_token);
 		const hour_ago = Date.now() - 3_600_000;
-		await db_run('UPDATE expedition_work_sessions SET started_at = ?, last_observed_at = ? WHERE id IN (?, ?)',
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id IN (?, ?)',
 			[hour_ago, hour_ago, first.json.tracking.session_id, second.json.tracking.session_id]);
 		await db_run('UPDATE expedition_tasks SET target_ms = ? WHERE visit_id = ? AND task_id = ?',
 			[3_600_000, visit_id, task]);
@@ -352,7 +440,7 @@ describe('Expedition verified work', () => {
 				activities: [archaeology], statistics: { version: 1, time_ms: { 'melvorAoD:Archaeology': 0 } } },
 			guild.first.session_token);
 		expect(start.json.success).toBe(true);
-		await db_run('UPDATE expedition_work_sessions SET started_at = ? WHERE id = ?',
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ? WHERE id = ?',
 			[Date.now() - 3_600_000, start.json.tracking.session_id]);
 		const stop = await post_json<{ settlement: { guild_ms: number } }>('/api/expedition/task/stop',
 			{ ...request(expedition_id, visit_id, 'stop'), activities: [archaeology],
@@ -476,7 +564,7 @@ describe('Expedition status observations', () => {
 		const started = await post_json<{ tracking: { session_id: number } }>(
 			'/api/expedition/task/start', request(expedition_id, visit_id, 'start', task), guild.first.session_token);
 		const four_hours_ago = Date.now() - 4 * 3_600_000;
-		await db_run('UPDATE expedition_work_sessions SET started_at = ?, last_observed_at = ? WHERE id = ?',
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
 			[four_hours_ago, four_hours_ago, started.json.tracking.session_id]);
 		const changed = await post_json<any>('/api/client/status/sync', {
 			activities: [], work_statistics: stats(5 * 60_000)
@@ -494,7 +582,7 @@ describe('Expedition status observations', () => {
 			'/api/expedition/task/start', request(expedition_id, visit_id, 'start', task), guild.first.session_token);
 		const captured_at = Date.now() - 5_000;
 		const last_observed_at = captured_at - 4 * 24 * 3_600_000;
-		await db_run('UPDATE expedition_work_sessions SET started_at = ?, last_observed_at = ? WHERE id = ?',
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
 			[last_observed_at - 3_600_000, last_observed_at, started.json.tracking.session_id]);
 		const report = request(expedition_id, visit_id, 'stop', undefined, 4 * 24 * 3_600_000 + 3_600_000);
 		report.captured_at = captured_at;
@@ -507,7 +595,7 @@ describe('Expedition status observations', () => {
 		const { guild, expedition_id, visit_id, task, unrelated } = await entrance();
 		const started = await post_json<{ tracking: { session_id: number } }>(
 			'/api/expedition/task/start', request(expedition_id, visit_id, 'start', task), guild.first.session_token);
-		await db_run('UPDATE expedition_work_sessions SET started_at = ?, last_observed_at = ? WHERE id = ?',
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
 			[Date.now() - 3_600_000, Date.now() - 3_600_000, started.json.tracking.session_id]);
 		const changed = await post_json<any>('/api/client/status/sync', {
 			activities: [unrelated],
@@ -526,7 +614,7 @@ describe('Expedition status observations', () => {
 		const started = await post_json<{ tracking: { session_id: number } }>(
 			'/api/expedition/task/start', request(expedition_id, visit_id, 'start', task), guild.first.session_token);
 		const five_days_ago = Date.now() - 5 * 24 * 3_600_000;
-		await db_run('UPDATE expedition_work_sessions SET started_at = ?, last_observed_at = ? WHERE id = ?',
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
 			[five_days_ago, five_days_ago, started.json.tracking.session_id]);
 		const checked = await post_json<any>('/api/expedition/task/stop',
 			request(expedition_id, visit_id, 'stop', undefined, 5 * 24 * 3_600_000), guild.first.session_token);

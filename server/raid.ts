@@ -73,6 +73,17 @@ function owns_toth(client_id: number): boolean {
 	}
 }
 
+export function get_raid_monster_drops(client_id: number) {
+	const has_toth = owns_toth(client_id);
+	return Object.fromEntries(Object.entries(RAID_MONSTER_DROPS).map(([tier, table]) => {
+		const drops = table.filter(drop => has_toth || !drop.toth);
+		const total_weight = drops.reduce((total, drop) => total + drop.weight, 0);
+		return [tier, drops.map(({ item_id, min, max, weight }) => ({
+			item_id, min, max, weight, total_weight
+		})).sort((a, b) => b.weight - a.weight)];
+	}));
+}
+
 function can_receive_raid_rewards(client_id: number, now: number): boolean {
 	const row = db.query<{ enabled: number }, [number, number, number]>(
 		'SELECT CASE WHEN client.`social_mode` = \'social\' OR client.`social_mode_enforced` = 1 OR ' +
@@ -100,7 +111,7 @@ function roll_raid_monster_drop(tier: number, has_toth: boolean): { item_id: str
 }
 
 export function raid_fortified_resistance(defeats: number): number {
-	return 99 - Math.min(24, Math.floor(Math.max(0, defeats) / 6));
+	return 95 - Math.min(20, Math.floor(Math.max(0, defeats) / 6));
 }
 
 type Membership = {

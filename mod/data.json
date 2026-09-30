@@ -78,7 +78,7 @@
 		"combatEffects": [
 			{
 				"id": "Raid_Tier_1_FullDamage", "templateID": "melvorD:DOT",
-				"name": "Tier 1 Full-Health Strike", "media": "assets/raid_tier_1.svg",
+				"name": "Tier 1 Full-Health Strike", "media": "assets/raid-nav.png",
 				"parameters": [{ "name": "procs", "initialValue": 1 }, { "name": "interval", "initialValue": 50 }],
 				"damageGroups": [{
 					"name": "total",
@@ -89,7 +89,7 @@
 			},
 			{
 				"id": "Raid_Tier_1_ReducedDamage", "templateID": "melvorD:DOT",
-				"name": "Tier 1 Follow-up Strike", "media": "assets/raid_tier_1.svg",
+				"name": "Tier 1 Follow-up Strike", "media": "assets/raid-nav.png",
 				"parameters": [{ "name": "procs", "initialValue": 1 }, { "name": "interval", "initialValue": 50 }],
 				"damageGroups": [{
 					"name": "total",
@@ -100,7 +100,7 @@
 			},
 			{
 				"id": "Raid_Tier_2_FullDamage", "templateID": "melvorD:DOT",
-				"name": "Tier 2 Full-Health Strike", "media": "assets/raid_tier_1.svg",
+				"name": "Tier 2 Full-Health Strike", "media": "assets/raid-nav.png",
 				"parameters": [{ "name": "procs", "initialValue": 1 }, { "name": "interval", "initialValue": 50 }],
 				"damageGroups": [{
 					"name": "total",
@@ -111,7 +111,7 @@
 			},
 			{
 				"id": "Raid_Tier_2_ReducedDamage", "templateID": "melvorD:DOT",
-				"name": "Tier 2 Follow-up Strike", "media": "assets/raid_tier_1.svg",
+				"name": "Tier 2 Follow-up Strike", "media": "assets/raid-nav.png",
 				"parameters": [{ "name": "procs", "initialValue": 1 }, { "name": "interval", "initialValue": 50 }],
 				"damageGroups": [{
 					"name": "total",
@@ -122,7 +122,7 @@
 			},
 			{
 				"id": "Raid_Tier_3_FullDamage", "templateID": "melvorD:DOT",
-				"name": "Tier 3 Full-Health Strike", "media": "assets/raid_tier_1.svg",
+				"name": "Tier 3 Full-Health Strike", "media": "assets/raid-nav.png",
 				"parameters": [{ "name": "procs", "initialValue": 1 }, { "name": "interval", "initialValue": 50 }],
 				"damageGroups": [{
 					"name": "total",
@@ -133,7 +133,7 @@
 			},
 			{
 				"id": "Raid_Tier_3_ReducedDamage", "templateID": "melvorD:DOT",
-				"name": "Tier 3 Follow-up Strike", "media": "assets/raid_tier_1.svg",
+				"name": "Tier 3 Follow-up Strike", "media": "assets/raid-nav.png",
 				"parameters": [{ "name": "procs", "initialValue": 1 }, { "name": "interval", "initialValue": 50 }],
 				"damageGroups": [{
 					"name": "total",
@@ -144,7 +144,7 @@
 			},
 			{
 				"id": "Raid_Tier_4_FullDamage", "templateID": "melvorD:DOT",
-				"name": "Tier 4 Full-Health Strike", "media": "assets/raid_tier_1.svg",
+				"name": "Tier 4 Full-Health Strike", "media": "assets/raid-nav.png",
 				"parameters": [{ "name": "procs", "initialValue": 1 }, { "name": "interval", "initialValue": 50 }],
 				"damageGroups": [{
 					"name": "total",
@@ -155,7 +155,7 @@
 			},
 			{
 				"id": "Raid_Tier_4_ReducedDamage", "templateID": "melvorD:DOT",
-				"name": "Tier 4 Follow-up Strike", "media": "assets/raid_tier_1.svg",
+				"name": "Tier 4 Follow-up Strike", "media": "assets/raid-nav.png",
 				"parameters": [{ "name": "procs", "initialValue": 1 }, { "name": "interval", "initialValue": 50 }],
 				"damageGroups": [{
 					"name": "total",
@@ -166,20 +166,20 @@
 			},
 			{
 				"id": "Raid_Boss_Fortified", "templateID": "melvorD:EndOfFightRemoval",
-				"name": "Raid Boss Fortification", "media": "assets/raid_tier_1.svg", "target": "Self",
+				"name": "Raid Boss Fortification", "media": "assets/raid-nav.png", "target": "Self",
 				"statGroups": [{
 					"name": "fortification",
 					"modifiers": { "flatResistance": [{ "damageTypeID": "melvorD:Normal", "value": 1 }] }
 				}],
 				"behaviours": [{
-					"type": "ModifyStats", "statGroupName": "fortification", "newValue": 99,
+					"type": "ModifyStats", "statGroupName": "fortification", "newValue": 95,
 					"triggersOn": [{ "type": "EffectApplied" }]
 				}],
 				"effectGroups": ["melvorD:Buff"]
 			},
 			{
 				"id": "Raid_Boss_Vulnerable", "templateID": "melvorD:EndOfFightRemoval",
-				"name": "Raid Boss Vulnerability", "media": "assets/raid_tier_1.svg", "target": "Self",
+				"name": "Raid Boss Vulnerability", "media": "assets/raid-nav.png", "target": "Self",
 				"timers": [{ "name": "vulnerability" }],
 				"statGroups": [{
 					"name": "vulnerability",
@@ -187,7 +187,7 @@
 				}],
 				"behaviours": [
 					{
-						"type": "ModifyStats", "statGroupName": "vulnerability", "newValue": 66,
+						"type": "ModifyStats", "statGroupName": "vulnerability", "newValue": 62,
 						"triggersOn": [{ "type": "EffectApplied" }]
 					},
 					{

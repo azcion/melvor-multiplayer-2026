@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { format_raid_attack_description, raid_resistance_from_defeats } from '../../mod/raid-combat.mjs';
 import { install_transfer_actions } from '../../mod/client-actions-transfer.mjs';
 import { read_client_source } from './source.mjs';
 
@@ -287,7 +288,7 @@ test('shows the renamed Raid bosses from the registered Monsters', () => {
 	assert.match(templates, /state\.get_raid_monster_name\(tier\)/);
 });
 
-test('gives every Raid boss 99% opening resistance and a six-second post-attack vulnerability', () => {
+test('gives every Raid boss 95% opening resistance and a six-second post-attack vulnerability', () => {
 	const raid_bosses = data.data.monsters.filter(monster => monster.id.startsWith('Raid_Tier_'));
 	const fortified = data.data.combatEffects.find(effect => effect.id === 'Raid_Boss_Fortified');
 	const vulnerable = data.data.combatEffects.find(effect => effect.id === 'Raid_Boss_Vulnerable');
@@ -299,20 +300,22 @@ test('gives every Raid boss 99% opening resistance and a six-second post-attack 
 	assert.ok(raid_bosses.every(monster => monster.isBoss === true));
 	assert.ok(raid_bosses.every(monster => monster.combatEffects?.map(effect => effect.effectID).join(',') ===
 		'multiplayer:Raid_Boss_Fortified,multiplayer:Raid_Boss_Vulnerable'));
+	assert.equal(fortified.media, 'assets/raid-nav.png');
+	assert.equal(vulnerable.media, 'assets/raid-nav.png');
 	assert.equal(fortified.templateID, 'melvorD:EndOfFightRemoval');
 	assert.equal(fortified.target, 'Self');
 	assert.equal(resistance_value(fortified), 1);
 	assert.equal(vulnerable.templateID, 'melvorD:EndOfFightRemoval');
 	assert.equal(vulnerable.target, 'Self');
 	assert.equal(resistance_value(vulnerable), -1);
-	assert.equal(resistance_value(fortified) * 99 + resistance_value(vulnerable) * 66, 33);
+	assert.equal(resistance_value(fortified) * 95 + resistance_value(vulnerable) * 62, 33);
 	assert.deepEqual(vulnerable.timers, [{ name: 'vulnerability' }]);
 	assert.deepEqual(fortified.behaviours.find(behaviour => behaviour.type === 'ModifyStats'), {
-		type: 'ModifyStats', statGroupName: 'fortification', newValue: 99,
+		type: 'ModifyStats', statGroupName: 'fortification', newValue: 95,
 		triggersOn: [{ type: 'EffectApplied' }]
 	});
 	assert.deepEqual(vulnerable.behaviours.find(behaviour => behaviour.type === 'ModifyStats'), {
-		type: 'ModifyStats', statGroupName: 'vulnerability', newValue: 66,
+		type: 'ModifyStats', statGroupName: 'vulnerability', newValue: 62,
 		triggersOn: [{ type: 'EffectApplied' }]
 	});
 	assert.deepEqual(vulnerable.behaviours.find(behaviour => behaviour.type === 'StartTimer'), {
@@ -461,4 +464,75 @@ test('leaves Raid Monsters without native loot for server Inbox delivery', () =>
 	}
 	assert.equal(data.dependentData.some(entry => entry.namespace === 'melvorTotH' &&
 		entry.modifications?.monsters?.some(monster => monster.id.startsWith('multiplayer:Raid_Tier_'))), false);
+});
+
+
+test('opens boss drops with the Raid navigation icon and exact odds', () => {
+	const table = [{ item_id: 'melvorD:Bird_Nest', min: 30, max: 60, weight: 8, total_weight: 10 }];
+	const calls = [];
+	const state = { raid_monster_drops: { 1: table }, raid_drop_entries: [] };
+	Object.assign(state, install_transfer_actions({
+		state,
+		ctx: { getResourceUrl: path => `mod-resource://${path}` },
+		game: { monsters: { getObjectByID: id => ({ name: `Boss ${id}` }) } },
+		queue_modal: (...args) => { calls.push(args); return true; }
+	}));
+	state.show_raid_drops(1);
+	assert.deepEqual(calls[0], ['Boss multiplayer:Raid_Tier_1', 'raid-drops-modal', 'mod-resource://assets/raid-nav.png', {}, false, false]);
+	assert.equal(state.raid_drop_entries, table);
+	assert.equal(state.get_raid_drop_odds(table[0]), '4/5, 80%');
+	assert.equal(state.get_raid_drop_odds({ weight: 1, total_weight: 3 }), '1/3, 33.33%');
+	state.show_raid_drops(4);
+	assert.equal(calls.length, 1);
+	assert.match(templates, /state\.show_raid_assault_confirmation\(tier\)[\s\S]*state\.show_raid_drops\(tier\)[\s\S]*MOD_MP_RAID_TIER_PROGRESS/);
+	assert.match(templates, /MOD_MP_RAID_DROPS_INTRO/);
+	assert.match(templates, /MOD_MP_RAID_DROPS_INBOX/);
+	assert.match(templates, /drop\.min }} - {{ drop\.max }} ×/);
+	assert.doesNotMatch(style, /\.mp-raid-boss-info\s*\{[^}]*(?:max-height|overflow-y)/);
+});
+
+
+test('previews registered boss stats and attacks with current Guild resistance', () => {
+	const calls = [];
+	const state = { raid_state: { tier_defeats: { 1: 6, 4: 500 } }, raid_boss_info: null };
+	const monsters = data.data.monsters.filter(monster => monster.id.startsWith('Raid_Tier_'));
+	const lookup = id => {
+		const monster = monsters.find(monster => `multiplayer:${monster.id}` === id);
+		if (!monster) return undefined;
+		return { ...monster, specialAttacks: monster.specialAttacks.map(id => ({
+			chance: 100,
+			attack: data.data.attacks.find(attack => `multiplayer:${attack.id}` === id)
+		})) };
+	};
+	Object.assign(state, install_transfer_actions({
+		state,
+		ctx: { getResourceUrl: path => `mod-resource://${path}` },
+		game: { monsters: { getObjectByID: lookup } },
+		get_number_multiplier: () => 10,
+		numberWithCommas: number => number.toLocaleString('en-US'),
+		format_raid_attack_description: attack => format_raid_attack_description(attack, { combatEffects: { getObjectByID: () => undefined } }),
+		get_game_asset_url: path => `game-asset://${path}`,
+		raid_resistance_from_defeats,
+		queue_modal: (...args) => { calls.push(args); return true; }
+	}));
+	for (const tier of [1, 2, 3, 4]) {
+		state.show_raid_boss_info(tier);
+		assert.equal(state.raid_boss_info.hitpoints, (monsters[tier - 1].levels.Hitpoints * 10).toLocaleString('en-US'));
+		assert.equal(state.raid_boss_info.attack_interval, 8);
+		assert.equal(state.raid_boss_info.attacks[0].name, 'Toxic Dread');
+		assert.match(state.raid_boss_info.attacks[0].description, /50% of your maximum Hitpoints/);
+		assert.equal(calls[tier - 1][1], 'raid-boss-info-modal');
+		assert.equal(calls[tier - 1][2], 'mod-resource://assets/raid-nav.png');
+	}
+	assert.equal(state.raid_boss_info.fortified_resistance, 75);
+	state.show_raid_boss_info(1);
+	assert.equal(state.raid_boss_info.fortified_resistance, 94);
+	state.show_raid_boss_info(5);
+	assert.equal(calls.length, 5);
+	assert.equal(state.get_raid_info_icon('drops'), 'game-asset://assets/media/main/bank_header.png');
+	assert.equal(state.get_raid_info_icon('boss'), 'game-asset://assets/media/status/stunned.png');
+	assert.match(templates, /class="btn btn-danger mb-2"[^>]*state\.can_assault_raid_tier/);
+	assert.match(templates, /class="mp-raid-info-buttons"/);
+	assert.match(templates, /class="mp-raid-drop-row-label"/);
+	assert.match(templates, /MOD_MP_RAID_WEAK_DESCRIPTION/);
 });

@@ -10,10 +10,11 @@ const { get_client_guild_id, parse_player_status_activities, session_get_route, 
 const operation_uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export function register_guild_expedition_routes(): void {
-	session_get_route('/api/expedition/personal', async (req, url, client_id): Promise<HandlerResult> => ({
-		contract_version: 1, history: get_personal_expedition_history(client_id),
-		...get_expedition_work(client_id), supply_score: get_expedition_supply_score(client_id)
-	}));
+	session_get_route('/api/expedition/personal', async (req, url, client_id): Promise<HandlerResult> => {
+		const history = get_personal_expedition_history(client_id);
+		return { contract_version: 1, history, ...get_expedition_work(client_id),
+			supply_score: get_expedition_supply_score(client_id, history[0]?.expedition_id ?? null) };
+	});
 	session_get_route('/api/expedition/supply/catalog', async (): Promise<HandlerResult> =>
 		expedition_supply_catalog());
 
@@ -21,8 +22,9 @@ export function register_guild_expedition_routes(): void {
 		const guild_id = await get_client_guild_id(client_id);
 		if (guild_id === null) return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
 		reconcile_expedition_visit(guild_id, runtime.expire_charity_items_now);
-		return { ...get_expedition_state(guild_id, client_id), debug_enabled: can_debug_expedition(client_id), ...get_expedition_work(client_id),
-			supply_score: get_expedition_supply_score(client_id) };
+		const state = get_expedition_state(guild_id, client_id);
+		return { ...state, debug_enabled: can_debug_expedition(client_id), ...get_expedition_work(client_id),
+			supply_score: get_expedition_supply_score(client_id, state.expedition?.id ?? null) };
 	});
 
 	session_post_route('/api/expedition/debug/advance', async (req, url, client_id, json): Promise<HandlerResult> => {

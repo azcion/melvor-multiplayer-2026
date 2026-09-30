@@ -1,3 +1,5 @@
+import { expedition_capture_time, EXPEDITION_BOUNDARY_TOLERANCE_MS, EXPEDITION_FRESH_CAPTURE_MS } from './expedition-clock';
+import { write_log } from './log';
 import { createHash } from 'node:crypto';
 import { db } from './db';
 import { EXPEDITION_WORK_SKILLS, preview_task_available } from './expedition-content';
@@ -10,11 +12,13 @@ type Activity = { type: 'skill' | 'combat'; skill_id?: string; action_id?: strin
 type Session = { id: number; expedition_id: number; visit_id: number; client_id: number; tenure_id: number;
 	task_id: string; started_at: number; start_statistics: string; start_activities: string; ended_at: number | null;
 	last_observed_at: number | null; max_observation_gap_ms: number; evidence_skill_ids: string;
-	pending_boundary_at: number | null; pending_capture_at: number | null };
+	pending_boundary_at: number | null; pending_capture_at: number | null;
+	start_clock_offset_ms: number | null; pending_reported_capture_at: number | null };
 type Claim = { session_id: number; client_id: number; expedition_id: number; visit_id: number; task_id: string;
 	started_at: number; cutoff_at: number; start_statistics: string; start_activities: string;
 	evidence_skill_ids: string; last_observed_at: number | null; max_observation_gap_ms: number;
-	pending_boundary_at: number | null; pending_capture_at: number | null };
+	pending_boundary_at: number | null; pending_capture_at: number | null;
+	start_clock_offset_ms: number | null; pending_reported_capture_at: number | null };
 type TaskRow = { target_ms: number; player_ms: number; system_ms: number; unlocked_at: number | null;
 	completed_at: number | null; promoted_at: number | null };
 const HOUR_MS = 3_600_000;
@@ -249,16 +253,26 @@ export function change_expedition_work(client_id: number, operation_id: string, 
 		get_expedition_work(client_id);
 		const existing = active_session(client_id);
 		const claim = existing ? null : active_claim(client_id);
-		if (request.captured_at > now || request.captured_at < (existing?.started_at ?? claim?.started_at ?? 0))
-			return { success: false, error: 'invalid_capture_time' };
+		if (request.captured_at < 0) return { success: false, error: 'invalid_capture_time' };
+		const source = existing ?? claim;
+		let captured_at = expedition_capture_time(request.captured_at, now, source);
+		const clock_reset = source !== null && request.captured_at <
+			source.started_at + (source.start_clock_offset_ms ?? 0);
+		const clock = { reported_capture_at: request.captured_at, server_received_at: now,
+			reported_offset_ms: request.captured_at - now, effective_capture_at: captured_at,
+			start_clock_offset_ms: source?.start_clock_offset_ms ?? null, clock_reset };
+		write_log('info', `type=expedition_clock identity=${client_id} kind=${request.kind} ` +
+			`reported_capture_at=${request.captured_at} server_received_at=${now} ` +
+			`reported_offset_ms=${clock.reported_offset_ms} candidate_capture_at=${captured_at} start_clock_offset_ms=${source?.start_clock_offset_ms ?? "unknown"} clock_reset=${clock_reset}`);
 		const pending = existing?.pending_boundary_at !== null && existing?.pending_boundary_at !== undefined ? existing : claim;
 		if (pending?.pending_boundary_at !== null && pending?.pending_boundary_at !== undefined) {
 			if (pending.pending_capture_at === null) {
-				if (request.captured_at > pending.pending_boundary_at ||
-					pending.pending_boundary_at - request.captured_at > 30_000)
+				if (Math.abs(captured_at - pending.pending_boundary_at) > EXPEDITION_BOUNDARY_TOLERANCE_MS)
 					return { success: false, error: 'boundary_capture_mismatch' };
-			} else if (request.captured_at !== pending.pending_capture_at)
+			} else if (request.captured_at !== (pending.pending_reported_capture_at ?? pending.pending_capture_at))
 				return { success: false, error: 'boundary_capture_mismatch' };
+			captured_at = pending.pending_capture_at ?? Math.min(captured_at, pending.pending_boundary_at);
+			clock.effective_capture_at = captured_at;
 			if (pending.pending_capture_at !== null && request.statistics &&
 				comparable_evidence(pending.start_statistics, request.statistics,
 					JSON.parse(pending.evidence_skill_ids) as string[]))
@@ -270,24 +284,24 @@ export function change_expedition_work(client_id: number, operation_id: string, 
 				return { success: false, error: 'tracking_identity_mismatch' };
 			if (!request.statistics || !comparable_evidence(claim.start_statistics, request.statistics,
 				JSON.parse(claim.evidence_skill_ids) as string[])) {
-				if (now >= request.captured_at + UNVERIFIED_WAIT_MS) {
-					const settlement = settle_claim(claim, { version: 1, time_ms: {} }, request.captured_at, now);
-					const response = { success: true, settlement, ...get_expedition_work(client_id) };
+				if (now >= captured_at + UNVERIFIED_WAIT_MS) {
+					const settlement = settle_claim(claim, { version: 1, time_ms: {} }, captured_at, now);
+					const response = { success: true, clock, settlement, ...get_expedition_work(client_id) };
 					db.query('INSERT INTO expedition_work_operations (client_id, operation_id, request_hash, response, created_at) VALUES (?, ?, ?, ?, ?)')
 						.run(client_id, operation_id, request_hash, JSON.stringify(response), now);
 					return response;
 				}
 				if (claim.pending_boundary_at === null) db.query(
-					'UPDATE expedition_work_claims SET pending_boundary_at = ?, pending_capture_at = ? WHERE session_id = ?'
-				).run(request.captured_at, request.captured_at, claim.session_id);
-				const response = { ...pending_response(claim.pending_boundary_at ?? request.captured_at), ...get_expedition_work(client_id) };
+					'UPDATE expedition_work_claims SET pending_boundary_at = ?, pending_capture_at = ?, pending_reported_capture_at = ? WHERE session_id = ?'
+				).run(captured_at, captured_at, request.captured_at, claim.session_id);
+				const response = { clock, ...pending_response(claim.pending_boundary_at ?? captured_at), ...get_expedition_work(client_id) };
 				db.query('INSERT INTO expedition_work_operations (client_id, operation_id, request_hash, response, created_at) VALUES (?, ?, ?, ?, ?)')
 					.run(client_id, operation_id, request_hash, JSON.stringify(response), now);
 				return response;
 			}
-			const settlement = settle_claim(claim, request.statistics, request.captured_at, now);
+			const settlement = settle_claim(claim, request.statistics, captured_at, now);
 			if (settlement.success !== true) return settlement;
-			const response = { success: true, settlement, ...get_expedition_work(client_id) };
+			const response = { success: true, clock, settlement, ...get_expedition_work(client_id) };
 			db.query('INSERT INTO expedition_work_operations (client_id, operation_id, request_hash, response, created_at) VALUES (?, ?, ?, ?, ?)')
 				.run(client_id, operation_id, request_hash, JSON.stringify(response), now);
 			return response;
@@ -307,22 +321,22 @@ export function change_expedition_work(client_id: number, operation_id: string, 
 		if (existing) {
 			if (!request.statistics || !comparable_evidence(existing.start_statistics, request.statistics,
 				JSON.parse(existing.evidence_skill_ids) as string[])) {
-				if (now >= request.captured_at + UNVERIFIED_WAIT_MS) {
-					settlement = settle(existing, { version: 1, time_ms: {} }, request.activities, request.captured_at, now);
-					const response = { success: true, settlement, ...get_expedition_work(client_id) };
+				if (now >= captured_at + UNVERIFIED_WAIT_MS) {
+					settlement = settle(existing, { version: 1, time_ms: {} }, request.activities, captured_at, now);
+					const response = { success: true, clock, settlement, ...get_expedition_work(client_id) };
 					db.query('INSERT INTO expedition_work_operations (client_id, operation_id, request_hash, response, created_at) VALUES (?, ?, ?, ?, ?)')
 						.run(client_id, operation_id, request_hash, JSON.stringify(response), now);
 					return response;
 				}
 				if (existing.pending_boundary_at === null) db.query(
-					'UPDATE expedition_work_sessions SET pending_boundary_at = ?, pending_capture_at = ? WHERE id = ?'
-				).run(request.captured_at, request.captured_at, existing.id);
-				const response = { ...pending_response(existing.pending_boundary_at ?? request.captured_at), ...get_expedition_work(client_id) };
+					'UPDATE expedition_work_sessions SET pending_boundary_at = ?, pending_capture_at = ?, pending_reported_capture_at = ? WHERE id = ?'
+				).run(captured_at, captured_at, request.captured_at, existing.id);
+				const response = { clock, ...pending_response(existing.pending_boundary_at ?? captured_at), ...get_expedition_work(client_id) };
 				db.query('INSERT INTO expedition_work_operations (client_id, operation_id, request_hash, response, created_at) VALUES (?, ?, ?, ?, ?)')
 					.run(client_id, operation_id, request_hash, JSON.stringify(response), now);
 				return response;
 			}
-			settlement = settle(existing, request.statistics, request.activities, request.captured_at, now);
+			settlement = settle(existing, request.statistics, request.activities, captured_at, now);
 			if (!settlement.success) return settlement;
 		}
 		let started = null;
@@ -332,7 +346,7 @@ export function change_expedition_work(client_id: number, operation_id: string, 
 			? continued_task && eligible_activity(request.activities, continued_task.evidence.skill_ids)
 				? existing?.task_id : null
 			: request.task_id;
-		if (task_id && now - request.captured_at > 30_000)
+		if (task_id && source && !clock_reset && now - captured_at > EXPEDITION_FRESH_CAPTURE_MS)
 			fresh_snapshot_required = true;
 		if (task_id && !fresh_snapshot_required) {
 			const expedition = db.query<{ guild_id: number; status: string; current_visit_id: number | null }, [number]>(
@@ -354,14 +368,14 @@ export function change_expedition_work(client_id: number, operation_id: string, 
 				return { success: false, error: 'task_unavailable' };
 			if (!available && request.kind === 'start') requested_unavailable = true;
 			if (available) {
-				started = db.query<{ id: number }, [number, number, number, number, string, number, string, string, number, string]>(
-					'INSERT INTO expedition_work_sessions (expedition_id, visit_id, client_id, tenure_id, task_id, started_at, start_statistics, start_activities, last_observed_at, evidence_skill_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id'
+				started = db.query<{ id: number }, [number, number, number, number, string, number, string, string, number, string, number]>(
+					'INSERT INTO expedition_work_sessions (expedition_id, visit_id, client_id, tenure_id, task_id, started_at, start_statistics, start_activities, last_observed_at, evidence_skill_ids, start_clock_offset_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id'
 				).get(request.expedition_id, request.visit_id, client_id, tenure.id, task_id, now,
 					JSON.stringify(request.statistics), JSON.stringify(request.activities), now,
-					JSON.stringify(definition?.evidence.skill_ids ?? []));
+					JSON.stringify(definition?.evidence.skill_ids ?? []), request.captured_at - now);
 			}
 		}
-		const response = { success: true, settlement, ...get_expedition_work(client_id),
+		const response = { success: true, clock, settlement, ...get_expedition_work(client_id),
 			...(requested_unavailable ? { warning: 'task_unavailable' } : {}),
 			...(fresh_snapshot_required ? { warning: 'fresh_snapshot_required' } : {}) };
 		db.query('INSERT INTO expedition_work_operations (client_id, operation_id, request_hash, response, created_at) VALUES (?, ?, ?, ?, ?)')

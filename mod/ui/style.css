@@ -209,6 +209,16 @@ input.form-control[type="number"] {
 }
 
 /* Native category toggles own d-none; feature eligibility must survive expansion. */
+.mp-expedition-nav {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	margin-left: auto;
+}
+
+.mp-expedition-nav[hidden] { display: none; }
+.mp-expedition-nav img { width: 22px; height: 22px; object-fit: contain; }
+
 .nav-main-item.mp-nav-unavailable {
 	display: none !important;
 }
@@ -2797,6 +2807,48 @@ mp-item-slider .noUi-target * {
 	border-radius: 8px;
 }
 
+.mp-raid-info-buttons {
+	display: flex;
+	gap: .5rem;
+}
+
+.mp-raid-info-buttons button {
+	padding: 0px 8px 2px;
+}
+
+.mp-raid-info-buttons img {
+	width: 20px;
+}
+
+.mp-raid-drop-list,
+.mp-raid-boss-info {
+	text-align: left;
+}
+
+.mp-raid-boss-info p,
+.mp-raid-boss-info h5 {
+	margin-bottom: .5rem;
+}
+
+.mp-raid-boss-hitpoints {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.mp-raid-drop-row {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	gap: .5rem;
+	padding: .4rem 0;
+}
+
+.mp-raid-drop-row > span:first-child,
+.mp-raid-drop-row > img {
+	flex-shrink: 0;
+}
+
 .mp-raid-tier-defeats {
 	position: absolute;
 	z-index: 1;
@@ -3136,6 +3188,15 @@ mp-item-slider .noUi-target * {
 
 	.mp-updates-mobile-hidden {
 		display: none !important;
+	}
+
+	.mp-raid-drop-row-label .text-info {
+		font-size: 1rem;
+	}
+
+	.mp-raid-drop-row-label {
+		display: flex;
+		flex-direction: column;
 	}
 
 	.mp-raid-activation {

@@ -232,13 +232,15 @@ export function install_transfer_actions(runtime) {
 				return '';
 			const remaining = timestamp - this.raid_update_time;
 			if (remaining <= 0)
-				return 'now';
+				return getLangString('MOD_MP_RAID_TIME_NOW');
 			const total_minutes = Math.ceil(remaining / 60_000);
 			const hours = Math.floor(total_minutes / 60);
 			const minutes = total_minutes % 60;
 			if (hours >= 24)
-				return `${Math.floor(hours / 24)}d ${hours % 24}h`;
-			return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+				return getLangString('MOD_MP_RAID_TIME_DAYS_HOURS').replace('%s', String(Math.floor(hours / 24))).replace('%s', String(hours % 24));
+			return hours > 0
+				? getLangString('MOD_MP_RAID_TIME_HOURS_MINUTES').replace('%s', String(hours)).replace('%s', String(minutes))
+				: getLangString('MOD_MP_RAID_TIME_MINUTES').replace('%s', String(minutes));
 		},
 
 		get_raid_monster_icon(tier) {
@@ -252,6 +254,48 @@ export function install_transfer_actions(runtime) {
 
 		get_raid_nav_icon() {
 			return ctx.getResourceUrl('assets/raid-nav.png');
+		},
+
+		show_raid_drops(tier) {
+			const drops = this.raid_monster_drops[tier];
+			if (!Array.isArray(drops) || drops.length === 0)
+				return;
+			if (queue_modal(this.get_raid_monster_name(tier), 'raid-drops-modal', this.get_raid_nav_icon(), {}, false, false))
+				this.raid_drop_entries = drops;
+		},
+
+		get_raid_info_icon(kind) {
+			return runtime.get_game_asset_url(kind === 'drops'
+				? 'assets/media/main/bank_header.png' : 'assets/media/status/stunned.png');
+		},
+
+		get_raid_boss_info_label() {
+			return getLangString('MOD_MP_RAID_BOSS_INFO');
+		},
+
+		show_raid_boss_info(tier) {
+			const monster = game.monsters.getObjectByID(`multiplayer:Raid_Tier_${tier}`);
+			if (monster === undefined)
+				return;
+			const info = {
+				hitpoints: numberWithCommas(monster.levels.Hitpoints * runtime.get_number_multiplier()),
+				hitpoints_icon: runtime.get_game_asset_url('assets/media/skills/hitpoints/hitpoints.png'),
+				attack_interval: monster.equipmentStats.find(stat => stat.key === 'attackSpeed')?.value / 1000,
+				fortified_resistance: runtime.raid_resistance_from_defeats(this.raid_state.tier_defeats?.[tier] ?? 0),
+				attacks: monster.specialAttacks.map(({ attack, chance }) => ({
+					id: attack.id, name: attack.name, chance, description: runtime.format_raid_attack_description(attack)
+				}))
+			};
+			if (queue_modal(monster.name, 'raid-boss-info-modal', this.get_raid_nav_icon(), {}, false, false))
+				this.raid_boss_info = info;
+		},
+
+		get_raid_drop_odds(drop) {
+			let a = drop.weight;
+			let b = drop.total_weight;
+			while (b !== 0) [a, b] = [b, a % b];
+			const percent = Number((100 * drop.weight / drop.total_weight).toFixed(2));
+			return `${drop.weight / a}/${drop.total_weight / a}, ${percent}%`;
 		},
 
 		get_raid_tier_progress(tier) {

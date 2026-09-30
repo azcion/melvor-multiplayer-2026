@@ -10,8 +10,48 @@ const TERMINAL_OUTCOMES = new Set(['success', 'death', 'flee', 'abandoned']);
 const FORTIFIED_EFFECT_ID = 'multiplayer:Raid_Boss_Fortified';
 const VULNERABLE_EFFECT_ID = 'multiplayer:Raid_Boss_Vulnerable';
 
+const RAID_DESCRIPTION_EFFECTS = Object.freeze({
+	'Fear': 'melvorD:Fear',
+	'Poison': 'melvorD:Poison',
+	'Deadly Poison': 'melvorD:DeadlyPoison',
+	'Laceration': 'melvorItA:Laceration',
+	'Eldritch Curse': 'melvorItA:EldritchCurse'
+});
+
+function escape_raid_description(value) {
+	return String(value).replace(/[&<>"']/g, char => ({
+		'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+	})[char]);
+}
+
+export function format_raid_attack_description(attack, game) {
+	const names = new Map();
+	for (const [fallback, id] of Object.entries(RAID_DESCRIPTION_EFFECTS)) {
+		const effect = game.combatEffects.getObjectByID(id);
+		names.set(escape_raid_description(effect?.name ?? fallback), effect);
+	}
+	const pattern = [...names.keys()].sort((a, b) => b.length - a.length)
+		.map(name => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+	return escape_raid_description(attack.description).replace(
+		new RegExp(pattern, 'g'),
+		name => {
+			const effect = names.get(name);
+			if (effect === undefined)
+				return `<span class="text-danger font-w600">${name}</span>`;
+			return `<span class="text-danger font-w600"><img class="skill-icon-xxs" src="${escape_raid_description(effect.media)}" alt="">${escape_raid_description(effect.name)}</span>`;
+		}
+	);
+}
+
+export function install_raid_attack_description_hook(ctx, attack_span_class, game) {
+	ctx.patch(attack_span_class, 'setAttack').after(function(_result, selection) {
+		if (selection.attack.id.startsWith('multiplayer:Raid_Tier_'))
+			this.description.innerHTML = format_raid_attack_description(selection.attack, game);
+	});
+}
+
 export function raid_resistance_from_defeats(defeats) {
-	return 99 - Math.min(24, Math.floor(Math.max(0, defeats) / 6));
+	return 95 - Math.min(20, Math.floor(Math.max(0, defeats) / 6));
 }
 
 export function apply_raid_resistance(monster, resistance) {
@@ -64,7 +104,7 @@ export class RaidCombatController {
 		if (!Number.isSafeInteger(reservation?.combat_deadline) || reservation.combat_deadline <= this.now())
 			throw new Error('Raid Assault reservation has expired.');
 
-		const fortified_resistance = reservation.fortified_resistance ?? 99;
+		const fortified_resistance = reservation.fortified_resistance ?? 95;
 		if (!Number.isSafeInteger(fortified_resistance) ||
 			fortified_resistance < 75 || fortified_resistance > 99)
 			throw new Error('Invalid Raid fortified resistance.');
@@ -148,9 +188,9 @@ export function install_raid_combat_hooks(ctx, controller, combat_manager_class,
 	let lethal_hit = false;
 	const adjust_effects = () => {
 		if (controller.active !== null && is_raid_monster(game.combat.selectedMonster))
-			apply_raid_resistance(game.combat.monster, controller.active.fortified_resistance);
+			apply_raid_resistance(game.combat.enemy, controller.active.fortified_resistance);
 	};
-	game.combat.monster?.on?.('effectApplied', () => queueMicrotask(adjust_effects));
+	game.combat.enemy?.on?.('effectApplied', () => queueMicrotask(adjust_effects));
 
 	ctx.patch(combat_manager_class, 'selectMonster').replace(function(original, monster, area) {
 		if (!is_raid_monster(monster))

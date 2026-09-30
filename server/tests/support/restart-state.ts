@@ -3,6 +3,10 @@ import type { RegisteredClient } from './http';
 export const restart_state_path = '/test-state/restart.json';
 
 export type RestartState = {
+	expedition_work: {
+		session_token: string; session_id: number; offset_ms: number;
+		report: Record<string, unknown>; response: Record<string, unknown>;
+	};
 	installation: { client_identifier: string; installation_id: string; installation_key: string; session_token: string };
 	first: RegisteredClient;
 	first_id: number;

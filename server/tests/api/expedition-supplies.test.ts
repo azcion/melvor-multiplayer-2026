@@ -82,6 +82,36 @@ describe('Expedition Entrance supplies', () => {
 		expect(result.json.receipt.effects).toEqual([{ storage: 'transfer',
 			item_id: 'melvorItA:Crimson_Biter', qty: -100 }]);
 	});
+
+	test('starts a new cumulative supply score for the same character in a later Expedition', async () => {
+		const guild = await make_guildmates('Repeat Supply', 'Repeat Witness', 'Repeat Guild');
+		const first_run = await post_json<{ expedition_id: number }>(
+			'/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.first.session_token);
+		const first = await post_json<any>('/api/expedition/supply/donate', {
+			command_id: crypto.randomUUID(), expedition_id: first_run.json.expedition_id,
+			...shrimp, qty: 1000, source: 'bank'
+		}, guild.first.session_token);
+		expect(first.json.success).toBe(true);
+		await db_run("UPDATE expeditions SET status = 'inactive', ended_at = ? WHERE id = ?",
+			[Date.now(), first_run.json.expedition_id]);
+		const second_run = await post_json<{ expedition_id: number }>(
+			'/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.first.session_token);
+		expect(second_run.json.expedition_id).not.toBe(first_run.json.expedition_id);
+		const state_before = (await get_json_with_session<any>('/api/expedition/state', guild.first.session_token)).json;
+		expect(state_before.supply_score).toEqual({ value_gp_equiv: 0, score_micros: 0 });
+		const second = await post_json<any>('/api/expedition/supply/donate', {
+			command_id: crypto.randomUUID(), expedition_id: second_run.json.expedition_id,
+			...shrimp, qty: 1000, source: 'bank'
+		}, guild.first.session_token);
+		expect(second.json.success).toBe(true);
+		expect(second.json.delta_micros).toBe(first.json.delta_micros);
+		expect(second.json.value_gp_equiv).toBe(2000);
+		expect(await db_all('SELECT expedition_id, value_gp_equiv FROM expedition_supply_scores WHERE client_id = ? ORDER BY expedition_id',
+			[guild.first_id])).toEqual([
+			{ expedition_id: first_run.json.expedition_id, value_gp_equiv: 2000 },
+			{ expedition_id: second_run.json.expedition_id, value_gp_equiv: 2000 }
+		]);
+	});
 });
 
 describe('Expedition personal rewards', () => {

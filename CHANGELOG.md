@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.1
+
+- Added a brief Expedition modal when task tracking stops, including activity changes, task switches, and completed tasks, and active tracked skill icons beside Expedition in the sidebar.
+- Fixed Guild Raid boss damage-reduction scaling: bosses now start at 95%, lose one percentage point for every six tier defeats by current non-Shadowed Guild members, and reach the 75% floor at 120 defeats. The vulnerable phase remains at 33%. Fortification and Vulnerability now use the Raid icon. Raid modals, countdowns, boss names, attacks, and effect names are now localized in every supported language.
+- Added Raid boss info and Drops popups showing encounter stats, special attacks with consistent effect icons in previews and combat, damage-reduction phases, and reward quantities and odds, with items delivered to the Inbox.
+- Changed the button on fully sold-out My Sell Listings from Cancel to an info-colored Remove button.
+
 ## 1.6.0
 
 - Added an Expedition preview for tagged Guild testers, with shared Chamber work, supply donations, passage votes, Journey history, and a fixed route from The Rift through Prismatic Descent, Glassroot Terraces, Buried Observatory, Prismatic Orrery, and Voidwatch Threshold to The Hollow Star; added a readable Expedition Chat conversation for all 1.6.0 players, with sending and reactions reserved for testers.

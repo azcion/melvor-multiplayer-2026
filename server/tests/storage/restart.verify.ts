@@ -6,6 +6,18 @@ import { db_all } from '../support/persistence';
 
 test('rebuilds caches and preserves API state after a server restart', async () => {
 	const state = await read_restart_state();
+	const work = state.expedition_work;
+	expect(await db_all('SELECT start_clock_offset_ms FROM expedition_work_sessions WHERE id = ?', [work.session_id]))
+		.toEqual([{ start_clock_offset_ms: work.offset_ms }]);
+	const replayed_work = await post_json('/api/expedition/task/start', work.report, work.session_token);
+	expect(replayed_work.json).toEqual(work.response);
+	const checked_work = await post_json<any>('/api/expedition/task/check-in', {
+		...work.report, operation_id: crypto.randomUUID(), captured_at: Date.now() + 86_400_000,
+		statistics: { version: 1, time_ms: { 'melvorD:Woodcutting': 1000 } }
+	}, work.session_token);
+	expect(checked_work.json.success).toBe(true);
+	expect(checked_work.json.tracking).toBeTruthy();
+	expect(checked_work.json.settlement.credited_ms).toBeLessThanOrEqual(checked_work.json.settlement.elapsed_ms);
 	const existing_installation = await get_json_with_session('/api/events', state.installation.session_token);
 	expect(existing_installation.response.status).toBe(200);
 	const reauthenticated = await post_json<{ session_token: string }>('/api/authenticate', {

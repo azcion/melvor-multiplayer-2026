@@ -6,6 +6,7 @@ import {
 	MULTIPLAYER_SUPPORTED_LANGUAGES,
 	create_localized_language_fetch,
 	localize_multiplayer_page_names,
+	localize_raid_content,
 	resolve_multiplayer_language
 } from '../../mod/localization.mjs';
 
@@ -55,6 +56,53 @@ test('every packaged locale labels both Raid reward groups and the tier', async 
 		assert.equal(placeholder_signature(translations.MOD_MP_INBOX_SOURCE_RAID_ASSAULT), 1);
 		assert.equal(placeholder_signature(translations.MOD_MP_RAID_TIER), 1);
 	}
+});
+
+test('every locale covers Raid copy and native content with matching placeholders', async () => {
+	const english = JSON.parse(await readFile(new URL('mod/data/lang/en.json', root), 'utf8'));
+	const keys = Object.keys(english).filter(key => key.startsWith('MOD_MP_RAID_'));
+	for (const language of MULTIPLAYER_SUPPORTED_LANGUAGES) {
+		const strings = JSON.parse(await readFile(new URL(`mod/data/lang/${language}.json`, root), 'utf8'));
+		for (const key of keys) {
+			assert.ok(strings[key]?.trim(), `${language}:${key} must be translated`);
+			assert.equal(placeholder_signature(strings[key]), placeholder_signature(english[key]));
+		}
+		assert.match(strings.MOD_MP_RAID_FORTIFIED_DESCRIPTION, /95%/);
+		assert.doesNotMatch(strings.MOD_MP_RAID_FORTIFIED_DESCRIPTION, /99%/);
+	}
+});
+
+test('native Raid names and attack text follow language changes with optional content absent', async () => {
+	const dictionaries = {};
+	for (const language of ['en', 'zh-CN'])
+		dictionaries[language] = JSON.parse(await readFile(new URL(`mod/data/lang/${language}.json`, root), 'utf8'));
+	let language = 'en';
+	const fear = { id: 'melvorD:Fear', get name() { return language === 'en' ? 'Fear' : '恐惧'; } };
+	const poison = { id: 'melvorD:Poison', get name() { return language === 'en' ? 'Poison' : '中毒'; } };
+	const monster = { name: 'English boss' };
+	const strike = { id: 'multiplayer:Raid_Tier_1_FullDamage', name: 'English strike' };
+	const fortified = { name: 'English buff' };
+	const area = { name: 'English area' };
+	const attack = { name: 'English attack', description: 'English description',
+		onhitEffects: [strike, fear, poison].map(effect => ({ effect })) };
+	const registry = entries => ({ getObjectByID: id => entries[id] });
+	const game = {
+		monsters: registry({ 'multiplayer:Raid_Tier_1': monster }),
+		combatAreas: registry({ 'multiplayer:Guild_Raid': area }),
+		combatEffects: registry({ 'multiplayer:Raid_Tier_1_FullDamage': strike, 'multiplayer:Raid_Boss_Fortified': fortified }),
+		specialAttacks: registry({ 'multiplayer:Raid_Tier_1_Assault': attack })
+	};
+	localize_raid_content({ game, getLangString: key => dictionaries[language][key] });
+	assert.equal(monster.name, 'The Mossbound Hollow');
+	assert.match(attack.description, /15% otherwise\. Applies: Fear, Poison\./);
+	assert.equal(attack.modifiedDescription, attack.description);
+	language = 'zh-CN';
+	assert.equal(monster.name, dictionaries[language].MOD_MP_RAID_BOSS_1);
+	assert.equal(attack.name, dictionaries[language].MOD_MP_RAID_ATTACK_NAME);
+	assert.match(attack.description, /恐惧, 中毒/);
+	assert.equal(strike.name, dictionaries[language].MOD_MP_RAID_FULL_HEALTH_STRIKE.replace('%s', '1'));
+	assert.equal(fortified.name, dictionaries[language].MOD_MP_RAID_FORTIFICATION);
+	assert.equal(area.name, dictionaries[language].MOD_MP_PAGE_RAID);
 });
 
 test('every shipped locale covers the Crucible feature strings', async () => {

@@ -3,7 +3,7 @@ import { get_json_with_session, post, post_json, register_client } from '../supp
 import { attach_to_free_fellowship, make_guild_group, make_guildmates, register_guild_client } from '../support/fixtures';
 import { db_count, db_run } from '../support/persistence';
 import { RECENTLY_ACTIVE_AFTER } from '../../recent-activity';
-import { RAID_MONSTER_DROPS, RAID_TIER_PROGRESS, RAID_VICTORY_CACHE, raid_max_health, raid_fortified_resistance } from '../../raid';
+import { get_raid_monster_drops, RAID_MONSTER_DROPS, RAID_TIER_PROGRESS, RAID_VICTORY_CACHE, raid_max_health, raid_fortified_resistance } from '../../raid';
 
 type RaidState = {
 	affiliation: string;
@@ -84,8 +84,8 @@ describe('Guild Raids', () => {
 	});
 
 	test('lowers Fortified resistance at six-win thresholds with a 75 floor', () => {
-		expect([0, 5, 6, 143, 144, 999].map(raid_fortified_resistance))
-			.toEqual([99, 99, 98, 76, 75, 75]);
+		expect([0, 5, 6, 18, 119, 120, 999].map(raid_fortified_resistance))
+			.toEqual([95, 95, 94, 92, 76, 75, 75]);
 	});
 
 	test('defines the requested tier drop weights and inclusive quantity ranges', () => {
@@ -113,12 +113,45 @@ describe('Guild Raids', () => {
 		]);
 	});
 
+	test('normalizes drop odds after filtering expansion rewards', () => {
+		const base = get_raid_monster_drops(-1);
+		expect(base[4]).toEqual([
+			{ item_id: 'melvorF:Antique_Vase', min: 10, max: 100, weight: 2, total_weight: 3 },
+			{ item_id: 'melvorD:Weird_Gloop', min: 160, max: 320, weight: 1, total_weight: 3 }
+		]);
+		for (const drops of Object.values(base))
+			expect(drops.reduce((sum, drop) => sum + drop.weight / drop.total_weight, 0)).toBeCloseTo(1);
+	});
+
 	test('returns tier progress once at authentication', async () => {
 		const member = await register_client('Raid Settings');
-		const authenticated = await post_json<{ raid_tier_progress: Record<number, number> }>('/api/authenticate', {
+		const authenticated = await post_json<{ raid_tier_progress: Record<number, number>; raid_monster_drops: ReturnType<typeof get_raid_monster_drops> }>('/api/authenticate', {
 			client_identifier: member.client_identifier, client_key: member.client_key
 		});
 		expect(authenticated.json.raid_tier_progress).toEqual(RAID_TIER_PROGRESS);
+		expect(authenticated.json.raid_monster_drops).toEqual(get_raid_monster_drops(member.client_id));
+	});
+
+	test('includes expansion drops at registration and refreshes odds at authentication', async () => {
+		type Bootstrap = { client_identifier: string; raid_monster_drops: ReturnType<typeof get_raid_monster_drops> };
+		const client_key = crypto.randomUUID();
+		const registered = await post_json<Bootstrap>('/api/register', {
+			client_key, display_name: 'Raid Drop Odds',
+			client_runtime: { mod_version: '1.6.1', active_mods: [], owned_dlc: ['melvorTotH'] }
+		});
+		expect(registered.response.status).toBe(200);
+		expect(registered.json.raid_monster_drops[4]).toEqual([
+			{ item_id: 'melvorTotH:Raven_Nest', min: 40, max: 80, weight: 3, total_weight: 8 },
+			{ item_id: 'melvorTotH:Exotic_Herb_Sack', min: 30, max: 60, weight: 2, total_weight: 8 },
+			{ item_id: 'melvorF:Antique_Vase', min: 10, max: 100, weight: 2, total_weight: 8 },
+			{ item_id: 'melvorD:Weird_Gloop', min: 160, max: 320, weight: 1, total_weight: 8 }
+		]);
+		const authenticated = await post_json<Bootstrap>('/api/authenticate', {
+			client_identifier: registered.json.client_identifier, client_key,
+			client_runtime: { mod_version: '1.6.1', active_mods: [], owned_dlc: [] }
+		});
+		expect(authenticated.response.status).toBe(200);
+		expect(authenticated.json.raid_monster_drops[4]).toEqual(get_raid_monster_drops(-1)[4]);
 	});
 
 	test('unlocks each tier only after this character defeats the previous boss', async () => {
@@ -576,7 +609,7 @@ describe('Guild Raids', () => {
 		const source = await get_json_with_session<RaidState>('/api/raids/state', guild.second.session_token);
 		expect(source.json.tier_defeats?.[2]).toBe(6);
 		const next = await reserve(guild.first.session_token, 2);
-		expect(next.fortified_resistance).toBe(98);
+		expect(next.fortified_resistance).toBe(94);
 		const destination = await register_guild_client('Raid Lifetime Host', 'Raid New Guild');
 		await db_run('UPDATE `guild_memberships` SET `guild_id` = ? WHERE `client_id` = ?',
 			[destination.guild_id, guild.first.client_id]);

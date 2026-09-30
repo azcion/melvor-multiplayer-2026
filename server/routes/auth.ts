@@ -5,7 +5,7 @@ import { authenticate_installation, enroll_installation } from '../installations
 import { is_installation_id, parse_device_diagnostics } from '../diagnostics';
 import { mark_rejection } from '../diagnostics';
 import { release_campaign_refunds } from '../campaign-retirement';
-import { RAID_TIER_PROGRESS } from '../raid';
+import { get_raid_monster_drops, RAID_TIER_PROGRESS } from '../raid';
 import * as runtime from '../app-runtime';
 import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
@@ -105,6 +105,7 @@ export function register_auth_routes(): void {
 			installation_auth_supported: true, backend_version: BACKEND_VERSION,
 			server_owned_pets: true,
 			raid_tier_progress: RAID_TIER_PROGRESS,
+			raid_monster_drops: get_raid_monster_drops(client_row.id),
 			charity: await get_client_charity_state(client_row.id, client_runtime?.mod_version, Date.now(), true),
 			owned_pet_ids: get_owned_pet_ids(client_row.id, client_runtime?.mod_version),
 			released_mod_version: get_released_mod_version(),
@@ -162,6 +163,7 @@ export function register_auth_routes(): void {
 			installation_auth_supported: true, backend_version: BACKEND_VERSION,
 			server_owned_pets: true,
 			raid_tier_progress: RAID_TIER_PROGRESS,
+			raid_monster_drops: get_raid_monster_drops(client_id),
 			charity: await get_client_charity_state(client_id, client_runtime?.mod_version, Date.now(), true),
 			owned_pet_ids: get_owned_pet_ids(client_id, client_runtime?.mod_version),
 			released_mod_version: get_released_mod_version(),

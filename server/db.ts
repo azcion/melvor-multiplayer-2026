@@ -43,6 +43,11 @@ function initialize_schema(): void {
 			continue;
 
 		const apply_migration = db.transaction(() => {
+			if (migration.preflight_sql) {
+				const preflight = db.query<{ problems: number }, []>(migration.preflight_sql).get();
+				if (preflight?.problems !== 0)
+					throw new Error(`Migration ${migration.version} preflight found ${preflight?.problems ?? 'unknown'} ambiguous rows`);
+			}
 			db.run(migration.sql);
 			if (migration.foreign_keys_disabled) {
 				const violations = db.query<Record<string, unknown>, []>('PRAGMA foreign_key_check').all();

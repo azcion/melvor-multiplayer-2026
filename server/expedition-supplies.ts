@@ -14,10 +14,11 @@ export function expedition_supply_catalog() {
 	return { version: catalog.version, items: catalog.items };
 }
 
-export function get_expedition_supply_score(client_id: number) {
-	const score = db.query<{ value_gp_equiv: number; score_micros: number }, [number]>(
-		'SELECT value_gp_equiv, score_micros FROM expedition_supply_scores WHERE client_id = ?'
-	).get(client_id);
+export function get_expedition_supply_score(client_id: number, expedition_id: number | null) {
+	const score = expedition_id === null ? null : db.query<
+		{ value_gp_equiv: number; score_micros: number }, [number, number]>(
+		'SELECT value_gp_equiv, score_micros FROM expedition_supply_scores WHERE client_id = ? AND expedition_id = ?'
+	).get(client_id, expedition_id);
 	return { value_gp_equiv: score?.value_gp_equiv ?? 0, score_micros: score?.score_micros ?? 0 };
 }
 
@@ -53,7 +54,7 @@ export function donate_expedition_supply(client_id: number, command_id: unknown,
 		const value_each = item.value_currency_id === 'melvorD:GP' && item.value_per_item > 0
 			? item.value_per_item : 1;
 		const added_value = value_each * (qty as number);
-		const old_score = get_expedition_supply_score(client_id);
+		const old_score = get_expedition_supply_score(client_id, expedition_id as number);
 		const new_value = old_score.value_gp_equiv + added_value;
 		if (!Number.isSafeInteger(added_value) || !Number.isSafeInteger(new_value))
 			return { success: false, error: 'supply_limit' };
@@ -66,9 +67,9 @@ export function donate_expedition_supply(client_id: number, command_id: unknown,
 			'INSERT INTO expedition_supply_lots (expedition_id, item_id, client_id, owner_key, qty, contributed_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING id'
 		).get(expedition_id as number, item_id, client_id, get_charity_shuffle_owner_key(client_id), qty as number, now);
 		if (!lot) throw new Error('Expedition supply lot was not created');
-		db.query('INSERT INTO expedition_supply_scores (client_id, value_gp_equiv, score_micros) VALUES (?, ?, ?) ' +
-			'ON CONFLICT (client_id) DO UPDATE SET value_gp_equiv = excluded.value_gp_equiv, score_micros = excluded.score_micros')
-			.run(client_id, new_value, score_micros);
+		db.query('INSERT INTO expedition_supply_scores (client_id, expedition_id, value_gp_equiv, score_micros) VALUES (?, ?, ?, ?) ' +
+			'ON CONFLICT (client_id, expedition_id) DO UPDATE SET value_gp_equiv = excluded.value_gp_equiv, score_micros = excluded.score_micros')
+			.run(client_id, expedition_id as number, new_value, score_micros);
 		if (delta_micros > 0) {
 			db.query("INSERT INTO expedition_ep_ledger (client_id, source_kind, source_id, expedition_id, points_micros, created_at) VALUES (?, 'supply', ?, ?, ?, ?)")
 				.run(client_id, lot.id, expedition_id as number, delta_micros, now);

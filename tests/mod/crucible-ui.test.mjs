@@ -3,6 +3,31 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { install_crucible_actions } from '../../mod/client-crucible.mjs';
 
+test('mounted Crucible bindings tolerate cleared state after leaving a Guild', async () => {
+	const templates = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
+	const page = templates.slice(templates.indexOf('<template id="template-mp-crucible-page">'),
+		templates.indexOf('<template id="template-mp-transfer-page">'));
+	const expressions = [...page.matchAll(/(?:\bv-(?:if|else-if|for)|:[\w-]+)="([^"]+)"|\{\{\s*([^}]+?)\s*\}\}/g)]
+		.map(match => match[1] ?? match[2])
+		.filter(expression => /state\.crucible\b/.test(expression))
+		.map(expression => expression.replace(/^\w+ of /, ''));
+	assert.ok(expressions.length >= 20, 'covers heat, wishes, clearing, offerings, and reclaim bindings');
+	const state = { crucible: null, crucible_busy: false, crucible_clock_time: 1_000,
+		crucible_loading: false, crucible_time: value => value,
+		crucible_selected_wish_id: 1, crucible_selected_offering_id: 'item' };
+	const evaluate = expression => new Function('state', 'formatNumber', 'getLangString',
+		`return (${expression});`)(state, String, key => key);
+	// Reactive effects may run before the surrounding v-if branch is unmounted.
+	for (const crucible of [null, {
+		heat: { tier: 3, value: 500, points_per_minute: 4 }, is_open: true, level: 2,
+		active_wish: null, wishes: [{ id: 1 }], offerings: [{ id: 'item' }], next_reclaim_at: 2_000
+	}, null]) {
+		state.crucible = crucible;
+		for (const expression of expressions)
+			assert.doesNotThrow(() => evaluate(expression), expression);
+	}
+});
+
 test('Crucible keeps migration unavailability distinct from a failed load', async () => {
 	const responses = [{ enabled: false }, new Error('connection failed'),
 		{ enabled: true, offerings: [], wishes: [], wish_catalog: [] }];

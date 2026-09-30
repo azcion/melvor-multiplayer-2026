@@ -14,6 +14,7 @@ import { migrations_111_120 } from './migrations/111-120';
 import { migrations_121_130 } from './migrations/121-130';
 import { migrations_131_140 } from './migrations/131-140';
 import { migrations_141_150 } from './migrations/141-150';
+import { migrations_151_160 } from './migrations/151-160';
 
 export const migrations: Migration[] = [
 	...migrations_001_010,
@@ -31,4 +32,5 @@ export const migrations: Migration[] = [
 	...migrations_121_130,
 	...migrations_131_140,
 	...migrations_141_150,
+	...migrations_151_160,
 ];

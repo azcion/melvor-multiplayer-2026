@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+	format_raid_attack_description,
+	install_raid_attack_description_hook,
 	RaidCombatController,
 	RAID_MONSTER_IDS,
 	has_full_hitpoints,
@@ -63,7 +65,7 @@ function combat_harness() {
 	});
 	const combat = event_source({
 		player: event_source(),
-		monster: event_source({ activeEffects: new Map() }),
+		enemy: event_source({ activeEffects: new Map() }),
 		selectedMonster: undefined,
 		resetActionState() {
 			this.selectedMonster = undefined;
@@ -82,8 +84,8 @@ test('only treats a finite current/max HP pair at equality as full health', () =
 });
 
 test('lowers fortified resistance at every sixth Guild defeat while preserving 33 weak resistance', () => {
-	assert.deepEqual([0, 5, 6, 143, 144, 999].map(raid_resistance_from_defeats),
-		[99, 99, 98, 76, 75, 75]);
+	assert.deepEqual([0, 5, 6, 18, 24, 30, 119, 120, 999].map(raid_resistance_from_defeats),
+		[95, 95, 94, 92, 91, 90, 76, 75, 75]);
 	const groups = new Map();
 	const monster = { activeEffects: new Map([
 		[{ id: 'multiplayer:Raid_Boss_Fortified' }, { setStats: (name, value) => groups.set(name, value) }],
@@ -98,13 +100,13 @@ test('lowers fortified resistance at every sixth Guild defeat while preserving 3
 test('applies reserved resistance when native Raid effects appear during combat', async () => {
 	const { combat, controller } = combat_harness();
 	const values = new Map();
-	combat.monster.activeEffects = new Map([
+	combat.enemy.activeEffects = new Map([
 		[{ id: 'multiplayer:Raid_Boss_Fortified' }, { setStats: (name, value) => values.set(name, value) }],
 		[{ id: 'multiplayer:Raid_Boss_Vulnerable' }, { setStats: (name, value) => values.set(name, value) }]
 	]);
 	controller.begin(reservation({ fortified_resistance: 98 }));
 	combat.selectedMonster = { id: RAID_MONSTER_IDS[1] };
-	combat.monster.emit('effectApplied');
+	combat.enemy.emit('effectApplied');
 	await Promise.resolve();
 	assert.deepEqual([...values.entries()], [['fortification', 98], ['vulnerability', 65]]);
 	controller.abandon_loaded_combat();
@@ -265,4 +267,45 @@ test('character-load cleanup clears decoded Raid combat without patching deseria
 	assert.deepEqual(combat.selectedMonster, { id: 'melvorD:Plant' });
 	assert.equal(is_raid_monster(combat.selectedMonster), false);
 	assert.equal(is_raid_monster({ id: RAID_MONSTER_IDS[4] }), true);
+});
+
+
+test('formats every Raid status with registered icons without changing non-Raid attack text', () => {
+	const names = { 'melvorD:Fear': 'Fear', 'melvorD:Poison': 'Poison', 'melvorD:DeadlyPoison': 'Deadly Poison',
+		'melvorItA:Laceration': 'Laceration', 'melvorItA:EldritchCurse': 'Eldritch Curse' };
+	const game = { combatEffects: { getObjectByID: id => names[id]
+		? { name: names[id], media: `effect://${id}` } : undefined } };
+	const attack = { id: 'multiplayer:Raid_Tier_4_Assault_ItA',
+		description: 'Applies Fear, Poison, Deadly Poison, Laceration, and Eldritch Curse.' };
+	const formatted = format_raid_attack_description(attack, game);
+	assert.equal((formatted.match(/<img /g) ?? []).length, 5);
+	for (const name of Object.values(names)) assert.ok(formatted.includes(`>${name}</span>`));
+	assert.ok(formatted.includes('effect://melvorD:DeadlyPoison'));
+	assert.equal(format_raid_attack_description({ description: '<script>Fear</script>' }, game).includes('<script>'), false);
+	let after;
+	class AttackSpan {}
+	install_raid_attack_description_hook({ patch: (klass, method) => {
+		assert.equal(klass, AttackSpan);
+		assert.equal(method, 'setAttack');
+		return { after: callback => { after = callback; } };
+	} }, AttackSpan, game);
+	const span = { description: { innerHTML: 'native' } };
+	after.call(span, undefined, { attack: { id: 'melvorD:Normal' } });
+	assert.equal(span.description.innerHTML, 'native');
+	after.call(span, undefined, { attack });
+	assert.equal(span.description.innerHTML, formatted);
+	assert.equal(format_raid_attack_description({ description: 'Laceration' },
+		{ combatEffects: { getObjectByID: () => undefined } }), '<span class="text-danger font-w600">Laceration</span>');
+});
+
+test('adds Raid status icons to translated names without English word boundaries', () => {
+	const effects = {
+		'melvorD:Fear': { name: '恐惧', media: 'fear.png' },
+		'melvorD:Poison': { name: '中毒', media: 'poison.png' }
+	};
+	const result = format_raid_attack_description({ description: '施加：恐惧、中毒。' },
+		{ combatEffects: { getObjectByID: id => effects[id] } });
+	assert.match(result, /src="fear.png"[^>]*>恐惧/);
+	assert.match(result, /src="poison.png"[^>]*>中毒/);
+	assert.doesNotMatch(result, /Fear|Poison/);
 });

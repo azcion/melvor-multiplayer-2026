@@ -519,6 +519,9 @@ const state = ui.createStore({
 	identity_notice_time: '',
 	raid_state: { affiliation: 'none', cache_pending: false },
 	raid_tier_progress: {},
+	raid_monster_drops: {},
+	raid_drop_entries: [],
+	raid_boss_info: null,
 	raid_loading: false,
 	raid_action_pending: false,
 	raid_error: '',
@@ -1098,6 +1101,8 @@ function create_action_runtime() {
 		state,
 		ctx,
 		game,
+		get_game_asset_url: path => assets.getURI(path),
+		get_number_multiplier: () => numberMultiplier,
 		getLangString,
 		localization,
 		changePage: navigate_page,
@@ -1591,6 +1596,25 @@ function expedition_notify(message, theme = 'success') {
 	notifyPlayer({ media: ctx.getResourceUrl('assets/multiplayer.svg') }, message, theme, 1);
 }
 
+let last_expedition_tracking_notice_session = null;
+
+function notify_expedition_tracking_ended(previous, next, message) {
+	const notice_session = previous ? `${session_generation}:${previous.session_id}` : null;
+	if (!previous || previous.pending_boundary_at ||
+		(next && !next.pending_boundary_at && next.expedition_id === previous.expedition_id &&
+			next.visit_id === previous.visit_id && next.task_id === previous.task_id) ||
+		last_expedition_tracking_notice_session === notice_session) return;
+	last_expedition_tracking_notice_session = notice_session;
+	addModalToQueue({
+		title: getLangString('MOD_MP_EXPEDITION_TASK_TRACKING_ENDED'),
+		text: message,
+		icon: 'info',
+		timer: 4000,
+		timerProgressBar: true,
+		showConfirmButton: false
+	});
+}
+
 function start_expedition_action_cooldown(field, duration) {
 	const until = Date.now() + duration;
 	state[field] = until;
@@ -1683,6 +1707,7 @@ async function refresh_expedition_state(reconnect = false) {
 		}
 	} finally {
 		state.expedition_loading = false;
+		update_expedition_nav();
 	}
 }
 
@@ -1784,11 +1809,14 @@ async function register_expedition() {
 async function retry_expedition_report(automatic = false) {
 	const pending = state.expedition_pending_report;
 	if (!pending || state.expedition_action_pending) return;
+	const previous_tracking = state.expedition_state?.tracking ?? state.expedition_personal?.tracking;
 	state.expedition_action_pending = true;
 	try {
 		let result = await api_post(pending.endpoint, pending.payload);
 		if (automatic && result === null) result = await api_post(pending.endpoint, pending.payload);
 		if (result?.pending) {
+			notify_expedition_tracking_ended(previous_tracking, result.tracking,
+				getLangString('MOD_MP_EXPEDITION_ACTIVITY_CHANGED_PENDING'));
 			remove_instance_storage_item(EXPEDITION_PENDING_KEY);
 			state.expedition_pending_report = null;
 			const personal = await api_get('/api/expedition/personal');
@@ -1808,6 +1836,7 @@ async function retry_expedition_report(automatic = false) {
 			if (result.warning === 'fresh_snapshot_required')
 				notice += getLangString('MOD_MP_EXPEDITION_FRESH_SNAPSHOT');
 			expedition_notify(notice);
+			notify_expedition_tracking_ended(previous_tracking, result.tracking, notice);
 			const refreshed = await api_get('/api/expedition/state');
 			if (refreshed?.contract_version === 1) state.expedition_state = refreshed;
 			else state.expedition_personal = await api_get('/api/expedition/personal');
@@ -1825,6 +1854,7 @@ async function retry_expedition_report(automatic = false) {
 		}
 	} finally {
 		state.expedition_action_pending = false;
+		update_expedition_nav();
 	}
 }
 
@@ -1877,6 +1907,7 @@ async function vote_expedition_exit(exit_id) {
 		} else expedition_notify(result?.error ?? getLangString('MOD_MP_EXPEDITION_VOTE_FAILED'), 'danger');
 	} finally {
 		state.expedition_action_pending = false;
+		update_expedition_nav();
 	}
 }
 
@@ -1897,6 +1928,7 @@ async function debug_advance_expedition(action, task_id = null) {
 		} else expedition_notify(result?.error ?? getLangString('MOD_MP_EXPEDITION_TEST_ADVANCE_FAILED'), 'danger');
 	} finally {
 		state.expedition_action_pending = false;
+		update_expedition_nav();
 	}
 }
 
@@ -2127,6 +2159,7 @@ async function flush_status_sync() {
 	const request_generation = session_generation;
 	status_sync_in_flight = true;
 	last_status_sync_at = Date.now();
+	const previous_expedition_tracking = state.expedition_state?.tracking ?? state.expedition_personal?.tracking;
 	let res = null;
 	try {
 		res = await api_post('/api/client/status/sync', payload);
@@ -2167,9 +2200,15 @@ async function flush_status_sync() {
 			});
 		}
 		if (res.expedition_work_stopped?.pending) {
+			notify_expedition_tracking_ended(previous_expedition_tracking,
+				null, getLangString('MOD_MP_EXPEDITION_ACTIVITY_CHANGED_PENDING'));
 			expedition_notify(getLangString('MOD_MP_EXPEDITION_ACTIVITY_CHANGED_PENDING'));
 			void refresh_expedition_state();
 		} else if (res.expedition_work_stopped?.success) {
+			notify_expedition_tracking_ended(previous_expedition_tracking,
+				null, expedition_text('MOD_MP_EXPEDITION_ACTIVITY_CHANGED_CREDIT',
+					expedition_hours(res.expedition_work_stopped.credited_ms),
+					expedition_status('REASON', res.expedition_work_stopped.reason)));
 			expedition_notify(expedition_text('MOD_MP_EXPEDITION_ACTIVITY_CHANGED_CREDIT',
 				expedition_hours(res.expedition_work_stopped.credited_ms),
 				expedition_status('REASON', res.expedition_work_stopped.reason)));
@@ -2198,6 +2237,7 @@ function observe_status_changes() {
 	const serialized_statistics = serialize_status_statistics(snapshot);
 	if (serialized_activities !== last_observed_status_activities)
 		state.expedition_active_activities = snapshot.activities;
+	update_expedition_nav(snapshot.activities);
 	if (serialized_activities === last_observed_status_activities &&
 		serialized_statistics === last_observed_status_statistics)
 		return;
@@ -2961,6 +3001,34 @@ function update_raid_nav() {
 	aside.classList.toggle('mp-raid-active', active);
 }
 
+function update_expedition_nav(activities = capture_status_activities()) {
+	const item = sidebar.category('Multiplayer').item('multiplayer:Expedition').itemEl;
+	if (!item) return;
+	let aside = item.querySelector('.mp-expedition-nav');
+	if (!aside) {
+		aside = document.createElement('span');
+		aside.className = 'mp-expedition-nav';
+		item.append(aside);
+	}
+	const skill_ids = state.is_connected && !state.multiplayer_unsupported
+		? expedition_tasks.tracked_skill_ids(state.expedition_state, activities) : [];
+	aside.hidden = skill_ids.length === 0;
+	const icons = skill_ids.map(id => ({
+		media: id === 'melvorD:Combat' ? assets.getURI(expedition_work_icon(id)) : expedition_work_icon(id),
+		name: expedition_work_name(id)
+	}));
+	const signature = JSON.stringify(icons);
+	if (aside.dataset.icons === signature) return;
+	aside.dataset.icons = signature;
+	aside.replaceChildren(...icons.map(({ media, name }) => {
+		const image = document.createElement('img');
+		image.src = media;
+		image.alt = name;
+		image.title = expedition_text('MOD_MP_EXPEDITION_TRACKING_TITLE', name);
+		return image;
+	}));
+}
+
 async function refresh_changelog() {
 	if (changelog_loader === null || state.changelog_loading)
 		return;
@@ -3079,6 +3147,7 @@ function update_multiplayer_nav() {
 	const transfer_nav_item = multiplayer_category.item('multiplayer:Transfer_Items');
 	transfer_nav_item.rootEl?.classList.toggle('mp-nav-unavailable', state.multiplayer_unsupported || !state.has_transfer_access);
 	update_charitree_nav();
+	update_expedition_nav();
 }
 // #endregion
 
@@ -4985,6 +5054,8 @@ export async function setup(ctx) {
 	const { install_social_actions } = await ctx.loadModule('client-actions-social.mjs');
 	const { register_components } = await ctx.loadModule('client-components.mjs');
 	const action_runtime = create_action_runtime();
+	action_runtime.raid_resistance_from_defeats = raid_module.raid_resistance_from_defeats;
+	action_runtime.format_raid_attack_description = attack => raid_module.format_raid_attack_description(attack, game);
 	action_runtime.chat_items = chat_items;
 	Object.assign(
 		state,
@@ -5125,6 +5196,8 @@ export async function setup(ctx) {
 		navigate_page
 	);
 
+	raid_module.install_raid_attack_description_hook(ctx, customElements.get('special-attack-span'), game);
+
 	await patch_localization(ctx);
 
 	install_social_mode_setting(ctx);
@@ -5154,6 +5227,7 @@ export async function setup(ctx) {
 	await load_pets(ctx);
 	await ctx.gameData.addPackage('data.json');
 	localize_multiplayer_page_names();
+	localization.localize_raid_content({ game, getLangString });
 
 	ctx.onCharacterLoaded(() => {
 		raid_combat.clear_loaded_combat();
@@ -5808,6 +5882,7 @@ function activate_multiplayer_identity(response) {
 	state.charity_eligible = false;
 	state.charity_next_opportunity_timestamp = 0;
 	state.charity_server_supported = false;
+	state.raid_monster_drops = response.raid_monster_drops ?? {};
 	state.raid_tier_progress = response.raid_tier_progress && typeof response.raid_tier_progress === 'object'
 		? response.raid_tier_progress : {};
 	apply_charity_state(response.charity);

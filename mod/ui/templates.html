@@ -252,7 +252,11 @@
 					<span class="mp-raid-tier-defeats" v-if="(state.raid_state.tier_defeats?.[tier] ?? 0) > 0"><span>{{ state.raid_state.tier_defeats[tier] }}×</span><img src="https://cdn2-main.melvor.net/assets/media/bank/skull.png" alt=""></span>
 					<div class="mp-raid-tier-image"><img :src="state.is_raid_tier_unlocked(tier) ? state.get_raid_monster_icon(tier) : state.get_raid_nav_icon()" alt=""></div>
 					<h4>{{ state.get_raid_monster_name(tier) }}</h4>
-					<button type="button" class="btn btn-primary mb-2" :disabled="!state.can_assault_raid_tier(tier)" @click="state.show_raid_assault_confirmation(tier)"><lang-string lang-id="MOD_MP_RAID_BEGIN_ASSAULT"></lang-string></button>
+					<button type="button" class="btn btn-danger mb-2" :disabled="!state.can_assault_raid_tier(tier)" @click="state.show_raid_assault_confirmation(tier)"><lang-string lang-id="MOD_MP_RAID_BEGIN_ASSAULT"></lang-string></button>
+					<div class="mp-raid-info-buttons">
+						<button type="button" class="btn btn-primary mb-2 mp-raid-drops" :disabled="!state.raid_monster_drops[tier]?.length" :aria-label="getLangString('COMBAT_MISC_104')" :title="getLangString('COMBAT_MISC_104')" @click="state.show_raid_drops(tier)"><img :src="state.get_raid_info_icon('drops')" alt=""></button>
+						<button type="button" class="btn btn-primary mb-2 mp-raid-info" :aria-label="state.get_raid_boss_info_label()" :title="state.get_raid_boss_info_label()" @click="state.show_raid_boss_info(tier)"><img :src="state.get_raid_info_icon('boss')" alt=""></button>
+					</div>
 					<div class="font-size-sm text-muted"><mp-lang-string-f lang-id="MOD_MP_RAID_TIER_PROGRESS" :lang-arg-1="state.get_raid_tier_progress(tier)"></mp-lang-string-f></div>
 				</div>
 			</div>
@@ -1835,9 +1839,10 @@
 								</button>
 							</template>
 							<template v-else>
-								<button type="button" class="btn btn-danger m-1" @click="state.resolve_market_listing($event, item, 'cancel')">
+								<button type="button" class="btn m-1" :class="item.available === 0 && item.reserved === 0 ? 'btn-info' : 'btn-danger'" @click="state.resolve_market_listing($event, item, 'cancel')">
 									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-									<lang-string lang-id="MOD_MP_BUTTON_MARKET_CANCEL"></lang-string>
+									<lang-string v-if="item.available === 0 && item.reserved === 0" lang-id="MOD_MP_BUTTON_MARKET_REMOVE"></lang-string>
+									<lang-string v-else lang-id="MOD_MP_BUTTON_MARKET_CANCEL"></lang-string>
 								</button>
 							</template>
 						</div>
@@ -1861,44 +1866,44 @@
 		<div class="block block-rounded p-4" v-else-if="!state.is_guild_member"><lang-string lang-id="MOD_MP_GUILD_REQUIRED_INFO"></lang-string></div>
 		<div v-else class="mp-crucible-page">
 			<div class="block block-rounded p-3 mp-crucible-heat" v-if="state.crucible" role="group" :aria-label="getLangString('MOD_MP_CRUCIBLE_HEAT')">
-				<div class="d-flex justify-content-between align-items-center"><strong><i class="fa fa-fire mr-1" aria-hidden="true"></i><lang-string lang-id="MOD_MP_CRUCIBLE_HEAT"></lang-string> {{ state.crucible.heat?.tier ?? 0 }} / 9</strong><span>{{ formatNumber(state.crucible.heat?.value ?? 0) }} <lang-string lang-id="MOD_MP_CRUCIBLE_HEAT_VALUE"></lang-string></span></div>
-				<div class="mp-crucible-heat-track" role="progressbar" :aria-valuenow="state.crucible.heat?.tier ?? 0" aria-valuemin="0" aria-valuemax="9" :aria-valuetext="getLangString('MOD_MP_CRUCIBLE_HEAT_TIER').replace('%s', state.crucible.heat?.tier ?? 0)"><span :style="{ width: ((state.crucible.heat?.tier ?? 0) * 100 / 9) + '%' }"></span></div>
-				<small><lang-string lang-id="MOD_MP_CRUCIBLE_HEAT_RATE" class="mp-crucible-inline-label"></lang-string>{{ state.crucible.heat?.points_per_minute || 1 }}×</small>
+				<div class="d-flex justify-content-between align-items-center"><strong><i class="fa fa-fire mr-1" aria-hidden="true"></i><lang-string lang-id="MOD_MP_CRUCIBLE_HEAT"></lang-string> {{ state.crucible?.heat?.tier ?? 0 }} / 9</strong><span>{{ formatNumber(state.crucible?.heat?.value ?? 0) }} <lang-string lang-id="MOD_MP_CRUCIBLE_HEAT_VALUE"></lang-string></span></div>
+				<div class="mp-crucible-heat-track" role="progressbar" :aria-valuenow="state.crucible?.heat?.tier ?? 0" aria-valuemin="0" aria-valuemax="9" :aria-valuetext="getLangString('MOD_MP_CRUCIBLE_HEAT_TIER').replace('%s', state.crucible?.heat?.tier ?? 0)"><span :style="{ width: ((state.crucible?.heat?.tier ?? 0) * 100 / 9) + '%' }"></span></div>
+				<small><lang-string lang-id="MOD_MP_CRUCIBLE_HEAT_RATE" class="mp-crucible-inline-label"></lang-string>{{ state.crucible?.heat?.points_per_minute || 1 }}×</small>
 			</div>
 			<div class="block block-rounded p-4" v-if="state.crucible_loading && !state.crucible"><lang-string lang-id="MOD_MP_LOADING"></lang-string></div>
 			<div class="block block-rounded p-4 text-danger" v-else-if="state.crucible_error"><lang-string lang-id="MOD_MP_MULTIPLAYER_CONNECTION_ERR"></lang-string></div>
 			<div class="block block-rounded p-4" v-else-if="!state.crucible"><lang-string lang-id="MOD_MP_CRUCIBLE_UNAVAILABLE"></lang-string></div>
 			<template v-else>
-				<div class="block block-rounded p-3" v-if="!state.crucible.is_open"><i class="fa fa-lock mr-2" aria-hidden="true"></i><lang-string lang-id="MOD_MP_CRUCIBLE_SEALED"></lang-string></div>
+				<div class="block block-rounded p-3" v-if="!state.crucible?.is_open"><i class="fa fa-lock mr-2" aria-hidden="true"></i><lang-string lang-id="MOD_MP_CRUCIBLE_SEALED"></lang-string></div>
 				<section class="mp-crucible-panel" aria-labelledby="mp-crucible-wishes-title">
-					<h3 id="mp-crucible-wishes-title" class="mp-crucible-panel-heading"><button type="button" class="mp-crucible-panel-toggle" :aria-expanded="state.crucible_panels_open.wishes" aria-controls="mp-crucible-wishes-body" @click="state.crucible_panels_open.wishes = !state.crucible_panels_open.wishes"><i class="fa fa-star" aria-hidden="true"></i><span><lang-string lang-id="MOD_MP_CRUCIBLE_WISHES"></lang-string></span><small>{{ state.crucible.wishes?.length ?? 0 }}</small><i class="fa" :class="state.crucible_panels_open.wishes ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></button></h3>
+					<h3 id="mp-crucible-wishes-title" class="mp-crucible-panel-heading"><button type="button" class="mp-crucible-panel-toggle" :aria-expanded="state.crucible_panels_open.wishes" aria-controls="mp-crucible-wishes-body" @click="state.crucible_panels_open.wishes = !state.crucible_panels_open.wishes"><i class="fa fa-star" aria-hidden="true"></i><span><lang-string lang-id="MOD_MP_CRUCIBLE_WISHES"></lang-string></span><small>{{ state.crucible?.wishes?.length ?? 0 }}</small><i class="fa" :class="state.crucible_panels_open.wishes ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></button></h3>
 					<div id="mp-crucible-wishes-body" class="mp-crucible-panel-body" v-show="state.crucible_panels_open.wishes">
 						<p><lang-string lang-id="MOD_MP_CRUCIBLE_WISHES_INFO"></lang-string></p>
-						<div class="mp-crucible-grid" v-if="state.crucible.wishes?.length">
-							<button type="button" class="mp-crucible-slot mp-crucible-wish-slot" v-for="wish of state.crucible.wishes" :key="wish.id" :class="{ 'mp-crucible-slot-selected': state.crucible_selected_wish_id === wish.id, 'mp-crucible-wish-ready': wish.phase === 'melded', 'mp-crucible-wish-mine': wish.owned, 'mp-crucible-wish-forming': wish.phase === 'forming' }" :aria-pressed="state.crucible_selected_wish_id === wish.id" :aria-label="state.get_item_name(wish.item_id) + ' ×' + formatNumber(wish.qty)" @click="state.crucible_select_wish(wish)">
+						<div class="mp-crucible-grid" v-if="state.crucible?.wishes?.length">
+							<button type="button" class="mp-crucible-slot mp-crucible-wish-slot" v-for="wish of (state.crucible?.wishes ?? [])" :key="wish.id" :class="{ 'mp-crucible-slot-selected': state.crucible_selected_wish_id === wish.id, 'mp-crucible-wish-ready': wish.phase === 'melded', 'mp-crucible-wish-mine': wish.owned, 'mp-crucible-wish-forming': wish.phase === 'forming' }" :aria-pressed="state.crucible_selected_wish_id === wish.id" :aria-label="state.get_item_name(wish.item_id) + ' ×' + formatNumber(wish.qty)" @click="state.crucible_select_wish(wish)">
 								<mp-item-icon :data-item-id="wish.item_id"><img :src="state.get_item_icon(wish.item_id)" alt="" draggable="false"></mp-item-icon>
 								<span class="mp-crucible-avatars" v-if="wish.wisher"><img :src="state.get_avatar_icon(wish.contributors[0].icon_id)" :alt="wish.wisher || getLangString('MOD_MP_CRUCIBLE_WISH_MAKER')" :title="wish.wisher || getLangString('MOD_MP_CRUCIBLE_WISH_MAKER')"></span><span class="mp-crucible-slot-quantity">{{ formatNumber(wish.qty) }}</span>
 								<i class="fa fa-star mp-crucible-slot-owned" v-if="wish.owned" aria-hidden="true"></i>
 								<span class="mp-crucible-slot-time" v-if="wish.phase === 'forming'">{{ state.crucible_time(wish.estimated_formation_at) }}</span><span class="mp-crucible-slot-meter" v-if="wish.phase !== 'melded'"><span :style="{ width: state.crucible_wish_progress(wish) + '%' }"></span></span>
 							</button>
 						</div>
-						<div class="mp-crucible-selection" :class="{ 'mp-crucible-wish-forming': wish.phase === 'forming' }" v-for="wish of state.crucible.wishes.filter(row => row.id === state.crucible_selected_wish_id)" :key="wish.id">
+						<div class="mp-crucible-selection" :class="{ 'mp-crucible-wish-forming': wish.phase === 'forming' }" v-for="wish of (state.crucible?.wishes ?? []).filter(row => row.id === state.crucible_selected_wish_id)" :key="wish.id">
 							<div class="mp-crucible-selection-title"><strong>{{ state.get_item_name(wish.item_id) }} ×{{ formatNumber(wish.qty) }}</strong><button type="button" class="btn btn-sm btn-secondary" :aria-label="getLangString('MOD_MP_CRUCIBLE_CLOSE_DETAILS')" @click="state.crucible_select_wish(wish)"><i class="fa fa-times" aria-hidden="true"></i></button></div>
 							<p>{{ wish.phase === 'forming' ? getLangString('MOD_MP_CRUCIBLE_FORMING') : wish.phase === 'melding' ? getLangString('MOD_MP_CRUCIBLE_MELDING') : getLangString('MOD_MP_CRUCIBLE_MELDED') }} · {{ formatNumber(wish.progress_gp) }} / {{ formatNumber(wish.required_gp) }} GP</p>
 							<p v-if="wish.phase === 'forming'">{{ state.crucible_time(wish.estimated_formation_at) }} <lang-string lang-id="MOD_MP_CRUCIBLE_TO_FORM"></lang-string></p><div class="mp-crucible-meter" v-if="wish.phase !== 'melded'" role="progressbar" :aria-valuenow="state.crucible_wish_progress(wish)" aria-valuemin="0" aria-valuemax="100" :aria-label="getLangString('MOD_MP_CRUCIBLE_FORMATION_PROGRESS')"><span :style="{ width: state.crucible_wish_progress(wish) + '%' }"></span></div>
 							<button type="button" class="btn btn-sm btn-danger" v-if="wish.owned && wish.phase === 'forming'" :disabled="state.crucible_busy" @click="state.crucible_cancel_wish()"><lang-string lang-id="MOD_MP_CRUCIBLE_CANCEL"></lang-string></button>
 							<button type="button" class="btn btn-sm btn-success" v-if="wish.owned && wish.phase === 'melded'" :disabled="state.crucible_busy" @click="state.crucible_claim_wish()"><lang-string lang-id="MOD_MP_CRUCIBLE_CLAIM"></lang-string></button>
 						</div>
-						<div class="mp-crucible-wish-form" v-if="state.crucible.is_open && !state.crucible.active_wish"><button type="button" class="btn btn-success" :disabled="state.crucible_busy" @click="state.show_crucible_wish_modal()"><lang-string lang-id="MOD_MP_CRUCIBLE_MAKE_WISH"></lang-string></button></div>
+						<div class="mp-crucible-wish-form" v-if="state.crucible?.is_open && !state.crucible?.active_wish"><button type="button" class="btn btn-success" :disabled="state.crucible_busy" @click="state.show_crucible_wish_modal()"><lang-string lang-id="MOD_MP_CRUCIBLE_MAKE_WISH"></lang-string></button></div>
 					</div>
 				</section>
-				<section class="mp-crucible-panel mp-crucible-clearing" aria-labelledby="mp-crucible-clearing-title"><h3 id="mp-crucible-clearing-title" class="mp-crucible-panel-heading"><button type="button" class="mp-crucible-panel-toggle" :aria-expanded="state.crucible_panels_open.clearing" aria-controls="mp-crucible-clearing-body" @click="state.crucible_panels_open.clearing = !state.crucible_panels_open.clearing"><i class="fa fa-broom" aria-hidden="true"></i><span><lang-string lang-id="MOD_MP_CRUCIBLE_CLEARING_TITLE"></lang-string></span><i class="fa" :class="state.crucible_panels_open.clearing ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></button></h3><div id="mp-crucible-clearing-body" class="mp-crucible-panel-body" v-show="state.crucible_panels_open.clearing"><strong><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR_LEVEL" class="mp-crucible-inline-label"></lang-string>{{ state.crucible.level }} / {{ state.crucible.active_wish ? 10 : 20 }}</strong><p><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR_INFO"></lang-string></p><button type="button" class="btn btn-success mr-2" :disabled="state.crucible_busy || !state.crucible.is_open || state.crucible.level >= (state.crucible.active_wish ? 10 : 20)" @click="state.crucible_clear(false)"><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR"></lang-string></button><button type="button" class="btn btn-secondary" :disabled="state.crucible_busy || !state.crucible.is_open || state.crucible.level >= (state.crucible.active_wish ? 10 : 20)" @click="state.crucible_clear(true)"><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR_MAX"></lang-string></button></div></section>
+				<section class="mp-crucible-panel mp-crucible-clearing" aria-labelledby="mp-crucible-clearing-title"><h3 id="mp-crucible-clearing-title" class="mp-crucible-panel-heading"><button type="button" class="mp-crucible-panel-toggle" :aria-expanded="state.crucible_panels_open.clearing" aria-controls="mp-crucible-clearing-body" @click="state.crucible_panels_open.clearing = !state.crucible_panels_open.clearing"><i class="fa fa-broom" aria-hidden="true"></i><span><lang-string lang-id="MOD_MP_CRUCIBLE_CLEARING_TITLE"></lang-string></span><i class="fa" :class="state.crucible_panels_open.clearing ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></button></h3><div id="mp-crucible-clearing-body" class="mp-crucible-panel-body" v-show="state.crucible_panels_open.clearing"><strong><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR_LEVEL" class="mp-crucible-inline-label"></lang-string>{{ state.crucible?.level ?? 0 }} / {{ state.crucible?.active_wish ? 10 : 20 }}</strong><p><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR_INFO"></lang-string></p><button type="button" class="btn btn-success mr-2" :disabled="state.crucible_busy || !state.crucible?.is_open || state.crucible?.level >= (state.crucible?.active_wish ? 10 : 20)" @click="state.crucible_clear(false)"><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR"></lang-string></button><button type="button" class="btn btn-secondary" :disabled="state.crucible_busy || !state.crucible?.is_open || state.crucible?.level >= (state.crucible?.active_wish ? 10 : 20)" @click="state.crucible_clear(true)"><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR_MAX"></lang-string></button></div></section>
 				<section class="mp-crucible-panel" aria-labelledby="mp-crucible-offerings-title">
-					<h3 id="mp-crucible-offerings-title" class="mp-crucible-panel-heading"><button type="button" class="mp-crucible-panel-toggle" :aria-expanded="state.crucible_panels_open.offerings" aria-controls="mp-crucible-offerings-body" @click="state.crucible_panels_open.offerings = !state.crucible_panels_open.offerings"><i class="fa fa-fire" aria-hidden="true"></i><span><lang-string lang-id="MOD_MP_CRUCIBLE_OFFERINGS"></lang-string></span><small>{{ state.crucible.offerings?.length ?? 0 }}</small><i class="fa" :class="state.crucible_panels_open.offerings ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></button></h3>
+					<h3 id="mp-crucible-offerings-title" class="mp-crucible-panel-heading"><button type="button" class="mp-crucible-panel-toggle" :aria-expanded="state.crucible_panels_open.offerings" aria-controls="mp-crucible-offerings-body" @click="state.crucible_panels_open.offerings = !state.crucible_panels_open.offerings"><i class="fa fa-fire" aria-hidden="true"></i><span><lang-string lang-id="MOD_MP_CRUCIBLE_OFFERINGS"></lang-string></span><small>{{ state.crucible?.offerings?.length ?? 0 }}</small><i class="fa" :class="state.crucible_panels_open.offerings ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></button></h3>
 					<div id="mp-crucible-offerings-body" class="mp-crucible-panel-body" v-show="state.crucible_panels_open.offerings">
 						<p><lang-string lang-id="MOD_MP_CRUCIBLE_OFFERINGS_INFO"></lang-string></p>
-						<div class="mp-crucible-grid" v-if="state.crucible.offerings?.length">
-							<button type="button" class="mp-crucible-slot" v-for="item of state.crucible.offerings" :key="item.id" :class="{ 'mp-crucible-slot-selected': state.crucible_selected_offering_id === item.id, 'mp-crucible-slot-slag': state.crucible_slag(item).covered, 'mp-crucible-new-item': !state.is_charity_item_discovered(item.id) }" :aria-pressed="state.crucible_selected_offering_id === item.id" :aria-label="(state.crucible_slag(item).covered ? getLangString('MOD_MP_CRUCIBLE_SLAG_COVERED') : state.get_item_name(item.id)) + ' ×' + formatNumber(item.qty)" @click="state.crucible_select_offering(item)">
+						<div class="mp-crucible-grid" v-if="state.crucible?.offerings?.length">
+							<button type="button" class="mp-crucible-slot" v-for="item of (state.crucible?.offerings ?? [])" :key="item.id" :class="{ 'mp-crucible-slot-selected': state.crucible_selected_offering_id === item.id, 'mp-crucible-slot-slag': state.crucible_slag(item).covered, 'mp-crucible-new-item': !state.is_charity_item_discovered(item.id) }" :aria-pressed="state.crucible_selected_offering_id === item.id" :aria-label="(state.crucible_slag(item).covered ? getLangString('MOD_MP_CRUCIBLE_SLAG_COVERED') : state.get_item_name(item.id)) + ' ×' + formatNumber(item.qty)" @click="state.crucible_select_offering(item)">
 								<mp-item-icon v-if="!state.crucible_slag(item).covered" :data-item-id="item.id"><img :src="state.get_item_icon(item.id)" alt="" draggable="false"></mp-item-icon>
 								<i v-else class="fa fa-question-circle mp-crucible-slot-unknown" aria-hidden="true"></i>
 								<span class="mp-crucible-avatars" v-if="item.contributors?.length"><img v-for="contributor of item.contributors.slice(0, 3)" :key="contributor.client_id" :src="state.get_avatar_icon(contributor.icon_id)" alt=""></span><span class="mp-crucible-slot-quantity">{{ formatNumber(item.qty) }}</span>
@@ -1907,14 +1912,14 @@
 							</button>
 						</div>
 						<p v-else><lang-string lang-id="MOD_MP_CRUCIBLE_EMPTY"></lang-string></p>
-						<div class="mp-crucible-selection" v-for="item of state.crucible.offerings.filter(row => row.id === state.crucible_selected_offering_id)" :key="item.id">
+						<div class="mp-crucible-selection" v-for="item of (state.crucible?.offerings ?? []).filter(row => row.id === state.crucible_selected_offering_id)" :key="item.id">
 							<div class="mp-crucible-selection-title"><strong>{{ state.crucible_slag(item).covered ? getLangString('MOD_MP_CRUCIBLE_SLAG_COVERED') : state.get_item_name(item.id) }} ×{{ formatNumber(item.qty) }}</strong><button type="button" class="btn btn-sm btn-secondary" :aria-label="getLangString('MOD_MP_CRUCIBLE_CLOSE_DETAILS')" @click="state.crucible_select_offering(item)"><i class="fa fa-times" aria-hidden="true"></i></button></div>
 							<div class="mp-crucible-meter" v-if="!item.is_untimed" role="progressbar" :aria-valuenow="item.meld_percent" aria-valuemin="0" aria-valuemax="100" :aria-label="getLangString('MOD_MP_CRUCIBLE_MELD_PROGRESS')"><span :style="{ width: item.meld_percent + '%' }"></span></div>
 						<p v-if="!item.is_untimed">{{ state.crucible_time(item.estimated_meld_at) }} <lang-string lang-id="MOD_MP_CRUCIBLE_TO_MELD"></lang-string></p>
 						<p v-else><lang-string lang-id="MOD_MP_CRUCIBLE_UNTIMED"></lang-string></p>
-						<button type="button" class="btn btn-sm btn-success" v-if="state.crucible.is_open" :disabled="state.crucible_busy || state.crucible_reclaim_block(item) !== null" @click="state.crucible_reclaim(item)"><lang-string v-if="state.crucible_reclaim_quantity(item) === item.qty" lang-id="MOD_MP_CRUCIBLE_RECLAIM_STACK"></lang-string><template v-else><lang-string lang-id="MOD_MP_CRUCIBLE_RECLAIM"></lang-string> {{ formatNumber(state.crucible_reclaim_quantity(item)) }}</template></button>
+						<button type="button" class="btn btn-sm btn-success" v-if="state.crucible?.is_open" :disabled="state.crucible_busy || state.crucible_reclaim_block(item) !== null" @click="state.crucible_reclaim(item)"><lang-string v-if="state.crucible_reclaim_quantity(item) === item.qty" lang-id="MOD_MP_CRUCIBLE_RECLAIM_STACK"></lang-string><template v-else><lang-string lang-id="MOD_MP_CRUCIBLE_RECLAIM"></lang-string> {{ formatNumber(state.crucible_reclaim_quantity(item)) }}</template></button>
 						</div>
-						<p v-if="state.crucible.next_reclaim_at > state.crucible_clock_time"><lang-string lang-id="MOD_MP_CRUCIBLE_NEXT_RECLAIM"></lang-string> {{ state.crucible_time(state.crucible.next_reclaim_at) }}</p>
+						<p v-if="state.crucible?.next_reclaim_at > state.crucible_clock_time"><lang-string lang-id="MOD_MP_CRUCIBLE_NEXT_RECLAIM"></lang-string> {{ state.crucible_time(state.crucible?.next_reclaim_at) }}</p>
 					</div>
 				</section>
 
@@ -2330,6 +2335,29 @@
 				</div>
 			</section>
 		</div>
+	</div>
+</template>
+<template id="template-mp-raid-drops-modal">
+	<p><lang-string lang-id="MOD_MP_RAID_DROPS_INTRO"></lang-string></p>
+	<ul class="mp-raid-drop-list list-unstyled">
+		<li class="mp-raid-drop-row" v-for="drop in state.raid_drop_entries" :key="drop.item_id">
+			<span>{{ drop.min }} - {{ drop.max }} ×</span>
+			<img class="skill-icon-xs" :src="state.get_item_icon(drop.item_id)" alt="">
+			<span class="mp-raid-drop-row-label">{{ state.get_item_name(drop.item_id) }} <span class="text-info">({{ state.get_raid_drop_odds(drop) }})</span></span>
+		</li>
+	</ul>
+	<p class="mb-0"><lang-string lang-id="MOD_MP_RAID_DROPS_INBOX"></lang-string></p>
+</template>
+<template id="template-mp-raid-boss-info-modal">
+	<div class="mp-raid-boss-info" v-if="state.raid_boss_info">
+		<p class="mp-raid-boss-hitpoints font-w700"><img class="skill-icon-xs mr-1" :src="state.raid_boss_info.hitpoints_icon" alt=""><span>{{ state.raid_boss_info.hitpoints }}</span></p>
+		<p><strong><lang-string lang-id="MOD_MP_RAID_ATTACK_INTERVAL"></lang-string></strong> <mp-lang-string-f lang-id="MOD_MP_RAID_ATTACK_SECONDS" :lang-arg-1="state.raid_boss_info.attack_interval"></mp-lang-string-f></p>
+		<p><strong><lang-string lang-id="MOD_MP_RAID_FORTIFIED_PHASE"></lang-string></strong> <mp-lang-string-f lang-id="MOD_MP_RAID_FORTIFIED_DESCRIPTION" :lang-arg-1="state.raid_boss_info.fortified_resistance"></mp-lang-string-f></p>
+		<p><strong><lang-string lang-id="MOD_MP_RAID_WEAK_PHASE"></lang-string></strong> <lang-string lang-id="MOD_MP_RAID_WEAK_DESCRIPTION"></lang-string></p>
+		<section v-for="attack in state.raid_boss_info.attacks" :key="attack.id">
+			<h5>{{ attack.name }} <span class="font-w400">({{ attack.chance }}%)</span></h5>
+			<p v-html="attack.description"></p>
+		</section>
 	</div>
 </template>
 <template id="template-mp-raid-assault-confirm-modal">

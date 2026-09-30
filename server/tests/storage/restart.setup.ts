@@ -217,7 +217,28 @@ test('creates representative state before a server restart', async () => {
 	const enrolled = await post_json<{ success: boolean }>('/api/installations/enroll', { installation_id, installation_key }, installed.json.session_token);
 	expect(enrolled.json.success).toBe(true);
 
+	const expedition_pair = await make_guildmates('Restart Worker', 'Restart Witness', 'Restart Expedition');
+	const registered_expedition = await post_json<{ expedition_id: number }>(
+		'/api/expedition/register', { operation_id: crypto.randomUUID() }, expedition_pair.first.session_token);
+	await db_run('UPDATE expeditions SET registered_at = ?, registration_ends_at = ? WHERE id = ?',
+		[Date.now() - 20 * 3_600_000 - 1, Date.now() - 1, registered_expedition.json.expedition_id]);
+	const expedition_state = await get_json_with_session<any>('/api/expedition/state', expedition_pair.first.session_token);
+	const chamber = expedition_state.json.expedition.chamber;
+	const expedition_task = chamber.tasks.find((task: { unlocked_at: number | null; evidence: { skill_ids: string[] } }) =>
+		task.unlocked_at !== null && task.evidence.skill_ids.includes('melvorD:Woodcutting'));
+	const work_report = { operation_id: crypto.randomUUID(), expedition_id: registered_expedition.json.expedition_id,
+		visit_id: chamber.visit_id, task_id: expedition_task.task_id, captured_at: Date.now() + 86_400_000,
+		activities: [{ type: 'skill', skill_id: 'melvorD:Woodcutting', action_id: 'melvorD:Normal_Tree' }],
+		statistics: { version: 1, time_ms: { 'melvorD:Woodcutting': 0 } } };
+	const work_started = await post_json<any>('/api/expedition/task/start', work_report, expedition_pair.first.session_token);
+	expect(work_started.json.success).toBe(true);
+	const expedition_work = { session_token: expedition_pair.first.session_token,
+		session_id: work_started.json.tracking.session_id,
+		offset_ms: work_report.captured_at - work_started.json.tracking.started_at,
+		report: work_report, response: work_started.json };
+
 	const state: RestartState = {
+		expedition_work,
 		installation: { ...installed.json, installation_id, installation_key },
 		...pair,
 		gift_id,

@@ -113,7 +113,7 @@ artifact_version="$version"
 if [ -n "$zip_suffix" ]; then
 	artifact_version="${artifact_version}-${zip_suffix}"
 fi
-output_file="$output_dir/melvor-multiplayer-remastered-${artifact_version}.zip"
+output_file="$output_dir/mp-${artifact_version}.zip"
 stage_dir="$(mktemp -d)"
 
 git archive --format=tar "$source_commit" mod | tar -xf - -C "$stage_dir" --strip-components=1
