@@ -14,47 +14,10 @@ pursue collective goals, face Guild Raids, and shape your community together.
 - Showing off profiles for equipment, skill levels, GP, and current activity.
 - Guild Council petitions, so members can shape their Guild together.
 
-## Getting started
+## Self-hosting
 
-1. Disable the original Melvor Multiplayer mod, if it is enabled.
-2. Enable this mod and reload the game.
-3. Open a save and join or create a Guild.
-
-## Run a self-hosted server
-
-If you'd like to connect the mod to your own private server, you can do so quite easily.
-
-Docker and Docker Compose are the only host prerequisites. Optionally copy `.env.example` to `.env`, then run:
-
-```sh
-docker compose up --build --wait
-```
-
-The server listens at `http://127.0.0.1:3000` by default. Stop it with:
-
-```sh
-docker compose down
-```
-
-The SQLite database is stored in the `database-data` Docker volume. Add `--volumes` only when you want to remove that
-local data.
-
-## Build the local mod
-
-This isn't necessary to connect to your private server. Use only if you want to make modifications to the mod itself.
-
-Create a Creator Toolkit-ready ZIP from the checked-in loopback development client:
-
-```sh
-./scripts/package-mod.sh
-```
-
-Import `dist/melvor-multiplayer-local.zip` through Melvor's Creator Toolkit, enable it in a dedicated mod profile, and
-reload the game. Disable the original Melvor Multiplayer mod in that profile so both clients do not run together.
-
-To connect to another compatible server, open this mod under **Mod Settings**, set an HTTPS server origin under
-**Connection**, and fully reload Melvor. HTTP overrides are accepted only for loopback development servers. Connect
-only to operators you trust with the multiplayer identity and gameplay data sent through the mod.
+See the [self-hosting guide](docs/self-hosting.md) for Docker setup, connecting the published mod, and building a
+Creator Toolkit ZIP.
 
 ## Validate the source
 
