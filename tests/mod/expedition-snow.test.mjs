@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { create_image_particle_element } from '../../mod/image-particles.mjs';
 import { advance_snow_particle, create_expedition_snow_element, DEFAULT_SNOW_SETTINGS, normalize_snow_settings } from '../../mod/expedition-snow.mjs';
 
 test('snow settings bound density and drawing cost while keeping the size range ordered', () => {
@@ -28,19 +29,20 @@ test('reconnecting the snow element keeps a single canvas', () => {
 	const context = { setTransform() {}, clearRect() {} };
 	try {
 		globalThis.HTMLElement = class {
-			constructor() { this.children = []; this.clientWidth = 400; this.clientHeight = 225; }
+			constructor() { this.children = []; this.style = {}; this.isConnected = true; this.clientWidth = 400; this.clientHeight = 225; }
+			setAttribute() {}
 			append(child) { child.parentElement = this; this.children.push(child); }
 			querySelector(selector) { return this.querySelectorAll(selector)[0] ?? null; }
 			querySelectorAll(selector) { return selector === 'canvas' ? this.children : []; }
 		};
 		globalThis.document = {
-			createElement: () => ({ setAttribute() {}, getContext: () => context }),
+			createElement: () => ({ style: {}, setAttribute() {}, getContext: () => context }),
 			addEventListener() {}, removeEventListener() {}
 		};
 		globalThis.window = { devicePixelRatio: 1, matchMedia: () => ({ addEventListener() {}, removeEventListener() {} }) };
 		globalThis.ResizeObserver = class { observe() {} disconnect() {} };
 		globalThis.IntersectionObserver = class { observe() {} disconnect() {} };
-		const Snow = create_expedition_snow_element({ get_settings: () => DEFAULT_SNOW_SETTINGS, on_stats() {} });
+		const Snow = create_expedition_snow_element({ create_image_particle_element, get_settings: () => DEFAULT_SNOW_SETTINGS, on_stats() {} });
 		const snow = new Snow();
 		snow.connectedCallback();
 		snow.disconnectedCallback();
@@ -50,7 +52,7 @@ test('reconnecting the snow element keeps a single canvas', () => {
 		assert.equal(snow.canvas.height, 225);
 		snow.disconnectedCallback();
 		const cloned = new Snow();
-		cloned.append({ setAttribute() {}, getContext: () => context });
+		cloned.append({ style: {}, setAttribute() {}, getContext: () => context });
 		cloned.connectedCallback();
 		assert.equal(cloned.children.length, 1);
 		assert.equal(cloned.canvas, cloned.children[0]);

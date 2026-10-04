@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { can_track_task, task_contribution_time, task_remaining, tracked_skill_ids } from '../../mod/expedition-tasks.mjs';
+import { can_track_task, create_work_prompt_gate, eligible_prompt_tasks, task_available_points_micros, task_contribution_time, task_remaining, tracked_skill_ids } from '../../mod/expedition-tasks.mjs';
 
 test('sidebar icons identify active accepted skills and disappear when tracking ends', () => {
 	const tracking = { visit_id: 3, task_id: 'chart' };
@@ -50,4 +50,67 @@ test('remaining time includes player work and assistance, rounding up partial mi
 		system_ms: 15 * 60_000 }), '15m remaining');
 	assert.equal(task_remaining({ target_ms: hours, player_ms: hours - 1, system_ms: 0 }), '1m remaining');
 	assert.equal(task_remaining({ target_ms: hours, player_ms: hours, system_ms: 0 }), 'Complete');
+});
+
+test('available EP includes assistance and never exceeds the remaining work', () => {
+	const hour = 3_600_000;
+	assert.equal(task_available_points_micros({ target_ms: 15 * hour, player_ms: 3 * hour, system_ms: hour }), 11_000_000);
+	assert.equal(task_available_points_micros({ target_ms: 3600, player_ms: 1 }), 999);
+	assert.equal(task_available_points_micros({ target_ms: hour, player_ms: 2 * hour }), 0);
+});
+
+test('work prompts offer only unlocked unfinished matching tasks for registered active participants', () => {
+	const task = { task_id: 'chart', unlocked_at: 1, completed_at: null,
+		evidence: { skill_ids: ['melvorD:Astrology'] } };
+	const activities = [{ type: 'skill', skill_id: 'melvorD:Astrology' }];
+	const state = { expedition: { status: 'active', registered: true, chamber: { tasks: [task,
+		{ ...task, task_id: 'done', completed_at: 2 }, { ...task, task_id: 'locked', unlocked_at: null },
+		{ ...task, task_id: 'hidden', requirement: 'conditional', exit_id: 'one' },
+		{ ...task, task_id: 'other', evidence: { skill_ids: ['melvorD:Mining'] } }],
+		exits: [{ id: 'one', label: '???' }] } } };
+	assert.deepEqual(eligible_prompt_tasks(state, activities).map(task => task.task_id), ['chart']);
+	state.expedition.chamber.exits[0].label = 'Prismatic Descent';
+	assert.deepEqual(eligible_prompt_tasks(state, activities).map(task => task.task_id), ['chart', 'hidden']);
+	assert.deepEqual(eligible_prompt_tasks({ ...state, tracking: { task_id: 'old' } }, activities), []);
+	assert.deepEqual(eligible_prompt_tasks({ expedition: { ...state.expedition, registered: false } }, activities), []);
+	assert.deepEqual(eligible_prompt_tasks({ expedition: { ...state.expedition, status: 'inactive' } }, activities), []);
+	assert.deepEqual(eligible_prompt_tasks(state, []), []);
+});
+
+test('work prompts delay login, wait for modals and suppress repeated reminders until activity changes', () => {
+	const gate = create_work_prompt_gate();
+	const input = { session: 1, activities: [{ type: 'skill', skill_id: 'melvorD:Astrology' }], enabled: true, tracking: false };
+	const observe = now => gate.observe({ ...input, now });
+	assert.equal(observe(0), false);
+	assert.equal(observe(7999), false);
+	assert.equal(observe(8000), true);
+	gate.defer(8000);
+	assert.equal(observe(9499), false);
+	assert.equal(observe(9500), true);
+	gate.consume();
+	assert.equal(observe(60000), false);
+	input.activities = [{ type: 'skill', skill_id: 'melvorD:Mining' }];
+	assert.equal(observe(60001), false);
+	assert.equal(observe(62501), true);
+	gate.consume();
+	input.activities = [];
+	assert.equal(observe(65000), false);
+	input.activities = [{ type: 'skill', skill_id: 'melvorD:Mining' }];
+	assert.equal(observe(66000), false);
+	assert.equal(observe(68500), true);
+});
+
+test('tracking, opt-out and session changes cancel pending work prompts', () => {
+	const gate = create_work_prompt_gate();
+	const input = { session: 1, activities: [{ type: 'combat' }], enabled: true, tracking: false };
+	assert.equal(gate.observe({ ...input, now: 0 }), false);
+	assert.equal(gate.observe({ ...input, tracking: true, now: 8000 }), false);
+	assert.equal(gate.observe({ ...input, now: 20000 }), false);
+	input.session = 2;
+	assert.equal(gate.observe({ ...input, now: 20000 }), false);
+	assert.equal(gate.observe({ ...input, enabled: false, now: 28000 }), false);
+	assert.equal(gate.observe({ ...input, now: 30000 }), false);
+	gate.reset();
+	assert.equal(gate.observe({ ...input, now: 30001 }), false);
+	assert.equal(gate.observe({ ...input, now: 38001 }), true);
 });

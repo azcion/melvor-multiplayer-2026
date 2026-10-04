@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.6.2
+
+- Added admin-only Account Name as the first entry in Guild and Chat member details, using the stored PlayFab account name.
+- Opened the Expedition preview to all Guild members, including Social Only players. Version 1.6.2+ also opens Expedition Chat sending and reactions to everyone, with normal unread badges. Version 1.6.1 retains tester-only participation. Expeditions continue to follow the fixed preview route.
+- Reduced the mod download size by hosting Raid boss and Expedition artwork separately. Self-hosted builds retain bundled artwork by default and can configure their own asset host. Resized and compressed the Crucible navigation image.
+- Changed new Council Petitions to use a four-day activity electorate and a 24-hour inactivity deadline that resets with each new ballot. A petitioner may withdraw only before another member votes; existing Petitions retain their original rules. Free Fellowship now has a limited Council for Interdict/Heresy, Temperance/Indulgence, and Winnowing of Shadowed members on 1.6.2+ clients; 1.6.1 clients retain no petitions.
+- Set the minimum supported client version to 1.6.1; 1.6.1 retains existing Guild features.
+- Added drifting crystal motes and softly shimmering crystal facets to Prismatic Descent in the Expedition preview, with reduced-motion support.
+- Changed Expedition work credit to award verified activity time up to the work remaining when tracking starts, even if another player finishes the task before Check In. Check Ins carry the unused allowance forward, and Chamber departure and membership boundaries still apply.
+- Added automatic Expedition Check Ins every 10 minutes while online, keeping shared task progress current without opening the Expedition page.
+
 ## 1.6.1
 
 - Added a brief Expedition modal when task tracking stops, including activity changes, task switches, and completed tasks, and active tracked skill icons beside Expedition in the sidebar.

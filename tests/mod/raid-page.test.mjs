@@ -66,7 +66,8 @@ test('registers and mounts the Guild Raid page as a first-class multiplayer view
 	const crucible = data.data.pages.find(entry => entry.id === 'Crucible');
 	assert.equal(page.customName, 'MOD_MP_PAGE_RAID');
 	assert.equal(language.MOD_MP_PAGE_CRUCIBLE, 'Crucible');
-	assert.equal(language.MOD_MP_PAGE_RAID, 'Raid (preview)');
+	assert.equal(language.MOD_MP_PAGE_RAID, 'Raid');
+	assert.equal(language.MOD_MP_PAGE_RAID_HEADER, 'Raid (beta)');
 	assert.equal(language.MOD_MP_RAID_TITLE, 'Raid (preview)');
 	assert.equal(language.MOD_MP_RAID_READY_TITLE, "It's time.");
 	assert.equal(page.containerID, 'mp-raid-page');

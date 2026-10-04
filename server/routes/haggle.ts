@@ -1,3 +1,4 @@
+import { market_deal_allowed, register_market_permission_cleanup } from '../alliance-market';
 import * as runtime from '../app-runtime';
 import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonSerializable } from '../http';
@@ -27,7 +28,7 @@ function add_claim(haggle_id: string, client_id: number, item_id: string | null,
 	).run(haggle_id, client_id, item_id, item_qty, gp);
 }
 
-function terminate_active_haggle(haggle: db_row.market_haggles, status: 'cancelled' | 'rejected' | 'expired',
+export function terminate_active_haggle(haggle: db_row.market_haggles, status: 'cancelled' | 'rejected' | 'expired',
 	restore_listing = true, now = Date.now()): boolean {
 	const changed = db.query(
 		'UPDATE `market_haggles` SET `status` = ?, `turn_client_id` = NULL, `expires_at` = NULL, ' +
@@ -52,7 +53,18 @@ function terminate_active_haggle(haggle: db_row.market_haggles, status: 'cancell
 	return true;
 }
 
+export function cancel_disallowed_haggles(now = Date.now()): number {
+	return db.transaction(() => {
+		let count = 0;
+		for (const haggle of db.query<db_row.market_haggles, []>("SELECT * FROM market_haggles WHERE status='active'").all())
+			if (!market_deal_allowed(haggle.initiator_id,haggle.owner_id,haggle.guild_id ?? -1,undefined,now))
+				if (terminate_active_haggle(haggle,'cancelled',true,now)) count++;
+		return count;
+	}).immediate();
+}
+
 export function expire_market_haggles(now = Date.now()): number {
+	cancel_disallowed_haggles(now);
 	const expired = db.query<db_row.market_haggles, [number]>(
 		'SELECT * FROM `market_haggles` WHERE `status` = \'active\' AND `expires_at` <= ? ORDER BY `id` LIMIT 100'
 	).all(now);
@@ -105,6 +117,7 @@ function haggle_view(row: db_row.market_haggles, client_id: number): JsonSeriali
 }
 
 export function register_haggle_routes(): void {
+	register_market_permission_cleanup(cancel_disallowed_haggles);
 	session_get_route('/api/market/haggles', async (_req, _url, client_id): Promise<HandlerResult> => {
 		if (is_social_only_client(client_id))
 			return { error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
@@ -115,7 +128,7 @@ export function register_haggle_routes(): void {
 		return { success: true, haggles: rows.map(row => haggle_view(row, client_id)) };
 	});
 
-	session_post_route('/api/market/haggle', async (_req, _url, client_id, json) => {
+	session_post_route('/api/market/haggle', async (req, _url, client_id, json) => {
 		const listing_id = json.id;
 		const item_qty = json.qty;
 		const offer_price = json.price;
@@ -133,19 +146,15 @@ export function register_haggle_routes(): void {
 			const lot = db.query<db_row.market_items, [number]>(
 				'SELECT * FROM `market_items` WHERE `id` = ? LIMIT 1'
 			).get(listing_id);
-			if (lot === null || lot.client_id === client_id)
+			if (lot === null || lot.client_id === client_id || !market_deal_allowed(client_id,lot.client_id,lot.guild_id,runtime.get_request_mod_version(req)))
 				return { success: false, error_lang: 'MOD_MP_MARKET_HAGGLE_INVALID' };
-			if (lot.direction === 'sell' && is_market_discovery_restricted(lot.guild_id) &&
+			if (lot.direction === 'sell' && is_market_discovery_restricted((db.query<{guild_id:number},[number]>('SELECT guild_id FROM guild_memberships WHERE client_id=?').get(client_id))!.guild_id) &&
 				json.item_discovered !== true)
 				return { success: false, error_lang: 'MOD_MP_MARKET_DISCOVERY_REQUIRED' };
 			const max_item_qty = Math.floor(GP_TRANSFER_CAP / Math.max(lot.price, offer_price));
 			const capped_item_qty = Math.min(item_qty, max_item_qty);
 			if (capped_item_qty < 1 || lot.available < capped_item_qty)
 				return { success: false, error_lang: 'MOD_MP_MARKET_VALUE_TOO_LARGE' };
-			const guild = db.query('SELECT 1 FROM `guild_memberships` WHERE `guild_id` = ? AND `client_id` = ?')
-				.get(lot.guild_id, client_id);
-			if (guild === null)
-				return { success: false, error_lang: 'MOD_MP_GUILD_REQUIRED' };
 			const active = db.query<{ count: number }, [number]>(
 				'SELECT COUNT(*) AS `count` FROM `market_haggles` WHERE `initiator_id` = ? AND `status` = \'active\''
 			).get(client_id)?.count ?? 0;
@@ -184,7 +193,7 @@ export function register_haggle_routes(): void {
 		return result ?? 400;
 	});
 
-	session_post_route('/api/market/haggle/counter', async (_req, _url, client_id, json) => {
+	session_post_route('/api/market/haggle/counter', async (req, _url, client_id, json) => {
 		if (typeof json.id !== 'string' || !is_valid_uuid(json.id) || typeof json.revision !== 'number' ||
 			!Number.isSafeInteger(json.revision) || typeof json.price !== 'number' ||
 			!Number.isSafeInteger(json.price) || json.price <= 0)
@@ -198,7 +207,10 @@ export function register_haggle_routes(): void {
 				'SELECT * FROM `market_haggles` WHERE `id` = ?'
 			).get(haggle_id);
 			if (haggle === null || haggle.status !== 'active' || haggle.turn_client_id !== client_id ||
-				haggle.revision !== revision || is_social_only_client(client_id))
+				haggle.revision !== revision || is_social_only_client(client_id) ||
+				!market_deal_allowed(haggle.initiator_id,haggle.owner_id,haggle.guild_id ?? -1,haggle.initiator_id === client_id ? runtime.get_request_mod_version(req) : undefined) ||
+				(haggle.initiator_id !== client_id && !market_deal_allowed(client_id,haggle.initiator_id,
+					(db.query<{guild_id:number},[number]>('SELECT guild_id FROM guild_memberships WHERE client_id=?').get(haggle.initiator_id))?.guild_id??-1,runtime.get_request_mod_version(req))))
 				return { success: false, error_lang: 'MOD_MP_MARKET_HAGGLE_STALE' };
 			const max_price = Math.floor(GP_TRANSFER_CAP / haggle.item_qty);
 			if (max_price < 1)
@@ -222,7 +234,7 @@ export function register_haggle_routes(): void {
 		return result ?? 400;
 	});
 
-	session_post_route('/api/market/haggle/accept', async (_req, _url, client_id, json) => {
+	session_post_route('/api/market/haggle/accept', async (req, _url, client_id, json) => {
 		if (typeof json.id !== 'string' || !is_valid_uuid(json.id) || typeof json.revision !== 'number' ||
 			!Number.isSafeInteger(json.revision))
 			return 400;
@@ -232,7 +244,10 @@ export function register_haggle_routes(): void {
 			expire_market_haggles();
 			const haggle = db.query<db_row.market_haggles, [string]>('SELECT * FROM `market_haggles` WHERE `id` = ?').get(haggle_id);
 			if (haggle === null || haggle.status !== 'active' || haggle.turn_client_id !== client_id ||
-				haggle.revision !== revision || is_social_only_client(client_id))
+				haggle.revision !== revision || is_social_only_client(client_id) ||
+				!market_deal_allowed(haggle.initiator_id,haggle.owner_id,haggle.guild_id ?? -1,haggle.initiator_id === client_id ? runtime.get_request_mod_version(req) : undefined) ||
+				(haggle.initiator_id !== client_id && !market_deal_allowed(client_id,haggle.initiator_id,
+					(db.query<{guild_id:number},[number]>('SELECT guild_id FROM guild_memberships WHERE client_id=?').get(haggle.initiator_id))?.guild_id??-1,runtime.get_request_mod_version(req))))
 				return { success: false, error_lang: 'MOD_MP_MARKET_HAGGLE_STALE' };
 			const agreed = safe_total(haggle.item_qty, haggle.offer_price);
 			if (agreed === null)
@@ -264,7 +279,7 @@ export function register_haggle_routes(): void {
 		return result ?? 400;
 	});
 
-	session_post_route('/api/market/haggle/terminate', async (_req, _url, client_id, json) => {
+	session_post_route('/api/market/haggle/terminate', async (req, _url, client_id, json) => {
 		if (typeof json.id !== 'string' || !is_valid_uuid(json.id) || typeof json.revision !== 'number' ||
 			!Number.isSafeInteger(json.revision))
 			return 400;
@@ -283,7 +298,7 @@ export function register_haggle_routes(): void {
 		return result ?? 400;
 	});
 
-	session_post_route('/api/market/haggle/claim', async (_req, _url, client_id, json) => {
+	session_post_route('/api/market/haggle/claim', async (req, _url, client_id, json) => {
 		if (typeof json.id !== 'string' || !is_valid_uuid(json.id))
 			return 400;
 		const haggle_id = json.id as string;

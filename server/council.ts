@@ -5,6 +5,8 @@ export const PETITION_RUNNING_STALE_AFTER = 1000 * 60 * 5;
 export const PETITION_FAILED_RETRY_AFTER = 1000 * 30;
 
 export const PETITION_TYPES = [
+	'alliance_found', 'alliance_consider', 'alliance_join', 'alliance_leave', 'alliance_remove',
+	'alliance_market_enable', 'alliance_market_disable', 'alliance_withdraw', 'alliance_ballot',
 	'appellation',
 	'heraldry',
 	'banishment',
@@ -22,6 +24,11 @@ export const PETITION_TYPES = [
 	'crucible_sealing',
 	'crucible_unsealing'
 ] as const;
+
+export function is_free_fellowship_petition(type: string): boolean {
+	return ['interdict', 'heresy', 'winnowing', 'temperance', 'indulgence'].includes(type) || type.startsWith('alliance_');
+}
+
 export const PETITION_CHOICES = ['aye', 'nay'] as const;
 
 export type PetitionType = typeof PETITION_TYPES[number];
@@ -56,6 +63,7 @@ export function is_petition_choice(value: unknown): value is PetitionChoice {
 }
 
 export function get_petition_conflict_subject(type: PetitionType, target_membership_id?: number): string {
+	if (type.startsWith('alliance_')) return `guild:${type}`;
 	if (type === 'appellation')
 		return 'guild:name';
 	if (type === 'heraldry')

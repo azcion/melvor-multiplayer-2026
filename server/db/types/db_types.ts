@@ -496,12 +496,11 @@ export type guild_chat_read_state = {
 };
 
 export type guild_petitions = {
+	rule_version: number;
 	id: number;
 	guild_id: number;
 	guild_name: string;
-	type: 'appellation' | 'heraldry' | 'banishment' | 'winnowing' | 'charitree_ingratitude' |
-		'charitree_sacrilege' | 'charitree_beneficence' | 'fellowship' | 'enclosure' | 'interdict' | 'heresy' |
-		'temperance' | 'indulgence' | 'crucible_purging' | 'crucible_sealing' | 'crucible_unsealing';
+	type: import('../../council').PetitionType;
 	conflict_subject: string;
 	subject_locked: number;
 	petitioner_id: number;

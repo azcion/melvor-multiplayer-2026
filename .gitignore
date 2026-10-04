@@ -41,6 +41,7 @@ Desktop.ini
 # -----------------------------------------------------------------------------
 
 node_modules/
+/asset-hosting.local.json
 .bun/
 .npm/
 .pnpm-store/

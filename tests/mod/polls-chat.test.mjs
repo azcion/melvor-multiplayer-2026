@@ -43,7 +43,7 @@ test('wires quiet Polls below Global Chat with creator, voting, and discussion',
 	const chat_messages = templates.indexOf('class="mp-chat-messages"');
 	assert.ok(discussion_question > templates.indexOf('class="block-header block-header-default mp-chat-header"') && discussion_question < chat_messages);
 	assert.match(templates, /mp-poll-discussion-question[\s\S]*v-text="state\.get_chat_message_content\(state\.selected_chat_conversation\?\.poll\)"/);
-	assert.equal((templates.match(/class="mp-chat-conversation-icon"/g) ?? []).length, 6);
+	assert.equal((templates.match(/class="mp-chat-conversation-icon"/g) ?? []).length, 7);
 	assert.doesNotMatch(templates.slice(global, templates.indexOf('template-mp-chat-budget-info-modal')), /class="skill-icon-sm"/);
 	assert.match(actions, /conversation_kind: 'poll-discussion'/);
 	assert.match(actions, /api\/polls\/options/);

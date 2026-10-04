@@ -76,7 +76,7 @@
 					</details>
 					<div class="mp-expedition-panel mp-expedition-chamber-card" v-if="state.expedition_state?.expedition?.status === 'registration'">
 						<div class="mp-expedition-chamber-art-frame mp-expedition-rift-snow" aria-hidden="true">
-							<img class="mp-expedition-chamber-art" :src="state.expedition_chamber_art_url('entrance')" alt="">
+							<img class="mp-expedition-chamber-art" data-chamber-id="entrance" :src="state.expedition_chamber_art_url('entrance')" alt="" />
 							<mp-expedition-snow></mp-expedition-snow>
 						</div>
 						<h1 class="mp-expedition-chamber-title"><lang-string lang-id="MOD_MP_EXPEDITION_UI_THE_RIFT"></lang-string></h1>
@@ -84,6 +84,7 @@
 							<p><lang-string lang-id="MOD_MP_EXPEDITION_UI_GATHERING_FOR_THE_EXPEDITION"></lang-string></p>
 							<p><strong>{{ state.expedition_state?.expedition?.registered_count }}</strong> <lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTERED"></lang-string></p>
 							<p class="mp-expedition-points"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOUR_EP"></lang-string> <strong>{{ state.expedition_points(state.expedition_state?.points_micros) }}</strong></p>
+							<label class="mp-expedition-work-prompts-toggle"><input type="checkbox" :checked="state.expedition_work_prompts_enabled" @change="state.set_expedition_work_prompts($event)"><lang-string lang-id="MOD_MP_EXPEDITION_WORK_PROMPTS_TOGGLE"></lang-string></label>
 						</div>
 					</div>
 					<div class="mp-expedition-registration" v-if="state.expedition_state?.expedition?.status === 'registration'">
@@ -112,13 +113,18 @@
 					<div v-if="state.expedition_state?.expedition?.chamber">
 						<div class="mp-expedition-panel mp-expedition-chamber-card">
 							<div class="mp-expedition-chamber-art-frame" :class="{ 'mp-expedition-rift-snow': state.expedition_state?.expedition?.chamber?.id === 'entrance' }" aria-hidden="true">
-								<img class="mp-expedition-chamber-art" :src="state.expedition_chamber_art_url(state.expedition_state?.expedition?.chamber?.id)" alt="">
+								<img class="mp-expedition-chamber-art" :data-chamber-id="state.expedition_state?.expedition?.chamber?.id" :src="state.expedition_chamber_art_url(state.expedition_state?.expedition?.chamber?.id)" alt="" />
 								<mp-expedition-snow v-if="state.expedition_state?.expedition?.chamber?.id === 'entrance'"></mp-expedition-snow>
+								<mp-expedition-crystals v-if="state.expedition_state?.expedition?.chamber?.id === 'prismatic_descent'"></mp-expedition-crystals>
+								<mp-expedition-haze v-if="state.expedition_state?.expedition?.chamber?.id === 'glassroot_terraces'"></mp-expedition-haze>
+								<mp-expedition-observatory v-if="state.expedition_state?.expedition?.chamber?.id === 'buried_observatory'"></mp-expedition-observatory>
+								<mp-expedition-orrery v-if="state.expedition_state?.expedition?.chamber?.id === 'prismatic_orrery'"></mp-expedition-orrery>
 							</div>
 							<div class="mp-expedition-chamber-copy">
 								<h2 :class="{ 'mp-expedition-chamber-title': state.expedition_state?.expedition?.chamber?.id === 'entrance' }">{{ state.expedition_display_label(state.expedition_state?.expedition?.chamber?.label) }}</h2>
 								<p>{{ state.expedition_text(state.expedition_state?.expedition?.chamber?.participant_count === 1 ? 'MOD_MP_EXPEDITION_PARTICIPANT_AT_ARRIVAL' : 'MOD_MP_EXPEDITION_PARTICIPANTS_AT_ARRIVAL', state.expedition_state?.expedition?.chamber?.participant_count) }}</p>
 								<p class="mp-expedition-points"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOUR_EP"></lang-string> <strong>{{ state.expedition_points(state.expedition_state?.points_micros) }}</strong></p>
+								<label class="mp-expedition-work-prompts-toggle"><input type="checkbox" :checked="state.expedition_work_prompts_enabled" @change="state.set_expedition_work_prompts($event)"><lang-string lang-id="MOD_MP_EXPEDITION_WORK_PROMPTS_TOGGLE"></lang-string></label>
 								<button type="button" class="mp-expedition-button" v-if="!state.expedition_state?.expedition?.registered" :disabled="state.expedition_action_pending" @click="state.register_expedition()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTER_TO_WORK"></lang-string></button>
 							</div>
 						</div>
@@ -127,13 +133,13 @@
 								<i class="fa fa-crosshairs" aria-hidden="true"></i>
 								<div><strong>{{ state.expedition_text('MOD_MP_EXPEDITION_TRACKING_TITLE', state.expedition_tracking_title(state.expedition_state?.expedition?.chamber, state.expedition_state?.tracking)) }}</strong><small>{{ state.expedition_text('MOD_MP_EXPEDITION_STARTED_AGO', state.expedition_time_since(state.expedition_state?.tracking?.started_at)) }}</small></div>
 							</div>
-							<div class="mp-expedition-actions"><button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending || state.expedition_pending_report || state.expedition_check_in_cooldown_until > 0" @click="state.submit_expedition_work('check-in')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CHECK_IN"></lang-string></button><button type="button" class="mp-expedition-button mp-expedition-button-secondary" :disabled="state.expedition_action_pending || state.expedition_pending_report" @click="state.submit_expedition_work('stop')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_STOP_TRACKING"></lang-string></button></div>
+							<div class="mp-expedition-actions"><div class="mp-expedition-available" v-if="state.expedition_state?.tracking?.reward_remaining_ms != null"><lang-string lang-id="MOD_MP_EXPEDITION_AVAILABLE_TO_EARN"></lang-string><strong>{{ state.expedition_points(Math.floor((state.expedition_state?.tracking?.reward_remaining_ms ?? 0) * 1000000 / 3600000)) }} EP</strong></div><button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending || state.expedition_pending_report || state.expedition_check_in_cooldown_until > 0" @click="state.submit_expedition_work('check-in')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CHECK_IN"></lang-string></button><button type="button" class="mp-expedition-button mp-expedition-button-secondary" :disabled="state.expedition_action_pending || state.expedition_pending_report" @click="state.submit_expedition_work('stop')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_STOP_TRACKING"></lang-string></button></div>
 						</div>
 						<div class="mp-expedition-layout">
 							<div class="mp-expedition-work-column">
 								<section class="mp-expedition-panel mp-expedition-phase" v-for="phase in ['arrival', 'exploration', 'departure']" :key="phase" v-show="phase === 'arrival' || state.expedition_phase_tasks(state.expedition_state?.expedition?.chamber, phase).length">
 									<h3 class="mp-expedition-phase-heading"><button type="button" class="mp-expedition-phase-toggle" :aria-expanded="state.expedition_phase_open[phase]" :aria-controls="'mp-expedition-' + phase + '-body'" @click="state.toggle_expedition_phase(phase)">
-										<i class="fa" :class="state.expedition_phase_tasks(state.expedition_state?.expedition?.chamber, phase).every(task => task.completed_at != null) ? 'fa-check-circle mp-expedition-phase-done' : phase === 'exploration' ? 'fa-compass' : phase === 'departure' ? 'fa-sign-out' : 'fa-map-marker'" aria-hidden="true"></i>
+										<i class="fa" :class="state.expedition_phase_tasks(state.expedition_state?.expedition?.chamber, phase).every(task => task.completed_at != null) ? 'fa-check-circle mp-expedition-phase-done' : phase === 'exploration' ? 'fa-compass' : phase === 'departure' ? 'fa-door-open' : 'fa-map-marker'" aria-hidden="true"></i>
 										<span><strong>{{ phase === 'arrival' ? getLangString('MOD_MP_EXPEDITION_PHASE_ARRIVAL') : phase === 'exploration' ? getLangString('MOD_MP_EXPEDITION_PHASE_EXPLORATION') : getLangString('MOD_MP_EXPEDITION_PHASE_DEPARTURE') }}</strong><small>{{ state.expedition_phase_summary(state.expedition_state?.expedition?.chamber, phase) }}</small></span>
 										<i class="fa" :class="state.expedition_phase_open[phase] ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
 									</button></h3>
@@ -141,7 +147,7 @@
 										<div class="mp-expedition-task-group" v-for="group in ['done', 'active', 'pending']" :key="group" v-show="state.expedition_phase_tasks(state.expedition_state?.expedition?.chamber, phase, group).length">
 											<h4>{{ group === 'done' ? getLangString('MOD_MP_EXPEDITION_GROUP_DONE') : group === 'active' ? getLangString('MOD_MP_EXPEDITION_GROUP_ACTIVE') : getLangString('MOD_MP_EXPEDITION_GROUP_PENDING') }}</h4>
 											<article class="mp-expedition-task" :class="{ 'mp-expedition-task-done': group === 'done', 'mp-expedition-task-self': state.expedition_state?.tracking?.visit_id === state.expedition_state?.expedition?.chamber?.visit_id && state.expedition_state?.tracking?.task_id === task.task_id }" v-for="task in state.expedition_phase_tasks(state.expedition_state?.expedition?.chamber, phase, group)" :key="task.task_id">
-													<div class="mp-expedition-task-heading"><i class="fa fa-check-circle" :aria-label="getLangString('MOD_MP_EXPEDITION_COMPLETE')" v-if="group === 'done'"></i><strong>{{ state.expedition_display_label(task.title, state.expedition_state?.expedition?.chamber?.exits?.length, state.expedition_state?.expedition?.chamber?.id) }}</strong><span class="mp-expedition-task-requirement" v-if="group !== 'done'">{{ task.promoted_at || task.requirement === 'required' || (task.requirement === 'conditional' && task.exit_id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id) ? getLangString('MOD_MP_EXPEDITION_REQUIRED') : getLangString('MOD_MP_EXPEDITION_OPTIONAL') }}</span></div>
+													<div class="mp-expedition-task-heading"><i class="fa fa-check-circle" :aria-label="getLangString('MOD_MP_EXPEDITION_COMPLETE')" v-if="group === 'done'"></i><strong>{{ state.expedition_display_label(task.title, state.expedition_state?.expedition?.chamber?.exits?.length, state.expedition_state?.expedition?.chamber?.id) }}</strong><span class="mp-expedition-task-requirement" :class="{ 'mp-expedition-task-required': task.promoted_at || task.requirement === 'required' || (task.requirement === 'conditional' && task.exit_id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id) }" v-if="group !== 'done'">{{ task.promoted_at || task.requirement === 'required' || (task.requirement === 'conditional' && task.exit_id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id) ? getLangString('MOD_MP_EXPEDITION_REQUIRED') : getLangString('MOD_MP_EXPEDITION_OPTIONAL') }}</span></div>
 													<span class="mp-expedition-task-tracking" v-if="group !== 'done' && state.expedition_state?.tracking?.visit_id === state.expedition_state?.expedition?.chamber?.visit_id && state.expedition_state?.tracking?.task_id === task.task_id"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOU_ARE_TRACKING_THIS"></lang-string></span>
 												<div class="mp-expedition-work-list" :class="{ 'mp-expedition-work-icons-only': group === 'done' }" :aria-label="group === 'done' ? getLangString('MOD_MP_EXPEDITION_ACCEPTED_ACTIVITIES') : getLangString('MOD_MP_EXPEDITION_CONTRIBUTE_ACTIVITIES')">
 													<span v-if="group !== 'done'"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CONTRIBUTE_WITH_ANY_OF_THESE"></lang-string></span>
@@ -160,7 +166,10 @@
 												<div v-if="group !== 'done'">
 													<p class="mp-expedition-progress-percent"><strong>{{ state.expedition_remaining(task) }}</strong> · {{ state.expedition_text('MOD_MP_EXPEDITION_PERCENT_COMPLETE', state.expedition_percent(task)) }}</p>
 													<p v-if="task.trackers?.length">{{ state.expedition_text('MOD_MP_EXPEDITION_TRACKERS', task.trackers.map(member => member.display_name).join(', ')) }}</p>
-													<button type="button" class="mp-expedition-button" v-if="state.expedition_state?.expedition?.registered && (state.expedition_state?.tracking?.visit_id !== state.expedition_state?.expedition?.chamber?.visit_id || state.expedition_state?.tracking?.task_id !== task.task_id)" :disabled="state.expedition_action_pending || state.expedition_pending_report || !state.expedition_can_track(task) || (state.expedition_state?.tracking && state.expedition_state?.tracking?.visit_id !== state.expedition_state?.expedition?.chamber?.visit_id)" @click="state.submit_expedition_work('start', task.task_id)"><lang-string lang-id="MOD_MP_EXPEDITION_UI_TRACK_THIS_TASK"></lang-string></button>
+													<div class="mp-expedition-task-actions" v-if="state.expedition_state?.expedition?.registered && (state.expedition_state?.tracking?.visit_id !== state.expedition_state?.expedition?.chamber?.visit_id || state.expedition_state?.tracking?.task_id !== task.task_id)">
+														<button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending || state.expedition_pending_report || !state.expedition_can_track(task) || (state.expedition_state?.tracking && state.expedition_state?.tracking?.visit_id !== state.expedition_state?.expedition?.chamber?.visit_id)" @click="state.submit_expedition_work('start', task.task_id)"><lang-string lang-id="MOD_MP_EXPEDITION_UI_TRACK_THIS_TASK"></lang-string></button>
+														<div class="mp-expedition-available"><lang-string lang-id="MOD_MP_EXPEDITION_AVAILABLE_TO_EARN"></lang-string><strong>{{ state.expedition_available_points(task) }} EP</strong></div>
+													</div>
 													<p class="mp-expedition-work-hint" v-if="state.expedition_state?.expedition?.registered && !state.expedition_can_track(task)"><lang-string lang-id="MOD_MP_EXPEDITION_UI_START_ONE_OF_THE_LISTED_ACTIVITIES_TO_TRACK_THIS_TASK"></lang-string></p>
 												</div>
 											</article>
@@ -389,6 +398,11 @@
 				<span><lang-string lang-id="MOD_MP_GLOBAL_CHAT_ENABLE"></lang-string></span>
 				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.global_chat_participation_pending"></span>
 			</label>
+			<label class="mp-chat-visibility" v-if="state.alliance_access">
+				<input type="checkbox" :checked="state.alliance_chat_enabled" :disabled="state.alliance_chat_participation_pending" @click="state.set_alliance_chat_enabled($event)">
+				<span><lang-string lang-id="MOD_MP_ALLIANCE_CHAT_ENABLE"></lang-string></span>
+				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.alliance_chat_participation_pending"></span>
+			</label>
 			<label class="mp-chat-visibility">
 				<input type="checkbox" :checked="state.guild_chat_enabled" :disabled="state.guild_chat_participation_pending" @click="state.set_guild_chat_enabled($event)">
 				<span><lang-string lang-id="MOD_MP_GUILD_CHAT_ENABLE"></lang-string></span>
@@ -447,6 +461,9 @@
 				<div class="font-size-sm text-muted" v-else-if="!state.selected_guild_member.activity_available"><lang-string lang-id="MOD_MP_ACTIVITY_NOT_AVAILABLE"></lang-string></div>
 			</template>
 			<div class="mp-member-shared-stats">
+				<div class="font-size-sm text-muted" v-if="state.selected_guild_member.account_name !== undefined">
+					<span class="mp-member-shared-stat-label"><lang-string lang-id="MOD_MP_ACCOUNT_NAME"></lang-string>:</span> {{ state.selected_guild_member.account_name ?? '—' }}
+				</div>
 				<div class="font-size-sm text-muted" v-if="state.get_language_lang_id(state.selected_guild_member.language) !== null">
 					<span class="mp-member-shared-stat-label"><lang-string lang-id="MOD_MP_LANGUAGE"></lang-string>:</span> {{ state.get_language_name(state.selected_guild_member.language) }}
 				</div>
@@ -561,6 +578,11 @@
 					</section>
 					<section class="mp-chat-category" v-if="state.show_guild_chat_category">
 						<div class="mp-chat-category-heading"><div class="font-w600"><lang-string lang-id="MOD_MP_CHAT_CATEGORY_GUILD"></lang-string></div></div>
+						<div class="mp-chat-conversations" v-if="state.alliance_access && state.alliance_chat_enabled">
+							<button type="button" class="mp-chat-conversation" v-for="conversation in state.alliance_chat_conversations" :key="'alliance:' + conversation.conversation_id" @click="state.open_chat_conversation(conversation)">
+								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600"><lang-string lang-id="MOD_MP_ALLIANCE_TITLE"></lang-string></div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ state.get_chat_plain_content(conversation.latest_message) }}</div><div class="font-size-sm text-muted" v-if="!conversation.latest_message"><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge badge-danger" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
+							</button>
+						</div>
 						<div class="block-content text-muted mp-guild-chat-opted-out" v-if="!state.guild_chat_enabled"><lang-string lang-id="MOD_MP_GUILD_CHAT_OPTED_OUT"></lang-string></div>
 						<div class="mp-chat-conversations" v-else>
 							<button type="button" class="mp-chat-conversation" v-for="conversation in state.guild_chat_conversations" :key="'guild:' + conversation.conversation_id" @click="state.open_chat_conversation(conversation)">
@@ -880,15 +902,15 @@
 	<div class="mp-modal-text"><lang-string lang-id="MOD_MP_COUNCIL_RAISE_INFO"></lang-string></div>
 	<hr class="mp-council-modal-rule">
 	<div class="mp-council-type-chooser">
-		<div class="mp-council-type-action">
+		<div class="mp-council-type-action" v-if="state.can_raise_council_petition('appellation')">
 			<div><span class="font-w600"><lang-string lang-id="MOD_MP_COUNCIL_TYPE_APPELLATION"></lang-string></span><button type="button" class="btn btn-sm btn-primary" @click="state.show_council_petition_modal('appellation')"><lang-string lang-id="MOD_MP_COUNCIL_RAISE_ACTION"></lang-string></button></div>
 			<em><lang-string lang-id="MOD_MP_COUNCIL_APPELLATION_DESCRIPTION"></lang-string></em>
 		</div>
-		<div class="mp-council-type-action">
+		<div class="mp-council-type-action" v-if="state.can_raise_council_petition('heraldry')">
 			<div><span class="font-w600"><lang-string lang-id="MOD_MP_COUNCIL_TYPE_HERALDRY"></lang-string></span><button type="button" class="btn btn-sm btn-primary" @click="state.show_council_petition_modal('heraldry')"><lang-string lang-id="MOD_MP_COUNCIL_RAISE_ACTION"></lang-string></button></div>
 			<em><lang-string lang-id="MOD_MP_COUNCIL_HERALDRY_DESCRIPTION"></lang-string></em>
 		</div>
-		<div class="mp-council-type-action">
+		<div class="mp-council-type-action" v-if="state.can_raise_council_petition('banishment')">
 			<div><span class="font-w600"><lang-string lang-id="MOD_MP_COUNCIL_TYPE_BANISHMENT"></lang-string></span><button type="button" class="btn btn-sm btn-danger" @click="state.show_council_petition_modal('banishment')"><lang-string lang-id="MOD_MP_COUNCIL_RAISE_ACTION"></lang-string></button></div>
 			<em><lang-string lang-id="MOD_MP_COUNCIL_BANISHMENT_DESCRIPTION"></lang-string></em>
 		</div>
@@ -1114,7 +1136,45 @@
 					</div>
 				</div>
 
-				<div class="block block-rounded mp-council" v-show="!state.is_free_fellowship && state.guild_state.guild?.capabilities?.council">
+				<div class="block block-rounded mp-alliance" v-show="state.alliance_access && state.is_guild_member">
+					<div class="block-header block-header-default"><h3 class="block-title"><lang-string lang-id="MOD_MP_ALLIANCE_TITLE"></lang-string></h3></div>
+					<div class="block-content">
+						<p class="text-danger" v-if="state.alliance_error">{{ state.alliance_error }}</p>
+						<div v-if="state.alliance_state.alliance">
+							<h4>{{ state.alliance_state.alliance.name }}</h4>
+							<h5><lang-string lang-id="MOD_MP_ALLIANCE_MEMBERS"></lang-string></h5>
+							<div class="mb-2" v-for="guild in state.alliance_state.alliance.member_guilds" :key="guild.guild_id">
+								<img class="skill-icon-xs" :src="state.get_guild_icon(guild.icon_id)"> {{ guild.name }}
+								<button class="btn btn-sm btn-secondary" @click="state.preview_alliance_guild(guild.guild_id)"><lang-string lang-id="MOD_MP_ALLIANCE_PREVIEW"></lang-string></button>
+								<button class="btn btn-sm btn-outline-danger" v-if="state.alliance_state.alliance.member_guilds.length >= 3 && guild.guild_id !== state.guild_state.guild.guild_id" @click="state.alliance_action($event, 'remove', guild.guild_id)"><lang-string lang-id="MOD_MP_ALLIANCE_REMOVE"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+							</div>
+							<h5 class="mt-3"><lang-string lang-id="MOD_MP_ALLIANCE_ASSEMBLY"></lang-string></h5>
+							<p><lang-string lang-id="MOD_MP_ALLIANCE_POLICIES"></lang-string>: <lang-string lang-id="MOD_MP_ALLIANCE_SHARED_MARKETPLACE"></lang-string> — {{ state.alliance_state.alliance.shared_marketplace ? getLangString('MOD_MP_ALLIANCE_ENABLED') : getLangString('MOD_MP_ALLIANCE_DISABLED') }}</p>
+							<button class="btn btn-sm btn-primary mr-2 mb-2" @click="state.alliance_action($event, state.alliance_state.alliance.shared_marketplace ? 'market_disable' : 'market_enable')">{{ state.alliance_label(state.alliance_state.alliance.shared_marketplace ? 'market_disable' : 'market_enable') }}<span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+							<button class="btn btn-sm btn-outline-danger mb-2" @click="state.alliance_action($event, 'leave')"><lang-string lang-id="MOD_MP_ALLIANCE_LEAVE"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+						</div>
+						<div v-else>
+							<p><lang-string lang-id="MOD_MP_ALLIANCE_UNAFFILIATED"></lang-string></p>
+							<button class="btn btn-primary mr-2 mb-2" :disabled="state.alliance_state.affiliation_pending" @click="state.show_alliance_picker('join')"><lang-string lang-id="MOD_MP_ALLIANCE_APPLY"></lang-string></button>
+							<button class="btn btn-primary mb-2" :disabled="state.alliance_state.affiliation_pending" @click="state.show_alliance_picker('found')"><lang-string lang-id="MOD_MP_ALLIANCE_FOUND"></lang-string></button>
+						</div>
+						<p class="text-muted font-size-sm"><lang-string lang-id="MOD_MP_ALLIANCE_COUNCIL_HINT"></lang-string></p>
+						<h5><lang-string lang-id="MOD_MP_ALLIANCE_FOUNDING_PROPOSALS"></lang-string> / <lang-string lang-id="MOD_MP_ALLIANCE_APPLICATIONS"></lang-string> / <lang-string lang-id="MOD_MP_ALLIANCE_POLICY_PROPOSALS"></lang-string></h5>
+						<div class="mp-council-card" v-for="proposal in state.alliance_state.processes" :key="proposal.process_id">
+							<strong>{{ state.alliance_label(proposal.kind) }}<span v-if="proposal.name">: {{ proposal.name }}</span></strong>
+							<div>{{ state.alliance_stage(proposal.stage) }}</div>
+							<div v-for="guild in proposal.founding_guilds || (proposal.applicant ? [proposal.applicant] : proposal.target_guild ? [proposal.target_guild] : [])" :key="guild?.guild_id">
+								<span>{{ guild?.name }}</span> <button class="btn btn-sm btn-secondary" v-if="guild" @click="state.preview_alliance_guild(guild.guild_id)"><lang-string lang-id="MOD_MP_ALLIANCE_PREVIEW"></lang-string></button>
+							</div>
+							<div v-if="proposal.tally.eligible">{{ proposal.tally.aye }} / {{ proposal.tally.eligible }} <lang-string lang-id="MOD_MP_COUNCIL_AYE"></lang-string>, {{ proposal.tally.nay }} <lang-string lang-id="MOD_MP_COUNCIL_NAY"></lang-string></div>
+							<div class="font-size-sm text-muted" v-if="['local','waiting','recipient','collective'].includes(proposal.stage)">{{ new Date(proposal.expires_at).toLocaleString() }}</div>
+							<button class="btn btn-sm btn-primary" v-if="proposal.can_consider" :disabled="state.alliance_state.affiliation_pending" @click="state.alliance_action($event, 'consider', null, proposal.process_id)"><lang-string lang-id="MOD_MP_ALLIANCE_CONSIDER"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+							<button class="btn btn-sm btn-outline-danger" v-if="proposal.can_withdraw" @click="state.alliance_action($event, 'withdraw', null, proposal.process_id)"><lang-string lang-id="MOD_MP_ALLIANCE_WITHDRAW"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+						</div>
+					</div>
+				</div>
+
+				<div class="block block-rounded mp-council" v-show="state.guild_state.guild?.capabilities?.council">
 					<div class="block-header block-header-default">
 						<h3 class="block-title"><lang-string lang-id="MOD_MP_COUNCIL"></lang-string></h3>
 						<div class="mp-council-header-actions">
@@ -1131,6 +1191,7 @@
 							<div class="mp-council-proposal" v-else-if="petition.type === 'heraldry'"><img class="skill-icon-xs" :src="state.get_guild_icon(petition.proposal.icon_id)"></div>
 							<div class="mp-council-proposal mp-guild-person" v-else-if="petition.type === 'banishment'"><img class="skill-icon-xs" :src="state.get_avatar_icon(petition.proposal.target.icon_id)"><span>{{ petition.proposal.target.display_name }}</span></div>
 							<div class="mp-council-proposal" v-else-if="petition.type === 'winnowing'"><mp-lang-string-f lang-id="MOD_MP_COUNCIL_WINNOWING_TARGETS" :lang-arg-1="petition.proposal.target_count"></mp-lang-string-f></div>
+							<div class="mp-council-proposal" v-else-if="petition.type.startsWith('alliance_')">{{ state.alliance_label(petition.proposal.kind) }} <strong>{{ petition.proposal.name }}</strong><button class="btn btn-sm btn-secondary ml-2" v-for="guild_id in petition.proposal.guild_ids || []" :key="guild_id" @click="state.preview_alliance_guild(guild_id)"><lang-string lang-id="MOD_MP_ALLIANCE_PREVIEW"></lang-string></button></div>
 							<div class="mp-council-proposal" v-else>{{ state.get_council_action_proposal(petition.type) }}</div>
 							<div class="font-size-sm text-warning" v-if="petition.lifecycle === 'granted' && ['pending', 'running', 'failed'].includes(petition.execution_state)">{{ state.get_council_execution_lang(petition.execution_state) }}</div>
 							<div class="mp-council-tally" v-if="petition.tally_visible"><div class="mp-council-tally-aye" :style="{ width: state.get_council_tally_width(petition, 'aye') }"></div><div class="mp-council-tally-nay" :style="{ width: state.get_council_tally_width(petition, 'nay') }"></div><div class="mp-council-tally-uncast" :style="{ width: state.get_council_tally_width(petition, 'uncast') }"></div><span class="mp-council-threshold"></span></div>
@@ -2599,6 +2660,39 @@
 	</div>
 </template>
 
+<template id="template-mp-alliance-picker-modal">
+	<p><lang-string lang-id="MOD_MP_ALLIANCE_COUNCIL_HINT"></lang-string></p>
+	<input v-if="state.alliance_picker_mode === 'found'" class="form-control mb-3" v-model="state.alliance_name_input" maxlength="20" :placeholder="getLangString('MOD_MP_ALLIANCE_NAME')" @input="state.alliance_error = ''">
+	<p class="text-danger" v-if="state.alliance_error">{{ state.alliance_error }}</p>
+	<div class="mp-alliance-picker-scroll" @touchmove="state.stop_icon_scroll_propagation($event)">
+		<div class="mp-council-card" v-for="entry in state.alliance_picker_entries" :key="entry.guild_id || entry.id" v-show="entry.guild_id !== state.guild_state.guild?.guild_id">
+			<strong>{{ entry.name }}</strong>
+			<div v-for="guild in entry.member_guilds || [entry]" :key="guild.guild_id">
+				<img class="skill-icon-xs" :src="state.get_guild_icon(guild.icon_id)"> {{ guild.name }}
+				<span class="badge badge-info mr-1" v-for="tag in state.alliance_guild_tags(guild)">{{ tag }}</span>
+				<button class="btn btn-sm btn-secondary" @click="state.preview_alliance_guild(guild.guild_id, true)"><lang-string lang-id="MOD_MP_ALLIANCE_PREVIEW"></lang-string></button>
+			</div>
+			<p v-if="entry.member_guilds"><lang-string lang-id="MOD_MP_ALLIANCE_SHARED_MARKETPLACE"></lang-string>: {{ entry.shared_marketplace ? getLangString('MOD_MP_ALLIANCE_ENABLED') : getLangString('MOD_MP_ALLIANCE_DISABLED') }}</p>
+			<button class="btn btn-primary mt-2" :disabled="state.alliance_picker_mode === 'found' && !state.alliance_name_input.trim()" @click="state.alliance_action($event, state.alliance_picker_mode, entry.guild_id || entry.id)">{{ state.alliance_label(state.alliance_picker_mode) }}<span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+		</div>
+	</div>
+	<div class="mp-button-tray">
+		<button class="btn btn-secondary" v-if="state.alliance_picker_page > 0" @click="state.show_alliance_picker(state.alliance_picker_mode, state.alliance_picker_page - 1)"><lang-string lang-id="MOD_MP_ALLIANCE_PREVIOUS"></lang-string></button>
+		<button class="btn btn-secondary" v-if="state.alliance_picker_has_more" @click="state.show_alliance_picker(state.alliance_picker_mode, state.alliance_picker_page + 1)"><lang-string lang-id="MOD_MP_ALLIANCE_NEXT"></lang-string></button>
+		<button class="btn btn-danger" @click="state.close_alliance_picker()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
+	</div>
+</template>
+<template id="template-mp-alliance-preview-modal">
+	<div v-if="state.alliance_preview">
+		<img class="skill-icon-md" :src="state.get_guild_icon(state.alliance_preview.icon_id)">
+		<h4>{{ state.alliance_preview.name }}</h4>
+		<p><lang-string lang-id="MOD_MP_GUILD_MEMBERS"></lang-string>: {{ state.alliance_preview.member_count }}</p>
+		<p v-if="state.alliance_preview.created_at"><lang-string lang-id="MOD_MP_ALLIANCE_ESTABLISHED"></lang-string>: {{ new Date(state.alliance_preview.created_at).toLocaleDateString() }}</p>
+		<span class="badge badge-info mr-1" v-for="tag in state.alliance_guild_tags(state.alliance_preview)">{{ tag }}</span>
+	</div>
+	<div class="mp-button-tray"><button class="btn btn-secondary" @click="state.close_alliance_preview()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button></div>
+</template>
+
 <template id="template-mp-chat-item-picker-modal">
 	<div class="mp-chat-item-picker">
 		<input type="search" class="mp-input-text mp-chat-item-search" :placeholder="getLangString('MOD_MP_PLACEHOLDER_SEARCH_ITEMS')" :aria-label="getLangString('MOD_MP_PLACEHOLDER_SEARCH_ITEMS')" @input="state.update_chat_item_search($event)" @keydown="state.handle_chat_item_search_key($event)">
@@ -2607,5 +2701,36 @@
 		<div class="text-muted font-size-sm mt-2"><lang-string lang-id="MOD_MP_CHAT_ITEM_SEARCH_HINT"></lang-string></div>
 		<div class="text-muted font-size-sm"><lang-string lang-id="MOD_MP_CHAT_ITEM_DISCOVERY_HINT"></lang-string></div>
 		<div class="mp-button-tray mt-3"><button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button></div>
+	</div>
+</template>
+
+<template id="template-mp-expedition-work-prompt-modal">
+	<p class="mp-modal-text">{{ state.expedition_text('MOD_MP_EXPEDITION_WORK_PROMPT_INFO', state.expedition_prompt_activity_names()) }}</p>
+	<div class="mp-expedition-prompt-tasks" @touchmove="state.stop_icon_scroll_propagation($event)">
+		<article class="mp-expedition-task" v-for="task in state.expedition_prompt_tasks()" :key="task.task_id">
+			<div class="mp-expedition-task-heading"><strong>{{ state.expedition_display_label(task.title, state.expedition_state?.expedition?.chamber?.exits?.length, state.expedition_state?.expedition?.chamber?.id) }}</strong><span class="mp-expedition-task-requirement" :class="{ 'mp-expedition-task-required': task.promoted_at || task.requirement === 'required' || (task.requirement === 'conditional' && task.exit_id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id) }">{{ task.promoted_at || task.requirement === 'required' || (task.requirement === 'conditional' && task.exit_id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id) ? getLangString('MOD_MP_EXPEDITION_REQUIRED') : getLangString('MOD_MP_EXPEDITION_OPTIONAL') }}</span></div>
+			<div class="mp-expedition-work-list" :aria-label="getLangString('MOD_MP_EXPEDITION_CONTRIBUTE_ACTIVITIES')">
+				<span><lang-string lang-id="MOD_MP_EXPEDITION_UI_CONTRIBUTE_WITH_ANY_OF_THESE"></lang-string></span>
+				<div class="mp-expedition-work" v-for="skill_id in task.evidence?.skill_ids || []" :key="skill_id" :title="state.expedition_work_name(skill_id)" :aria-label="state.expedition_work_name(skill_id)" role="img">
+					<img :src="state.expedition_work_icon(skill_id)" alt="" draggable="false"><span>{{ state.expedition_work_name(skill_id) }}</span>
+				</div>
+			</div>
+			<div class="mp-expedition-progress-wrap" tabindex="0" :aria-label="state.expedition_display_label(task.title, state.expedition_state?.expedition?.chamber?.exits?.length, state.expedition_state?.expedition?.chamber?.id) + ': ' + state.expedition_progress_description(task)">
+				<div class="mp-expedition-progress" role="progressbar" :aria-valuenow="state.expedition_percent(task)" aria-valuemin="0" aria-valuemax="100" :aria-label="state.expedition_display_label(task.title, state.expedition_state?.expedition?.chamber?.exits?.length, state.expedition_state?.expedition?.chamber?.id)" :aria-valuetext="state.expedition_progress_description(task)">
+						<span class="mp-expedition-progress-own" :style="{ width: state.expedition_progress_width(task.personal_ms, task) }"></span><span class="mp-expedition-progress-others" :style="{ width: state.expedition_progress_width(state.expedition_other_player_ms(task), task) }"></span><span class="mp-expedition-progress-assistance" :style="{ width: state.expedition_progress_width(task.system_ms, task) }"></span>
+					</div>
+				<div class="mp-expedition-progress-detail" role="tooltip" v-if="state.expedition_contribution_time(task.personal_ms) || state.expedition_contribution_time(state.expedition_other_player_ms(task)) || state.expedition_contribution_time(task.system_ms)">
+						<span v-if="state.expedition_contribution_time(task.personal_ms)"><i class="mp-expedition-progress-key mp-expedition-progress-own"></i>{{ state.expedition_text('MOD_MP_EXPEDITION_YOUR_WORK_TIME', state.expedition_contribution_time(task.personal_ms)) }}</span><span v-if="state.expedition_contribution_time(state.expedition_other_player_ms(task))"><i class="mp-expedition-progress-key mp-expedition-progress-others"></i>{{ state.expedition_text('MOD_MP_EXPEDITION_OTHER_WORK_TIME', state.expedition_contribution_time(state.expedition_other_player_ms(task))) }}</span><span v-if="state.expedition_contribution_time(task.system_ms)"><i class="mp-expedition-progress-key mp-expedition-progress-assistance"></i>{{ state.expedition_text('MOD_MP_EXPEDITION_ASSISTANCE_TIME', state.expedition_contribution_time(task.system_ms)) }}</span>
+				</div>
+			</div>
+			<div>
+				<p class="mp-expedition-progress-percent"><strong>{{ state.expedition_remaining(task) }}</strong> · {{ state.expedition_text('MOD_MP_EXPEDITION_PERCENT_COMPLETE', state.expedition_percent(task)) }}</p>
+				<p v-if="task.trackers?.length">{{ state.expedition_text('MOD_MP_EXPEDITION_TRACKERS', task.trackers.map(member => member.display_name).join(', ')) }}</p>
+				<div class="mp-expedition-task-actions" v-if="state.expedition_state?.expedition?.registered && (state.expedition_state?.tracking?.visit_id !== state.expedition_state?.expedition?.chamber?.visit_id || state.expedition_state?.tracking?.task_id !== task.task_id)">
+					<button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending || state.expedition_pending_report || !state.expedition_can_track(task) || (state.expedition_state?.tracking && state.expedition_state?.tracking?.visit_id !== state.expedition_state?.expedition?.chamber?.visit_id)" @click="state.start_prompted_expedition_task(task.task_id)"><lang-string lang-id="MOD_MP_EXPEDITION_UI_TRACK_THIS_TASK"></lang-string></button>
+					<div class="mp-expedition-available"><lang-string lang-id="MOD_MP_EXPEDITION_AVAILABLE_TO_EARN"></lang-string><strong>{{ state.expedition_available_points(task) }} EP</strong></div>
+				</div>
+			</div>
+		</article>
 	</div>
 </template>

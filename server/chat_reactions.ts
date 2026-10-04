@@ -1,9 +1,9 @@
 import { db } from './db';
 import { chat_shadow_visibility } from './chat_shadowban';
 import { can_access_support_conversation } from './support_chat';
-import { is_expedition_tester } from './account_tags';
+import { has_expedition_access } from './account_tags';
 
-export type ChatMessageKind = 'private' | 'guild' | 'global' | 'testers' | 'support' | 'poll-discussion';
+export type ChatMessageKind = 'private' | 'alliance' | 'guild' | 'global' | 'testers' | 'support' | 'poll-discussion';
 
 type ReactionRow = {
 	message_id: number;
@@ -26,6 +26,7 @@ type MessageWithReactions = {
 
 const reaction_tables: Record<ChatMessageKind, string> = {
 	private: 'chat_message_reactions',
+	alliance: 'alliance_chat_message_reactions',
 	guild: 'guild_chat_message_reactions',
 	global: 'global_chat_message_reactions',
 	testers: 'global_chat_message_reactions',
@@ -35,6 +36,7 @@ const reaction_tables: Record<ChatMessageKind, string> = {
 
 const message_tables: Record<ChatMessageKind, string> = {
 	private: 'chat_messages',
+	alliance: 'alliance_chat_messages',
 	guild: 'guild_chat_messages',
 	global: 'global_chat_messages',
 	testers: 'global_chat_messages',
@@ -44,6 +46,7 @@ const message_tables: Record<ChatMessageKind, string> = {
 
 const conversation_columns: Record<Exclude<ChatMessageKind, 'global' | 'testers'>, string> = {
 	private: 'conversation_id',
+	alliance: 'alliance_id',
 	guild: 'guild_id',
 	support: 'conversation_id',
 	'poll-discussion': 'poll_id'
@@ -61,6 +64,19 @@ function message_is_visible(client_id: number, kind: ChatMessageKind, conversati
 			'AND NOT EXISTS (SELECT 1 FROM `chat_message_deletions` AS deletion ' +
 			'WHERE deletion.`message_id` = message.`id` AND deletion.`client_id` = ?)) AS `visible`'
 		).get(message_id, conversation_id, client_id, client_id, client_id, client_id)?.visible === 1;
+	}
+	if (kind === 'alliance') {
+		return db.query<{ visible: number }, [number, number, number, number, number]>(
+			'SELECT EXISTS(SELECT 1 FROM `alliance_chat_messages` AS message ' +
+			'JOIN alliance_memberships am ON am.alliance_id = message.alliance_id ' +
+			'JOIN guild_memberships membership ON membership.guild_id = am.guild_id ' +
+			'JOIN `clients` AS client ON client.`id` = membership.`client_id` ' +
+			'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` ' +
+			'WHERE message.`id` = ? AND message.`alliance_id` = ? AND client.`id` = ? AND client.`alliance_chat_enabled` = 1 ' +
+			`AND ${chat_shadow_visibility()} ` +
+			'AND NOT EXISTS (SELECT 1 FROM `alliance_chat_message_moderation` AS moderation ' +
+			'WHERE moderation.`message_id` = message.`id`)) AS `visible`'
+		).get(message_id, conversation_id, client_id, client_id, client_id)?.visible === 1;
 	}
 	if (kind === 'guild') {
 		return db.query<{ visible: number }, [number, number, number, number, number]>(
@@ -170,11 +186,11 @@ export function reaction_updates(kind: ChatMessageKind, client_id: number, conve
 }
 
 export function set_message_reaction(client_id: number, kind: ChatMessageKind, conversation_id: number,
-	message_id: number, reaction: string, reacted: boolean, now = Date.now()) {
+	message_id: number, reaction: string, reacted: boolean, now = Date.now(), mod_version?: unknown) {
 	if (!Number.isSafeInteger(conversation_id) || conversation_id < 1 ||
 		!Number.isSafeInteger(message_id) || message_id < 1 || typeof reaction !== 'string' || typeof reacted !== 'boolean')
 		return { status: 'bad_request' as const };
-	if (kind === 'testers' && !is_expedition_tester(client_id))
+	if (kind === 'testers' && !has_expedition_access(client_id, mod_version))
 		return { status: 'missing' as const };
 	if (!message_is_visible(client_id, kind, conversation_id, message_id))
 		return { status: 'missing' as const };

@@ -13,12 +13,12 @@ type Session = { id: number; expedition_id: number; visit_id: number; client_id:
 	task_id: string; started_at: number; start_statistics: string; start_activities: string; ended_at: number | null;
 	last_observed_at: number | null; max_observation_gap_ms: number; evidence_skill_ids: string;
 	pending_boundary_at: number | null; pending_capture_at: number | null;
-	start_clock_offset_ms: number | null; pending_reported_capture_at: number | null };
+	start_clock_offset_ms: number | null; pending_reported_capture_at: number | null; reward_remaining_ms: number | null };
 type Claim = { session_id: number; client_id: number; expedition_id: number; visit_id: number; task_id: string;
 	started_at: number; cutoff_at: number; start_statistics: string; start_activities: string;
 	evidence_skill_ids: string; last_observed_at: number | null; max_observation_gap_ms: number;
 	pending_boundary_at: number | null; pending_capture_at: number | null;
-	start_clock_offset_ms: number | null; pending_reported_capture_at: number | null };
+	start_clock_offset_ms: number | null; pending_reported_capture_at: number | null; reward_remaining_ms: number | null };
 type TaskRow = { target_ms: number; player_ms: number; system_ms: number; unlocked_at: number | null;
 	completed_at: number | null; promoted_at: number | null };
 const HOUR_MS = 3_600_000;
@@ -132,13 +132,13 @@ function settle(session: Session, statistics: WorkStatistics, activities: Activi
 	const concurrency = elapsed_ms === 0 ? 1 : Math.max(1, total_ms / elapsed_ms);
 	const observed = eligible_activity(start_activities, definition.evidence.skill_ids);
 	const verified_ms = observed ? Math.min(elapsed_ms, Math.floor(target_ms / concurrency)) : 0;
-	const cutoff = Math.min(captured_at, task.completed_at ?? captured_at, visit.departed_at ?? captured_at,
+	const cutoff = Math.min(captured_at, visit.departed_at ?? captured_at,
 		tenure.ended_at ?? captured_at, expedition.ended_at ?? captured_at);
 	const eligible_elapsed_ms = Math.max(0, cutoff - session.started_at);
 	const observation_gap = Math.max(session.max_observation_gap_ms,
 		captured_at - (session.last_observed_at ?? session.started_at));
 	const overlong = observation_gap > RECENTLY_ACTIVE_AFTER;
-	const credited_ms = overlong ? 0 : Math.min(eligible_elapsed_ms,
+	const credited_ms = overlong ? 0 : Math.min(session.reward_remaining_ms ?? Number.MAX_SAFE_INTEGER, eligible_elapsed_ms,
 		Math.floor(verified_ms * eligible_elapsed_ms / Math.max(1, elapsed_ms)));
 	const guild_ms = expedition.status === 'active' && visit.departed_at === null &&
 		task.completed_at === null
@@ -192,7 +192,7 @@ function settle_claim(claim: Claim, statistics: WorkStatistics, captured_at: num
 	const eligible_elapsed_ms = Math.max(0, Math.min(captured_at, claim.cutoff_at) - claim.started_at);
 	const overlong = Math.max(claim.max_observation_gap_ms,
 		captured_at - (claim.last_observed_at ?? claim.started_at)) > RECENTLY_ACTIVE_AFTER;
-	const credited_ms = overlong ? 0 : Math.min(eligible_elapsed_ms,
+	const credited_ms = overlong ? 0 : Math.min(claim.reward_remaining_ms ?? Number.MAX_SAFE_INTEGER, eligible_elapsed_ms,
 		Math.floor(verified_ms * eligible_elapsed_ms / Math.max(1, elapsed_ms)));
 	const points_micros = Math.floor(credited_ms * MICROS_PER_HOUR / HOUR_MS);
 	db.query('UPDATE expedition_work_claims SET settled_at = ?, credited_ms = ? WHERE session_id = ? AND settled_at IS NULL')
@@ -230,10 +230,12 @@ export function get_expedition_work(client_id: number) {
 		).get(client_id)?.points_micros ?? 0;
 		const tracking: JsonObject | null = session ? { session_id: session.id, expedition_id: session.expedition_id,
 			visit_id: session.visit_id, task_id: session.task_id, started_at: session.started_at,
+			reward_remaining_ms: session.reward_remaining_ms,
 			...(session.pending_boundary_at !== null ? { pending_boundary_at: session.pending_boundary_at,
 				settle_zero_at: session.pending_boundary_at + UNVERIFIED_WAIT_MS } : {}) } :
 			claim ? { session_id: claim.session_id, expedition_id: claim.expedition_id,
 				visit_id: claim.visit_id, task_id: claim.task_id, started_at: claim.started_at,
+				reward_remaining_ms: claim.reward_remaining_ms,
 				claim: true, ...(claim.pending_boundary_at !== null ? { pending_boundary_at: claim.pending_boundary_at,
 					settle_zero_at: claim.pending_boundary_at + UNVERIFIED_WAIT_MS } : {}) } : null;
 		return { tracking, points_micros: balance, points_display: Math.floor(balance / MICROS_PER_HOUR) };
@@ -315,7 +317,7 @@ export function change_expedition_work(client_id: number, operation_id: string, 
 			if (requested_task && !eligible_activity(request.activities, requested_task.evidence.skill_ids))
 				return { success: false, error: 'activity_required' };
 		}
-		let settlement = null;
+		let settlement: JsonObject | null = null;
 		let requested_unavailable = false;
 		let fresh_snapshot_required = false;
 		if (existing) {
@@ -368,11 +370,15 @@ export function change_expedition_work(client_id: number, operation_id: string, 
 				return { success: false, error: 'task_unavailable' };
 			if (!available && request.kind === 'start') requested_unavailable = true;
 			if (available) {
-				started = db.query<{ id: number }, [number, number, number, number, string, number, string, string, number, string, number]>(
-					'INSERT INTO expedition_work_sessions (expedition_id, visit_id, client_id, tenure_id, task_id, started_at, start_statistics, start_activities, last_observed_at, evidence_skill_ids, start_clock_offset_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id'
+				// Check-ins (including a start of the same task) spend the original allowance.
+				const remaining_ms = Math.max(0, task.target_ms - task.player_ms - task.system_ms);
+				const reward_remaining_ms = existing?.task_id === task_id && existing.reward_remaining_ms !== null
+					? Math.max(0, existing.reward_remaining_ms - Number(settlement?.credited_ms ?? 0)) : remaining_ms;
+				started = db.query<{ id: number }, [number, number, number, number, string, number, string, string, number, string, number, number]>(
+					'INSERT INTO expedition_work_sessions (expedition_id, visit_id, client_id, tenure_id, task_id, started_at, start_statistics, start_activities, last_observed_at, evidence_skill_ids, start_clock_offset_ms, reward_remaining_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id'
 				).get(request.expedition_id, request.visit_id, client_id, tenure.id, task_id, now,
 					JSON.stringify(request.statistics), JSON.stringify(request.activities), now,
-					JSON.stringify(definition?.evidence.skill_ids ?? []), request.captured_at - now);
+					JSON.stringify(definition?.evidence.skill_ids ?? []), request.captured_at - now, reward_remaining_ms);
 			}
 		}
 		const response = { success: true, clock, settlement, ...get_expedition_work(client_id),

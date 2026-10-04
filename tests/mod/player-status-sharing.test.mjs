@@ -60,13 +60,14 @@ test('renders local skill icons and levels while keeping activity in the member 
 	assert.match(member_modal, /state\.get_status_activity_name\(activity\)/);
 	assert.match(member_modal, /state\.get_language_lang_id\(state\.selected_guild_member\.language\) !== null/);
 	assert.match(member_modal, /state\.get_language_name\(state\.selected_guild_member\.language\)/);
+	assert.match(member_modal, /mp-member-shared-stats">\s*<div[^>]*v-if="state\.selected_guild_member\.account_name !== undefined"[\s\S]*?MOD_MP_ACCOUNT_NAME[\s\S]*?state\.selected_guild_member\.account_name \?\? '—'[\s\S]*?MOD_MP_LANGUAGE/);
 	assert.match(member_modal, /MOD_MP_LANGUAGE/);
 	assert.match(member_modal, /STATISTICS_ACCOUNT_AGE/);
 	assert.match(member_modal, /STATISTICS_TOTAL_SKILL_LEVEL/);
 	assert.match(member_modal, /state\.format_member_account_age\(state\.selected_guild_member\.account_age\)/);
 	assert.match(member_modal, /state\.format_member_total_skill_level\(state\.selected_guild_member\.total_skill_level\)/);
 	assert.match(member_modal, /<div class="mp-member-shared-stats">[\s\S]*<\/div>/);
-	assert.equal((member_modal.match(/class="mp-member-shared-stat-label"/g) ?? []).length, 4);
+	assert.equal((member_modal.match(/class="mp-member-shared-stat-label"/g) ?? []).length, 5);
 	assert.match(member_modal, /MOD_MP_PAGE_GUILD[\s\S]*state\.selected_guild_member\.guild_name/);
 	assert.match(main, /activity\.area_id === null \? null : game\.combatAreas\?\.getObjectByID\(activity\.area_id\)/);
 	assert.match(main, /is_official_game_id\(area\?\.id\) && area\.media/);

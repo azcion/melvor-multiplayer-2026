@@ -38,6 +38,80 @@ export function install_social_actions(runtime) {
 	} = runtime;
 
 	return {
+		async refresh_alliance() {
+			if (!this.alliance_access || !this.is_guild_member) {
+				this.alliance_state = { alliance: null, processes: [], affiliation_pending: false };
+				this.alliance_error = '';
+				return;
+			}
+			if (this.alliance_loading) return;
+			this.alliance_loading = true;
+			try {
+				const res = await api_get('/api/alliances');
+				if (res && !res.error && !res.error_lang) { this.alliance_state = res; this.alliance_error = ''; }
+				else this.alliance_error = res?.error ?? getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+			} finally { this.alliance_loading = false; }
+		},
+		async show_alliance_picker(mode, page = 0) {
+			if (!this.alliance_access) return;
+			this.alliance_picker_mode = mode;
+			this.alliance_error = '';
+			const res = await api_get('/api/alliances/discover?mode=' + mode + '&page=' + page);
+			if (!res) return notify_error('MOD_MP_GENERIC_ERR');
+			this.alliance_picker_entries = res.entries ?? [];
+			this.alliance_picker_page = page;
+			this.alliance_picker_has_more = res.has_more === true;
+			if (this.alliance_modal) await close_modal_and_wait(this.alliance_modal);
+			this.alliance_modal = null;
+			this.alliance_modal = 'alliance-picker-modal';
+			queue_modal(mode === 'found' ? 'MOD_MP_ALLIANCE_FOUND' : 'MOD_MP_ALLIANCE_APPLY', 'alliance-picker-modal', 'assets/multiplayer.svg', { showConfirmButton: false, allowOutsideClick: false, allowEscapeKey: false });
+		},
+		async preview_alliance_guild(guild_id, restore_picker = false) {
+			if (!this.alliance_access) return;
+			const res = await api_get('/api/alliances/guild-preview?guild_id=' + guild_id);
+			if (!res?.guild) return notify_error('MOD_MP_GENERIC_ERR');
+			this.alliance_preview = res.guild;
+			this.alliance_preview_restore_picker = restore_picker;
+			if (this.alliance_modal) await close_modal_and_wait(this.alliance_modal);
+			this.alliance_modal = null;
+			this.alliance_modal = 'alliance-preview-modal';
+			queue_modal('MOD_MP_ALLIANCE_GUILD_PREVIEW', 'alliance-preview-modal', 'assets/multiplayer.svg', { showConfirmButton: false, allowOutsideClick: false, allowEscapeKey: false });
+		},
+		close_alliance_picker() { this.alliance_modal = null; close_modal(); },
+		async close_alliance_preview() {
+			const restore = this.alliance_preview_restore_picker;
+			if (this.alliance_modal) await close_modal_and_wait(this.alliance_modal);
+			this.alliance_modal = null;
+			if (restore) await this.show_alliance_picker(this.alliance_picker_mode, this.alliance_picker_page);
+		},
+		async alliance_action(event, kind, target_id = null, process_id = null) {
+			if (!this.alliance_access) return;
+			const alliance_name = this.alliance_name_input.trim();
+			if (process_id === null && kind === 'found' && (alliance_name.length === 0 || alliance_name.length > 20)) {
+				this.alliance_error = getLangString('MOD_MP_ALLIANCE_NAME_REQUIRED');
+				return;
+			}
+			const button = event.currentTarget;
+			if (is_button_spinning(button)) return;
+			show_button_spinner(button);
+			this.alliance_error = '';
+			try {
+				const res = await api_post('/api/alliances/' + (process_id === null ? 'propose' : kind),
+					process_id === null ? { kind, ...(target_id === null ? {} : {target_id}), ...(kind === 'found' ? {name:alliance_name} : {}) } : {process_id});
+				if (!res?.success) { this.alliance_error = res?.error ?? getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR'); return; }
+				if (this.alliance_modal) await close_modal_and_wait(this.alliance_modal);
+				this.alliance_modal = null;
+				await Promise.all([this.refresh_alliance(), refresh_council()]);
+			} finally { hide_button_spinner(button); }
+		},
+		alliance_label(kind) { return getLangString('MOD_MP_ALLIANCE_' + String(kind ?? 'ballot').toUpperCase()); },
+		alliance_stage(stage) { return getLangString('MOD_MP_ALLIANCE_STAGE_' + stage.toUpperCase()); },
+		alliance_guild_tags(guild) {
+			if (!guild) return [];
+			return [guild.type === 'free_fellowship' ? getLangString('MOD_MP_ALLIANCE_FREE_FELLOWSHIP') : guild.type === 'public' ? getLangString('MOD_MP_GUILD_OPEN') : getLangString('MOD_MP_GUILD_PRIVATE'),
+				guild.restricts_cheaters ? getLangString('MOD_MP_ALLIANCE_RESTRICTS_CHEATERS') : '',
+				guild.market_discovery_restriction_enabled ? getLangString('MOD_MP_COUNCIL_TYPE_TEMPERANCE') : ''].filter(Boolean);
+		},
 		async confirm_display_name(event) {
 			const $button = event.currentTarget;
 			if (is_button_spinning($button))
@@ -382,7 +456,7 @@ export function install_social_actions(runtime) {
 			if (!res?.success)
 				return notify_error(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 			invalidate_guild_state();
-			await Promise.all([refresh_guild_state(), refresh_council()]);
+			await Promise.all([refresh_guild_state(), refresh_council(), this.refresh_alliance()]);
 		},
 
 		async withdraw_council_petition(event, petition) {
@@ -400,7 +474,7 @@ export function install_social_actions(runtime) {
 		},
 
 		get_council_type_lang(type) {
-			return getLangString('MOD_MP_COUNCIL_TYPE_' + type.toUpperCase());
+			return type.startsWith('alliance_') ? this.alliance_label(type.slice(9)) : getLangString('MOD_MP_COUNCIL_TYPE_' + type.toUpperCase());
 		},
 
 		can_raise_council_petition(type) {
@@ -417,7 +491,7 @@ export function install_social_actions(runtime) {
 		},
 
 		get_council_action_proposal(type) {
-			return getLangString('MOD_MP_COUNCIL_' + this.get_council_action_key(type) + '_PROPOSAL');
+			return type.startsWith('alliance_') ? this.alliance_label(type.slice(9)) : getLangString('MOD_MP_COUNCIL_' + this.get_council_action_key(type) + '_PROPOSAL');
 		},
 
 		get_council_outcome_lang(lifecycle) {

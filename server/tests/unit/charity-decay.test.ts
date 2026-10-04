@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { Database } from 'bun:sqlite';
+import type { Database } from 'bun:sqlite';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,7 +8,7 @@ import {
 	get_charity_decay_context,
 	get_effective_charity_expiry
 } from '../../charity-decay';
-import { migrations } from '../../db/schema';
+import { create_test_database } from '../support/database';
 
 const HOUR_MS = 60 * 60 * 1000;
 const temporary_directories: string[] = [];
@@ -16,13 +16,7 @@ const temporary_directories: string[] = [];
 function fixture_database(): Database {
 	const directory = mkdtempSync(join(tmpdir(), 'melvor-charity-decay-test-'));
 	temporary_directories.push(directory);
-	const database = new Database(join(directory, 'database.sqlite'), { create: true, strict: true });
-	database.run('PRAGMA foreign_keys = ON');
-	for (const migration of migrations) {
-		database.run(migration.sql);
-		database.run(`PRAGMA user_version = ${migration.version}`);
-	}
-	return database;
+	return create_test_database(join(directory, 'database.sqlite'));
 }
 
 function add_wish(database: Database, created_at: number, progress_gp = 0): number {

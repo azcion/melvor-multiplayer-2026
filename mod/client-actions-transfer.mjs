@@ -50,6 +50,7 @@ export function install_transfer_actions(runtime) {
 		close_modal_and_wait,
 		crypto,
 		ctx,
+		get_mod_asset_url = media => ctx.getResourceUrl(media),
 		destroy_selected_transfer_inventory,
 		document,
 		formatNumber,
@@ -244,7 +245,7 @@ export function install_transfer_actions(runtime) {
 		},
 
 		get_raid_monster_icon(tier) {
-			return ctx.getResourceUrl(`assets/raid-boss-t${tier}.png`);
+			return get_mod_asset_url(`assets/raid-boss-t${tier}.png`);
 		},
 
 		get_raid_monster_name(tier) {

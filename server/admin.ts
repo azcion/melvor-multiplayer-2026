@@ -42,6 +42,7 @@ function usage(output: AdminOutput): number {
   bun run admin.ts status
   bun run admin.ts registrations open|close
   bun run admin.ts maintenance on|off
+  bun run admin.ts alliance-preview on|off
   bun run admin.ts icon-collection on|off
   bun run admin.ts icon-collection-limit icon-bytes|manifest-items|catalog-bytes|observations VALUE
   bun run admin.ts release-version VERSION|clear
@@ -49,6 +50,8 @@ function usage(output: AdminOutput): number {
   bun run admin.ts updates get SECTION_ID title|body
   bun run admin.ts updates set SECTION_ID title|body < CONTENT
   bun run admin.ts installation revoke CLIENT_ID INSTALLATION_ID
+  bun run admin.ts alliance inspect ALLIANCE_ID
+  bun run admin.ts alliance-process inspect PROCESS_ID
   bun run admin.ts guild inspect GUILD_ID
   bun run admin.ts identity find DISPLAY_NAME
   bun run admin.ts identity inspect CLIENT_ID
@@ -1111,6 +1114,7 @@ function run_admin_command(args: string[], output: AdminOutput = console_output)
 			).get()?.count ?? 0;
 
 			output.log(`registrations=${get_service_setting('registrations_open') === '1' ? 'open' : 'closed'}`);
+			output.log(`alliance_preview=${get_service_setting('alliance_preview_enabled') === '0' ? 'off' : 'on'}`);
 			output.log(`maintenance=${get_service_setting('maintenance') === '1' ? 'on' : 'off'}`);
 			output.log(`icon_collection=${get_service_setting('icon_collection_enabled') === '1' ? 'on' : 'off'}`);
 			output.log(`icon_collection_max_icon_bytes=${get_service_setting(ICON_CATALOG_SETTING_KEYS.max_icon_bytes)}`);
@@ -1144,6 +1148,17 @@ function run_admin_command(args: string[], output: AdminOutput = console_output)
 				return usage(output);
 			set_setting('registrations_open', action === 'open' ? '1' : '0');
 			output.log(`Registrations ${action}.`);
+			return 0;
+		case 'alliance-preview':
+			if (args.length !== 2 || (action !== 'on' && action !== 'off'))
+				return usage(output);
+			db.transaction(() => {
+				db.query('INSERT INTO service_settings (key, value) VALUES (?, ?) ' +
+					'ON CONFLICT (key) DO UPDATE SET value = excluded.value')
+					.run('alliance_preview_enabled', action === 'on' ? '1' : '0');
+				db.query('UPDATE clients SET event_revision = event_revision + 1').run();
+			}).immediate();
+			output.log(`Alliance preview ${action}.`);
 			return 0;
 		case 'maintenance':
 			if (args.length !== 2 || (action !== 'on' && action !== 'off'))
@@ -1183,6 +1198,22 @@ function run_admin_command(args: string[], output: AdminOutput = console_output)
 				? 'Minimum supported mod version cleared.'
 				: `Minimum supported mod version set to ${action}.`);
 			return 0;
+		case 'alliance':
+		case 'alliance-process': {
+			const id = parse_positive_integer(argument);
+			if (action !== 'inspect' || id === null || args.length !== 3) return usage(output);
+			const alliance = command === 'alliance';
+			const record = db.query(alliance ? 'SELECT * FROM alliances WHERE id=?' : 'SELECT * FROM alliance_processes WHERE id=?').get(id);
+			if (!record) { output.error('Alliance record not found.'); return 1; }
+			output.log(JSON.stringify({record, ...(alliance ? {
+				members: db.query('SELECT * FROM alliance_memberships WHERE alliance_id=? ORDER BY guild_id').all(id),
+				processes: db.query('SELECT * FROM alliance_processes WHERE alliance_id=? ORDER BY id DESC LIMIT 60').all(id)
+			} : {
+				ballots:db.query('SELECT * FROM alliance_ballots WHERE process_id=? ORDER BY guild_id').all(id),
+				petitions:db.query('SELECT p.*,l.role FROM guild_petitions p JOIN alliance_process_petitions l ON l.petition_id=p.id WHERE l.process_id=? ORDER BY p.id').all(id)
+			})}));
+			return 0;
+		}
 		case 'guild': {
 			if (action !== 'inspect' || args.length !== 3)
 				return usage(output);

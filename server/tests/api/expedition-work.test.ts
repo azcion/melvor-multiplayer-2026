@@ -42,6 +42,119 @@ async function restore_v1_content(expedition_id: number, visit_id: number) {
 }
 
 describe('Expedition verified work', () => {
+	test('credits a short verified statistic delta in full after task completion', async () => {
+		const { guild, expedition_id, visit_id, task } = await entrance();
+		const hour = 3_600_000;
+		await db_run('UPDATE expedition_tasks SET target_ms = ?, player_ms = ?, system_ms = ? WHERE visit_id = ? AND task_id = ?',
+			[45 * hour, 28 * hour, 0, visit_id, task]);
+		const started = await post_json<any>('/api/expedition/task/start',
+			request(expedition_id, visit_id, 'start', task), guild.first.session_token);
+		const start_at = Date.now() - 10 * hour;
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
+			[start_at, start_at, started.json.tracking.session_id]);
+		await db_run('UPDATE expedition_tasks SET player_ms = target_ms, completed_at = ? WHERE visit_id = ? AND task_id = ?',
+			[start_at + 3 * hour, visit_id, task]);
+		const report = { ...request(expedition_id, visit_id, 'check-in', undefined, 270_000), captured_at: start_at + 10 * hour };
+		const settled = await post_json<any>('/api/expedition/task/check-in', report, guild.first.session_token);
+		expect(settled.json.settlement).toMatchObject({ credited_ms: 270_000, guild_ms: 0,
+			points_micros: 75_000, estimated_cutoff: false });
+		expect(settled.json.tracking).toBeNull();
+		expect((await post_json<any>('/api/expedition/task/check-in', report, guild.first.session_token)).json).toEqual(settled.json);
+	});
+
+	test('caps a late offline return by the starting remaining work', async () => {
+		const { guild, expedition_id, visit_id, task } = await entrance();
+		const hour = 3_600_000;
+		await db_run('UPDATE expedition_tasks SET target_ms = ?, player_ms = 0, system_ms = 0 WHERE visit_id = ? AND task_id = ?',
+			[10 * hour, visit_id, task]);
+		const started = await post_json<any>('/api/expedition/task/start',
+			request(expedition_id, visit_id, 'start', task), guild.first.session_token);
+		const start_at = Date.now() - 12 * hour;
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
+			[start_at, start_at, started.json.tracking.session_id]);
+		await db_run('UPDATE expedition_tasks SET player_ms = target_ms, completed_at = ? WHERE visit_id = ? AND task_id = ?',
+			[start_at + 11 * hour, visit_id, task]);
+		const report = { ...request(expedition_id, visit_id, 'stop', undefined, 12 * hour), captured_at: start_at + 12 * hour };
+		const settled = await post_json<any>('/api/expedition/task/stop', report, guild.first.session_token);
+		expect(settled.json.settlement).toMatchObject({ credited_ms: 10 * hour, guild_ms: 0, points_micros: 10_000_000 });
+	});
+
+	test('a 99% complete task grants only its remaining allowance, including assistance', async () => {
+		const { guild, expedition_id, visit_id, task } = await entrance();
+		const hour = 3_600_000;
+		await db_run('UPDATE expedition_tasks SET target_ms = ?, player_ms = ?, system_ms = ? WHERE visit_id = ? AND task_id = ?',
+			[10 * hour, 9 * hour, 0.9 * hour, visit_id, task]);
+		const started = await post_json<any>('/api/expedition/task/start',
+			request(expedition_id, visit_id, 'start', task), guild.first.session_token);
+		const start_at = Date.now() - 8 * hour;
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
+			[start_at, start_at, started.json.tracking.session_id]);
+		const settled = await post_json<any>('/api/expedition/task/check-in',
+			{ ...request(expedition_id, visit_id, 'check-in', undefined, 8 * hour), captured_at: start_at + 8 * hour }, guild.first.session_token);
+		expect(settled.json.settlement).toMatchObject({ credited_ms: 360_000, guild_ms: 360_000, points_micros: 100_000 });
+		expect(settled.json.tracking).toBeNull();
+	});
+
+	test('same-task check-ins carry unused allowance and dissolution cannot renew it', async () => {
+		const { guild, expedition_id, visit_id, task } = await entrance();
+		const hour = 3_600_000;
+		await db_run('UPDATE expedition_tasks SET target_ms = ?, player_ms = 0, system_ms = 0 WHERE visit_id = ? AND task_id = ?',
+			[10 * hour, visit_id, task]);
+		const started = await post_json<any>('/api/expedition/task/start',
+			request(expedition_id, visit_id, 'start', task), guild.first.session_token);
+		let tracking = started.json.tracking;
+		expect(tracking.reward_remaining_ms).toBe(10 * hour);
+		for (const kind of ['check-in', 'start']) {
+			const start_at = Date.now() - hour;
+			await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
+				[start_at, start_at, tracking.session_id]);
+			const settled = await post_json<any>(`/api/expedition/task/${kind}`,
+				{ ...request(expedition_id, visit_id, kind, kind === 'start' ? task : undefined, kind === 'start' ? 2 * hour : hour),
+					captured_at: start_at + hour }, guild.first.session_token);
+			expect(settled.json.settlement.credited_ms).toBe(hour);
+			tracking = settled.json.tracking;
+			expect(tracking.reward_remaining_ms).toBe((kind === 'check-in' ? 9 : 8) * hour);
+			if (kind === 'check-in')
+				await db_run('UPDATE expedition_tasks SET player_ms = player_ms + ? WHERE visit_id = ? AND task_id = ?',
+					[4 * hour, visit_id, task]);
+		}
+		expect((await db_all('SELECT reward_remaining_ms FROM expedition_work_sessions WHERE id = ?', [tracking.session_id]))[0])
+			.toMatchObject({ reward_remaining_ms: 8 * hour });
+		const start_at = Date.now() - 12 * hour;
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
+			[start_at, start_at, tracking.session_id]);
+		await post_json('/api/guilds/leave', {}, guild.first.session_token);
+		await post_json('/api/guilds/leave', {}, guild.second.session_token);
+		expect((await db_all('SELECT reward_remaining_ms FROM expedition_work_claims WHERE session_id = ?', [tracking.session_id]))[0])
+			.toMatchObject({ reward_remaining_ms: 8 * hour });
+		expect((await get_json_with_session<any>('/api/expedition/personal', guild.first.session_token)).json.tracking)
+			.toMatchObject({ claim: true, reward_remaining_ms: 8 * hour });
+		const settled = await post_json<any>('/api/expedition/task/stop',
+			{ ...request(expedition_id, visit_id, 'stop', undefined, 14 * hour), captured_at: start_at + 12 * hour }, guild.first.session_token);
+		expect(settled.json.settlement).toMatchObject({ credited_ms: 8 * hour, guild_ms: 0, points_micros: 8_000_000 });
+	});
+
+	test('dissolution retains an earlier Chamber departure but not task completion as the reward cutoff', async () => {
+		const { guild, expedition_id, visit_id, task } = await entrance();
+		const hour = 3_600_000;
+		const started = await post_json<any>('/api/expedition/task/start',
+			request(expedition_id, visit_id, 'start', task), guild.first.session_token);
+		const start_at = Date.now() - 4 * hour;
+		await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
+			[start_at, start_at, started.json.tracking.session_id]);
+		await db_run('UPDATE expedition_visits SET entered_at = ?, departed_at = ? WHERE id = ?',
+			[start_at, start_at + hour, visit_id]);
+		await db_run('UPDATE expedition_tasks SET completed_at = ? WHERE visit_id = ? AND task_id = ?',
+			[start_at + hour / 2, visit_id, task]);
+		await post_json('/api/guilds/leave', {}, guild.first.session_token);
+		await post_json('/api/guilds/leave', {}, guild.second.session_token);
+		expect((await db_all('SELECT cutoff_at FROM expedition_work_claims WHERE session_id = ?', [started.json.tracking.session_id]))[0])
+			.toEqual({ cutoff_at: start_at + hour });
+		const settled = await post_json<any>('/api/expedition/task/stop',
+			{ ...request(expedition_id, visit_id, 'stop', undefined, 4 * hour), captured_at: start_at + 4 * hour }, guild.first.session_token);
+		expect(settled.json.settlement).toMatchObject({ credited_ms: hour, guild_ms: 0, points_micros: 1_000_000, estimated_cutoff: true });
+	});
+
 	test('accepts clocks ahead or behind and records the measured offset', async () => {
 		for (const offset of [-86_400_000, 86_400_000]) {
 			const { guild, expedition_id, visit_id, task } = await entrance();

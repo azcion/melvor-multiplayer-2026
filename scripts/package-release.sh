@@ -30,6 +30,7 @@ the version embedded in release.json.
 Environment:
   MELVOR_PI_SERVER_URL  Stable public HTTPS server origin
   MELVOR_RELEASE_VERSION Version instead of the positional argument
+  MELVOR_ASSET_CONFIG    Asset configuration override (default: local override or bundled)
 EOF
 }
 
@@ -87,8 +88,8 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 cd "$repo_root"
-if [ -n "$(git status --porcelain --untracked-files=all -- mod)" ]; then
-	printf 'Refusing to package uncommitted or untracked mod content.\n' >&2
+if [ -n "$(git status --porcelain --untracked-files=all -- mod asset-hosting.json)" ]; then
+	printf 'Refusing to package uncommitted or untracked mod content or asset defaults.\n' >&2
 	exit 1
 fi
 
@@ -158,6 +159,10 @@ cat > "$stage_dir/release.json" <<EOF
 }
 EOF
 
+git show "$source_commit:asset-hosting.json" > "$stage_dir/.asset-hosting-source.json"
+node "$repo_root/scripts/asset-hosting.mjs" prepare "$stage_dir" "$stage_dir/.asset-hosting-source.json"
+rm "$stage_dir/.asset-hosting-source.json"
+
 find "$stage_dir" -type f -exec touch -r "$stage_dir/manifest.json" {} \;
 find "$stage_dir" -type f -name '*.mjs' -exec node --check {} \;
 
@@ -202,7 +207,7 @@ rm -f "$output_file"
 
 unzip -tq "$output_file"
 archive_files="$(unzip -Z1 "$output_file")"
-for required_file in manifest.json main.mjs modal-queue.mjs server-config.mjs release.json; do
+for required_file in manifest.json main.mjs modal-queue.mjs server-config.mjs asset-urls.json release.json; do
 	if ! printf '%s\n' "$archive_files" | grep -Fxq "$required_file"; then
 		printf 'Release ZIP is missing %s.\n' "$required_file" >&2
 		exit 1

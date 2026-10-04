@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { Database } from 'bun:sqlite';
-import { migrations } from '../../db/schema';
+import type { Database } from 'bun:sqlite';
+import { create_test_database } from '../support/database';
 import {
 	parse_support_membership_client_identifiers,
 	parse_support_team_memberships,
@@ -9,15 +9,8 @@ import {
 } from '../../support_chat';
 
 function fixture_database(): Database {
-	const database = new Database(':memory:', { strict: true });
-	for (const migration of migrations) {
-		if (migration.foreign_keys_disabled)
-			database.run('PRAGMA foreign_keys = OFF');
-		database.transaction(() => database.run(migration.sql)).immediate();
-		if (migration.foreign_keys_disabled)
-			database.run('PRAGMA foreign_keys = ON');
-	}
-	database.run('PRAGMA foreign_keys = ON');
+	const database = create_test_database();
+
 	database.query(
 		'INSERT INTO `melvor_accounts` (`cloud_username`, `playfab_id`, `created_at`) VALUES(?, ?, ?), (?, ?, ?)'
 	).run('First', 'PLAYFAB-FIRST', 1, 'Second', 'PLAYFAB-SECOND', 2);

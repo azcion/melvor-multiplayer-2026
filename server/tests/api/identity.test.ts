@@ -91,6 +91,8 @@ describe('identity API', () => {
 
 	test('retains the latest recognized cheat-mod report when later runtime snapshots are clean', async () => {
 		const cheat_mod_names = [
+			'Loot Chests',
+			'Universal Item Spawner',
 			'Add Items',
 			'God Mode',
 			'dev.Console',
@@ -111,6 +113,7 @@ describe('identity API', () => {
 			const [stored] = await db_all<{ cheats_detected_at: number | null }>(
 				'SELECT `cheats_detected_at` FROM `clients` WHERE `id` = ?', [client.client_id]
 			);
+			expect(stored?.cheats_detected_at).toBeGreaterThan(0);
 			expect(stored?.cheats_detected_at).toBeGreaterThanOrEqual(previous_detection);
 			previous_detection = stored?.cheats_detected_at ?? 0;
 		}

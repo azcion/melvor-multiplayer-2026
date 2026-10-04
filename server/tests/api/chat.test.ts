@@ -1293,3 +1293,61 @@ describe('Support Chat API', () => {
 		expect(followup.json.success).toBe(true);
 	});
 });
+
+describe('Expedition Chat version eligibility', () => {
+	const inbox = async (token: string) => {
+		const { json } = await get_json_with_session<{ conversations: Array<{
+			conversation_kind: string; can_send: boolean; contributes_unread: boolean; unread_count: number
+		}> }>('/api/chat/conversations', token);
+		return json.conversations.find(conversation => conversation.conversation_kind === 'testers')!;
+	};
+	const send = (token: string, extra = {}) => post_json<{ message: { message_id: number } }>(
+		'/api/chat/messages/send', { conversation_kind: 'testers', conversation_id: 1,
+			idempotency_key: crypto.randomUUID(), content: 'Expedition preview discussion', ...extra }, token);
+	const denied_send = (token: string, extra = {}) => post('/api/chat/messages/send', {
+		conversation_kind: 'testers', conversation_id: 1, idempotency_key: crypto.randomUUID(),
+		content: 'Not eligible', ...extra
+	}, token);
+	const react = (token: string, message_id: number) => post_json<{ success?: boolean; error_lang?: string }>('/api/chat/messages/reaction', {
+		conversation_kind: 'testers', conversation_id: 1, message_id, reaction: '👍', reacted: true
+	}, token);
+
+	test('1.6.2+ untagged players can send, react and receive normal unread counts; 1.6.1 remains read-only', async () => {
+		const newer = await register_client('Expedition New', undefined, '1.6.2');
+		const future = await register_client('Expedition Future', undefined, '1.6.3');
+		const older = await register_client('Expedition Old', undefined, '1.6.1');
+		for (const client of [newer, future]) {
+			const conversation = await inbox(client.session_token);
+			expect(conversation.can_send).toBe(true);
+			expect(conversation.contributes_unread).toBe(true);
+		}
+		expect((await inbox(older.session_token)).can_send).toBe(false);
+		expect((await inbox(older.session_token)).contributes_unread).toBe(false);
+		const baseline_new = await get_events(newer);
+		const baseline_old = await get_events(older);
+		const message = await send(future.session_token);
+		expect(message.response.status).toBe(200);
+		expect((await react(newer.session_token, message.json.message.message_id)).json.success).toBe(true);
+		expect((await react(older.session_token, message.json.message.message_id)).json.error_lang).toBe('MOD_MP_CHAT_CONVERSATION_MISSING');
+		expect((await denied_send(older.session_token, { mod_version: '1.6.2' })).status).toBe(403);
+		expect((await inbox(newer.session_token)).unread_count).toBeGreaterThan(0);
+		expect((await get_events(newer)).chat_unread).toBe(baseline_new.chat_unread + 1);
+		expect((await get_events(older)).chat_unread).toBe(baseline_old.chat_unread);
+	});
+
+	test('1.6.1 tester accounts retain participation and lose it when their tag is revoked', async () => {
+		const account = { cloud_username: 'Expedition Legacy Tester', playfab_id: crypto.randomUUID() };
+		const tester = await register_client('Expedition Tagged', account, '1.6.1');
+		await db_run('INSERT INTO melvor_account_tags (account_id, tag, granted_at) ' +
+			"SELECT melvor_account_id, 'expedition-tester', ? FROM clients WHERE id = ?", [Date.now(), tester.client_id]);
+		expect((await inbox(tester.session_token)).can_send).toBe(true);
+		const message = await send(tester.session_token);
+		expect(message.response.status).toBe(200);
+		expect((await react(tester.session_token, message.json.message.message_id)).json.success).toBe(true);
+		await db_run('DELETE FROM melvor_account_tags WHERE account_id = ' +
+			'(SELECT melvor_account_id FROM clients WHERE id = ?)', [tester.client_id]);
+		expect((await inbox(tester.session_token)).can_send).toBe(false);
+		expect((await denied_send(tester.session_token)).status).toBe(403);
+		expect((await react(tester.session_token, message.json.message.message_id)).json.error_lang).toBe('MOD_MP_CHAT_CONVERSATION_MISSING');
+	});
+});

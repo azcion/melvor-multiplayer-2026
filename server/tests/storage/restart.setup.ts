@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { get_events, make_guildmates, register_guild_client } from '../support/fixtures';
+import { allow_alliance_preview, get_events, make_guildmates, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post_json, register_client } from '../support/http';
 import { db_run } from '../support/persistence';
 import { restart_state_path } from '../support/restart-state';
@@ -237,7 +237,27 @@ test('creates representative state before a server restart', async () => {
 		offset_ms: work_report.captured_at - work_started.json.tracking.started_at,
 		report: work_report, response: work_started.json };
 
+	const founder = await register_guild_client('Restart Ally A', 'Restart Ally A', '1.6.2');
+	const recipient = await register_guild_client('Restart Ally B', 'Restart Ally B', '1.6.2');
+	await allow_alliance_preview(founder.client_id);
+	await allow_alliance_preview(recipient.client_id);
+	const founding = await post_json<any>('/api/alliances/propose', { kind: 'found', target_id: recipient.guild_id, name: 'Restart Alliance' }, founder.session_token);
+	await post_json('/api/guilds/petitions/vote', { petition_id: founding.json.petition_id, choice: 'aye' }, founder.session_token);
+	const consideration = await post_json<any>('/api/alliances/consider', { process_id: founding.json.process_id }, recipient.session_token);
+	await post_json('/api/guilds/petitions/vote', { petition_id: consideration.json.petition_id, choice: 'aye' }, recipient.session_token);
+	const alliance_view = await get_json_with_session<any>('/api/alliances', founder.session_token);
+	const alliance_id = alliance_view.json.alliance.id;
+	const alliance_message = await post_json<any>('/api/chat/messages/send', { conversation_kind: 'alliance', conversation_id: alliance_id, content: 'Restart Alliance hello', idempotency_key: crypto.randomUUID() }, founder.session_token);
+	expect(alliance_message.json.success).toBe(true);
+	await post_json('/api/chat/alliance-participation', { enabled: false }, founder.session_token);
+	const alliance_policy = await post_json<any>('/api/alliances/propose', { kind: 'market_enable' }, founder.session_token);
+	const pending_alliance = await get_json_with_session<any>('/api/alliances', founder.session_token);
+	const alliance = { client: founder, guild_id: founder.guild_id, alliance_id, message_id: alliance_message.json.message.message_id,
+		process_id: alliance_policy.json.process_id, petition_id: alliance_policy.json.petition_id,
+		expires_at: pending_alliance.json.processes.find((p: any) => p.process_id === alliance_policy.json.process_id).expires_at };
+
 	const state: RestartState = {
+		alliance,
 		expedition_work,
 		installation: { ...installed.json, installation_id, installation_key },
 		...pair,

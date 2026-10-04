@@ -1,3 +1,4 @@
+import { has_alliance_access } from '../alliances';
 import { API_VERSIONS } from '../api-contract';
 import { get_account_tags, get_dev_tag_visibility } from '../account_tags';
 import { is_client_version_at_least } from '../client-version-policy';
@@ -99,6 +100,7 @@ export function register_auth_routes(): void {
 			game_mode_visible: client_row.game_mode_visible === 1,
 			active_mods_visible: client_row.active_mods_visible === 1,
 			dev_tag: get_dev_tag_visibility(client_row.id),
+			alliance_access: has_alliance_access(client_row.id, client_runtime?.mod_version),
 			chat: get_chat_state(client_row.id),
 			...(is_client_version_at_least(client_runtime?.mod_version, '1.6.0')
 				? { account_tags: get_account_tags(client_row.id) } : {}),
@@ -157,6 +159,7 @@ export function register_auth_routes(): void {
 			equipment_visible: true, skills_visible: true, activity_visible: true, gp_visible: true, game_mode_visible: true,
 			active_mods_visible: true,
 			dev_tag: get_dev_tag_visibility(client_id),
+			alliance_access: has_alliance_access(client_id, client_runtime?.mod_version),
 			chat: get_chat_state(client_id),
 			...(is_client_version_at_least(client_runtime?.mod_version, '1.6.0')
 				? { account_tags: get_account_tags(client_id) } : {}),

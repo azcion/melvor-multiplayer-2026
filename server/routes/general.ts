@@ -1,3 +1,5 @@
+import { has_alliance_access } from '../alliances';
+import { get_alliance_chat_unread_count } from '../alliance_chat';
 import * as runtime from '../app-runtime';
 import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
@@ -67,11 +69,12 @@ export function register_general_routes(): void {
 			inbox_pending: has_pending_inbox(client_id, runtime.get_request_mod_version(req)),
 			...(is_client_version_at_least(runtime.get_request_mod_version(req), '1.6.0')
 				? { account_tags: get_account_tags(client_id) } : {}),
-			chat_unread: get_unread_chat_count(client_id) + get_support_unread_count(client_id) +
+			alliance_access: has_alliance_access(client_id, runtime.get_request_mod_version(req)),
+			chat_unread: (has_alliance_access(client_id, runtime.get_request_mod_version(req)) ? get_alliance_chat_unread_count(client_id) : 0) + get_unread_chat_count(client_id) + get_support_unread_count(client_id) +
 				(has_global_chat_capability(url) ? get_global_chat_unread_count(client_id) : 0) +
 				(has_guild_chat_capability(url) ? get_guild_chat_unread_count(client_id) : 0) +
 				(is_client_version_at_least(runtime.get_request_mod_version(req), '1.6.0')
-					? get_tester_chat_unread_count(client_id) : 0)
+					? get_tester_chat_unread_count(client_id, runtime.get_request_mod_version(req)) : 0)
 		};
 	});
 

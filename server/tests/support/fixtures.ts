@@ -272,3 +272,9 @@ export async function make_guild_group(
 		guild_id: created.json.guild.guild_id
 	}));
 }
+
+// Alliance preview tests explicitly opt their characters into the stored operator account.
+export async function allow_alliance_preview(client_id: number): Promise<void> {
+	await db_run("INSERT OR IGNORE INTO melvor_accounts(id,cloud_username,playfab_id,created_at) VALUES(1,'Preview Operator','alliance-preview-fixture',0)");
+	await db_run('UPDATE clients SET melvor_account_id=1 WHERE id=?', [client_id]);
+}

@@ -11,6 +11,11 @@ export const MULTIPLAYER_PAGE_LANG_IDS = Object.freeze({
 
 export const MULTIPLAYER_SUPPORTED_LANGUAGES = Object.freeze(['en', 'zh-CN', 'zh-TW', 'fr', 'de', 'pt', 'pt-br', 'it', 'ko', 'ja', 'es', 'ru', 'tr']);
 
+const MULTIPLAYER_PAGE_HEADER_LANG_IDS = Object.freeze({
+	Expedition: 'MOD_MP_PAGE_EXPEDITION_HEADER',
+	Guild_Raid: 'MOD_MP_PAGE_RAID_HEADER'
+});
+
 export function resolve_multiplayer_language(lang) {
 	return MULTIPLAYER_SUPPORTED_LANGUAGES.includes(lang) ? lang : 'en';
 }
@@ -64,7 +69,7 @@ export function localize_multiplayer_page_names({ game, sidebar, getLangString, 
 
 		Object.defineProperty(page, 'name', {
 			configurable: true,
-			get: () => getLangString(lang_id)
+			get: () => getLangString(MULTIPLAYER_PAGE_HEADER_LANG_IDS[page_id] ?? lang_id)
 		});
 
 		const nav_item = multiplayer_category.item(page.id);

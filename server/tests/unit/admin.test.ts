@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { migrations } from '../../db/schema';
+import { create_test_database } from '../support/database';
 
 const temporary_directories: string[] = [];
 
@@ -12,12 +12,8 @@ function fixture_database(): string {
 	const directory = mkdtempSync(join(tmpdir(), 'melvor-admin-test-'));
 	temporary_directories.push(directory);
 	const database_path = join(directory, 'database.sqlite');
-	const database = new Database(database_path, { create: true, strict: true });
-	database.run('PRAGMA foreign_keys = ON');
-	for (const migration of migrations) {
-		database.run(migration.sql);
-		database.run(`PRAGMA user_version = ${migration.version}`);
-	}
+	const database = create_test_database(database_path);
+
 	database.query(
 		'INSERT INTO `clients` (`client_identifier`, `client_key`, `friend_code`, `display_name`, `icon_id`) ' +
 		'VALUES (?, ?, ?, ?, ?)'
@@ -680,4 +676,35 @@ describe('administration CLI', () => {
 		});
 		verification.close();
 	});
+});
+
+test('Alliance preview switch excludes the preview account and restores only account/version eligibility', async () => {
+	const database_path = fixture_database();
+	const database = new Database(database_path);
+	database.query("INSERT INTO melvor_accounts(id,cloud_username,playfab_id,created_at) VALUES(1,'Preview','preview-switch',0)").run();
+	database.query('UPDATE clients SET melvor_account_id=1 WHERE id=1').run();
+	const initial_revision = database.query<{ event_revision: number }, []>('SELECT event_revision FROM clients WHERE id=1').get()!.event_revision;
+	const access = async () => {
+		const child = Bun.spawn({
+			cmd: [process.execPath, '--eval', "import { has_alliance_access } from './alliances'; console.log(JSON.stringify([has_alliance_access(1,'1.6.2'),has_alliance_access(1,'development'),has_alliance_access(1,'1.6.1'),has_alliance_access(999,'development')]));"],
+			cwd: join(import.meta.dir, '../..'), env: { ...Bun.env, DB_PATH: database_path }, stdout: 'pipe', stderr: 'pipe'
+		});
+		const [code, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);
+		expect({code, stderr}).toEqual({code:0, stderr:''});
+		return JSON.parse(stdout.trim());
+	};
+	try {
+		expect(await access()).toEqual([true,true,false,false]);
+		expect((await run_admin(database_path,'alliance-preview','off')).exit_code).toBe(0);
+		expect(await access()).toEqual([false,false,false,false]);
+		expect((await run_admin(database_path,'status')).stdout).toContain('alliance_preview=off');
+		expect(database.query<{ event_revision: number }, []>('SELECT event_revision FROM clients WHERE id=1').get()!.event_revision).toBe(initial_revision+1);
+		expect((await run_admin(database_path,'alliance-preview','invalid')).exit_code).toBe(2);
+		expect(await access()).toEqual([false,false,false,false]);
+		expect((await run_admin(database_path,'alliance-preview','on')).exit_code).toBe(0);
+		expect(await access()).toEqual([true,true,false,false]);
+		expect(database.query<{ event_revision: number }, []>('SELECT event_revision FROM clients WHERE id=1').get()!.event_revision).toBe(initial_revision+2);
+	} finally {
+		database.close();
+	}
 });

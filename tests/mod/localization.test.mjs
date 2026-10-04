@@ -130,11 +130,12 @@ test('routes Multiplayer sidebar page names and text badges through localization
 	}
 
 	assert.equal(language.MOD_MP_MENU_HEADER, 'Multiplayer');
-	assert.equal(language.MOD_MP_PAGE_EXPEDITION, 'Expedition (preview)');
+	assert.equal(language.MOD_MP_PAGE_EXPEDITION, 'Expedition');
+	assert.equal(language.MOD_MP_PAGE_EXPEDITION_HEADER, 'Expedition (beta)');
 	for (const locale of MULTIPLAYER_SUPPORTED_LANGUAGES.filter(locale => locale !== 'en')) {
 		const translations = await readFile(new URL(`mod/data/lang/${locale}.json`, root), 'utf8').then(JSON.parse);
-		assert.equal(translations.MOD_MP_PAGE_EXPEDITION, locale === 'zh-CN' ? '远征（预览）' : undefined,
-			`${locale} should use the requested Expedition translation scope`);
+		for (const key of ['MOD_MP_PAGE_EXPEDITION', 'MOD_MP_PAGE_EXPEDITION_HEADER', 'MOD_MP_PAGE_RAID', 'MOD_MP_PAGE_RAID_HEADER'])
+			assert.ok(translations[key]?.trim(), `${locale}:${key} must be translated`);
 	}
 	assert.equal(pages.find(page => page.id === 'Crucible').sidebarItem.asideClass,
 		'badge mp-crucible-nav');
@@ -180,6 +181,44 @@ test('page names and rendered sidebar labels follow the active language', () => 
 		tag: 'lang-string',
 		options: { attributes: [['lang-id', 'MOD_MP_PAGE_CHAT']] }
 	}]);
+});
+
+test('Expedition and Raid keep localized beta headers separate from sidebar labels across language changes', async () => {
+	const dictionaries = {};
+	for (const locale of MULTIPLAYER_SUPPORTED_LANGUAGES)
+		dictionaries[locale] = JSON.parse(await readFile(new URL(`mod/data/lang/${locale}.json`, root), 'utf8'));
+	let active_language = 'en';
+	const pages = ['Expedition', 'Guild_Raid'].map(id => ({ id: 'multiplayer:' + id }));
+	const sidebar_labels = new Map();
+	localize_multiplayer_page_names({
+		game: { pages: { getObjectByID: id => pages.find(page => page.id === id) } },
+		sidebar: { category: () => ({ item: id => ({
+			nameEl: { replaceChildren: child => sidebar_labels.set(id, child.options.attributes[0][1]) }
+		}) }) },
+		getLangString: key => dictionaries[active_language][key],
+		createElement: (tag, options) => ({ tag, options })
+	});
+	assert.deepEqual(pages.map(page => page.name), ['Expedition (beta)', 'Raid (beta)']);
+	for (const locale of MULTIPLAYER_SUPPORTED_LANGUAGES) {
+		active_language = locale;
+		for (const page of pages) {
+			const sidebar_key = sidebar_labels.get(page.id);
+			const label = dictionaries[locale][sidebar_key];
+			assert.doesNotMatch(label, /[（()）]/u, `${locale}:${sidebar_key} must have no suffix`);
+			assert.equal(page.name, dictionaries[locale][sidebar_key + '_HEADER']);
+			assert.ok(page.name.startsWith(label));
+			assert.notEqual(page.name, label);
+		}
+	}
+});
+
+test('mobile title font size covers every registered Multiplayer page within its media query', async () => {
+	const data = JSON.parse(await readFile(new URL('mod/data.json', root), 'utf8'));
+	const style = await readFile(new URL('mod/ui/style.css', root), 'utf8');
+	const rule = style.match(/@media \(max-width: 767\.98px\) \{\s*:is\(([^)]+)\)\s*#header-title\s*\{\s*font-size: 1rem !important;\s*\}\s*\}/);
+	assert.ok(rule, 'title font size must be scoped to mobile Multiplayer headers');
+	for (const page of data.data.pages)
+		assert.ok(rule[1].split(',').map(selector => selector.trim()).includes('.' + page.headerBgClass), page.id);
 });
 
 test('language fetch preserves the base dictionary and adds mod translations', async () => {

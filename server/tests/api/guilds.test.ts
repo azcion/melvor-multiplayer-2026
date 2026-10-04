@@ -489,10 +489,10 @@ describe('guild API', () => {
 		]);
 	});
 
-	test('keeps one permanent Free Fellowship with direct membership and a searchable directory', async () => {
+	test('keeps permanent Free Fellowship membership, directory, and 1.6.2-only policy and Winnowing petitions', async () => {
 		const [first, second, browser] = await Promise.all([
-			register_client('Fellowship First'),
-			register_client('Fellowship Second'),
+			register_client('Fellowship First', undefined, '1.6.2'),
+			register_client('Fellowship Second', undefined, '1.6.1'),
 			register_client('Fellowship Browser')
 		]);
 		const listing = await get_json_with_session<{ guilds: Array<GuildSummary & {
@@ -508,6 +508,12 @@ describe('guild API', () => {
 		expect(await db_count(
 			"SELECT COUNT(*) AS `count` FROM `guilds` WHERE `type` = 'free_fellowship'"
 		)).toBe(1);
+
+		// Earlier API tests can retain members in this singleton Guild. Keep them outside this
+		// test's four-day electorate without making them Shadowed or changing membership.
+		await db_run('UPDATE clients SET last_multiplayer_active_at = ? WHERE id IN ' +
+			'(SELECT client_id FROM guild_memberships WHERE guild_id = ?)',
+			[Date.now() - 5 * 86400000, fellowship.guild_id]);
 
 		const joined = await post_json<{ success: boolean; guild: GuildSummary }>(
 			'/api/guilds/join-free', {}, first.session_token
@@ -537,7 +543,7 @@ describe('guild API', () => {
 			capabilities: {
 				roster: true,
 				marketplace: true,
-				council: false,
+				council: true,
 				member_search: true
 			}
 		});
@@ -554,15 +560,72 @@ describe('guild API', () => {
 			has_more: false
 		});
 
-		const no_council = await get_json_with_session<{ error_lang: string }>(
+		const no_council = await get_json_with_session<{ available_petition_types: string[] }>(
 			'/api/guilds/council', first.session_token
 		);
 		const no_petition = await post_json<{ error_lang: string }>('/api/guilds/petitions/raise', {
 			type: 'appellation',
 			name: 'Not Allowed'
 		}, first.session_token);
-		expect(no_council.json.error_lang).toBe('MOD_MP_GUILD_COUNCIL_UNAVAILABLE');
+		expect(no_council.json.available_petition_types).toEqual(['interdict', 'temperance']);
 		expect(no_petition.json.error_lang).toBe('MOD_MP_GUILD_COUNCIL_UNAVAILABLE');
+
+
+		const council = async (token: string) => (await get_json_with_session<{
+			petitions: Array<{ petition_id: number; type: string; lifecycle: string; execution_state: string }>;
+			available_petition_types: string[]; has_more: boolean;
+		}>('/api/guilds/council', token)).json;
+		const old_state = await get_guild_state(second.session_token);
+		expect(old_state.guild).toMatchObject({ capabilities: { council: false } });
+		for (const type of ['interdict', 'heresy', 'winnowing', 'temperance', 'indulgence']) {
+			const rejected = await post_json<{ error_lang: string }>('/api/guilds/petitions/raise', { type }, second.session_token);
+			expect(rejected.json.error_lang).toBe('MOD_MP_GUILD_COUNCIL_UNAVAILABLE');
+		}
+		for (const type of ['interdict', 'temperance', 'heresy', 'indulgence']) {
+			const raised = await post_json<{ success: boolean; petition_id: number }>('/api/guilds/petitions/raise', { type }, first.session_token);
+			expect(raised.json.success).toBe(true);
+			const old_view = await council(second.session_token);
+			expect(old_view).toMatchObject({ petitions: [], available_petition_types: [], has_more: false });
+			const old_vote = await post_json<{ error_lang: string }>('/api/guilds/petitions/vote', {
+				petition_id: raised.json.petition_id, choice: 'aye'
+			}, second.session_token);
+			expect(old_vote.json.error_lang).toBe('MOD_MP_GUILD_COUNCIL_UNAVAILABLE');
+			const voted = await post_json<{ success: boolean; lifecycle: string }>('/api/guilds/petitions/vote', {
+				petition_id: raised.json.petition_id, choice: 'aye'
+			}, first.session_token);
+			expect(voted.json).toMatchObject({ success: true, lifecycle: 'granted' });
+			expect((await council(first.session_token)).available_petition_types).toContain(
+				({ interdict: 'heresy', heresy: 'interdict', temperance: 'indulgence', indulgence: 'temperance' })[type]!
+			);
+		}
+		// Exercise withdrawal as the petitioner after changing the authenticated client version.
+		const withdrawable = await post_json<{ petition_id: number }>('/api/guilds/petitions/raise', { type: 'interdict' }, first.session_token);
+		for (const version of ['1.6.1', '1.6.2']) {
+			const auth = await post_json<{ session_token: string }>('/api/authenticate', {
+				client_identifier: first.client_identifier, client_key: first.client_key,
+				client_runtime: { mod_version: version, active_mods: [] }
+			});
+			first.session_token = auth.json.session_token;
+			const withdrawn = await post_json<{ success?: boolean; error_lang?: string }>('/api/guilds/petitions/withdraw', {
+				petition_id: withdrawable.json.petition_id
+			}, first.session_token);
+			if (version === '1.6.1') {
+				expect(withdrawn.json.error_lang).toBe('MOD_MP_GUILD_COUNCIL_UNAVAILABLE');
+				expect((await council(first.session_token)).petitions).toEqual([]);
+			} else expect(withdrawn.json.success).toBe(true);
+		}
+		await db_run('UPDATE clients SET last_multiplayer_active_at = ? WHERE id = ?', [Date.now() - SHADOWED_AFTER - 1000, second.client_id]);
+		expect((await council(first.session_token)).available_petition_types).toContain('winnowing');
+		const winnowing = await post_json<{ success: boolean; petition_id: number }>('/api/guilds/petitions/raise', { type: 'winnowing' }, first.session_token);
+		expect(winnowing.json.success).toBe(true);
+		const cleared = await post_json<{ success: boolean; lifecycle: string }>('/api/guilds/petitions/vote', {
+			petition_id: winnowing.json.petition_id, choice: 'aye'
+		}, first.session_token);
+		expect(cleared.json).toMatchObject({ success: true, lifecycle: 'granted' });
+		expect(await db_count('SELECT COUNT(*) AS count FROM guild_memberships WHERE client_id = ?', [second.client_id])).toBe(0);
+		expect((await council(first.session_token)).petitions.find(p => p.petition_id === winnowing.json.petition_id))
+			.toMatchObject({ lifecycle: 'granted', execution_state: 'succeeded' });
+		expect((await council(first.session_token)).available_petition_types).not.toContain('winnowing');
 
 		await post_json('/api/guilds/leave', {}, first.session_token);
 		await post_json('/api/guilds/leave', {}, second.session_token);

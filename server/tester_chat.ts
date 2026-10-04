@@ -3,7 +3,7 @@ import { chat_shadow_visibility, is_chat_shadowbanned } from './chat_shadowban';
 import { CHAT_MESSAGE_MAX_LENGTH, CHAT_MESSAGE_PAGE_SIZE } from './chat';
 import { db } from './db';
 import { current_throttle_wait } from './global_chat';
-import { is_expedition_tester } from './account_tags';
+import { has_expedition_access } from './account_tags';
 import { is_admin } from './admin_identity';
 
 export const TESTER_CHAT_CONVERSATION_ID = 1;
@@ -55,8 +55,8 @@ function get_message(message_id: number): TesterMessage | null {
 	).get(message_id);
 }
 
-export function get_tester_chat_inbox(client_id: number) {
-	const can_send = is_expedition_tester(client_id);
+export function get_tester_chat_inbox(client_id: number, mod_version?: unknown) {
+	const can_send = has_expedition_access(client_id, mod_version);
 	const last_read_message_id = ensure_read_state(client_id);
 	const latest = db.query<TesterMessage, [number, number]>(
 		'SELECT message.*, sender.display_name, sender.icon_id FROM global_chat_messages AS message ' +
@@ -91,8 +91,8 @@ export function get_tester_chat_inbox(client_id: number) {
 	};
 }
 
-export function get_tester_chat_unread_count(client_id: number): number {
-	return is_expedition_tester(client_id) ? get_tester_chat_inbox(client_id).unread_count : 0;
+export function get_tester_chat_unread_count(client_id: number, mod_version?: unknown): number {
+	return has_expedition_access(client_id, mod_version) ? get_tester_chat_inbox(client_id, mod_version).unread_count : 0;
 }
 
 export function list_tester_chat_messages(client_id: number, conversation_id: number,
@@ -137,7 +137,7 @@ export function list_tester_chat_messages(client_id: number, conversation_id: nu
 }
 
 export function send_tester_chat_message(client_id: number, conversation_id: number, idempotency_key: string,
-	content: string, now = Date.now(), parts?: ChatPart[]): TesterResult<{
+	content: string, now = Date.now(), parts?: ChatPart[], mod_version?: unknown): TesterResult<{
 		message: ReturnType<typeof message_view>; retry_after_ms: number
 	}> {
 	const trimmed = typeof content === 'string' ? content.trim() : '';
@@ -146,7 +146,7 @@ export function send_tester_chat_message(client_id: number, conversation_id: num
 		trimmed.length < 1 || trimmed.length > CHAT_MESSAGE_MAX_LENGTH)
 		return { status: 'bad_request' };
 	const send = db.transaction((): TesterResult<{ message_id: number; retry_after_ms: number }> => {
-		if (!is_expedition_tester(client_id)) return { status: 'forbidden' };
+		if (!has_expedition_access(client_id, mod_version)) return { status: 'forbidden' };
 		const duplicate = db.query<{ id: number; content: string; channel: string }, [number, string]>(
 			'SELECT id, content, channel FROM global_chat_messages WHERE sender_id = ? AND idempotency_key = ?'
 		).get(client_id, idempotency_key);

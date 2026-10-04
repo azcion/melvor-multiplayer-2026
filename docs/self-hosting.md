@@ -92,6 +92,9 @@ Keep `MELVOR_TRUST_PROXY=0` for an ordinary reverse proxy; this option specifica
 
 ## Test a source-built mod
 
+Mod builds include all artwork by default. For optional external image hosting and smaller ZIPs, see
+[asset hosting](asset-hosting.md). The selected multiplayer API server and the image host are independent settings.
+
 Do this after the published-mod scenario works. Stop its backend without removing its volume, then start another
 fresh backend on the same port:
 

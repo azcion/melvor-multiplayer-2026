@@ -1,0 +1,22 @@
+{
+	"mode": "bundled",
+	"base_url": "",
+	"prefix": "assets",
+	"assets": [
+		"assets/raid-boss-t1.png",
+		"assets/raid-boss-t2.png",
+		"assets/raid-boss-t3.png",
+		"assets/raid-boss-t4.png",
+		"assets/expedition-chambers/buried-observatory.png",
+		"assets/expedition-chambers/entrance.png",
+		"assets/expedition-chambers/glassroot-terraces.png",
+		"assets/expedition-chambers/hollow-star.png",
+		"assets/expedition-chambers/prismatic-descent.png",
+		"assets/expedition-chambers/prismatic-orrery.png",
+		"assets/expedition-chambers/voidwatch-threshold.png",
+		"assets/expedition-exit-gateways/obsidian-crystal.png",
+		"assets/expedition-exit-gateways/petrified-roots.png",
+		"assets/expedition-exit-gateways/rocky-cave.png",
+		"assets/expedition-exit-gateways/ruined-stone.png"
+	]
+}

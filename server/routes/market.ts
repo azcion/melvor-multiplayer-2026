@@ -1,3 +1,4 @@
+import { market_deal_allowed, market_visibility_sql } from '../alliance-market';
 import * as runtime from '../app-runtime';
 import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
@@ -191,9 +192,9 @@ export function register_market_routes(): void {
 			expire_market_listings_now();
 			if (is_social_only_client(client_id))
 				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
-			const lot = db.query('SELECT * FROM `market_items` WHERE `id` = ? AND `guild_id` = ? AND `direction` = \'sell\' LIMIT 1')
-				.get(lot_id, guild_id) as db_row.market_items | null;
-			if (lot === null || lot.available <= 0)
+			const lot = db.query('SELECT * FROM `market_items` WHERE `id` = ? AND `direction` = \'sell\' LIMIT 1')
+				.get(lot_id) as db_row.market_items | null;
+			if (lot === null || !market_deal_allowed(client_id, lot.client_id, lot.guild_id, runtime.get_request_mod_version(req)) || lot.available <= 0)
 				return { error_lang: 'MOD_MP_MARKET_BUY_ERROR_INVALID' };
 			if (is_market_discovery_restricted(guild_id) && json.item_discovered !== true)
 				return { success: false, error_lang: 'MOD_MP_MARKET_DISCOVERY_REQUIRED' };
@@ -244,9 +245,9 @@ export function register_market_routes(): void {
 			expire_market_listings_now();
 			if (is_social_only_client(client_id))
 				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
-			const lot = db.query('SELECT * FROM `market_items` WHERE `id` = ? AND `guild_id` = ? AND `direction` = \'buy\' LIMIT 1')
-				.get(lot_id, guild_id) as db_row.market_items | null;
-			if (lot === null || lot.available <= 0 || lot.client_id === client_id)
+			const lot = db.query('SELECT * FROM `market_items` WHERE `id` = ? AND `direction` = \'buy\' LIMIT 1')
+				.get(lot_id) as db_row.market_items | null;
+			if (lot === null || !market_deal_allowed(client_id, lot.client_id, lot.guild_id, runtime.get_request_mod_version(req)) || lot.available <= 0 || lot.client_id === client_id)
 				return { error_lang: 'MOD_MP_MARKET_FULFILL_ERROR_INVALID' };
 			const final_qty = Math.min(lot.available, sell_qty);
 			const final_cost = safe_market_total(final_qty, lot.price);
@@ -427,12 +428,13 @@ export function register_market_routes(): void {
 			return { success: true, item_ids: [],
 				market_discovery_restriction_enabled: is_market_discovery_restricted(guild_id) };
 
+		const visibility = market_visibility_sql('m', client_id, runtime.get_request_mod_version(req));
 		const item_ids = await db_get_all(
-			'SELECT DISTINCT `item_id` FROM `market_items` WHERE `guild_id` = ? AND `client_id` != ? AND `direction` = ? ' +
+			'SELECT DISTINCT `item_id` FROM `market_items` m WHERE ' + visibility.sql + ' AND `client_id` != ? AND `direction` = ? ' +
 			(can_view_completed_market_listings(req) ? '' : 'AND `available` > 0 ') +
 			'AND (' + namespace_parameters.map(() => '`item_id` LIKE ? ESCAPE \'\\\'').join(' OR ') +
-			') ORDER BY `item_id`',
-			[guild_id, client_id, direction, ...namespace_parameters]
+			') ORDER BY `item_id` LIMIT 5000',
+			[...visibility.values, client_id, direction, ...namespace_parameters]
 		);
 		return { success: true, item_ids: item_ids.map(row => row.item_id),
 			market_discovery_restriction_enabled: is_market_discovery_restricted(guild_id) };
@@ -449,7 +451,8 @@ export function register_market_routes(): void {
 		const direction = parse_market_direction(json.direction);
 		if (direction === null)
 			return 400; // Bad Request
-		const query_parameters: SQLQueryBindings[] = [guild_id, client_id, direction];
+		const visibility = market_visibility_sql('m', client_id, runtime.get_request_mod_version(req));
+		const query_parameters: SQLQueryBindings[] = [...visibility.values, client_id, direction];
 
 		let item_filter = '';
 		if (json.item_id !== undefined && !is_valid_item_id(json.item_id))
@@ -491,7 +494,7 @@ export function register_market_routes(): void {
 		const new_market_view = can_view_completed_market_listings(req);
 		const available_only = !new_market_view || json.available_only === true;
 		const where = ' FROM `market_items` AS m JOIN `clients` AS owner ON owner.`id` = m.`client_id` ' +
-			'WHERE m.`guild_id` = ? AND m.`client_id` != ? AND m.`direction` = ? ' +
+			'WHERE ' + visibility.sql + ' AND m.`client_id` != ? AND m.`direction` = ? ' +
 			(available_only ? 'AND m.`available` > 0' : '') + item_filter;
 		const paginate = !has_namespace_filter || has_exact_item_filter;
 		const requested_page = typeof json.page === 'number' && Number.isSafeInteger(json.page)
@@ -503,7 +506,7 @@ export function register_market_routes(): void {
 		const page = Math.min(requested_page, page_count);
 		const page_clause = paginate
 			? ' LIMIT ' + MARKET_ITEMS_PER_PAGE + ' OFFSET ' + ((page - 1) * MARKET_ITEMS_PER_PAGE)
-			: '';
+			: ' LIMIT 5000';
 		const result = await db_get_all(
 			'SELECT m.`id`, m.`item_id`, m.`available`, m.`qty`, m.`price`, owner.`display_name`, owner.`icon_id`' +
 			where + ' ORDER BY ' + (recent

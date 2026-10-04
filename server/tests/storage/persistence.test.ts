@@ -11,6 +11,16 @@ describe('SQLite persistence probe', () => {
 		const tables = rows.map(row => row.name).sort();
 
 		expect(tables).toEqual([
+			'alliance_ballots',
+			'alliance_chat_message_moderation',
+			'alliance_chat_message_reactions',
+			'alliance_chat_messages',
+			'alliance_chat_read_state',
+			'alliance_memberships',
+			'alliance_pending_slots',
+			'alliance_process_petitions',
+			'alliance_processes',
+			'alliances',
 			'audit_event_links',
 			'audit_event_participants',
 			'audit_event_values',

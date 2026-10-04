@@ -1,6 +1,6 @@
 # Multiplayer API contracts
 
-The minimum supported mod version is 1.5.9. The hosted API exposes one current wire contract, API v2; backend deployment
+The minimum supported mod version is 1.6.1. The hosted API exposes one current wire contract, API v2; backend deployment
 versions remain independent of mod releases.
 
 Authentication may include `social_mode_enforcement` as `identity`, `account`, or null. When non-null, the effective
@@ -80,3 +80,32 @@ Azure receives one server-generated HTML sentence with escaped text and numeric 
 marker and no unexpected markup; marker order may change. The server decodes text once, rebuilds typed parts, and
 stores the result atomically. Failed validation follows bounded translation retries and falls back to original
 content. Item-only Messages skip the external request. HTML is never used as a client rendering payload.
+
+## Guild Alliances (private preview)
+
+Alliances remain a private preview in 1.6.2. Every Alliance operation requires an authenticated session reporting
+1.6.2 or later (or development), linked to the stored preview account selected in `server/alliances.ts`.
+The operator may disable the preview for every account, including the selected account, without deleting Alliance data.
+Identity startup and event snapshots return `alliance_access` for client visibility. Other accounts retain ordinary
+Council and same-Guild Marketplace access, with Alliance Petitions and Guild activity entries filtered out and
+Alliance Chat excluded from conversations and unread totals. Both participants must qualify for cross-Guild
+Marketplace access. Runtime headers and character display names cannot bypass these gates. Ordinary Free Fellowship
+Council features remain available to every 1.6.2+ client.
+
+- `GET /api/alliances` returns current Guild summary, membership, affiliation-pending state, and bounded process history
+  prioritizing unfinished processes. Collective tallies contain eligible/Aye/Nay totals and the viewer's own Guild ballot.
+- `GET /api/alliances/discover?mode=found|join&page=0` returns 20 candidates and `has_more`.
+- `GET /api/alliances/guild-preview?guild_id=ID` returns basic Guild identity, member count, establishment and policy Tags.
+- `POST /api/alliances/propose` accepts `{kind, target_id?, name?}`; kinds are `found`, `join`, `leave`, `remove`,
+  `market_enable`, and `market_disable`. Successful creation returns `process_id` and the local `petition_id`.
+- `POST /api/alliances/consider` and `/withdraw` accept `{process_id}` and return a Council `petition_id`.
+- Existing Council vote routes handle linked Alliance Petitions. New individual ballots reset a common 24-hour
+  inactivity deadline; frozen electorates and resolved Guild ballots remain unchanged.
+- Existing Chat routes accept `conversation_kind: "alliance"` and the Alliance ID. Participation is independent through
+  `POST /api/chat/alliance-participation` with `{enabled}`. Membership authorizes every operation.
+
+Shared Marketplace uses existing Buy, Buy Order, fulfill and Haggle commands and Economy Receipts. Cross-Guild
+permissions are checked in the same transaction as settlement; losing access restores active reservations and escrow
+through existing claims. Terminal claims and original command replay remain recoverable. Policy-loss cleanup never
+reverses committed purchases. Player responses omit member-proposal initiators and other Guild ballot identities or
+timestamps; founding participants, applicants and removal targets remain named as subjects of their proposals.

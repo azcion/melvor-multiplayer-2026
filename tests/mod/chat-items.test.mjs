@@ -255,6 +255,27 @@ test('feature tags send stable IDs and open their page from Chat', async () => {
 	assert.deepEqual(requests[1].parts, requests[0].parts);
 });
 
+test('Expedition feature tags open for untagged Guild members, including Social Only players', () => {
+	const { state, game, pages } = context();
+	const expedition_page = { id: 'multiplayer:Expedition' };
+	game.pages.getObjectByID = id => id === expedition_page.id ? expedition_page : undefined;
+	state.account_tags = [];
+	for (const social_only of [false, true]) {
+		state.is_social_only = social_only;
+		assert.equal(state.can_open_chat_feature(expedition_page.id), true);
+		state.open_chat_feature(expedition_page.id);
+	}
+	assert.deepEqual(pages, [expedition_page, expedition_page]);
+	state.is_guild_member = false;
+	assert.equal(state.can_open_chat_feature(expedition_page.id), false);
+	state.open_chat_feature(expedition_page.id);
+	state.is_guild_member = true;
+	state.multiplayer_unsupported = true;
+	assert.equal(state.can_open_chat_feature(expedition_page.id), false);
+	state.open_chat_feature(expedition_page.id);
+	assert.equal(pages.length, 2);
+});
+
 test('skill tags resolve a shared Melvor page through its registered skills', () => {
 	const { state, game, pages } = context();
 	const magic = { id: 'melvorD:Magic', name: 'Magic', media: 'magic.png' };
@@ -303,7 +324,8 @@ test('picker renders changing results without Petite Vue structural directives',
 		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
 		readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8')
 	]);
-	const picker = templates.slice(templates.indexOf('template-mp-chat-item-picker-modal'));
+	const picker_start = templates.indexOf('template-mp-chat-item-picker-modal');
+	const picker = templates.slice(picker_start, templates.indexOf('</template>', picker_start));
 	assert.match(main, /queue_modal\('MOD_MP_CHAT_INSERT_ITEM', 'chat-item-picker-modal'[\s\S]*customClass: \{ popup: 'mp-chat-item-picker-modal-popup' \}/);
 	assert.match(picker, /@input="state\.update_chat_item_search\(\$event\)"/);
 	assert.match(picker, /class="mp-chat-item-results" @touchmove="state\.stop_icon_scroll_propagation\(\$event\)"><\/div>/);

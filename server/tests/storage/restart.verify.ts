@@ -6,6 +6,21 @@ import { db_all } from '../support/persistence';
 
 test('rebuilds caches and preserves API state after a server restart', async () => {
 	const state = await read_restart_state();
+	const alliance = await get_json_with_session<any>('/api/alliances', state.alliance.client.session_token);
+	expect(alliance.json.alliance.id).toBe(state.alliance.alliance_id);
+	expect(alliance.json.alliance.shared_marketplace).toBe(0);
+	expect(alliance.json.processes.find((p: any) => p.process_id === state.alliance.process_id)).toMatchObject({ stage: 'local', expires_at: state.alliance.expires_at });
+	expect(await db_all('SELECT rule_version, expires_at FROM guild_petitions WHERE id = ?', [state.alliance.petition_id]))
+		.toEqual([{ rule_version: 2, expires_at: state.alliance.expires_at }]);
+	const alliance_inbox = await get_json_with_session<any>('/api/chat/conversations', state.alliance.client.session_token);
+	expect(alliance_inbox.json.alliance_chat.enabled).toBe(false);
+	await post_json('/api/chat/alliance-participation', { enabled: true }, state.alliance.client.session_token);
+	const alliance_messages = await get_json_with_session<any>(`/api/chat/messages?conversation_kind=alliance&conversation_id=${state.alliance.alliance_id}`, state.alliance.client.session_token);
+	expect(alliance_messages.json.messages.some((m: any) => m.message_id === state.alliance.message_id && m.content === 'Restart Alliance hello')).toBe(true);
+	const resumed_policy = await post_json<any>('/api/guilds/petitions/vote', { petition_id: state.alliance.petition_id, choice: 'aye' }, state.alliance.client.session_token);
+	expect(resumed_policy.json.success).toBe(true);
+	expect((await get_json_with_session<any>('/api/alliances', state.alliance.client.session_token)).json.processes.find((p: any) => p.process_id === state.alliance.process_id).tally)
+		.toEqual({ eligible: 2, aye: 1, nay: 0 });
 	const work = state.expedition_work;
 	expect(await db_all('SELECT start_clock_offset_ms FROM expedition_work_sessions WHERE id = ?', [work.session_id]))
 		.toEqual([{ start_clock_offset_ms: work.offset_ms }]);

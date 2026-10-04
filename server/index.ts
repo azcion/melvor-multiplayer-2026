@@ -1,3 +1,4 @@
+import { register_alliance_routes } from './routes/alliances';
 import { register_market_routes } from './routes/market';
 import { register_campaign_routes } from './routes/campaign';
 import { register_charity_routes } from './routes/charity';
@@ -39,6 +40,7 @@ register_transfer_routes();
 register_trade_routes();
 register_gifting_routes();
 register_guilds_routes();
+register_alliance_routes();
 register_raids_routes();
 register_equipment_routes();
 register_player_status_routes();

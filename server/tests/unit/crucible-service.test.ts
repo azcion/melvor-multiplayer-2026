@@ -1,17 +1,12 @@
-import { Database } from 'bun:sqlite';
+import type { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
-import { migrations } from '../../db/schema';
+import { create_test_database } from '../support/database';
 import { crucible_contents, reconcile_crucible } from '../../crucible-service';
 import { settle_departing_crucible_wish } from '../../crucible-council';
 
 function database_at_minute(minute: number): Database {
-	const database = new Database(':memory:', { strict: true });
-	database.run('PRAGMA foreign_keys = ON');
-	for (const migration of migrations) {
-		if (migration.foreign_keys_disabled) database.run('PRAGMA foreign_keys = OFF');
-		try { database.transaction(() => database.run(migration.sql)).immediate(); }
-		finally { if (migration.foreign_keys_disabled) database.run('PRAGMA foreign_keys = ON'); }
-	}
+	const database = create_test_database();
+
 	database.query('INSERT INTO crucible_guilds (guild_id, processed_minute, created_at) VALUES (1, ?, ?)')
 		.run(minute, minute * 60_000);
 	return database;

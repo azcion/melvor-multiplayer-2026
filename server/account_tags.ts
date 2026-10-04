@@ -1,4 +1,5 @@
 import { db } from './db';
+import { is_client_version_at_least } from './client-version-policy';
 
 export const EXPEDITION_TESTER_TAG = 'expedition-tester';
 
@@ -16,6 +17,11 @@ export function is_expedition_tester(client_id: number): boolean {
 		'JOIN clients AS client ON client.melvor_account_id = tag.account_id ' +
 		'WHERE client.id = ? AND tag.tag = ?) AS eligible'
 	).get(client_id, EXPEDITION_TESTER_TAG)?.eligible === 1;
+}
+
+export function has_expedition_access(client_id: number, mod_version: unknown): boolean {
+	return mod_version === 'development' || is_client_version_at_least(mod_version, '1.6.2') ||
+		is_expedition_tester(client_id);
 }
 
 export function dev_tag_kind(account_id: number | null): 'dev' | 'sae_dev' | null {

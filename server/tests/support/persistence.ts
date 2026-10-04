@@ -14,6 +14,7 @@ export async function db_all<T extends Record<string, unknown>>(
 	});
 
 	try {
+		database.run('PRAGMA busy_timeout = 5000');
 		return database.query<T, SQLQueryBindings[]>(sql).all(...values);
 	} finally {
 		database.close();
@@ -31,6 +32,9 @@ export async function db_run(sql: string, values: SQLQueryBindings[] = []): Prom
 	});
 
 	try {
+		// Fixture writes share the WAL database with the HTTP server. Use its
+		// bounded lock wait rather than failing on a momentary concurrent write.
+		database.run('PRAGMA busy_timeout = 5000');
 		database.query(sql).run(...values);
 		return database.query<{ changes: number }, []>('SELECT changes() AS `changes`').get()?.changes ?? 0;
 	} finally {

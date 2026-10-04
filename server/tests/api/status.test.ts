@@ -502,7 +502,7 @@ describe('player status API', () => {
 		expect(viewed.json.error_lang).toBe('MOD_MP_ACTIVE_MODS_NOT_AVAILABLE');
 	});
 
-	test('lets an exact admin identity inspect hidden mod lists through profiles and the API', async () => {
+	test('lets an exact admin identity inspect stored account names and hidden mod lists without exposing them to players', async () => {
 		const pair = await make_guildmates('Hidden Mods Owner', 'Hidden Mods Guild Viewer');
 		const admin = await register_client('Hidden Mods Admin');
 		const outsider = await register_client('Hidden Mods Outsider');
@@ -513,20 +513,25 @@ describe('player status API', () => {
 		await db_run('INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `reported_at`) VALUES (?, ?, ?, ?)',
 			[pair.first_id, '1.5.17', JSON.stringify(['Multiplayer', 'Private Mod']), Date.now()]);
 		await post_json('/api/client/active-mods/visibility', { visible: false }, pair.first.session_token);
+		const account_key = crypto.randomUUID();
+		await db_run('INSERT INTO `melvor_accounts` (`cloud_username`, `playfab_id`, `created_at`) VALUES (?, ?, ?)',
+			['Stored Account <Name>', account_key, Date.now()]);
+		await db_run('UPDATE `clients` SET `melvor_account_id` = (SELECT `id` FROM `melvor_accounts` WHERE `playfab_id` = ?) WHERE `id` = ?',
+			[account_key, pair.first_id]);
 
 		const guild_hidden = await get_json_with_session<{ members: Array<{ client_id: number; active_mods_visible: boolean }> }>(
 			'/api/guilds/state', pair.first.session_token);
 		const admin_guild_state = await get_json_with_session<{
-			members: Array<{ client_id: number; active_mods_visible: boolean; active_mods_available: boolean }>;
+			members: Array<{ client_id: number; active_mods_visible: boolean; active_mods_available: boolean; account_name?: string | null }>;
 		}>('/api/guilds/state', pair.second.session_token);
 		const admin_guild_directory = await get_json_with_session<{
-			members: Array<{ client_id: number; active_mods_visible: boolean; active_mods_available: boolean }>;
+			members: Array<{ client_id: number; active_mods_visible: boolean; active_mods_available: boolean; account_name?: string | null }>;
 		}>('/api/guilds/members?page=0&search=', pair.second.session_token);
 		const admin_guild_list = await get_json_with_session<{ active_mods: string[] }>(
 			`/api/guilds/active-mods?client_id=${pair.first_id}`, pair.second.session_token);
-		const admin_profile = await get_json_with_session<{ active_mods_visible: boolean; active_mods_available: boolean }>(
+		const admin_profile = await get_json_with_session<{ active_mods_visible: boolean; active_mods_available: boolean; account_name?: string | null }>(
 			`/api/chat/profile?client_id=${pair.first_id}`, admin.session_token);
-		const outsider_profile = await get_json_with_session<{ active_mods_visible: boolean; active_mods_available: boolean }>(
+		const outsider_profile = await get_json_with_session<{ active_mods_visible: boolean; active_mods_available: boolean; account_name?: string | null }>(
 			`/api/chat/profile?client_id=${pair.first_id}`, outsider.session_token);
 		const admin_mods = await get_json_with_session<{ active_mods: string[] }>(
 			`/api/chat/active-mods?client_id=${pair.first_id}`, admin.session_token);
@@ -546,6 +551,22 @@ describe('player status API', () => {
 		expect(admin_mods.json.active_mods).toEqual(['Multiplayer', 'Private Mod']);
 		expect(outsider_mods.json.error_lang).toBe('MOD_MP_ACTIVE_MODS_SHARING_DISABLED');
 		expect(admin_guild_mods.json.error_lang).toBe('MOD_MP_GUILD_MEMBERSHIP_MISSING');
+		const stored_name = { account_name: 'Stored Account <Name>' };
+		expect(admin_guild_state.json.members.find(member => member.client_id === pair.first_id)).toMatchObject(stored_name);
+		expect(admin_guild_directory.json.members.find(member => member.client_id === pair.first_id)).toMatchObject(stored_name);
+		expect(admin_profile.json).toMatchObject(stored_name);
+		expect(guild_hidden.json.members.find(member => member.client_id === pair.first_id)).not.toHaveProperty('account_name');
+		expect(outsider_profile.json).not.toHaveProperty('account_name');
+		const ordinary_directory = await get_json_with_session<{ members: Array<{ client_id: number }> }>(
+			'/api/guilds/members?page=0&search=', pair.first.session_token);
+		expect(ordinary_directory.json.members.find(member => member.client_id === pair.first_id)).not.toHaveProperty('account_name');
+		const unlinked_profile = await get_json_with_session<{ account_name?: string | null }>(
+			`/api/chat/profile?client_id=${outsider.client_id}`, admin.session_token);
+		expect(unlinked_profile.json.account_name).toBeNull();
+		await db_run('UPDATE `clients` SET `last_multiplayer_active_at` = 0 WHERE `id` = ?', [pair.first_id]);
+		const shadowed = await get_json_with_session<{ members: Array<{ client_id: number; account_name?: string | null }> }>(
+			'/api/guilds/members/shadowed?page=0&search=', pair.second.session_token);
+		expect(shadowed.json.members.find(member => member.client_id === pair.first_id)).toMatchObject(stored_name);
 	});
 
 	test('includes only the minimal activity descriptor in the Free Fellowship directory', async () => {

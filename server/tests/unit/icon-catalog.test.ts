@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { Database } from 'bun:sqlite';
-import { migrations } from '../../db/schema';
+import type { Database } from 'bun:sqlite';
+import { create_test_database } from '../support/database';
 import {
 	DEFAULT_ICON_CATALOG_LIMITS,
 	ICON_CATALOG_UPLOAD_REQUEST_TTL,
@@ -23,13 +23,7 @@ import {
 } from '../../icon-catalog';
 
 function initialized_database(): Database {
-	const database = new Database(':memory:', { strict: true });
-	database.run('PRAGMA foreign_keys = ON');
-	for (const migration of migrations) {
-		database.transaction(() => database.run(migration.sql)).immediate();
-		database.run(`PRAGMA user_version = ${migration.version}`);
-	}
-	return database;
+	return create_test_database();
 }
 
 function count(database: Database, table: string): number {

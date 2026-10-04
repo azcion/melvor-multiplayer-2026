@@ -39,6 +39,7 @@ const CHARITY_CHECK_TIMEOUT = 10 * 1000; // 10 seconds
 const CHARITY_CLOCK_INTERVAL = 30 * 1000; // 30 seconds
 const EXPEDITION_CLOCK_INTERVAL = 30 * 1000;
 const EXPEDITION_STATE_REFRESH_INTERVAL = 30 * 1000;
+const EXPEDITION_AUTO_CHECK_IN_INTERVAL = 10 * 60_000;
 const EXPEDITION_VOTE_COOLDOWN = 1000;
 const EXPEDITION_CHECK_IN_COOLDOWN = 10 * 1000;
 const CHARITY_WEIRD_GLOOP_ID = 'melvorD:Weird_Gloop';
@@ -78,6 +79,7 @@ const MULTIPLAYER_GAME_NAMESPACE = 'multiplayer';
 
 // #region GLOBALS
 const ctx = mod.getContext(import.meta);
+let get_mod_asset_url;
 
 let session_token = null;
 let session_generation = 0;
@@ -97,6 +99,7 @@ let market_haggles_update_requested = false;
 let guild_state_refresh_id = 0;
 let guild_state_refresh_request = null;
 let guild_state_refreshed_at = 0;
+let guild_page_visible = false;
 let inbox_update_request = null;
 let server_host = SERVER_HOST;
 let server_instance_storage_prefix = SERVER_INSTANCE_STORAGE_PREFIX;
@@ -289,6 +292,21 @@ const state = ui.createStore({
 	global_chat_participation_pending: false,
 	global_chat_cooling_down: false,
 	tester_chat_cooling_down: false,
+	alliance_access: false,
+	alliance_state: { alliance: null, processes: [], affiliation_pending: false },
+	alliance_loading: false,
+	alliance_error: '',
+	alliance_picker_mode: 'found',
+	alliance_picker_entries: [],
+	alliance_picker_page: 0,
+	alliance_picker_has_more: false,
+	alliance_name_input: '',
+	alliance_modal: null,
+	alliance_preview: null,
+	alliance_preview_restore_picker: false,
+	alliance_chat_state: { affiliated: false, enabled: true },
+	alliance_chat_enabled: true,
+	alliance_chat_participation_pending: false,
 	guild_chat_enabled: true,
 	guild_chat_participation_pending: false,
 	guild_chat_state: { affiliated: false, enabled: true },
@@ -536,6 +554,7 @@ const state = ui.createStore({
 	expedition_loading: false,
 	expedition_clock_time: Date.now(),
 	expedition_active_activities: [],
+	expedition_work_prompts_enabled: true,
 	expedition_action_pending: false,
 	expedition_vote_cooldown_until: 0,
 	expedition_check_in_cooldown_until: 0,
@@ -849,6 +868,10 @@ const state = ui.createStore({
 		return this.chat_conversations.filter(conversation => conversation.conversation_kind === 'polls');
 	},
 
+	get alliance_chat_conversations() {
+		return this.chat_conversations.filter(conversation => conversation.conversation_kind === 'alliance');
+	},
+
 	get guild_chat_conversations() {
 		return this.chat_conversations.filter(conversation => conversation.conversation_kind === 'guild');
 	},
@@ -858,7 +881,7 @@ const state = ui.createStore({
 	},
 
 	get show_guild_chat_category() {
-		return this.guild_chat_conversations.length > 0 || this.guild_chat_state.affiliated === true;
+		return this.alliance_chat_conversations.length > 0 || this.alliance_chat_state.affiliated === true || this.guild_chat_conversations.length > 0 || this.guild_chat_state.affiliated === true;
 	},
 
 	get num_market_sold_items() {
@@ -1100,6 +1123,7 @@ function create_action_runtime() {
 	return {
 		state,
 		ctx,
+		get_mod_asset_url,
 		game,
 		get_game_asset_url: path => assets.getURI(path),
 		get_number_multiplier: () => numberMultiplier,
@@ -1551,6 +1575,7 @@ const EXPEDITION_EXIT_ART = {
 	'Voidwatch Threshold': 'voidwatch-threshold', 'The Hollow Star': 'hollow-star'
 };
 let last_expedition_work_observed_at = 0;
+let last_expedition_check_in_at = 0;
 
 function expedition_hours(milliseconds) {
 	return (Math.max(0, Number(milliseconds) || 0) / 3_600_000).toFixed(2);
@@ -1590,6 +1615,96 @@ function set_expedition_page_visible(is_visible) {
 	state.expedition_active_activities = capture_status_activities();
 	expedition_clock_timer = setInterval(() => { state.expedition_clock_time = Date.now(); }, EXPEDITION_CLOCK_INTERVAL);
 	void refresh_expedition_state();
+}
+
+let expedition_work_prompt_gate = null;
+let expedition_work_prompt_loading = false;
+
+function expedition_prompt_tasks() {
+	if (!state.expedition_work_prompts_enabled || !state.is_connected || !state.is_guild_member ||
+		state.expedition_personal?.tracking)
+		return [];
+	return expedition_tasks.eligible_prompt_tasks(state.expedition_state, state.expedition_active_activities);
+}
+
+function expedition_prompt_activity_names() {
+	const accepted = new Set(expedition_prompt_tasks().flatMap(task => task.evidence.skill_ids));
+	return [...new Set(state.expedition_active_activities.map(activity => activity.type === 'combat'
+		? 'melvorD:Combat' : activity.skill_id))].filter(id => accepted.has(id)).map(expedition_work_name).join(', ');
+}
+
+function close_expedition_work_prompt() {
+	if (document.querySelector('mp-modal-component[data-template-id="expedition-work-prompt-modal"]')) Swal.close();
+}
+
+function set_expedition_work_prompts(event) {
+	state.expedition_work_prompts_enabled = event.target.checked;
+	set_instance_storage_item('expedition_work_prompts_enabled', state.expedition_work_prompts_enabled);
+	expedition_work_prompt_gate?.reset();
+	if (!state.expedition_work_prompts_enabled) close_expedition_work_prompt();
+}
+
+async function start_prompted_expedition_task(task_id) {
+	if (state.expedition_action_pending || state.expedition_pending_report) return;
+	const generation = session_generation;
+	if (!expedition_prompt_tasks().some(task => task.task_id === task_id)) return;
+	await submit_expedition_work('start', task_id);
+	if (generation === session_generation && state.expedition_state?.tracking?.task_id === task_id &&
+		document.querySelector('mp-modal-component[data-template-id="expedition-work-prompt-modal"]'))
+		await close_modal_and_wait('expedition-work-prompt-modal');
+}
+
+async function maybe_prompt_expedition_work(activities) {
+	expedition_work_prompt_gate ??= expedition_tasks.create_work_prompt_gate();
+	const due = expedition_work_prompt_gate.observe({ session: session_generation, activities,
+		enabled: state.expedition_work_prompts_enabled,
+		tracking: !!(state.expedition_state?.tracking || state.expedition_personal?.tracking || state.expedition_pending_report),
+		now: Date.now() });
+	if (!due || expedition_work_prompt_loading || state.expedition_loading || state.expedition_action_pending) return;
+	if (!state.is_guild_member || !state.expedition_work_prompts_enabled ||
+		state.expedition_state?.expedition?.registered === false) {
+		expedition_work_prompt_gate.consume();
+		return;
+	}
+	if (Swal.isVisible() || modal_queue_guard.pending_templates.size > 0) {
+		expedition_work_prompt_gate.defer(Date.now());
+		return;
+	}
+	const generation = session_generation;
+	const activity_key = expedition_tasks.work_activity_key(activities);
+	expedition_work_prompt_loading = true;
+	try {
+		const refreshed = await refresh_expedition_state();
+		if (generation !== session_generation || !state.is_connected || !polling.is_foreground(document) ||
+			activity_key !== expedition_tasks.work_activity_key(capture_status_activities())) return;
+		if (!refreshed || !state.expedition_state) {
+			expedition_work_prompt_gate.consume();
+			return;
+		}
+		if (expedition_prompt_tasks().length === 0) {
+			expedition_work_prompt_gate.consume();
+			return;
+		}
+		if (Swal.isVisible() || modal_queue_guard.pending_templates.size > 0) {
+			expedition_work_prompt_gate.defer(Date.now());
+			return;
+		}
+		const queued = queue_modal('MOD_MP_EXPEDITION_WORK_PROMPT_TITLE', 'expedition-work-prompt-modal',
+			'assets/multiplayer.svg', {
+				showConfirmButton: true,
+				confirmButtonText: getLangString('MOD_MP_EXPEDITION_NOT_NOW'),
+				buttonsStyling: false,
+				customClass: { popup: 'mp-expedition-work-prompt-popup',
+					confirmButton: 'mp-expedition-button mp-expedition-button-secondary' },
+				didOpen: () => {
+					if (generation !== session_generation || expedition_prompt_tasks().length === 0 ||
+						activity_key !== expedition_tasks.work_activity_key(capture_status_activities())) Swal.close();
+				}
+			});
+		if (queued) expedition_work_prompt_gate.consume();
+	} finally {
+		expedition_work_prompt_loading = false;
+	}
 }
 
 function expedition_notify(message, theme = 'success') {
@@ -1678,13 +1793,16 @@ function toggle_expedition_phase(phase) {
 
 async function refresh_expedition_state(reconnect = false) {
 	if (!state.is_connected || state.expedition_loading) return;
+	const generation = session_generation;
 	state.expedition_loading = true;
 	try {
 		if (state.expedition_catalog === null) {
 			const catalog = await api_get('/api/expedition/supply/catalog');
+			if (generation !== session_generation) return;
 			if (catalog?.version === 1) state.expedition_catalog = catalog.items;
 		}
 		const result = await api_get('/api/expedition/state');
+		if (generation !== session_generation) return;
 		if (result?.contract_version === 1) {
 			last_expedition_state_refresh_at = Date.now();
 			expedition_view.sync_phase_state(state, result.expedition?.chamber);
@@ -1692,7 +1810,9 @@ async function refresh_expedition_state(reconnect = false) {
 		} else if (result?.error_lang) {
 			state.expedition_state = null;
 			expedition_notify(getLangString(result.error_lang), 'danger');
-			state.expedition_personal = await api_get('/api/expedition/personal');
+			const personal = await api_get('/api/expedition/personal');
+			if (generation !== session_generation) return;
+			state.expedition_personal = personal;
 		}
 		const pending = get_instance_storage_item(EXPEDITION_PENDING_KEY);
 		state.expedition_pending_report = pending && typeof pending === 'object' ? pending : null;
@@ -1705,9 +1825,12 @@ async function refresh_expedition_state(reconnect = false) {
 			if (tracking && !tracking.pending_boundary_at && history?.status !== 'inactive' && result?.expedition?.status !== 'inactive')
 				await submit_expedition_work('check-in', tracking.task_id, true);
 		}
+		return result?.contract_version === 1;
 	} finally {
-		state.expedition_loading = false;
-		update_expedition_nav();
+		if (generation === session_generation) {
+			state.expedition_loading = false;
+			update_expedition_nav();
+		}
 	}
 }
 
@@ -1806,25 +1929,31 @@ async function register_expedition() {
 	}
 }
 
-async function retry_expedition_report(automatic = false) {
+async function retry_expedition_report(automatic = false, quiet = false) {
 	const pending = state.expedition_pending_report;
 	if (!pending || state.expedition_action_pending) return;
+	const report_generation = session_generation;
 	const previous_tracking = state.expedition_state?.tracking ?? state.expedition_personal?.tracking;
 	state.expedition_action_pending = true;
 	try {
 		let result = await api_post(pending.endpoint, pending.payload);
+		if (report_generation !== session_generation) return;
 		if (automatic && result === null) result = await api_post(pending.endpoint, pending.payload);
+		if (report_generation !== session_generation) return;
 		if (result?.pending) {
+			last_expedition_check_in_at = Date.now();
 			notify_expedition_tracking_ended(previous_tracking, result.tracking,
 				getLangString('MOD_MP_EXPEDITION_ACTIVITY_CHANGED_PENDING'));
 			remove_instance_storage_item(EXPEDITION_PENDING_KEY);
 			state.expedition_pending_report = null;
 			const personal = await api_get('/api/expedition/personal');
+			if (report_generation !== session_generation) return;
 			if (personal?.contract_version === 1) state.expedition_personal = personal;
 			if (!personal?.tracking || personal.tracking.session_id !== result.tracking?.session_id) {
 				expedition_notify(getLangString('MOD_MP_EXPEDITION_WORK_UNVERIFIED'), 'danger');
 			} else expedition_notify(getLangString('MOD_MP_EXPEDITION_WORK_ZERO_AFTER_BOUNDARY'), 'danger');
 		} else if (result?.success) {
+			last_expedition_check_in_at = Date.now();
 			remove_instance_storage_item(EXPEDITION_PENDING_KEY);
 			state.expedition_pending_report = null;
 			const credited = result.settlement?.credited_ms ?? 0;
@@ -1835,9 +1964,10 @@ async function retry_expedition_report(automatic = false) {
 				notice += getLangString('MOD_MP_EXPEDITION_TASK_UNAVAILABLE');
 			if (result.warning === 'fresh_snapshot_required')
 				notice += getLangString('MOD_MP_EXPEDITION_FRESH_SNAPSHOT');
-			expedition_notify(notice);
+			if (!quiet || !result.tracking || credited === 0 || result.warning) expedition_notify(notice);
 			notify_expedition_tracking_ended(previous_tracking, result.tracking, notice);
 			const refreshed = await api_get('/api/expedition/state');
+			if (report_generation !== session_generation) return;
 			if (refreshed?.contract_version === 1) state.expedition_state = refreshed;
 			else state.expedition_personal = await api_get('/api/expedition/personal');
 		} else {
@@ -1853,12 +1983,26 @@ async function retry_expedition_report(automatic = false) {
 				: result?.error ?? getLangString('MOD_MP_EXPEDITION_WORK_REPORT_FAILED'), 'danger');
 		}
 	} finally {
-		state.expedition_action_pending = false;
-		update_expedition_nav();
+		if (report_generation === session_generation) {
+			state.expedition_action_pending = false;
+			update_expedition_nav();
+		}
 	}
 }
 
-async function submit_expedition_work(kind, task_id = null, automatic = false) {
+async function maybe_auto_check_in_expedition() {
+	if (!state.is_connected || !polling.is_foreground(document) || state.expedition_loading ||
+		state.expedition_action_pending || Date.now() - last_expedition_check_in_at < EXPEDITION_AUTO_CHECK_IN_INTERVAL)
+		return;
+	const tracking = state.expedition_state?.tracking ?? state.expedition_personal?.tracking;
+	if (!state.expedition_pending_report && (!tracking || tracking.pending_boundary_at)) return;
+	// Reuse the saved report after a lost response; never replace it with fresh statistics.
+	last_expedition_check_in_at = Date.now();
+	if (state.expedition_pending_report) await retry_expedition_report(true, true);
+	else await submit_expedition_work('check-in', tracking.task_id, true, true);
+}
+
+async function submit_expedition_work(kind, task_id = null, automatic = false, quiet = false) {
 	if (state.expedition_action_pending || state.expedition_pending_report) return;
 	if (kind === 'check-in' && !automatic && Date.now() < state.expedition_check_in_cooldown_until) return;
 	const expedition = state.expedition_state?.expedition;
@@ -1886,7 +2030,7 @@ async function submit_expedition_work(kind, task_id = null, automatic = false) {
 	state.expedition_pending_report = pending;
 	if (kind === 'check-in' && !automatic)
 		start_expedition_action_cooldown('expedition_check_in_cooldown_until', EXPEDITION_CHECK_IN_COOLDOWN);
-	await retry_expedition_report(automatic);
+	await retry_expedition_report(automatic, quiet);
 }
 
 async function vote_expedition_exit(exit_id) {
@@ -2238,6 +2382,9 @@ function observe_status_changes() {
 	if (serialized_activities !== last_observed_status_activities)
 		state.expedition_active_activities = snapshot.activities;
 	update_expedition_nav(snapshot.activities);
+	if (!state.expedition_action_pending && !state.expedition_pending_report && expedition_prompt_tasks().length === 0)
+		close_expedition_work_prompt();
+	void maybe_prompt_expedition_work(snapshot.activities);
 	if (serialized_activities === last_observed_status_activities &&
 		serialized_statistics === last_observed_status_statistics)
 		return;
@@ -3140,8 +3287,7 @@ function update_multiplayer_nav() {
 	for (const page_id of ['Multiplayer_Market', 'Expedition', 'Guild_Raid']) {
 		const nav_item = multiplayer_category.item('multiplayer:' + page_id);
 		nav_item.rootEl?.classList.toggle('mp-nav-unavailable', state.multiplayer_unsupported || !state.is_guild_member ||
-			(state.is_social_only && page_id === 'Multiplayer_Market') ||
-			(page_id === 'Expedition' && !state.account_tags?.includes('expedition-tester')));
+			(state.is_social_only && page_id === 'Multiplayer_Market'));
 	}
 
 	const transfer_nav_item = multiplayer_category.item('multiplayer:Transfer_Items');
@@ -4041,6 +4187,10 @@ const EVENT_AFFECTING_MUTATIONS = new Set([
 	'/api/chat/conversations/start',
 	'/api/chat/global-participation',
 	'/api/chat/guild-participation',
+	'/api/chat/alliance-participation',
+	'/api/alliances/propose',
+	'/api/alliances/consider',
+	'/api/alliances/withdraw',
 	'/api/chat/messages/delete',
 	'/api/chat/messages/send',
 	'/api/chat/privacy',
@@ -4152,6 +4302,9 @@ function set_session_token(token) {
 	session_generation++;
 	state.is_connected = true;
 	state.expedition_state = null;
+	state.expedition_loading = false;
+	state.expedition_work_prompts_enabled = get_instance_storage_item('expedition_work_prompts_enabled') !== false;
+	expedition_work_prompt_gate?.reset();
 	state.expedition_personal = null;
 	state.expedition_pending_report = null;
 	state.expedition_catalog = null;
@@ -4159,6 +4312,7 @@ function set_session_token(token) {
 	state.expedition_check_in_cooldown_until = 0;
 	last_expedition_state_refresh_at = 0;
 	last_expedition_work_observed_at = 0;
+	last_expedition_check_in_at = Date.now();
 	last_synced_equipment = null;
 	last_synced_status_skills = null;
 	last_synced_status_activities = null;
@@ -4217,6 +4371,8 @@ async function refresh_chat_conversations() {
 		!state.polls.some(poll => poll.poll_id === selected.conversation_id))
 		state.close_chat_conversation();
 	state.global_chat_enabled = res.global_chat?.enabled !== false;
+	state.alliance_chat_state = res.alliance_chat ?? { affiliated: false, enabled: true };
+	state.alliance_chat_enabled = state.alliance_chat_state.enabled !== false;
 	state.guild_chat_state = res.guild_chat ?? { affiliated: false, enabled: state.guild_chat_enabled };
 	state.guild_chat_enabled = state.guild_chat_state.enabled !== false;
 	state.chat_unread = state.get_chat_notification_unread(res.conversations);
@@ -4229,7 +4385,7 @@ async function refresh_chat_conversations() {
 			conversation.support_team_id === selected.support_team_id
 		);
 		if (current) {
-			const moderation_changed = (current.conversation_kind === 'guild' || current.conversation_kind === 'global' ||
+			const moderation_changed = (current.conversation_kind === 'alliance' || current.conversation_kind === 'guild' || current.conversation_kind === 'global' ||
 				current.conversation_kind === 'testers') &&
 				Number.isSafeInteger(selected.moderation_count) &&
 				Number.isSafeInteger(current.moderation_count) &&
@@ -4239,7 +4395,7 @@ async function refresh_chat_conversations() {
 				state.close_chat_conversation();
 				await state.open_chat_conversation(current);
 			}
-		} else if (selected.conversation_kind === 'guild' || selected.conversation_kind === 'global' ||
+		} else if (selected.conversation_kind === 'alliance' || selected.conversation_kind === 'guild' || selected.conversation_kind === 'global' ||
 			selected.conversation_kind === 'testers') {
 			state.close_chat_conversation();
 		}
@@ -4694,12 +4850,14 @@ async function refresh_guild_page() {
 	if (state.is_guild_member) {
 		state.shadowed_member_count = 0;
 		await Promise.all([refresh_council(), refresh_shadowed_members(), refresh_guild_activity()]);
+		await state.refresh_alliance();
 	}
 	else if (state.guild_state.affiliation === 'none')
 		await refresh_guild_list();
 }
 
 function set_guild_page_visible(is_visible) {
+	guild_page_visible = is_visible;
 	clearInterval(guild_raid_badge_timer);
 	guild_raid_badge_timer = null;
 	if (!is_visible) return;
@@ -4782,7 +4940,7 @@ async function reconcile_raid_cache() {
 }
 
 async function refresh_council(page = 0, append = false) {
-	if (!state.is_guild_member || state.is_free_fellowship || state.council_loading)
+	if (!state.is_guild_member || state.council_loading)
 		return;
 	state.council_loading = true;
 	try {
@@ -4831,6 +4989,7 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 	if (res !== null && request_generation === session_generation) {
 		if (enter_unsupported_multiplayer(res.minimum_supported_mod_version))
 			return res;
+		void maybe_auto_check_in_expedition();
 		if (state.expedition_state?.tracking && !state.expedition_pending_report &&
 			Date.now() - last_expedition_work_observed_at >= 15 * 60_000)
 			schedule_status_sync(0);
@@ -4846,6 +5005,7 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 		client_events_have_pending = polling.has_pending_events(res);
 		invalidate_guild_state();
 		state.events.friend_requests = res.friend_requests;
+		if (typeof res.alliance_access === 'boolean') state.alliance_access = res.alliance_access;
 		if (Array.isArray(res.account_tags)) state.account_tags = res.account_tags;
 		state.events.guild_applicants = res.guild_applicants ?? [];
 		state.market_completed = res.market_completed;
@@ -4903,9 +5063,13 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 			if (request_generation !== session_generation)
 				return null;
 			const guild_state = await refresh_guild_state_after_invalidation();
+			if (state.is_guild_member) await Promise.all([state.refresh_alliance(), refresh_council()]);
+			else state.alliance_state = { alliance: null, processes: [], affiliation_pending: false };
 			if (guild_state?.affiliation === 'none')
 				await refresh_guild_list();
 		}
+		else if (guild_page_visible && state.is_guild_member)
+			await Promise.all([refresh_guild_state(true), state.refresh_alliance(), refresh_council()]);
 		show_pending_banishment_notice();
 	}
 	return res;
@@ -4977,6 +5141,8 @@ function handle_runtime_visibility_change() {
 
 // #region SETUP FUNCTIONS
 export async function setup(ctx) {
+	const { create_asset_url_resolver } = await ctx.loadModule('asset-urls.mjs');
+	get_mod_asset_url = create_asset_url_resolver(await ctx.loadData('asset-urls.json'), media => ctx.getResourceUrl(media));
 	const { ModalQueueGuard, ModalComponentRegistry } = await ctx.loadModule('modal-queue.mjs');
 	changelog_loader = await ctx.loadModule('changelog.mjs');
 	updates_loader = await ctx.loadModule('updates.mjs');
@@ -5025,6 +5191,11 @@ export async function setup(ctx) {
 	status_activities = await ctx.loadModule('status-activities.mjs');
 	expedition_tasks = await ctx.loadModule('expedition-tasks.mjs');
 	expedition_view = await ctx.loadModule('expedition-view.mjs');
+	const image_particles = await ctx.loadModule('image-particles.mjs');
+	const expedition_crystals = await ctx.loadModule('expedition-crystals.mjs');
+	const expedition_haze = await ctx.loadModule('expedition-haze.mjs');
+	const expedition_observatory = await ctx.loadModule('expedition-observatory.mjs');
+	const expedition_orrery = await ctx.loadModule('expedition-orrery.mjs');
 	const expedition_snow = await ctx.loadModule('expedition-snow.mjs');
 	state.expedition_snow = { ...expedition_snow.DEFAULT_SNOW_SETTINGS };
 	status_statistics = await ctx.loadModule('status-statistics.mjs');
@@ -5073,6 +5244,11 @@ export async function setup(ctx) {
 			expedition_supply_owned,
 			expedition_supply_estimate,
 			expedition_points,
+			expedition_prompt_tasks,
+			expedition_prompt_activity_names,
+			set_expedition_work_prompts,
+			start_prompted_expedition_task,
+			expedition_available_points: task => expedition_points(expedition_tasks.task_available_points_micros(task)),
 			expedition_time_remaining,
 			expedition_time_since,
 			show_expedition_supply_modal,
@@ -5106,13 +5282,13 @@ export async function setup(ctx) {
 				? getLangString('MOD_MP_EXPEDITION_THE_PASSAGE')
 				: getLangString('MOD_MP_EXPEDITION_PASSAGE_' + slot),
 			toggle_expedition_phase,
-			expedition_chamber_art_url: id => ctx.getResourceUrl(EXPEDITION_CHAMBER_ART[id]
+		expedition_chamber_art_url: id => get_mod_asset_url(EXPEDITION_CHAMBER_ART[id]
 				? `assets/expedition-chambers/${EXPEDITION_CHAMBER_ART[id]}.png`
 				: 'assets/expedition-chamber-placeholder.svg'),
-			expedition_exit_art_url: label => ctx.getResourceUrl(EXPEDITION_EXIT_ART[label]
+		expedition_exit_art_url: label => get_mod_asset_url(EXPEDITION_EXIT_ART[label]
 				? `assets/expedition-chambers/${EXPEDITION_EXIT_ART[label]}.png`
 				: 'assets/expedition-exit-placeholder.svg'),
-			expedition_exit_gateway_url: (chamber_id, slot) => ctx.getResourceUrl(
+		expedition_exit_gateway_url: (chamber_id, slot) => get_mod_asset_url(
 				`assets/expedition-exit-gateways/${expedition_view.passage_gateway(chamber_id, slot)}.png`),
 			choose_social_mode: mode => {
 				social_mode_choice_selection = true;
@@ -5263,10 +5439,21 @@ export async function setup(ctx) {
 		interface_ready = true;
 		if (!customElements.get('mp-expedition-snow')) customElements.define('mp-expedition-snow',
 			expedition_snow.create_expedition_snow_element({
+				create_image_particle_element: image_particles.create_image_particle_element,
 				get_settings: () => state.expedition_snow,
 				on_stats: stats => { if (state.expedition_snow_controls_enabled) state.expedition_snow_stats = stats; },
 				measure: () => state.expedition_snow_controls_enabled
 			}));
+		if (!customElements.get('mp-expedition-crystals')) customElements.define('mp-expedition-crystals',
+			image_particles.create_image_particle_element({ create_renderer: expedition_crystals.create_crystal_renderer }));
+		if (!customElements.get('mp-expedition-haze')) customElements.define('mp-expedition-haze',
+			image_particles.create_image_particle_element({ create_renderer: () => expedition_haze.create_glassroot_renderer({
+				create_facet_glint_renderer: expedition_crystals.create_facet_glint_renderer
+			}) }));
+		if (!customElements.get('mp-expedition-observatory')) customElements.define('mp-expedition-observatory',
+			image_particles.create_image_particle_element({ create_renderer: expedition_observatory.create_observatory_renderer }));
+		if (!customElements.get('mp-expedition-orrery')) customElements.define('mp-expedition-orrery',
+			image_particles.create_image_particle_element({ create_renderer: expedition_orrery.create_orrery_renderer }));
 		const setup_interface = $main_container => {
 			setup_account_menu();
 			watch_chat_nav();
@@ -5717,6 +5904,7 @@ async function start_multiplayer_session() {
 		return;
 
 	is_connecting = true;
+	close_expedition_work_prompt();
 	state.is_connected = false;
 	state.multiplayer_unsupported = false;
 	state.minimum_supported_mod_version = '';
@@ -5902,6 +6090,7 @@ function activate_multiplayer_identity(response) {
 	state.messaging_enabled = response.chat?.messaging_enabled !== false;
 	state.global_chat_enabled = response.chat?.global_chat_enabled !== false;
 	state.account_tags = Array.isArray(response.account_tags) ? response.account_tags : [];
+	state.alliance_access = response.alliance_access === true;
 	state.guild_chat_enabled = response.chat?.guild_chat_enabled !== false;
 	state.guild_chat_state = { affiliated: false, enabled: state.guild_chat_enabled };
 	state.chat_client_id = response.chat?.client_id ?? null;

@@ -77,7 +77,7 @@ test('renders localized paginated Guild Activity responsively and refreshes it o
 	assert.match(main, /state\.get_item_name\(event\.metadata\.item_id\)/);
 });
 
-test('wires Free Fellowship direct joining and its no-Council presentation', async () => {
+test('wires Free Fellowship direct joining and its limited Council presentation', async () => {
 	const [lang, templates, main] = await Promise.all([
 		readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse),
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
@@ -90,7 +90,7 @@ test('wires Free Fellowship direct joining and its no-Council presentation', asy
 	assert.match(main, /is_free_fellowship/);
 	assert.match(templates, /free-fellowship-confirm-modal/);
 	assert.match(templates, /v-if="guild\.is_free_fellowship"/);
-	assert.match(templates, /!state\.is_free_fellowship && state\.guild_state\.guild\?\.capabilities\?\.council/);
+	assert.match(templates, /state\.guild_state\.guild\?\.capabilities\?\.council/);
 });
 
 test('renders open ordinary Guilds with a direct Join action', async () => {
@@ -185,7 +185,7 @@ test('keeps top-level Guild views mounted when affiliation changes', async () =>
 	assert.doesNotMatch(guild_page, /v-(?:if|else-if)="state\.guild_page_view/);
 	assert.match(guild_page, /state\.guild_state\.application\?\.icon_id/);
 	assert.match(guild_page, /state\.guild_state\.application\?\.member_count \?\? 0/);
-	assert.match(guild_page, /mp-council" v-show="!state\.is_free_fellowship/);
+	assert.match(guild_page, /mp-council" v-show="state\.guild_state/);
 	assert.match(guild_page, /block-content mp-member-search-wrapper" v-show="state\.is_free_fellowship/);
 });
 

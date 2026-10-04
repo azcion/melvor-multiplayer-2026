@@ -122,7 +122,7 @@ export function install_chat_actions(runtime) {
 	const default_translation_language = conversation => {
 		const kind = conversation?.conversation_kind ?? 'private';
 		return typeof setLang === 'string' && setLang === 'zh-CN' &&
-			(kind === 'global' || kind === 'guild') ? 'zh-CN' : null;
+			(kind === 'alliance' || kind === 'global' || kind === 'guild') ? 'zh-CN' : null;
 	};
 	const translation_preference = conversation => {
 		const key = get_chat_conversation_key(conversation);
@@ -388,8 +388,7 @@ export function install_chat_actions(runtime) {
 			if (id === 'multiplayer:Transfer_Items') return this.has_transfer_access === true;
 			if (id === 'multiplayer:Crucible') return this.is_guild_member && !this.is_social_only;
 			if (id === 'multiplayer:Multiplayer_Market' || id === 'multiplayer:Guild_Raid' || id === 'multiplayer:Expedition')
-				return this.is_guild_member && !(id === 'multiplayer:Multiplayer_Market' && this.is_social_only) &&
-					!(id === 'multiplayer:Expedition' && !this.account_tags?.includes('expedition-tester'));
+				return this.is_guild_member && !(id === 'multiplayer:Multiplayer_Market' && this.is_social_only);
 			return true;
 		},
 
@@ -1195,6 +1194,27 @@ export function install_chat_actions(runtime) {
 			else
 				this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 			this.chat_privacy_pending = false;
+		},
+
+		async set_alliance_chat_enabled(event) {
+			if (this.alliance_chat_participation_pending)
+				return;
+			event.preventDefault();
+			this.alliance_chat_participation_pending = true;
+			this.member_actions_error = '';
+			const desired = !this.alliance_chat_enabled;
+			try {
+				const res = await api_post('/api/chat/alliance-participation', { enabled: desired });
+				if (res?.success) {
+					this.alliance_chat_enabled = res.enabled;
+					this.alliance_chat_state.enabled = res.enabled;
+					if (!res.enabled && this.selected_chat_conversation?.conversation_kind === 'alliance')
+						this.close_chat_conversation();
+					await refresh_chat_conversations();
+				} else {
+					this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+				}
+			} finally { this.alliance_chat_participation_pending = false; }
 		},
 
 		async set_guild_chat_enabled(event) {

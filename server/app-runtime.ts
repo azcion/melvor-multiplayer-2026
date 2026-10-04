@@ -1,3 +1,5 @@
+import { cleanup_market_permissions } from './alliance-market';
+import { execute_alliance_petition, maintain_alliances, remove_alliance_guild, alliance_for_guild, alliance_guilds } from './alliances';
 import { dev_tag_kind } from './account_tags';
 import { replay_economy_command } from './economy';
 import { create_api_server, validate_api_command, ECONOMY_COMMAND_KINDS } from './api-contract';
@@ -31,6 +33,7 @@ import {
 	COUNCIL_MAINTENANCE_INTERVAL,
 	get_petition_conflict_subject,
 	get_petition_resolution,
+	is_free_fellowship_petition,
 	is_petition_choice,
 	is_petition_type,
 	PETITION_FAILED_RETRY_AFTER,
@@ -260,6 +263,7 @@ export type GuildMemberRow = {
 	client_id: number;
 	raid_defeats: number;
 	melvor_account_id: number | null;
+	account_name: string | null;
 	social_mode: SocialMode;
 	display_name: string;
 	icon_id: string;
@@ -297,7 +301,9 @@ export const CHEAT_MOD_NAMES = new Set([
 	'dev.Console',
 	'[Creative Mode] God mode w/ Loot + XP Multipliers',
 	'Melvor Cheat Suite',
-	'Cheat Chest'
+	'Cheat Chest',
+	'Universal Item Spawner',
+	'Loot Chests'
 ]);
 
 export function is_using_cheats(cheats_detected_at: number | null, now = Date.now()): boolean {
@@ -422,7 +428,7 @@ export const GUILD_CAPABILITIES: Record<GuildType, GuildCapabilities> = {
 		marketplace: true,
 		charitree: true,
 		campaigns: true,
-		council: false,
+		council: true,
 		member_search: true
 	}
 };
@@ -856,6 +862,7 @@ export function persist_client_runtime(client_id: number, runtime: ClientRuntime
 		JSON.stringify(runtime.owned_dlc), now);
 	if (runtime.active_mods.some(mod_name => CHEAT_MOD_NAMES.has(mod_name)))
 		db.query('UPDATE `clients` SET `cheats_detected_at` = ? WHERE `id` = ?').run(now, client_id);
+	cleanup_market_permissions();
 }
 
 export function get_released_mod_version(): string | null {
@@ -1186,7 +1193,9 @@ export function claim_council_action(now = Date.now()): db_row.guild_petitions |
 			"SELECT * FROM `guild_petitions` WHERE `lifecycle` = 'granted' " +
 			"AND `type` IN ('appellation', 'heraldry', 'banishment', 'winnowing', 'charitree_ingratitude', " +
 			"'charitree_sacrilege', 'charitree_beneficence', 'fellowship', 'enclosure', 'interdict', 'heresy', " +
-			"'temperance', 'indulgence', 'crucible_purging', 'crucible_sealing', 'crucible_unsealing') AND (" +
+			"'temperance', 'indulgence', 'crucible_purging', 'crucible_sealing', 'crucible_unsealing', " +
+			"'alliance_found','alliance_consider','alliance_join','alliance_leave','alliance_remove'," +
+			"'alliance_market_enable','alliance_market_disable','alliance_withdraw','alliance_ballot') AND (" +
 			"`execution_state` = 'pending' OR " +
 			"(`execution_state` = 'failed' AND `execution_last_attempt_at` <= ?) OR " +
 			"(`execution_state` = 'running' AND `execution_last_attempt_at` <= ?)) " +
@@ -1354,8 +1363,11 @@ export function apply_banishment_target(
 		const remaining = db.query(
 			'SELECT COUNT(*) AS `count` FROM `guild_memberships` WHERE `guild_id` = ?'
 		).get(petition.guild_id) as { count: number };
-		if (remaining.count === 0)
+		if (remaining.count === 0) {
+			remove_alliance_guild(petition.guild_id);
+			cleanup_market_permissions();
 			db.query('DELETE FROM `guilds` WHERE `id` = ?').run(petition.guild_id);
+		}
 
 		return {
 			effect: 'banished' as const,
@@ -1420,6 +1432,11 @@ export function apply_winnowing_action(petition: db_row.guild_petitions): string
 }
 
 export function apply_council_guild_action(petition: db_row.guild_petitions): string {
+	if (petition.type.startsWith('alliance_')) return db.transaction(() => {
+		const effect = execute_alliance_petition(petition);
+		cleanup_market_permissions();
+		return effect;
+	}).immediate();
 	if (petition.type.startsWith('charitree_') && get_service_setting('crucible_cutover') === '1')
 		return 'retired_at_crucible_cutover';
 	if (is_crucible_petition_type(petition.type))
@@ -1527,6 +1544,7 @@ export function process_council_actions(max_actions = 20): number {
 
 		try {
 			const effect = apply_council_guild_action(petition);
+			cleanup_market_permissions();
 			const complete = db.transaction(() => {
 				db.query(
 					"UPDATE `guild_petitions` SET `execution_state` = 'succeeded', `execution_effect` = ?, " +
@@ -1553,6 +1571,8 @@ export function maintain_council() {
 	try {
 		expire_petitions();
 		process_council_actions();
+		maintain_alliances();
+		cleanup_market_permissions();
 	} catch (error) {
 		report_error('Council maintenance failed', error);
 	}
@@ -2228,6 +2248,7 @@ export function guild_member_from_row(member: GuildMemberRow, now = Date.now(), 
 		activity_available: member.activity_available === 1,
 		status_activity,
 		status_activities: get_guild_member_status_activities(member, status_activity),
+		...(admin_view ? { account_name: member.account_name } : {}),
 		account_age,
 		total_skill_level: member.skills_visible === 1 && member.total_skill_level !== null &&
 			Number.isSafeInteger(member.total_skill_level) && member.total_skill_level >= 0
@@ -2267,7 +2288,7 @@ export async function get_guild_members(guild_id: number, viewer_id: number, sha
 		'c.`gp_visible`, gps.`amount` AS `gp_amount`, c.`game_mode_visible`, runtime.`game_mode_id`, ' +
 		'c.`dev_tag_visible`, c.`active_mods_visible`, (runtime.`active_mods` IS NOT NULL AND runtime.`active_mods` <> \'[]\') AS `active_mods_available`, c.`cheats_detected_at`, ' +
 		'runtime.`language`, runtime.`owned_dlc`, ' +
-		'c.`last_multiplayer_active_at`, c.`melvor_account_id`, joined_activity.`created_at` AS `joined_at`, ' +
+		'c.`last_multiplayer_active_at`, c.`melvor_account_id`, account.`cloud_username` AS `account_name`, joined_activity.`created_at` AS `joined_at`, ' +
 		'COALESCE((SELECT SUM(totals.`defeats`) FROM `raid_defeat_totals` AS totals ' +
 		'WHERE totals.`client_id` = c.`id`), 0) AS `raid_defeats` ' +
 		'FROM `guild_memberships` AS m ' +
@@ -2318,7 +2339,7 @@ export async function get_guild_member_directory(
 				'c.`gp_visible`, gps.`amount` AS `gp_amount`, c.`game_mode_visible`, runtime.`game_mode_id`, ' +
 				'c.`dev_tag_visible`, c.`active_mods_visible`, (runtime.`active_mods` IS NOT NULL AND runtime.`active_mods` <> \'[]\') AS `active_mods_available`, c.`cheats_detected_at`, ' +
 				'runtime.`language`, runtime.`owned_dlc`, ' +
-				'c.`last_multiplayer_active_at`, c.`melvor_account_id`, joined_activity.`created_at` AS `joined_at`, ' +
+				'c.`last_multiplayer_active_at`, c.`melvor_account_id`, account.`cloud_username` AS `account_name`, joined_activity.`created_at` AS `joined_at`, ' +
 				'COALESCE((SELECT SUM(totals.`defeats`) FROM `raid_defeat_totals` AS totals ' +
 				'WHERE totals.`client_id` = c.`id`), 0) AS `raid_defeats` ' +
 			'FROM `guild_memberships` AS m JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
@@ -2425,7 +2446,19 @@ export function petition_to_player_view(row: CouncilPetitionRow, client_id: numb
 		};
 	else if (row.type === 'winnowing')
 		proposal = { target_count: row.winnowing_target_count };
-	else
+	else if (row.type.startsWith('alliance_')) {
+		const linked = db.query<{ process_id: number; role: string }, [number]>('SELECT process_id,role FROM alliance_process_petitions WHERE petition_id = ?').get(row.id);
+		const process = linked ? db.query<{ name: string | null; kind: string; initiator_guild_id: number; target_guild_id: number | null; alliance_id: number | null }, [number]>('SELECT name,kind,initiator_guild_id,target_guild_id,alliance_id FROM alliance_processes WHERE id = ?').get(linked.process_id) : null;
+		const alliance = process?.alliance_id ? alliance_for_guild(row.guild_id) ?? db.query<{ name: string },[number]>('SELECT name FROM alliances WHERE id=?').get(process.alliance_id) : null;
+		proposal = process ? { name: process.name ?? alliance?.name ?? null,
+			kind: process.kind === 'join' && linked!.role === 'local' ? 'apply' : process.kind,
+			process_id: linked!.process_id,
+			guild_ids: process.kind === 'found' ? [process.initiator_guild_id, process.target_guild_id!]
+				: process.kind === 'remove' ? [process.target_guild_id!]
+				: process.kind === 'join' ? linked!.role === 'local'
+					? alliance_guilds(process.alliance_id!) : [process.initiator_guild_id] : [] }
+			: {};
+	} else
 		proposal = {};
 
 	return {
@@ -2440,7 +2473,9 @@ export function petition_to_player_view(row: CouncilPetitionRow, client_id: numb
 		eligible: row.is_eligible === 1,
 		current_vote: row.current_vote,
 		can_vote: active && row.is_eligible === 1 && row.current_vote === null,
-		can_withdraw: active && row.petitioner_id === client_id,
+		can_withdraw: active && row.petitioner_id === client_id && (row.rule_version === 1 ||
+			db.query('SELECT 1 FROM guild_petition_votes WHERE petition_id = ? AND client_id != ? LIMIT 1')
+				.get(row.id, client_id) === null),
 		tally_visible,
 		...(tally_visible ? {
 			tally: {
@@ -2454,14 +2489,17 @@ export function petition_to_player_view(row: CouncilPetitionRow, client_id: numb
 }
 
 export async function get_council_petitions(guild_id: number, client_id: number, resolved_page: number,
-	crucible_client = false) {
+	crucible_client = false, alliance_client = false, free_fellowship_council = alliance_client) {
+	if (!free_fellowship_council && await get_guild_type(guild_id) === FREE_FELLOWSHIP_TYPE)
+		return { petitions: [], available_petition_types: [], market_discovery_restriction_enabled: false,
+			resolved_page, has_more: false };
 	const cutover = get_service_setting('crucible_cutover') === '1';
-	const excluded = crucible_client
+	const excluded = (alliance_client ? "" : " AND p.type NOT LIKE 'alliance_%'") + (crucible_client
 		? (crucible_migration_complete()
 			? " AND p.`type` NOT LIKE 'charitree_%'"
 			: " AND p.`type` NOT LIKE 'charitree_%' AND p.`type` NOT LIKE 'crucible_%'")
 		: cutover ? " AND p.`type` NOT LIKE 'charitree_%' AND p.`type` NOT LIKE 'crucible_%'"
-			: " AND p.`type` NOT LIKE 'crucible_%'";
+			: " AND p.`type` NOT LIKE 'crucible_%'");
 	const select =
 		'SELECT p.*, target.`display_name` AS `target_display_name`, target.`icon_id` AS `target_icon_id`, ' +
 		'(SELECT COUNT(*) FROM `guild_petition_winnowing_targets` WHERE `petition_id` = p.`id`) AS `winnowing_target_count`, ' +
@@ -2538,7 +2576,9 @@ export async function get_council_petitions(guild_id: number, client_id: number,
 		petitions: [...active, ...resolved.slice(0, COUNCIL_HISTORY_PAGE_SIZE)].map(row =>
 			petition_to_player_view(row, client_id)
 		),
-		available_petition_types,
+		available_petition_types: guild?.type === FREE_FELLOWSHIP_TYPE
+			? available_petition_types.filter(is_free_fellowship_petition)
+			: available_petition_types,
 		market_discovery_restriction_enabled: guild?.market_discovery_restriction_enabled === 1,
 		resolved_page,
 		has_more: resolved.length > COUNCIL_HISTORY_PAGE_SIZE

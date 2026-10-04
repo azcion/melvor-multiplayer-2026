@@ -1,9 +1,11 @@
+import { cleanup_market_permissions } from '../alliance-market';
+import { has_alliance_access, alliance_capable, alliance_ballot_activity, maintain_alliances, remove_alliance_guild } from '../alliances';
 import * as runtime from '../app-runtime';
 import type { GuildSummary, GuildType } from '../app-runtime';
 import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
-import type { PetitionType } from '../council';
+import { is_free_fellowship_petition, type PetitionType } from '../council';
 import { get_guild_activity, parse_guild_activity_cursor } from '../guild-activity';
 import { record_guild_activity } from '../guild-activity';
 import { cancel_client_haggles } from './haggle';
@@ -12,7 +14,8 @@ import { crucible_migration_complete, is_crucible_petition_type, settle_departin
 
 const { DIRECT_JOIN_CHARITREE_LOCK, FREE_FELLOWSHIP_TYPE, GiftFlags, PETITION_LIFETIME, PUBLIC_GUILD_TYPE, db, db_get_all, db_get_single, db_run, ensure_guild_campaign, expire_charity_items, expire_petitions, forget_guild_campaign, get_client_charity_state, get_client_display, get_client_guild_id, get_council_petitions, get_guild_applicants, get_guild_capabilities, get_guild_established_at, get_guild_member_directory, get_guild_members, get_guild_summary, get_guild_type, get_petition_conflict_subject, get_petition_resolution, guild_summary_from_row, has_guild_departure_blocker, is_petition_choice, is_petition_type, is_valid_guild_icon_id, parse_guild_name, process_council_actions, resize_unprogressed_campaign, session_get_route, session_post_route, settle_departing_charity_wish, shadowed_cutoff, unlock_winnowing_targets } = runtime;
 
-function petition_visible_to_version(type: string, req: Request): boolean {
+function petition_visible_to_client(type: string, req: Request, client_id: number): boolean {
+	if (type.startsWith('alliance_')) return has_alliance_access(client_id, runtime.get_request_mod_version(req));
 	if (type.startsWith('charitree_') && runtime.get_service_setting('crucible_cutover') === '1')
 		return false;
 	const version = runtime.get_request_mod_version(req);
@@ -30,7 +33,7 @@ export function register_guilds_routes(): void {
 			return 400;
 		const version = runtime.get_request_mod_version(req);
 		const include_legacy = version !== 'development' && !is_client_version_at_least(version, '1.6.0');
-		return get_guild_activity(guild_id, client_id, cursor, include_legacy);
+		return get_guild_activity(guild_id, client_id, cursor, include_legacy, has_alliance_access(client_id, version));
 	});
 	session_get_route('/api/guilds/council', async (req, url, client_id) => {
 		expire_petitions();
@@ -41,8 +44,6 @@ export function register_guilds_routes(): void {
 		) as db_row.guild_memberships;
 		if (membership === null)
 			return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
-		if (await get_guild_type(membership.guild_id) === FREE_FELLOWSHIP_TYPE)
-			return { error_lang: 'MOD_MP_GUILD_COUNCIL_UNAVAILABLE' };
 
 		const raw_page = url.searchParams.get('page');
 		const resolved_page = raw_page === null ? 0 : Number(raw_page);
@@ -51,7 +52,7 @@ export function register_guilds_routes(): void {
 
 		const version = runtime.get_request_mod_version(req);
 		return await get_council_petitions(membership.guild_id, client_id, resolved_page,
-			version === 'development' || is_client_version_at_least(version, '1.6.0'));
+			version === 'development' || is_client_version_at_least(version, '1.6.0'), has_alliance_access(client_id, version), alliance_capable(version));
 	});
 
 	session_post_route('/api/guilds/petitions/raise', async (req, url, client_id, json): Promise<HandlerResult> => {
@@ -59,6 +60,7 @@ export function register_guilds_routes(): void {
 			return 400; // Bad Request
 
 		const petition_type = json.type;
+		if (petition_type.startsWith('alliance_')) return 400;
 		const version = runtime.get_request_mod_version(req);
 		const crucible_client = version === 'development' || is_client_version_at_least(version, '1.6.0');
 		if ((petition_type.startsWith('charitree_') && crucible_client) ||
@@ -110,7 +112,8 @@ export function register_guilds_routes(): void {
 				).get(membership.guild_id, membership.guild_id) === null)
 					return { status: 'crucible_unavailable' as const };
 			}
-			if (guild.type === FREE_FELLOWSHIP_TYPE)
+			if (guild.type === FREE_FELLOWSHIP_TYPE &&
+				(!alliance_capable(version) || !is_free_fellowship_petition(petition_type)))
 				return { status: 'unavailable' as const };
 			if ((petition_type === 'fellowship' && guild.type !== 'private') ||
 				(petition_type === 'enclosure' && guild.type !== PUBLIC_GUILD_TYPE))
@@ -184,11 +187,12 @@ export function register_guilds_routes(): void {
 				).get(membership.guild_id) as { expires_at: number | null }).expires_at ?? now
 				: null;
 
+			maintain_alliances(now);
 			const petition = db.query(
 				'INSERT INTO `guild_petitions` (`guild_id`, `guild_name`, `type`, `conflict_subject`, ' +
 				'`petitioner_id`, `proposed_name`, `proposed_icon_id`, `target_client_id`, `target_membership_id`, ' +
-				'`charitree_expires_before`, `created_at`, `expires_at`) ' +
-				'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING `id`'
+				'`charitree_expires_before`, `created_at`, `expires_at`, `rule_version`) ' +
+				'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2) RETURNING `id`'
 			).get(
 				membership.guild_id,
 				guild.name,
@@ -226,7 +230,7 @@ export function register_guilds_routes(): void {
 				'SELECT ?, membership.`client_id` FROM `guild_memberships` AS membership ' +
 				'JOIN `clients` AS client ON client.`id` = membership.`client_id` ' +
 				'WHERE membership.`guild_id` = ? AND client.`last_multiplayer_active_at` >= ?'
-			).run(petition.id, membership.guild_id, shadowed_cutoff(now));
+			).run(petition.id, membership.guild_id, now - 4 * 86400000);
 			return { status: 'created' as const, petition_id: petition.id };
 		});
 
@@ -263,15 +267,17 @@ export function register_guilds_routes(): void {
 
 		const now = Date.now();
 		const cast_vote = db.transaction(() => {
+			maintain_alliances(now);
 			const petition = db.query('SELECT * FROM `guild_petitions` WHERE `id` = ? LIMIT 1').get(
 				petition_id
 			) as db_row.guild_petitions;
-			if (petition === null || !petition_visible_to_version(petition.type, req))
+			if (petition === null || !petition_visible_to_client(petition.type, req, client_id))
 				return { status: 'missing' as const };
 			const guild = db.query('SELECT `type` FROM `guilds` WHERE `id` = ? LIMIT 1').get(
 				petition.guild_id
 			) as { type: GuildType } | null;
-			if (guild?.type === FREE_FELLOWSHIP_TYPE)
+			if (guild?.type === FREE_FELLOWSHIP_TYPE &&
+				(!alliance_capable(runtime.get_request_mod_version(req)) || !is_free_fellowship_petition(petition.type)))
 				return { status: 'unavailable' as const };
 			if (petition.lifecycle === 'active' && petition.expires_at <= now) {
 				unlock_winnowing_targets(petition_id);
@@ -304,6 +310,9 @@ export function register_guilds_routes(): void {
 				'INSERT INTO `guild_petition_votes` (`petition_id`, `client_id`, `choice`, `submitted_at`) ' +
 				'VALUES(?, ?, ?, ?)'
 			).run(petition_id, client_id, choice, now);
+			if (petition.rule_version === 2)
+				db.query('UPDATE guild_petitions SET expires_at = ? WHERE id = ?').run(now + PETITION_LIFETIME, petition_id);
+			alliance_ballot_activity(petition_id, now);
 			const tally = db.query(
 				'SELECT (SELECT COUNT(*) FROM `guild_petition_voters` WHERE `petition_id` = ?) AS `eligible`, ' +
 				"SUM(CASE WHEN `choice` = 'aye' THEN 1 ELSE 0 END) AS `aye`, " +
@@ -347,6 +356,7 @@ export function register_guilds_routes(): void {
 			return { error_lang: 'MOD_MP_COUNCIL_ALREADY_VOTED' };
 		if (result.lifecycle === 'granted')
 			process_council_actions();
+		maintain_alliances(now);
 		return { success: true, lifecycle: result.lifecycle };
 	});
 
@@ -357,15 +367,17 @@ export function register_guilds_routes(): void {
 
 		const now = Date.now();
 		const withdraw_petition = db.transaction(() => {
+			maintain_alliances(now);
 			const petition = db.query('SELECT * FROM `guild_petitions` WHERE `id` = ? LIMIT 1').get(
 				petition_id
 			) as db_row.guild_petitions;
-			if (petition === null || !petition_visible_to_version(petition.type, req))
+			if (petition === null || !petition_visible_to_client(petition.type, req, client_id))
 				return 'missing';
 			const guild = db.query('SELECT `type` FROM `guilds` WHERE `id` = ? LIMIT 1').get(
 				petition.guild_id
 			) as { type: GuildType } | null;
-			if (guild?.type === FREE_FELLOWSHIP_TYPE)
+			if (guild?.type === FREE_FELLOWSHIP_TYPE &&
+				(!alliance_capable(runtime.get_request_mod_version(req)) || !is_free_fellowship_petition(petition.type)))
 				return 'unavailable';
 			if (petition.lifecycle === 'active' && petition.expires_at <= now) {
 				unlock_winnowing_targets(petition_id);
@@ -377,6 +389,7 @@ export function register_guilds_routes(): void {
 			}
 			if (petition.lifecycle !== 'active')
 				return 'final';
+			if (petition.type === 'alliance_ballot') return 'forbidden';
 			if (petition.petitioner_id !== client_id)
 				return 'forbidden';
 			const membership = db.query(
@@ -384,6 +397,9 @@ export function register_guilds_routes(): void {
 			).get(client_id, petition.guild_id);
 			if (membership === null)
 				return 'forbidden';
+			if (petition.rule_version === 2 && db.query(
+				'SELECT 1 FROM guild_petition_votes WHERE petition_id = ? AND client_id != ? LIMIT 1'
+			).get(petition_id, client_id) !== null) return 'forbidden';
 			unlock_winnowing_targets(petition_id);
 			db.query(
 				"UPDATE `guild_petitions` SET `lifecycle` = 'withdrawn', `resolved_at` = ?, `subject_locked` = 0 " +
@@ -482,7 +498,10 @@ export function register_guilds_routes(): void {
 					...guild,
 					established_at,
 					charitree_enabled: charitree?.charitree_enabled === 1,
-					capabilities: get_guild_capabilities(guild_type)
+					capabilities: {
+						...get_guild_capabilities(guild_type),
+						council: guild_type !== FREE_FELLOWSHIP_TYPE || alliance_capable(runtime.get_request_mod_version(req))
+					}
 				},
 				members: member_directory?.members ?? await get_guild_members(guild_id, client_id),
 				...(member_directory === null ? {} : { member_directory }),
@@ -720,8 +739,11 @@ export function register_guilds_routes(): void {
 			const remaining = db.query(
 				'SELECT COUNT(*) AS `count` FROM `guild_memberships` WHERE `guild_id` = ?'
 			).get(membership.guild_id) as { count: number };
-			if (remaining.count === 0 && membership.type !== FREE_FELLOWSHIP_TYPE)
+			if (remaining.count === 0 && membership.type !== FREE_FELLOWSHIP_TYPE) {
+				remove_alliance_guild(membership.guild_id);
+				cleanup_market_permissions();
 				db.query('DELETE FROM `guilds` WHERE `id` = ?').run(membership.guild_id);
+			}
 
 			return remaining.count === 0 && membership.type !== FREE_FELLOWSHIP_TYPE ? 'dissolved' : 'left';
 		});

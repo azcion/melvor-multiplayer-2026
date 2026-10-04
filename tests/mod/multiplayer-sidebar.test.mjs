@@ -90,12 +90,12 @@ test('updates guild-dependent Multiplayer sidebar entries without rebuilding the
 		assert.equal(member_sidebar.is_hidden('multiplayer:' + page_id), false);
 });
 
-test('keeps tagged Expedition and Raid visible but hides exchange sections in Social Only mode', async () => {
+test('keeps Expedition and Raid visible but hides exchange sections in Social Only mode', async () => {
 	const sidebar = make_sidebar();
 	const update_multiplayer_nav = load_nav_updater(await read_client_source(root))(
 		sidebar.sidebar,
 		{ is_guild_member: true, is_social_only: true, has_transfer_access: false,
-			account_tags: ['expedition-tester'] },
+			account_tags: [] },
 		() => {},
 		() => 'start here',
 		sidebar.document
@@ -108,18 +108,25 @@ test('keeps tagged Expedition and Raid visible but hides exchange sections in So
 	assert.equal(sidebar.is_hidden('multiplayer:Transfer_Items'), true);
 });
 
-test('hides the Expedition page when the account tag is absent or revoked', async () => {
+test('opens the 1.6.2 Expedition preview regardless of tester tags while preserving Guild and support gates', async () => {
 	const sidebar = make_sidebar();
 	const state = { is_guild_member: true, is_social_only: false, has_transfer_access: true, account_tags: [] };
 	const update = load_nav_updater(await read_client_source(root))(
 		sidebar.sidebar, state, () => {}, () => 'start here', sidebar.document);
 	update();
-	assert.equal(sidebar.is_hidden('multiplayer:Expedition'), true);
+	assert.equal(sidebar.is_hidden('multiplayer:Expedition'), false);
 	assert.equal(sidebar.is_hidden('multiplayer:Guild_Raid'), false);
 	state.account_tags = ['expedition-tester'];
 	update();
 	assert.equal(sidebar.is_hidden('multiplayer:Expedition'), false);
 	state.account_tags = [];
+	update();
+	assert.equal(sidebar.is_hidden('multiplayer:Expedition'), false);
+	state.is_guild_member = false;
+	update();
+	assert.equal(sidebar.is_hidden('multiplayer:Expedition'), true);
+	state.is_guild_member = true;
+	state.multiplayer_unsupported = true;
 	update();
 	assert.equal(sidebar.is_hidden('multiplayer:Expedition'), true);
 });
