@@ -177,3 +177,13 @@ export function tracking_task_title(chamber, tracking, get_lang_string = null) {
 	return task ? display_expedition_label(task.title, chamber.exits?.length, get_lang_string, chamber.id) :
 		get_lang_string?.('MOD_MP_EXPEDITION_UI_CHAMBER_WORK') ?? 'Chamber work';
 }
+
+export function needs_passage_vote(snapshot) {
+	const expedition = snapshot?.expedition;
+	const chamber = expedition?.chamber;
+	const vote = chamber?.vote;
+	return expedition?.status === 'active' && expedition.registered === true &&
+		(chamber?.exits?.length ?? 0) > 1 && vote?.opened_at != null &&
+		vote.locked_at == null && vote.ballot == null &&
+		chamber.exits.some(edge => !chamber.preview_exit_id || edge.id === chamber.preview_exit_id);
+}

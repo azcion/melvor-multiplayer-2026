@@ -28,3 +28,16 @@ test('Alliance schema preserves legacy electorate, ballots, rule version and tra
 	expect(database.query('SELECT content FROM chat_message_translations').all()).toEqual([{content:'你好'}]);
 	database.close();
 });
+
+test('parallel governance migration preserves existing pending and resolved processes',()=> {
+	const database=new Database(':memory:'); database.run('PRAGMA foreign_keys=ON');
+	for(const migration of migrations.filter(m=>m.version<164)) apply(database,migration);
+	database.run(`INSERT INTO alliance_processes(kind,initiator_guild_id,name,subject,stage,created_at,expires_at,resolved_at)
+		VALUES('found',1,'Pending','found:1','waiting',100,200,NULL),('found',2,'Accepted','found:2','accepted',100,200,150)`);
+	apply(database,migrations.find(m=>m.version===164)!);
+	expect(database.query('SELECT name,stage,governance_version,resolved_at,resolution_reason FROM alliance_processes ORDER BY id').all()).toEqual([
+		{name:'Pending',stage:'waiting',governance_version:1,resolved_at:null,resolution_reason:null},
+		{name:'Accepted',stage:'accepted',governance_version:1,resolved_at:150,resolution_reason:null}
+	]);
+	database.close();
+});

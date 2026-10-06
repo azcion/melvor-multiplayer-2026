@@ -1,3 +1,4 @@
+import { is_feature_tester, pending_test_data } from '../feature-testers';
 import { has_alliance_access } from '../alliances';
 import { get_alliance_chat_unread_count } from '../alliance_chat';
 import * as runtime from '../app-runtime';
@@ -44,6 +45,7 @@ export function register_general_routes(): void {
 
 		return {
 			revision: client.event_revision,
+			...(url.searchParams.get('pending_preview') === '1' ? { pending_preview: is_feature_tester(db, client_id, 'pending') ? pending_test_data() : null } : {}),
 			released_mod_version: get_released_mod_version(),
 			minimum_supported_mod_version: get_minimum_supported_mod_version(),
 			social_mode: get_client_social_mode(client_id),

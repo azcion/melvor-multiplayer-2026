@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 import { readFile } from 'node:fs/promises';
 import { install_crucible_actions } from '../../mod/client-crucible.mjs';
 
@@ -33,7 +34,8 @@ test('Crucible keeps migration unavailability distinct from a failed load', asyn
 		{ enabled: true, offerings: [], wishes: [], wish_catalog: [] }];
 	const state = { is_guild_member: true, is_social_only: false, is_connected: true,
 		crucible: null, crucible_error: '', crucible_loading: false };
-	const actions = install_crucible_actions({ state,
+	let nav_updates = 0;
+	const actions = install_crucible_actions({ state, update_charitree_nav: () => { nav_updates++; },
 		api_get: async () => {
 			const response = responses.shift();
 			if (response instanceof Error) throw response;
@@ -44,6 +46,7 @@ test('Crucible keeps migration unavailability distinct from a failed load', asyn
 	await actions.refresh_crucible(true);
 	assert.equal(state.crucible, null);
 	assert.equal(state.crucible_error, '');
+	assert.equal(nav_updates, 1);
 	await actions.refresh_crucible(true);
 	assert.match(state.crucible_error, /connection failed/);
 	assert.equal(state.crucible, null);
@@ -73,4 +76,68 @@ test('Crucible countdown uses localized text for each time scale', () => {
 	} finally {
 		globalThis.getLangString = previous;
 	}
+});
+
+test('Crucible sidebar transitions from empty to claimable Wish or reclaim and hides all other states', async () => {
+	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const data = JSON.parse(await readFile(new URL('../../mod/data.json', import.meta.url), 'utf8'));
+	const css = await readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8');
+	assert.equal(data.data.pages.find(page => page.id === 'Crucible').sidebarItem.aside, '0');
+	assert.match(css, /\.mp-crucible-nav:not\(\.mp-nav-ready\)/);
+	assert.match(css, /\.mp-crucible-nav \{\s*background-color: #581500/);
+	const aside = { textContent: '', hidden: true, classList: { toggle() {} } };
+	const state = { guild_state_loaded: true, is_connected: true, is_guild_member: true, is_social_only: false,
+		crucible: { is_open: true, offerings: [], wishes: [], active_wish: false },
+		crucible_reclaim_block(offering) {
+			return offering.block || (offering.blocked_until > this.crucible_clock_time ? 'locked' :
+				this.crucible.next_reclaim_at > this.crucible_clock_time ? 'cooldown' : null);
+		} };
+	let now = 1000;
+	const update = runInNewContext(main.slice(main.indexOf('function update_charitree_nav()'),
+		main.indexOf('function update_guild_nav()')) + '\nupdate_charitree_nav;', {
+		state, sidebar: { category: () => ({ item: () => ({}) }) }, document: { querySelector: () => aside },
+		Date: { now: () => now }, set_nav_ready() {},
+		getLangString: key => key === 'MOD_MP_SIDEBAR_CHARITY_WISH' ? 'wish' : 'reclaim'
+	});
+	update();
+	assert.equal(aside.textContent, '');
+	assert.equal(aside.hidden, true);
+	state.crucible.offerings = [{ blocked_until: 2000 }];
+	update();
+	assert.equal(aside.hidden, true);
+	now = 2000;
+	update();
+	assert.equal(aside.textContent, 'reclaim');
+	assert.equal(aside.hidden, false);
+	state.crucible.next_reclaim_at = 3000;
+	update();
+	assert.equal(aside.hidden, true);
+	now = 3000;
+	update();
+	assert.equal(aside.textContent, 'reclaim');
+	state.crucible.offerings = [{ block: 'value' }];
+	update();
+	assert.equal(aside.hidden, true);
+	for (const wish of [{ phase: 'forming', owned: true }, { phase: 'melding', owned: true },
+		{ phase: 'melded', owned: false }]) {
+		state.crucible.wishes = [wish];
+		update();
+		assert.equal(aside.hidden, true);
+	}
+	state.crucible.wishes = [{ phase: 'melded', owned: true }];
+	state.crucible.offerings = [{}];
+	update();
+	assert.equal(aside.textContent, 'wish');
+	assert.equal(aside.hidden, false);
+	for (const changes of [{ crucible: null }, { crucible: { is_open: false } },
+		{ is_social_only: true }, { is_guild_member: false }, { is_connected: false }, { guild_state_loaded: false }]) {
+		const previous = { ...state };
+		Object.assign(state, changes);
+		update();
+		assert.equal(aside.textContent, '');
+		assert.equal(aside.hidden, true);
+		Object.assign(state, previous);
+	}
+	assert.ok(main.indexOf('void state.refresh_crucible();', main.indexOf('async function get_client_events_request')) <
+		main.indexOf('if (res.unchanged === true)', main.indexOf('async function get_client_events_request')));
 });

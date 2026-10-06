@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.6.5
+
+- Fixed mobile scrolling in Alliance pickers, Guild previews, proposal confirmations, Council heraldry and banishment pickers, and Expedition work prompts by matching the avatar picker’s native scrolling behavior.
+
+## 1.6.4
+
+- Fixed vertical scrolling in Alliance pickers, Guild previews, and proposal confirmation modals on mobile, keeping their action buttons accessible.
+
+## 1.6.3
+
+- Fixed declining Trade counteroffers, including empty counteroffers, returning each player’s offered items safely.
+- Made the Guild roster’s Using Cheats badge clickable, showing recognized item-spawning mods detected in the past seven days and the latest detection age in whole days and hours, regardless of Mods privacy.
+- Scoped active Crucible Wishes and Slag-clearing bonuses per account, per Guild. Accounts with a positive existing Slag bonus receive a fresh 48-hour maximum in each Guild containing an active character.
+- Restored Crucible sidebar badges: wish for your claimable Wish, otherwise reclaim when an offering can be reclaimed, with no Make Wish reminder.
+- Moved Expedition passage choices and voting to the top of Journey on mobile, with a vote badge when an eligible player has an open vote they have not cast.
+- Added host-managed per-character feature previews, with synthetic Pending exchanges and Council Petitions covering every type, voting variants, tallies, and Petition History outcomes; preview actions leave real exchanges and Guild decisions unchanged.
+- Clarified in all supported languages that a Crucible Wish resets the Slag-clearing bonus to -10 and caps it at 10.
+- Added personal Transfers history for the last 14 days, newest first, with stored item and event snapshots, localized source/destination details, claimed stack source quantities, and best-effort reconstruction from retained records. Older history remains stored. History shows five entries at a time with Load More, compact currency totals, and refreshes when opened or after relevant actions. Charitree actions and Bank/Outbox movements are excluded.
+- Restyled Guild with Guild, Council, and Alliance columns, mobile section navigation with applicant counts and pending-vote badges, matching Guild sidebar badges, consistent card headings, bounded Activity, and collapsed Petition History. Petition cards include left-aligned descriptions and omit the Voting Open badge; Fellowship explains joining without an application. Restored Alliance preview access for azcn’s linked characters only.
+- Restyled Transfers to match Expedition and Crucible, with dark cards, collapsible Inbox/Outbox/Pending panes, compact item grids, clearer exchange details including Haggle stack value, original listing totals, offered totals, and left-aligned status, and keyboard-accessible Outbox selection.
+- Changed the button on fully fulfilled My Buy Orders from Cancel to an info-colored Remove button.
+
 ## 1.6.2
 
 - Added admin-only Account Name as the first entry in Guild and Chat member details, using the stored PlayFab account name.

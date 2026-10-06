@@ -7,6 +7,7 @@ export type AllianceProcess = {
 	id: number; kind: string; initiator_guild_id: number; target_guild_id: number | null;
 	alliance_id: number | null; name: string | null; subject: string; stage: string;
 	created_at: number; expires_at: number; resolved_at: number | null;
+	governance_version: number; resolution_reason: string | null; resolution_guild_name: string | null;
 };
 const pending = "('local','waiting','recipient','collective')";
 export const alliance_capable = (version: unknown) => version === 'development' || is_client_version_at_least(version, '1.6.2');
@@ -32,8 +33,9 @@ function revise() {
 	// Membership changes affect discovery, Chat, Council and Marketplace across the roster.
 	db.query('UPDATE clients SET event_revision = event_revision + 1').run();
 }
-export function finish_alliance_process(p: AllianceProcess, stage: string, now = Date.now()) {
-	db.query('UPDATE alliance_processes SET stage = ?, resolved_at = ? WHERE id = ?').run(stage, now, p.id);
+export function finish_alliance_process(p: AllianceProcess, stage: string, now = Date.now(), reason: string | null = null, guild_name: string | null = null) {
+	db.query('UPDATE alliance_processes SET stage = ?, resolved_at = ?, resolution_reason = ?, resolution_guild_name = ? WHERE id = ?')
+		.run(stage, now, reason, guild_name, p.id);
 	db.query('DELETE FROM alliance_pending_slots WHERE process_id = ?').run(p.id);
 	db.query(`UPDATE guild_petitions SET lifecycle = 'withdrawn', resolved_at = ?, subject_locked = 0
 		WHERE lifecycle = 'active' AND id IN (SELECT petition_id FROM alliance_process_petitions WHERE process_id = ?)`)
@@ -74,7 +76,7 @@ function same_roster(p: AllianceProcess) {
 }
 function cancel_roster_votes(alliance_id: number, now: number) {
 	for (const p of db.query<AllianceProcess, [number]>(`SELECT * FROM alliance_processes WHERE alliance_id = ? AND stage IN ${pending}`)
-		.all(alliance_id)) finish_alliance_process(p, 'cancelled', now);
+		.all(alliance_id)) finish_alliance_process(p, 'cancelled', now, 'roster_changed');
 }
 export function remove_alliance_guild(guild_id: number, now = Date.now()) {
 	const alliance = alliance_for_guild(guild_id);
@@ -88,10 +90,10 @@ function affiliate(guild_id: number, alliance_id: number, now: number, except: n
 	db.query('INSERT INTO alliance_memberships VALUES(?,?,?)').run(guild_id, alliance_id, now);
 	for (const other of db.query<AllianceProcess, [number, number, number]>(`SELECT * FROM alliance_processes WHERE stage IN ${pending}
 		AND id != ? AND (initiator_guild_id = ? OR target_guild_id = ?) AND kind IN ('found','join')`).all(except, guild_id, guild_id))
-		finish_alliance_process(other, 'cancelled', now);
+		finish_alliance_process(other, 'cancelled', now, 'affiliated_elsewhere', db.query<{ name: string }, [number]>('SELECT name FROM guilds WHERE id=?').get(guild_id)?.name ?? null);
 }
 function resolve_collective(p: AllianceProcess, now: number) {
-	if (!same_roster(p)) return finish_alliance_process(p, 'cancelled', now);
+	if (!same_roster(p)) return finish_alliance_process(p, 'cancelled', now, 'roster_changed');
 	const ballots = db.query<{ choice: string | null }, [number]>('SELECT choice FROM alliance_ballots WHERE process_id = ?').all(p.id);
 	const aye = ballots.filter(b => b.choice === 'aye').length;
 	const nay = ballots.filter(b => b.choice === 'nay').length;
@@ -101,10 +103,13 @@ function resolve_collective(p: AllianceProcess, now: number) {
 		return;
 	}
 	if (p.kind === 'join') {
-		if (alliance_for_guild(p.initiator_guild_id) || !guild_exists(p.initiator_guild_id)) return finish_alliance_process(p, 'cancelled', now);
+		// A majority may arrive before the applicant finishes. It is never consent to join.
+		if (p.governance_version === 2 && !db.query(`SELECT 1 FROM alliance_process_petitions l JOIN guild_petitions g ON g.id=l.petition_id
+			WHERE l.process_id=? AND l.role='local' AND g.lifecycle='granted'`).get(p.id)) return;
+		if (alliance_for_guild(p.initiator_guild_id) || !guild_exists(p.initiator_guild_id)) return finish_alliance_process(p, 'cancelled', now, 'target_unavailable');
 		affiliate(p.initiator_guild_id, p.alliance_id!, now, p.id);
 	} else if (p.kind === 'remove') {
-		if (p.target_guild_id === null || !alliance_guilds(p.alliance_id!).includes(p.target_guild_id)) return finish_alliance_process(p, 'cancelled', now);
+		if (p.target_guild_id === null || !alliance_guilds(p.alliance_id!).includes(p.target_guild_id)) return finish_alliance_process(p, 'cancelled', now, 'target_unavailable');
 		// Resolve before the roster trigger cancels every unfinished proposal.
 		finish_alliance_process(p, 'accepted', now);
 		db.query('DELETE FROM alliance_memberships WHERE guild_id = ?').run(p.target_guild_id);
@@ -115,18 +120,39 @@ function resolve_collective(p: AllianceProcess, now: number) {
 	finish_alliance_process(p, 'accepted', now);
 	if (p.kind === 'join' || p.kind === 'remove') cancel_roster_votes(p.alliance_id!, now);
 }
-function collective(p: AllianceProcess, petitioner_id: number, now: number) {
+function collective(p: AllianceProcess, petitioner_id: number, now: number): number | null {
 	const roster = alliance_guilds(p.alliance_id!);
-	if (roster.length < 2) return finish_alliance_process(p, 'cancelled', now);
+	if (roster.length < 2) { finish_alliance_process(p, 'cancelled', now, 'alliance_unavailable'); return null; }
 	db.query("UPDATE alliance_processes SET stage = 'collective' WHERE id = ?").run(p.id);
 	p.stage = 'collective'; p.expires_at = now + PETITION_LIFETIME;
 	extend(p, now);
+	let own_petition: number | null = null;
 	for (const guild_id of roster) {
-		const carried = p.kind !== 'join' && guild_id === p.initiator_guild_id;
+		const carried = p.governance_version === 1 && p.kind !== 'join' && guild_id === p.initiator_guild_id;
 		db.query('INSERT INTO alliance_ballots VALUES(?,?,?,?)').run(p.id, guild_id, carried ? 'aye' : null, carried ? now : null);
-		if (!carried) council_petition(guild_id, petitioner_id, p, 'ballot', 'alliance_ballot', now);
+		if (!carried) {
+			const id = council_petition(guild_id, petitioner_id, p, 'ballot', 'alliance_ballot', now);
+			if (guild_id === p.initiator_guild_id) own_petition = id;
+		}
 	}
-	revise();
+	revise(); return own_petition;
+}
+function resolve_founding(p: AllianceProcess, now: number): boolean {
+	const approved = db.query<{ total: number }, [number]>(`SELECT COUNT(*) total FROM alliance_process_petitions l JOIN guild_petitions g ON g.id=l.petition_id
+		WHERE l.process_id=? AND l.role IN ('local','recipient') AND g.lifecycle='granted'`).get(p.id)!.total;
+	if (approved !== 2) return false;
+	if (alliance_for_guild(p.initiator_guild_id) || alliance_for_guild(p.target_guild_id!) ||
+		!guild_exists(p.initiator_guild_id) || !guild_exists(p.target_guild_id!)) {
+		finish_alliance_process(p, 'cancelled', now, 'affiliated_elsewhere'); return false;
+	}
+	const id = Number(db.query('INSERT INTO alliances(name,created_at) VALUES(?,?)').run(p.name, now).lastInsertRowid);
+	affiliate(p.initiator_guild_id, id, now, p.id); affiliate(p.target_guild_id!, id, now, p.id);
+	finish_alliance_process(p, 'accepted', now); return true;
+}
+export function alliance_petition_withdrawable(petition_id: number): boolean {
+	const row = db.query<{ role: string; governance_version: number; kind: string; stage: string }, [number]>(`SELECT l.role,p.governance_version,p.kind,p.stage
+		FROM alliance_process_petitions l JOIN alliance_processes p ON p.id=l.process_id WHERE l.petition_id=?`).get(petition_id);
+	return !row || (row.role !== 'ballot' && (row.governance_version === 1 || row.role === 'withdraw' || row.kind === 'leave' || (row.kind === 'found' && row.stage === 'waiting')));
 }
 export function execute_alliance_petition(petition: { id: number; petitioner_id: number; guild_id: number }, now = Date.now()): string {
 	const link = db.query<{ process_id: number; role: string }, [number]>('SELECT * FROM alliance_process_petitions WHERE petition_id = ?').get(petition.id);
@@ -134,6 +160,12 @@ export function execute_alliance_petition(petition: { id: number; petitioner_id:
 	const p = process(link.process_id)!;
 	if (!['local','waiting','recipient','collective'].includes(p.stage)) return p.stage;
 	if (p.expires_at <= now) { finish_alliance_process(p, 'lapsed', now); return 'lapsed'; }
+	if (p.governance_version === 2 && p.kind === 'found' && ['local','recipient'].includes(link.role)) {
+		return resolve_founding(p, now) ? 'founded' : 'consent_recorded';
+	}
+	if (p.governance_version === 2 && p.kind === 'join' && link.role === 'local') {
+		resolve_collective(p, now); return 'consent_recorded';
+	}
 	if (link.role === 'withdraw') { finish_alliance_process(p, 'withdrawn', now); return 'withdrawn'; }
 	if (link.role === 'ballot') {
 		db.query("UPDATE alliance_ballots SET choice = 'aye', submitted_at = ? WHERE process_id = ? AND guild_id = ? AND choice IS NULL")
@@ -145,14 +177,14 @@ export function execute_alliance_petition(petition: { id: number; petitioner_id:
 	if (link.role === 'local' && p.stage === 'collective') return 'submitted';
 	if (link.role === 'recipient') {
 		if (alliance_for_guild(p.initiator_guild_id) || alliance_for_guild(p.target_guild_id!) ||
-			!guild_exists(p.initiator_guild_id) || !guild_exists(p.target_guild_id!)) { finish_alliance_process(p, 'cancelled', now); return 'cancelled'; }
+			!guild_exists(p.initiator_guild_id) || !guild_exists(p.target_guild_id!)) { finish_alliance_process(p, 'cancelled', now, 'target_unavailable'); return 'cancelled'; }
 		const id = Number(db.query('INSERT INTO alliances(name,created_at) VALUES(?,?)').run(p.name, now).lastInsertRowid);
 		affiliate(p.initiator_guild_id, id, now, p.id); affiliate(p.target_guild_id!, id, now, p.id);
 		finish_alliance_process(p, 'accepted', now); return 'founded';
 	}
 	if (p.kind === 'found') {
 		if (alliance_for_guild(p.initiator_guild_id) || alliance_for_guild(p.target_guild_id!) || !guild_exists(p.target_guild_id!)) {
-			finish_alliance_process(p, 'cancelled', now); return 'cancelled';
+			finish_alliance_process(p, 'cancelled', now, 'target_unavailable'); return 'cancelled';
 		}
 		db.query("UPDATE alliance_processes SET stage = 'waiting' WHERE id = ?").run(p.id); extend(p, now); revise(); return 'submitted';
 	}
@@ -161,7 +193,7 @@ export function execute_alliance_petition(petition: { id: number; petitioner_id:
 	}
 	if ((p.kind === 'join' && alliance_for_guild(p.initiator_guild_id)) ||
 		(p.kind !== 'join' && alliance_for_guild(p.initiator_guild_id)?.id !== p.alliance_id)) {
-		finish_alliance_process(p, 'cancelled', now); return 'cancelled';
+		finish_alliance_process(p, 'cancelled', now, 'target_unavailable'); return 'cancelled';
 	}
 	collective(p, petition.petitioner_id, now); return 'submitted';
 }
@@ -171,13 +203,18 @@ export function maintain_alliances(now = Date.now()) {
 			cancel_roster_votes(a.id, now); db.query('DELETE FROM alliances WHERE id = ?').run(a.id); revise();
 		}
 		for (const p of db.query<AllianceProcess, []>(`SELECT * FROM alliance_processes WHERE stage IN ${pending}`).all()) {
-			if (!guild_exists(p.initiator_guild_id) || (p.target_guild_id !== null && !guild_exists(p.target_guild_id)) ||
-				(['found','join'].includes(p.kind) && alliance_for_guild(p.initiator_guild_id)) ||
-				(p.kind === 'found' && alliance_for_guild(p.target_guild_id!)) ||
-				(p.alliance_id !== null && !db.query('SELECT 1 FROM alliances WHERE id = ?').get(p.alliance_id))) {
-				finish_alliance_process(p, 'cancelled', now); continue;
+			if (!guild_exists(p.initiator_guild_id) || (p.target_guild_id !== null && !guild_exists(p.target_guild_id))) {
+				finish_alliance_process(p, 'cancelled', now, 'guild_unavailable'); continue;
 			}
-			if (p.stage === 'collective' && !same_roster(p)) { finish_alliance_process(p, 'cancelled', now); continue; }
+			const affiliated = ['found','join'].includes(p.kind) && alliance_for_guild(p.initiator_guild_id) ? p.initiator_guild_id
+				: p.kind === 'found' && alliance_for_guild(p.target_guild_id!) ? p.target_guild_id : null;
+			if (affiliated !== null) {
+				finish_alliance_process(p, 'cancelled', now, 'affiliated_elsewhere', db.query<{name:string},[number]>('SELECT name FROM guilds WHERE id=?').get(affiliated)?.name ?? null); continue;
+			}
+			if (p.alliance_id !== null && !db.query('SELECT 1 FROM alliances WHERE id = ?').get(p.alliance_id)) {
+				finish_alliance_process(p, 'cancelled', now, 'alliance_unavailable'); continue;
+			}
+			if (p.stage === 'collective' && !same_roster(p)) { finish_alliance_process(p, 'cancelled', now, 'roster_changed'); continue; }
 			const petitions = db.query<{ guild_id: number; lifecycle: string; role: string }, [number]>(`SELECT p.guild_id,p.lifecycle,l.role FROM guild_petitions p
 				JOIN alliance_process_petitions l ON l.petition_id = p.id WHERE l.process_id = ?`).all(p.id);
 			for (const petition of petitions) {
@@ -191,6 +228,7 @@ export function maintain_alliances(now = Date.now()) {
 			if (!['local','waiting','recipient','collective'].includes(process(p.id)!.stage)) continue;
 			if (p.expires_at <= now) finish_alliance_process(p, 'lapsed', now);
 			else if (p.stage === 'collective') resolve_collective(p, now);
+			else if (p.governance_version === 2 && p.kind === 'found') resolve_founding(p, now);
 		}
 	}).immediate();
 }
@@ -211,10 +249,19 @@ export function raise_alliance_process(guild_id: number, client_id: number, kind
 	const subject = kind === 'found' ? `found:${guild_id}` : kind === 'join' ? `join:${guild_id}` : kind === 'leave' ? `leave:${guild_id}`
 		: kind === 'remove' ? `alliance:${alliance_id}:member:${target}` : `alliance:${alliance_id}:market`;
 	if (db.query(`SELECT 1 FROM alliance_processes WHERE subject = ? AND stage IN ${pending}`).get(subject)) return { error: 'A proposal on this subject is already pending.' };
-	const id = Number(db.query(`INSERT INTO alliance_processes(kind,initiator_guild_id,target_guild_id,alliance_id,name,subject,created_at,expires_at)
-		VALUES(?,?,?,?,?,?,?,?)`).run(kind, guild_id, kind === 'found' || kind === 'remove' ? target : null, alliance_id, name, subject, now, now + PETITION_LIFETIME).lastInsertRowid);
+	const proposal_name = name ?? (kind === 'join' ? db.query<{name:string},[number]>('SELECT name FROM alliances WHERE id=?').get(target!)?.name : alliance?.name) ?? null;
+	const id = Number(db.query(`INSERT INTO alliance_processes(kind,initiator_guild_id,target_guild_id,alliance_id,name,subject,created_at,expires_at,governance_version)
+		VALUES(?,?,?,?,?,?,?,?,2)`).run(kind, guild_id, kind === 'found' || kind === 'remove' ? target : null, alliance_id, proposal_name, subject, now, now + PETITION_LIFETIME).lastInsertRowid);
 	if (kind === 'found' || kind === 'join') db.query('INSERT INTO alliance_pending_slots VALUES(?,?)').run(guild_id, id);
-	const petition_id = council_petition(guild_id,client_id,process(id)!,'local',`alliance_${kind}` as PetitionType,now);
+	const p = process(id)!;
+	let petition_id: number;
+	if (['remove','market_enable','market_disable'].includes(kind)) {
+		petition_id = collective(p, client_id, now)!;
+	} else {
+		petition_id = council_petition(guild_id,client_id,p,'local',`alliance_${kind}` as PetitionType,now);
+		if (kind === 'join') collective(p, client_id, now);
+		else if (kind === 'found') db.query("UPDATE alliance_processes SET stage='waiting' WHERE id=?").run(id);
+	}
 	revise(); return { success: true, process_id: id, petition_id };
 }
 export function consider_alliance_process(id: number, guild_id: number, client_id: number, withdraw: boolean, now = Date.now()): JsonObject {

@@ -6,8 +6,13 @@ import { load_sidebar_function, read_client_source } from './source.mjs';
 const root = new URL('../../', import.meta.url);
 
 function load_nav_updater(main) {
-	return load_sidebar_function(main, 'update_multiplayer_nav',
+	const load = load_sidebar_function(main, 'update_multiplayer_nav',
 		['sidebar', 'state', 'update_charitree_nav', 'getLangString', 'document', 'update_expedition_nav = () => {}']);
+	return (sidebar, state, ...args) => {
+		state.guild_state ??= { guild: { is_public: false } };
+		state.visible_guild_applicants ??= [];
+		return load(sidebar, state, ...args);
+	};
 }
 
 function make_sidebar() {
@@ -161,17 +166,18 @@ test('preserves feature gates across native expansion and collapse across state 
 test('prioritizes a Melded Crucible Wish over Reclaim readiness', async () => {
  const main = await read_client_source(root);
  const sidebar = make_sidebar();
- const state = { guild_state_loaded: true, is_guild_member: true, is_social_only: false,
-  crucible: { is_open: true, next_reclaim_at: 0, wishes: [{ phase: 'melded', owned: true }] } };
+ const state = { guild_state_loaded: true, is_connected: true, is_guild_member: true, is_social_only: false,
+  crucible_reclaim_block() { return this.crucible.next_reclaim_at > Date.now() ? 'cooldown' : null; },
+  crucible: { is_open: true, next_reclaim_at: 0, offerings: [{}], wishes: [{ phase: 'melded', owned: true }] } };
  const update = load_sidebar_function(main, 'update_charitree_nav',
   ['sidebar', 'state', 'document', 'getLangString'])(
    sidebar.sidebar, state, sidebar.document, value => value);
  update();
- assert.equal(sidebar.charity_aside.textContent, 'MOD_MP_CRUCIBLE_WISH_READY');
+ assert.equal(sidebar.charity_aside.textContent, 'MOD_MP_SIDEBAR_CHARITY_WISH');
  assert.equal(sidebar.charity_aside.classList.contains('mp-nav-ready'), true);
  state.crucible.wishes = [];
  update();
- assert.equal(sidebar.charity_aside.textContent, 'MOD_MP_CRUCIBLE_RECLAIM');
+ assert.equal(sidebar.charity_aside.textContent, 'MOD_MP_SIDEBAR_CRUCIBLE_RECLAIM');
  state.crucible.next_reclaim_at = Date.now() + 60_000;
  update();
  assert.equal(sidebar.charity_aside.textContent, '');
@@ -206,7 +212,7 @@ test('shows a localized Guild onboarding badge only while Guildless', async () =
 	assert.equal(guild_page.sidebarItem.asideLangID, 'MOD_MP_SIDEBAR_GUILD_START');
 	assert.equal(english.MOD_MP_SIDEBAR_GUILD_START, 'start here');
 	assert.equal(chinese.MOD_MP_SIDEBAR_GUILD_START, '从这里开始');
-	assert.match(main, /const guild_aside = document\.querySelector\('\.mp-guild-nav'\);[\s\S]*const ready = state\.guild_state_loaded;[\s\S]*set_nav_ready\(guild_aside, ready\);[\s\S]*MOD_MP_SIDEBAR_GUILD_START/);
+	assert.match(main, /const aside = document\.querySelector\('\.mp-guild-nav'\);[\s\S]*const ready = state\.guild_state_loaded;[\s\S]*set_nav_ready\(aside, ready\);[\s\S]*MOD_MP_SIDEBAR_GUILD_START/);
 	assert.match(style, /\.mp-guild-nav \{[\s\S]*background: #179cd8;/);
 	assert.match(style, /\.mp-guild-nav:empty \{[\s\S]*display: none;/);
 	assert.match(style, /\.mp-guild-nav:not\(\.mp-nav-ready\),[\s\S]*\.mp-updates-nav:not\(\.mp-nav-ready\) \{[\s\S]*display: none;/);

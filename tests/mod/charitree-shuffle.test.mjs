@@ -198,7 +198,7 @@ test('Crucible Max quotes aggregate display by currency while keeping sequential
 	let submitted;
 	let modal;
 	const actions = install_crucible_actions({
-		state, game: {}, transfer_currency_support: {
+		state, update_charitree_nav: () => {}, game: {}, transfer_currency_support: {
 			get_transfer_currencies: () => entries,
 			get_transfer_currency_cap: () => 1000,
 			is_transfer_currency: () => true

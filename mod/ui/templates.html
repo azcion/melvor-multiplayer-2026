@@ -43,7 +43,7 @@
 		<section class="mp-expedition-shell" :aria-label="getLangString('MOD_MP_PAGE_EXPEDITION')">
 			<div class="mp-expedition-tabs" role="tablist" :aria-label="getLangString('MOD_MP_EXPEDITION_VIEWS')">
 				<button type="button" class="mp-expedition-button" role="tab" id="mp-expedition-chamber-tab" aria-controls="mp-expedition-chamber-view" :aria-selected="state.expedition_mobile_tab === 'chamber'" :class="{ 'mp-expedition-button-secondary': state.expedition_mobile_tab !== 'chamber' }" @click="state.expedition_mobile_tab = 'chamber'"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CHAMBER"></lang-string></button>
-				<button type="button" class="mp-expedition-button" role="tab" id="mp-expedition-journey-tab" aria-controls="mp-expedition-journey-view" :aria-selected="state.expedition_mobile_tab === 'journey'" :class="{ 'mp-expedition-button-secondary': state.expedition_mobile_tab !== 'journey' }" @click="state.expedition_mobile_tab = 'journey'"><lang-string lang-id="MOD_MP_EXPEDITION_UI_JOURNEY"></lang-string></button>
+				<button type="button" class="mp-expedition-button" role="tab" id="mp-expedition-journey-tab" aria-controls="mp-expedition-journey-view" :aria-selected="state.expedition_mobile_tab === 'journey'" :class="{ 'mp-expedition-button-secondary': state.expedition_mobile_tab !== 'journey' }" @click="state.expedition_mobile_tab = 'journey'"><lang-string lang-id="MOD_MP_EXPEDITION_UI_JOURNEY"></lang-string><span class="badge mp-expedition-vote-badge" v-if="state.expedition_needs_vote()"><lang-string lang-id="MOD_MP_VOTE_BADGE"></lang-string></span></button>
 			</div>
 			<p class="mp-expedition-message" v-if="state.expedition_loading && !state.expedition_state && !state.expedition_personal"><lang-string lang-id="MOD_MP_EXPEDITION_UI_LOADING_EXPEDITION"></lang-string></p>
 			<div class="mp-expedition-panel mp-expedition-notice" v-if="state.expedition_pending_report">
@@ -178,26 +178,14 @@
 								</section>
 							</div>
 							<div class="mp-expedition-side-column">
-								<section class="mp-expedition-panel mp-expedition-passage-overview" v-if="(state.expedition_state?.expedition?.chamber?.vote?.opened_at != null || state.expedition_state?.expedition?.chamber?.vote?.locked_at != null) && state.expedition_state?.expedition?.chamber?.exits?.length">
-									<h3>{{ state.expedition_state?.expedition?.chamber?.vote?.locked_at ? getLangString('MOD_MP_EXPEDITION_CHOSEN_PASSAGE') : state.expedition_state?.expedition?.chamber?.exits?.length === 1 ? getLangString('MOD_MP_EXPEDITION_PASSAGE_AHEAD') : getLangString('MOD_MP_EXPEDITION_PASSAGES') }}</h3>
-									<p class="mp-expedition-preview-notice" role="note" v-if="state.expedition_state?.expedition?.chamber?.exits?.length > 1 && state.expedition_state?.expedition?.chamber?.preview_exit_id && !state.expedition_state?.expedition?.chamber?.vote?.locked_at"><lang-string lang-id="MOD_MP_EXPEDITION_UI_WHILE_IN_PREVIEW_THE_EXPEDITION_FOLLOWS_A_FIXED_ROUTE_ONLY_ONE_PASSAGE_CAN_"></lang-string></p>
-									<div class="mp-expedition-exits">
-										<div class="mp-expedition-passage-card" v-for="edge in (state.expedition_state?.expedition?.chamber?.exits || []).filter(edge => !state.expedition_state?.expedition?.chamber?.vote?.locked_at || edge.id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id)" :key="edge.id">
-											<div class="mp-expedition-exit-art"><div class="mp-expedition-exit-unknown" v-if="edge.label === '???'"></div><img class="mp-expedition-exit-background" v-else :src="state.expedition_exit_art_url(edge.label)" alt=""><img :src="state.expedition_exit_gateway_url(state.expedition_state?.expedition?.chamber?.id, edge.slot)" alt=""></div>
-											<strong>{{ state.expedition_passage_name(edge.slot, state.expedition_state?.expedition?.chamber?.exits?.length) }} · {{ state.expedition_display_label(edge.label) }}</strong>
-											<p v-if="state.expedition_state?.expedition?.chamber?.vote?.locked_at"><lang-string lang-id="MOD_MP_EXPEDITION_UI_ROUTE_LOCKED_PREPARE_THIS_PASSAGE_TO_DEPART"></lang-string></p>
-											<button type="button" class="mp-expedition-button" v-if="state.expedition_state?.expedition?.chamber?.exits?.length > 1 && state.expedition_state?.expedition?.registered && !state.expedition_state?.expedition?.chamber?.vote?.locked_at && (!state.expedition_state?.expedition?.chamber?.preview_exit_id || edge.id === state.expedition_state?.expedition?.chamber?.preview_exit_id)" :disabled="state.expedition_action_pending || state.expedition_vote_cooldown_until > 0" @click="state.vote_expedition_exit(edge.id)">{{ state.expedition_state?.expedition?.chamber?.vote?.ballot === edge.id ? getLangString('MOD_MP_EXPEDITION_VOTED_CHANGE') : getLangString('MOD_MP_EXPEDITION_VOTE_PASSAGE') }}</button>
-											<span class="mp-expedition-preview-unavailable" v-if="state.expedition_state?.expedition?.chamber?.preview_exit_id && edge.id !== state.expedition_state?.expedition?.chamber?.preview_exit_id && !state.expedition_state?.expedition?.chamber?.vote?.locked_at"><lang-string lang-id="MOD_MP_EXPEDITION_UI_VOTING_UNAVAILABLE"></lang-string></span>
-										</div>
-									</div>
-									<p class="mp-expedition-vote-timer" v-if="state.expedition_state?.expedition?.chamber?.vote?.deadline_at && !state.expedition_state?.expedition?.chamber?.vote?.locked_at">{{ state.expedition_text('MOD_MP_EXPEDITION_VOTE_CLOSES_IN', state.expedition_time_remaining(state.expedition_state?.expedition?.chamber?.vote?.deadline_at)) }}</p>
-								</section>
+								<div class="mp-expedition-desktop-passages" v-scope="{ $template: '#template-mp-expedition-passages' }"></div>
 							</div>
 						</div>
 					</div>
 				</div>
 			</div>
 			<div id="mp-expedition-journey-view" :class="{ 'mp-expedition-mobile-hidden': state.expedition_mobile_tab !== 'journey' }" aria-labelledby="mp-expedition-journey-tab">
+				<div class="mp-expedition-mobile-passages" v-scope="{ $template: '#template-mp-expedition-passages' }"></div>
 				<p class="mp-expedition-message" v-if="!state.expedition_state?.expedition && !state.expedition_personal"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOUR_JOURNEY_WILL_APPEAR_HERE_AFTER_AN_EXPEDITION_BEGINS"></lang-string></p>
 				<div class="mp-expedition-panel" v-if="state.expedition_state?.expedition?.history?.length || state.expedition_state?.expedition?.chamber">
 					<h3><lang-string lang-id="MOD_MP_EXPEDITION_UI_VISITED_CHAMBERS"></lang-string></h3>
@@ -223,6 +211,22 @@
 			</div>
 		</section>
 	</div>
+</template>
+<template id="template-mp-expedition-passages">
+	<section class="mp-expedition-panel mp-expedition-passage-overview" v-if="(state.expedition_state?.expedition?.chamber?.vote?.opened_at != null || state.expedition_state?.expedition?.chamber?.vote?.locked_at != null) && state.expedition_state?.expedition?.chamber?.exits?.length">
+		<h3>{{ state.expedition_state?.expedition?.chamber?.vote?.locked_at ? getLangString('MOD_MP_EXPEDITION_CHOSEN_PASSAGE') : state.expedition_state?.expedition?.chamber?.exits?.length === 1 ? getLangString('MOD_MP_EXPEDITION_PASSAGE_AHEAD') : getLangString('MOD_MP_EXPEDITION_PASSAGES') }}</h3>
+		<p class="mp-expedition-preview-notice" role="note" v-if="state.expedition_state?.expedition?.chamber?.exits?.length > 1 && state.expedition_state?.expedition?.chamber?.preview_exit_id && !state.expedition_state?.expedition?.chamber?.vote?.locked_at"><lang-string lang-id="MOD_MP_EXPEDITION_UI_WHILE_IN_PREVIEW_THE_EXPEDITION_FOLLOWS_A_FIXED_ROUTE_ONLY_ONE_PASSAGE_CAN_"></lang-string></p>
+		<div class="mp-expedition-exits">
+			<div class="mp-expedition-passage-card" v-for="edge in (state.expedition_state?.expedition?.chamber?.exits || []).filter(edge => !state.expedition_state?.expedition?.chamber?.vote?.locked_at || edge.id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id)" :key="edge.id">
+				<div class="mp-expedition-exit-art"><div class="mp-expedition-exit-unknown" v-if="edge.label === '???'"></div><img class="mp-expedition-exit-background" v-else :src="state.expedition_exit_art_url(edge.label)" alt=""><img :src="state.expedition_exit_gateway_url(state.expedition_state?.expedition?.chamber?.id, edge.slot)" alt=""></div>
+				<strong>{{ state.expedition_passage_name(edge.slot, state.expedition_state?.expedition?.chamber?.exits?.length) }} · {{ state.expedition_display_label(edge.label) }}</strong>
+				<p v-if="state.expedition_state?.expedition?.chamber?.vote?.locked_at"><lang-string lang-id="MOD_MP_EXPEDITION_UI_ROUTE_LOCKED_PREPARE_THIS_PASSAGE_TO_DEPART"></lang-string></p>
+				<button type="button" class="mp-expedition-button" v-if="state.expedition_state?.expedition?.chamber?.exits?.length > 1 && state.expedition_state?.expedition?.registered && !state.expedition_state?.expedition?.chamber?.vote?.locked_at && (!state.expedition_state?.expedition?.chamber?.preview_exit_id || edge.id === state.expedition_state?.expedition?.chamber?.preview_exit_id)" :disabled="state.expedition_action_pending || state.expedition_vote_cooldown_until > 0" @click="state.vote_expedition_exit(edge.id)">{{ state.expedition_state?.expedition?.chamber?.vote?.ballot === edge.id ? getLangString('MOD_MP_EXPEDITION_VOTED_CHANGE') : getLangString('MOD_MP_EXPEDITION_VOTE_PASSAGE') }}</button>
+				<span class="mp-expedition-preview-unavailable" v-if="state.expedition_state?.expedition?.chamber?.preview_exit_id && edge.id !== state.expedition_state?.expedition?.chamber?.preview_exit_id && !state.expedition_state?.expedition?.chamber?.vote?.locked_at"><lang-string lang-id="MOD_MP_EXPEDITION_UI_VOTING_UNAVAILABLE"></lang-string></span>
+			</div>
+		</div>
+		<p class="mp-expedition-vote-timer" v-if="state.expedition_state?.expedition?.chamber?.vote?.deadline_at && !state.expedition_state?.expedition?.chamber?.vote?.locked_at">{{ state.expedition_text('MOD_MP_EXPEDITION_VOTE_CLOSES_IN', state.expedition_time_remaining(state.expedition_state?.expedition?.chamber?.vote?.deadline_at)) }}</p>
+	</section>
 </template>
 <template id="template-mp-raid-page">
 	<div class="content d-none" id="mp-raid-page">
@@ -479,6 +483,17 @@
 			</div>
 		</template>
 		<div class="text-danger" v-if="state.member_actions_error">{{ state.member_actions_error }}</div>
+	</div>
+</template>
+<template id="template-mp-cheat-mods-modal">
+	<div class="mp-active-mods-modal">
+		<p class="text-left"><lang-string lang-id="MOD_MP_GUILD_CHEATS_DESCRIPTION"></lang-string></p>
+		<ol class="mp-active-mods-list">
+			<li v-for="mod_name in state.viewed_cheat_mods" :key="mod_name">{{ mod_name }}</li>
+		</ol>
+		<p class="text-left" v-if="state.viewed_cheat_mods.length === 0"><lang-string lang-id="MOD_MP_GUILD_CHEATS_UNAVAILABLE"></lang-string></p>
+		<p class="mt-4 text-left"><mp-lang-string-f lang-id="MOD_MP_GUILD_CHEATS_LAST_DETECTED" :lang-arg-1="state.viewed_cheats_elapsed"></mp-lang-string-f></p>
+		<button type="button" class="btn btn-secondary mt-3" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
 	</div>
 </template>
 <template id="template-mp-active-mods-modal">
@@ -985,7 +1000,7 @@
 <template id="template-mp-council-banishment-modal">
 	<div class="mp-council-petition-description"><em><lang-string lang-id="MOD_MP_COUNCIL_BANISHMENT_DESCRIPTION"></lang-string></em></div>
 	<hr class="mp-council-modal-rule">
-	<div class="mp-council-target-list">
+	<div class="mp-council-target-list" @touchmove="state.stop_icon_scroll_propagation($event)">
 		<button type="button" class="btn btn-outline-danger mp-guild-person" v-for="member in state.council_banishment_members" @click="state.submit_council_petition($event, 'banishment', member.client_id)"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><img class="skill-icon-xs" :src="state.get_avatar_icon(member.icon_id)"><span>{{ member.display_name }}</span><span class="badge badge-secondary" v-if="member.shadowed === true"><lang-string lang-id="MOD_MP_GUILD_SHADOWED"></lang-string></span><span class="badge badge-info" v-if="member.client_id === state.guild_client_id"><lang-string lang-id="MOD_MP_GUILD_YOU"></lang-string></span></button>
 	</div>
 	<div class="text-danger mt-3" v-if="state.council_error">{{ state.council_error }}</div>
@@ -1006,206 +1021,346 @@
 	<div class="content d-none" id="mp-guild-page">
 		<div class="mp-guild-page-layout">
 			<div v-show="state.guild_page_view === 'member'">
-				<div class="block block-rounded block-link-pop border-top mp-guild-border border-4x">
-					<div class="block-content mp-guild-summary">
-						<img class="mp-guild-summary-icon" :src="state.get_guild_icon(state.guild_state.guild?.icon_id)">
-						<div>
-							<div class="font-size-sm text-muted" v-if="state.get_guild_established_days() !== null"><lang-string lang-id="MOD_MP_GUILD_ESTABLISHED"></lang-string> <strong>{{ state.get_guild_established_days() }}</strong> <lang-string lang-id="MOD_MP_GUILD_DAYS_AGO"></lang-string></div>
-							<h3 class="font-w600 mb-1">{{ state.guild_state.guild?.name }}</h3>
-							<mp-lang-string-f :lang-id="state.guild_member_count === 1 ? (state.guild_active_member_count === state.guild_member_count ? 'MOD_MP_GUILD_MEMBER_COUNT_ONE' : 'MOD_MP_GUILD_MEMBER_ACTIVE_COUNT_ONE') : (state.guild_active_member_count === state.guild_member_count ? 'MOD_MP_GUILD_MEMBER_COUNT' : 'MOD_MP_GUILD_MEMBER_ACTIVE_COUNT')" :lang-arg-1="state.guild_member_count" :lang-arg-2="state.guild_active_member_count"></mp-lang-string-f>
-						</div>
-					</div>
+				<div class="mp-guild-tabs" role="tablist">
+					<button type="button" class="btn" role="tab" :aria-selected="state.guild_visible_tab === 'guild'" aria-controls="mp-guild-guild-column" @click="state.guild_mobile_tab = 'guild'"><lang-string lang-id="MOD_MP_PAGE_GUILD"></lang-string><span class="badge mp-guild-tab-badge" v-show="state.visible_guild_applicants.length > 0">{{ state.visible_guild_applicants.length }}</span></button>
+					<button type="button" class="btn" role="tab" :aria-selected="state.guild_visible_tab === 'council'" aria-controls="mp-guild-council-column" @click="state.guild_mobile_tab = 'council'" v-show="state.guild_state.guild?.capabilities?.council"><lang-string lang-id="MOD_MP_COUNCIL"></lang-string><span class="badge mp-guild-tab-badge" v-if="state.council_needs_vote"><lang-string lang-id="MOD_MP_VOTE_BADGE"></lang-string></span></button>
+					<button type="button" class="btn" role="tab" :aria-selected="state.guild_visible_tab === 'alliance'" aria-controls="mp-guild-alliance-column" @click="state.guild_mobile_tab = 'alliance'" v-show="state.alliance_access"><lang-string lang-id="MOD_MP_ALLIANCE_TITLE"></lang-string><span class="badge mp-guild-tab-badge" v-if="state.alliance_needs_vote"><lang-string lang-id="MOD_MP_VOTE_BADGE"></lang-string></span></button>
 				</div>
-
-				<div class="mp-guild-columns">
-					<div class="block block-rounded mp-guild-activity">
-						<div class="block-header block-header-default">
-							<h3 class="block-title"><lang-string lang-id="MOD_MP_GUILD_ACTIVITY"></lang-string></h3>
-							<span class="font-size-sm text-muted" v-show="state.guild_activity_loading"><lang-string lang-id="MOD_MP_LOADING"></lang-string></span>
-						</div>
-						<div class="block-content p-0 mp-guild-activity-scroll">
-							<div class="mp-guild-activity-event" v-for="event in state.guild_activity" :key="event.id">
-								<mp-lang-string-f :lang-id="state.get_guild_activity_lang_id(event)" :lang-arg-1="state.get_guild_activity_arg_1(event)" :lang-arg-2="state.get_guild_activity_arg_2(event)" :lang-arg-3="state.get_guild_activity_arg_3(event)"></mp-lang-string-f>
-								<div class="mp-guild-activity-meta">
-									<span class="font-size-sm text-muted">{{ state.format_guild_activity_time(event.created_at) }}</span>
-									<span class="font-size-sm text-muted mp-guild-activity-private" v-if="event.private"><lang-string lang-id="MOD_MP_GUILD_ACTIVITY_PRIVATE"></lang-string></span>
-								</div>
-							</div>
-							<div class="p-3 text-muted" v-show="!state.guild_activity_loading && !state.guild_activity_error && state.guild_activity.length === 0"><lang-string lang-id="MOD_MP_GUILD_ACTIVITY_EMPTY"></lang-string></div>
-							<div class="p-3 text-danger" v-show="state.guild_activity_error"><lang-string lang-id="MOD_MP_GUILD_ACTIVITY_FAILED"></lang-string></div>
-							<div class="block-content text-center" v-show="state.guild_activity_cursor !== null">
-								<button type="button" class="btn btn-sm btn-secondary" @click="state.load_more_guild_activity()" :disabled="state.guild_activity_loading"><lang-string lang-id="MOD_MP_BUTTON_LOAD_MORE"></lang-string></button>
-							</div>
-						</div>
-					</div>
-					<div class="block block-rounded">
-						<div class="block-header block-header-default">
-							<div>
-								<h3 class="block-title"><lang-string lang-id="MOD_MP_GUILD_MEMBERS"></lang-string></h3>
-							</div>
-							<span class="font-size-sm text-muted" v-show="state.is_free_fellowship && state.guild_member_directory_loading"><lang-string lang-id="MOD_MP_LOADING"></lang-string></span>
-						</div>
-						<div class="block-content mp-member-search-wrapper" v-show="state.is_free_fellowship">
-							<input class="mp-input-text w-100" type="search" v-model="state.guild_member_search" :placeholder="state.get_free_fellowship_search_placeholder()" @change="state.search_guild_members()">
-						</div>
-						<div class="block-content p-0 mp-guild-members-scroll">
-							<template v-for="(member, member_index) in state.guild_members">
-							<button type="button" class="mp-guild-person mp-guild-member-button" @click="state.show_member_actions(member)">
-								<div class="mp-guild-member-dlc-indicators" v-if="state.get_member_owned_dlc(member).length > 0">
-									<div class="mp-guild-member-dlc-indicator" v-for="namespace in state.get_member_owned_dlc(member)" :key="namespace">
-										<span :class="state.get_owned_dlc_status_class(namespace)">•</span>
-									</div>
-								</div>
-								<img class="mp-guild-member-avatar skill-icon-xs" :src="state.get_avatar_icon(member.icon_id)">
-								<div class="mp-guild-member-content">
-									<div class="mp-guild-member-row">
-										<span class="mp-guild-member-name">
-											<span class="font-w600">{{ member.display_name }}</span>
-										</span>
-										<span class="mp-guild-member-activities" v-if="state.get_status_activities(member).length">
-											<template v-for="(activity, activity_index) in state.get_status_activities(member).slice(0, 3)">
-												<img class="mp-member-activity-icon" :key="activity_index" :src="state.get_status_activity_icon(activity)" :alt="state.get_status_activity_name(activity)">
-											</template>
-											<span class="badge badge-info mp-guild-member-activity-more" v-if="state.get_status_activities(member).length > 3">+{{ state.get_status_activities(member).length - 3 }}</span>
-										</span>
-									</div>
-									<div class="mp-guild-member-row">
-										<span class="mp-guild-member-gp" v-if="member.gp !== null">
-											<img src="assets/media/main/coins.png" alt="">{{ state.format_shared_gp(member.gp) }}
-										</span>
-										<span class="font-size-sm text-muted mp-guild-member-last-seen">
-											<mp-lang-string-f :lang-id="state.get_last_seen_lang_id(member.last_seen_at, member.client_id === state.guild_client_id)" :lang-arg-1="state.get_last_seen_value(member.last_seen_at)"></mp-lang-string-f>
-										</span>
-									</div>
-									<div class="mp-guild-member-tags">
-										<span class="badge mp-guild-raid-defeats" v-if="(member.raid_defeats ?? 0) > 0"><mp-lang-string-f lang-id="MOD_MP_RAID_MEMBER_DEFEATS" :lang-arg-1="member.raid_defeats"></mp-lang-string-f><img src="https://cdn2-main.melvor.net/assets/media/bank/skull.png" alt=""></span>
-										<span class="badge badge-info" v-if="member.client_id === state.guild_client_id">
-											<lang-string lang-id="MOD_MP_GUILD_YOU"></lang-string>
-										</span>
-										<span class="badge mp-guild-new-member-badge" v-if="member.client_id !== state.guild_client_id && state.is_new_guild_member(member.joined_at)">
-											<lang-string lang-id="MOD_MP_GUILD_NEW_MEMBER"></lang-string>
-										</span>
-										<span class="badge mp-guild-new-member-badge mp-guild-dev-badge" v-if="member.dev_badge">
-											<lang-string lang-id="MOD_MP_GUILD_DEV"></lang-string>
-										</span>
-										<span class="badge mp-guild-new-member-badge mp-guild-dev-badge" v-if="member.sae_dev_badge">
-											<lang-string lang-id="MOD_MP_GUILD_DEV_SAE"></lang-string>
-										</span>
-										<span class="badge badge-info" v-if="member.social_mode === 'social'">
-											<lang-string lang-id="MOD_MP_SOCIAL_MODE_SOCIAL"></lang-string>
-										</span>
-										<span class="badge mp-guild-cheats-badge" v-if="member.using_cheats">
-											<lang-string lang-id="MOD_MP_GUILD_USING_CHEATS"></lang-string>
-										</span>
-									</div>
-								</div>
-								<img class="mp-game-mode-icon" v-if="state.get_roster_game_mode(member)" :src="state.get_roster_game_mode(member)?.media || 'assets/media/main/question.png'" :alt="state.get_roster_game_mode(member)?.name || ''">
-							</button>
-							<hr class="mp-member-actions-rule mp-guild-member-rule" v-show="member_index < state.guild_members.length - 1">
-							</template>
-							<div class="block-content text-center" v-show="state.is_free_fellowship && state.guild_member_directory_has_more">
-								<button type="button" class="btn btn-sm btn-secondary" @click="state.load_more_guild_members()" :disabled="state.guild_member_directory_loading"><lang-string lang-id="MOD_MP_BUTTON_LOAD_MORE"></lang-string></button>
-							</div>
-						</div>
-					</div>
-
-					<div class="block block-rounded mp-guild-applicants-block" v-show="!state.is_free_fellowship">
-						<div class="block-header block-header-default">
-							<h3 class="block-title"><lang-string lang-id="MOD_MP_GUILD_APPLICANTS"></lang-string></h3>
-							<span class="badge badge-success">{{ state.guild_applicants.length }}</span>
-						</div>
-						<div class="block-content p-0" v-if="state.guild_applicants.length > 0">
-							<div class="mp-guild-person mp-guild-applicant" v-for="application in state.guild_applicants">
-								<img class="skill-icon-xs" :src="state.get_avatar_icon(application.icon_id)">
-								<span class="font-w600">{{ application.display_name }}</span>
-								<div class="mp-guild-person-actions">
-									<button type="button" class="btn btn-sm btn-success" @click="state.decide_guild_application($event, application, true)">
-										<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-										<lang-string lang-id="MOD_MP_BUTTON_APPROVE"></lang-string>
-									</button>
-									<button type="button" class="btn btn-sm btn-danger" @click="state.decide_guild_application($event, application, false)">
-										<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-										<lang-string lang-id="MOD_MP_BUTTON_REJECT"></lang-string>
-									</button>
+				<div class="mp-guild-columns" :class="{ 'mp-guild-columns-with-alliance': state.alliance_access }">
+					<div id="mp-guild-guild-column" class="mp-guild-column" :class="{ 'mp-guild-mobile-hidden': state.guild_visible_tab !== 'guild' }">
+						<div class="block block-rounded">
+							<div class="block-content mp-guild-summary">
+								<img class="mp-guild-summary-icon" :src="state.get_guild_icon(state.guild_state.guild?.icon_id)">
+								<div>
+									<div class="font-size-sm text-muted" v-if="state.get_guild_established_days() !== null"><lang-string lang-id="MOD_MP_GUILD_ESTABLISHED"></lang-string> <strong>{{ state.get_guild_established_days() }}</strong> <lang-string lang-id="MOD_MP_GUILD_DAYS_AGO"></lang-string></div>
+									<h3 class="font-w600 mb-1">{{ state.guild_state.guild?.name }}</h3>
+									<mp-lang-string-f :lang-id="state.guild_member_count === 1 ? (state.guild_active_member_count === state.guild_member_count ? 'MOD_MP_GUILD_MEMBER_COUNT_ONE' : 'MOD_MP_GUILD_MEMBER_ACTIVE_COUNT_ONE') : (state.guild_active_member_count === state.guild_member_count ? 'MOD_MP_GUILD_MEMBER_COUNT' : 'MOD_MP_GUILD_MEMBER_ACTIVE_COUNT')" :lang-arg-1="state.guild_member_count" :lang-arg-2="state.guild_active_member_count"></mp-lang-string-f>
 								</div>
 							</div>
 						</div>
-						<div class="block-content text-muted" v-else>
-							<lang-string lang-id="MOD_MP_MODAL_NO_GUILD_APPLICANTS"></lang-string>
-						</div>
-					</div>
-				</div>
-
-				<div class="block block-rounded mp-alliance" v-show="state.alliance_access && state.is_guild_member">
-					<div class="block-header block-header-default"><h3 class="block-title"><lang-string lang-id="MOD_MP_ALLIANCE_TITLE"></lang-string></h3></div>
-					<div class="block-content">
-						<p class="text-danger" v-if="state.alliance_error">{{ state.alliance_error }}</p>
-						<div v-if="state.alliance_state.alliance">
-							<h4>{{ state.alliance_state.alliance.name }}</h4>
-							<h5><lang-string lang-id="MOD_MP_ALLIANCE_MEMBERS"></lang-string></h5>
-							<div class="mb-2" v-for="guild in state.alliance_state.alliance.member_guilds" :key="guild.guild_id">
-								<img class="skill-icon-xs" :src="state.get_guild_icon(guild.icon_id)"> {{ guild.name }}
-								<button class="btn btn-sm btn-secondary" @click="state.preview_alliance_guild(guild.guild_id)"><lang-string lang-id="MOD_MP_ALLIANCE_PREVIEW"></lang-string></button>
-								<button class="btn btn-sm btn-outline-danger" v-if="state.alliance_state.alliance.member_guilds.length >= 3 && guild.guild_id !== state.guild_state.guild.guild_id" @click="state.alliance_action($event, 'remove', guild.guild_id)"><lang-string lang-id="MOD_MP_ALLIANCE_REMOVE"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+						<div class="block block-rounded mp-guild-applicants-block" v-if="state.visible_guild_applicants.length > 0">
+							<div class="block-header block-header-default">
+								<h3 class="mp-guild-card-title"><lang-string lang-id="MOD_MP_GUILD_APPLICANTS"></lang-string></h3>
+								<span class="badge badge-success">{{ state.visible_guild_applicants.length }}</span>
 							</div>
-							<h5 class="mt-3"><lang-string lang-id="MOD_MP_ALLIANCE_ASSEMBLY"></lang-string></h5>
-							<p><lang-string lang-id="MOD_MP_ALLIANCE_POLICIES"></lang-string>: <lang-string lang-id="MOD_MP_ALLIANCE_SHARED_MARKETPLACE"></lang-string> — {{ state.alliance_state.alliance.shared_marketplace ? getLangString('MOD_MP_ALLIANCE_ENABLED') : getLangString('MOD_MP_ALLIANCE_DISABLED') }}</p>
-							<button class="btn btn-sm btn-primary mr-2 mb-2" @click="state.alliance_action($event, state.alliance_state.alliance.shared_marketplace ? 'market_disable' : 'market_enable')">{{ state.alliance_label(state.alliance_state.alliance.shared_marketplace ? 'market_disable' : 'market_enable') }}<span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
-							<button class="btn btn-sm btn-outline-danger mb-2" @click="state.alliance_action($event, 'leave')"><lang-string lang-id="MOD_MP_ALLIANCE_LEAVE"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
-						</div>
-						<div v-else>
-							<p><lang-string lang-id="MOD_MP_ALLIANCE_UNAFFILIATED"></lang-string></p>
-							<button class="btn btn-primary mr-2 mb-2" :disabled="state.alliance_state.affiliation_pending" @click="state.show_alliance_picker('join')"><lang-string lang-id="MOD_MP_ALLIANCE_APPLY"></lang-string></button>
-							<button class="btn btn-primary mb-2" :disabled="state.alliance_state.affiliation_pending" @click="state.show_alliance_picker('found')"><lang-string lang-id="MOD_MP_ALLIANCE_FOUND"></lang-string></button>
-						</div>
-						<p class="text-muted font-size-sm"><lang-string lang-id="MOD_MP_ALLIANCE_COUNCIL_HINT"></lang-string></p>
-						<h5><lang-string lang-id="MOD_MP_ALLIANCE_FOUNDING_PROPOSALS"></lang-string> / <lang-string lang-id="MOD_MP_ALLIANCE_APPLICATIONS"></lang-string> / <lang-string lang-id="MOD_MP_ALLIANCE_POLICY_PROPOSALS"></lang-string></h5>
-						<div class="mp-council-card" v-for="proposal in state.alliance_state.processes" :key="proposal.process_id">
-							<strong>{{ state.alliance_label(proposal.kind) }}<span v-if="proposal.name">: {{ proposal.name }}</span></strong>
-							<div>{{ state.alliance_stage(proposal.stage) }}</div>
-							<div v-for="guild in proposal.founding_guilds || (proposal.applicant ? [proposal.applicant] : proposal.target_guild ? [proposal.target_guild] : [])" :key="guild?.guild_id">
-								<span>{{ guild?.name }}</span> <button class="btn btn-sm btn-secondary" v-if="guild" @click="state.preview_alliance_guild(guild.guild_id)"><lang-string lang-id="MOD_MP_ALLIANCE_PREVIEW"></lang-string></button>
+							<div class="block-content p-0" v-if="state.visible_guild_applicants.length > 0">
+								<div class="mp-guild-applicant" v-for="application in state.visible_guild_applicants" :key="application.application_id">
+								<button type="button" class="mp-guild-person mp-guild-member-button mp-guild-applicant-profile" @click="state.show_member_actions(application)">
+									<div class="mp-guild-member-dlc-indicators" v-if="state.get_member_owned_dlc(application).length > 0">
+										<div class="mp-guild-member-dlc-indicator" v-for="namespace in state.get_member_owned_dlc(application)" :key="namespace">
+											<span :class="state.get_owned_dlc_status_class(namespace)">•</span>
+										</div>
+									</div>
+									<img class="mp-guild-member-avatar skill-icon-xs" :src="state.get_avatar_icon(application.icon_id)">
+									<div class="mp-guild-member-content">
+										<div class="mp-guild-member-row">
+											<span class="mp-guild-member-name">
+												<span class="font-w600">{{ application.display_name }}</span>
+											</span>
+										</div>
+										<div class="mp-guild-member-row">
+											<span class="mp-guild-member-gp" v-if="application.gp_visible && application.gp != null">
+												<img src="assets/media/main/coins.png" alt="">{{ state.format_shared_gp(application.gp) }}
+											</span>
+										</div>
+										<div class="mp-guild-member-tags">
+											<span class="badge mp-guild-raid-defeats" v-if="(application.raid_defeats ?? 0) > 0"><mp-lang-string-f lang-id="MOD_MP_RAID_MEMBER_DEFEATS" :lang-arg-1="application.raid_defeats"></mp-lang-string-f><img src="https://cdn2-main.melvor.net/assets/media/bank/skull.png" alt=""></span>
+											<span class="badge mp-guild-new-member-badge mp-guild-dev-badge" v-if="application.dev_badge">
+												<lang-string lang-id="MOD_MP_GUILD_DEV"></lang-string>
+											</span>
+											<span class="badge mp-guild-new-member-badge mp-guild-dev-badge" v-if="application.sae_dev_badge">
+												<lang-string lang-id="MOD_MP_GUILD_DEV_SAE"></lang-string>
+											</span>
+											<span class="badge badge-info" v-if="application.social_mode === 'social'">
+												<lang-string lang-id="MOD_MP_SOCIAL_MODE_SOCIAL"></lang-string>
+											</span>
+											<span class="badge mp-guild-cheats-badge" v-if="application.using_cheats" role="button" tabindex="0"
+												@click="state.view_member_cheat_mods(application, $event)"
+												@keydown.enter.stop.prevent="state.view_member_cheat_mods(application, $event)"
+												@keydown.space.stop.prevent="state.view_member_cheat_mods(application, $event)">
+												<lang-string lang-id="MOD_MP_GUILD_USING_CHEATS"></lang-string>
+											</span>
+										</div>
+									</div>
+									<img class="mp-game-mode-icon" v-if="state.get_roster_game_mode(application)" :src="state.get_roster_game_mode(application)?.media || 'assets/media/main/question.png'" :alt="state.get_roster_game_mode(application)?.name || ''">
+								</button>
+									<div class="mp-guild-person-actions mp-guild-applicant-actions">
+										<button type="button" class="btn btn-sm btn-success" @click="state.decide_guild_application($event, application, true)">
+											<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+											<lang-string lang-id="MOD_MP_BUTTON_APPROVE"></lang-string>
+										</button>
+										<button type="button" class="btn btn-sm btn-danger" @click="state.decide_guild_application($event, application, false)">
+											<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+											<lang-string lang-id="MOD_MP_BUTTON_REJECT"></lang-string>
+										</button>
+									</div>
+								</div>
 							</div>
-							<div v-if="proposal.tally.eligible">{{ proposal.tally.aye }} / {{ proposal.tally.eligible }} <lang-string lang-id="MOD_MP_COUNCIL_AYE"></lang-string>, {{ proposal.tally.nay }} <lang-string lang-id="MOD_MP_COUNCIL_NAY"></lang-string></div>
-							<div class="font-size-sm text-muted" v-if="['local','waiting','recipient','collective'].includes(proposal.stage)">{{ new Date(proposal.expires_at).toLocaleString() }}</div>
-							<button class="btn btn-sm btn-primary" v-if="proposal.can_consider" :disabled="state.alliance_state.affiliation_pending" @click="state.alliance_action($event, 'consider', null, proposal.process_id)"><lang-string lang-id="MOD_MP_ALLIANCE_CONSIDER"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
-							<button class="btn btn-sm btn-outline-danger" v-if="proposal.can_withdraw" @click="state.alliance_action($event, 'withdraw', null, proposal.process_id)"><lang-string lang-id="MOD_MP_ALLIANCE_WITHDRAW"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+							<div class="block-content text-muted" v-else>
+								<lang-string lang-id="MOD_MP_MODAL_NO_GUILD_APPLICANTS"></lang-string>
+							</div>
 						</div>
-					</div>
-				</div>
+						<div class="block block-rounded">
+							<div class="block-header block-header-default">
+								<div>
+									<h3 class="mp-guild-card-title"><lang-string lang-id="MOD_MP_GUILD_MEMBERS"></lang-string></h3>
+								</div>
+								<span class="font-size-sm text-muted" v-show="state.is_free_fellowship && state.guild_member_directory_loading"><lang-string lang-id="MOD_MP_LOADING"></lang-string></span>
+							</div>
+							<div class="block-content mp-member-search-wrapper" v-show="state.is_free_fellowship">
+								<input class="mp-input-text w-100" type="search" v-model="state.guild_member_search" :placeholder="state.get_free_fellowship_search_placeholder()" @change="state.search_guild_members()">
+							</div>
+							<div class="block-content p-0 mp-guild-members-scroll">
+								<template v-for="(member, member_index) in state.guild_members">
+								<button type="button" class="mp-guild-person mp-guild-member-button" @click="state.show_member_actions(member)">
+									<div class="mp-guild-member-dlc-indicators" v-if="state.get_member_owned_dlc(member).length > 0">
+										<div class="mp-guild-member-dlc-indicator" v-for="namespace in state.get_member_owned_dlc(member)" :key="namespace">
+											<span :class="state.get_owned_dlc_status_class(namespace)">•</span>
+										</div>
+									</div>
+									<img class="mp-guild-member-avatar skill-icon-xs" :src="state.get_avatar_icon(member.icon_id)">
+									<div class="mp-guild-member-content">
+										<div class="mp-guild-member-row">
+											<span class="mp-guild-member-name">
+												<span class="font-w600">{{ member.display_name }}</span>
+											</span>
+											<span class="mp-guild-member-activities" v-if="state.get_status_activities(member).length">
+												<template v-for="(activity, activity_index) in state.get_status_activities(member).slice(0, 3)">
+													<img class="mp-member-activity-icon" :key="activity_index" :src="state.get_status_activity_icon(activity)" :alt="state.get_status_activity_name(activity)">
+												</template>
+												<span class="badge badge-info mp-guild-member-activity-more" v-if="state.get_status_activities(member).length > 3">+{{ state.get_status_activities(member).length - 3 }}</span>
+											</span>
+										</div>
+										<div class="mp-guild-member-row">
+											<span class="mp-guild-member-gp" v-if="member.gp !== null">
+												<img src="assets/media/main/coins.png" alt="">{{ state.format_shared_gp(member.gp) }}
+											</span>
+											<span class="font-size-sm text-muted mp-guild-member-last-seen">
+												<mp-lang-string-f :lang-id="state.get_last_seen_lang_id(member.last_seen_at, member.client_id === state.guild_client_id)" :lang-arg-1="state.get_last_seen_value(member.last_seen_at)"></mp-lang-string-f>
+											</span>
+										</div>
+										<div class="mp-guild-member-tags">
+											<span class="badge mp-guild-raid-defeats" v-if="(member.raid_defeats ?? 0) > 0"><mp-lang-string-f lang-id="MOD_MP_RAID_MEMBER_DEFEATS" :lang-arg-1="member.raid_defeats"></mp-lang-string-f><img src="https://cdn2-main.melvor.net/assets/media/bank/skull.png" alt=""></span>
+											<span class="badge badge-info" v-if="member.client_id === state.guild_client_id">
+												<lang-string lang-id="MOD_MP_GUILD_YOU"></lang-string>
+											</span>
+											<span class="badge mp-guild-new-member-badge" v-if="member.client_id !== state.guild_client_id && state.is_new_guild_member(member.joined_at)">
+												<lang-string lang-id="MOD_MP_GUILD_NEW_MEMBER"></lang-string>
+											</span>
+											<span class="badge mp-guild-new-member-badge mp-guild-dev-badge" v-if="member.dev_badge">
+												<lang-string lang-id="MOD_MP_GUILD_DEV"></lang-string>
+											</span>
+											<span class="badge mp-guild-new-member-badge mp-guild-dev-badge" v-if="member.sae_dev_badge">
+												<lang-string lang-id="MOD_MP_GUILD_DEV_SAE"></lang-string>
+											</span>
+											<span class="badge badge-info" v-if="member.social_mode === 'social'">
+												<lang-string lang-id="MOD_MP_SOCIAL_MODE_SOCIAL"></lang-string>
+											</span>
+											<span class="badge mp-guild-cheats-badge" v-if="member.using_cheats" role="button" tabindex="0"
+												@click="state.view_member_cheat_mods(member, $event)"
+												@keydown.enter.stop.prevent="state.view_member_cheat_mods(member, $event)"
+												@keydown.space.stop.prevent="state.view_member_cheat_mods(member, $event)">
+												<lang-string lang-id="MOD_MP_GUILD_USING_CHEATS"></lang-string>
+											</span>
+										</div>
+									</div>
+									<img class="mp-game-mode-icon" v-if="state.get_roster_game_mode(member)" :src="state.get_roster_game_mode(member)?.media || 'assets/media/main/question.png'" :alt="state.get_roster_game_mode(member)?.name || ''">
+								</button>
+								<hr class="mp-member-actions-rule mp-guild-member-rule" v-show="member_index < state.guild_members.length - 1">
+								</template>
+								<div class="block-content text-center" v-show="state.is_free_fellowship && state.guild_member_directory_has_more">
+									<button type="button" class="btn btn-sm btn-secondary" @click="state.load_more_guild_members()" :disabled="state.guild_member_directory_loading"><lang-string lang-id="MOD_MP_BUTTON_LOAD_MORE"></lang-string></button>
+								</div>
+							</div>
+						</div>
+						<div class="text-center mt-3 mp-shadowed-members-entry" v-show="state.shadowed_member_count > 0">
+							<button type="button" class="btn btn-sm btn-secondary" @click="state.show_shadowed_members_modal()"><lang-string lang-id="MOD_MP_GUILD_VIEW_SHADOWED_MEMBERS"></lang-string></button>
+						</div>
 
-				<div class="block block-rounded mp-council" v-show="state.guild_state.guild?.capabilities?.council">
-					<div class="block-header block-header-default">
-						<h3 class="block-title"><lang-string lang-id="MOD_MP_COUNCIL"></lang-string></h3>
-						<div class="mp-council-header-actions">
-							<button type="button" class="btn btn-sm btn-secondary" v-if="state.has_resolved_council_petitions" :aria-pressed="state.council_show_resolved" @click="state.toggle_resolved_council_petitions()"><i class="fa" :class="state.council_show_resolved ? 'fa-eye-slash' : 'fa-eye'"></i><span class="sr-only"><lang-string lang-id="MOD_MP_COUNCIL_TOGGLE_HISTORY"></lang-string></span></button>
-							<button type="button" class="btn btn-sm btn-primary" @click="state.show_raise_petition_modal()"><lang-string lang-id="MOD_MP_COUNCIL_RAISE"></lang-string></button>
-						</div>
 					</div>
-					<div class="block-content" v-if="state.council_loading && state.council_petitions.length === 0"><lang-string lang-id="MOD_MP_COUNCIL_LOADING"></lang-string></div>
-					<div class="block-content text-muted" v-else-if="state.visible_council_petitions.length === 0"><lang-string lang-id="MOD_MP_COUNCIL_EMPTY"></lang-string></div>
-					<div class="mp-council-list" v-else>
-						<div class="mp-council-card" v-for="petition in state.visible_council_petitions" :key="petition.petition_id">
-							<div class="mp-council-card-header"><span class="font-w600">{{ state.get_council_type_lang(petition.type) }}</span><span class="mp-council-card-badges"><span class="badge" :class="petition.current_vote === 'aye' ? 'badge-success' : 'badge-danger'" v-if="petition.current_vote">{{ state.get_council_choice_lang(petition.current_vote) }}</span><span class="badge" :class="petition.lifecycle === 'active' ? 'badge-info' : petition.lifecycle === 'granted' ? 'badge-success' : 'badge-secondary'">{{ state.get_council_outcome_lang(petition.lifecycle) }}</span></span></div>
-							<div class="mp-council-proposal" v-if="petition.type === 'appellation'">{{ petition.proposal.name }}</div>
-							<div class="mp-council-proposal" v-else-if="petition.type === 'heraldry'"><img class="skill-icon-xs" :src="state.get_guild_icon(petition.proposal.icon_id)"></div>
-							<div class="mp-council-proposal mp-guild-person" v-else-if="petition.type === 'banishment'"><img class="skill-icon-xs" :src="state.get_avatar_icon(petition.proposal.target.icon_id)"><span>{{ petition.proposal.target.display_name }}</span></div>
-							<div class="mp-council-proposal" v-else-if="petition.type === 'winnowing'"><mp-lang-string-f lang-id="MOD_MP_COUNCIL_WINNOWING_TARGETS" :lang-arg-1="petition.proposal.target_count"></mp-lang-string-f></div>
-							<div class="mp-council-proposal" v-else-if="petition.type.startsWith('alliance_')">{{ state.alliance_label(petition.proposal.kind) }} <strong>{{ petition.proposal.name }}</strong><button class="btn btn-sm btn-secondary ml-2" v-for="guild_id in petition.proposal.guild_ids || []" :key="guild_id" @click="state.preview_alliance_guild(guild_id)"><lang-string lang-id="MOD_MP_ALLIANCE_PREVIEW"></lang-string></button></div>
-							<div class="mp-council-proposal" v-else>{{ state.get_council_action_proposal(petition.type) }}</div>
-							<div class="font-size-sm text-warning" v-if="petition.lifecycle === 'granted' && ['pending', 'running', 'failed'].includes(petition.execution_state)">{{ state.get_council_execution_lang(petition.execution_state) }}</div>
-							<div class="mp-council-tally" v-if="petition.tally_visible"><div class="mp-council-tally-aye" :style="{ width: state.get_council_tally_width(petition, 'aye') }"></div><div class="mp-council-tally-nay" :style="{ width: state.get_council_tally_width(petition, 'nay') }"></div><div class="mp-council-tally-uncast" :style="{ width: state.get_council_tally_width(petition, 'uncast') }"></div><span class="mp-council-threshold"></span></div>
-							<div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_COUNCIL_TALLY_HIDDEN"></lang-string></div>
-							<div class="mp-council-actions" v-if="petition.can_vote"><button type="button" class="btn btn-sm btn-success" @click="state.vote_council_petition($event, petition, 'aye')"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_AYE"></lang-string></button><button type="button" class="btn btn-sm btn-danger" @click="state.vote_council_petition($event, petition, 'nay')"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_NAY"></lang-string></button></div>
-							<button type="button" class="btn btn-sm btn-outline-danger mt-2" v-if="petition.can_withdraw" @click="state.withdraw_council_petition($event, petition)"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_WITHDRAW"></lang-string></button>
+					<div id="mp-guild-council-column" class="mp-guild-column" :class="{ 'mp-guild-mobile-hidden': state.guild_visible_tab !== 'council' }" v-show="state.guild_state.guild?.capabilities?.council">
+						<div class="block block-rounded mp-council" v-show="state.guild_state.guild?.capabilities?.council">
+							<div class="block-header block-header-default">
+								<h3 class="mp-guild-card-title"><lang-string lang-id="MOD_MP_COUNCIL_ACTIVE"></lang-string></h3>
+								<div class="mp-council-header-actions">
+									<button type="button" class="mp-council-raise-button" :aria-label="getLangString('MOD_MP_COUNCIL_RAISE')" @click="state.show_raise_petition_modal()">+</button>
+								</div>
+							</div>
+							<div class="block-content" v-if="state.council_loading && state.council_petitions.length === 0"><lang-string lang-id="MOD_MP_COUNCIL_LOADING"></lang-string></div>
+							<div class="block-content text-muted" v-else-if="state.visible_council_petitions.length === 0"><lang-string lang-id="MOD_MP_COUNCIL_EMPTY"></lang-string></div>
+							<div class="mp-council-list" v-else>
+								<div class="mp-council-card" v-for="petition in state.visible_council_petitions" :key="petition.petition_id">
+									<div class="mp-council-card-header"><span class="font-w600">{{ petition.type.startsWith('alliance_') ? state.alliance_proposal_heading(state.alliance_petition_kind(petition)) : state.get_council_type_lang(petition.type) }}</span></div>
+									<div class="mp-council-petition-description" v-if="!petition.type.startsWith('alliance_')"><em><lang-string :lang-id="state.get_council_description_lang_id(petition.type)"></lang-string></em></div>
+									<div class="mp-council-proposal" v-if="petition.type === 'appellation'"><strong>{{ petition.proposal.name }}</strong></div>
+									<div class="mp-council-proposal" v-else-if="petition.type === 'heraldry'"><img class="skill-icon-xs" :src="state.get_guild_icon(petition.proposal.icon_id)"></div>
+									<div class="mp-council-proposal mp-guild-person" v-else-if="petition.type === 'banishment'"><img class="skill-icon-xs" :src="state.get_avatar_icon(petition.proposal.target.icon_id)"><strong>{{ petition.proposal.target.display_name }}</strong></div>
+									<div class="mp-council-proposal" v-else-if="petition.type === 'winnowing'"><mp-lang-string-f lang-id="MOD_MP_COUNCIL_WINNOWING_TARGETS" :lang-arg-1="petition.proposal.target_count"></mp-lang-string-f></div>
+									<div class="mp-council-proposal" v-else-if="petition.type.startsWith('alliance_')"><div><span v-for="(part, index) in state.alliance_proposal_parts(petition.proposal, state.alliance_petition_kind(petition))" :key="index"><button type="button" class="mp-alliance-guild-name" v-if="part.guild_id" @click="state.preview_alliance_guild(part.guild_id)">{{ part.text }}</button><strong v-else-if="part.bold">{{ part.text }}</strong><span v-else>{{ part.text }}</span></span></div><div class="font-size-sm text-muted" v-if="state.alliance_petition_collective(petition)"><lang-string lang-id="MOD_MP_ALLIANCE_COLLECTIVE_HINT"></lang-string></div></div>
+									<div class="mp-council-proposal" v-else>{{ state.get_council_action_proposal(petition.type) }}</div>
+									<div class="font-size-sm text-warning" v-if="petition.lifecycle === 'granted' && ['pending', 'running', 'failed'].includes(petition.execution_state)">{{ state.get_council_execution_lang(petition.execution_state) }}</div>
+									<div class="mp-council-tally" v-if="petition.tally_visible"><div class="mp-council-tally-aye" :style="{ width: state.get_council_tally_width(petition, 'aye') }"></div><div class="mp-council-tally-uncast" :style="{ width: state.get_council_tally_width(petition, 'uncast') }"></div><div class="mp-council-tally-nay" :style="{ width: state.get_council_tally_width(petition, 'nay') }"></div><span class="mp-council-threshold" :style="{ left: state.get_tally_threshold(petition) }"></span></div>
+									<div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_COUNCIL_TALLY_HIDDEN"></lang-string></div>
+									<div class="mp-council-counts" v-if="petition.tally_visible"><span>{{ petition.tally.aye }} <lang-string lang-id="MOD_MP_COUNCIL_AYE"></lang-string></span><span>{{ petition.tally.eligible - petition.tally.aye - petition.tally.nay }} <lang-string lang-id="MOD_MP_COUNCIL_UNCAST"></lang-string></span><span>{{ petition.tally.nay }} <lang-string lang-id="MOD_MP_COUNCIL_NAY"></lang-string></span></div>
+									<span class="mp-council-card-badges" v-if="petition.current_vote || petition.lifecycle !== 'active'"><span class="badge" :class="petition.current_vote === 'aye' ? 'badge-success' : 'badge-danger'" v-if="petition.current_vote">{{ state.get_council_choice_lang(petition.current_vote) }}</span><span class="badge" v-if="petition.lifecycle !== 'active'" :class="petition.lifecycle === 'granted' ? 'badge-success' : 'badge-secondary'">{{ state.get_council_outcome_lang(petition.lifecycle) }}</span></span>
+									<div class="mp-council-actions" v-if="petition.can_vote"><button type="button" class="btn btn-sm btn-success" @click="state.vote_council_petition($event, petition, 'aye')"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_AYE"></lang-string></button><button type="button" class="btn btn-sm btn-danger" @click="state.vote_council_petition($event, petition, 'nay')"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_NAY"></lang-string></button></div>
+									<button type="button" class="btn btn-sm btn-outline-danger mt-2" v-if="petition.can_withdraw" @click="state.withdraw_council_petition($event, petition)"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_WITHDRAW"></lang-string></button>
+								</div>
+							</div>
 						</div>
+						<div class="block block-rounded mp-guild-activity">
+							<div class="block-header block-header-default">
+								<h3 class="mp-guild-card-title"><lang-string lang-id="MOD_MP_GUILD_ACTIVITY"></lang-string></h3>
+								<span class="font-size-sm text-muted" v-show="state.guild_activity_loading"><lang-string lang-id="MOD_MP_LOADING"></lang-string></span>
+							</div>
+							<div class="block-content p-0 mp-guild-activity-scroll">
+								<div class="mp-guild-activity-event" v-for="event in state.guild_activity" :key="event.id">
+									<mp-lang-string-f :lang-id="state.get_guild_activity_lang_id(event)" :lang-arg-1="state.get_guild_activity_arg_1(event)" :lang-arg-2="state.get_guild_activity_arg_2(event)" :lang-arg-3="state.get_guild_activity_arg_3(event)"></mp-lang-string-f>
+									<div class="mp-guild-activity-meta">
+										<span class="font-size-sm text-muted">{{ state.format_guild_activity_time(event.created_at) }}</span>
+										<span class="font-size-sm text-muted mp-guild-activity-private" v-if="event.private"><lang-string lang-id="MOD_MP_GUILD_ACTIVITY_PRIVATE"></lang-string></span>
+									</div>
+								</div>
+								<div class="p-3 text-muted" v-show="!state.guild_activity_loading && !state.guild_activity_error && state.guild_activity.length === 0"><lang-string lang-id="MOD_MP_GUILD_ACTIVITY_EMPTY"></lang-string></div>
+								<div class="p-3 text-danger" v-show="state.guild_activity_error"><lang-string lang-id="MOD_MP_GUILD_ACTIVITY_FAILED"></lang-string></div>
+								<div class="block-content text-center" v-show="state.guild_activity_cursor !== null">
+									<button type="button" class="btn btn-sm btn-secondary" @click="state.load_more_guild_activity()" :disabled="state.guild_activity_loading"><lang-string lang-id="MOD_MP_BUTTON_LOAD_MORE"></lang-string></button>
+								</div>
+							</div>
+						</div>
+						<section class="block block-rounded mp-guild-history" aria-labelledby="mp-guild-history-title">
+							<h3 id="mp-guild-history-title" class="mp-guild-panel-heading"><button type="button" class="mp-guild-panel-toggle" :aria-expanded="state.council_show_resolved" aria-controls="mp-guild-history-body" @click="state.toggle_resolved_council_petitions()"><span><lang-string lang-id="MOD_MP_COUNCIL_HISTORY"></lang-string></span><i class="fa" :class="state.council_show_resolved ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></button></h3>
+							<div id="mp-guild-history-body" class="mp-guild-panel-body" v-show="state.council_show_resolved">
+								<div class="text-muted" v-show="state.closed_council_petitions.length === 0"><lang-string lang-id="MOD_MP_COUNCIL_HISTORY_EMPTY"></lang-string></div>
+								<div class="mp-council-list" v-show="state.closed_council_petitions.length > 0">
+									<div class="mp-council-card" v-for="petition in state.closed_council_petitions" :key="petition.petition_id">
+										<div class="mp-council-card-header"><span class="font-w600">{{ petition.type.startsWith('alliance_') ? state.alliance_proposal_heading(state.alliance_petition_kind(petition)) : state.get_council_type_lang(petition.type) }}</span></div>
+										<div class="mp-council-petition-description" v-if="!petition.type.startsWith('alliance_')"><em><lang-string :lang-id="state.get_council_description_lang_id(petition.type)"></lang-string></em></div>
+										<div class="mp-council-proposal" v-if="petition.type === 'appellation'"><strong>{{ petition.proposal.name }}</strong></div>
+										<div class="mp-council-proposal" v-else-if="petition.type === 'heraldry'"><img class="skill-icon-xs" :src="state.get_guild_icon(petition.proposal.icon_id)"></div>
+										<div class="mp-council-proposal mp-guild-person" v-else-if="petition.type === 'banishment'"><img class="skill-icon-xs" :src="state.get_avatar_icon(petition.proposal.target.icon_id)"><strong>{{ petition.proposal.target.display_name }}</strong></div>
+										<div class="mp-council-proposal" v-else-if="petition.type === 'winnowing'"><mp-lang-string-f lang-id="MOD_MP_COUNCIL_WINNOWING_TARGETS" :lang-arg-1="petition.proposal.target_count"></mp-lang-string-f></div>
+										<div class="mp-council-proposal" v-else-if="petition.type.startsWith('alliance_')"><div><span v-for="(part, index) in state.alliance_proposal_parts(petition.proposal, state.alliance_petition_kind(petition))" :key="index"><button type="button" class="mp-alliance-guild-name" v-if="part.guild_id" @click="state.preview_alliance_guild(part.guild_id)">{{ part.text }}</button><strong v-else-if="part.bold">{{ part.text }}</strong><span v-else>{{ part.text }}</span></span></div><div class="font-size-sm text-muted" v-if="state.alliance_petition_collective(petition)"><lang-string lang-id="MOD_MP_ALLIANCE_COLLECTIVE_HINT"></lang-string></div></div>
+										<div class="mp-council-proposal" v-else>{{ state.get_council_action_proposal(petition.type) }}</div>
+										<div class="font-size-sm text-warning" v-if="petition.lifecycle === 'granted' && ['pending', 'running', 'failed'].includes(petition.execution_state)">{{ state.get_council_execution_lang(petition.execution_state) }}</div>
+										<div class="mp-council-tally" v-if="petition.tally_visible"><div class="mp-council-tally-aye" :style="{ width: state.get_council_tally_width(petition, 'aye') }"></div><div class="mp-council-tally-uncast" :style="{ width: state.get_council_tally_width(petition, 'uncast') }"></div><div class="mp-council-tally-nay" :style="{ width: state.get_council_tally_width(petition, 'nay') }"></div><span class="mp-council-threshold" :style="{ left: state.get_tally_threshold(petition) }"></span></div>
+										<div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_COUNCIL_TALLY_HIDDEN"></lang-string></div>
+									<div class="mp-council-counts" v-if="petition.tally_visible"><span>{{ petition.tally.aye }} <lang-string lang-id="MOD_MP_COUNCIL_AYE"></lang-string></span><span>{{ petition.tally.eligible - petition.tally.aye - petition.tally.nay }} <lang-string lang-id="MOD_MP_COUNCIL_UNCAST"></lang-string></span><span>{{ petition.tally.nay }} <lang-string lang-id="MOD_MP_COUNCIL_NAY"></lang-string></span></div>
+										<span class="mp-council-card-badges" v-if="petition.current_vote || petition.lifecycle !== 'active'"><span class="badge" :class="petition.current_vote === 'aye' ? 'badge-success' : 'badge-danger'" v-if="petition.current_vote">{{ state.get_council_choice_lang(petition.current_vote) }}</span><span class="badge" v-if="petition.lifecycle !== 'active'" :class="petition.lifecycle === 'granted' ? 'badge-success' : 'badge-secondary'">{{ state.get_council_outcome_lang(petition.lifecycle) }}</span></span>
+										<div class="mp-council-actions" v-if="petition.can_vote"><button type="button" class="btn btn-sm btn-success" @click="state.vote_council_petition($event, petition, 'aye')"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_AYE"></lang-string></button><button type="button" class="btn btn-sm btn-danger" @click="state.vote_council_petition($event, petition, 'nay')"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_NAY"></lang-string></button></div>
+										<button type="button" class="btn btn-sm btn-outline-danger mt-2" v-if="petition.can_withdraw" @click="state.withdraw_council_petition($event, petition)"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_WITHDRAW"></lang-string></button>
+									</div>
+								</div>
+								<div class="block-content text-center" v-show="state.council_has_more"><button type="button" class="btn btn-sm btn-secondary" :disabled="state.council_loading" @click="state.load_more_council_petitions($event)"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_LOAD_MORE"></lang-string></button></div>
+							</div>
+						</section>
 					</div>
-					<div class="block-content text-center" v-if="state.council_show_resolved && state.council_has_more"><button type="button" class="btn btn-sm btn-secondary" @click="state.load_more_council_petitions($event)"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_LOAD_MORE"></lang-string></button></div>
+					<div id="mp-guild-alliance-column" class="mp-guild-column" :class="{ 'mp-guild-mobile-hidden': state.guild_visible_tab !== 'alliance' }" v-show="state.alliance_access && state.is_guild_member">
+						<div class="block-content mb-3" v-if="state.alliance_view.synthetic">
+							<span class="badge badge-info"><lang-string lang-id="MOD_MP_ALLIANCE_PREVIEW_DATA"></lang-string></span>
+							<button type="button" class="btn btn-sm btn-secondary ml-2" @click="state.alliance_preview_affiliated = !state.alliance_preview_affiliated">{{ getLangString(state.alliance_preview_affiliated ? 'MOD_MP_ALLIANCE_PREVIEW_UNAFFILIATED' : 'MOD_MP_ALLIANCE_PREVIEW_AFFILIATED') }}</button>
+						</div>
+						<div class="block block-rounded mp-alliance" v-show="state.alliance_access && state.is_guild_member">
+							<div class="block-content">
+								<p class="text-danger" v-if="state.alliance_error">{{ state.alliance_error }}</p>
+								<div v-if="state.alliance_view.alliance">
+									<div class="font-size-sm text-muted"><lang-string lang-id="MOD_MP_GUILD_ESTABLISHED"></lang-string> <strong>{{ state.alliance_established_days() }}</strong> <lang-string lang-id="MOD_MP_GUILD_DAYS_AGO"></lang-string></div>
+									<h3 class="font-w600 mb-1">{{ state.alliance_view.alliance?.name }}</h3>
+									<div class="mp-alliance-summary-counts"><span>{{ state.alliance_members_text(state.alliance_view.alliance) }}</span><span aria-hidden="true">·</span><span>{{ state.alliance_guild_count_text(state.alliance_view.alliance) }}</span></div>
+								</div>
+								<div v-else>
+									<h3 class="mp-guild-card-title"><lang-string lang-id="MOD_MP_ALLIANCE_TITLE"></lang-string></h3>
+									<p><lang-string lang-id="MOD_MP_ALLIANCE_UNAFFILIATED"></lang-string></p>
+									<button type="button" class="btn btn-primary mb-2" :disabled="!state.alliance_view.synthetic && state.alliance_state.affiliation_pending" @click="state.show_alliance_confirmation('join', null, null, true)"><lang-string lang-id="MOD_MP_ALLIANCE_APPLY"></lang-string></button>
+									<br><button type="button" class="btn btn-primary mb-2" :disabled="!state.alliance_view.synthetic && state.alliance_state.affiliation_pending" @click="state.show_alliance_confirmation('found', null, null, true)"><lang-string lang-id="MOD_MP_ALLIANCE_FOUND"></lang-string></button>
+									<p v-if="!state.alliance_view.synthetic && state.alliance_state.affiliation_pending"><lang-string lang-id="MOD_MP_ALLIANCE_AFFILIATION_PENDING"></lang-string></p>
+								</div>
+							</div>
+						</div>
+						<div class="block block-rounded" v-if="state.alliance_applications.length > 0">
+							<div class="block-header block-header-default"><h3 class="mp-guild-card-title"><lang-string lang-id="MOD_MP_ALLIANCE_APPLICATIONS"></lang-string></h3></div>
+							<div class="mp-council-list">
+								<div class="mp-council-card" v-for="proposal in state.alliance_applications" :key="proposal.process_id">
+									<strong>{{ state.alliance_proposal_heading(proposal.display_kind ?? proposal.kind) }}</strong>
+									<div><span v-for="(part, index) in state.alliance_proposal_parts(proposal)" :key="index"><button type="button" class="mp-alliance-guild-name" v-if="part.guild_id" @click="state.preview_alliance_guild(part.guild_id)">{{ part.text }}</button><strong v-else-if="part.bold">{{ part.text }}</strong><span v-else>{{ part.text }}</span></span></div>
+									<div v-if="state.is_alliance_process_active(proposal)">{{ state.alliance_proposal_status(proposal) }}</div>
+									<div v-if="proposal.tally.eligible">
+										<div class="mp-council-tally"><div class="mp-council-tally-aye" :style="{ width: state.get_council_tally_width(proposal, 'aye') }"></div><div class="mp-council-tally-uncast" :style="{ width: state.get_council_tally_width(proposal, 'uncast') }"></div><div class="mp-council-tally-nay" :style="{ width: state.get_council_tally_width(proposal, 'nay') }"></div><span class="mp-council-threshold" :style="{ left: state.get_tally_threshold(proposal, true) }"></span></div>
+										<div class="mp-council-counts"><span>{{ proposal.tally.aye }} <lang-string lang-id="MOD_MP_COUNCIL_AYE"></lang-string></span><span>{{ proposal.tally.eligible - proposal.tally.aye - proposal.tally.nay }} <lang-string lang-id="MOD_MP_COUNCIL_UNCAST"></lang-string></span><span>{{ proposal.tally.nay }} <lang-string lang-id="MOD_MP_COUNCIL_NAY"></lang-string></span></div>
+									</div>
+									<span class="mp-council-card-badges" v-if="proposal.own_ballot || !state.is_alliance_process_active(proposal)"><span class="badge" :class="proposal.own_ballot === 'aye' ? 'badge-success' : 'badge-danger'" v-if="proposal.own_ballot">{{ state.get_council_choice_lang(proposal.own_ballot) }}</span><span class="badge" v-if="!state.is_alliance_process_active(proposal)" :class="proposal.stage === 'accepted' ? 'badge-success' : 'badge-secondary'">{{ state.alliance_outcome(proposal.stage) }}</span></span>
+									<p class="mt-2 mb-2" v-if="proposal.consider_blocked_reason === 'affiliation_pending'"><lang-string lang-id="MOD_MP_ALLIANCE_AFFILIATION_BLOCKED"></lang-string></p>
+									<div class="mt-2" v-if="proposal.stage === 'cancelled'"><span v-for="(part, index) in state.alliance_cancellation_parts(proposal)" :key="index"><strong v-if="part.bold">{{ part.text }}</strong><span v-else>{{ part.text }}</span></span></div>
+									<button class="btn btn-sm btn-primary" v-if="proposal.can_consider" :disabled="!!proposal.consider_blocked_reason || (!state.alliance_view.synthetic && state.alliance_state.affiliation_pending)" @click="state.show_alliance_confirmation('consider', null, proposal.process_id)"><lang-string lang-id="MOD_MP_ALLIANCE_CONSIDER"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+									<button class="btn btn-sm btn-outline-danger" v-if="proposal.can_withdraw" @click="state.show_alliance_confirmation('withdraw', null, proposal.process_id)"><lang-string lang-id="MOD_MP_ALLIANCE_WITHDRAW"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+								</div>
+							</div>
+						</div>
+						<div class="block block-rounded" v-if="state.alliance_view.alliance">
+							<div class="block-header block-header-default"><h3 class="mp-guild-card-title"><lang-string lang-id="MOD_MP_ALLIANCE_MEMBERS"></lang-string></h3></div>
+							<div class="block-content p-0 mp-guild-list">
+								<div class="mp-guild-result" v-for="guild in state.alliance_member_guilds" :key="guild.guild_id">
+									<img class="mp-guild-result-icon" :src="state.get_guild_icon(guild.icon_id)">
+									<div class="mp-guild-result-content">
+										<button type="button" class="mp-alliance-roster-name" @click="state.preview_alliance_guild(guild.guild_id)">{{ guild.name }}</button>
+										<div><mp-lang-string-f :lang-id="guild.member_count === 1 ? 'MOD_MP_GUILD_MEMBER_COUNT_ONE' : 'MOD_MP_GUILD_MEMBER_COUNT'" :lang-arg-1="guild.member_count"></mp-lang-string-f></div>
+									</div>
+									<button type="button" class="btn btn-sm btn-outline-danger mb-2" v-if="guild.guild_id === state.guild_state.guild.guild_id" @click="state.show_alliance_confirmation('leave')"><lang-string lang-id="MOD_MP_ALLIANCE_LEAVE"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+									<button type="button" class="btn btn-sm btn-outline-danger" v-if="state.alliance_member_guilds.length >= 3 && guild.guild_id !== state.guild_state.guild.guild_id" @click="state.show_alliance_confirmation('remove', guild.guild_id)"><lang-string lang-id="MOD_MP_ALLIANCE_REMOVE"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+								</div>
+							</div>
+						</div>
+						<div class="block block-rounded" v-if="state.alliance_active_proposals.length > 0">
+							<div class="block-header block-header-default"><h3 class="mp-guild-card-title"><lang-string lang-id="MOD_MP_ALLIANCE_ACTIVE_PROPOSALS"></lang-string></h3></div>
+							<div class="mp-council-list">
+								<div class="mp-council-card" v-for="proposal in state.alliance_active_proposals" :key="proposal.process_id">
+									<strong>{{ state.alliance_proposal_heading(proposal.display_kind ?? proposal.kind) }}</strong>
+									<div><span v-for="(part, index) in state.alliance_proposal_parts(proposal)" :key="index"><button type="button" class="mp-alliance-guild-name" v-if="part.guild_id" @click="state.preview_alliance_guild(part.guild_id)">{{ part.text }}</button><strong v-else-if="part.bold">{{ part.text }}</strong><span v-else>{{ part.text }}</span></span></div>
+									<div v-if="state.is_alliance_process_active(proposal)">{{ state.alliance_proposal_status(proposal) }}</div>
+									<div v-if="proposal.tally.eligible">
+										<div class="mp-council-tally"><div class="mp-council-tally-aye" :style="{ width: state.get_council_tally_width(proposal, 'aye') }"></div><div class="mp-council-tally-uncast" :style="{ width: state.get_council_tally_width(proposal, 'uncast') }"></div><div class="mp-council-tally-nay" :style="{ width: state.get_council_tally_width(proposal, 'nay') }"></div><span class="mp-council-threshold" :style="{ left: state.get_tally_threshold(proposal, true) }"></span></div>
+										<div class="mp-council-counts"><span>{{ proposal.tally.aye }} <lang-string lang-id="MOD_MP_COUNCIL_AYE"></lang-string></span><span>{{ proposal.tally.eligible - proposal.tally.aye - proposal.tally.nay }} <lang-string lang-id="MOD_MP_COUNCIL_UNCAST"></lang-string></span><span>{{ proposal.tally.nay }} <lang-string lang-id="MOD_MP_COUNCIL_NAY"></lang-string></span></div>
+									</div>
+									<span class="mp-council-card-badges" v-if="proposal.own_ballot || !state.is_alliance_process_active(proposal)"><span class="badge" :class="proposal.own_ballot === 'aye' ? 'badge-success' : 'badge-danger'" v-if="proposal.own_ballot">{{ state.get_council_choice_lang(proposal.own_ballot) }}</span><span class="badge" v-if="!state.is_alliance_process_active(proposal)" :class="proposal.stage === 'accepted' ? 'badge-success' : 'badge-secondary'">{{ state.alliance_outcome(proposal.stage) }}</span></span>
+									<p class="mt-2 mb-2" v-if="proposal.consider_blocked_reason === 'affiliation_pending'"><lang-string lang-id="MOD_MP_ALLIANCE_AFFILIATION_BLOCKED"></lang-string></p>
+									<div class="mt-2" v-if="proposal.stage === 'cancelled'"><span v-for="(part, index) in state.alliance_cancellation_parts(proposal)" :key="index"><strong v-if="part.bold">{{ part.text }}</strong><span v-else>{{ part.text }}</span></span></div>
+									<button class="btn btn-sm btn-primary" v-if="proposal.can_consider" :disabled="!!proposal.consider_blocked_reason || (!state.alliance_view.synthetic && state.alliance_state.affiliation_pending)" @click="state.show_alliance_confirmation('consider', null, proposal.process_id)"><lang-string lang-id="MOD_MP_ALLIANCE_CONSIDER"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+									<button class="btn btn-sm btn-outline-danger" v-if="proposal.can_withdraw" @click="state.show_alliance_confirmation('withdraw', null, proposal.process_id)"><lang-string lang-id="MOD_MP_ALLIANCE_WITHDRAW"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+								</div>
+							</div>
+						</div>
+						<div class="block block-rounded" v-if="state.alliance_view.alliance">
+							<div class="block-header block-header-default"><h3 class="mp-guild-card-title"><lang-string lang-id="MOD_MP_ALLIANCE_POLICIES"></lang-string></h3></div>
+							<div class="block-content">
+									<div class="mp-policy-card">
+									<div class="mp-policy-card-header"><strong><lang-string lang-id="MOD_MP_ALLIANCE_SHARED_MARKETPLACE"></lang-string></strong><span class="badge" :class="state.alliance_view.alliance?.shared_marketplace ? 'badge-success' : 'badge-secondary'">{{ getLangString(state.alliance_view.alliance?.shared_marketplace ? 'MOD_MP_ALLIANCE_ENABLED' : 'MOD_MP_ALLIANCE_DISABLED') }}</span></div>
+									<p>{{ getLangString(state.alliance_view.alliance?.shared_marketplace ? 'MOD_MP_ALLIANCE_MARKET_SHARED_EXPLANATION' : 'MOD_MP_ALLIANCE_MARKET_LOCAL_EXPLANATION') }}</p>
+									<p v-if="state.alliance_market_pending()"><span class="badge badge-warning"><lang-string lang-id="MOD_MP_ALLIANCE_POLICY_PENDING"></lang-string></span> <lang-string lang-id="MOD_MP_ALLIANCE_POLICY_UNCHANGED"></lang-string></p>
+									<button type="button" class="btn btn-sm btn-primary" :disabled="state.alliance_market_pending()" @click="state.show_alliance_confirmation(state.alliance_view.alliance?.shared_marketplace ? 'market_disable' : 'market_enable')">{{ state.alliance_label(state.alliance_view.alliance?.shared_marketplace ? 'market_disable' : 'market_enable') }}<span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+								</div>
+							</div>
+						</div>
+						<section class="block block-rounded" v-if="state.alliance_proposal_history.length > 0">
+							<h3 class="mp-guild-panel-heading"><button type="button" class="mp-guild-panel-toggle" :aria-expanded="state.alliance_history_visible" aria-controls="mp-alliance-history-body" @click="state.alliance_history_visible = !state.alliance_history_visible"><span><lang-string lang-id="MOD_MP_ALLIANCE_PROPOSAL_HISTORY"></lang-string></span><i class="fa" :class="state.alliance_history_visible ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></button></h3>
+							<div id="mp-alliance-history-body" class="mp-guild-panel-body mp-council-list" v-show="state.alliance_history_visible">
+								<div class="mp-council-card" v-for="proposal in state.alliance_proposal_history" :key="proposal.process_id">
+									<strong>{{ state.alliance_proposal_heading(proposal.display_kind ?? proposal.kind) }}</strong>
+									<div><span v-for="(part, index) in state.alliance_proposal_parts(proposal)" :key="index"><button type="button" class="mp-alliance-guild-name" v-if="part.guild_id" @click="state.preview_alliance_guild(part.guild_id)">{{ part.text }}</button><strong v-else-if="part.bold">{{ part.text }}</strong><span v-else>{{ part.text }}</span></span></div>
+									<div v-if="state.is_alliance_process_active(proposal)">{{ state.alliance_proposal_status(proposal) }}</div>
+									<div v-if="proposal.tally.eligible">
+										<div class="mp-council-tally"><div class="mp-council-tally-aye" :style="{ width: state.get_council_tally_width(proposal, 'aye') }"></div><div class="mp-council-tally-uncast" :style="{ width: state.get_council_tally_width(proposal, 'uncast') }"></div><div class="mp-council-tally-nay" :style="{ width: state.get_council_tally_width(proposal, 'nay') }"></div><span class="mp-council-threshold" :style="{ left: state.get_tally_threshold(proposal, true) }"></span></div>
+										<div class="mp-council-counts"><span>{{ proposal.tally.aye }} <lang-string lang-id="MOD_MP_COUNCIL_AYE"></lang-string></span><span>{{ proposal.tally.eligible - proposal.tally.aye - proposal.tally.nay }} <lang-string lang-id="MOD_MP_COUNCIL_UNCAST"></lang-string></span><span>{{ proposal.tally.nay }} <lang-string lang-id="MOD_MP_COUNCIL_NAY"></lang-string></span></div>
+									</div>
+									<span class="mp-council-card-badges" v-if="proposal.own_ballot || !state.is_alliance_process_active(proposal)"><span class="badge" :class="proposal.own_ballot === 'aye' ? 'badge-success' : 'badge-danger'" v-if="proposal.own_ballot">{{ state.get_council_choice_lang(proposal.own_ballot) }}</span><span class="badge" v-if="!state.is_alliance_process_active(proposal)" :class="proposal.stage === 'accepted' ? 'badge-success' : 'badge-secondary'">{{ state.alliance_outcome(proposal.stage) }}</span></span>
+									<p class="mt-2 mb-2" v-if="proposal.consider_blocked_reason === 'affiliation_pending'"><lang-string lang-id="MOD_MP_ALLIANCE_AFFILIATION_BLOCKED"></lang-string></p>
+									<div class="mt-2" v-if="proposal.stage === 'cancelled'"><span v-for="(part, index) in state.alliance_cancellation_parts(proposal)" :key="index"><strong v-if="part.bold">{{ part.text }}</strong><span v-else>{{ part.text }}</span></span></div>
+									<button class="btn btn-sm btn-primary" v-if="proposal.can_consider" :disabled="!!proposal.consider_blocked_reason || (!state.alliance_view.synthetic && state.alliance_state.affiliation_pending)" @click="state.show_alliance_confirmation('consider', null, proposal.process_id)"><lang-string lang-id="MOD_MP_ALLIANCE_CONSIDER"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+									<button class="btn btn-sm btn-outline-danger" v-if="proposal.can_withdraw" @click="state.show_alliance_confirmation('withdraw', null, proposal.process_id)"><lang-string lang-id="MOD_MP_ALLIANCE_WITHDRAW"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+								</div>
+							</div>
+						</section>
+					</div>
 				</div>
-				<div class="text-center mt-3 mp-shadowed-members-entry" v-show="state.shadowed_member_count > 0">
-					<button type="button" class="btn btn-sm btn-secondary" @click="state.show_shadowed_members_modal()"><lang-string lang-id="MOD_MP_GUILD_VIEW_SHADOWED_MEMBERS"></lang-string></button>
-				</div>
-
 			</div>
 
 			<div v-show="state.guild_page_view === 'applicant'">
@@ -1253,7 +1408,7 @@
 					<div class="block-header block-header-default">
 						<div>
 							<div class="font-size-sm text-muted"><lang-string lang-id="MOD_MP_GUILD_DISCOVER"></lang-string></div>
-							<h3 class="block-title"><lang-string lang-id="MOD_MP_MENU_FIND_GUILD"></lang-string></h3>
+							<h3 class="mp-guild-card-title"><lang-string lang-id="MOD_MP_MENU_FIND_GUILD"></lang-string></h3>
 						</div>
 					</div>
 					<div class="block-content">
@@ -1296,7 +1451,7 @@
 					<div class="block-header block-header-default">
 						<div>
 							<div class="font-size-sm text-muted"><lang-string lang-id="MOD_MP_GUILD_START_FRESH"></lang-string></div>
-							<h3 class="block-title"><lang-string lang-id="MOD_MP_TITLE_CREATE_GUILD"></lang-string></h3>
+							<h3 class="mp-guild-card-title"><lang-string lang-id="MOD_MP_TITLE_CREATE_GUILD"></lang-string></h3>
 						</div>
 					</div>
 					<div class="block-content">
@@ -1877,9 +2032,10 @@
 							<span class="mp-market-item-value text-success mp-market-item-gp"><span>{{ numberWithCommas(item.escrow_gp) }}</span><img class="skill-icon-xxs" src="assets/media/main/coins.svg"></span>
 						</div>
 						<div class="mp-market-item-col">
-							<button type="button" class="btn btn-danger m-1" @click="state.resolve_market_listing($event, item, 'cancel')">
+							<button type="button" class="btn m-1" :class="item.available === 0 && item.reserved === 0 ? 'btn-info' : 'btn-danger'" @click="state.resolve_market_listing($event, item, 'cancel')">
 								<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-								<lang-string lang-id="MOD_MP_BUTTON_MARKET_CANCEL"></lang-string>
+								<lang-string v-if="item.available === 0 && item.reserved === 0" lang-id="MOD_MP_BUTTON_MARKET_REMOVE"></lang-string>
+								<lang-string v-else lang-id="MOD_MP_BUTTON_MARKET_CANCEL"></lang-string>
 							</button>
 						</div>
 					</template>
@@ -1990,411 +2146,465 @@
 </template>
 <template id="template-mp-transfer-page">
 	<div class="content d-none" id="mp-transfer-page">
-		<div class="block block-rounded p-4" v-show="!state.is_guild_member"><lang-string lang-id="MOD_MP_TRANSFER_GUILDLESS_INFO"></lang-string></div>
-		<div class="mp-transfers-tabs" role="tablist">
-			<button type="button" class="btn" :class="state.transfers_mobile_tab === 'inbox' ? 'btn-primary' : 'btn-secondary'" role="tab" :aria-selected="state.transfers_mobile_tab === 'inbox'" aria-controls="mp-transfers-inbox" @click="state.transfers_mobile_tab = 'inbox'"><lang-string lang-id="MOD_MP_INBOX_TITLE"></lang-string><span class="badge badge-secondary mp-transfer-tab-badge mp-transfer-tab-badge-inbox" v-show="state.inbox_items.length > 0">{{ formatNumber(state.inbox_items.length) }}</span></button>
-			<button type="button" class="btn" :class="state.transfers_mobile_tab === 'outbox' ? 'btn-primary' : 'btn-secondary'" role="tab" :aria-selected="state.transfers_mobile_tab === 'outbox'" aria-controls="mp-transfers-outbox" @click="state.transfers_mobile_tab = 'outbox'"><lang-string lang-id="MOD_MP_TRANSFER_OUTBOX"></lang-string><span class="badge badge-secondary mp-transfer-tab-badge" v-show="state.transfer_inventory.length > 0">{{ formatNumber(state.transfer_inventory.length) }}</span></button>
-			<button type="button" class="btn" :class="state.transfers_mobile_tab === 'pending' ? 'btn-primary' : 'btn-secondary'" role="tab" :aria-selected="state.transfers_mobile_tab === 'pending'" aria-controls="mp-transfers-pending" @click="state.transfers_mobile_tab = 'pending'"><lang-string lang-id="MOD_MP_TRANSFER_PENDING"></lang-string><span class="badge badge-danger mp-transfer-tab-badge mp-transfer-tab-badge-pending" v-show="state.num_active_transfers > 0">{{ formatNumber(state.num_active_transfers) }}</span></button>
-		</div>
-		<div class="mp-transfers-layout">
-			<section id="mp-transfers-inbox" class="block block-rounded mp-transfers-panel mp-transfers-inbox" :class="{ 'mp-transfers-mobile-hidden': state.transfers_mobile_tab !== 'inbox' }">
-				<div class="block-header block-header-default mp-transfer-panel-header"><h3 class="block-title"><lang-string lang-id="MOD_MP_INBOX_TITLE"></lang-string></h3><span>{{ formatNumber(state.inbox_items.length) }}</span></div>
-				<div class="block-content mp-inbox-groups" v-if="state.inbox_groups.length > 0">
-					<div class="mp-inbox-group" v-for="(group, group_index) of state.inbox_groups" :key="group.source_type + ':' + group.source_name">
-						<h4 class="mp-inbox-group-title">{{ state.get_inbox_group_title(group) }}</h4>
-						<div class="row mp-inbox-group-items">
-							<mp-item-icon v-for="item of group.items" class="bank-item m-2" :data-item-id="item.item_id" :key="item.item_id">
-								<a role="button">
-									<img class="bank-img p-3" :src="state.get_item_icon(item.item_id)">
-									<div class="font-size-sm text-white text-center in-bank">
-										<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
-									</div>
-								</a>
-							</mp-item-icon>
-						</div>
-					</div>
-				</div>
-				<div class="p-4" v-else>
-					<lang-string lang-id="MOD_MP_INBOX_EMPTY"></lang-string>
-				</div>
-				<div class="p-3 mp-transfer-buttons mp-inbox-claim">
-					<button type="button" class="btn btn-success m-1" @click="state.claim_inbox($event)" :disabled="state.inbox_claiming" v-if="state.inbox_items.length > 0 || state.inbox_pending_claim">
-						<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-						<lang-string lang-id="MOD_MP_INBOX_CLAIM"></lang-string>
-					</button>
-				</div>
-			</section>
-			<section id="mp-transfers-outbox" class="block block-rounded mp-transfers-panel mp-transfers-outbox" :class="{ 'mp-transfers-mobile-hidden': state.transfers_mobile_tab !== 'outbox' }">
-				<div class="block-header block-header-default mp-transfer-panel-header"><h3 class="block-title"><lang-string lang-id="MOD_MP_TRANSFER_OUTBOX"></lang-string></h3><span>{{ state.transfer_inventory.length + ' / ' + state.TRANSFER_INVENTORY_MAX_LIMIT }}</span></div>
-				<template v-if="state.transfer_inventory.length > 0">
-					<div class="block-content">
-						<div class="pb-4 row">
-							<mp-item-icon v-for="item of state.transfer_inventory" class="bank-item pointer-enabled m-2" :data-item-id="item.id" :key="item.id">
-								<a role="button" @click="state.selected_transfer_item_id = item.id">
-									<img class="bank-img p-3" :src="state.get_item_icon(item.id)" draggable="false" :class="{ 'border border-4x border-success': state.selected_transfer_item_id === item.id }">
-									<div class="font-size-sm text-white text-center in-bank">
-										<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
-									</div>
-								</a>
-							</mp-item-icon>
-						</div>
-					</div>
-					<div class="p-3 text-warning" v-if="state.has_destroyable_transfer_items">
-						<lang-string lang-id="MOD_MP_TRANSFER_DESTROY_ONLY"></lang-string>
-					</div>
-					<div class="mp-outbox-value"><lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string> <img class="skill-icon-xxs mx-1" src="assets/media/main/coins.svg">{{ state.transfer_inventory_value }}</div>
-				</template>
-				<div class="p-4" v-else>
-					<lang-string lang-id="MOD_MP_TRANSFER_NO_ITEMS"></lang-string>
-				</div>
-				<div class="p-3 mp-transfer-buttons" :class="{ 'mp-transfer-buttons-single': state.transfer_inventory.length === 0 }">
-					<button type="button" class="btn btn-success m-1" v-show="state.is_guild_member && !state.is_social_only && !state.has_destroyable_transfer_items" @click="state.show_add_currency_modal()">
-						<lang-string lang-id="MOD_MP_BUTTON_ADD_CURRENCY"></lang-string>
-					</button>
-					<template v-if="state.transfer_inventory.length > 0">
-						<button type="button" class="btn btn-success m-1" v-show="state.is_guild_member && !state.is_social_only && !state.has_destroyable_transfer_items" @click="state.create_trade()">
-							<lang-string lang-id="MOD_MP_TRANSFER_START_TRADE"></lang-string>
-						</button>
-						<button type="button" class="btn btn-success m-1" v-show="state.is_guild_member && !state.is_social_only && !state.has_destroyable_transfer_items" @click="state.gift_friend()">
-							<lang-string lang-id="MOD_MP_TRANSFER_SEND_GIFT"></lang-string>
-						</button>
-						<button type="button" class="btn btn-success m-1" v-show="state.is_guild_member && !state.is_social_only && !state.has_destroyable_transfer_items" @click="state.donate_items($event)">
-							<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-							<lang-string lang-id="MOD_MP_CRUCIBLE_CAST"></lang-string>
-						</button>
-						<button type="button" class="btn btn-warning m-1" v-if="state.selected_transfer_item_is_destroyable" @click="state.transfer_destroy_selected()">
-							<lang-string lang-id="MOD_MP_BUTTON_DESTROY_ITEM"></lang-string>
-						</button>
-						<button type="button" class="btn btn-danger m-1" v-if="!state.selected_transfer_item_is_destroyable" @click="state.transfer_return_selected()">
-							<lang-string lang-id="MOD_MP_BUTTON_RETURN_SELECTED"></lang-string>
-						</button>
-						<button type="button" class="btn btn-danger m-1" v-if="!state.has_destroyable_transfer_items" @click="state.transfer_return_all()">
-							<lang-string lang-id="MOD_MP_BUTTON_RETURN_ALL"></lang-string>
-						</button>
-					</template>
-				</div>
-			</section>
-			<section id="mp-transfers-pending" class="block block-rounded mp-transfers-panel mp-transfers-pending" :class="{ 'mp-transfers-mobile-hidden': state.transfers_mobile_tab !== 'pending' }">
-				<div class="block-header block-header-default mp-transfer-panel-header"><h3 class="block-title"><lang-string lang-id="MOD_MP_TRANSFER_PENDING"></lang-string></h3><span>{{ formatNumber(state.num_active_transfers) }}</span></div>
-				<div class="block block-rounded p-4" v-show="state.is_social_only"><lang-string lang-id="MOD_MP_SOCIAL_ONLY_TRANSFER_INFO"></lang-string></div>
-				<div class="mp-transfer-exchanges" v-show="!state.is_social_only">
-					<div class="p-4 block w-100" v-if="state.num_active_transfers === 0">
-						<lang-string lang-id="MOD_MP_NO_EXCHANGES"></lang-string>
-					</div>
-					<div class="block tabbable w-100 mp-col mp-transfer-haggle" v-for="haggle in state.market_haggles" :key="haggle.id">
-						<div class="pl-3 pt-1 pb-1 bg-dark-bank-info text-center mp-transfer-haggle-header">
-							<div class="mp-transfer-haggle-title">
-								<span class="font-w400 font-size-sm mb-0">
-									<span class="font-w600">
-										<img class="skill-icon-xs" :src="state.get_avatar_icon(haggle.counterparty.icon_id)"/>
-										<mp-lang-string-f :lang-id="haggle.status === 'active' ? (haggle.is_initiator ? 'MOD_MP_TRANSFER_HAGGLE_SENT' : 'MOD_MP_TRANSFER_HAGGLE_FROM') : 'MOD_MP_TRANSFER_HAGGLE_WITH'" :lang-arg-1="haggle.counterparty.display_name"></mp-lang-string-f>
-									</span>
-								</span>
-							</div>
-							<div class="mp-transfer-haggle-meta">
-								<span class="font-w400 font-size-sm mb-0 mp-transfer-haggle-value">
-									<span class="font-w600">
-										<lang-string lang-id="MOD_MP_TRANSFER_OFFERED"></lang-string>
-										<span><img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">{{ numberWithCommas(haggle.item_qty * haggle.offer_price) }} GP</span>
-									</span>
-								</span>
-								<span class="font-w400 font-size-sm mb-0 mp-transfer-haggle-status">
-									<span class="font-w600">
-										<lang-string :lang-id="haggle.status == 'accepted' && haggle.claim && haggle.claim.claimed ? 'MOD_MP_MARKET_HAGGLE_STATUS_CLAIMED' : 'MOD_MP_MARKET_HAGGLE_STATUS_' + haggle.status.toUpperCase()"></lang-string>
-									</span>
-								</span>
-							</div>
-						</div>
-						<div class="block-content">
-							<div class="pb-4 row mp-transfer-haggle-items">
-								<mp-item-icon class="bank-item pointer-enabled m-2" :data-item-id="haggle.item_id">
-									<a role="button">
-										<img class="bank-img p-3" :src="state.get_item_icon(haggle.item_id)" draggable="false">
-										<div class="font-size-sm text-white text-center in-bank">
-											<small class="badge-pill bg-secondary">{{ formatNumber(haggle.item_qty) }}</small>
-										</div>
-									</a>
-								</mp-item-icon>
-							</div>
-							<div class="mp-transfer-haggle-claim" v-show="haggle.claim && !haggle.claim.claimed">
-								<span class="mp-market-item-label"><lang-string lang-id="MOD_MP_MARKET_HAGGLE_CLAIM_CONTENTS"></lang-string></span>
-								<span v-show="haggle.claim && haggle.claim.item_qty > 0">{{ haggle.claim ? numberWithCommas(haggle.claim.item_qty) + ' × ' + state.get_item_name(haggle.claim.item_id) : '' }}</span>
-								<span v-show="haggle.claim && haggle.claim.gp > 0">{{ haggle.claim ? numberWithCommas(haggle.claim.gp) + ' GP' : '' }}</span>
-							</div>
-						</div>
-						<div class="p-3 mp-transfer-buttons">
-							<button type="button" class="btn btn-success m-1" v-show="haggle.claim && !haggle.claim.claimed" @click="state.respond_market_haggle($event, haggle, 'claim')">
-								<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-								<lang-string lang-id="MOD_MP_BUTTON_CLAIM"></lang-string>
+		<div class="mp-transfers-shell">
+			<div class="mp-transfer-notice" v-show="!state.is_guild_member"><lang-string lang-id="MOD_MP_TRANSFER_GUILDLESS_INFO"></lang-string></div>
+			<div class="mp-transfers-tabs" role="tablist">
+				<button type="button" class="btn" :class="state.transfers_mobile_tab === 'inbox' ? 'btn-primary' : 'btn-secondary'" role="tab" id="mp-transfers-inbox-tab" :aria-selected="state.transfers_mobile_tab === 'inbox'" aria-controls="mp-transfers-inbox-column" @click="state.transfers_mobile_tab = 'inbox'; state.transfers_panels_open.inbox = true"><lang-string lang-id="MOD_MP_INBOX_TITLE"></lang-string><span class="badge badge-secondary mp-transfer-tab-badge mp-transfer-tab-badge-inbox" v-show="state.inbox_items.length > 0">{{ formatNumber(state.inbox_items.length) }}</span></button>
+				<button type="button" class="btn" :class="state.transfers_mobile_tab === 'outbox' ? 'btn-primary' : 'btn-secondary'" role="tab" id="mp-transfers-outbox-tab" :aria-selected="state.transfers_mobile_tab === 'outbox'" aria-controls="mp-transfers-outbox-column" @click="state.transfers_mobile_tab = 'outbox'; state.transfers_panels_open.outbox = true"><lang-string lang-id="MOD_MP_TRANSFER_OUTBOX"></lang-string><span class="badge badge-secondary mp-transfer-tab-badge" v-show="state.transfer_inventory.length > 0">{{ formatNumber(state.transfer_inventory.length) }}</span></button>
+				<button type="button" class="btn" :class="state.transfers_mobile_tab === 'pending' ? 'btn-primary' : 'btn-secondary'" role="tab" id="mp-transfers-pending-tab" :aria-selected="state.transfers_mobile_tab === 'pending'" aria-controls="mp-transfers-pending-column" @click="state.transfers_mobile_tab = 'pending'; state.transfers_panels_open.pending = true"><lang-string lang-id="MOD_MP_TRANSFER_PENDING"></lang-string><span class="badge badge-danger mp-transfer-tab-badge mp-transfer-tab-badge-pending" v-show="state.num_active_transfers > 0">{{ formatNumber(state.num_active_transfers) }}</span></button>
+			</div>
+			<div class="mp-transfers-layout">
+				<div id="mp-transfers-inbox-column" class="mp-transfers-column" :class="{ 'mp-transfers-mobile-hidden': state.transfers_mobile_tab !== 'inbox' }">
+					<section id="mp-transfers-inbox" class="mp-transfers-panel mp-transfers-inbox" aria-labelledby="mp-transfers-inbox-title" :class="{ 'mp-transfers-mobile-hidden': state.transfers_mobile_tab !== 'inbox' }">
+						<h3 id="mp-transfers-inbox-title" class="mp-transfer-panel-heading">
+							<button type="button" class="mp-transfer-panel-header" :aria-expanded="state.transfers_panels_open.inbox" aria-controls="mp-transfers-inbox-body" @click="state.transfers_panels_open.inbox = !state.transfers_panels_open.inbox">
+								<i class="fa fa-inbox" aria-hidden="true"></i>
+								<span><lang-string lang-id="MOD_MP_INBOX_TITLE"></lang-string></span>
+								<small>{{ formatNumber(state.inbox_items.length) }}</small>
+								<i class="fa" :class="state.transfers_panels_open.inbox ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
 							</button>
-							<div v-show="(!haggle.claim || haggle.claim.claimed) && haggle.status == 'active'">
-								<button type="button" class="btn btn-success m-1" v-show="haggle.is_turn" @click="state.respond_market_haggle($event, haggle, 'accept')">
-									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-									<lang-string lang-id="MOD_MP_BUTTON_ACCEPT"></lang-string>
-								</button>
-								<button type="button" class="btn btn-warning m-1" v-show="haggle.is_turn" @click="state.respond_market_haggle($event, haggle, 'counter')">
-									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-									<lang-string lang-id="MOD_MP_BUTTON_MARKET_HAGGLE_BACK"></lang-string>
-								</button>
-								<button type="button" class="btn btn-danger m-1" @click="state.respond_market_haggle($event, haggle, 'terminate')">
-									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-									<lang-string :lang-id="!haggle.is_initiator && haggle.is_turn ? 'MOD_MP_BUTTON_REJECT' : 'MOD_MP_BUTTON_CANCEL'"></lang-string>
-								</button>
-							</div>
-						</div>
-					</div>
-					<template v-for="gift in state.gifts">
-						<div class="block tabbable w-100 mp-col" v-if="gift.unresolved">
-							<div class="p-4">
-								<div class="text-warning"><lang-string lang-id="MOD_MP_UNSUPPORTED_RETURNED_GIFT_INFO"></lang-string></div>
-								<div class="mt-2" v-for="item of gift.data.items" :key="item.item_id">
-									<small>{{ item.item_id }} × {{ formatNumber(item.qty) }}</small>
+						</h3>
+						<div id="mp-transfers-inbox-body" class="mp-transfer-panel-body" v-show="state.transfers_panels_open.inbox">
+							<div class="mp-inbox-groups" v-if="state.inbox_groups.length > 0">
+								<div class="mp-inbox-group" v-for="(group, group_index) of state.inbox_groups" :key="group.source_type + ':' + group.source_name">
+									<h4 class="mp-inbox-group-title">{{ state.get_inbox_group_title(group) }}</h4>
+									<div class="mp-transfer-item-grid mp-inbox-group-items">
+										<mp-item-icon v-for="item of group.items" class="mp-transfer-slot" :data-item-id="item.item_id" :key="item.item_id" tabindex="0" role="img" :aria-label="state.get_item_name(item.item_id) + ' ×' + formatNumber(item.qty)">
+											<span class="mp-transfer-item">
+												<img :src="state.get_item_icon(item.item_id)" alt="" draggable="false">
+												<span class="mp-transfer-item-quantity">{{ formatNumber(item.qty) }}</span>
+											</span>
+										</mp-item-icon>
+									</div>
 								</div>
 							</div>
-							<div class="p-3 mp-transfer-buttons">
-								<button type="button" class="btn btn-danger m-1" @click="state.show_discard_returned_gift_confirmation(gift.id)">
-									<lang-string lang-id="MOD_MP_DISCARD_RETURNED_GIFT_ACTION"></lang-string>
+							<div class="mp-transfer-empty" v-else>
+								<lang-string lang-id="MOD_MP_INBOX_EMPTY"></lang-string>
+							</div>
+							<div class="mp-transfer-buttons mp-inbox-claim">
+								<button type="button" class="btn btn-success m-1" @click="state.claim_inbox($event)" :disabled="state.inbox_claiming" v-if="state.inbox_items.length > 0 || state.inbox_pending_claim">
+									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+									<lang-string lang-id="MOD_MP_INBOX_CLAIM"></lang-string>
 								</button>
 							</div>
 						</div>
-						<div class="block tabbable w-100 mp-col" v-else-if="!!gift.data">
-							<div class="pl-3 pt-1 pb-1 bg-dark-bank-info text-center">
-								<div class="row gutters-tiny">
-									<div class="col-6 col-lg-3">
-										<span class="font-w400 font-size-sm mb-0">
-											<span class="font-w600">
-												<img class="skill-icon-xs" :src="state.get_avatar_icon(gift.data.sender.icon_id)"/>
+					</section>
+					<section class="mp-transfers-panel mp-transfer-history" aria-labelledby="mp-transfer-history-inbox-title">
+						<h3 id="mp-transfer-history-inbox-title" class="mp-transfer-panel-heading">
+							<button type="button" class="mp-transfer-panel-header" :aria-expanded="state.transfers_history_open.inbox" aria-controls="mp-transfer-history-inbox-body" @click="state.transfers_history_open.inbox = !state.transfers_history_open.inbox">
+								<i class="fa fa-history" aria-hidden="true"></i><span><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_TITLE"></lang-string></span>
+								<i class="fa" :class="state.transfers_history_open.inbox ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
+							</button>
+						</h3>
+						<div id="mp-transfer-history-inbox-body" class="mp-transfer-panel-body" v-show="state.transfers_history_open.inbox">
+							<p class="mp-transfer-history-description"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_WINDOW"></lang-string></p>
+							<p role="status" v-show="state.transfer_history.inbox.error"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_ERROR"></lang-string></p>
+							<p class="mp-transfer-empty" v-show="state.transfer_history.inbox.loaded &amp;&amp; !state.transfer_history.inbox.loading &amp;&amp; !state.transfer_history.inbox.error &amp;&amp; state.get_transfer_history_entries('inbox').length === 0"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_EMPTY"></lang-string></p>
+							<div class="mp-transfer-history-list">
+								<article class="mp-transfer-history-entry" v-for="entry of state.get_transfer_history_entries('inbox')" :key="entry.id">
+									<h4>{{ state.get_transfer_history_title(entry) }}</h4>
+									<div class="mp-transfer-history-meta"><time :datetime="new Date(entry.occurred_at).toISOString()">{{ state.format_guild_activity_time(entry.occurred_at) }}</time><span v-show="entry.reconstructed"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_RECONSTRUCTED"></lang-string></span></div>
+									<div class="mp-transfer-history-meta" v-show="state.get_transfer_history_context(entry)">{{ state.get_transfer_history_context(entry) }}</div>
+									<div class="mp-transfer-history-item" v-for="(item, index) of state.get_transfer_history_items(entry)" :key="index" :aria-label="state.format_transfer_history_item(item) + (item.direction === 'context' ? '' : ' · ' + getLangString(item.direction === 'out' ? 'MOD_MP_TRANSFER_HISTORY_SENT' : 'MOD_MP_TRANSFER_HISTORY_RECEIVED'))">
+										<span class="mp-transfer-history-direction" v-show="item.direction !== 'context'" :aria-label="item.direction === 'out' ? getLangString('MOD_MP_TRANSFER_HISTORY_SENT') : getLangString('MOD_MP_TRANSFER_HISTORY_RECEIVED')">{{ item.direction === 'out' ? '−' : '+' }}</span>
+										<img :src="state.get_item_icon(item.item_id)" alt="" draggable="false"><div class="mp-transfer-history-item-detail"><span>{{ state.format_transfer_history_item(item) }}</span>
+											<div class="mp-transfer-history-source" v-for="(source, source_index) of state.get_transfer_history_sources(item)" :key="source_index">{{ source.title }} · {{ formatNumber(source.qty) }}</div>
+										</div>
+									</div>
+								</article>
+							</div>
+							<div class="mp-transfer-history-controls">
+								<button type="button" class="btn btn-secondary" :disabled="state.transfer_history.inbox.loading" @click="state.load_transfer_history('inbox', state.transfer_history.inbox.retry_append)" v-show="state.transfer_history.inbox.error"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_RETRY"></lang-string></button>
+								<button type="button" class="btn btn-secondary" :disabled="state.transfer_history.inbox.loading" @click="state.load_transfer_history('inbox', true)" v-show="state.has_more_transfer_history('inbox') &amp;&amp; !state.transfer_history.inbox.error"><lang-string lang-id="MOD_MP_BUTTON_LOAD_MORE"></lang-string></button>
+							</div>
+						</div>
+					</section>
+				</div>
+				<div id="mp-transfers-outbox-column" class="mp-transfers-column" :class="{ 'mp-transfers-mobile-hidden': state.transfers_mobile_tab !== 'outbox' }">
+					<section id="mp-transfers-outbox" class="mp-transfers-panel mp-transfers-outbox" aria-labelledby="mp-transfers-outbox-title" :class="{ 'mp-transfers-mobile-hidden': state.transfers_mobile_tab !== 'outbox' }">
+						<h3 id="mp-transfers-outbox-title" class="mp-transfer-panel-heading">
+							<button type="button" class="mp-transfer-panel-header" :aria-expanded="state.transfers_panels_open.outbox" aria-controls="mp-transfers-outbox-body" @click="state.transfers_panels_open.outbox = !state.transfers_panels_open.outbox">
+								<i class="fa fa-box-open" aria-hidden="true"></i>
+								<span><lang-string lang-id="MOD_MP_TRANSFER_OUTBOX"></lang-string></span>
+								<small>{{ state.transfer_inventory.length + ' / ' + state.TRANSFER_INVENTORY_MAX_LIMIT }}</small>
+								<i class="fa" :class="state.transfers_panels_open.outbox ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
+							</button>
+						</h3>
+						<div id="mp-transfers-outbox-body" class="mp-transfer-panel-body" v-show="state.transfers_panels_open.outbox">
+							<div class="mp-transfer-inventory-content" v-show="state.transfer_inventory.length > 0">
+								<div class="mp-transfer-exchange-body">
+									<div class="mp-transfer-item-grid">
+										<mp-item-icon v-for="item of state.transfer_inventory" class="mp-transfer-slot" :data-item-id="item.id" :key="item.id">
+											<button type="button" class="mp-transfer-item" :aria-label="state.get_item_name(item.id) + ' ×' + formatNumber(item.qty)" :aria-pressed="state.selected_transfer_item_id === item.id" @click="state.selected_transfer_item_id = item.id">
+												<img :src="state.get_item_icon(item.id)" alt="" draggable="false">
+												<span class="mp-transfer-item-quantity">{{ formatNumber(item.qty) }}</span>
+											</button>
+										</mp-item-icon>
+									</div>
+								</div>
+								<div class="mp-transfer-notice mp-transfer-warning" v-if="state.has_destroyable_transfer_items">
+									<lang-string lang-id="MOD_MP_TRANSFER_DESTROY_ONLY"></lang-string>
+								</div>
+								<div class="mp-outbox-value"><lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string> <img class="skill-icon-xxs mx-1" src="assets/media/main/coins.svg">{{ state.transfer_inventory_value }}</div>
+							</div>
+							<div class="mp-transfer-empty" v-if="state.transfer_inventory.length === 0">
+								<lang-string lang-id="MOD_MP_TRANSFER_NO_ITEMS"></lang-string>
+							</div>
+							<div class="mp-transfer-buttons" :class="{ 'mp-transfer-buttons-single': state.transfer_inventory.length === 0 }">
+								<button type="button" class="btn btn-success m-1" v-show="state.is_guild_member && !state.is_social_only && !state.has_destroyable_transfer_items" @click="state.show_add_currency_modal()">
+									<lang-string lang-id="MOD_MP_BUTTON_ADD_CURRENCY"></lang-string>
+								</button>
+								<div class="mp-transfer-outbox-actions" v-show="state.transfer_inventory.length > 0">
+									<button type="button" class="btn btn-success m-1" v-show="state.is_guild_member && !state.is_social_only && !state.has_destroyable_transfer_items" @click="state.create_trade()">
+										<lang-string lang-id="MOD_MP_TRANSFER_START_TRADE"></lang-string>
+									</button>
+									<button type="button" class="btn btn-success m-1" v-show="state.is_guild_member && !state.is_social_only && !state.has_destroyable_transfer_items" @click="state.gift_friend()">
+										<lang-string lang-id="MOD_MP_TRANSFER_SEND_GIFT"></lang-string>
+									</button>
+									<button type="button" class="btn btn-success m-1" v-show="state.is_guild_member && !state.is_social_only && !state.has_destroyable_transfer_items" @click="state.donate_items($event)">
+										<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+										<lang-string lang-id="MOD_MP_CRUCIBLE_CAST"></lang-string>
+									</button>
+									<button type="button" class="btn btn-warning m-1" v-if="state.selected_transfer_item_is_destroyable" @click="state.transfer_destroy_selected()">
+										<lang-string lang-id="MOD_MP_BUTTON_DESTROY_ITEM"></lang-string>
+									</button>
+									<button type="button" class="btn btn-danger m-1" v-if="!state.selected_transfer_item_is_destroyable" @click="state.transfer_return_selected()">
+										<lang-string lang-id="MOD_MP_BUTTON_RETURN_SELECTED"></lang-string>
+									</button>
+									<button type="button" class="btn btn-danger m-1" v-if="!state.has_destroyable_transfer_items" @click="state.transfer_return_all()">
+										<lang-string lang-id="MOD_MP_BUTTON_RETURN_ALL"></lang-string>
+									</button>
+								</div>
+							</div>
+						</div>
+					</section>
+					<section class="mp-transfers-panel mp-transfer-history" aria-labelledby="mp-transfer-history-outbox-title">
+						<h3 id="mp-transfer-history-outbox-title" class="mp-transfer-panel-heading">
+							<button type="button" class="mp-transfer-panel-header" :aria-expanded="state.transfers_history_open.outbox" aria-controls="mp-transfer-history-outbox-body" @click="state.transfers_history_open.outbox = !state.transfers_history_open.outbox">
+								<i class="fa fa-history" aria-hidden="true"></i><span><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_TITLE"></lang-string></span>
+								<i class="fa" :class="state.transfers_history_open.outbox ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
+							</button>
+						</h3>
+						<div id="mp-transfer-history-outbox-body" class="mp-transfer-panel-body" v-show="state.transfers_history_open.outbox">
+							<p class="mp-transfer-history-description"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_WINDOW"></lang-string></p>
+							<p role="status" v-show="state.transfer_history.outbox.error"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_ERROR"></lang-string></p>
+							<p class="mp-transfer-empty" v-show="state.transfer_history.outbox.loaded &amp;&amp; !state.transfer_history.outbox.loading &amp;&amp; !state.transfer_history.outbox.error &amp;&amp; state.get_transfer_history_entries('outbox').length === 0"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_EMPTY"></lang-string></p>
+							<div class="mp-transfer-history-list">
+								<article class="mp-transfer-history-entry" v-for="entry of state.get_transfer_history_entries('outbox')" :key="entry.id">
+									<h4>{{ state.get_transfer_history_title(entry) }}</h4>
+									<div class="mp-transfer-history-meta"><time :datetime="new Date(entry.occurred_at).toISOString()">{{ state.format_guild_activity_time(entry.occurred_at) }}</time><span v-show="entry.reconstructed"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_RECONSTRUCTED"></lang-string></span></div>
+									<div class="mp-transfer-history-meta" v-show="state.get_transfer_history_context(entry)">{{ state.get_transfer_history_context(entry) }}</div>
+									<div class="mp-transfer-history-item" v-for="(item, index) of state.get_transfer_history_items(entry)" :key="index" :aria-label="state.format_transfer_history_item(item) + (item.direction === 'context' ? '' : ' · ' + getLangString(item.direction === 'out' ? 'MOD_MP_TRANSFER_HISTORY_SENT' : 'MOD_MP_TRANSFER_HISTORY_RECEIVED'))">
+										<span class="mp-transfer-history-direction" v-show="item.direction !== 'context'" :aria-label="item.direction === 'out' ? getLangString('MOD_MP_TRANSFER_HISTORY_SENT') : getLangString('MOD_MP_TRANSFER_HISTORY_RECEIVED')">{{ item.direction === 'out' ? '−' : '+' }}</span>
+										<img :src="state.get_item_icon(item.item_id)" alt="" draggable="false"><div class="mp-transfer-history-item-detail"><span>{{ state.format_transfer_history_item(item) }}</span>
+											<div class="mp-transfer-history-source" v-for="(source, source_index) of state.get_transfer_history_sources(item)" :key="source_index">{{ source.title }} · {{ formatNumber(source.qty) }}</div>
+										</div>
+									</div>
+								</article>
+							</div>
+							<div class="mp-transfer-history-controls">
+								<button type="button" class="btn btn-secondary" :disabled="state.transfer_history.outbox.loading" @click="state.load_transfer_history('outbox', state.transfer_history.outbox.retry_append)" v-show="state.transfer_history.outbox.error"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_RETRY"></lang-string></button>
+								<button type="button" class="btn btn-secondary" :disabled="state.transfer_history.outbox.loading" @click="state.load_transfer_history('outbox', true)" v-show="state.has_more_transfer_history('outbox') &amp;&amp; !state.transfer_history.outbox.error"><lang-string lang-id="MOD_MP_BUTTON_LOAD_MORE"></lang-string></button>
+							</div>
+						</div>
+					</section>
+				</div>
+				<div id="mp-transfers-pending-column" class="mp-transfers-column" :class="{ 'mp-transfers-mobile-hidden': state.transfers_mobile_tab !== 'pending' }">
+					<section id="mp-transfers-pending" class="mp-transfers-panel mp-transfers-pending" aria-labelledby="mp-transfers-pending-title" :class="{ 'mp-transfers-mobile-hidden': state.transfers_mobile_tab !== 'pending' }">
+						<h3 id="mp-transfers-pending-title" class="mp-transfer-panel-heading">
+							<button type="button" class="mp-transfer-panel-header" :aria-expanded="state.transfers_panels_open.pending" aria-controls="mp-transfers-pending-body" @click="state.transfers_panels_open.pending = !state.transfers_panels_open.pending">
+								<i class="fa fa-exchange-alt" aria-hidden="true"></i>
+								<span><lang-string lang-id="MOD_MP_TRANSFER_PENDING"></lang-string></span>
+								<small>{{ formatNumber(state.num_active_transfers) }}</small>
+								<i class="fa" :class="state.transfers_panels_open.pending ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
+							</button>
+						</h3>
+						<div id="mp-transfers-pending-body" class="mp-transfer-panel-body" v-show="state.transfers_panels_open.pending">
+							<div class="mp-transfer-notice" v-show="state.is_social_only"><lang-string lang-id="MOD_MP_SOCIAL_ONLY_TRANSFER_INFO"></lang-string></div>
+							<div class="mp-transfer-exchanges" v-show="!state.is_social_only">
+								<div class="mp-transfer-empty" v-if="state.num_active_transfers === 0">
+									<lang-string lang-id="MOD_MP_NO_EXCHANGES"></lang-string>
+								</div>
+								<div class="mp-transfer-exchange mp-col mp-transfer-haggle" v-for="haggle in state.pending_haggles" :key="haggle.id">
+									<div class="mp-transfer-exchange-header mp-transfer-haggle-header">
+										<div class="mp-transfer-haggle-title">
+											<img class="mp-transfer-haggle-avatar" :src="state.get_avatar_icon(haggle.counterparty.icon_id)" alt="">
+											<mp-lang-string-f :lang-id="haggle.status === 'active' ? (haggle.is_initiator ? 'MOD_MP_TRANSFER_HAGGLE_SENT' : 'MOD_MP_TRANSFER_HAGGLE_FROM') : 'MOD_MP_TRANSFER_HAGGLE_WITH'" :lang-arg-1="haggle.counterparty.display_name"></mp-lang-string-f>
+										</div>
+										<div class="mp-transfer-haggle-meta">
+											<div class="mp-transfer-haggle-status">
+												<lang-string :lang-id="haggle.status == 'accepted' && haggle.claim && haggle.claim.claimed ? 'MOD_MP_MARKET_HAGGLE_STATUS_CLAIMED' : 'MOD_MP_MARKET_HAGGLE_STATUS_' + haggle.status.toUpperCase()"></lang-string>
+											</div>
+											<dl class="mp-transfer-haggle-values">
+												<div class="mp-transfer-haggle-value">
+													<dt><lang-string lang-id="MOD_MP_TRANSFER_STACK_VALUE"></lang-string></dt>
+													<dd><img class="mp-transfer-haggle-currency" src="assets/media/main/coins.svg" alt="">{{ state.get_haggle_stack_value(haggle) }}</dd>
+												</div>
+												<div class="mp-transfer-haggle-value">
+													<dt><lang-string :lang-id="haggle.is_initiator ? 'MOD_MP_TRANSFER_LISTING_PRICE' : 'MOD_MP_TRANSFER_YOUR_PRICE'"></lang-string></dt>
+													<dd><img class="mp-transfer-haggle-currency" src="assets/media/main/coins.svg" alt="">{{ numberWithCommas(haggle.item_qty * haggle.listing_price) }} GP</dd>
+												</div>
+												<div class="mp-transfer-haggle-value mp-transfer-haggle-offered">
+													<dt><lang-string lang-id="MOD_MP_TRANSFER_OFFERED"></lang-string></dt>
+													<dd><img class="mp-transfer-haggle-currency" src="assets/media/main/coins.svg" alt="">{{ numberWithCommas(haggle.item_qty * haggle.offer_price) }} GP</dd>
+												</div>
+											</dl>
+										</div>
+									</div>
+									<div class="mp-transfer-exchange-body">
+										<div class="mp-transfer-item-grid mp-transfer-haggle-items">
+											<mp-item-icon class="mp-transfer-slot" :data-item-id="haggle.item_id" tabindex="0" role="img" :aria-label="state.get_item_name(haggle.item_id) + ' ×' + formatNumber(haggle.item_qty)">
+												<span class="mp-transfer-item">
+													<img :src="state.get_item_icon(haggle.item_id)" alt="" draggable="false">
+													<span class="mp-transfer-item-quantity">{{ formatNumber(haggle.item_qty) }}</span>
+												</span>
+											</mp-item-icon>
+										</div>
+										<div class="mp-transfer-haggle-claim" v-show="haggle.claim && !haggle.claim.claimed">
+											<span class="mp-market-item-label"><lang-string lang-id="MOD_MP_MARKET_HAGGLE_CLAIM_CONTENTS"></lang-string></span>
+											<span v-show="haggle.claim && haggle.claim.item_qty > 0">{{ haggle.claim ? numberWithCommas(haggle.claim.item_qty) + ' × ' + state.get_item_name(haggle.claim.item_id) : '' }}</span>
+											<span v-show="haggle.claim && haggle.claim.gp > 0">{{ haggle.claim ? numberWithCommas(haggle.claim.gp) + ' GP' : '' }}</span>
+										</div>
+									</div>
+									<div class="mp-transfer-buttons">
+										<button type="button" class="btn btn-success m-1" v-show="haggle.claim && !haggle.claim.claimed" @click="state.respond_market_haggle($event, haggle, 'claim')">
+											<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+											<lang-string lang-id="MOD_MP_BUTTON_CLAIM"></lang-string>
+										</button>
+										<div v-show="(!haggle.claim || haggle.claim.claimed) && haggle.status == 'active'">
+											<button type="button" class="btn btn-success m-1" v-show="haggle.is_turn" @click="state.respond_market_haggle($event, haggle, 'accept')">
+												<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+												<lang-string lang-id="MOD_MP_BUTTON_ACCEPT"></lang-string>
+											</button>
+											<button type="button" class="btn btn-warning m-1" v-show="haggle.is_turn" @click="state.respond_market_haggle($event, haggle, 'counter')">
+												<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+												<lang-string lang-id="MOD_MP_BUTTON_MARKET_HAGGLE_BACK"></lang-string>
+											</button>
+											<button type="button" class="btn btn-danger m-1" @click="state.respond_market_haggle($event, haggle, 'terminate')">
+												<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+												<lang-string :lang-id="!haggle.is_initiator && haggle.is_turn ? 'MOD_MP_BUTTON_REJECT' : 'MOD_MP_BUTTON_CANCEL'"></lang-string>
+											</button>
+										</div>
+									</div>
+								</div>
+								<div class="mp-transfer-record" v-for="gift in state.pending_gifts" :key="gift.id">
+									<div class="mp-transfer-exchange mp-col" v-if="gift.unresolved">
+										<div class="mp-transfer-empty">
+											<div class="text-warning"><lang-string lang-id="MOD_MP_UNSUPPORTED_RETURNED_GIFT_INFO"></lang-string></div>
+											<div class="mt-2" v-for="item of gift.data.items" :key="item.item_id">
+												<small>{{ item.item_id }} × {{ formatNumber(item.qty) }}</small>
+											</div>
+										</div>
+										<div class="mp-transfer-buttons">
+											<button type="button" class="btn btn-danger m-1" @click="state.show_discard_returned_gift_confirmation(gift.id)">
+												<lang-string lang-id="MOD_MP_DISCARD_RETURNED_GIFT_ACTION"></lang-string>
+											</button>
+										</div>
+									</div>
+									<div class="mp-transfer-exchange mp-col" v-else-if="!!gift.data">
+										<div class="mp-transfer-exchange-header mp-transfer-exchange-heading">
+											<strong class="mp-transfer-exchange-party"><img class="skill-icon-xs" :src="state.get_avatar_icon(gift.data.sender.icon_id)"/>
 												<mp-lang-string-f lang-id="MOD_MP_TRANSFER_GIFT_SENDER" :lang-arg-1="gift.data.sender.display_name" v-if="!state.is_returned_gift(gift)"></mp-lang-string-f>
 												<mp-lang-string-f lang-id="MOD_MP_TRANSFER_GIFT_RETURN_SENDER" :lang-arg-1="gift.data.sender.display_name" v-else></mp-lang-string-f>
-											</span>
-										</span>
-									</div>
-									<div class="col-6 col-lg-3">
-										<span class="font-w400 font-size-sm mb-0 ml-3">
-											<span class="font-w600">
-												<lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string>
-												<span>
-													<span class="mr-2">
-														<img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">
-														<span class="font-w400">{{ state.get_transfer_value(gift) }}</span>
+											</strong>
+											<span class="mp-transfer-exchange-value"><lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string> <img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">{{ state.get_transfer_value(gift) }}</span>
+										</div>
+										<div class="mp-transfer-exchange-body">
+											<div class="mp-transfer-item-grid">
+												<mp-item-icon v-for="item of gift.data.items" class="mp-transfer-slot" :data-item-id="item.item_id" :key="item.item_id" tabindex="0" role="img" :aria-label="state.get_item_name(item.item_id) + ' ×' + formatNumber(item.qty)">
+													<span class="mp-transfer-item">
+														<img :src="state.get_item_icon(item.item_id)" alt="" draggable="false">
+														<span class="mp-transfer-item-quantity">{{ formatNumber(item.qty) }}</span>
 													</span>
-												</span>
-											</span>
-										</span>
+												</mp-item-icon>
+											</div>
+										</div>
+										<div class="mp-transfer-buttons">
+											<button type="button" class="btn btn-success m-1" @click="state.resolve_gift($event, gift.id, true)" :key="gift.id">
+												<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+												<lang-string lang-id="MOD_MP_BUTTON_TAKE_ITEMS" v-if="state.is_returned_gift(gift)"></lang-string>
+												<lang-string lang-id="MOD_MP_BUTTON_ACCEPT_GIFT" v-else></lang-string>
+											</button>
+											<button type="button" class="btn btn-danger m-1" @click="state.resolve_gift($event, gift.id, false)" v-if="!state.is_returned_gift(gift)" :key="gift.id">
+												<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+												<lang-string lang-id="MOD_MP_TRANSFER_DECLINE"></lang-string>
+											</button>
+										</div>
+									</div>
+									<div class="mp-transfer-exchange mp-col" v-else>
+										<div class="mp-transfer-empty">
+											<lang-string lang-id="MOD_MP_TRANSFER_LOADING_GIFT"></lang-string>
+										</div>
 									</div>
 								</div>
-							</div>
-							<div class="block-content">
-								<div class="pb-4 row">
-									<mp-item-icon v-for="item of gift.data.items" class="bank-item pointer-enabled m-2" :data-item-id="item.item_id" :key="item.item_id">
-										<a role="button">
-											<img class="bank-img p-3" :src="state.get_item_icon(item.item_id)">
-											<div class="font-size-sm text-white text-center in-bank">
-												<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
-											</div>
-										</a>
-									</mp-item-icon>
-								</div>
-							</div>
-							<div class="p-3 mp-transfer-buttons">
-								<button type="button" class="btn btn-success m-1" @click="state.resolve_gift($event, gift.id, true)" :key="gift.id">
-									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-									<lang-string lang-id="MOD_MP_BUTTON_TAKE_ITEMS" v-if="state.is_returned_gift(gift)"></lang-string>
-									<lang-string lang-id="MOD_MP_BUTTON_ACCEPT_GIFT" v-else></lang-string>
-								</button>
-								<button type="button" class="btn btn-danger m-1" @click="state.resolve_gift($event, gift.id, false)" v-if="!state.is_returned_gift(gift)" :key="gift.id">
-									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-									<lang-string lang-id="MOD_MP_TRANSFER_DECLINE"></lang-string>
-								</button>
-							</div>
-						</div>
-						<div class="block tabbable w-100 mp-col" v-else>
-							<div class="p-4">
-								<lang-string lang-id="MOD_MP_TRANSFER_LOADING_GIFT"></lang-string>
-							</div>
-						</div>
-					</template>
-					<template v-for="trade in state.resolved_trades">
-						<div class="block tabbable w-100 mp-col" v-if="trade.data">
-							<div class="pl-3 pt-1 pb-1 bg-dark-bank-info text-center">
-								<div class="row gutters-tiny">
-									<div class="col-6 col-lg-3">
-										<span class="font-w400 font-size-sm mb-0">
-											<span class="font-w600">
-												<img class="skill-icon-xs" :src="state.get_avatar_icon(trade.data.other_player.icon_id)"/>
+								<div class="mp-transfer-record" v-for="trade in state.pending_resolved_trades" :key="trade.trade_id">
+									<div class="mp-transfer-exchange mp-col" v-if="trade.data">
+										<div class="mp-transfer-exchange-header mp-transfer-exchange-heading">
+											<strong class="mp-transfer-exchange-party"><img class="skill-icon-xs" :src="state.get_avatar_icon(trade.data.other_player.icon_id)"/>
 												<mp-lang-string-f lang-id="MOD_MP_TRANSFER_TRADE_DECLINED" :lang-arg-1="trade.data.other_player.display_name" v-if="trade.data.declined"></mp-lang-string-f>
 												<mp-lang-string-f lang-id="MOD_MP_TRANSFER_TRADE_COMPLETE" :lang-arg-1="trade.data.other_player.display_name" v-else></mp-lang-string-f>
-											</span>
-										</span>
-									</div>
-									<div class="col-6 col-lg-3">
-										<span class="font-w400 font-size-sm mb-0 ml-3">
-											<span class="font-w600">
-												<lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string>
-												<span>
-													<span class="mr-2">
-														<img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">
-														<span class="font-w400">{{ state.get_transfer_value(trade) }}</span>
+											</strong>
+											<span class="mp-transfer-exchange-value"><lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string> <img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">{{ state.get_transfer_value(trade) }}</span>
+										</div>
+										<div class="mp-transfer-exchange-body">
+											<div class="mp-transfer-item-grid">
+												<mp-item-icon v-for="item of trade.data.items" class="mp-transfer-slot" :data-item-id="item.item_id" :key="item.item_id" tabindex="0" role="img" :aria-label="state.get_item_name(item.item_id) + ' ×' + formatNumber(item.qty)">
+													<span class="mp-transfer-item">
+														<img :src="state.get_item_icon(item.item_id)" alt="" draggable="false">
+														<span class="mp-transfer-item-quantity">{{ formatNumber(item.qty) }}</span>
 													</span>
-												</span>
-											</span>
-										</span>
+												</mp-item-icon>
+											</div>
+										</div>
+										<div class="mp-transfer-buttons">
+											<button type="button" class="btn btn-success m-1" @click="state.resolve_trade($event, trade.trade_id)" :key="trade.trade_id">
+												<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+												<lang-string lang-id="MOD_MP_BUTTON_TAKE_ITEMS"></lang-string>
+											</button>
+										</div>
+									</div>
+									<div class="mp-transfer-exchange mp-col" v-else>
+										<div class="mp-transfer-empty">
+											<lang-string lang-id="MOD_MP_TRANSFER_LOADING_TRADE"></lang-string>
+										</div>
 									</div>
 								</div>
-							</div>
-							<div class="block-content">
-								<div class="pb-4 row">
-									<mp-item-icon v-for="item of trade.data.items" class="bank-item pointer-enabled m-2" :data-item-id="item.item_id" :key="item.item_id">
-										<a role="button">
-											<img class="bank-img p-3" :src="state.get_item_icon(item.item_id)">
-											<div class="font-size-sm text-white text-center in-bank">
-												<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
-											</div>
-										</a>
-									</mp-item-icon>
-								</div>
-							</div>
-							<div class="p-3 mp-transfer-buttons">
-								<button type="button" class="btn btn-success m-1" @click="state.resolve_trade($event, trade.trade_id)" :key="trade.trade_id">
-									<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-									<lang-string lang-id="MOD_MP_BUTTON_TAKE_ITEMS"></lang-string>
-								</button>
-							</div>
-						</div>
-						<div class="block tabbable w-100 mp-col" v-else>
-							<div class="p-4">
-								<lang-string lang-id="MOD_MP_TRANSFER_LOADING_TRADE"></lang-string>
-							</div>
-						</div>
-					</template>
-					<template v-for="trade in state.sorted_trades">
-						<div class="block tabbable w-100 mp-col" v-if="!!trade.data">
-							<div class="pl-3 pt-1 pb-1 bg-dark-bank-info text-center">
-								<div class="row gutters-tiny">
-									<div class="col-6 col-lg-3">
-										<span class="font-w400 font-size-sm mb-0">
-											<span class="font-w600">
-												<img class="skill-icon-xs" :src="state.get_avatar_icon(trade.data.other_player.icon_id)"/>
+								<div class="mp-transfer-record" v-for="trade in state.sorted_trades" :key="trade.trade_id">
+									<div class="mp-transfer-exchange mp-col" v-if="!!trade.data">
+										<div class="mp-transfer-exchange-header mp-transfer-exchange-heading">
+											<strong class="mp-transfer-exchange-party"><img class="skill-icon-xs" :src="state.get_avatar_icon(trade.data.other_player.icon_id)"/>
 												<mp-lang-string-f lang-id="MOD_MP_TRANSFER_TRADE_FROM" :lang-arg-1="trade.data.other_player.display_name" v-if="trade.attending"></mp-lang-string-f>
 												<mp-lang-string-f lang-id="MOD_MP_TRANSFER_TRADE_SENT" :lang-arg-1="trade.data.other_player.display_name" v-else></mp-lang-string-f>
-											</span>
-										</span>
-									</div>
-									<div class="col-6 col-lg-3" v-if="trade.state === 0">
-										<span class="font-w400 font-size-sm mb-0 ml-3">
-											<span class="font-w600">
-												<lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string>
-												<span>
-													<span class="mr-2">
-														<img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">
-														<span class="font-w400">{{ state.get_transfer_value(trade) }}</span>
-													</span>
-												</span>
-											</span>
-										</span>
-									</div>
-								</div>
-							</div>
-							<div class="block-content">
-								<div class="pb-4 mp-dual-trade" v-if="trade.state === 1">
-									<div class="mp-dual-trade-panel">
-										<div class="mp-dual-trade-header">
-											<h5>
-												<img class="skill-icon-xs" :src="state.get_avatar_icon(state.profile_icon)"/>
-												<lang-string lang-id="MOD_MP_TRANSFER_HEADER_HOME"></lang-string>
-											</h5>
-											<span class="font-w600">
-												<lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string>
-												<span>
-													<span class="mr-2">
-														<img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">
-														<span class="font-w400">{{ state.get_trade_items_value(state.filter_trade_items_home(trade)) }}</span>
-													</span>
-												</span>
-											</span>
+											</strong>
+											<span class="mp-transfer-exchange-value" v-if="trade.state === 0"><lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string> <img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">{{ state.get_transfer_value(trade) }}</span>
 										</div>
-										<div class="mp-dual-trade-items">
-											<mp-item-icon v-for="item of state.filter_trade_items_home(trade)" class="bank-item pointer-enabled m-2" :data-item-id="item.item_id" :key="item.item_id">
-												<a role="button">
-													<img class="bank-img p-3" :src="state.get_item_icon(item.item_id)">
-													<div class="font-size-sm text-white text-center in-bank">
-														<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
+										<div class="mp-transfer-exchange-body">
+											<div class="mp-dual-trade" v-if="trade.state === 1">
+												<div class="mp-dual-trade-panel">
+													<div class="mp-dual-trade-header">
+														<h5>
+															<img class="skill-icon-xs" :src="state.get_avatar_icon(state.profile_icon)"/>
+															<lang-string lang-id="MOD_MP_TRANSFER_HEADER_HOME"></lang-string>
+														</h5>
+														<span class="font-w600">
+															<lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string>
+															<span>
+																<span class="mr-2">
+																	<img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">
+																	<span class="font-w400">{{ state.get_trade_items_value(state.filter_trade_items_home(trade)) }}</span>
+																</span>
+															</span>
+														</span>
 													</div>
-												</a>
-											</mp-item-icon>
-										</div>
-									</div>
-									<div class="mp-dual-trade-divider"></div>
-									<div class="mp-dual-trade-panel">
-										<div class="mp-dual-trade-header">
-											<h5>
-												<img class="skill-icon-xs" :src="state.get_avatar_icon(trade.data.other_player.icon_id)"/>
-												<mp-lang-string-f lang-id="MOD_MP_TRANSFER_HEADER_AWAY" :lang-arg-1="trade.data.other_player.display_name"></mp-lang-string-f>
-											</h5>
-											<span class="font-w600">
-												<lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string>
-												<span>
-													<span class="mr-2">
-														<img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">
-														<span class="font-w400">{{ state.get_trade_items_value(state.filter_trade_items_away(trade)) }}</span>
-													</span>
-												</span>
-											</span>
-										</div>
-										<div class="mp-dual-trade-items">
-											<mp-item-icon v-for="item of state.filter_trade_items_away(trade)" class="bank-item pointer-enabled m-2" :data-item-id="item.item_id" :key="item.item_id">
-												<a role="button">
-													<img class="bank-img p-3" :src="state.get_item_icon(item.item_id)">
-													<div class="font-size-sm text-white text-center in-bank">
-														<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
+													<div class="mp-dual-trade-items mp-transfer-item-grid">
+														<mp-item-icon v-for="item of state.filter_trade_items_home(trade)" class="mp-transfer-slot" :data-item-id="item.item_id" :key="item.item_id" tabindex="0" role="img" :aria-label="state.get_item_name(item.item_id) + ' ×' + formatNumber(item.qty)">
+															<span class="mp-transfer-item">
+																<img :src="state.get_item_icon(item.item_id)" alt="" draggable="false">
+																<span class="mp-transfer-item-quantity">{{ formatNumber(item.qty) }}</span>
+															</span>
+														</mp-item-icon>
 													</div>
-												</a>
-											</mp-item-icon>
-										</div>
-									</div>
-								</div>
-								<div class="pb-4 row" v-else>
-									<mp-item-icon v-for="item of trade.data.items" class="bank-item pointer-enabled m-2" :data-item-id="item.item_id" :key="item.item_id">
-										<a role="button">
-											<img class="bank-img p-3" :src="state.get_item_icon(item.item_id)">
-											<div class="font-size-sm text-white text-center in-bank">
-												<small class="badge-pill bg-secondary">{{ formatNumber(item.qty) }}</small>
+												</div>
+												<div class="mp-dual-trade-divider"></div>
+												<div class="mp-dual-trade-panel">
+													<div class="mp-dual-trade-header">
+														<h5>
+															<img class="skill-icon-xs" :src="state.get_avatar_icon(trade.data.other_player.icon_id)"/>
+															<mp-lang-string-f lang-id="MOD_MP_TRANSFER_HEADER_AWAY" :lang-arg-1="trade.data.other_player.display_name"></mp-lang-string-f>
+														</h5>
+														<span class="font-w600">
+															<lang-string lang-id="MOD_MP_TRANSFER_VALUE"></lang-string>
+															<span>
+																<span class="mr-2">
+																	<img class="skill-icon-xxs mr-1" src="assets/media/main/coins.svg">
+																	<span class="font-w400">{{ state.get_trade_items_value(state.filter_trade_items_away(trade)) }}</span>
+																</span>
+															</span>
+														</span>
+													</div>
+													<div class="mp-dual-trade-items mp-transfer-item-grid">
+														<mp-item-icon v-for="item of state.filter_trade_items_away(trade)" class="mp-transfer-slot" :data-item-id="item.item_id" :key="item.item_id" tabindex="0" role="img" :aria-label="state.get_item_name(item.item_id) + ' ×' + formatNumber(item.qty)">
+															<span class="mp-transfer-item">
+																<img :src="state.get_item_icon(item.item_id)" alt="" draggable="false">
+																<span class="mp-transfer-item-quantity">{{ formatNumber(item.qty) }}</span>
+															</span>
+														</mp-item-icon>
+													</div>
+												</div>
 											</div>
-										</a>
-									</mp-item-icon>
+											<div class="mp-transfer-item-grid" v-else>
+												<mp-item-icon v-for="item of trade.data.items" class="mp-transfer-slot" :data-item-id="item.item_id" :key="item.item_id" tabindex="0" role="img" :aria-label="state.get_item_name(item.item_id) + ' ×' + formatNumber(item.qty)">
+													<span class="mp-transfer-item">
+														<img :src="state.get_item_icon(item.item_id)" alt="" draggable="false">
+														<span class="mp-transfer-item-quantity">{{ formatNumber(item.qty) }}</span>
+													</span>
+												</mp-item-icon>
+											</div>
+										</div>
+										<div class="mp-transfer-buttons">
+											<div v-show="trade.attending">
+												<button v-if="trade.state === 0" type="button" class="btn btn-success m-1" @click="state.counter_trade($event, trade.trade_id)" :key="trade.trade_id">
+													<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+													<lang-string lang-id="MOD_MP_TRANSFER_OFFER_OUTBOX"></lang-string>
+												</button>
+												<button v-else-if="trade.state === 1" type="button" class="btn btn-success m-1" @click="state.accept_trade($event, trade.trade_id)" :key="trade.trade_id">
+													<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+													<lang-string lang-id="MOD_MP_BUTTON_ACCEPT_TRADE"></lang-string>
+												</button>
+												<button type="button" class="btn btn-danger m-1" @click="state.decline_trade($event, trade.trade_id)" :key="trade.trade_id">
+													<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+													<lang-string lang-id="MOD_MP_TRANSFER_DECLINE"></lang-string>
+												</button>
+											</div>
+											<div v-show="!trade.attending">
+												<button type="button" class="btn btn-danger m-1" @click="state.cancel_trade($event, trade.trade_id)" :key="trade.trade_id">
+													<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
+													<lang-string lang-id="MOD_MP_BUTTON_CANCEL_TRADE"></lang-string>
+												</button>
+											</div>
+										</div>
+									</div>
+									<div class="mp-transfer-exchange mp-col" v-else>
+										<div class="mp-transfer-empty">
+											<lang-string lang-id="MOD_MP_TRANSFER_LOADING_TRADE"></lang-string>
+										</div>
+									</div>
 								</div>
 							</div>
-							<div class="p-3 mp-transfer-buttons">
-								<template v-if="trade.attending">
-									<button v-if="trade.state === 0" type="button" class="btn btn-success m-1" @click="state.counter_trade($event, trade.trade_id)" :key="trade.trade_id">
-										<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-										<lang-string lang-id="MOD_MP_TRANSFER_OFFER_OUTBOX"></lang-string>
-									</button>
-									<button v-else-if="trade.state === 1" type="button" class="btn btn-success m-1" @click="state.accept_trade($event, trade.trade_id)" :key="trade.trade_id">
-										<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-										<lang-string lang-id="MOD_MP_BUTTON_ACCEPT_TRADE"></lang-string>
-									</button>
-									<button type="button" class="btn btn-danger m-1" @click="state.decline_trade($event, trade.trade_id)" :key="trade.trade_id">
-										<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-										<lang-string lang-id="MOD_MP_TRANSFER_DECLINE"></lang-string>
-									</button>
-								</template>
-								<template v-else>
-									<button type="button" class="btn btn-danger m-1" @click="state.cancel_trade($event, trade.trade_id)" :key="trade.trade_id">
-										<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-										<lang-string lang-id="MOD_MP_BUTTON_CANCEL_TRADE"></lang-string>
-									</button>
-								</template>
+						</div>
+					</section>
+					<section class="mp-transfers-panel mp-transfer-history" aria-labelledby="mp-transfer-history-pending-title">
+						<h3 id="mp-transfer-history-pending-title" class="mp-transfer-panel-heading">
+							<button type="button" class="mp-transfer-panel-header" :aria-expanded="state.transfers_history_open.pending" aria-controls="mp-transfer-history-pending-body" @click="state.transfers_history_open.pending = !state.transfers_history_open.pending">
+								<i class="fa fa-history" aria-hidden="true"></i><span><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_TITLE"></lang-string></span>
+								<i class="fa" :class="state.transfers_history_open.pending ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
+							</button>
+						</h3>
+						<div id="mp-transfer-history-pending-body" class="mp-transfer-panel-body" v-show="state.transfers_history_open.pending">
+							<p class="mp-transfer-history-description"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_WINDOW"></lang-string></p>
+							<p role="status" v-show="state.transfer_history.pending.error"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_ERROR"></lang-string></p>
+							<p class="mp-transfer-empty" v-show="state.transfer_history.pending.loaded &amp;&amp; !state.transfer_history.pending.loading &amp;&amp; !state.transfer_history.pending.error &amp;&amp; state.get_transfer_history_entries('pending').length === 0"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_EMPTY"></lang-string></p>
+							<div class="mp-transfer-history-list">
+								<article class="mp-transfer-history-entry" v-for="entry of state.get_transfer_history_entries('pending')" :key="entry.id">
+									<h4>{{ state.get_transfer_history_title(entry) }}</h4>
+									<div class="mp-transfer-history-meta"><time :datetime="new Date(entry.occurred_at).toISOString()">{{ state.format_guild_activity_time(entry.occurred_at) }}</time><span v-show="entry.reconstructed"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_RECONSTRUCTED"></lang-string></span></div>
+									<div class="mp-transfer-history-meta" v-show="state.get_transfer_history_context(entry)">{{ state.get_transfer_history_context(entry) }}</div>
+									<div class="mp-transfer-history-item" v-for="(item, index) of state.get_transfer_history_items(entry)" :key="index" :aria-label="state.format_transfer_history_item(item) + (item.direction === 'context' ? '' : ' · ' + getLangString(item.direction === 'out' ? 'MOD_MP_TRANSFER_HISTORY_SENT' : 'MOD_MP_TRANSFER_HISTORY_RECEIVED'))">
+										<span class="mp-transfer-history-direction" v-show="item.direction !== 'context'" :aria-label="item.direction === 'out' ? getLangString('MOD_MP_TRANSFER_HISTORY_SENT') : getLangString('MOD_MP_TRANSFER_HISTORY_RECEIVED')">{{ item.direction === 'out' ? '−' : '+' }}</span>
+										<img :src="state.get_item_icon(item.item_id)" alt="" draggable="false"><div class="mp-transfer-history-item-detail"><span>{{ state.format_transfer_history_item(item) }}</span>
+											<div class="mp-transfer-history-source" v-for="(source, source_index) of state.get_transfer_history_sources(item)" :key="source_index">{{ source.title }} · {{ formatNumber(source.qty) }}</div>
+										</div>
+									</div>
+								</article>
+							</div>
+							<div class="mp-transfer-history-controls">
+								<button type="button" class="btn btn-secondary" :disabled="state.transfer_history.pending.loading" @click="state.load_transfer_history('pending', state.transfer_history.pending.retry_append)" v-show="state.transfer_history.pending.error"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_RETRY"></lang-string></button>
+								<button type="button" class="btn btn-secondary" :disabled="state.transfer_history.pending.loading" @click="state.load_transfer_history('pending', true)" v-show="state.has_more_transfer_history('pending') &amp;&amp; !state.transfer_history.pending.error"><lang-string lang-id="MOD_MP_BUTTON_LOAD_MORE"></lang-string></button>
 							</div>
 						</div>
-						<div class="block tabbable w-100 mp-col" v-else>
-							<div class="p-4">
-								<lang-string lang-id="MOD_MP_TRANSFER_LOADING_TRADE"></lang-string>
-							</div>
-						</div>
-					</template>
+					</section>
 				</div>
-			</section>
+			</div>
 		</div>
 	</div>
 </template>
@@ -2661,19 +2871,29 @@
 </template>
 
 <template id="template-mp-alliance-picker-modal">
-	<p><lang-string lang-id="MOD_MP_ALLIANCE_COUNCIL_HINT"></lang-string></p>
-	<input v-if="state.alliance_picker_mode === 'found'" class="form-control mb-3" v-model="state.alliance_name_input" maxlength="20" :placeholder="getLangString('MOD_MP_ALLIANCE_NAME')" @input="state.alliance_error = ''">
+	<input v-if="state.alliance_picker_mode === 'found'" class="mp-input-text mp-alliance-name-input w-100 mb-3" v-model="state.alliance_name_input" maxlength="20" :placeholder="getLangString('MOD_MP_ALLIANCE_NAME')" @input="state.alliance_error = ''">
 	<p class="text-danger" v-if="state.alliance_error">{{ state.alliance_error }}</p>
+	<p class="text-muted" v-if="!state.alliance_picker_entries.length"><lang-string :lang-id="state.alliance_picker_mode === 'found' ? 'MOD_MP_ALLIANCE_FOUND_EMPTY' : 'MOD_MP_ALLIANCE_JOIN_EMPTY'"></lang-string></p>
 	<div class="mp-alliance-picker-scroll" @touchmove="state.stop_icon_scroll_propagation($event)">
-		<div class="mp-council-card" v-for="entry in state.alliance_picker_entries" :key="entry.guild_id || entry.id" v-show="entry.guild_id !== state.guild_state.guild?.guild_id">
-			<strong>{{ entry.name }}</strong>
-			<div v-for="guild in entry.member_guilds || [entry]" :key="guild.guild_id">
-				<img class="skill-icon-xs" :src="state.get_guild_icon(guild.icon_id)"> {{ guild.name }}
-				<span class="badge badge-info mr-1" v-for="tag in state.alliance_guild_tags(guild)">{{ tag }}</span>
-				<button class="btn btn-sm btn-secondary" @click="state.preview_alliance_guild(guild.guild_id, true)"><lang-string lang-id="MOD_MP_ALLIANCE_PREVIEW"></lang-string></button>
+		<div class="block block-rounded mp-alliance-picker-card" v-for="entry in state.alliance_picker_entries" :key="entry.guild_id || entry.id">
+			<div class="block-content">
+				<h3 class="mp-alliance-picker-name" v-if="entry.member_guilds">{{ entry.name }}</h3>
+				<div class="font-size-sm text-muted mb-2" v-if="entry.member_guilds && state.alliance_age(entry) !== null"><lang-string lang-id="MOD_MP_GUILD_ESTABLISHED"></lang-string> <strong>{{ state.alliance_age(entry) }}</strong> <lang-string lang-id="MOD_MP_GUILD_DAYS_AGO"></lang-string></div>
+				<div class="mp-alliance-summary-counts mb-2" v-if="entry.member_guilds"><span>{{ state.alliance_members_text(entry) }}</span><span aria-hidden="true">·</span><span>{{ state.alliance_guild_count_text(entry) }}</span></div>
+				<div class="mp-guild-result" v-for="guild in entry.member_guilds || [entry]" :key="guild.guild_id">
+					<img class="mp-guild-result-icon" :src="state.get_guild_icon(guild.icon_id)">
+					<div class="mp-guild-result-content">
+						<button type="button" class="mp-alliance-roster-name" @click="state.preview_alliance_guild(guild.guild_id, true)">{{ guild.name }}</button>
+						<div class="font-size-sm text-muted" v-if="!entry.member_guilds && state.alliance_age(guild) !== null"><lang-string lang-id="MOD_MP_GUILD_ESTABLISHED"></lang-string> <strong>{{ state.alliance_age(guild) }}</strong> <lang-string lang-id="MOD_MP_GUILD_DAYS_AGO"></lang-string></div>
+						<div class="mp-guild-result-tags mt-2" v-if="!entry.member_guilds">
+							<span class="badge badge-secondary">{{ state.alliance_members_text({ member_guilds: [guild] }) }}</span>
+							<span class="badge badge-secondary" v-for="tag in state.alliance_guild_tags(guild)">{{ tag }}</span>
+						</div>
+					</div>
+				</div>
+				<div class="mt-2" v-if="entry.member_guilds && entry.shared_marketplace"><span class="badge badge-info"><lang-string lang-id="MOD_MP_ALLIANCE_SHARED_MARKETPLACE"></lang-string></span></div>
+				<button class="btn btn-primary mt-3" :disabled="state.alliance_picker_mode === 'found' && !state.alliance_name_input.trim()" @click="state.alliance_action($event, state.alliance_picker_mode, entry.guild_id || entry.id)">{{ state.alliance_picker_label(state.alliance_picker_mode) }}<span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
 			</div>
-			<p v-if="entry.member_guilds"><lang-string lang-id="MOD_MP_ALLIANCE_SHARED_MARKETPLACE"></lang-string>: {{ entry.shared_marketplace ? getLangString('MOD_MP_ALLIANCE_ENABLED') : getLangString('MOD_MP_ALLIANCE_DISABLED') }}</p>
-			<button class="btn btn-primary mt-2" :disabled="state.alliance_picker_mode === 'found' && !state.alliance_name_input.trim()" @click="state.alliance_action($event, state.alliance_picker_mode, entry.guild_id || entry.id)">{{ state.alliance_label(state.alliance_picker_mode) }}<span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
 		</div>
 	</div>
 	<div class="mp-button-tray">
@@ -2683,15 +2903,18 @@
 	</div>
 </template>
 <template id="template-mp-alliance-preview-modal">
-	<div v-if="state.alliance_preview">
-		<img class="skill-icon-md" :src="state.get_guild_icon(state.alliance_preview.icon_id)">
-		<h4>{{ state.alliance_preview.name }}</h4>
-		<p><lang-string lang-id="MOD_MP_GUILD_MEMBERS"></lang-string>: {{ state.alliance_preview.member_count }}</p>
-		<p v-if="state.alliance_preview.created_at"><lang-string lang-id="MOD_MP_ALLIANCE_ESTABLISHED"></lang-string>: {{ new Date(state.alliance_preview.created_at).toLocaleDateString() }}</p>
-		<span class="badge badge-info mr-1" v-for="tag in state.alliance_guild_tags(state.alliance_preview)">{{ tag }}</span>
+	<div class="mp-alliance-modal-scroll" @touchmove="state.stop_icon_scroll_propagation($event)">
+		<dl class="mp-guild-preview-details" v-if="state.alliance_preview">
+			<div v-if="state.guild_preview_established() !== null"><dt><lang-string lang-id="MOD_MP_ALLIANCE_ESTABLISHED"></lang-string></dt><dd>{{ state.guild_preview_established() }} <lang-string lang-id="MOD_MP_GUILD_DAYS_AGO"></lang-string></dd></div>
+			<div><dt><lang-string lang-id="MOD_MP_GUILD_MEMBERS"></lang-string></dt><dd>{{ state.alliance_preview.member_count }}</dd></div>
+			<div><dt><lang-string lang-id="MOD_MP_GUILD_ADMISSION_POLICY"></lang-string></dt><dd><lang-string :lang-id="state.alliance_preview.type === 'private' ? 'MOD_MP_GUILD_PRIVATE' : 'MOD_MP_GUILD_OPEN'"></lang-string></dd></div>
+			<div><dt><lang-string lang-id="MOD_MP_GUILD_CHEATER_POLICY"></lang-string></dt><dd><lang-string :lang-id="state.alliance_preview.restricts_cheaters ? 'MOD_MP_SOCIAL_MODE_SOCIAL' : 'MOD_MP_GUILD_POLICY_UNRESTRICTED'"></lang-string></dd></div>
+			<div><dt><lang-string lang-id="MOD_MP_GUILD_MARKET_DISCOVERY_POLICY"></lang-string></dt><dd><lang-string :lang-id="state.alliance_preview.market_discovery_restriction_enabled ? 'MOD_MP_GUILD_POLICY_DISCOVERED' : 'MOD_MP_GUILD_POLICY_UNRESTRICTED'"></lang-string></dd></div>
+		</dl>
 	</div>
-	<div class="mp-button-tray"><button class="btn btn-secondary" @click="state.close_alliance_preview()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button></div>
+	<div class="mp-button-tray mt-3"><button class="btn btn-secondary" @click="state.close_alliance_preview()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button></div>
 </template>
+
 
 <template id="template-mp-chat-item-picker-modal">
 	<div class="mp-chat-item-picker">
@@ -2732,5 +2955,16 @@
 				</div>
 			</div>
 		</article>
+	</div>
+</template>
+
+<template id="template-mp-alliance-confirm-modal">
+	<div class="mp-alliance-modal-scroll" @touchmove="state.stop_icon_scroll_propagation($event)">
+		<div class="mp-modal-text">{{ state.alliance_confirmation_hint() }}</div>
+		<p class="text-muted mt-3" v-if="state.alliance_confirmation?.synthetic"><lang-string lang-id="MOD_MP_ALLIANCE_PREVIEW_CONFIRM_HINT"></lang-string></p>
+	</div>
+	<div class="mp-button-tray mt-3">
+		<button type="button" class="btn btn-primary" @click="state.confirm_alliance_proposal($event)"><lang-string lang-id="MOD_MP_RAID_I_UNDERSTAND"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+		<button type="button" class="btn btn-secondary" @click="state.close_alliance_confirmation()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
 	</div>
 </template>

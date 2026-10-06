@@ -1,5 +1,6 @@
+import { is_feature_tester, council_test_data, valid_council_test_action } from '../feature-testers';
 import { cleanup_market_permissions } from '../alliance-market';
-import { has_alliance_access, alliance_capable, alliance_ballot_activity, maintain_alliances, remove_alliance_guild } from '../alliances';
+import { has_alliance_access, alliance_petition_withdrawable, alliance_capable, alliance_ballot_activity, maintain_alliances, remove_alliance_guild } from '../alliances';
 import * as runtime from '../app-runtime';
 import type { GuildSummary, GuildType } from '../app-runtime';
 import type { SQLQueryBindings } from 'bun:sqlite';
@@ -23,6 +24,12 @@ function petition_visible_to_client(type: string, req: Request, client_id: numbe
 	return crucible_client ? !type.startsWith('charitree_') : !type.startsWith('crucible_');
 }
 
+function council_preview_enabled(req: Request, client_id: number): boolean {
+	const version = runtime.get_request_mod_version(req);
+	return (version === 'development' || is_client_version_at_least(version, '1.6.3')) &&
+		is_feature_tester(db, client_id, 'council');
+}
+
 export function register_guilds_routes(): void {
 	session_get_route('/api/guilds/activity', async (req, url, client_id): Promise<HandlerResult> => {
 		const guild_id = await get_client_guild_id(client_id);
@@ -35,7 +42,7 @@ export function register_guilds_routes(): void {
 		const include_legacy = version !== 'development' && !is_client_version_at_least(version, '1.6.0');
 		return get_guild_activity(guild_id, client_id, cursor, include_legacy, has_alliance_access(client_id, version));
 	});
-	session_get_route('/api/guilds/council', async (req, url, client_id) => {
+	session_get_route('/api/guilds/council', async (req, url, client_id): Promise<HandlerResult> => {
 		expire_petitions();
 		process_council_actions();
 		const membership = await db_get_single(
@@ -51,8 +58,12 @@ export function register_guilds_routes(): void {
 			return 400; // Bad Request
 
 		const version = runtime.get_request_mod_version(req);
-		return await get_council_petitions(membership.guild_id, client_id, resolved_page,
+		const result = await get_council_petitions(membership.guild_id, client_id, resolved_page,
 			version === 'development' || is_client_version_at_least(version, '1.6.0'), has_alliance_access(client_id, version), alliance_capable(version));
+		if (!council_preview_enabled(req, client_id)) return result;
+		const fixtures = council_test_data();
+		return { ...result, petitions: [...result.petitions, ...fixtures.active,
+			...(resolved_page === 0 ? fixtures.history : [])] };
 	});
 
 	session_post_route('/api/guilds/petitions/raise', async (req, url, client_id, json): Promise<HandlerResult> => {
@@ -231,6 +242,8 @@ export function register_guilds_routes(): void {
 				'JOIN `clients` AS client ON client.`id` = membership.`client_id` ' +
 				'WHERE membership.`guild_id` = ? AND client.`last_multiplayer_active_at` >= ?'
 			).run(petition.id, membership.guild_id, now - 4 * 86400000);
+			db.query('UPDATE clients SET event_revision = event_revision + 1 WHERE id IN (' +
+				'SELECT client_id FROM guild_memberships WHERE guild_id = ?)').run(membership.guild_id);
 			return { status: 'created' as const, petition_id: petition.id };
 		});
 
@@ -261,6 +274,9 @@ export function register_guilds_routes(): void {
 	session_post_route('/api/guilds/petitions/vote', async (req, url, client_id, json): Promise<HandlerResult> => {
 		const petition_id = json.petition_id;
 		const choice = json.choice;
+		if (typeof petition_id === 'number' && petition_id < 0)
+			return council_preview_enabled(req, client_id) && valid_council_test_action(petition_id, 'vote', choice)
+				? { success: true, synthetic: true, lifecycle: 'active' } : 400;
 		if (typeof petition_id !== 'number' || !Number.isSafeInteger(petition_id) || petition_id < 1 ||
 			!is_petition_choice(choice))
 			return 400; // Bad Request
@@ -362,6 +378,9 @@ export function register_guilds_routes(): void {
 
 	session_post_route('/api/guilds/petitions/withdraw', async (req, url, client_id, json): Promise<HandlerResult> => {
 		const petition_id = json.petition_id;
+		if (typeof petition_id === 'number' && petition_id < 0)
+			return council_preview_enabled(req, client_id) && valid_council_test_action(petition_id, 'withdraw')
+				? { success: true, synthetic: true } : 400;
 		if (typeof petition_id !== 'number' || !Number.isSafeInteger(petition_id) || petition_id < 1)
 			return 400; // Bad Request
 
@@ -389,7 +408,7 @@ export function register_guilds_routes(): void {
 			}
 			if (petition.lifecycle !== 'active')
 				return 'final';
-			if (petition.type === 'alliance_ballot') return 'forbidden';
+			if (!alliance_petition_withdrawable(petition_id)) return 'forbidden';
 			if (petition.petitioner_id !== client_id)
 				return 'forbidden';
 			const membership = db.query(

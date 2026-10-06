@@ -1,7 +1,8 @@
+import { record_pending_exchange, record_transfer_history } from '../transfer-history';
 import * as runtime from '../app-runtime';
 import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonObject } from '../http';
-import { add_inbox_gp, add_inbox_items } from '../inbox';
+import { add_inbox_gp, add_inbox_items, get_inbox_source_name } from '../inbox';
 import { cancel_client_haggles } from './haggle';
 
 const {
@@ -68,6 +69,7 @@ function cancel_owned_exchanges(client_id: number): Omit<ModeChange, 'success' |
 			(gift.client_id === client_id && (gift.flags & GiftFlags.Returned) !== 0)
 			? client_id : gift.sender_id;
 		add_inbox_items(recipient, items, { type: 'gift_returned' });
+		record_pending_exchange(db, 'gift', gift.gift_id, 'gift.returned', Date.now());
 		db.query('DELETE FROM `gift_items` WHERE `gift_id` = ?').run(gift.gift_id);
 		db.query('DELETE FROM `gifts` WHERE `gift_id` = ?').run(gift.gift_id);
 		remove_player_cache_entry(gift_cache, gift.client_id, gift.gift_id);
@@ -80,6 +82,7 @@ function cancel_owned_exchanges(client_id: number): Omit<ModeChange, 'success' |
 		add_inbox_items(trade.sender_id, items.filter(item => item.counter === 0), { type: 'trade_cancelled' });
 		if (trade.state === 1)
 			add_inbox_items(trade.recipient_id, items.filter(item => item.counter === 1), { type: 'trade_cancelled' });
+		record_pending_exchange(db, 'trade', trade.trade_id, 'trade-cancel', Date.now());
 		db.query('DELETE FROM `trade_items` WHERE `trade_id` = ?').run(trade.trade_id);
 		db.query('DELETE FROM `trade_offers` WHERE `trade_id` = ?').run(trade.trade_id);
 		trade_cache.delete(trade.trade_id);
@@ -91,6 +94,9 @@ function cancel_owned_exchanges(client_id: number): Omit<ModeChange, 'success' |
 	for (const trade of resolved_trades) {
 		const items = db.query('SELECT `item_id`, `qty` FROM `trade_items` WHERE `trade_id` = ?').all(trade.trade_id) as Array<{ item_id: string; qty: number }>;
 		add_inbox_items(client_id, items, { type: trade.declined === 1 ? 'trade_cancelled' : 'trade_completed' });
+		record_transfer_history(db, { client_id, pane: 'pending', event_type: 'trade-resolve',
+			source_key: `trade:${trade.trade_id}:claimed`, occurred_at: Date.now(),
+			source_name: get_inbox_source_name(trade.sender_id), items });
 		db.query('DELETE FROM `trade_items` WHERE `trade_id` = ?').run(trade.trade_id);
 		db.query('DELETE FROM `resolved_trade_offers` WHERE `trade_id` = ?').run(trade.trade_id);
 		remove_player_cache_entry(resolved_trade_cache, client_id, trade.trade_id);

@@ -132,6 +132,7 @@ export function install_trading_actions(runtime) {
 		},
 
 		async counter_trade(event, trade_id, confirmed = false) {
+			if (this.is_pending_preview?.('trade', trade_id)) return this.pending_preview_action('trade', trade_id, 'counter');
 			if (is_social_only())
 				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			const trade = state.trades.find(t => t.trade_id === trade_id);
@@ -178,6 +179,7 @@ export function install_trading_actions(runtime) {
 		},
 
 		async resolve_trade(event, trade_id) {
+			if (this.is_pending_preview?.('trade', trade_id)) return this.pending_preview_action('trade', trade_id, 'resolve');
 			if (is_social_only())
 				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			// prevent resolving a trade with no local data
@@ -204,6 +206,7 @@ export function install_trading_actions(runtime) {
 		},
 
 		async decline_trade(event, trade_id, confirmed = false) {
+			if (this.is_pending_preview?.('trade', trade_id)) return this.pending_preview_action('trade', trade_id, 'decline');
 			if (is_social_only())
 				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			// prevent declining a trade with no local data
@@ -231,6 +234,7 @@ export function install_trading_actions(runtime) {
 		},
 
 		async accept_trade(event, trade_id) {
+			if (this.is_pending_preview?.('trade', trade_id)) return this.pending_preview_action('trade', trade_id, 'accept');
 			if (is_social_only())
 				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			// prevent accepting a trade with no local data
@@ -256,6 +260,7 @@ export function install_trading_actions(runtime) {
 		},
 
 		async cancel_trade(event, trade_id, confirmed = false) {
+			if (this.is_pending_preview?.('trade', trade_id)) return this.pending_preview_action('trade', trade_id, 'cancel');
 			if (is_social_only())
 				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			// prevent cancelling a trade with no local data
@@ -289,6 +294,7 @@ export function install_trading_actions(runtime) {
 		},
 
 		show_discard_returned_gift_confirmation(gift_id) {
+			if (this.is_pending_preview?.('gift', gift_id)) return this.pending_preview_action('gift', gift_id, 'discard');
 			this.unsupported_returned_gift_id = gift_id;
 			this.unsupported_returned_gift_command_id = crypto.randomUUID();
 			queue_modal('MOD_MP_DISCARD_RETURNED_GIFT_TITLE', 'discard-returned-gift-modal',
@@ -318,6 +324,7 @@ export function install_trading_actions(runtime) {
 		},
 
 		async resolve_gift(event, gift_id, accept, confirmed = false) {
+			if (this.is_pending_preview?.('gift', gift_id)) return this.pending_preview_action('gift', gift_id, accept ? 'accept' : 'decline');
 			if (is_social_only())
 				return notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 			const $button = event.currentTarget;

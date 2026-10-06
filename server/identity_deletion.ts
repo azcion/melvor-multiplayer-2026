@@ -1,3 +1,4 @@
+import { record_pending_exchange } from './transfer-history';
 import type { Database } from 'bun:sqlite';
 import type * as db_row from './db/types/db_types';
 import { settle_departing_charity_wish } from './charity-wishes';
@@ -147,6 +148,7 @@ export function execute_client_deletion(
 			const return_id = ensure_deletion_return(database, request.id, owner_id, target.display_name, now);
 			add_deletion_return_item(database, return_id, item.item_id, item.qty);
 		}
+		record_pending_exchange(database, 'trade', trade.trade_id, 'trade-cancel', now);
 		database.query('DELETE FROM `trade_items` WHERE `trade_id` = ?').run(trade.trade_id);
 		database.query('DELETE FROM `trade_offers` WHERE `trade_id` = ?').run(trade.trade_id);
 	}
@@ -162,6 +164,7 @@ export function execute_client_deletion(
 		).all(gift.gift_id);
 		for (const item of items)
 			add_deletion_return_item(database, return_id, item.item_id, item.qty);
+		record_pending_exchange(database, 'gift', gift.gift_id, 'gift.returned', now);
 		database.query('DELETE FROM `gift_items` WHERE `gift_id` = ?').run(gift.gift_id);
 		database.query('DELETE FROM `gifts` WHERE `gift_id` = ?').run(gift.gift_id);
 	}

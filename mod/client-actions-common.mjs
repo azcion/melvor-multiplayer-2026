@@ -92,8 +92,8 @@ export function install_common_actions(runtime) {
 			return lang_id === null ? '' : getLangString(lang_id);
 		},
 
-		format_member_account_age(account_age) {
-			return format_status_account_age(account_age);
+		format_member_account_age(account_age, precision = 'minute') {
+			return format_status_account_age(account_age, precision);
 		},
 
 		format_member_total_skill_level(total_skill_level) {

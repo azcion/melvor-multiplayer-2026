@@ -38,3 +38,11 @@ test('uses Chinese unit formatting without English list punctuation', () => {
 
 	assert.equal(format_account_age(age, 'zh-CN', key => chinese[key]), '2 年33 天18 小时8 分钟');
 });
+
+test('formats detection ages to whole hours while preserving account-age minute precision', () => {
+	const get_lang_string = key => language[key];
+	const age = (3 * 24 + 17) * 3600000 + 24 * 60000;
+	assert.equal(format_account_age(age, 'en', get_lang_string, 'hour'), '3 days, 17 hours');
+	assert.equal(format_account_age(59 * 60000, 'en', get_lang_string, 'hour'), '0 hours');
+	assert.equal(format_account_age(age, 'en', get_lang_string), '3 days, 17 hours, 24 minutes');
+});

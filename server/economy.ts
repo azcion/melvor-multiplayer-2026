@@ -36,6 +36,7 @@ export function economy_item_effects(
 type EconomyResponse = Record<string, unknown> & {
 	success?: boolean;
 	effects?: EconomyEffect[];
+	history_name?: string;
 };
 
 type StoredReceipt = {
@@ -53,6 +54,7 @@ function receipt_response(id: string, kind: string, response: EconomyResponse): 
 	const effects = response.effects ?? [];
 	const value = { ...response };
 	delete value.effects;
+	delete value.history_name;
 	return { ...value, receipt: { id, kind, effects } satisfies EconomyReceipt };
 }
 
@@ -90,6 +92,9 @@ export function run_economy_command(
 			'INSERT INTO `economy_receipts` (`id`, `client_id`, `kind`, `response_json`, `created_at`) ' +
 			'VALUES(?, ?, ?, ?, ?)'
 		).run(command_id, client_id, kind, JSON.stringify(response), Date.now());
+		if (result.history_name) db.query(
+			'UPDATE transfer_history_events SET source_name=? WHERE client_id=? AND source_key=?'
+		).run(result.history_name, client_id, `receipt:${command_id}`);
 		db.query('UPDATE `clients` SET `event_revision` = `event_revision` + 1 WHERE `id` = ?').run(client_id);
 		return response as JsonObject;
 	});

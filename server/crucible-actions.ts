@@ -278,14 +278,15 @@ export function crucible_clear_state(actor: CrucibleActor, now = Date.now()): {
 	level: number; active_wish: boolean; clear_count: number; next_reclaim_at: number | null;
 } {
 	const active_wish = actor.account_id !== null && db.query(
-		'SELECT 1 FROM crucible_wishes WHERE melvor_account_id = ?'
-	).get(actor.account_id) !== null;
-	const reset = db.query<{ reset_at: number }, [string]>(
-		'SELECT reset_at FROM crucible_visibility_resets WHERE owner_key = ?').get(actor.owner_key)?.reset_at;
+		'SELECT 1 FROM crucible_wishes WHERE guild_id = ? AND melvor_account_id = ?'
+	).get(actor.guild_id, actor.account_id) !== null;
+	const reset = db.query<{ reset_at: number }, [number, string]>(
+		'SELECT reset_at FROM crucible_visibility_resets WHERE guild_id = ? AND owner_key = ?'
+	).get(actor.guild_id, actor.owner_key)?.reset_at;
 	const floor = active_wish || (reset !== undefined && reset + CLEAR_WINDOW_MS > now) ? -10 : 0;
-	const count = db.query<{ count: number }, [string, number]>(
-		'SELECT COUNT(*) AS count FROM crucible_clear_events WHERE owner_key = ? AND expires_at > ?'
-	).get(actor.owner_key, now)?.count ?? 0;
+	const count = db.query<{ count: number }, [number, string, number]>(
+		'SELECT COUNT(*) AS count FROM crucible_clear_events WHERE guild_id = ? AND owner_key = ? AND expires_at > ?'
+	).get(actor.guild_id, actor.owner_key, now)?.count ?? 0;
 	const last = db.query<{ last_reclaimed_at: number }, [number]>(
 		'SELECT last_reclaimed_at FROM crucible_reclaim_state WHERE client_id = ?').get(actor.client_id)?.last_reclaimed_at;
 	return { level: Math.min(active_wish ? 10 : 20, floor + count), active_wish, clear_count: count,
@@ -304,8 +305,8 @@ export function clear_crucible_slag(actor: CrucibleActor, offers: Array<{ curren
 		add_crucible_offering(actor.guild_id, { id: offer.currency_id, qty: offer.qty,
 			value_currency_id: offer.currency_id, value_per_item: 1 }, now,
 			'clear', `${source_id}:${index}`, actor.client_id);
-		db.query('INSERT INTO crucible_clear_events (owner_key, cleared_at, expires_at) VALUES (?, ?, ?)')
-			.run(actor.owner_key, now, now + CLEAR_WINDOW_MS);
+		db.query('INSERT INTO crucible_clear_events (guild_id, owner_key, cleared_at, expires_at) VALUES (?, ?, ?, ?)')
+			.run(actor.guild_id, actor.owner_key, now, now + CLEAR_WINDOW_MS);
 		db.query('INSERT INTO crucible_currency_locks (guild_id, owner_key, currency_id, locked_until) ' +
 			'VALUES (?, ?, ?, ?) ON CONFLICT (guild_id, owner_key, currency_id) DO UPDATE ' +
 			'SET locked_until = excluded.locked_until')
@@ -352,15 +353,16 @@ export function make_crucible_wish(actor: CrucibleActor, item_id: string, qty: n
 	if (!crucible_available(actor, now)) return { success: false, error: 'Crucible is catching up.' };
 	if (!is_open(actor.guild_id)) return { success: false, error: 'Crucible is sealed.' };
 	if (actor.account_id === null) return { success: false, error: 'Melvor account is required.' };
-	if (db.query('SELECT 1 FROM crucible_wishes WHERE melvor_account_id = ?').get(actor.account_id) !== null)
+	if (db.query('SELECT 1 FROM crucible_wishes WHERE guild_id = ? AND melvor_account_id = ?')
+		.get(actor.guild_id, actor.account_id) !== null)
 		return { success: false, error: 'An active Wish already exists.' };
 	const max_value = wish_catalog.get(item_id);
 	if (max_value === undefined) return { success: false, error: 'Wish item is unavailable.' };
 	const required = max_value * qty * 5;
 	if (!Number.isSafeInteger(required)) return { success: false, error: 'Wish value is too large.' };
-	db.query('DELETE FROM crucible_clear_events WHERE owner_key = ?').run(actor.owner_key);
-	db.query('INSERT INTO crucible_visibility_resets (owner_key, reset_at) VALUES (?, ?) ' +
-		'ON CONFLICT (owner_key) DO UPDATE SET reset_at = excluded.reset_at').run(actor.owner_key, now);
+	db.query('DELETE FROM crucible_clear_events WHERE guild_id = ? AND owner_key = ?').run(actor.guild_id, actor.owner_key);
+	db.query('INSERT INTO crucible_visibility_resets (guild_id, owner_key, reset_at) VALUES (?, ?, ?) ' +
+		'ON CONFLICT (guild_id, owner_key) DO UPDATE SET reset_at = excluded.reset_at').run(actor.guild_id, actor.owner_key, now);
 	const wish = db.query<{ id: number }, [number, number, number, string, number, number, number]>(
 		'INSERT INTO crucible_wishes (guild_id, owner_client_id, melvor_account_id, item_id, qty, ' +
 		'required_gp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id'

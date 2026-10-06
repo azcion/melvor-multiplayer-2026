@@ -70,6 +70,7 @@ export function install_crucible_actions(runtime, rules) {
 			} finally {
 				state.crucible_loading = false;
 				request = null;
+				runtime.update_charitree_nav();
 			}
 		})();
 		return request;

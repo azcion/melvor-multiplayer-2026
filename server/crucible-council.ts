@@ -26,6 +26,11 @@ export function snapshot_crucible_petition(petition_id: number, guild_id: number
 
 export function apply_crucible_petition(petition: db_row.guild_petitions,
 	now = Date.now(), database: Database = db): string {
+	return database.transaction(() => apply_crucible_petition_transaction(petition, now, database)).immediate();
+}
+
+function apply_crucible_petition_transaction(petition: db_row.guild_petitions,
+	now: number, database: Database): string {
 	if (!is_crucible_petition_type(petition.type)) throw new RangeError('Not a Crucible petition');
 	if (!crucible_migration_complete(database)) throw new Error('Crucible snapshot migration is incomplete');
 	if (reconcile_crucible(petition.guild_id, now, database) < Math.floor(now / 60_000))

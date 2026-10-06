@@ -39,6 +39,27 @@ async function get_guild_state(session_token: string): Promise<GuildState> {
 }
 
 describe('guild API', () => {
+	test('applicants expose inspectable privacy-filtered profiles without activity or last seen', async () => {
+		const owner = await register_guild_client('Applicant Inspector', 'Inspection Guild');
+		const applicant = await register_client('Inspectable Applicant');
+		await post_json('/api/guilds/apply', {guild_id: owner.guild_id}, applicant.session_token);
+		const id = applicant.client_id;
+		expect(id).toBeDefined();
+		await db_run('UPDATE clients SET gp_visible=1,cheats_detected_at=? WHERE id=?', [Date.now(), id!]);
+		await db_run('INSERT INTO gp_snapshots(client_id,amount) VALUES(?,?)', [id!, 123456]);
+		const visible = await get_json_with_session<{applicants:Array<Record<string,unknown>>}>('/api/guilds/state', owner.session_token);
+		const row = visible.json.applicants[0];
+		expect(row.gp).toBe(123456);
+		expect(row.using_cheats).toBe(true);
+		expect(row.profile_source).toBe('chat');
+		expect(row.last_seen_at).toBeNull();
+		expect(row.joined_at).toBeNull();
+		expect(row.status_activities).toEqual([]);
+		await db_run('UPDATE clients SET gp_visible=0 WHERE id=?', [id!]);
+		const hidden = await get_json_with_session<{applicants:Array<Record<string,unknown>>}>('/api/guilds/state', owner.session_token);
+		expect(hidden.json.applicants[0].gp).toBeNull();
+	});
+
 	test('creates non-unique guilds and exposes only discovery summaries', async () => {
 		const [first, second, browser, dlc_client] = await Promise.all([
 			register_client('First Rat'),

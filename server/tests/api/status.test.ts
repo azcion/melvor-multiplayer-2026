@@ -600,6 +600,9 @@ describe('player status API', () => {
 			[now - seven_days + 60_000, pair.first_id]
 		);
 
+		await db_run('INSERT INTO client_cheat_mod_detections (client_id, mod_name, detected_at) VALUES (?, ?, ?), (?, ?, ?)',
+			[pair.first_id, 'dev.Console', now - 60_000, pair.first_id, 'Add Items', now - seven_days - 1]);
+
 		const state = await get_json_with_session<{
 			members: Array<{ client_id: number; using_cheats: boolean; active_mods_visible: boolean }>;
 		}>('/api/guilds/state', pair.second.session_token);
@@ -609,9 +612,11 @@ describe('player status API', () => {
 
 		expect(state.json.members.find(member => member.client_id === pair.first_id)).toMatchObject({
 			using_cheats: true,
-			active_mods_visible: false
+			active_mods_visible: false,
+			cheats_detected_at: now - seven_days + 60_000,
+			cheat_mods: ['dev.Console']
 		});
-		expect(directory.json.members.find(member => member.client_id === pair.first_id)?.using_cheats).toBe(true);
+		expect(directory.json.members.find(member => member.client_id === pair.first_id)).toMatchObject({ using_cheats: true, cheat_mods: ['dev.Console'] });
 
 		await db_run('UPDATE `clients` SET `cheats_detected_at` = ? WHERE `id` = ?', [
 			Date.now() - seven_days - 1,
@@ -621,6 +626,7 @@ describe('player status API', () => {
 			members: Array<{ client_id: number; using_cheats: boolean }>;
 		}>('/api/guilds/state', pair.second.session_token);
 		expect(expired.json.members.find(member => member.client_id === pair.first_id)?.using_cheats).toBe(false);
+		expect(expired.json.members.find(member => member.client_id === pair.first_id)).toMatchObject({ cheat_mods: [], cheats_detected_at: null });
 	});
 
 	test('authorizes every read against current same-Guild membership', async () => {

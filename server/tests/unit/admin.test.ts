@@ -708,3 +708,21 @@ test('Alliance preview switch excludes the preview account and restores only acc
 		database.close();
 	}
 });
+
+test('feature tester assignments are validated, idempotent and scoped to a character', async () => {
+	const database_path = fixture_database();
+	for (const args of [['grant', 'pending', '999'], ['grant', 'unsupported', '1'], ['grant', 'pending', '-1']])
+		expect((await run_admin(database_path, 'feature-tester', ...args)).exit_code).not.toBe(0);
+	for (let attempt = 0; attempt < 2; attempt++)
+		expect((await run_admin(database_path, 'feature-tester', 'grant', 'pending', '1')).exit_code).toBe(0);
+	const database = new Database(database_path);
+	try {
+		expect(database.query('SELECT * FROM character_feature_testers').all()).toEqual([{ client_id: 1, feature: 'pending' }]);
+		expect((await run_admin(database_path, 'feature-tester', 'revoke', 'pending', '1')).exit_code).toBe(0);
+		expect(database.query('SELECT * FROM character_feature_testers').all()).toEqual([]);
+		expect((await run_admin(database_path, 'feature-tester', 'grant', 'council', '1')).exit_code).toBe(0);
+		expect(database.query('SELECT * FROM character_feature_testers').all()).toEqual([{ client_id: 1, feature: 'council' }]);
+		expect((await run_admin(database_path, 'feature-tester', 'revoke', 'council', '1')).exit_code).toBe(0);
+		expect(database.query('SELECT * FROM character_feature_testers').all()).toEqual([]);
+	} finally { database.close(); }
+});

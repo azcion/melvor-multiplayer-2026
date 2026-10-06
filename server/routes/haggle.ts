@@ -186,7 +186,7 @@ export function register_haggle_routes(): void {
 				'`escrow_gp` = `escrow_gp` - ?, `updated_at` = ? WHERE `id` = ?')
 				.run(capped_item_qty, capped_item_qty, listing_reserved_gp, now, lot.id);
 			market_completed_cached.delete(lot.client_id);
-			return { success: true, haggle_id: id, effects: lot.direction === 'sell'
+			return { success: true, history_name: get_inbox_source_name(lot.client_id), haggle_id: id, effects: lot.direction === 'sell'
 				? [{ storage: 'gp' as const, qty: -capped_offered_total }]
 				: [{ storage: 'bank' as const, item_id: lot.item_id, qty: -capped_item_qty }] };
 		});
@@ -228,7 +228,7 @@ export function register_haggle_routes(): void {
 				'WHERE `id` = ? AND `status` = \'active\' AND `revision` = ?'
 			).run(price, top_up, client_id === haggle.initiator_id ? haggle.owner_id : haggle.initiator_id,
 				now, now + HAGGLE_LIFETIME, haggle.id, haggle.revision);
-			return { success: true, revision: haggle.revision + 1,
+			return { success: true, history_name: get_inbox_source_name(client_id === haggle.initiator_id ? haggle.owner_id : haggle.initiator_id), revision: haggle.revision + 1,
 				effects: top_up > 0 ? [{ storage: 'gp' as const, qty: -top_up }] : [] };
 		});
 		return result ?? 400;
@@ -327,6 +327,9 @@ export function register_haggle_routes(): void {
 				add_inbox_gp(client_id, claim.gp, source);
 			db.query('UPDATE `market_haggle_claims` SET `claimed_at` = ? WHERE `haggle_id` = ? AND `client_id` = ?')
 				.run(Date.now(), claim.haggle_id, client_id);
+			db.query('UPDATE transfer_history_events SET source_name=? WHERE client_id=? AND pane=\'pending\' AND source_key=?')
+				.run(get_inbox_source_name(client_id === haggle.initiator_id ? haggle.owner_id : haggle.initiator_id),
+					client_id, `haggle-claim:${haggle.id}`);
 			return { success: true, effects: [] };
 		});
 		return result ?? 400;

@@ -129,6 +129,9 @@ describe('identity API', () => {
 
 		expect(clean.status).toBe(200);
 		expect(stored?.cheats_detected_at).toBe(previous_detection);
+		const detections = await db_all<{ mod_name: string }>(
+			'SELECT mod_name FROM client_cheat_mod_detections WHERE client_id = ? ORDER BY mod_name', [client.client_id]);
+		expect(detections.map(row => row.mod_name).sort()).toEqual([...cheat_mod_names].sort());
 	});
 
 	test('keeps runtime reporting optional and rejects malformed snapshots', async () => {

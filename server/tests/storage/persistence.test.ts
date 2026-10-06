@@ -37,6 +37,7 @@ describe('SQLite persistence probe', () => {
 			'campaign_refunds',
 			'campaign_retirement',
 			'campaign_state',
+			'character_feature_testers',
 			'charity_contribution_lots',
 			'charity_currency_locks',
 			'charity_decay_activations',
@@ -56,6 +57,7 @@ describe('SQLite persistence probe', () => {
 			'chat_participants',
 			'chat_shadow_observers',
 			'chat_translation_jobs',
+			'client_cheat_mod_detections',
 			'client_deletion_requests',
 			'client_deletion_return_claim_items',
 			'client_deletion_return_claims',
@@ -137,6 +139,7 @@ describe('SQLite persistence probe', () => {
 			'icon_catalog_blobs',
 			'icon_catalog_observations',
 			'inbox_claim_items',
+			'inbox_claim_sources',
 			'inbox_claims',
 			'inbox_items',
 			'installation_credentials',
@@ -178,6 +181,8 @@ describe('SQLite persistence probe', () => {
 			'tester_chat_read_state',
 			'trade_items',
 			'trade_offers',
+			'transfer_history_events',
+			'transfer_history_items',
 			'update_section_translations',
 			'update_sections'
 		]);

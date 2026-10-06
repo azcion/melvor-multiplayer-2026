@@ -30,7 +30,85 @@ async function next_ballot(client:any,process_id:number) {
 		WHERE p.guild_id=? AND l.process_id=? AND l.role='ballot'`,[client.guild_id,process_id]);
 	return rows[0].id;
 }
-test('founding is local-first, incoming proposals do not occupy slots, and membership dissolves on departure',async()=> {
+for (const kind of ['found', 'join', 'recipient'] as const) test(`crowded Alliance views retain the Guild's pending ${kind} process`, async()=> {
+	const a=await register_guild_client('Crowded '+kind+' A','Crowded '+kind+' A');
+	const b=await register_guild_client('Crowded '+kind+' B','Crowded '+kind+' B');
+	let own: { process_id:number; petition_id:number };
+	if (kind === 'join') {
+		const c=await register_guild_client('Crowded Join C','Crowded Join C');
+		const alliance=await found(b,c);
+		own=await propose(a,{kind:'join',target_id:alliance.id});
+		await vote(a,own.petition_id);
+	} else if (kind === 'recipient') {
+		own=await propose(b,{kind:'found',name:'Crowded Alliance',target_id:a.guild_id});
+		const considered=(await post_json<{petition_id:number}>('/api/alliances/consider',{process_id:own.process_id},a.session_token)).json;
+		own.petition_id=considered.petition_id;
+	} else {
+		own=await propose(a,{kind:'found',name:'Crowded Alliance',target_id:b.guild_id});
+		await vote(a,own.petition_id);
+	}
+	// Seed distinct newer incoming founders without enrolling 60 unrelated player identities.
+	const prefix='Crowd '+crypto.randomUUID().slice(0,8)+' ',now=Date.now();
+	await db_run(`WITH RECURSIVE entries(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM entries WHERE n<60)
+		INSERT INTO guilds(name,icon_id,created_at) SELECT ? || n,'melvorD:Farmlands',? FROM entries`,[prefix,now]);
+	await db_run(`INSERT INTO alliance_processes(kind,initiator_guild_id,target_guild_id,name,subject,stage,created_at,expires_at,governance_version)
+		SELECT 'found',id,?,'Incoming Alliance','found:' || id,'waiting',?,?,2 FROM guilds WHERE name LIKE ?`,
+		[a.guild_id,now,now+86400000,prefix+'%']);
+	await db_run(`INSERT INTO alliance_pending_slots(guild_id,process_id)
+		SELECT initiator_guild_id,id FROM alliance_processes WHERE target_guild_id=? AND created_at=? AND name='Incoming Alliance'`,[a.guild_id,now]);
+	const crowded=await view(a);
+	expect(crowded.affiliation_pending).toBe(true);
+	expect(crowded.processes).toHaveLength(60);
+	expect(crowded.processes[0].process_id).toBe(own.process_id);
+	expect(new Set(crowded.processes.map((p:any)=>p.process_id)).size).toBe(60);
+	if (kind === 'recipient') {
+		expect(crowded.processes[0].own_council).toBe('active');
+		expect((await vote(a,own.petition_id,'nay')).success).toBe(true);
+	} else {
+		expect(crowded.processes[0].own_council).toBe('granted');
+		expect(crowded.processes[0].can_withdraw).toBe(true);
+		const withdrawal=(await post_json<{success:boolean;petition_id:number}>('/api/alliances/withdraw',{process_id:own.process_id},a.session_token)).json;
+		expect(withdrawal.success).toBe(true);
+		expect((await vote(a,withdrawal.petition_id)).success).toBe(true);
+	}
+	expect((await view(a)).affiliation_pending).toBe(false);
+	await db_run('DELETE FROM guilds WHERE name LIKE ?',[prefix+'%']);
+});
+test('activity-sorted discovery excludes own and Shadowed Guilds and completes founding',async()=> {
+	const older: Awaited<ReturnType<typeof register_guild_client>>[]=[];
+	for(let i=0;i<21;i++) older.push(await register_guild_client('Older '+i,'Older Guild '+i));
+	const a=await register_guild_client('Discovery Bob','Discovery GA');
+	const b=await register_guild_client('Discovery Cob','Discovery GB');
+	const latest=(await db_all<{latest:number}>('SELECT MAX(last_multiplayer_active_at) latest FROM clients'))[0].latest;
+	for(const client of [a,b]) await db_run('UPDATE clients SET last_multiplayer_active_at=? WHERE id=?',[latest+1000,client.client_id]);
+	for(const [viewer,other] of [[a,b],[b,a]]) {
+		const result=(await get_json_with_session<any>('/api/alliances/discover?mode=found',viewer.session_token)).json;
+		expect(result.entries[0].guild_id).toBe(other.guild_id);
+		expect(result.has_more).toBe(true);
+		const next=(await get_json_with_session<any>('/api/alliances/discover?mode=found&page=1',viewer.session_token)).json;
+		expect(next.entries.some((entry:any)=>entry.guild_id===viewer.guild_id)).toBe(false);
+		expect(next.entries.some((entry:any)=>result.entries.some((first:any)=>first.guild_id===entry.guild_id))).toBe(false);
+		expect(result.entries.some((entry:any)=>entry.guild_id===viewer.guild_id)).toBe(false);
+	}
+	const now=Date.now();
+	for(const client of older) await db_run('UPDATE clients SET last_multiplayer_active_at=? WHERE id=?',[now-120000,client.client_id]);
+	await db_run('UPDATE clients SET last_multiplayer_active_at=? WHERE id=?',[now-8*86400000,older[0].client_id]);
+	await db_run('UPDATE clients SET last_multiplayer_active_at=? WHERE id=?',[latest+2000,older[1].client_id]);
+	await db_run('UPDATE clients SET last_multiplayer_active_at=? WHERE id=?',[now-60000,b.client_id]);
+	const sorted=(await get_json_with_session<any>('/api/alliances/discover?mode=found',a.session_token)).json;
+	expect(sorted.entries[0].guild_id).toBe(older[1].guild_id);
+	expect(sorted.entries.some((g:any)=>g.guild_id===older[0].guild_id)).toBe(false);
+	for(const client of [a,b,...older.slice(1)]) await db_run('UPDATE clients SET last_multiplayer_active_at=? WHERE id=?',[now,client.client_id]);
+	const alliance=await found(a,b);
+	expect(alliance.member_guilds.map((g:any)=>g.guild_id).sort()).toEqual([a.guild_id,b.guild_id].sort());
+	for(const viewer of [a,b]) {
+		const entries=(await get_json_with_session<any>('/api/alliances/discover?mode=found',viewer.session_token)).json.entries;
+		expect(entries.some((g:any)=>g.guild_id===a.guild_id || g.guild_id===b.guild_id)).toBe(false);
+		expect((await view(viewer)).alliance.id).toBe(alliance.id);
+	}
+	const leave=await propose(a,{kind:'leave'}); await vote(a,leave.petition_id);
+});
+test('founding needs both Councils, incoming proposals do not occupy slots, and membership dissolves on departure',async()=> {
 	const a=await register_guild_client('Founder A','Founder Guild A'); const b=await register_guild_client('Founder B','Founder Guild B');
 	const p=await propose(a,{kind:'found',name:'Test Alliance',target_id:b.guild_id});
 	expect((await view(a)).alliance).toBeNull();
@@ -44,14 +122,14 @@ test('founding is local-first, incoming proposals do not occupy slots, and membe
 	const leave=await propose(a,{kind:'leave'}); await vote(a,leave.petition_id);
 	expect((await view(b)).alliance).toBeNull();
 });
-test('strict majority carries member consent and admits applicants without counting applicant as a ballot',async()=> {
+test('strict majority counts concurrent Council consent and admits applicants without counting applicant as a ballot',async()=> {
 	const a=await register_guild_client('Majority A','Majority Guild A');const b=await register_guild_client('Majority B','Majority Guild B');
 	const c=await register_guild_client('Majority C','Majority Guild C');
 	const alliance=await found(a,b);
 	const policy=await propose(a,{kind:'market_enable'}); await vote(a,policy.petition_id);
 	expect((await view(a)).alliance.shared_marketplace).toBe(0);
 	const pv=(await view(b)).processes.find((p:any)=>p.process_id===policy.process_id);
-	expect(pv.tally).toEqual({eligible:2,aye:1,nay:0}); expect(pv).not.toHaveProperty('initiator_guild_id');
+	expect(pv.tally).toEqual({eligible:2,required_aye:2,aye:1,nay:0}); expect(pv).not.toHaveProperty('initiator_guild_id');
 	await vote(b,await next_ballot(b,policy.process_id)); expect((await view(a)).alliance.shared_marketplace).toBe(1);
 	const join=await propose(c,{kind:'join',target_id:alliance.id});await vote(c,join.petition_id);
 	await vote(a,await next_ballot(a,join.process_id));expect((await view(c)).alliance).toBeNull();
@@ -174,7 +252,7 @@ test('individual ballots extend a shared deadline without changing frozen electo
 	const proposal=await propose(empty,{kind:'found',target_id:witness.guild_id,name:'Empty Proposal'});
 	expect(await db_all('SELECT * FROM guild_petition_voters WHERE petition_id=?',[proposal.petition_id])).toEqual([]);
 	expect((await vote(empty,proposal.petition_id)).success).toBeUndefined();
-	expect((await view(empty)).processes.find((p:any)=>p.process_id===proposal.process_id).stage).toBe('local');
+	expect((await view(empty)).processes.find((p:any)=>p.process_id===proposal.process_id).stage).toBe('waiting');
 });
 
 test('cross-Guild Buy Orders settle and receipt replay and accepted Haggle claims survive permission loss',async()=> {
@@ -248,4 +326,150 @@ test('non-preview accounts cannot see or act on Alliances even with a developmen
 	// Both sides must qualify: the preview buyer cannot discover an ineligible seller either.
 	await post_json('/api/market/sell',{item_id:'melvorD:Excluded_Seller',item_qty:4,item_sell_price:2},b.session_token);
 	expect((await post_json<any>('/api/market/search',{item_id:'melvorD:Excluded_Seller'},a.session_token)).json.items).toEqual([]);
+});
+
+
+test('Guild previews add Shadowed-aware active counts without changing member totals', async () => {
+	const pair = await make_guildmates('Alliance Count Owner', 'Alliance Count Mate', 'Alliance Count Guild', {first: '1.6.3', second: '1.6.3'});
+	await allow_preview(pair.first_id);
+	await db_run('UPDATE clients SET last_multiplayer_active_at=0 WHERE id=?', [pair.second_id]);
+	const response = await get_json_with_session<any>('/api/alliances/guild-preview?guild_id=' + pair.guild_id, pair.first.session_token);
+	expect(response.json.guild).toMatchObject({guild_id: pair.guild_id, member_count: 2, active_member_count: 1});
+});
+
+test('founding Councils vote concurrently; recipient approval alone cannot create an Alliance', async()=> {
+	const a=await register_guild_client('Parallel A','Parallel Guild A'),b=await register_guild_client('Parallel B','Parallel Guild B');
+	const p=await propose(a,{kind:'found',name:'Parallel Pair',target_id:b.guild_id});
+	const incoming=(await view(b)).processes.find((row:any)=>row.process_id===p.process_id);
+	expect(incoming).toMatchObject({stage:'waiting',governance_version:2,can_consider:true,consider_blocked_reason:null});
+	expect((await view(b)).affiliation_pending).toBe(false);
+	const considered=(await post_json<any>('/api/alliances/consider',{process_id:p.process_id},b.session_token)).json;
+	expect(considered.success).toBe(true);
+	expect((await propose(b,{kind:'found',name:'Other',target_id:a.guild_id})).error).toBeDefined();
+	await vote(b,considered.petition_id);
+	expect((await view(b)).alliance).toBeNull();
+	expect((await view(b)).processes.find((row:any)=>row.process_id===p.process_id).own_council).toBe('granted');
+	await vote(a,p.petition_id);
+	expect((await view(a)).alliance.name).toBe('Parallel Pair');
+	expect(await db_all('SELECT * FROM alliance_pending_slots WHERE process_id=?',[p.process_id])).toEqual([]);
+});
+
+test('competing founding proposals reserve only participants deliberating and cancel incompatible formation with a reason',async()=> {
+	const a=await register_guild_client('Race A','Race Guild A'),b=await register_guild_client('Race B','Race Guild B'),c=await register_guild_client('Race C','Race Guild C');
+	const ab=await propose(a,{kind:'found',name:'GAB',target_id:b.guild_id});
+	expect((await view(c)).processes.some((p:any)=>p.process_id===ab.process_id)).toBe(false);
+	const bc=await propose(b,{kind:'found',name:'GBC',target_id:c.guild_id});
+	await vote(a,ab.petition_id);
+	expect((await view(b)).processes.find((p:any)=>p.process_id===ab.process_id).consider_blocked_reason).toBe('affiliation_pending');
+	expect((await post_json<any>('/api/alliances/consider',{process_id:ab.process_id},b.session_token)).json.error).toBeDefined();
+	const considered=(await post_json<any>('/api/alliances/consider',{process_id:bc.process_id},c.session_token)).json;
+	await vote(c,considered.petition_id); await vote(b,bc.petition_id);
+	expect((await view(b)).alliance.name).toBe('GBC');
+	expect((await view(a)).processes.find((p:any)=>p.process_id===ab.process_id)).toMatchObject({stage:'cancelled',resolution_reason:'affiliated_elsewhere',resolution_guild_name:'Race Guild B'});
+	expect((await view(a)).affiliation_pending).toBe(false);
+});
+
+test('recipient rejection ends founding before the proposer finishes and releases both slots',async()=> {
+	const a=await register_guild_client('Reject A','Reject Guild A'),b=await register_guild_client('Reject B','Reject Guild B');
+	const p=await propose(a,{kind:'found',name:'Rejected Pair',target_id:b.guild_id});
+	const considered=(await post_json<any>('/api/alliances/consider',{process_id:p.process_id},b.session_token)).json;
+	await vote(b,considered.petition_id,'nay');
+	expect((await view(a)).processes.find((row:any)=>row.process_id===p.process_id).stage).toBe('denied');
+	expect((await vote(a,p.petition_id)).success).toBeUndefined();
+	expect(await db_all('SELECT * FROM alliance_pending_slots WHERE process_id=?',[p.process_id])).toEqual([]);
+});
+
+test('policy voting starts everywhere immediately and the proposing Guild has no veto or automatic Aye',async()=> {
+	const a=await register_guild_client('No Veto A','No Veto Guild A'),b=await register_guild_client('No Veto B','No Veto Guild B'),c=await register_guild_client('No Veto C','No Veto Guild C');
+	const alliance=await found(a,b);
+	const join=await propose(c,{kind:'join',target_id:alliance.id});
+	await vote(c,join.petition_id); await vote(a,await next_ballot(a,join.process_id)); await vote(b,await next_ballot(b,join.process_id));
+	const policy=await propose(a,{kind:'market_enable'});
+	expect((await view(b)).processes.find((p:any)=>p.process_id===policy.process_id)).toMatchObject({stage:'collective',tally:{eligible:3,required_aye:2,aye:0,nay:0}});
+	expect((await view(c)).market_proposal_pending).toBe(true);
+	expect((await propose(b,{kind:'market_enable'})).error).toBeDefined();
+	const council=(await get_json_with_session<any>('/api/guilds/council',a.session_token)).json;
+	expect(council.petitions.find((p:any)=>p.petition_id===policy.petition_id).can_withdraw).toBe(false);
+	expect((await post_json<any>('/api/guilds/petitions/withdraw',{petition_id:policy.petition_id},a.session_token)).json.success).toBeUndefined();
+	await vote(a,policy.petition_id,'nay');
+	expect((await view(b)).alliance.shared_marketplace).toBe(0);
+	await vote(b,await next_ballot(b,policy.process_id)); await vote(c,await next_ballot(c,policy.process_id));
+	expect((await view(a)).alliance.shared_marketplace).toBe(1);
+	expect((await view(a)).processes.find((p:any)=>p.process_id===policy.process_id)).toMatchObject({stage:'accepted',own_ballot:'nay'});
+	expect((await view(a)).market_proposal_pending).toBe(false);
+});
+
+test('parallel admission waits for applicant consent even after the Alliance majority approves',async()=> {
+	const a=await register_guild_client('Admission A','Admission Guild A'),b=await register_guild_client('Admission B','Admission Guild B'),c=await register_guild_client('Admission C','Admission Guild C');
+	const alliance=await found(a,b);
+	const join=await propose(c,{kind:'join',target_id:alliance.id});
+	expect((await view(c)).processes.find((p:any)=>p.process_id===join.process_id)).toMatchObject({display_kind:'apply',name:alliance.name,applicant_consent:'active'});
+	await vote(a,await next_ballot(a,join.process_id)); await vote(b,await next_ballot(b,join.process_id));
+	expect((await view(c)).alliance).toBeNull();
+	expect((await view(c)).processes.find((p:any)=>p.process_id===join.process_id)).toMatchObject({stage:'collective',tally:{aye:2,eligible:2}});
+	await vote(c,join.petition_id);
+	expect((await view(c)).alliance.member_guilds.length).toBe(3);
+	const d=await register_guild_client('Admission D','Admission Guild D');
+	const rejected=await propose(d,{kind:'join',target_id:alliance.id});
+	await vote(a,await next_ballot(a,rejected.process_id)); await vote(b,await next_ballot(b,rejected.process_id));
+	await vote(d,rejected.petition_id,'nay');
+	expect((await view(d)).alliance).toBeNull();
+	expect((await view(d)).processes.find((p:any)=>p.process_id===rejected.process_id).stage).toBe('denied');
+});
+
+test('roster changes cancel parallel decisions with a durable reason while keeping current policy',async()=> {
+	const a=await register_guild_client('Roster A','Roster Guild A'),b=await register_guild_client('Roster B','Roster Guild B'),c=await register_guild_client('Roster C','Roster Guild C');
+	const alliance=await found(a,b);
+	const policy=await propose(a,{kind:'market_enable'});
+	const join=await propose(c,{kind:'join',target_id:alliance.id});
+	await vote(c,join.petition_id); await vote(a,await next_ballot(a,join.process_id)); await vote(b,await next_ballot(b,join.process_id));
+	expect((await view(a)).processes.find((p:any)=>p.process_id===policy.process_id)).toMatchObject({stage:'cancelled',resolution_reason:'roster_changed'});
+	expect((await view(a)).alliance.shared_marketplace).toBe(0);
+	expect((await vote(a,policy.petition_id)).success).toBeUndefined();
+});
+
+test('existing sequential founding retains its approval gate after the parallel cutover',async()=> {
+	const a=await register_guild_client('Legacy Flow A','Legacy Flow Guild A'),b=await register_guild_client('Legacy Flow B','Legacy Flow Guild B');
+	const p=await propose(a,{kind:'found',name:'Legacy Pair',target_id:b.guild_id});
+	// Represent a process persisted by the previous backend, with its untouched local electorate.
+	await db_run("UPDATE alliance_processes SET governance_version=1,stage='local' WHERE id=?",[p.process_id]);
+	expect((await view(b)).processes.find((row:any)=>row.process_id===p.process_id).can_consider).toBe(false);
+	expect((await post_json<any>('/api/alliances/consider',{process_id:p.process_id},b.session_token)).json.success).toBeUndefined();
+	await vote(a,p.petition_id);
+	const considered=(await post_json<any>('/api/alliances/consider',{process_id:p.process_id},b.session_token)).json;
+	await vote(b,considered.petition_id);
+	expect((await view(a)).alliance.name).toBe('Legacy Pair');
+});
+
+test('simultaneous consideration of competing incoming proposals occupies only one recipient slot',async()=> {
+	const a=await register_guild_client('Slot A','Slot Guild A'),b=await register_guild_client('Slot B','Slot Guild B'),c=await register_guild_client('Slot C','Slot Guild C');
+	const ab=await propose(a,{kind:'found',name:'Slot AB',target_id:b.guild_id});
+	const cb=await propose(c,{kind:'found',name:'Slot CB',target_id:b.guild_id});
+	const responses=await Promise.all([ab,cb].map(p=>post_json<any>('/api/alliances/consider',{process_id:p.process_id},b.session_token)));
+	expect(responses.filter(r=>r.json.success)).toHaveLength(1);
+	expect(await db_all('SELECT * FROM alliance_pending_slots WHERE guild_id=?',[b.guild_id])).toHaveLength(1);
+	const winner=responses.findIndex(r=>r.json.success),loser=winner===0?1:0;
+	await vote(b,responses[winner].json.petition_id,'nay');
+	const later=(await post_json<any>('/api/alliances/consider',{process_id:[ab,cb][loser].process_id},b.session_token)).json;
+	expect(later.success).toBe(true);
+});
+
+test('legacy policy processes still carry initiating approval after local deliberation',async()=> {
+	const a=await register_guild_client('Legacy Policy A','Legacy Policy A'),b=await register_guild_client('Legacy Policy B','Legacy Policy B');
+	const alliance=await found(a,b),now=Date.now(),deadline=now+86400000;
+	const subject=`alliance:${alliance.id}:market`;
+	await db_run(`INSERT INTO alliance_processes(kind,initiator_guild_id,alliance_id,subject,created_at,expires_at)
+		VALUES('market_enable',?,?,?,?,?)`,[a.guild_id,alliance.id,subject,now,deadline]);
+	const p=(await db_all<{id:number}>('SELECT id FROM alliance_processes WHERE subject=?',[subject]))[0];
+	const conflict=`alliance:${p.id}:local`;
+	await db_run(`INSERT INTO guild_petitions(guild_id,guild_name,type,conflict_subject,petitioner_id,created_at,expires_at,rule_version)
+		VALUES(?,?,'alliance_market_enable',?,?,?,?,2)`,[a.guild_id,'Legacy Policy A',conflict,a.client_id,now,deadline]);
+	const petition=(await db_all<{id:number}>('SELECT id FROM guild_petitions WHERE conflict_subject=?',[conflict]))[0];
+	await db_run('INSERT INTO guild_petition_voters VALUES(?,?)',[petition.id,a.client_id]);
+	await db_run("INSERT INTO alliance_process_petitions VALUES(?,?,'local')",[petition.id,p.id]);
+	expect((await view(b)).processes.find((row:any)=>row.process_id===p.id)).toMatchObject({stage:'local',governance_version:1,tally:{eligible:0,aye:0}});
+	await vote(a,petition.id);
+	expect((await view(b)).processes.find((row:any)=>row.process_id===p.id)).toMatchObject({stage:'collective',tally:{eligible:2,aye:1}});
+	await vote(b,await next_ballot(b,p.id));
+	expect((await view(a)).alliance.shared_marketplace).toBe(1);
 });

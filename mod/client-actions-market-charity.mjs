@@ -454,6 +454,7 @@ export function install_market_charity_actions(runtime) {
 		},
 
 		async respond_market_haggle(event, haggle, action, from_modal = false, from_confirmation = false) {
+			if (this.is_pending_preview?.('haggle', haggle.id)) return this.pending_preview_action('haggle', haggle.id, action);
 			const $button = event.currentTarget;
 			if (is_button_spinning($button))
 				return;

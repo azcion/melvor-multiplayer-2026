@@ -1,3 +1,4 @@
+import { record_pending_exchange } from '../transfer-history';
 import * as runtime from '../app-runtime';
 import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
@@ -29,6 +30,7 @@ export function register_gifting_routes(): void {
 				'SELECT `item_id`, `qty` FROM `gift_items` WHERE `gift_id` = ?'
 			).all(gift_id) as Array<{ item_id: string; qty: number }>;
 			const accepted_at = Date.now();
+			record_pending_exchange(db, 'gift', gift_id, 'gift.accepted', accepted_at);
 			const event_id = record_audit_event({
 				event_type: 'gift.accepted',
 				source_key: audit_command_source('gift-accept', client_id, json.command_id),
@@ -81,6 +83,7 @@ export function register_gifting_routes(): void {
 				const current = db.query('SELECT * FROM `gifts` WHERE `gift_id` = ? LIMIT 1').get(gift_id) as db_row.gifts;
 				if (current?.client_id !== client_id || (current.flags & GiftFlags.Returned) === GiftFlags.Returned)
 					return null;
+				record_pending_exchange(db, 'gift', gift_id, 'gift.returned');
 				const updated_at = Date.now();
 				db.query(
 					'UPDATE `gifts` SET `client_id` = ?, `sender_id` = ?, `flags` = `flags` | ?, `updated_at` = ? WHERE `gift_id` = ?'
@@ -105,6 +108,7 @@ export function register_gifting_routes(): void {
 			const items = db.query(
 				'SELECT `item_id`, `qty` FROM `gift_items` WHERE `gift_id` = ?'
 			).all(gift_id) as Array<{ item_id: string; qty: number }>;
+			record_pending_exchange(db, 'gift', gift_id, 'gift.returned');
 			add_inbox_items(current.sender_id, items,
 				{ type: 'gift_returned', name: get_inbox_source_name(client_id) });
 			db.query('DELETE FROM `gifts` WHERE `gift_id` = ?').run(gift_id);
@@ -131,6 +135,7 @@ export function register_gifting_routes(): void {
 			if (gift === null)
 				return { success: false };
 
+			record_pending_exchange(db, 'gift', gift_id, 'gift.discarded');
 			db.query('DELETE FROM `gifts` WHERE `gift_id` = ?').run(gift_id);
 			remove_player_cache_entry(gift_cache, client_id, gift_id);
 			return { success: true, effects: [] };
@@ -169,6 +174,7 @@ export function register_gifting_routes(): void {
 				db.query(
 					'INSERT INTO `gift_items` (`gift_id`, `item_id`, `qty`) VALUES(?, ?, ?)'
 				).run(inserted.gift_id, item.id, item.qty);
+			record_pending_exchange(db, 'gift', inserted.gift_id, 'gift.sent', created_at, json.command_id);
 			const event_id = record_audit_event({
 				event_type: 'gift.sent',
 				source_key: `gift:${inserted.gift_id}:sent`,

@@ -220,7 +220,7 @@ export function register_market_routes(): void {
 			record_guild_activity({ guild_id, event_type: 'market_purchased', actor_client_id: client_id,
 				buyer_client_id: client_id, seller_client_id: lot.client_id, item_id: lot.item_id,
 				quantity: final_qty, source_key: `market-purchase:${json.command_id ?? crypto.randomUUID()}` });
-			return { success: true, item_id: lot.item_id, item_qty: final_qty, gp_loss: final_cost,
+			return { success: true, item_id: lot.item_id, item_qty: final_qty, gp_loss: final_cost, history_name: seller_name,
 				new_item_qty, effects: [
 					{ storage: 'gp' as const, qty: -final_cost }
 				] };
@@ -268,7 +268,7 @@ export function register_market_routes(): void {
 			record_guild_activity({ guild_id, event_type: 'market_fulfilled', actor_client_id: client_id,
 				buyer_client_id: lot.client_id, seller_client_id: client_id, item_id: lot.item_id,
 				quantity: final_qty, source_key: `market-fulfillment:${json.command_id}` });
-			return { success: true, item_id: lot.item_id, item_qty: final_qty, gp_gain: final_cost,
+			return { success: true, item_id: lot.item_id, item_qty: final_qty, gp_gain: final_cost, history_name: get_inbox_source_name(lot.client_id),
 				new_item_qty, effects: [
 					{ storage: 'bank' as const, item_id: lot.item_id, qty: -final_qty }
 				] };

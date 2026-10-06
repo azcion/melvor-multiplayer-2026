@@ -313,7 +313,7 @@
 					"categoryID": "Multiplayer",
 					"icon": "assets/crucible.png",
 					"asideClass": "badge mp-crucible-nav",
-					"aside": ""
+					"aside": "0"
 				}
 			},
 			{

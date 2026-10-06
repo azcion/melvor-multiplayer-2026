@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
 	EXPEDITION_PREVIEW_CHAMBER_IDS, EXPEDITION_PREVIEW_LABEL_IDS,
 	arrival_complete, display_expedition_label, passage_gateway, passage_name, phase_tasks, phase_summary,
-	sync_phase_state, tracked_task_ended, tracking_task_title, visible_tasks, work_skill_icon, work_skill_name
+	needs_passage_vote, sync_phase_state, tracked_task_ended, tracking_task_title, visible_tasks, work_skill_icon, work_skill_name
 } from '../../mod/expedition-view.mjs';
 
 const task = (task_id, phase, overrides = {}) => ({
@@ -141,4 +141,30 @@ test('finished tracked work is detected after completion or Chamber departure', 
 	state.expedition.chamber.visit_id = 5;
 	assert.equal(tracked_task_ended(state), true);
 	assert.equal(tracked_task_ended({ expedition: state.expedition }), false);
+});
+
+test('Journey vote badge follows participation, open voting, and the current Chamber ballot', () => {
+	const snapshot = { expedition: { status: 'active', registered: true, chamber: {
+		exits: [{ id: 'first' }, { id: 'second' }], preview_exit_id: 'first',
+		vote: { opened_at: 0, locked_at: null, ballot: null }
+	} } };
+	assert.equal(needs_passage_vote(null), false);
+	assert.equal(needs_passage_vote({ expedition: null }), false);
+	assert.equal(needs_passage_vote(snapshot), true);
+	const changed = changes => ({ expedition: { ...snapshot.expedition, ...changes } });
+	assert.equal(needs_passage_vote(changed({ registered: false })), false);
+	assert.equal(needs_passage_vote(changed({ status: 'completed' })), false);
+	const chamber = snapshot.expedition.chamber;
+	for (const vote of [null, { ...chamber.vote, opened_at: null },
+		{ ...chamber.vote, locked_at: 0 }, { ...chamber.vote, ballot: 'first' }]) {
+		assert.equal(needs_passage_vote(changed({ chamber: { ...chamber, vote } })), false);
+	}
+	assert.equal(needs_passage_vote(changed({ chamber: null })), false);
+	assert.equal(needs_passage_vote(changed({ chamber: { ...chamber, exits: [{ id: 'first' }] } })), false);
+	assert.equal(needs_passage_vote(changed({ chamber: { ...chamber, preview_exit_id: 'missing' } })), false);
+	assert.equal(needs_passage_vote(changed({ chamber: { ...chamber, preview_exit_id: null } })), true);
+	snapshot.expedition.chamber.vote.ballot = 'first';
+	assert.equal(needs_passage_vote(snapshot), false);
+	snapshot.expedition.chamber = { ...chamber, visit_id: 2, vote: { ...chamber.vote, ballot: null } };
+	assert.equal(needs_passage_vote(snapshot), true);
 });

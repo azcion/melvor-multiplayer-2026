@@ -198,3 +198,36 @@ test('Council Purging targets only the captured Offering generation', async () =
 		'/api/guilds/council', newer.session_token);
 	expect(council.json.petitions.some(petition => petition.type === 'crucible_purging')).toBe(true);
 });
+
+test('linked characters share Wishes and Slag within each Guild and remain independent across Guilds', async () => {
+	const pair = await make_guildmates('Scope First', 'Scope Sibling', 'Scope Shared',
+		{ first: '1.6.3', second: '1.6.3' });
+	const other = await register_guild_client('Scope Other', 'Scope Other Guild', '1.6.3');
+	await db_run('INSERT INTO melvor_accounts (cloud_username, playfab_id, created_at) VALUES (?, ?, ?)',
+		[`scope-${crypto.randomUUID()}`, crypto.randomUUID(), Date.now()]);
+	const account = (await db_all<{ id: number }>('SELECT id FROM melvor_accounts ORDER BY id DESC LIMIT 1'))[0]!;
+	await db_run('UPDATE clients SET melvor_account_id = ? WHERE id IN (?, ?, ?)',
+		[account.id, pair.first_id, pair.second_id, other.client_id]);
+	const state = async (token: string) => (await get_json_with_session<{ level: number; active_wish: boolean }>(
+		'/api/crucible/contents', token)).json;
+	const clear = async (token: string) => (await post_json<{ success: boolean; level: number }>(
+		'/api/crucible/clear', { currency_id: 'melvorD:GP', balance: 2_000 }, token)).json;
+	const make = async (token: string) => (await post_json<{ success: boolean }>(
+		'/api/crucible/wish/make', { item_id: 'melvorAoD:Torn_Parchment', qty: 1 }, token)).json;
+	expect(await clear(pair.first.session_token)).toMatchObject({ success: true, level: 1 });
+	expect(await state(pair.second.session_token)).toMatchObject({ level: 1, active_wish: false });
+	expect(await state(other.session_token)).toMatchObject({ level: 0, active_wish: false });
+	expect((await make(pair.first.session_token)).success).toBe(true);
+	expect(await state(pair.second.session_token)).toMatchObject({ level: -10, active_wish: true });
+	expect((await make(pair.second.session_token)).success).toBe(false);
+	expect(await state(other.session_token)).toMatchObject({ level: 0, active_wish: false });
+	expect(await clear(other.session_token)).toMatchObject({ success: true, level: 1 });
+	expect(await clear(pair.second.session_token)).toMatchObject({ success: true, level: -9 });
+	expect(await state(pair.first.session_token)).toMatchObject({ level: -9, active_wish: true });
+	expect((await make(other.session_token)).success).toBe(true);
+	expect(await state(other.session_token)).toMatchObject({ level: -10, active_wish: true });
+	expect(await state(pair.first.session_token)).toMatchObject({ level: -9, active_wish: true });
+	expect((await post_json<{ success: boolean }>('/api/crucible/wish/cancel', {}, other.session_token)).json.success).toBe(true);
+	expect(await state(other.session_token)).toMatchObject({ level: -10, active_wish: false });
+	expect(await state(pair.second.session_token)).toMatchObject({ level: -9, active_wish: true });
+});

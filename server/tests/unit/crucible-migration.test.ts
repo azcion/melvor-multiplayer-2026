@@ -30,6 +30,7 @@ test('pet vocabulary rebuild preserves old ownership and the snapshot copies wit
 	database.run("INSERT INTO multiplayer_pet_ownership (client_id, pet_id, created_at, updated_at) " +
 		"VALUES (100, 'Multiplayer_Pet_Charity', 1, 1)");
 	apply(database, 143, 136);
+	apply(database, 162, 143);
 	database.query('INSERT INTO crucible_guilds (guild_id, processed_minute, created_at) VALUES (1, ?, ?)')
 		.run(Math.floor(now / 60_000), now);
 	expect(crucible_migration_complete(database)).toBe(false);
@@ -84,7 +85,7 @@ test('pet vocabulary rebuild preserves old ownership and the snapshot copies wit
 test('live cutover requires maintenance, reconciles the snapshot, and switches the gate atomically', () => {
 	const database = new Database(':memory:', { strict: true });
 	database.run('PRAGMA foreign_keys = ON');
-	apply(database, 143);
+	apply(database, 162);
 	const now = 1_800_000_000_000;
 	database.query('INSERT INTO charity_items (guild_id, item_id, qty, expires_at, donated_at) ' +
 		'VALUES (1, ?, 2, ?, ?)').run('melvorD:Coal_Ore', now + 60_000, now - 1_000);

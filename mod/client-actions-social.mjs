@@ -38,10 +38,53 @@ export function install_social_actions(runtime) {
 	} = runtime;
 
 	return {
+		is_alliance_process_active(proposal) {
+			return ['local', 'waiting', 'recipient', 'collective'].includes(proposal.stage);
+		},
+		get_alliance_view() {
+			const real = this.alliance_state;
+			if (!this.guild_showcase || real.alliance || !this.alliance_access) return real;
+			const now = Date.now(), day = 86400000;
+			const ours = { ...this.guild_state.guild, member_count: this.guild_member_count, active_member_count: this.guild_active_member_count };
+			const guild = (guild_id, name, member_count) => ({ guild_id, name, member_count, active_member_count: guild_id === -102 ? 0 : Math.max(1, member_count - 2), type: 'private', restricts_cheaters: guild_id === -101, market_discovery_restriction_enabled: false, icon_id: 'melvorD:Golbin', created_at: now - 80 * day, synthetic: true });
+			const members = [ours, guild(-101, 'The Criminals', 12), guild(-102, 'The Copper Kettle', 8)];
+			const process = (id, kind, stage, extra = {}) => ({ process_id: id, kind, name: 'Wandering Fellowship', stage,
+				synthetic: true, governance_version: 2, expires_at: now + day, resolved_at: now - day, own_ballot: stage === 'denied' ? 'nay' : 'aye',
+				tally: { eligible: 3, aye: 1, nay: 0 }, can_consider: false, can_withdraw: false, ...extra });
+			const no_ballots = { own_ballot: null, tally: { eligible: 0, aye: 0, nay: 0 } };
+			const history = [
+				process(-204, 'found', 'accepted', { founding_guilds: members.slice(0, 2), ...no_ballots }),
+				process(-205, 'remove', 'denied', { target_guild: members[2], tally: { eligible: 3, required_aye: 2, aye: 1, nay: 2 } }),
+				process(-210, 'market_disable', 'accepted', { own_ballot: 'nay', tally: { eligible: 3, required_aye: 2, aye: 2, nay: 1 } }),
+				process(-211, 'market_enable', 'cancelled', { resolution_reason: 'roster_changed' }),
+				process(-212, 'found', 'cancelled', { name: 'Copperleaf Accord', founding_guilds: members.slice(0, 2), resolution_reason: 'affiliated_elsewhere', resolution_guild_name: members[1].name, ...no_ballots }),
+				process(-213, 'found', 'cancelled', { name: 'Willow Compact', founding_guilds: [ours, guild(-105, 'Willow Hearth', 5)], resolution_reason: 'guild_unavailable', ...no_ballots }),
+				process(-214, 'join', 'cancelled', { name: 'Silver Concord', display_kind: 'apply', applicant: ours, resolution_reason: 'alliance_unavailable', own_ballot: null, tally: { eligible: 3, required_aye: 2, aye: 0, nay: 0 } }),
+				process(-215, 'remove', 'cancelled', { target_guild: members[2], resolution_reason: 'target_unavailable' }),
+				process(-216, 'found', 'cancelled', { name: 'Wayfarer Pact', founding_guilds: members.slice(0, 2), resolution_reason: 'affiliated_elsewhere', ...no_ballots })
+			];
+			const processes = this.alliance_preview_affiliated ? [
+				process(-201, 'join', 'collective', { applicant: guild(-103, 'Willow Wardens', 6), applicant_consent: 'granted' }),
+				process(-202, 'join', 'collective', { applicant: guild(-104, 'Silver Dawn', 19), applicant_consent: 'active', tally: { eligible: 3, required_aye: 2, aye: 2, nay: 0 } }),
+				process(-203, 'market_enable', 'collective'),
+				process(-207, 'remove', 'collective', { target_guild: members[1], tally: { eligible: 3, aye: 1, nay: 1 } })
+			] : [
+				process(-206, 'found', 'waiting', { founding_guilds: members.slice(0, 2), own_council: 'granted', can_withdraw: true, ...no_ballots }),
+				process(-208, 'found', 'waiting', { name: 'Copperleaf Accord', founding_guilds: [ours, guild(-103, 'Willow Wardens', 6)], own_council: null, can_consider: true, consider_blocked_reason: 'affiliation_pending', ...no_ballots })
+			];
+			processes.push(...history);
+			return { ...real, synthetic: true, affiliation_pending: false, market_proposal_pending: processes.some(p => ['market_enable', 'market_disable'].includes(p.kind) && this.is_alliance_process_active(p)),
+				alliance: this.alliance_preview_affiliated ? { id: -1, name: 'Wandering Fellowship', created_at: now - 42 * day, shared_marketplace: false, member_guilds: members } : null,
+				processes: [...processes, ...real.processes] };
+		},
+		alliance_established_days() {
+			return this.alliance_age(this.alliance_view.alliance) ?? 0;
+		},
 		async refresh_alliance() {
 			if (!this.alliance_access || !this.is_guild_member) {
 				this.alliance_state = { alliance: null, processes: [], affiliation_pending: false };
 				this.alliance_error = '';
+				runtime.update_guild_nav();
 				return;
 			}
 			if (this.alliance_loading) return;
@@ -50,38 +93,93 @@ export function install_social_actions(runtime) {
 				const res = await api_get('/api/alliances');
 				if (res && !res.error && !res.error_lang) { this.alliance_state = res; this.alliance_error = ''; }
 				else this.alliance_error = res?.error ?? getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
-			} finally { this.alliance_loading = false; }
+			} finally { this.alliance_loading = false; runtime.update_guild_nav(); }
+		},
+		async show_alliance_confirmation(kind, target_id = null, process_id = null, picker = false) {
+			if (!this.alliance_access || this.alliance_confirmation) return;
+			this.alliance_confirmation = { kind, target_id, process_id, picker, synthetic: this.alliance_view?.synthetic === true };
+			const confirmation = this.alliance_confirmation;
+			this.alliance_modal = 'alliance-confirm-modal';
+			const queued = queue_modal(picker ? this.alliance_picker_label(kind) : this.alliance_label(kind), 'alliance-confirm-modal', 'assets/multiplayer.svg', {
+				customClass: { popup: 'mp-alliance-modal-popup' },
+				showConfirmButton: false,
+				didClose: () => {
+					if (this.alliance_modal !== 'alliance-confirm-modal' || this.alliance_confirmation !== confirmation) return;
+					this.alliance_modal = null;
+					this.alliance_confirmation = null;
+				}
+			}, false);
+			if (queued === false) { this.alliance_confirmation = null; this.alliance_modal = null; }
+		},
+		async close_alliance_confirmation() {
+			const confirmation = this.alliance_confirmation;
+			if (!confirmation || confirmation.closing) return;
+			confirmation.closing = true;
+			this.alliance_modal = null;
+			await close_modal_and_wait('alliance-confirm-modal');
+			if (this.alliance_confirmation === confirmation) this.alliance_confirmation = null;
+		},
+		async confirm_alliance_proposal(event) {
+			const proposal = this.alliance_confirmation;
+			const button = event.currentTarget;
+			if (!proposal || proposal.closing) return;
+			await this.close_alliance_confirmation();
+			if (proposal.picker) await this.show_alliance_picker(proposal.kind);
+			else if (!proposal.synthetic) await this.alliance_action({ currentTarget: button }, proposal.kind, proposal.target_id, proposal.process_id);
 		},
 		async show_alliance_picker(mode, page = 0) {
 			if (!this.alliance_access) return;
+			const previous_modal = this.alliance_modal;
+			this.alliance_modal = null;
+			if (previous_modal) await close_modal_and_wait(previous_modal);
 			this.alliance_picker_mode = mode;
 			this.alliance_error = '';
-			const res = await api_get('/api/alliances/discover?mode=' + mode + '&page=' + page);
+			const preview = this.alliance_view?.synthetic;
+			const fixture_details = { type: 'private', created_at: Date.now() - 80 * 86400000, market_discovery_restriction_enabled: false };
+			const fixture_guilds = [
+				{ ...fixture_details, guild_id: -101, name: 'The Criminals', member_count: 12, active_member_count: 10, restricts_cheaters: true, icon_id: 'melvorD:Golbin', synthetic: true },
+				{ ...fixture_details, guild_id: -102, name: 'The Copper Kettle', member_count: 8, active_member_count: 0, restricts_cheaters: false, icon_id: 'melvorD:Golbin', synthetic: true }
+			];
+			const res = preview ? { entries: mode === 'found' ? fixture_guilds : [
+				{ id: -1, name: 'Wandering Fellowship', created_at: Date.now() - 42 * 86400000, shared_marketplace: false, member_guilds: fixture_guilds }
+			], has_more: false } : await api_get('/api/alliances/discover?mode=' + mode + '&page=' + page);
 			if (!res) return notify_error('MOD_MP_GENERIC_ERR');
-			this.alliance_picker_entries = res.entries ?? [];
+			this.alliance_picker_entries = (res.entries ?? []).filter(entry => mode !== 'found' || entry.guild_id !== this.guild_state?.guild?.guild_id);
 			this.alliance_picker_page = page;
 			this.alliance_picker_has_more = res.has_more === true;
-			if (this.alliance_modal) await close_modal_and_wait(this.alliance_modal);
-			this.alliance_modal = null;
 			this.alliance_modal = 'alliance-picker-modal';
-			queue_modal(mode === 'found' ? 'MOD_MP_ALLIANCE_FOUND' : 'MOD_MP_ALLIANCE_APPLY', 'alliance-picker-modal', 'assets/multiplayer.svg', { showConfirmButton: false, allowOutsideClick: false, allowEscapeKey: false });
+			queue_modal(mode === 'found' ? 'MOD_MP_ALLIANCE_FOUND' : 'MOD_MP_ALLIANCE_APPLY', 'alliance-picker-modal', 'assets/multiplayer.svg', { customClass: { popup: 'mp-alliance-modal-popup' }, showConfirmButton: false, didClose: () => { if (this.alliance_modal === 'alliance-picker-modal') this.alliance_modal = null; } });
 		},
 		async preview_alliance_guild(guild_id, restore_picker = false) {
 			if (!this.alliance_access) return;
-			const res = await api_get('/api/alliances/guild-preview?guild_id=' + guild_id);
+			const view = this.alliance_view;
+			const fixture = [...(this.alliance_picker_entries ?? []).flatMap(entry => entry.member_guilds ?? [entry]), ...(view?.alliance?.member_guilds ?? []), ...(view?.processes ?? []).flatMap(p =>
+				[...(p.founding_guilds ?? []), p.applicant, p.target_guild]).filter(Boolean)].find(g => g.guild_id === guild_id);
+			if (guild_id < 0 && !fixture?.synthetic) return;
+			const res = fixture?.synthetic ? { guild: fixture } : await api_get('/api/alliances/guild-preview?guild_id=' + guild_id);
 			if (!res?.guild) return notify_error('MOD_MP_GENERIC_ERR');
+			const previous_modal = this.alliance_modal;
+			this.alliance_modal = null;
+			if (previous_modal) await close_modal_and_wait(previous_modal);
 			this.alliance_preview = res.guild;
 			this.alliance_preview_restore_picker = restore_picker;
-			if (this.alliance_modal) await close_modal_and_wait(this.alliance_modal);
-			this.alliance_modal = null;
 			this.alliance_modal = 'alliance-preview-modal';
-			queue_modal('MOD_MP_ALLIANCE_GUILD_PREVIEW', 'alliance-preview-modal', 'assets/multiplayer.svg', { showConfirmButton: false, allowOutsideClick: false, allowEscapeKey: false });
+			queue_modal(res.guild.name, 'alliance-preview-modal', this.get_guild_icon(res.guild.icon_id), {
+				customClass: { popup: 'mp-alliance-modal-popup' },
+				showConfirmButton: false,
+				didClose: () => {
+					if (this.alliance_modal !== 'alliance-preview-modal') return;
+					this.alliance_modal = null;
+					if (this.alliance_preview_restore_picker) void this.show_alliance_picker(this.alliance_picker_mode, this.alliance_picker_page);
+				}
+			}, false, false);
 		},
 		close_alliance_picker() { this.alliance_modal = null; close_modal(); },
 		async close_alliance_preview() {
 			const restore = this.alliance_preview_restore_picker;
-			if (this.alliance_modal) await close_modal_and_wait(this.alliance_modal);
+			const previous_modal = this.alliance_modal;
 			this.alliance_modal = null;
+			if (previous_modal) await close_modal_and_wait(previous_modal);
 			if (restore) await this.show_alliance_picker(this.alliance_picker_mode, this.alliance_picker_page);
 		},
 		async alliance_action(event, kind, target_id = null, process_id = null) {
@@ -90,6 +188,14 @@ export function install_social_actions(runtime) {
 			if (process_id === null && kind === 'found' && (alliance_name.length === 0 || alliance_name.length > 20)) {
 				this.alliance_error = getLangString('MOD_MP_ALLIANCE_NAME_REQUIRED');
 				return;
+			}
+			if (this.alliance_view?.synthetic || target_id < 0 || process_id < 0) {
+				if (this.alliance_modal) {
+					const modal = this.alliance_modal;
+					this.alliance_modal = null;
+					await close_modal_and_wait(modal);
+				}
+				return notify('MOD_MP_ALLIANCE_PREVIEW_CONFIRM_HINT', 'info');
 			}
 			const button = event.currentTarget;
 			if (is_button_spinning(button)) return;
@@ -104,7 +210,124 @@ export function install_social_actions(runtime) {
 				await Promise.all([this.refresh_alliance(), refresh_council()]);
 			} finally { hide_button_spinner(button); }
 		},
+		alliance_picker_label(mode) { return getLangString(mode === 'found' ? 'MOD_MP_ALLIANCE_FOUND' : 'MOD_MP_ALLIANCE_APPLY'); },
+		alliance_age(alliance) {
+			const created = alliance?.created_at ?? alliance?.established_at;
+			return Number.isFinite(created) ? Math.max(0, Math.floor((Date.now() - created) / 86400000)) : null;
+		},
+		alliance_members_text(alliance) {
+			const guilds = alliance?.member_guilds ?? [];
+			const members = guilds.reduce((sum, guild) => sum + (guild.member_count ?? 0), 0);
+			const active = guilds.reduce((sum, guild) => sum + (guild.active_member_count ?? 0), 0);
+			return getLangString(active !== members ? members === 1 ? 'MOD_MP_GUILD_MEMBER_ACTIVE_COUNT_ONE' : 'MOD_MP_GUILD_MEMBER_ACTIVE_COUNT' : members === 1 ? 'MOD_MP_GUILD_MEMBER_COUNT_ONE' : 'MOD_MP_GUILD_MEMBER_COUNT')
+				.replace('%s', members).replace('%s', active);
+		},
+		alliance_guild_count_text(alliance) {
+			const guilds = alliance?.member_guilds ?? [];
+			const active = guilds.filter(guild => (guild.active_member_count ?? 0) > 0 || guild.type === 'free_fellowship').length;
+			return getLangString(active !== guilds.length ? guilds.length === 1 ? 'MOD_MP_ALLIANCE_GUILD_ACTIVE_COUNT_ONE' : 'MOD_MP_ALLIANCE_GUILD_ACTIVE_COUNT' : guilds.length === 1 ? 'MOD_MP_ALLIANCE_GUILD_COUNT_ONE' : 'MOD_MP_ALLIANCE_GUILD_COUNT')
+				.replace('%s', guilds.length).replace('%s', active);
+		},
 		alliance_label(kind) { return getLangString('MOD_MP_ALLIANCE_' + String(kind ?? 'ballot').toUpperCase()); },
+		async resolve_alliance_petition_guilds(petitions) {
+			if (!this.alliance_access) return;
+			const guilds = new Map();
+			for (const guild of this.alliance_state?.alliance?.member_guilds ?? []) guilds.set(guild.guild_id, guild);
+			for (const process of this.alliance_state?.processes ?? []) {
+				for (const guild of [...(process.founding_guilds ?? []), process.applicant, process.target_guild])
+					if (guild) guilds.set(guild.guild_id, guild);
+			}
+			const ids = [...new Set(petitions.flatMap(p => p.type.startsWith('alliance_') ? p.proposal.guild_ids ?? [] : []))];
+			// Bound concurrent reads; preview failures must not hide the Council itself.
+			for (let offset = 0; offset < ids.length; offset += 4) {
+				await Promise.all(ids.slice(offset, offset + 4).map(async id => {
+					if (guilds.has(id)) return;
+					try {
+						const res = await api_get('/api/alliances/guild-preview?guild_id=' + id);
+						if (res?.guild) guilds.set(id, res.guild);
+					} catch { /* Keep unavailable Guilds out of the preview links. */ }
+				}));
+			}
+			for (const petition of petitions)
+				if (petition.type.startsWith('alliance_')) {
+					petition.proposal.guilds = (petition.proposal.guild_ids ?? []).map(id => guilds.get(id)).filter(Boolean);
+					if (petition.synthetic && !petition.proposal.guilds.length)
+						petition.proposal.guilds = [[...guilds.values()].find(guild => guild.guild_id !== this.guild_state?.guild?.guild_id) ?? { name: getLangString('MOD_MP_ALLIANCE_SYNTHETIC_GUILD') }];
+					if (petition.synthetic && ['withdraw', 'ballot'].includes(petition.proposal.kind)) petition.proposal.kind = 'found';
+				}
+		},
+		alliance_proposal_heading(kind) {
+			return getLangString('MOD_MP_ALLIANCE_HEADING_' + String(kind ?? 'ballot').toUpperCase());
+		},
+		alliance_petition_kind(petition) {
+			const action = petition.type.slice(9);
+			return ['consider', 'withdraw'].includes(action) ? action : petition.proposal.kind ?? action;
+		},
+		alliance_proposal_parts(proposal, kind = proposal.display_kind ?? proposal.kind) {
+			const name = proposal.name || this.alliance_state?.alliance?.name || getLangString('MOD_MP_ALLIANCE_UNNAMED');
+			const guilds = (proposal.guilds ?? proposal.founding_guilds ?? (proposal.applicant ? [proposal.applicant] : proposal.target_guild ? [proposal.target_guild] : []))
+				.filter(guild => guild && (!['found', 'consider'].includes(kind) || guild.guild_id !== this.guild_state?.guild?.guild_id));
+			const parts = [];
+			const text = getLangString(proposal.governance_version === 2 && kind === 'consider' ? 'MOD_MP_ALLIANCE_PARALLEL_DESCRIPTION_CONSIDER' : 'MOD_MP_ALLIANCE_DESCRIPTION_' + String(kind ?? 'ballot').toUpperCase());
+			for (const piece of text.split(/(\{alliance\}|\{guilds\}|\{proposal\})/)) {
+				if (piece === '{alliance}') parts.push({ text: name, bold: true });
+				else if (piece === '{guilds}') {
+					const targets = guilds.length ? guilds : [{ name: getLangString('MOD_MP_ALLIANCE_UNKNOWN_GUILD') }];
+					for (const [index, guild] of targets.entries()) {
+						if (index) parts.push({ text: ', ' });
+						parts.push({ text: guild.name, bold: true, guild_id: guild.guild_id });
+					}
+				} else if (piece === '{proposal}') {
+					const action = ['withdraw', 'ballot'].includes(proposal.kind) ? 'ballot' : proposal.kind === 'join' ? 'apply' : proposal.kind;
+					parts.push(...this.alliance_proposal_parts(proposal, action));
+				} else if (piece) parts.push({ text: piece });
+			}
+			return parts;
+		},
+		alliance_proposal_description(proposal, kind = proposal.display_kind ?? proposal.kind) {
+			return this.alliance_proposal_parts(proposal, kind).map(part => part.text).join('');
+		},
+		alliance_petition_collective(petition) {
+			return petition.type === 'alliance_ballot' || ['join', 'remove', 'market_enable', 'market_disable'].includes(this.alliance_petition_kind(petition));
+		},
+		alliance_outcome(stage) { return getLangString('MOD_MP_ALLIANCE_OUTCOME_' + stage.toUpperCase()); },
+		guild_preview_established() {
+			const guild = this.alliance_preview;
+			const created = guild?.created_at ?? guild?.established_at;
+			return Number.isFinite(created) ? Math.max(0, Math.floor((Date.now() - created) / 86400000)) : null;
+		},
+		alliance_confirmation_hint() {
+			const kind = this.alliance_confirmation?.kind;
+			const key = ['found', 'consider'].includes(kind) ? 'MOD_MP_ALLIANCE_CONFIRM_FOUNDING'
+				: kind === 'join' ? 'MOD_MP_ALLIANCE_CONFIRM_ADMISSION'
+				: kind === 'leave' ? 'MOD_MP_ALLIANCE_CONFIRM_LEAVING'
+				: kind === 'withdraw' ? 'MOD_MP_ALLIANCE_CONFIRM_WITHDRAWAL'
+				: 'MOD_MP_ALLIANCE_CONFIRM_COLLECTIVE';
+			return getLangString(key);
+		},
+		alliance_market_pending() {
+			return this.alliance_view?.market_proposal_pending ?? (this.alliance_view?.processes ?? []).some(p =>
+				['market_enable', 'market_disable'].includes(p.kind) && this.is_alliance_process_active(p));
+		},
+		alliance_proposal_status(proposal) {
+			if (proposal.governance_version === 2 && this.is_alliance_process_active(proposal)) {
+				if (proposal.kind === 'found') return getLangString(proposal.own_council === 'granted'
+					? 'MOD_MP_ALLIANCE_FOUNDING_OTHER_COUNCIL' : 'MOD_MP_ALLIANCE_FOUNDING_COUNCILS');
+				if (proposal.kind === 'join' && proposal.tally?.aye >= proposal.tally?.required_aye && proposal.applicant_consent !== 'granted')
+					return getLangString('MOD_MP_ALLIANCE_AWAITING_APPLICANT_CONSENT');
+			}
+			return this.alliance_stage(proposal.stage);
+		},
+		alliance_cancellation_parts(proposal) {
+			if (proposal.stage !== 'cancelled') return [];
+			const keys = { roster_changed: 'MOD_MP_ALLIANCE_CANCEL_ROSTER', guild_unavailable: 'MOD_MP_ALLIANCE_CANCEL_GUILD',
+				alliance_unavailable: 'MOD_MP_ALLIANCE_CANCEL_ALLIANCE', target_unavailable: 'MOD_MP_ALLIANCE_CANCEL_TARGET',
+				affiliated_elsewhere: proposal.resolution_guild_name ? 'MOD_MP_ALLIANCE_CANCEL_AFFILIATED_GUILD' : 'MOD_MP_ALLIANCE_CANCEL_AFFILIATED' };
+			const key = keys[proposal.resolution_reason];
+			if (!key) return [];
+			return getLangString(key).split(/(\{guild\})/).map(text => text === '{guild}'
+				? { text: proposal.resolution_guild_name, bold: true } : { text });
+		},
 		alliance_stage(stage) { return getLangString('MOD_MP_ALLIANCE_STAGE_' + stage.toUpperCase()); },
 		alliance_guild_tags(guild) {
 			if (!guild) return [];
@@ -349,6 +572,10 @@ export function install_social_actions(runtime) {
 		},
 
 		async decide_guild_application(event, application, approve) {
+			if (application.synthetic || application.application_id < 0) {
+				this.guild_preview_decided_applications = [...(this.guild_preview_decided_applications ?? []), application.application_id];
+				return;
+			}
 			const $button = event.currentTarget;
 			if (is_button_spinning($button))
 				return;
@@ -398,6 +625,7 @@ export function install_social_actions(runtime) {
 						? 'council-banishment-modal'
 						: 'council-action-modal';
 			queue_modal(getLangString('MOD_MP_COUNCIL_RAISE_PREFIX') + this.get_council_type_lang(type), template, 'assets/multiplayer.svg', {
+				customClass: { popup: ['heraldry', 'banishment'].includes(type) ? 'mp-native-scroll-modal-popup' : '' },
 				showConfirmButton: false
 			}, false);
 		},
@@ -474,7 +702,7 @@ export function install_social_actions(runtime) {
 		},
 
 		get_council_type_lang(type) {
-			return type.startsWith('alliance_') ? this.alliance_label(type.slice(9)) : getLangString('MOD_MP_COUNCIL_TYPE_' + type.toUpperCase());
+			return type.startsWith('alliance_') ? this.alliance_proposal_heading(type.slice(9)) : getLangString('MOD_MP_COUNCIL_TYPE_' + type.toUpperCase());
 		},
 
 		can_raise_council_petition(type) {
@@ -484,6 +712,10 @@ export function install_social_actions(runtime) {
 
 		get_council_action_key(type) {
 			return type.startsWith('charitree_') ? type.replace('charitree_', '').toUpperCase() : type.toUpperCase();
+		},
+
+		get_council_description_lang_id(type) {
+			return 'MOD_MP_COUNCIL_' + this.get_council_action_key(type) + '_DESCRIPTION';
 		},
 
 		get_council_action_confirm(type) {
@@ -499,7 +731,7 @@ export function install_social_actions(runtime) {
 		},
 
 		get_council_choice_lang(choice) {
-			return getLangString(choice === 'aye' ? 'MOD_MP_COUNCIL_AYE' : 'MOD_MP_COUNCIL_NAY');
+			return getLangString(choice === 'aye' ? 'MOD_MP_COUNCIL_VOTED_AYE' : 'MOD_MP_COUNCIL_VOTED_NAY');
 		},
 
 		get_council_execution_lang(execution_state) {
@@ -511,7 +743,17 @@ export function install_social_actions(runtime) {
 		get_council_tally_width(petition, choice) {
 			if (!petition.tally || petition.tally.eligible === 0)
 				return '0%';
-			return (petition.tally[choice] / petition.tally.eligible * 100) + '%';
+			const count = choice === 'uncast' ? Math.max(0, petition.tally.eligible - petition.tally.aye - petition.tally.nay) : petition.tally[choice];
+			return (count / petition.tally.eligible * 100) + '%';
+		},
+
+		get_tally_threshold(petition, alliance = false) {
+			const eligible = petition.tally?.eligible ?? 0;
+			if (!eligible) return '0%';
+			const required = petition.tally.required_aye ?? (alliance
+				? Math.floor(eligible / 2) + 1
+				: Math.ceil(eligible / 2));
+			return Math.min(100, required / eligible * 100) + '%';
 		},
 
 		async load_more_council_petitions(event) {

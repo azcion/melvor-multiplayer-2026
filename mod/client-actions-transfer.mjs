@@ -708,6 +708,18 @@ export function install_transfer_actions(runtime) {
 			this.dev_tag_visibility_pending = false;
 		},
 
+		view_member_cheat_mods(member, event) {
+			event.stopPropagation();
+			if (!member?.using_cheats) return;
+			this.viewed_cheat_mods = [...(member.cheat_mods ?? [])];
+			this.viewed_cheats_elapsed = this.format_member_account_age(
+				Math.max(0, Date.now() - member.cheats_detected_at), 'hour');
+			queue_modal('MOD_MP_GUILD_USING_CHEATS', 'cheat-mods-modal', null, {
+				icon: 'info', showConfirmButton: false,
+				didClose: () => { this.viewed_cheat_mods = []; this.viewed_cheats_elapsed = ''; }
+			}, true, false);
+		},
+
 		async view_member_active_mods(event) {
 			const member = this.selected_guild_member;
 			const $button = event.currentTarget;

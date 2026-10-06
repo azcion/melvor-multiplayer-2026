@@ -196,8 +196,8 @@ export function migrate_charitree_to_crucible(now = Date.now(), database: Databa
 				'SELECT melvor_account_id FROM clients WHERE id = ?').get(wish.owner_client_id);
 			const owner_key = owner?.melvor_account_id === null || owner?.melvor_account_id === undefined
 				? `client:${wish.owner_client_id}` : `account:${owner.melvor_account_id}`;
-			database.query('INSERT OR REPLACE INTO crucible_visibility_resets (owner_key, reset_at) VALUES (?, ?)')
-				.run(owner_key, now);
+			database.query('INSERT OR REPLACE INTO crucible_visibility_resets (guild_id, owner_key, reset_at) VALUES (?, ?, ?)')
+				.run(wish.guild_id, owner_key, now);
 		}
 		database.query('INSERT INTO crucible_currency_locks (guild_id, owner_key, currency_id, locked_until) ' +
 			'SELECT guild_id, owner_key, currency_id, locked_until FROM charity_currency_locks WHERE locked_until > ?')

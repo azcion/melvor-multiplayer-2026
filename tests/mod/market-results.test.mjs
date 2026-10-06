@@ -604,8 +604,8 @@ test('places Haggle before the direct Marketplace action and exposes source-labe
 test('keeps Haggle controls mounted while an accepted claim replaces active actions', async () => {
 	const templates = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
 	const transfers = templates.slice(
-		templates.indexOf('<div class="block tabbable w-100 mp-col mp-transfer-haggle"'),
-		templates.indexOf('\n\t\t\t\t\t<template v-for="gift"')
+		templates.indexOf('<div class="mp-transfer-exchange mp-col mp-transfer-haggle"'),
+		templates.indexOf('<div class="mp-transfer-record" v-for="gift in state.gifts"')
 	);
 
 	assert.match(transfers, /v-show="haggle\.claim && !haggle\.claim\.claimed"/);

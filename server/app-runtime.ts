@@ -1,5 +1,6 @@
+import { record_pending_exchange } from './transfer-history';
 import { cleanup_market_permissions } from './alliance-market';
-import { execute_alliance_petition, maintain_alliances, remove_alliance_guild, alliance_for_guild, alliance_guilds } from './alliances';
+import { execute_alliance_petition, alliance_petition_withdrawable, maintain_alliances, remove_alliance_guild, alliance_for_guild, alliance_guilds } from './alliances';
 import { dev_tag_kind } from './account_tags';
 import { replay_economy_command } from './economy';
 import { create_api_server, validate_api_command, ECONOMY_COMMAND_KINDS } from './api-contract';
@@ -860,8 +861,15 @@ export function persist_client_runtime(client_id: number, runtime: ClientRuntime
 		'`owned_dlc` = excluded.`owned_dlc`, `reported_at` = excluded.`reported_at`'
 	).run(client_id, runtime.mod_version, JSON.stringify(runtime.active_mods), runtime.game_mode_id, runtime.language,
 		JSON.stringify(runtime.owned_dlc), now);
-	if (runtime.active_mods.some(mod_name => CHEAT_MOD_NAMES.has(mod_name)))
-		db.query('UPDATE `clients` SET `cheats_detected_at` = ? WHERE `id` = ?').run(now, client_id);
+	const cheat_mods = runtime.active_mods.filter(mod_name => CHEAT_MOD_NAMES.has(mod_name));
+	if (cheat_mods.length > 0) {
+		db.transaction(() => {
+			db.query('UPDATE `clients` SET `cheats_detected_at` = ? WHERE `id` = ?').run(now, client_id);
+			const save = db.query('INSERT INTO client_cheat_mod_detections (client_id, mod_name, detected_at) ' +
+				'VALUES (?, ?, ?) ON CONFLICT(client_id, mod_name) DO UPDATE SET detected_at = excluded.detected_at');
+			for (const mod_name of cheat_mods) save.run(client_id, mod_name, now);
+		})();
+	}
 	cleanup_market_permissions();
 }
 
@@ -1351,6 +1359,7 @@ export function apply_banishment_target(
 				);
 				add_banishment_return_item(return_id, item.item_id, item.qty);
 			}
+			record_pending_exchange(db, 'trade', trade.trade_id, 'trade-cancel', now);
 			db.query('DELETE FROM `trade_items` WHERE `trade_id` = ?').run(trade.trade_id);
 			db.query('DELETE FROM `trade_offers` WHERE `trade_id` = ?').run(trade.trade_id);
 		}
@@ -2260,6 +2269,13 @@ export function guild_member_from_row(member: GuildMemberRow, now = Date.now(), 
 		active_mods_visible: member.active_mods_visible === 1 || admin_view,
 		active_mods_available: (member.active_mods_visible === 1 || admin_view) && member.active_mods_available === 1,
 		using_cheats: is_using_cheats(member.cheats_detected_at, now),
+		cheats_detected_at: is_using_cheats(member.cheats_detected_at, now) ? member.cheats_detected_at : null,
+		cheat_mods: is_using_cheats(member.cheats_detected_at, now)
+			? db.query<{ mod_name: string }, [number, number, number]>(
+				'SELECT mod_name FROM client_cheat_mod_detections WHERE client_id = ? AND detected_at BETWEEN ? AND ? ' +
+				'ORDER BY detected_at DESC, mod_name COLLATE NOCASE'
+			).all(member.client_id, now - CHEAT_USE_WINDOW, now).map(row => row.mod_name)
+			: [],
 		language: member.language,
 		owned_dlc: get_guild_member_owned_dlc(member),
 		last_seen_at: member.last_multiplayer_active_at > 0 ? member.last_multiplayer_active_at : null,
@@ -2403,15 +2419,41 @@ export async function get_guild_type(guild_id: number): Promise<GuildType | null
 
 export async function get_guild_applicants(client_id: number) {
 	const guild_id = await get_client_guild_id(client_id);
-	if (guild_id === null)
-		return [];
-
-	return db_get_all(
-		'SELECT a.`id` AS `application_id`, c.`id` AS `client_id`, c.`display_name`, c.`icon_id` ' +
-		'FROM `guild_applications` AS a JOIN `clients` AS c ON c.`id` = a.`client_id` ' +
-		'WHERE a.`guild_id` = ? ORDER BY a.`id`',
-		[guild_id]
-	);
+	if (guild_id === null || await get_guild_type(guild_id) !== 'private') return [];
+	const now = Date.now();
+	const applicants = await db_get_all(
+		'SELECT m.`id` AS `application_id`, c.`id` AS `client_id`, CASE WHEN c.`social_mode_enforced` = 1 OR COALESCE(account.`social_mode_enforced`, 0) = 1 ' +
+		'OR (g.`cheat_restriction_enabled` = 1 AND c.`cheats_detected_at` BETWEEN ? AND ?) ' +
+		'THEN \'social\' ELSE c.`social_mode` END AS `social_mode`, c.`display_name`, c.`icon_id`, ' +
+		'c.`equipment_visible`, ' +
+		'EXISTS(SELECT 1 FROM `equipment_snapshots` AS es WHERE es.`client_id` = c.`id`) AS `equipment_available`, ' +
+		'c.`skills_visible`, ' +
+		'c.`skills_available`, ' +
+		'c.`activity_visible`, ' +
+		'c.`activity_available`, ' +
+		'ss.`activity_type` AS `status_activity_type`, ss.`activity_skill_id` AS `status_activity_skill_id`, ' +
+		'ss.`activity_action_id` AS `status_activity_action_id`, ss.`activity_area_id` AS `status_activity_area_id`, ss.`activities` AS `status_activities`, ' +
+		'ss.`account_creation_date`, ss.`total_skill_level`, ' +
+		'c.`gp_visible`, gps.`amount` AS `gp_amount`, c.`game_mode_visible`, runtime.`game_mode_id`, ' +
+		'c.`dev_tag_visible`, c.`active_mods_visible`, (runtime.`active_mods` IS NOT NULL AND runtime.`active_mods` <> \'[]\') AS `active_mods_available`, c.`cheats_detected_at`, ' +
+		'runtime.`language`, runtime.`owned_dlc`, ' +
+		'c.`last_multiplayer_active_at`, c.`melvor_account_id`, account.`cloud_username` AS `account_name`, NULL AS `joined_at`, ' +
+		'COALESCE((SELECT SUM(totals.`defeats`) FROM `raid_defeat_totals` AS totals ' +
+		'WHERE totals.`client_id` = c.`id`), 0) AS `raid_defeats` ' +
+		'FROM `guild_applications` AS m ' +
+		'JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
+		'JOIN `guilds` AS g ON g.`id` = m.`guild_id` ' +
+		'LEFT JOIN `melvor_accounts` AS account ON account.`id` = c.`melvor_account_id` ' +
+		'LEFT JOIN `status_snapshots` AS ss ON ss.`client_id` = c.`id` ' +
+		'LEFT JOIN `gp_snapshots` AS gps ON gps.`client_id` = c.`id` ' +
+		'LEFT JOIN `client_runtime_snapshots` AS runtime ON runtime.`client_id` = c.`id` ' +
+		'WHERE m.`guild_id` = ? ORDER BY m.`id`',
+		[now - CHEAT_USE_WINDOW, now, guild_id]
+	) as (GuildMemberRow & { application_id: number })[];
+	return applicants.map(row => ({ ...guild_member_from_row(row, now, is_admin(client_id)),
+		application_id: row.application_id, profile_source: 'chat',
+		activity_visible: false, activity_available: false, status_activity: null, status_activities: [],
+		last_seen_at: null, joined_at: null }));
 }
 
 export async function has_guild_departure_blocker(client_id: number): Promise<boolean> {
@@ -2448,9 +2490,9 @@ export function petition_to_player_view(row: CouncilPetitionRow, client_id: numb
 		proposal = { target_count: row.winnowing_target_count };
 	else if (row.type.startsWith('alliance_')) {
 		const linked = db.query<{ process_id: number; role: string }, [number]>('SELECT process_id,role FROM alliance_process_petitions WHERE petition_id = ?').get(row.id);
-		const process = linked ? db.query<{ name: string | null; kind: string; initiator_guild_id: number; target_guild_id: number | null; alliance_id: number | null }, [number]>('SELECT name,kind,initiator_guild_id,target_guild_id,alliance_id FROM alliance_processes WHERE id = ?').get(linked.process_id) : null;
+		const process = linked ? db.query<{ name: string | null; kind: string; initiator_guild_id: number; target_guild_id: number | null; alliance_id: number | null; governance_version: number }, [number]>('SELECT name,kind,initiator_guild_id,target_guild_id,alliance_id,governance_version FROM alliance_processes WHERE id = ?').get(linked.process_id) : null;
 		const alliance = process?.alliance_id ? alliance_for_guild(row.guild_id) ?? db.query<{ name: string },[number]>('SELECT name FROM alliances WHERE id=?').get(process.alliance_id) : null;
-		proposal = process ? { name: process.name ?? alliance?.name ?? null,
+		proposal = process ? { governance_version: process.governance_version, name: process.name ?? alliance?.name ?? null,
 			kind: process.kind === 'join' && linked!.role === 'local' ? 'apply' : process.kind,
 			process_id: linked!.process_id,
 			guild_ids: process.kind === 'found' ? [process.initiator_guild_id, process.target_guild_id!]
@@ -2473,7 +2515,7 @@ export function petition_to_player_view(row: CouncilPetitionRow, client_id: numb
 		eligible: row.is_eligible === 1,
 		current_vote: row.current_vote,
 		can_vote: active && row.is_eligible === 1 && row.current_vote === null,
-		can_withdraw: active && row.petitioner_id === client_id && (row.rule_version === 1 ||
+		can_withdraw: active && alliance_petition_withdrawable(row.id) && row.petitioner_id === client_id && (row.rule_version === 1 ||
 			db.query('SELECT 1 FROM guild_petition_votes WHERE petition_id = ? AND client_id != ? LIMIT 1')
 				.get(row.id, client_id) === null),
 		tally_visible,

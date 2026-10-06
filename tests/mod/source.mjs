@@ -41,10 +41,13 @@ export function load_sidebar_function(main, function_name, parameters) {
 	if (function_start < 0 || function_end < 0)
 		throw new Error(`Unable to extract sidebar function: ${function_name}`);
 
+	const guild_nav = function_name === 'update_multiplayer_nav'
+		? main.slice(main.indexOf('function update_guild_nav()'), main.indexOf('function update_multiplayer_nav()')) : '';
 	return new Function(...parameters, `
 		function set_nav_ready(aside, ready) {
 			aside.classList.toggle('mp-nav-ready', ready);
 		}
+		${guild_nav}
 		${main.slice(function_start, function_end)}; return ${function_name};
 	`);
 }

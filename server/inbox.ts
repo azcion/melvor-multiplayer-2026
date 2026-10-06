@@ -167,6 +167,8 @@ export function create_inbox_claim(
 			details: { claim_id }
 		});
 		for (const item of selected) {
+			db.query('INSERT INTO inbox_claim_sources(claim_id,item_id,source_type,source_name,qty) VALUES(?,?,?,?,?)')
+				.run(claim_id, item.item_id, item.source_type, item.source_name, item.qty);
 			move_audit_value_with_fallback(event_id, item.item_id, item.qty, 'inbox',
 				audit_position_key('inbox', client_id, item.source_type, item.source_name),
 				'client', audit_position_key('client', client_id));

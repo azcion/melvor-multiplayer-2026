@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 import { read_client_source } from './source.mjs';
 
 const root = new URL('../../', import.meta.url);
@@ -53,19 +54,19 @@ test('renders localized paginated Guild Activity responsively and refreshes it o
 	assert.match(templates, /state\.get_guild_activity_arg_3\(event\)/);
 	assert.match(templates, /event\.private/);
 	assert.match(templates, /state\.load_more_guild_activity\(\)/);
-	assert.match(templates, /<div class="block-content p-0 mp-guild-activity-scroll">[\s\S]*\n\t\t\t\t\t\t\t<div class="block-content text-center" v-show="state\.guild_activity_cursor !== null">[\s\S]*state\.load_more_guild_activity\(\)/);
+	assert.match(templates, /<div class="block-content p-0 mp-guild-activity-scroll">[\s\S]*\n\s*<div class="block-content text-center" v-show="state\.guild_activity_cursor !== null">[\s\S]*state\.load_more_guild_activity\(\)/);
 	assert.match(templates, /block-content mp-member-search-wrapper/);
 	assert.match(templates, /block-content p-0 mp-guild-members-scroll/);
 	assert.match(templates, /<div class="block-content p-0 mp-guild-members-scroll">[\s\S]*<div class="block-content text-center" v-show="state\.is_free_fellowship && state\.guild_member_directory_has_more">[\s\S]*state\.load_more_guild_members\(\)/);
 	assert.doesNotMatch(templates.slice(templates.indexOf('<div class="block-content p-0 mp-guild-members-scroll">'), templates.indexOf('<div class="block block-rounded mp-guild-applicants-block">')), /<\/div>\s*<div class="block-content text-center" v-show="state\.is_free_fellowship && state\.guild_member_directory_has_more">/);
 	assert.doesNotMatch(style, /#mp-guild-page,[\s\S]*#mp-updates-page\s*\{[\s\S]*padding-bottom: 0 !important/);
-	assert.match(style, /\.mp-guild-members-scroll,[\s\S]*\.mp-guild-activity-scroll\s*\{[\s\S]*max-height: 50rem;[\s\S]*overflow-y: auto/);
+	assert.match(style, /\.mp-guild-activity-scroll\s*\{[^}]*max-height: 20rem;[^}]*overflow-y: auto/);
 	assert.match(style, /\.mp-guild-activity-event\s*\{[\s\S]*padding: 4px 16px/);
 	assert.match(style, /\.mp-guild-activity-meta\s*\{[\s\S]*justify-content: space-between[\s\S]*gap: 1rem/);
 	assert.match(style, /\.mp-guild-activity-private\s*\{[\s\S]*margin-left: auto[\s\S]*white-space: nowrap/);
 	assert.match(style, /\.mp-guild-activity-event \.font-size-sm\.text-muted\s*\{[\s\S]*opacity: 0\.75/);
 	assert.match(style, /\.mp-member-search-wrapper\s*\{[\s\S]*padding: 0 1\.25rem 1px/);
-	assert.match(style, /@media \(max-width: 767\.98px\)[\s\S]*\.mp-guild-activity[\s\S]*order: -1/);
+	assert.match(style, /@media \(max-width: 767\.98px\)[\s\S]*\.mp-guild-mobile-hidden \{ display: none !important/);
 	assert.match(style, /@media \(max-width: 767\.98px\)[\s\S]*\.mp-guild-activity-scroll\s*\{[\s\S]*max-height: 8rem/);
 	assert.match(main, /api_get\(endpoint\)/);
 	assert.match(main, /refresh_shadowed_members\(\), refresh_guild_activity\(\)/);
@@ -315,7 +316,7 @@ test('renders each loaded member activity as a right-aligned icon', async () => 
 	);
 	const guild_page = templates.slice(templates.indexOf('<template id="template-mp-guild-page">'));
 	const members_header = guild_page.slice(
-		guild_page.indexOf('<h3 class="block-title"><lang-string lang-id="MOD_MP_GUILD_MEMBERS">'),
+		guild_page.indexOf('<h3 class="mp-guild-card-title"><lang-string lang-id="MOD_MP_GUILD_MEMBERS">'),
 		guild_page.indexOf('<div class="block-content mp-member-search-wrapper" v-show="state.is_free_fellowship">')
 	);
 	const member_list = guild_page.slice(
@@ -376,7 +377,7 @@ test('renders each loaded member activity as a right-aligned icon', async () => 
 	);
 });
 
-test('tucks Shadowed members behind a normal-action modal at the bottom of the Guild page', async () => {
+test('tucks Shadowed members behind a normal-action modal below the Guild roster', async () => {
 	const [templates, main, language_text, style] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
 		read_client_source(root),
@@ -398,7 +399,125 @@ test('tucks Shadowed members behind a normal-action modal at the bottom of the G
 	assert.match(style, /\.mp-council-target-list \{[\s\S]*overflow-y: scroll;[\s\S]*-webkit-overflow-scrolling: touch;[\s\S]*touch-action: pan-y;[\s\S]*overscroll-behavior-y: contain;/);
 	assert.match(style, /\.mp-shadowed-members-modal-popup \.swal2-html-container \{[\s\S]*overflow: hidden;/);
 	assert.match(member_view, /mp-shadowed-members-entry" v-show="state\.shadowed_member_count > 0"[\s\S]*MOD_MP_GUILD_VIEW_SHADOWED_MEMBERS/);
-	assert.ok(member_view.lastIndexOf('mp-shadowed-members-entry') > member_view.lastIndexOf('mp-council'));
+	assert.ok(member_view.indexOf('mp-shadowed-members-entry') > member_view.indexOf('mp-guild-members-scroll'));
+	assert.ok(member_view.indexOf('mp-shadowed-members-entry') < member_view.indexOf('id="mp-guild-council-column"'));
 	assert.equal(language.MOD_MP_GUILD_SHADOWED, 'Shadowed');
 	assert.equal(language.MOD_MP_GUILD_VIEW_SHADOWED_MEMBERS, 'View Shadowed Members');
+});
+
+
+test('keeps active and closed Petitions separate and falls back from inaccessible mobile tabs', async () => {
+	const main = await read_client_source(root);
+	const getters = main.slice(main.indexOf('get guild_visible_tab()'), main.indexOf('get filtered_guilds()'));
+	const model = new Function(`return { ${getters} };`)();
+	model.guild_state = { guild: { capabilities: { council: true } } };
+	model.alliance_access = true;
+	model.guild_mobile_tab = 'alliance';
+	assert.equal(model.guild_visible_tab, 'alliance');
+	model.alliance_access = false;
+	assert.equal(model.guild_visible_tab, 'guild');
+	model.guild_mobile_tab = 'council';
+	assert.equal(model.guild_visible_tab, 'council');
+	model.guild_state = {};
+	assert.equal(model.guild_visible_tab, 'guild');
+	model.council_petitions = ['active', 'granted', 'denied', 'lapsed', 'withdrawn'].map(lifecycle => ({ lifecycle }));
+	for (const open of [false, true]) {
+		model.council_show_resolved = open;
+		assert.deepEqual(model.visible_council_petitions.map(petition => petition.lifecycle), ['active']);
+		assert.deepEqual(model.closed_council_petitions.map(petition => petition.lifecycle), ['granted', 'denied', 'lapsed', 'withdrawn']);
+	}
+});
+
+test('places Council sections in order and keeps the history body mounted with pagination', async () => {
+	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
+	const council = templates.slice(templates.indexOf('id="mp-guild-council-column"'), templates.indexOf('id="mp-guild-alliance-column"'));
+	assert.ok(council.indexOf('MOD_MP_COUNCIL_ACTIVE') < council.indexOf('mp-guild-activity-scroll'));
+	assert.ok(council.indexOf('mp-guild-activity-scroll') < council.indexOf('mp-guild-history-title'));
+	assert.match(council, /:aria-expanded="state.council_show_resolved" aria-controls="mp-guild-history-body"/);
+	assert.match(council, /id="mp-guild-history-body"[^>]*v-show="state.council_show_resolved"/);
+	assert.match(council, /v-for="petition in state.closed_council_petitions"/);
+	assert.match(council, /v-show="state.council_has_more"[\s\S]*:disabled="state.council_loading"[\s\S]*state.load_more_council_petitions/);
+});
+
+test('Guild mobile badges track applicants and eligible uncast Council and Alliance decisions', async () => {
+	const main = await read_client_source(root);
+	const state = runInNewContext('({' + main.slice(main.indexOf('get council_needs_vote()'),
+		main.indexOf('get visible_council_petitions()')) + '})');
+	state.council_petitions = [];
+	state.alliance_access = true;
+	state.alliance_state = { processes: [], affiliation_pending: false };
+	assert.equal(state.council_needs_vote, false);
+	assert.equal(state.alliance_needs_vote, false);
+	const petition = { type: 'appellation', lifecycle: 'active', can_vote: true, current_vote: null };
+	state.council_petitions = [petition];
+	assert.equal(state.council_needs_vote, true);
+	assert.equal(state.alliance_needs_vote, false);
+	petition.type = 'alliance_policy';
+	assert.equal(state.alliance_needs_vote, true);
+	for (const changes of [{ current_vote: 'aye' }, { can_vote: false }, { lifecycle: 'granted' }]) {
+		state.council_petitions = [{ ...petition, ...changes }];
+		assert.equal(state.council_needs_vote, false);
+		assert.equal(state.alliance_needs_vote, false);
+	}
+	state.alliance_state.processes = [{ can_consider: true }];
+	assert.equal(state.alliance_needs_vote, true);
+	state.alliance_state.affiliation_pending = true;
+	assert.equal(state.alliance_needs_vote, false);
+	state.alliance_state.affiliation_pending = false;
+	state.alliance_access = false;
+	assert.equal(state.alliance_needs_vote, false);
+	const html = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
+	const tabs = html.slice(html.indexOf('<div class="mp-guild-tabs"'), html.indexOf('</div>', html.indexOf('<div class="mp-guild-tabs"')));
+	assert.match(tabs, /v-if="state.council_needs_vote"/);
+	assert.match(tabs, /v-if="state.alliance_needs_vote"/);
+	assert.equal(tabs.match(/MOD_MP_VOTE_BADGE/g)?.length, 2);
+	const count_binding = tabs.match(/v-show="([^"]*guild_applicants.length[^"]*)"/)[1];
+	for (const count of [0, 1, 12]) {
+		assert.equal(runInNewContext(count_binding, { state: { is_free_fellowship: false, visible_guild_applicants: Array(count) } }), count > 0);
+	}
+	assert.equal(runInNewContext(count_binding, { state: { is_free_fellowship: true, visible_guild_applicants: [] } }), false);
+	assert.match(tabs, /{{ state.visible_guild_applicants.length }}/);
+});
+
+test('Guild sidebar keeps a seeded aside and updates empty, count, vote, and guildless states', async () => {
+	const main = await read_client_source(root);
+	const data = JSON.parse(await readFile(new URL('mod/data.json', root), 'utf8'));
+	const guild = data.data.pages.find(page => page.id === 'Guild');
+	assert.ok(guild.sidebarItem.aside.length > 0);
+	const aside = { textContent: '', hidden: true };
+	const state = { guild_state_loaded: true, is_guild_member: true, is_free_fellowship: false,
+		guild_state: { guild: { is_public: false } }, visible_guild_applicants: [], num_guild_applicants: 0, council_needs_vote: false, alliance_needs_vote: false };
+	const update = runInNewContext(main.slice(main.indexOf('function update_guild_nav()'),
+		main.indexOf('function update_multiplayer_nav()')) + '\nupdate_guild_nav;', {
+		state, document: { querySelector: () => aside }, set_nav_ready: () => {},
+		getLangString: key => key === 'MOD_MP_VOTE_BADGE' ? 'vote' : 'start here'
+	});
+	update();
+	assert.equal(aside.textContent, '');
+	assert.equal(aside.hidden, true);
+	state.visible_guild_applicants = [1,2,3];
+	update();
+	assert.equal(aside.textContent, '3');
+	assert.equal(aside.hidden, false);
+	state.council_needs_vote = true;
+	update();
+	assert.equal(aside.textContent, '3');
+	state.visible_guild_applicants = [];
+	update();
+	assert.equal(aside.textContent, 'vote');
+	state.council_needs_vote = false;
+	state.alliance_needs_vote = true;
+	update();
+	assert.equal(aside.textContent, 'vote');
+	state.alliance_needs_vote = false;
+	update();
+	assert.equal(aside.hidden, true);
+	state.is_guild_member = false;
+	update();
+	assert.equal(aside.textContent, 'start here');
+	assert.equal(aside.hidden, false);
+	state.guild_state_loaded = false;
+	update();
+	assert.equal(aside.hidden, true);
+	assert.match(main, /else if \(state.is_guild_member\)\s*await Promise.all\(\[refresh_guild_state\(true\), state.refresh_alliance\(\), refresh_council\(\)\]\)/);
 });

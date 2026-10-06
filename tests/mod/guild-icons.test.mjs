@@ -29,7 +29,7 @@ test('renders every matching Guild location in the scrolling selectors', async (
 
 	assert.doesNotMatch(filtered_guild_icons, /slice\(0,\s*32\)/);
 	assert.doesNotMatch(filtered_council_icons, /slice\(0,\s*32\)/);
-	assert.match(styles, /\.mp-guild-icon-selector \{[\s\S]*grid-template-columns: repeat\(auto-fill, 64px\);[\s\S]*justify-content: center;[\s\S]*padding: 1px;[\s\S]*max-height: 230px;[\s\S]*overflow-y: auto/);
+	assert.match(styles, /\.mp-guild-icon-selector \{[\s\S]*grid-template-columns: repeat\(auto-fill, 64px\);[\s\S]*justify-content: center;[\s\S]*padding: 1px;[\s\S]*max-height: 230px;[\s\S]*overflow-y: scroll/);
 	assert.match(styles, /\.mp-guild-icon-selector-item \{[\s\S]*width: 64px;[\s\S]*height: 64px;[\s\S]*outline: 1px solid #5e5e5e/);
 	assert.match(styles, /\.mp-icon-selector-image,[\s\S]*\.mp-guild-icon-selector-image \{[\s\S]*max-width: 100%;[\s\S]*max-height: 100%;[\s\S]*object-fit: contain;[\s\S]*aspect-ratio: 1/);
 	assert.match(styles, /\.mp-guild-icon-selector-image \{[\s\S]*max-width: 64px;[\s\S]*max-height: 64px/);
@@ -42,4 +42,18 @@ test('renders every matching Guild location in the scrolling selectors', async (
 	const guild_page_template = templates.slice(templates.indexOf('<template id="template-mp-guild-page">'), templates.indexOf('<template id="template-mp-free-fellowship-confirm-modal">'));
 	assert.doesNotMatch(heraldry_template, /bank-item|no-bg|btn-light|pointer-enabled|resize-48|p-2/);
 	assert.doesNotMatch(guild_page_template, /bank-item|no-bg|btn-light|pointer-enabled|resize-48|p-2/);
+});
+
+
+test('Council modal scrollers use the native touch contract and avoid an outer scroll boundary', async () => {
+	const [main, templates, styles] = await Promise.all([
+		read_client_source(root),
+		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8')
+	]);
+	assert.match(styles, /\.mp-guild-icon-selector \{[^}]*max-height: min\(40dvh, 230px\);[^}]*overflow-y: scroll;[^}]*-webkit-overflow-scrolling: touch;[^}]*touch-action: pan-y;[^}]*overscroll-behavior-y: contain;/);
+	assert.match(templates, /class="mp-council-target-list" @touchmove="state\.stop_icon_scroll_propagation\(\$event\)"/);
+	assert.match(main, /customClass: \{ popup: \['heraldry', 'banishment'\]\.includes\(type\) \? 'mp-native-scroll-modal-popup'/);
+	assert.match(styles, /\.mp-native-scroll-modal-popup \.swal2-html-container,[^{]*\{\s*overflow: visible;/);
+	assert.match(styles, /\.mp-expedition-work-prompt-popup \.swal2-html-container,[^{]*\{\s*overflow: visible;/);
 });

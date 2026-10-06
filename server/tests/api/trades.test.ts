@@ -276,13 +276,17 @@ describe('trade API', () => {
 			trade_id,
 			items: [{ id: 'melvorF:Water_Rune', qty: 40 }]
 		}, pair.second.session_token);
+		const unauthorized = await post('/api/trade/decline', {
+			trade_id
+		}, pair.second.session_token);
+		expect(unauthorized.status).toBe(400);
 		const command_id = crypto.randomUUID();
 		const declined = await post_json<{ success: boolean }>('/api/trade/decline', {
 			trade_id, command_id
-		}, pair.second.session_token);
+		}, pair.first.session_token);
 		const replay = await post_json<typeof declined.json>('/api/trade/decline', {
 			trade_id, command_id
-		}, pair.second.session_token);
+		}, pair.first.session_token);
 
 		expect(declined.json.success).toBe(true);
 		expect(replay.json).toEqual(declined.json);
@@ -292,6 +296,67 @@ describe('trade API', () => {
 		expect((await get_inbox(pair.second.session_token)).json.items).toEqual([
 			{ item_id: 'melvorF:Water_Rune', qty: 40 }
 		]);
+	});
+
+	test('keeps legacy counteroffer returns with their original owners', async () => {
+		const pair = await make_guildmates('Legacy Decline Sender', 'Legacy Decline Recipient');
+		await db_run(
+			'INSERT INTO client_runtime_snapshots (client_id, mod_version, active_mods, reported_at) ' +
+			'VALUES (?, ?, ?, ?) ON CONFLICT(client_id) DO UPDATE SET mod_version = excluded.mod_version',
+			[pair.first_id, '1.4.5', '[]', Date.now()]
+		);
+		const offered = await offer_trade(pair.first.session_token, pair.second_id);
+		const trade_id = offered.json.trade_id;
+		await post_json('/api/trade/counter', {
+			trade_id, items: [{ id: 'melvorF:Water_Rune', qty: 40 }]
+		}, pair.second.session_token);
+		const rejected = await post('/api/trade/decline', { trade_id }, pair.second.session_token);
+		expect(rejected.status).toBe(400);
+		const declined = await post_json<{ success: boolean }>('/api/trade/decline', {
+			trade_id
+		}, pair.first.session_token);
+		expect(declined.json.success).toBe(true);
+		const returned = await get_trade_contents(pair.first.session_token, [], [trade_id]);
+		expect(returned.json.resolved_trades[String(trade_id)].items).toEqual([
+			{ id: expect.any(Number), item_id: 'melvorD:Iron_Ore', qty: 10, counter: 0 }
+		]);
+		expect((await get_inbox(pair.second.session_token)).json.items).toEqual([
+			{ item_id: 'melvorF:Water_Rune', qty: 40 }
+		]);
+		await post_json('/api/trade/resolve', { trade_id }, pair.first.session_token);
+		expect((await get_events(pair.first)).resolved_trades).toEqual([]);
+	});
+
+	test('declines an empty counteroffer and returns Slayer Coins exactly once', async () => {
+		const pair = await make_guildmates('Empty Counter Sender', 'Empty Counter Recipient');
+		const offered = await offer_trade(pair.first.session_token, pair.second_id,
+			[{ id: 'melvorD:SlayerCoins', qty: 500 }]);
+		const trade_id = offered.json.trade_id;
+		await post_json('/api/v2/trade/counter', {
+			trade_id, items: [], command_id: crypto.randomUUID()
+		}, pair.second.session_token);
+		const outsider = await register_client('Empty Counter Outsider');
+		for (const session_token of [pair.second.session_token, outsider.session_token]) {
+			const rejected = await post('/api/v2/trade/decline', {
+				trade_id, command_id: crypto.randomUUID()
+			}, session_token);
+			expect(rejected.status).toBe(400);
+		}
+		const command_id = crypto.randomUUID();
+		const declined = await post_json<{ success: boolean }>('/api/v2/trade/decline', {
+			trade_id, command_id
+		}, pair.first.session_token);
+		const replay = await post_json<typeof declined.json>('/api/v2/trade/decline', {
+			trade_id, command_id
+		}, pair.first.session_token);
+		expect(declined.json.success).toBe(true);
+		expect(replay.json).toEqual(declined.json);
+		expect((await get_inbox(pair.first.session_token)).json.items).toEqual([
+			{ item_id: 'melvorD:SlayerCoins', qty: 500 }
+		]);
+		expect((await get_inbox(pair.second.session_token)).json.items).toEqual([]);
+		expect((await get_events(pair.first)).trades).toEqual([]);
+		expect((await get_events(pair.second)).trades).toEqual([]);
 	});
 
 	test('returns original items when the sender cancels an initial offer', async () => {

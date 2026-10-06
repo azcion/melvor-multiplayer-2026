@@ -32,3 +32,30 @@ test('own ballot permits withdrawal; legacy Petitions retain fixed expiry and wi
 		expect((await post_json<{ success: boolean }>('/api/guilds/petitions/withdraw', { petition_id: id }, members[0].session_token)).json.success).toBe(true);
 	}
 });
+
+test('raising a Petition invalidates member event snapshots but rejected raises do not', async () => {
+	const members = await make_guild_group(['Notify A', 'Notify B'], 'Notify Guild');
+	const [outsider] = await make_guild_group(['Notify Outsider'], 'Other Notify Guild');
+	const snapshots = await Promise.all([...members, outsider].map(member =>
+		get_json_with_session<{ revision: number }>('/api/events', member.session_token)));
+	const raised = await post_json<{ success: boolean; petition_id: number }>('/api/guilds/petitions/raise',
+		{ type: 'appellation', name: 'Notified Guild' }, members[0].session_token);
+	expect(raised.json.success).toBe(true);
+	for (const [index, member] of members.entries()) {
+		const events = await get_json_with_session<{ revision: number; unchanged?: boolean }>(
+			`/api/events?revision=${snapshots[index].json.revision}`, member.session_token);
+		expect(events.json.unchanged).not.toBe(true);
+		expect(events.json.revision).toBeGreaterThan(snapshots[index].json.revision);
+	}
+	expect((await get_json_with_session<{ unchanged: boolean }>(
+		`/api/events?revision=${snapshots[2].json.revision}`, outsider.session_token)).json.unchanged).toBe(true);
+	const council = await get_json_with_session<{ petitions: { petition_id: number; can_vote: boolean }[] }>(
+		'/api/guilds/council', members[1].session_token);
+	expect(council.json.petitions.find(petition => petition.petition_id === raised.json.petition_id)?.can_vote).toBe(true);
+	const before_rejection = await get_json_with_session<{ revision: number }>('/api/events', members[1].session_token);
+	const duplicate = await post_json<{ error_lang: string }>('/api/guilds/petitions/raise',
+		{ type: 'appellation', name: 'Duplicate Guild' }, members[0].session_token);
+	expect(duplicate.json.error_lang).toBe('MOD_MP_COUNCIL_CONFLICT');
+	expect((await get_json_with_session<{ unchanged: boolean }>(
+		`/api/events?revision=${before_rejection.json.revision}`, members[1].session_token)).json.unchanged).toBe(true);
+});

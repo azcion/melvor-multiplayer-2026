@@ -1,12 +1,35 @@
+import { is_feature_tester, valid_pending_test_action } from '../feature-testers';
+import { get_transfer_history } from '../transfer-history';
 import * as runtime from '../app-runtime';
 import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
 import type { PetitionType } from '../council';
 
-const { db_get_all, is_social_only_client, parse_number_array, query_placeholders, session_post_route } = runtime;
+const { db, session_get_route, db_get_all, is_social_only_client, parse_number_array, query_placeholders, session_post_route } = runtime;
 
 export function register_transfer_routes(): void {
+	session_post_route('/api/features/pending/action', async (_req, _url, client_id, json) => {
+		if (!is_feature_tester(db, client_id, 'pending')) return 403;
+		if (!valid_pending_test_action(json.kind, json.id, json.action)) return 400;
+		return { success: true, synthetic: true };
+	});
+	session_get_route('/api/transfers/history', async (_req, url, client_id) => {
+		const pane = url.searchParams.get('pane');
+		if (pane !== 'inbox' && pane !== 'outbox' && pane !== 'pending') return 400;
+		const at = url.searchParams.get('before_at');
+		const id = url.searchParams.get('before_id');
+		if ((at === null) !== (id === null)) return 400;
+		let cursor = null;
+		if (at !== null && id !== null) {
+			if (!/^\d+$/.test(at) || !/^\d+$/.test(id)) return 400;
+			const occurred_at = Number(at), event_id = Number(id);
+			if (!Number.isSafeInteger(occurred_at) || !Number.isSafeInteger(event_id) || event_id <= 0) return 400;
+			cursor = { occurred_at, id: event_id };
+		}
+		return get_transfer_history(db, client_id, pane, cursor);
+	});
+
 	session_post_route('/api/transfers/get_contents', async (req, url, client_id, json) => {
 		if (is_social_only_client(client_id))
 			return { error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };

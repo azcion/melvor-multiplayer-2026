@@ -93,20 +93,24 @@ test('keeps three Transfers panels mounted with mobile-only tab visibility', asy
 	const page = templates.slice(templates.indexOf('<template id="template-mp-transfer-page">'), templates.indexOf('<template id="template-mp-gift-friend-modal">'));
 	assert.match(main, /transfers_mobile_tab: 'inbox'/);
 	for (const tab of ['inbox', 'outbox', 'pending']) {
-		assert.ok(page.includes(`@click="state.transfers_mobile_tab = '${tab}'"`));
+		assert.ok(page.includes(`@click="state.transfers_mobile_tab = '${tab}'; state.transfers_panels_open.${tab} = true"`));
 		const panel = page.match(new RegExp(`<section id="mp-transfers-${tab}"[^>]+>`))[0];
 		assert.ok(panel.includes(`state.transfers_mobile_tab !== '${tab}'`));
 		assert.doesNotMatch(panel, /v-if|v-show/);
+		const body = page.match(new RegExp(`<div id="mp-transfers-${tab}-body"[^>]+>`))[0];
+		assert.ok(body.includes(`v-show="state.transfers_panels_open.${tab}"`));
+		assert.doesNotMatch(body, /v-if/);
+		assert.ok(page.includes(`:aria-expanded="state.transfers_panels_open.${tab}" aria-controls="mp-transfers-${tab}-body"`));
 	}
 	assert.match(page, /MOD_MP_INBOX_TITLE"><\/lang-string><span class="badge badge-secondary mp-transfer-tab-badge mp-transfer-tab-badge-inbox" v-show="state\.inbox_items\.length > 0">\{\{ formatNumber\(state\.inbox_items\.length\) \}\}<\/span>/);
 	assert.match(page, /MOD_MP_TRANSFER_OUTBOX"><\/lang-string><span class="badge badge-secondary mp-transfer-tab-badge" v-show="state\.transfer_inventory\.length > 0">\{\{ formatNumber\(state\.transfer_inventory\.length\) \}\}<\/span>/);
 	assert.match(page, /MOD_MP_TRANSFER_PENDING"><\/lang-string><span class="badge badge-danger mp-transfer-tab-badge mp-transfer-tab-badge-pending" v-show="state\.num_active_transfers > 0">\{\{ formatNumber\(state\.num_active_transfers\) \}\}<\/span>/);
 	assert.match(style, /\.mp-transfers-layout \{[^}]*display: grid;[^}]*grid-template-columns:/);
-	assert.match(style, /@media \(max-width: 767\.98px\) \{\s*\.mp-transfers-tabs/);
+	assert.match(style, /@media \(max-width: 767\.98px\) \{\s*\.mp-transfers-shell \{[^}]+\}\s*\.mp-transfers-tabs/);
 	assert.match(style, /\.mp-transfer-tab-badge \{[\s\S]*position: absolute !important;[\s\S]*top: unset !important;[\s\S]*background-color: #232a35;[\s\S]*border: 1px solid rgba\(128, 128, 128, \.5\);/);
 	assert.match(style, /\.mp-transfer-tab-badge-inbox \{[\s\S]*background-color: orange;[\s\S]*border: 0;/);
 	assert.match(style, /\.mp-transfer-tab-badge-pending \{[\s\S]*background-color: #ff4545;[\s\S]*border: 0;/);
-	assert.match(style, /\.mp-transfers-inbox \.mp-inbox-claim \.btn \{[\s\S]*flex: 0 0 50%;[\s\S]*margin-left: auto !important;/);
+	assert.match(style, /\.mp-transfers-inbox \.mp-inbox-claim \.btn \{[\s\S]*flex: 0 1 auto;[\s\S]*margin-left: auto !important;/);
 	assert.match(page, /mp-inbox-claim/);
 	assert.match(page, /v-for="\(group, group_index\) of state\.inbox_groups"/);
 	assert.match(page, /state\.get_inbox_group_title\(group\)/);
@@ -117,8 +121,8 @@ test('keeps three Transfers panels mounted with mobile-only tab visibility', asy
 	assert.match(main, /legacy_market_payout_migration_1_5_6/);
 	assert.match(main, /get_instance_storage_item\(LEGACY_MARKET_PAYOUT_MIGRATION_KEY\)/);
 	assert.match(main, /set_instance_storage_item\(LEGACY_MARKET_PAYOUT_MIGRATION_KEY, true\)/);
-	assert.match(style, /\.mp-transfers-outbox \.mp-transfer-buttons\.mp-transfer-buttons-single \.btn \{[\s\S]*grid-column: 2;/);
-	assert.match(page, /class="p-3 mp-transfer-buttons" :class="\{ 'mp-transfer-buttons-single': state\.transfer_inventory\.length === 0 \}/);
+	assert.match(style, /\.mp-transfers-outbox \.mp-transfer-buttons\.mp-transfer-buttons-single \.btn \{[\s\S]*grid-column: 1 \/ -1;/);
+	assert.match(page, /class="mp-transfer-buttons" :class="\{ 'mp-transfer-buttons-single': state\.transfer_inventory\.length === 0 \}/);
 	assert.doesNotMatch(style, /\.mp-transfers-inbox \{\s*min-height: 60vh;/);
 	assert.match(style, /\.mp-transfers-mobile-hidden \{\s*display: none !important;/);
 	assert.match(page, /MOD_MP_TRANSFER_OFFER_OUTBOX/);
@@ -137,18 +141,23 @@ test('renders only pending Haggles in the Transfers Pending section', async () =
 	const pending = transfer_page.slice(transfer_page.indexOf('id="mp-transfers-pending"'));
 
 	assert.doesNotMatch(market_page, /market_active_tab == 'haggles'/);
-	assert.match(pending, /class="block tabbable w-100 mp-col mp-transfer-haggle" v-for="haggle in state\.market_haggles"/);
-	assert.match(pending, /class="pl-3 pt-1 pb-1 bg-dark-bank-info text-center mp-transfer-haggle-header"[\s\S]*class="mp-transfer-haggle-title"/);
+	assert.match(pending, /class="mp-transfer-exchange mp-col mp-transfer-haggle" v-for="haggle in state\.pending_haggles"/);
+	assert.match(pending, /class="mp-transfer-exchange-header mp-transfer-haggle-header"[\s\S]*class="mp-transfer-haggle-title"/);
 	assert.match(pending, /class="mp-transfer-haggle-meta"[\s\S]*mp-transfer-haggle-status/);
 	assert.match(pending, /mp-transfer-haggle-value[\s\S]*MOD_MP_TRANSFER_OFFERED/);
+	assert.ok(pending.indexOf('mp-transfer-haggle-status') < pending.indexOf('MOD_MP_TRANSFER_STACK_VALUE'));
+	assert.match(pending, /haggle.is_initiator \? 'MOD_MP_TRANSFER_LISTING_PRICE' : 'MOD_MP_TRANSFER_YOUR_PRICE'/);
+	assert.match(pending, /numberWithCommas\(haggle.item_qty \* haggle.listing_price\)/);
+	assert.match(pending, /numberWithCommas\(haggle.item_qty \* haggle.offer_price\)/);
+
 	assert.match(pending, /state\.get_avatar_icon\(haggle\.counterparty\.icon_id\)/);
 	assert.match(pending, /MOD_MP_TRANSFER_HAGGLE_WITH/);
 	assert.doesNotMatch(pending, /MOD_MP_MARKET_HAGGLE_WITH/);
-	assert.match(pending, /class="pb-4 row mp-transfer-haggle-items"/);
+	assert.match(pending, /class="mp-transfer-item-grid mp-transfer-haggle-items"/);
 	assert.doesNotMatch(pending, /mp-market-search-result/);
 	assert.match(pending, /state\.respond_market_haggle\(\$event, haggle, 'claim'\)/);
 	assert.match(pending, /state\.respond_market_haggle\(\$event, haggle, 'accept'\)/);
-	assert.match(style, /\.mp-transfer-haggle-meta \{[\s\S]*justify-content: space-between/);
+	assert.match(style, /\.mp-transfer-haggle-meta \{[^}]*flex-direction: column;[^}]*align-items: flex-start;/);
 	assert.match(style, /\.mp-transfer-haggle-claim \{[\s\S]*border-top: 1px solid/);
 	assert.match(main, /state\.market_haggles = haggles\.filter\(haggle => haggle\.status === 'active' \|\|/);
 	assert.match(main, /state\.market_haggle_pending = state\.market_haggles\.length;\s*update_transfer_inventory_nav\(\);/);
@@ -175,8 +184,10 @@ test('prevents Outbox item images from hijacking selection clicks as native drag
 	const page = templates.slice(templates.indexOf('<template id="template-mp-transfer-page">'), templates.indexOf('<template id="template-mp-gift-friend-modal">'));
 	const outbox = page.slice(page.indexOf('id="mp-transfers-outbox"'), page.indexOf('id="mp-transfers-pending"'));
 
-	assert.match(outbox, /<img class="bank-img p-3" :src="state\.get_item_icon\(item\.id\)" draggable="false"/);
-	assert.match(style, /\.mp-transfers-panel \.bank-item > a \{\s*height: 100%;\s*display: inline-block;\s*\}/);
+	assert.match(outbox, /<img :src="state\.get_item_icon\(item\.id\)" alt="" draggable="false"/);
+	assert.doesNotMatch(outbox, /<template v-if=/);
+	assert.match(outbox, /<button type="button" class="mp-transfer-item"[^>]*:aria-pressed="state\.selected_transfer_item_id === item\.id"[^>]*@click="state\.selected_transfer_item_id = item\.id"/);
+	assert.match(style, /\.mp-transfer-item > img \{[^}]*-webkit-user-drag: none;[^}]*pointer-events: none;/);
 });
 
 test('offers Add Currency independently of the Outbox contents', async () => {
@@ -188,7 +199,7 @@ test('offers Add Currency independently of the Outbox contents', async () => {
 	const page = templates.slice(templates.indexOf('<template id="template-mp-transfer-page">'), templates.indexOf('<template id="template-mp-gift-friend-modal">'));
 	const add_currency_modal = templates.slice(templates.indexOf('<template id="template-mp-add-currency-modal">'), templates.indexOf('<template id="template-mp-market-buy-modal">'));
 	const outbox = page.slice(page.indexOf('id="mp-transfers-outbox"'), page.indexOf('id="mp-transfers-pending"'));
-	const button_tray = outbox.slice(outbox.indexOf('<div class="p-3 mp-transfer-buttons"'), outbox.indexOf('</section>'));
+	const button_tray = outbox.slice(outbox.indexOf('<div class="mp-transfer-buttons"'), outbox.indexOf('</section>'));
 
 	assert.match(page, /MOD_MP_BUTTON_ADD_CURRENCY/);
 	assert.match(page, /state\.show_add_currency_modal\(\)/);
@@ -334,4 +345,25 @@ test('refreshes the Transfer / Gift sidebar count when transfer state is loaded'
 	assert.match(events_request, /reconcile_guild_member_social_modes\(res\.guild_member_social_modes\);/);
 	assert.match(events_request, /update_transfer_inventory_nav\(\);/);
 	assert.match(interface_ready, /setup_mobile_sidebar_unread\(\);\s*update_chat_nav\(\);\s*update_transfer_inventory_nav\(\);/);
+});
+
+
+test('Pending stack valuation uses Bank GP value for the haggled quantity and handles unavailable content', async () => {
+	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const method = main.slice(main.indexOf('get_haggle_stack_value(haggle) {'), main.indexOf('\n\tget transfer_inventory_value_raw()'));
+	const gp = { formatAmount: amount => `${amount} GP` };
+	const item = { sellsFor: { currency: gp } };
+	const calls = [];
+	const game = {
+		gp,
+		items: { getObjectByID: id => id === 'known' ? item : undefined },
+		bank: { getItemSalePrice: (resolved, qty) => { calls.push([resolved, qty]); return qty * 7; } }
+	};
+	const state = new Function('game', 'numberWithCommas', `return ({${method}})`)(game, String);
+	assert.equal(state.get_haggle_stack_value({ item_id: 'known', item_qty: 12 }), '84 GP');
+	assert.deepEqual(calls, [[item, 12]]);
+	assert.equal(state.get_haggle_stack_value({ item_id: 'missing', item_qty: 12 }), '—');
+	item.sellsFor.currency = {};
+	assert.equal(state.get_haggle_stack_value({ item_id: 'known', item_qty: 12 }), '0 GP');
+	assert.equal(calls.length, 1);
 });

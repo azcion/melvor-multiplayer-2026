@@ -83,7 +83,9 @@ test('renders phased Chamber work, accepted activities, and obscured passages', 
 		readFile(new URL('mod/ui/style.css', root), 'utf8')
 	]);
 	const page = templates.slice(templates.indexOf('<template id="template-mp-expedition-page">'),
-		templates.indexOf('</template>', templates.indexOf('<template id="template-mp-expedition-page">')));
+		templates.indexOf('</template>', templates.indexOf('<template id="template-mp-expedition-page">'))) +
+		templates.slice(templates.indexOf('<template id="template-mp-expedition-passages">'),
+			templates.indexOf('</template>', templates.indexOf('<template id="template-mp-expedition-passages">')));
 	const chamber = page.slice(page.indexOf('id="mp-expedition-chamber-view"'),
 		page.indexOf('id="mp-expedition-journey-view"'));
 	assert.match(main, /ctx\.loadModule\('expedition-view\.mjs'\)/);
@@ -338,4 +340,17 @@ test('tracking allowance binding survives tracking stopping before its condition
 	assert.equal(runInNewContext(binding, { state }), 0);
 	state.expedition_state = null;
 	assert.equal(runInNewContext(binding, { state }), 0);
+});
+
+test('mobile Journey starts with shared passages and its vote badge', async () => {
+	const html = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
+	const css = await readFile(new URL('mod/ui/style.css', root), 'utf8');
+	const main = await read_client_source(root);
+	assert.match(html, /id="mp-expedition-journey-view"[^>]*>\s*<div class="mp-expedition-mobile-passages" v-scope="\{ \$template: '#template-mp-expedition-passages' \}"/);
+	assert.match(html, /mp-expedition-desktop-passages" v-scope="\{ \$template: '#template-mp-expedition-passages' \}"/);
+	assert.match(html, /mp-expedition-vote-badge" v-if="state.expedition_needs_vote\(\)"/);
+	assert.equal(html.match(/class="mp-expedition-panel mp-expedition-passage-overview"/g)?.length, 1);
+	assert.match(css, /\.mp-expedition-mobile-passages \{ display: none; \}/);
+	assert.match(css, /@media \(max-width: 767\.98px\) \{\s*\.mp-expedition-shell[^}]*\}\s*\.mp-expedition-desktop-passages \{ display: none; \}\s*\.mp-expedition-mobile-passages \{ display: block; \}/);
+	assert.match(main, /expedition_needs_vote: \(\) => expedition_view.needs_passage_vote\(state.expedition_state\)/);
 });

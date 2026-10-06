@@ -270,10 +270,16 @@ test('localization inventory covers runtime and server errors without unused ent
 	const legacy = new Set(Object.keys(await readFile(new URL('mod/data/lang/zh-CN.json', root), 'utf8').then(JSON.parse)));
 	// These families are assembled at runtime, including inside HTML bindings.
 	const dynamic = new Set();
+	for (const kind of ['FOUND', 'CONSIDER', 'APPLY', 'JOIN', 'LEAVE', 'REMOVE', 'WITHDRAW', 'MARKET_ENABLE', 'MARKET_DISABLE', 'BALLOT']) {
+		dynamic.add('MOD_MP_ALLIANCE_HEADING_' + kind);
+		dynamic.add('MOD_MP_ALLIANCE_DESCRIPTION_' + kind);
+	}
 	for (const state of ['ACTIVE', 'ACCEPTED', 'CLAIMED', 'CANCELLED', 'REJECTED', 'EXPIRED'])
 		dynamic.add('MOD_MP_MARKET_HAGGLE_STATUS_' + state);
 	for (const state of ['ACTIVE', 'GRANTED', 'DENIED', 'LAPSED', 'WITHDRAWN'])
 		dynamic.add('MOD_MP_COUNCIL_OUTCOME_' + state);
+	for (const state of ['ACCEPTED', 'DENIED', 'LAPSED', 'WITHDRAWN', 'CANCELLED'])
+		dynamic.add('MOD_MP_ALLIANCE_OUTCOME_' + state);
 	for (const action of ['WINNOWING', 'FELLOWSHIP', 'ENCLOSURE', 'INTERDICT', 'HERESY', 'TEMPERANCE', 'INDULGENCE',
 		'INGRATITUDE', 'SACRILEGE', 'BENEFICENCE', 'CRUCIBLE_PURGING', 'CRUCIBLE_SEALING',
 		'CRUCIBLE_UNSEALING']) {

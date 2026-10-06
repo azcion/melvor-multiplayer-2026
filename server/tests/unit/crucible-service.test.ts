@@ -2,7 +2,8 @@ import type { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { create_test_database } from '../support/database';
 import { crucible_contents, reconcile_crucible } from '../../crucible-service';
-import { settle_departing_crucible_wish } from '../../crucible-council';
+import type * as db_row from '../../db/types/db_types';
+import { apply_crucible_petition, snapshot_crucible_petition, settle_departing_crucible_wish } from '../../crucible-council';
 
 function database_at_minute(minute: number): Database {
 	const database = create_test_database();
@@ -159,3 +160,46 @@ test('contents expose the top three stack contributors and the Wish maker', () =
 		contributors: [{ client_id: 4, icon_id: 'test:Icon_4' }] });
 	database.close();
 });
+
+for (const type of ['crucible_sealing', 'crucible_purging', 'crucible_unsealing'] as const)
+	test(`${type} rolls back on audit failure and retries with one complete audit`, () => {
+		const minute = 1_000;
+		const database = database_at_minute(minute);
+		try {
+			database.run("INSERT INTO clients (id, client_identifier, client_key, friend_code, display_name, icon_id) " +
+				"VALUES (100, 'petition-rollback', 'key', '111-222-333', 'Client', 'melvorD:Plant')");
+			database.run("INSERT INTO crucible_migration (id, started_at, completed_at, source_json) VALUES (1, 1, 1, '{}')");
+			database.query('UPDATE crucible_guilds SET is_open = ? WHERE guild_id = 1')
+				.run(type === 'crucible_unsealing' ? 0 : 1);
+			database.run("INSERT INTO crucible_offerings (guild_id, item_id, qty, created_at, refreshed_at, is_untimed) " +
+				"VALUES (1, 'melvorD:Weird_Gloop', 3, 1, 1, 1)");
+			const petition_id = Number(database.query('INSERT INTO guild_petitions ' +
+				'(guild_id, guild_name, type, conflict_subject, petitioner_id, created_at, expires_at) ' +
+				"VALUES (1, 'Fellowship', ?, 'guild:crucible', 100, 1, 86400001)")
+				.run(type).lastInsertRowid);
+			snapshot_crucible_petition(petition_id, 1, type, database);
+			const petition = database.query<db_row.guild_petitions, [number]>(
+				'SELECT * FROM guild_petitions WHERE id = ?').get(petition_id)!;
+			database.run("CREATE TRIGGER fail_petition_audit BEFORE INSERT ON audit_events " +
+				"WHEN NEW.event_type IN ('crucible.sealed', 'crucible.purged', 'crucible.unsealed') " +
+				"BEGIN SELECT RAISE(ABORT, 'injected petition audit failure'); END");
+			const now = (minute + 1) * 60_000;
+			expect(() => apply_crucible_petition(petition, now, database)).toThrow('injected petition audit failure');
+			expect(database.query('SELECT is_open, processed_minute FROM crucible_guilds WHERE guild_id = 1').get())
+				.toEqual({ is_open: type === 'crucible_unsealing' ? 0 : 1, processed_minute: minute });
+			expect(database.query('SELECT item_id, qty FROM crucible_offerings WHERE guild_id = 1').all())
+				.toEqual([{ item_id: 'melvorD:Weird_Gloop', qty: 3 }]);
+			database.run('DROP TRIGGER fail_petition_audit');
+			expect(apply_crucible_petition(petition, now, database))
+				.toBe(type === 'crucible_sealing' ? 'sealed_and_destroyed' : type === 'crucible_purging' ? 'purged' : 'unsealed');
+			apply_crucible_petition(petition, now, database);
+			expect(database.query('SELECT COUNT(*) AS total FROM audit_events WHERE source_key = ?')
+				.get(`crucible-petition:${petition_id}`)).toEqual({ total: 1 });
+			if (type !== 'crucible_unsealing')
+				expect(database.query('SELECT quantity, direction FROM audit_event_values WHERE event_id IN ' +
+					'(SELECT id FROM audit_events WHERE source_key = ?)').all(`crucible-petition:${petition_id}`))
+					.toEqual([{ quantity: 3, direction: 'destroy' }]);
+		} finally {
+			database.close();
+		}
+	});

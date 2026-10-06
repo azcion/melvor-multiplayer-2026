@@ -112,6 +112,10 @@ let modal_queue_guard = null;
 let modal_component_registry = null;
 let polling = null;
 let open_transfer_page = null;
+let transfer_history_module = null;
+let load_transfer_history = null;
+let transfer_history_refresh_running = false;
+let transfer_history_refresh_pending = false;
 let remove_sold_out_market_result = null;
 let get_market_page_window = null;
 let sort_market_filter_items = null;
@@ -289,12 +293,15 @@ const state = ui.createStore({
 	chat_privacy_pending: false,
 	global_chat_enabled: true,
 	account_tags: [],
+	pending_preview: null,
 	global_chat_participation_pending: false,
 	global_chat_cooling_down: false,
 	tester_chat_cooling_down: false,
 	alliance_access: false,
 	alliance_state: { alliance: null, processes: [], affiliation_pending: false },
 	alliance_loading: false,
+	alliance_preview_affiliated: true,
+	alliance_history_visible: false,
 	alliance_error: '',
 	alliance_picker_mode: 'found',
 	alliance_picker_entries: [],
@@ -302,6 +309,7 @@ const state = ui.createStore({
 	alliance_picker_has_more: false,
 	alliance_name_input: '',
 	alliance_modal: null,
+	alliance_confirmation: null,
 	alliance_preview: null,
 	alliance_preview_restore_picker: false,
 	alliance_chat_state: { affiliated: false, enabled: true },
@@ -314,6 +322,8 @@ const state = ui.createStore({
 	viewed_equipment: null,
 	viewed_status: null,
 	viewed_active_mods: [],
+	viewed_cheat_mods: [],
+	viewed_cheats_elapsed: '',
 	profile_active_tab: 'skills',
 	member_actions_preview: false,
 	member_actions_error: '',
@@ -339,6 +349,10 @@ const state = ui.createStore({
 	last_seen_mod_version: '',
 	updates_new: false,
 	transfers_mobile_tab: 'inbox',
+	transfers_panels_open: { inbox: true, outbox: true, pending: true },
+	transfers_history_open: { inbox: true, outbox: true, pending: true },
+	transfer_history: {},
+	transfer_history_clock: performance.now(),
 
 	add_currency_value: 0,
 	selected_transfer_currency_id: '',
@@ -448,6 +462,7 @@ const state = ui.createStore({
 	guild_state_error: '',
 	guilds: [],
 	guild_members: [],
+	guild_mobile_tab: 'guild',
 	guild_activity: [],
 	guild_activity_cursor: null,
 	guild_activity_loading: false,
@@ -464,6 +479,7 @@ const state = ui.createStore({
 	shadowed_member_count: 0,
 	selected_free_fellowship: null,
 	guild_applicants: [],
+	guild_preview_decided_applications: [],
 	guild_client_id: null,
 	guild_list_search: '',
 	guild_name_input: '',
@@ -585,8 +601,28 @@ const state = ui.createStore({
 		return overages.map(({ shorthand, cap }) => `${shorthand}: ${numberWithCommas(cap)}`).join(', ');
 	},
 
+	get pending_gifts() { return [...this.gifts, ...(this.pending_preview?.gifts ?? [])]; },
+	get pending_resolved_trades() { return [...this.resolved_trades, ...(this.pending_preview?.resolved_trades ?? [])]; },
+	get pending_haggles() { return [...this.market_haggles, ...(this.pending_preview?.haggles ?? [])]; },
+	is_pending_preview(kind, id) {
+		const rows = this.pending_preview?.[kind === 'gift' ? 'gifts' : kind === 'trade' ? 'trades' : 'haggles'] ?? [];
+		return rows.some(row => (kind === 'trade' ? row.trade_id : row.id) === id) ||
+			(kind === 'trade' && (this.pending_preview?.resolved_trades ?? []).some(row => row.trade_id === id));
+	},
+	async pending_preview_action(kind, id, action) {
+		const res = await api_post('/api/features/pending/action', { kind, id, action });
+		if (!res?.success) notify_error('MOD_MP_GENERIC_ERR');
+	},
 	get sorted_trades() {
-		return this.trades.sort((a, b) => a.attending === b.attending ? 0 : a.attending ? -1 : 1);
+		return [...this.trades, ...(this.pending_preview?.trades ?? [])].sort((a, b) => a.attending === b.attending ? 0 : a.attending ? -1 : 1);
+	},
+
+	get_haggle_stack_value(haggle) {
+		const item = game.items.getObjectByID(haggle.item_id);
+		if (item === undefined)
+			return '—';
+		const value = item.sellsFor?.currency === game.gp ? game.bank.getItemSalePrice(item, haggle.item_qty) : 0;
+		return game.gp.formatAmount(numberWithCommas(value));
 	},
 
 	get transfer_inventory_value_raw() {
@@ -697,14 +733,59 @@ const state = ui.createStore({
 		return matches;
 	},
 
-	get visible_council_petitions() {
-		return this.council_show_resolved
-			? this.council_petitions
-			: this.council_petitions.filter(petition => petition.lifecycle === 'active');
+	get guild_visible_tab() {
+		if (this.guild_mobile_tab === 'alliance' && this.alliance_access) return 'alliance';
+		if (this.guild_mobile_tab === 'council' && this.guild_state.guild?.capabilities?.council) return 'council';
+		return 'guild';
 	},
 
-	get has_resolved_council_petitions() {
-		return this.council_petitions.some(petition => petition.lifecycle !== 'active');
+	get council_needs_vote() {
+		return this.council_petitions.some(petition => petition.lifecycle === 'active' && petition.can_vote && !petition.current_vote);
+	},
+
+	get guild_showcase() {
+		return this.council_petitions.some(petition => petition.synthetic === true);
+	},
+
+	get visible_guild_applicants() {
+		if (this.guild_state.guild?.is_public || this.is_free_fellowship) return [];
+		return [...this.guild_applicants, ...(this.guild_showcase ? [
+			{ application_id: -1, synthetic: true, client_id: -301, display_name: 'Copper Cook', icon_id: 'melvorD:Golbin', raid_defeats: 17, gp: 125000, gp_visible: true, owned_dlc: ['melvorTotH'], social_mode: 'full', equipment_visible: false, skills_visible: false, active_mods_visible: false },
+			{ application_id: -2, synthetic: true, client_id: -302, display_name: 'Willow Baker', icon_id: 'melvorD:Golbin', raid_defeats: 3, gp: null, gp_visible: false, using_cheats: true, cheat_mods: ['Synthetic cheat example'], owned_dlc: [], social_mode: 'social', equipment_visible: false, skills_visible: false, active_mods_visible: false }
+		] : [])].filter(application => !(this.guild_preview_decided_applications ?? []).includes(application.application_id));
+	},
+
+	get alliance_view() { return this.get_alliance_view(); },
+	get alliance_member_guilds() {
+		const ours = this.guild_state.guild?.guild_id;
+		return [...(this.alliance_view.alliance?.member_guilds ?? [])].sort((a, b) =>
+			Number(b.guild_id === ours) - Number(a.guild_id === ours));
+	},
+	get alliance_member_count() {
+		return this.alliance_member_guilds.reduce((sum, guild) => sum + (guild.member_count ?? 0), 0);
+	},
+	get alliance_applications() {
+		return this.alliance_view.processes.filter(p => p.kind === 'join' && p.applicant && this.alliance_view.alliance && this.is_alliance_process_active(p));
+	},
+	get alliance_active_proposals() {
+		return this.alliance_view.processes.filter(p => this.is_alliance_process_active(p) && !this.alliance_applications.some(application => application.process_id === p.process_id));
+	},
+	get alliance_proposal_history() {
+		return this.alliance_view.processes.filter(p => !this.is_alliance_process_active(p));
+	},
+
+	get alliance_needs_vote() {
+		return this.alliance_access && (this.council_petitions.some(petition =>
+			petition.type.startsWith('alliance_') && petition.lifecycle === 'active' && petition.can_vote && !petition.current_vote) ||
+			(!this.alliance_state.affiliation_pending && this.alliance_state.processes.some(proposal => proposal.can_consider)));
+	},
+
+	get visible_council_petitions() {
+		return this.council_petitions.filter(petition => petition.lifecycle === 'active');
+	},
+
+	get closed_council_petitions() {
+		return this.council_petitions.filter(petition => petition.lifecycle !== 'active');
 	},
 
 	get filtered_guilds() {
@@ -905,7 +986,8 @@ const state = ui.createStore({
 	},
 
 	get num_active_transfers() {
-		return this.gifts.length + this.resolved_trades.length + this.trades.length + this.market_haggle_pending;
+		return this.gifts.length + this.resolved_trades.length + this.trades.length + this.market_haggle_pending +
+			Object.values(this.pending_preview ?? {}).reduce((total, rows) => total + rows.length, 0);
 	},
 
 	get raid() {
@@ -1201,6 +1283,7 @@ function create_action_runtime() {
 		update_chat_nav,
 		refresh_chat_messages,
 		refresh_council,
+		update_guild_nav,
 		refresh_guild_members,
 		refresh_guild_page,
 		refresh_guild_state,
@@ -2248,9 +2331,9 @@ function serialize_status_statistics(snapshot, include_total_skill_level = true)
 	});
 }
 
-function format_status_account_age(account_age) {
+function format_status_account_age(account_age, precision = 'minute') {
 	const language = typeof setLang === 'string' && setLang.length > 0 ? setLang : 'en';
-	return status_statistics?.format_account_age(account_age, language, getLangString) ?? '';
+	return status_statistics?.format_account_age(account_age, language, getLangString, precision) ?? '';
 }
 
 function status_sync_allowed() {
@@ -2807,6 +2890,7 @@ async function request_social_mode(next) {
 		remove_instance_storage_item(storage_key);
 		state.social_mode = social_mode.normalize_social_mode(result.social_mode);
 		set_instance_storage_item('social_mode', state.social_mode);
+		state.pending_preview = null;
 		state.gifts = [];
 		state.trades = [];
 		state.resolved_trades = [];
@@ -3250,33 +3334,36 @@ function update_charitree_nav() {
 	const aside = document.querySelector('.mp-crucible-nav');
 	if (!aside)
 		return;
-	const ready = state.guild_state_loaded && state.crucible !== null;
-	const wish_ready = (state.crucible?.wishes ?? []).some(wish => wish.phase === 'melded' && wish.owned);
-	const reclaim_available = state.crucible?.is_open &&
-		(state.crucible?.next_reclaim_at ?? 0) <= Date.now();
+	const ready = state.guild_state_loaded && state.is_connected && state.is_guild_member &&
+		!state.is_social_only && state.crucible?.is_open === true;
+	state.crucible_clock_time = Date.now();
+	const wish_ready = ready && (state.crucible?.wishes ?? []).some(wish => wish.phase === 'melded' && wish.owned);
+	const reclaim_available = ready && (state.crucible?.offerings ?? []).some(offering =>
+		state.crucible_reclaim_block(offering) === null);
 	aside.classList.toggle('mp-charitree-wish', wish_ready);
 	set_nav_ready(aside, ready);
-	if (!ready) {
-		aside.textContent = '';
-		return;
-	}
+	aside.textContent = wish_ready ? getLangString('MOD_MP_SIDEBAR_CHARITY_WISH')
+		: reclaim_available ? getLangString('MOD_MP_SIDEBAR_CRUCIBLE_RECLAIM') : '';
+	aside.hidden = !wish_ready && !reclaim_available;
+}
 
-	aside.textContent = wish_ready ? getLangString('MOD_MP_CRUCIBLE_WISH_READY')
-		: reclaim_available ? getLangString('MOD_MP_CRUCIBLE_RECLAIM') : '';
+function update_guild_nav() {
+	const aside = document.querySelector('.mp-guild-nav');
+	if (aside === null) return;
+	const ready = state.guild_state_loaded;
+	set_nav_ready(aside, ready);
+	const applicants = state.is_guild_member && !state.is_free_fellowship && !state.guild_state.guild?.is_public ? state.visible_guild_applicants.length : 0;
+	const needs_vote = state.is_guild_member && (state.council_needs_vote || state.alliance_needs_vote);
+	aside.textContent = !ready ? '' : !state.is_guild_member ? getLangString('MOD_MP_SIDEBAR_GUILD_START') :
+		applicants > 0 ? String(applicants) : needs_vote ? getLangString('MOD_MP_VOTE_BADGE') : '';
+	aside.hidden = !ready || (state.is_guild_member && applicants === 0 && !needs_vote);
 }
 
 function update_multiplayer_nav() {
 	const multiplayer_category = sidebar.category('Multiplayer');
 	for (const page_id of ['Guild', 'Transfer_Items', 'Crucible', 'Multiplayer_Market', 'Expedition', 'Guild_Raid'])
 		multiplayer_category.item('multiplayer:' + page_id).rootEl?.classList.toggle('mp-nav-unavailable', state.multiplayer_unsupported);
-	const guild_aside = document.querySelector('.mp-guild-nav');
-	if (guild_aside !== null) {
-		const ready = state.guild_state_loaded;
-		set_nav_ready(guild_aside, ready);
-		guild_aside.textContent = ready && !state.is_guild_member
-			? getLangString('MOD_MP_SIDEBAR_GUILD_START')
-			: '';
-	}
+	update_guild_nav();
 	const updates_aside = document.querySelector('.mp-updates-nav');
 	if (updates_aside !== null) {
 		set_nav_ready(updates_aside, true);
@@ -3540,6 +3627,22 @@ async function reconcile_pending_gifts() {
 
 	if (returned_gift_ids.length > 0)
 		state.gifts = state.gifts.filter(gift => !returned_gift_ids.includes(gift.id));
+}
+
+async function refresh_transfer_history() {
+	if (!load_transfer_history || !state.is_connected) return;
+	transfer_history_refresh_pending = true;
+	if (transfer_history_refresh_running) return;
+	transfer_history_refresh_running = true;
+	try {
+		do {
+			transfer_history_refresh_pending = false;
+			state.transfer_history_clock = performance.now();
+			await Promise.all(transfer_history_module.HISTORY_PANES.map(pane => load_transfer_history(pane)));
+		} while (transfer_history_refresh_pending && state.is_connected && state.is_transfer_page_visible);
+	} finally {
+		transfer_history_refresh_running = false;
+	}
 }
 
 async function update_transfer_contents() {
@@ -3964,6 +4067,7 @@ function handle_session_response(response, request_generation) {
 	if (request_generation !== session_generation || response.status !== 401 || !state.is_connected)
 		return;
 	state.is_connected = false;
+	state.pending_preview = null;
 	client_event_poll_id++;
 	stop_chat_polling();
 	stop_gp_sampling();
@@ -4004,6 +4108,7 @@ function enter_unsupported_multiplayer(minimum_supported_mod_version) {
 	state.multiplayer_unsupported = true;
 	state.minimum_supported_mod_version = minimum_supported_mod_version;
 	state.is_connected = false;
+	state.pending_preview = null;
 	economy_commands_ready = false;
 	client_event_poll_id++;
 	stop_chat_polling();
@@ -4112,6 +4217,9 @@ async function api_post_response_raw(endpoint, payload, request_session_token = 
 				if (res.status === 426)
 					enter_unsupported_multiplayer(json?.minimum_supported_mod_version);
 				if (request_generation !== session_generation) return { response: null, json: null };
+				if (res.ok && json?.success !== false && !json?.error_lang && state.is_transfer_page_visible &&
+					/^\/api\/(?:gift|trade|market|crucible|inbox|banishment\/returns|economy\/receipts|social-mode)\//.test(endpoint) &&
+					(is_event_affecting_mutation(endpoint) || /^\/api\/(?:inbox\/|market\/haggle(?:\/|$))/.test(endpoint))) void refresh_transfer_history();
 				return { response: res, json };
 			}
 		});
@@ -4298,6 +4406,8 @@ function check_released_mod_version(released_mod_version) {
 }
 
 function set_session_token(token) {
+	state.pending_preview = null;
+	state.transfer_history = transfer_history_module.create_transfer_history_state();
 	session_token = token;
 	session_generation++;
 	state.is_connected = true;
@@ -4946,6 +5056,7 @@ async function refresh_council(page = 0, append = false) {
 	try {
 		const res = await api_get('/api/guilds/council?page=' + page);
 		if (res !== null) {
+			await state.resolve_alliance_petition_guilds(res.petitions ?? []);
 			if (append) {
 				const known = new Set(state.council_petitions.map(petition => petition.petition_id));
 				state.council_petitions.push(...res.petitions.filter(petition => !known.has(petition.petition_id)));
@@ -4959,6 +5070,7 @@ async function refresh_council(page = 0, append = false) {
 		}
 	} finally {
 		state.council_loading = false;
+		update_guild_nav();
 	}
 }
 
@@ -4983,12 +5095,13 @@ async function get_client_events(reconcile_gifts = true) {
 
 async function get_client_events_request(reconcile_gifts, request_generation) {
 	const endpoint = client_events_hydrated
-		? '/api/events?revision=' + client_event_revision + '&capabilities=' + CHAT_CAPABILITIES
-		: '/api/events?capabilities=' + CHAT_CAPABILITIES;
+		? '/api/events?revision=' + client_event_revision + '&capabilities=' + CHAT_CAPABILITIES + '&pending_preview=1'
+		: '/api/events?capabilities=' + CHAT_CAPABILITIES + '&pending_preview=1';
 	const res = await api_get(endpoint);
 	if (res !== null && request_generation === session_generation) {
 		if (enter_unsupported_multiplayer(res.minimum_supported_mod_version))
 			return res;
+		void state.refresh_crucible();
 		void maybe_auto_check_in_expedition();
 		if (state.expedition_state?.tracking && !state.expedition_pending_report &&
 			Date.now() - last_expedition_work_observed_at >= 15 * 60_000)
@@ -5022,6 +5135,7 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 		if (request_generation !== session_generation)
 			return null;
 
+		state.pending_preview = res.pending_preview ?? null;
 		event_snapshots.reconcile_event_transfers(state, res);
 		if (res.social_mode === social_mode.SOCIAL_MODE_FULL || res.social_mode === social_mode.SOCIAL_MODE_SOCIAL) {
 			state.social_mode = res.social_mode;
@@ -5034,8 +5148,9 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 		update_multiplayer_nav();
 		leave_social_only_disabled_page();
 
-		if (state.is_transfer_page_visible)
+		if (state.is_transfer_page_visible) {
 			setTimeout(() => update_transfer_contents(), 1);
+		}
 		else if (reconcile_gifts)
 			void reconcile_pending_gifts();
 		const pending_economy_receipts = res.economy_receipts;
@@ -5068,8 +5183,9 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 			if (guild_state?.affiliation === 'none')
 				await refresh_guild_list();
 		}
-		else if (guild_page_visible && state.is_guild_member)
+		else if (state.is_guild_member)
 			await Promise.all([refresh_guild_state(true), state.refresh_alliance(), refresh_council()]);
+		update_guild_nav();
 		show_pending_banishment_notice();
 	}
 	return res;
@@ -5148,6 +5264,10 @@ export async function setup(ctx) {
 	updates_loader = await ctx.loadModule('updates.mjs');
 	const raid_module = await ctx.loadModule('raid-combat.mjs');
 	const transfer_page = await ctx.loadModule('transfer-page.mjs');
+	transfer_history_module = await ctx.loadModule('transfer-history.mjs');
+	state.transfer_history = transfer_history_module.create_transfer_history_state();
+	load_transfer_history = transfer_history_module.create_transfer_history_loader({ state, api_get,
+		scope: () => `${server_host}:${state.chat_client_id}:${session_generation}` });
 	const market_results = await ctx.loadModule('market-results.mjs');
 	const banishment_returns = await ctx.loadModule('banishment-returns.mjs');
 	const inbox_module = await ctx.loadModule('inbox-delivery.mjs');
@@ -5265,6 +5385,7 @@ export async function setup(ctx) {
 			expedition_progress_width,
 			expedition_other_player_ms,
 			expedition_progress_description,
+			expedition_needs_vote: () => expedition_view.needs_passage_vote(state.expedition_state),
 			expedition_arrival_complete: chamber => expedition_view.arrival_complete(chamber),
 			expedition_phase_tasks: (chamber, phase, stage) =>
 				expedition_view.phase_tasks(chamber, phase, stage, state.expedition_state?.tracking),
@@ -5306,6 +5427,14 @@ export async function setup(ctx) {
 			get_guild_activity_arg_3,
 			format_guild_activity_time,
 			set_updates_mobile_tab,
+			load_transfer_history: (pane, append = false) => load_transfer_history(pane, append),
+			get_transfer_history_entries: pane => transfer_history_module.visible_transfer_history(state.transfer_history[pane], state.transfer_history_clock).slice(0, state.transfer_history[pane].visible_count),
+			has_more_transfer_history: pane => state.transfer_history[pane].entries.length > state.transfer_history[pane].visible_count || !!state.transfer_history[pane].next_cursor,
+			get_transfer_history_items: entry => transfer_history_module.transfer_history_items(entry.items, item_id => transfer_currency_support.is_transfer_currency(game, item_id)),
+			format_transfer_history_item: item => formatNumber(item.qty) + (transfer_currency_support.is_transfer_currency(game, item.item_id) ? ' ' : ' × ') + state.get_item_name(item.item_id),
+			get_transfer_history_context: entry => transfer_history_module.transfer_history_context(entry, getLangString),
+			get_transfer_history_sources: item => transfer_history_module.transfer_history_sources(item, getLangString, state.get_inbox_group_title),
+			get_transfer_history_title: entry => transfer_history_module.transfer_history_label(entry, getLangString, state.get_inbox_group_title),
 			get_guild_established_days
 		},
 		install_common_actions(action_runtime),
@@ -5597,6 +5726,7 @@ function apply_server_configuration() {
 		selected_api_major = null;
 		session_generation++;
 		state.is_connected = false;
+		state.pending_preview = null;
 		economy_command_journal = null;
 		if (interface_ready) void refresh_updates(true);
 	}
@@ -5863,8 +5993,9 @@ function patch_bank_actions() {
 	on_page_toggle('mp-transfer-page', async is_visible => {
 		state.is_transfer_page_visible = is_visible;
 		if (is_visible) {
+			state.transfer_history_clock = performance.now();
 			await Promise.all([get_client_events(), refresh_guild_state()]);
-			await Promise.all([update_transfer_contents(), update_market_haggles()]);
+			await Promise.all([update_transfer_contents(), update_market_haggles(), refresh_transfer_history()]);
 		}
 	});
 }
@@ -5906,9 +6037,11 @@ async function start_multiplayer_session() {
 	is_connecting = true;
 	close_expedition_work_prompt();
 	state.is_connected = false;
+	state.pending_preview = null;
 	state.multiplayer_unsupported = false;
 	state.minimum_supported_mod_version = '';
 	session_generation++;
+	state.transfer_history = transfer_history_module.create_transfer_history_state();
 	economy_commands_ready = false;
 	economy_command_journal = null;
 	try {
@@ -6089,6 +6222,7 @@ function activate_multiplayer_identity(response) {
 	state.dev_tag_visible = response.dev_tag?.visible !== false;
 	state.messaging_enabled = response.chat?.messaging_enabled !== false;
 	state.global_chat_enabled = response.chat?.global_chat_enabled !== false;
+	state.pending_preview = null;
 	state.account_tags = Array.isArray(response.account_tags) ? response.account_tags : [];
 	state.alliance_access = response.alliance_access === true;
 	state.guild_chat_enabled = response.chat?.guild_chat_enabled !== false;

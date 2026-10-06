@@ -61,6 +61,7 @@ function usage(output: AdminOutput): number {
   bun run admin.ts social-mode enforce|clear identity|account ID
   bun run admin.ts chat-shadowban enforce|clear CLIENT_ID
   bun run admin.ts chat-shadow-observer grant|revoke CLIENT_ID
+  bun run admin.ts feature-tester grant|revoke pending|council CLIENT_ID
   bun run admin.ts tester-tag grant|revoke CLIENT_ID
   bun run admin.ts global-chat-message hide|restore MESSAGE_ID
   bun run admin.ts global-chat-throttle server clear|MAX_MESSAGES WINDOW_SECONDS
@@ -1075,6 +1076,19 @@ function run_admin_command(args: string[], output: AdminOutput = console_output)
 			return set_chat_shadowban(args, output);
 		case 'chat-shadow-observer':
 			return set_chat_shadow_observer(args, output);
+		case 'feature-tester': {
+			const client_id = parse_positive_integer(args[3]);
+			if (args.length !== 4 || (action !== 'grant' && action !== 'revoke') || !['pending', 'council'].includes(argument) || client_id === null)
+				return usage(output);
+			if (!db.query('SELECT 1 FROM clients WHERE id=? AND deleted_at IS NULL').get(client_id)) {
+				output.error(`Identity ${client_id} does not exist or is deleted.`);
+				return 1;
+			}
+			if (action === 'grant') db.query('INSERT OR IGNORE INTO character_feature_testers(client_id,feature) VALUES (?,?)').run(client_id, argument);
+			else db.query('DELETE FROM character_feature_testers WHERE client_id=? AND feature=?').run(client_id, argument);
+			output.log(JSON.stringify({ client_id, feature: argument, granted: action === 'grant' }));
+			return 0;
+		}
 		case 'tester-tag': {
 			const client_id = parse_positive_integer(argument);
 			if (args.length !== 3 || (action !== 'grant' && action !== 'revoke') || client_id === null)
