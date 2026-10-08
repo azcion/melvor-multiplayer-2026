@@ -232,7 +232,7 @@ test('either Guild Interdict prevents a recognized cheater crossing Guilds while
 	expect((await post_json<any>('/api/market/buy',{id:listing.id,qty:1,item_discovered:true},a.session_token)).json.success).toBe(true);
 });
 
-test('individual ballots extend a shared deadline without changing frozen electorates; empty Councils never approve',async()=> {
+test('individual ballots extend a shared deadline without changing locked thresholds; empty Councils need a ballot',async()=> {
 	const a=await register_guild_client('Deadline A','Deadline Guild A'),b=await register_guild_client('Deadline B','Deadline Guild B');
 	await found(a,b);
 	const policy=await propose(a,{kind:'market_enable'});await vote(a,policy.petition_id);
@@ -244,14 +244,16 @@ test('individual ballots extend a shared deadline without changing frozen electo
 	await db_run('UPDATE guild_petitions SET expires_at=? WHERE id=?',[Date.now()+10000,ballot]);
 	const before=Date.now();expect((await vote(b,ballot)).success).toBe(true);
 	const deadline=(await db_all<{expires_at:number}>('SELECT expires_at FROM alliance_processes WHERE id=?',[policy.process_id]))[0].expires_at;
-	expect(deadline).toBeGreaterThanOrEqual(before+86400000);
+	expect(deadline).toBeGreaterThanOrEqual(before+96*3600000);
+	expect(deadline).toBeLessThanOrEqual(Date.now()+96*3600000);
 	expect((await db_all<{expires_at:number}>('SELECT expires_at FROM guild_petitions WHERE id=?',[ballot]))[0].expires_at).toBe(deadline);
 	expect((await db_all('SELECT client_id FROM guild_petition_voters WHERE petition_id=?',[ballot])).length).toBe(2);
 	const empty=await register_guild_client('Empty Council','Empty Council Guild');
 	await db_run('UPDATE clients SET last_multiplayer_active_at=? WHERE id=?',[Date.now()-5*86400000,empty.client_id]);
 	const proposal=await propose(empty,{kind:'found',target_id:witness.guild_id,name:'Empty Proposal'});
 	expect(await db_all('SELECT * FROM guild_petition_voters WHERE petition_id=?',[proposal.petition_id])).toEqual([]);
-	expect((await vote(empty,proposal.petition_id)).success).toBeUndefined();
+	expect((await view(empty)).processes.find((p:any)=>p.process_id===proposal.process_id).own_council).toBe('active');
+	expect((await vote(empty,proposal.petition_id)).success).toBe(true);
 	expect((await view(empty)).processes.find((p:any)=>p.process_id===proposal.process_id).stage).toBe('waiting');
 });
 

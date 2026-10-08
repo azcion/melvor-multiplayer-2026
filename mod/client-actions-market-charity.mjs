@@ -144,7 +144,7 @@ export function install_market_charity_actions(runtime) {
 		},
 
 		show_market_buy_modal(item) {
-			if (!item || item.available <= 0)
+			if (!item || state.market_buyable(item) <= 0)
 				return;
 			if (!is_local_item_available(item?.item_id))
 				return;
@@ -181,7 +181,7 @@ export function install_market_charity_actions(runtime) {
 			if (!item)
 				return notify_error('MOD_MP_MARKET_BUY_ERROR_UNKNOWN');
 
-			if (game.gp.amount < state.item_slider_value * state.market_buy_item.price)
+			if (state.market_currency_amount(state.market_buy_item) < state.item_slider_value * state.market_buy_item.price)
 				return notify_error('MOD_MP_MARKET_INSUFFICIENT_GP');
 
 			show_button_spinner($button);
@@ -189,6 +189,7 @@ export function install_market_charity_actions(runtime) {
 			const res = await api_post('/api/market/buy', {
 				id: state.market_buy_item.id,
 				qty: state.item_slider_value,
+				expected_price: state.market_buy_item.price, expected_currency_id: state.market_buy_item.currency_id ?? 'melvorD:GP',
 				item_discovered: is_market_item_discovered(state.market_buy_item.item_id),
 				command_id: crypto.randomUUID()
 			});
@@ -211,7 +212,7 @@ export function install_market_charity_actions(runtime) {
 		},
 
 		show_market_fulfill_modal(item) {
-			if (!item || item.available <= 0)
+			if (!item || state.market_buyable(item) <= 0 || item.allow_haggles === false)
 				return;
 			if (!is_local_item_available(item?.item_id))
 				return;
@@ -402,17 +403,17 @@ export function install_market_charity_actions(runtime) {
 			const qty = Number(this.item_slider_value);
 			const price = Number(this.market_haggle_price);
 			const listing_price = Number.isSafeInteger(item?.price) && item.price > 0 ? item.price : price;
-			const cap = transfer_currency_support?.get_transfer_currency_cap(game, 'melvorD:GP') ?? 1_000_000_000;
+			const cap = transfer_currency_support?.get_transfer_currency_cap(game, item?.currency_id ?? 'melvorD:GP') ?? 1_000_000_000;
 			return item && Number.isSafeInteger(qty) && qty > 0 && Number.isSafeInteger(price) && price > 0 &&
-				qty * Math.max(price, listing_price) > cap ? `GP: ${numberWithCommas(cap)}` : '';
+				qty * Math.max(price, listing_price) > cap ? `${state.market_currency_shorthand(item)}: ${numberWithCommas(cap)}` : '';
 		},
 
 		get_market_haggle_counter_cap_notice() {
 			const haggle = state.market_haggle_counter;
 			const price = Number(this.market_haggle_price);
-			const cap = transfer_currency_support?.get_transfer_currency_cap(game, 'melvorD:GP') ?? 1_000_000_000;
+			const cap = transfer_currency_support?.get_transfer_currency_cap(game, haggle?.currency_id ?? 'melvorD:GP') ?? 1_000_000_000;
 			return haggle && Number.isSafeInteger(price) && price > 0 && haggle.item_qty * price > cap
-				? `GP: ${numberWithCommas(cap)}` : '';
+				? `${state.market_currency_shorthand(haggle)}: ${numberWithCommas(cap)}` : '';
 		},
 
 		async create_market_haggle(event) {
@@ -428,20 +429,20 @@ export function install_market_charity_actions(runtime) {
 				return notify_error('MOD_MP_MARKET_HAGGLE_INVALID');
 			if (!Number.isSafeInteger(requested_qty * price))
 				return notify_error('MOD_MP_MARKET_VALUE_TOO_LARGE');
-			const cap = transfer_currency_support?.get_transfer_currency_cap(game, 'melvorD:GP') ?? 1_000_000_000;
+			const cap = transfer_currency_support?.get_transfer_currency_cap(game, item?.currency_id ?? 'melvorD:GP') ?? 1_000_000_000;
 			const listing_price = Number.isSafeInteger(item.price) && item.price > 0 ? item.price : price;
 			const qty = Math.min(requested_qty, Math.floor(cap / Math.max(price, listing_price)));
 			if (qty < 1)
 				return notify_error('MOD_MP_MARKET_VALUE_TOO_LARGE');
 			const local_item = game.items.getObjectByID(item.item_id);
-			if (item.direction === 'sell' && game.gp.amount < qty * price)
+			if (item.direction === 'sell' && state.market_currency_amount(item) < qty * price)
 				return notify_error('MOD_MP_MARKET_INSUFFICIENT_GP');
 			if (item.direction === 'buy' && (!local_item || game.bank.getQty(local_item) < qty))
 				return notify_error('MOD_MP_MARKET_NOT_ENOUGH_ITEM');
 			const $button = event.currentTarget;
 			show_button_spinner($button);
 			const res = await api_post('/api/market/haggle', {
-				id: item.id, qty, price, item_discovered: is_market_item_discovered(item.item_id),
+				id: item.id, qty, price, expected_currency_id: item.currency_id ?? 'melvorD:GP', item_discovered: is_market_item_discovered(item.item_id),
 				command_id: crypto.randomUUID()
 			});
 			if (res?.success && await reconcile_economy_receipts([res.receipt])) {
@@ -487,7 +488,7 @@ export function install_market_charity_actions(runtime) {
 					return notify_error('MOD_MP_MARKET_VALUE_TOO_LARGE');
 				}
 				if (action === 'counter') {
-					const cap = transfer_currency_support?.get_transfer_currency_cap(game, 'melvorD:GP') ?? 1_000_000_000;
+					const cap = transfer_currency_support?.get_transfer_currency_cap(game, haggle?.currency_id ?? 'melvorD:GP') ?? 1_000_000_000;
 					price = Math.min(price, Math.floor(cap / haggle.item_qty));
 					if (price < 1) {
 						hide_button_spinner($button);
@@ -497,7 +498,7 @@ export function install_market_charity_actions(runtime) {
 				}
 				const is_payer = haggle.direction === 'sell' ? haggle.is_initiator : !haggle.is_initiator;
 				const top_up = Math.max(total - haggle.payer_escrow_gp, 0);
-				if (is_payer && game.gp.amount < top_up) {
+				if (is_payer && state.market_currency_amount(haggle) < top_up) {
 					hide_button_spinner($button);
 					return notify_error('MOD_MP_MARKET_INSUFFICIENT_GP');
 				}

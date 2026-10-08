@@ -77,7 +77,7 @@ describe('Council API', () => {
 		expect(other_view).not.toHaveProperty('tally');
 	});
 
-	test('excludes Shadowed members from the electorate even after they return', async () => {
+	test('returning Shadowed members can decide a vote without changing its activity snapshot', async () => {
 		const members = await make_guild_group([
 			'Electorate Active A',
 			'Electorate Active B',
@@ -99,24 +99,16 @@ describe('Council API', () => {
 		const returned_view = (await get_council(members[2].session_token)).petitions[0];
 		expect(returned_view).toMatchObject({
 			petition_id,
-			eligible: false,
-			can_vote: false,
+			eligible: true,
+			can_vote: true,
 			tally_visible: false
 		});
-		const ineligible = await post_json<{ error_lang: string }>('/api/guilds/petitions/vote', {
-			petition_id,
-			choice: 'aye'
+		const granted = await post_json<{ success: boolean; lifecycle: string }>('/api/guilds/petitions/vote', {
+			petition_id, choice: 'aye'
 		}, members[2].session_token);
-		expect(ineligible.json.error_lang).toBe('MOD_MP_COUNCIL_INELIGIBLE');
-
-		const granted = await post_json<{ success: boolean; lifecycle: string }>(
-			'/api/guilds/petitions/vote',
-			{ petition_id, choice: 'aye' },
-			members[0].session_token
-		);
 		expect(granted.json.lifecycle).toBe('granted');
 		const resolved = (await get_council(members[1].session_token)).petitions[0];
-		expect(resolved.tally).toEqual({ eligible: 2, aye: 1, nay: 0, uncast: 1 });
+		expect(resolved.tally).toMatchObject({ eligible: 3, aye: 1, nay: 0, uncast: 2, required_aye: 1, required_nay: 1, snapshot_active: 2 });
 	});
 
 	test('Winnowing banishes only snapshotted members who remain Shadowed', async () => {
@@ -613,7 +605,7 @@ describe('Council API', () => {
 		expect(council.available_petition_types).not.toContain('indulgence');
 	});
 
-	test('keeps post-snapshot members ineligible and conceals the active tally', async () => {
+	test('requires 20 hours for post-snapshot members and conceals the active tally', async () => {
 		const pair = await make_guildmates('Snapshot A', 'Snapshot B', 'Snapshot Guild');
 		const petition_id = (await raise_appellation(pair.first.session_token, 'Snapshot Renamed')).json.petition_id as number;
 		const later = await register_client('Snapshot Later');
@@ -717,7 +709,7 @@ describe('Council API', () => {
 		expect((await get_council(members[2].session_token)).petitions[0].lifecycle).toBe('granted');
 	});
 
-	test('restores identity-based Council rights after readmission to the same Guild', async () => {
+	test('readmission restarts the Council voting wait while preserving withdrawal rights', async () => {
 		const pair = await make_guildmates('Readmit A', 'Readmit B', 'Readmit Guild');
 		const petition_id = (await raise_appellation(pair.second.session_token, 'Readmit Renamed')).json.petition_id as number;
 		await post_json('/api/guilds/leave', {}, pair.second.session_token);
@@ -738,7 +730,7 @@ describe('Council API', () => {
 		}, pair.first.session_token);
 
 		const readmitted = (await get_council(pair.second.session_token)).petitions[0];
-		expect(readmitted).toMatchObject({ eligible: true, can_vote: true, can_withdraw: true });
+		expect(readmitted).toMatchObject({ eligible: false, can_vote: false, can_withdraw: true });
 		const withdrawn = await post_json<{ success: boolean }>('/api/guilds/petitions/withdraw', {
 			petition_id
 		}, pair.second.session_token);

@@ -43,7 +43,8 @@ function cancel_owned_exchanges(client_id: number): Omit<ModeChange, 'success' |
 		if (claim.item_id !== null)
 			add_inbox_items(client_id, [{ item_id: claim.item_id, qty: claim.item_qty }], { type: 'market_haggle_cancelled' });
 		if (claim.gp > 0)
-			add_inbox_gp(client_id, claim.gp, { type: 'market_haggle_cancelled' });
+			add_inbox_items(client_id, [{ item_id: db.query<{ currency_id: string }, [string]>(
+				'SELECT currency_id FROM market_haggles WHERE id=?').get(claim.haggle_id)!.currency_id, qty: claim.gp }], { type: 'market_haggle_cancelled' });
 		db.query('UPDATE `market_haggle_claims` SET `claimed_at` = ? WHERE `haggle_id` = ? AND `client_id` = ?')
 			.run(Date.now(), claim.haggle_id, client_id);
 	}
@@ -53,7 +54,7 @@ function cancel_owned_exchanges(client_id: number): Omit<ModeChange, 'success' |
 			add_inbox_gp(client_id, lot.escrow_gp, { type: 'market_cancelled' });
 		} else {
 			add_inbox_items(client_id, [{ item_id: lot.item_id, qty: lot.available }], { type: 'market_cancelled' });
-			add_inbox_gp(client_id, (lot.qty - lot.available - lot.reserved - lot.haggled) * lot.price - lot.payout,
+			add_inbox_items(client_id, [{ item_id: lot.currency_id, qty: (lot.qty - lot.available - lot.reserved - lot.haggled) * lot.price - lot.price_adjustment - lot.payout }],
 				{ type: 'market_cancelled' });
 		}
 		remove_player_cache_entry(market_completed_cached, client_id, lot.id);

@@ -175,6 +175,7 @@ export async function make_guildmates(
 	if (!accepted.response.ok || !accepted.json.success)
 		throw new Error(`Guild application acceptance failed: ${JSON.stringify(accepted.json)}`);
 
+	await age_guild_memberships(created.json.guild.guild_id);
 	return {
 		first,
 		first_id: first_state.json.members[0].client_id,
@@ -205,6 +206,7 @@ export async function register_guild_client(
 		members: Array<{ client_id: number }>;
 	}>('/api/guilds/state', client.session_token);
 
+	await age_guild_memberships(created.json.guild.guild_id);
 	return {
 		...client,
 		client_id: state.json.members[0].client_id,
@@ -228,18 +230,20 @@ export async function attach_to_free_fellowship(
 	if (inserted !== 1)
 		throw new Error(`Free Fellowship fixture membership failed for client ${client.client_id}`);
 
+	await age_guild_memberships(fellowship.guild_id);
 	return { ...client, guild_id: fellowship.guild_id };
 }
 
 export async function make_guild_group(
 	display_names: string[],
-	guild_name = 'Test Guild'
+	guild_name = 'Test Guild',
+	mod_version?: string
 ): Promise<RegisteredGuildClient[]> {
 	if (display_names.length === 0)
 		return [];
 	validate_fixture_guild_name(guild_name);
 
-	const clients = await Promise.all(display_names.map(display_name => register_client(display_name)));
+	const clients = await Promise.all(display_names.map(display_name => register_client(display_name, undefined, mod_version)));
 	const created = await post_json<{
 		success: boolean;
 		guild: { guild_id: number };
@@ -262,6 +266,7 @@ export async function make_guild_group(
 		approve: true
 	}, clients[0].session_token)));
 
+	await age_guild_memberships(created.json.guild.guild_id);
 	const client_ids = new Map([
 		...state.json.members.map(member => [member.display_name, member.client_id] as const),
 		...state.json.applicants.map(applicant => [applicant.display_name, applicant.client_id] as const)
@@ -277,4 +282,9 @@ export async function make_guild_group(
 export async function allow_alliance_preview(client_id: number): Promise<void> {
 	await db_run("INSERT OR IGNORE INTO melvor_accounts(id,cloud_username,playfab_id,created_at) VALUES(1,'Preview Operator','alliance-preview-fixture',0)");
 	await db_run('UPDATE clients SET melvor_account_id=1 WHERE id=?', [client_id]);
+}
+
+// Ordinary voting fixtures represent established Guilds. Tenure tests use real joins.
+export async function age_guild_memberships(guild_id: number): Promise<void> {
+	await db_run('UPDATE guild_memberships SET joined_at=? WHERE guild_id=?', [Date.now() - 21 * 3600000, guild_id]);
 }

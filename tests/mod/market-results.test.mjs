@@ -367,7 +367,7 @@ test('limits fulfillment to bank quantity and splits the fulfillment title acros
 	assert.match(actions, /queue_modal\(item_name, 'market-fulfill-modal'[\s\S]*didOpen:[\s\S]*createElement\('span'\)[\s\S]*MOD_MP_MARKET_FULFILL_MODAL_TITLE/);
 	assert.match(actions, /\$title\.prepend\(\$prefix\)/);
 	assert.match(templates, /:data-min="1" :data-max="Math\.min\(state\.market_fulfill_item\.available, state\.market_fulfill_item_owned_qty\)"/);
-	assert.match(templates, /:data-min="1" :data-max="state\.market_haggle_item\.direction == 'buy' \? Math\.min\(state\.market_haggle_item\.available, state\.market_haggle_item_owned_qty\) : state\.market_haggle_item\.available"/);
+	assert.match(templates, /:data-min="1" :data-max="state\.market_haggle_item\.direction == 'buy' \? Math\.min\(state\.market_haggle_item\.available, state\.market_haggle_item_owned_qty\) : state\.market_buyable\(state\.market_haggle_item\)"/);
 	assert.match(templates, /MOD_MP_ITEM_OWNED/);
 	assert.match(templates, /state\.market_fulfill_item_owned_qty/);
 	assert.match(style, /\.mp-market-fulfill-modal-title-prefix[\s\S]*display: block[\s\S]*font-size: 0\.65em/);
@@ -625,7 +625,7 @@ test('renders Haggle claim contents safely before a claim exists', async () => {
 		.map(match => new Function('haggle', 'numberWithCommas', 'state', `return ${match[1]}`));
 	assert.equal(expressions.length, 2);
 	const format = value => String(value);
-	const state = { get_item_name: id => id === 'melvorD:Coal' ? 'Coal' : assert.fail('unexpected item') };
+	const state = { get_item_name: id => id === 'melvorD:Coal' ? 'Coal' : assert.fail('unexpected item'), market_currency_shorthand: () => 'GP' };
 	assert.deepEqual(expressions.map(render => render({ claim: null }, format, state)), ['', '']);
 	assert.deepEqual(expressions.map(render => render({ claim: { item_qty: 2, item_id: 'melvorD:Coal', gp: 5 } }, format, state)),
 		['2 × Coal', '5 GP']);
@@ -647,12 +647,12 @@ test('splits Marketplace metric labels from values and keeps GP icons attached',
 	assert.match(market_page, /<div class="mp-market-item-col mp-market-quantity">[\s\S]*<div class="mp-market-quantity-row">[\s\S]*<lang-string lang-id="MOD_MP_MARKET_REQUESTED" class="mp-market-item-label" v-else><\/lang-string>[\s\S]*numberWithCommas\(item\.available\)[\s\S]*<\/div>[\s\S]*<div class="mp-market-quantity-row">[\s\S]*<lang-string lang-id="MOD_MP_MARKET_OWNED" class="mp-market-item-label"><\/lang-string>[\s\S]*numberWithCommas\(state\.get_market_item_owned_qty\(item\.item_id\)\)/);
 	assert.match(market_page, /<lang-string lang-id="MOD_MP_MARKET_WANTED" class="mp-market-item-label"><\/lang-string>[\s\S]*numberWithCommas\(item\.qty\)/);
 	assert.match(market_page, /<span class="mp-market-item-value text-success mp-market-item-gp"><span>\{\{ numberWithCommas\(item\.escrow_gp\) \}\}<\/span><img class="skill-icon-xxs"/);
-	assert.match(market_page, /<lang-string lang-id="MOD_MP_MARKET_SOLD_BY" class="mp-market-item-label"><\/lang-string>/);
+	assert.match(market_page, /<lang-string lang-id="MOD_MP_MARKET_SOLD_BY" class="mp-market-item-label" v-if="item\.direction == 'sell'"><\/lang-string>/);
 	assert.doesNotMatch(market_page, /<mp-lang-string-f lang-id="MOD_MP_MARKET_(AVAILABLE|WANTED|SOLD|PRICE|PROFIT|ESCROW)"/);
 	assert.match(style, /\.mp-market-item-label \{[\s\S]*font-size: 11px/);
 	assert.match(style, /\.mp-market-quantity \{[\s\S]*flex-direction: column/);
 	assert.match(style, /\.mp-market-quantity-row \{[\s\S]*display: flex/);
-	assert.match(style, /\[lang-id="MOD_MP_MARKET_SOLD_BY"\] \+ img,[\s\S]*margin: 0 3px !important/);
+	assert.match(style, /\.mp-market-owner-identity img \{[\s\S]*margin: 0 !important/);
 	assert.match(style, /\.mp-market-item-gp \{[\s\S]*display: inline-flex[\s\S]*gap: 3px/);
 	for (const language of [english, chinese]) {
 		assert.match(language, /"MOD_MP_MARKET_AVAILABLE": "[^\"]+"/);
@@ -694,6 +694,8 @@ function haggle_actions_fixture({ gp = 0, bank_qty = 0, price = 10, confirm = tr
 	const modals = [];
 	state.show_transfer_confirmation = (...args) => { confirmations.push(args); };
 	let spinning = false;
+	state.market_currency_amount = () => game.gp.amount;
+	state.market_currency_shorthand = () => 'GP';
 	const game = { gp: { amount: gp }, items: { getObjectByID: () => ({}) }, bank: { getQty: () => bank_qty } };
 	const actions = install_market_charity_actions({
 		state, game, crypto: { randomUUID: () => 'command' },
@@ -810,7 +812,7 @@ test('Sell Listings no longer exposes a manual payout action', async () => {
 test('counter affordability uses the current balance when the offer modal is submitted', async () => {
 	const errors = [];
 	const game = { gp: { amount: 100 } };
-	const state = { market_haggle_price: 10 };
+	const state = { market_haggle_price: 10, market_currency_amount: () => game.gp.amount };
 	const actions = install_market_charity_actions({
 		state, game,
 		is_button_spinning: () => false, show_button_spinner: () => {}, hide_button_spinner: () => {},

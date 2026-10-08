@@ -581,6 +581,8 @@ describe('guild API', () => {
 			has_more: false
 		});
 
+		await db_run('UPDATE guild_memberships SET joined_at=? WHERE guild_id=?', [Date.now() - 21 * 3600000, fellowship.guild_id]);
+
 		const no_council = await get_json_with_session<{ available_petition_types: string[] }>(
 			'/api/guilds/council', first.session_token
 		);

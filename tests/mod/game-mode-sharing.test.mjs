@@ -69,7 +69,7 @@ test('wires game modes into the roster, other-player modal, and Options sharing 
 	assert.match(member_modal, /state\.get_shared_game_mode\(state\.selected_guild_member\)\?\.media \|\| 'assets\/media\/main\/question\.png'/);
 	assert.match(member_modal, /state\.get_shared_game_mode\(state\.selected_guild_member\)\?\.name \|\| ''/);
 	assert.doesNotMatch(member_modal, /state\.get_shared_game_mode\(state\.selected_guild_member\)\.(?:media|name)/);
-	assert.match(member_modal, /state\.set_game_mode_visibility\(\$event\)/);
+	assert.match(templates.slice(templates.indexOf('<template id="template-mp-multiplayer-settings-modal">')), /state\.set_game_mode_visibility\(\$event\)/);
 	assert.match(main, /game\.gamemodes\?\.getObjectByID\(id\)/);
 	assert.match(main, /api_post\('\/api\/client\/game-mode\/visibility'/);
 	assert.match(style, /\.mp-game-mode-icon \{[^}]*object-fit: contain;[^}]*position: absolute;[^}]*width: 96px;[^}]*opacity: \.15;[^}]*right: calc\(50% - 48px\);[^}]*height: 96px;[^}]*\}/s);

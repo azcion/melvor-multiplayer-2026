@@ -65,7 +65,7 @@ test('Guild headers contain no policy tags and Alliance entry points require ser
 	const header=source.slice(source.indexOf('class="block-content mp-guild-summary"'),source.indexOf('class="block block-rounded mp-guild-applicants-block"'));
 	assert.doesNotMatch(header,/alliance_guild_tags|badge/);
 	assert.match(source,/mp-alliance" v-show="state.alliance_access && state.is_guild_member"/);
-	assert.match(source,/mp-chat-visibility" v-if="state.alliance_access"/);
+	assert.match(source,/role="switch" v-if="state.alliance_access"/);
 	assert.match(source,/v-if="state.alliance_access && state.alliance_chat_enabled"/);
 });
 

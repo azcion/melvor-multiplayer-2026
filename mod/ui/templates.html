@@ -345,6 +345,7 @@
 <template id="template-mp-member-actions-modal">
 	<div class="mp-member-actions" v-if="state.selected_guild_member">
 		<template v-if="!state.member_actions_preview && (state.selected_guild_member.client_id === state.guild_client_id || state.guild_client_id === null)">
+			<button type="button" class="btn btn-primary" @click="state.open_multiplayer_settings_from_options()"><lang-string lang-id="MOD_MP_MULTIPLAYER_SETTINGS"></lang-string></button>
 			<button type="button" class="btn btn-primary" @click="state.open_display_name_from_options()">
 				<lang-string lang-id="MOD_MP_MENU_CHANGE_DISPLAY_NAME"></lang-string>
 			</button>
@@ -357,61 +358,6 @@
 			<button type="button" class="btn btn-primary" v-if="state.identities.length > 0" @click="state.open_identities_from_options()">
 				<lang-string lang-id="MOD_MP_IDENTITIES_TITLE"></lang-string>
 			</button>
-			<label class="mp-equipment-visibility">
-				<input type="checkbox" :checked="state.equipment_visible" :disabled="state.equipment_visibility_pending" @click="state.set_equipment_visibility($event)">
-				<span><lang-string lang-id="MOD_MP_EQUIPMENT_VISIBILITY"></lang-string></span>
-				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.equipment_visibility_pending"></span>
-			</label>
-			<label class="mp-skills-visibility">
-				<input type="checkbox" :checked="state.skills_visible" :disabled="state.skills_visibility_pending" @click="state.set_skills_visibility($event)">
-				<span><lang-string lang-id="MOD_MP_SKILLS_VISIBILITY"></lang-string></span>
-				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.skills_visibility_pending"></span>
-			</label>
-			<label class="mp-activity-visibility">
-				<input type="checkbox" :checked="state.activity_visible" :disabled="state.activity_visibility_pending" @click="state.set_activity_visibility($event)">
-				<span><lang-string lang-id="MOD_MP_ACTIVITY_VISIBILITY"></lang-string></span>
-				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.activity_visibility_pending"></span>
-			</label>
-			<label class="mp-gp-visibility">
-				<input type="checkbox" :checked="state.gp_visible" :disabled="state.gp_visibility_pending" @click="state.set_gp_visibility($event)">
-				<span><lang-string lang-id="MOD_MP_GP_VISIBILITY"></lang-string></span>
-				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.gp_visibility_pending"></span>
-			</label>
-			<label class="mp-game-mode-visibility">
-				<input type="checkbox" :checked="state.game_mode_visible" :disabled="state.game_mode_visibility_pending" @click="state.set_game_mode_visibility($event)">
-				<span><lang-string lang-id="MOD_MP_GAME_MODE_VISIBILITY"></lang-string></span>
-				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.game_mode_visibility_pending"></span>
-			</label>
-			<label class="mp-active-mods-visibility">
-				<input type="checkbox" :checked="state.active_mods_visible" :disabled="state.active_mods_visibility_pending" @click="state.set_active_mods_visibility($event)">
-				<span><lang-string lang-id="MOD_MP_ACTIVE_MODS_VISIBILITY"></lang-string></span>
-				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.active_mods_visibility_pending"></span>
-			</label>
-			<label class="mp-dev-tag-visibility" v-if="state.dev_tag_eligible">
-				<input type="checkbox" :checked="state.dev_tag_visible" :disabled="state.dev_tag_visibility_pending" @click="state.set_dev_tag_visibility($event)">
-				<span><lang-string lang-id="MOD_MP_DEV_TAG_VISIBILITY"></lang-string></span>
-				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.dev_tag_visibility_pending"></span>
-			</label>
-			<label class="mp-chat-visibility">
-				<input type="checkbox" :checked="state.messaging_enabled" :disabled="state.chat_privacy_pending" @click="state.set_messaging_enabled($event)">
-				<span><lang-string lang-id="MOD_MP_CHAT_PRIVACY_ENABLE"></lang-string></span>
-				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.chat_privacy_pending"></span>
-			</label>
-			<label class="mp-chat-visibility">
-				<input type="checkbox" :checked="state.global_chat_enabled" :disabled="state.global_chat_participation_pending" @click="state.set_global_chat_enabled($event)">
-				<span><lang-string lang-id="MOD_MP_GLOBAL_CHAT_ENABLE"></lang-string></span>
-				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.global_chat_participation_pending"></span>
-			</label>
-			<label class="mp-chat-visibility" v-if="state.alliance_access">
-				<input type="checkbox" :checked="state.alliance_chat_enabled" :disabled="state.alliance_chat_participation_pending" @click="state.set_alliance_chat_enabled($event)">
-				<span><lang-string lang-id="MOD_MP_ALLIANCE_CHAT_ENABLE"></lang-string></span>
-				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.alliance_chat_participation_pending"></span>
-			</label>
-			<label class="mp-chat-visibility">
-				<input type="checkbox" :checked="state.guild_chat_enabled" :disabled="state.guild_chat_participation_pending" @click="state.set_guild_chat_enabled($event)">
-				<span><lang-string lang-id="MOD_MP_GUILD_CHAT_ENABLE"></lang-string></span>
-				<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.guild_chat_participation_pending"></span>
-			</label>
 			<div>
 				<hr class="mp-member-actions-rule">
 				<div class="font-size-sm font-w600 text-danger text-uppercase"><lang-string lang-id="MOD_MP_GUILD_DANGER_ZONE"></lang-string></div>
@@ -1234,7 +1180,7 @@
 								<div class="text-muted" v-show="state.closed_council_petitions.length === 0"><lang-string lang-id="MOD_MP_COUNCIL_HISTORY_EMPTY"></lang-string></div>
 								<div class="mp-council-list" v-show="state.closed_council_petitions.length > 0">
 									<div class="mp-council-card" v-for="petition in state.closed_council_petitions" :key="petition.petition_id">
-										<div class="mp-council-card-header"><span class="font-w600">{{ petition.type.startsWith('alliance_') ? state.alliance_proposal_heading(state.alliance_petition_kind(petition)) : state.get_council_type_lang(petition.type) }}</span></div>
+									<div class="mp-council-card-header"><span class="font-w600">{{ petition.type.startsWith('alliance_') ? state.alliance_proposal_heading(state.alliance_petition_kind(petition)) : state.get_council_type_lang(petition.type) }}</span></div>
 										<div class="mp-council-petition-description" v-if="!petition.type.startsWith('alliance_')"><em><lang-string :lang-id="state.get_council_description_lang_id(petition.type)"></lang-string></em></div>
 										<div class="mp-council-proposal" v-if="petition.type === 'appellation'"><strong>{{ petition.proposal.name }}</strong></div>
 										<div class="mp-council-proposal" v-else-if="petition.type === 'heraldry'"><img class="skill-icon-xs" :src="state.get_guild_icon(petition.proposal.icon_id)"></div>
@@ -1579,7 +1525,7 @@
 </template>
 <template id="template-mp-market-buy-modal">
 	<div class="form-group mp-gp-group">
-		<mp-item-slider :data-item-id="state.market_buy_item.item_id" :data-min="1" :data-max="state.market_buy_item.available"></mp-item-slider>
+		<mp-item-slider :data-item-id="state.market_buy_item.item_id" :data-min="1" :data-max="state.market_buyable(state.market_buy_item)"></mp-item-slider>
 	</div>
 	<div class="mp-button-tray">
 		<button type="button" class="btn btn-primary" @click="state.set_item_slider_max()">
@@ -1588,7 +1534,7 @@
 		<button type="button" class="btn btn-success" @click="state.buy_market_item($event)">
 			<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 			<lang-string lang-id="MOD_MP_BUTTON_MARKET_PURCHASE"></lang-string>
-			<img class="skill-icon-xxs ml-1 mr-1" src="assets/media/main/coins.svg">
+			<img class="skill-icon-xxs ml-1 mr-1" :src="state.market_currency_icon(state.market_buy_item)">
 			<span>{{ state.market_buy_price_formatted }}</span>
 		</button>
 		<button type="button" class="btn btn-danger" @click="state.close_modal()">
@@ -1598,10 +1544,10 @@
 </template>
 <template id="template-mp-market-haggle-modal">
 	<div class="form-group mp-gp-group">
-		<mp-item-slider :data-item-id="state.market_haggle_item.item_id" :data-min="1" :data-max="state.market_haggle_item.direction == 'buy' ? Math.min(state.market_haggle_item.available, state.market_haggle_item_owned_qty) : state.market_haggle_item.available"></mp-item-slider>
+		<mp-item-slider :data-item-id="state.market_haggle_item.item_id" :data-min="1" :data-max="state.market_haggle_item.direction == 'buy' ? Math.min(state.market_haggle_item.available, state.market_haggle_item_owned_qty) : state.market_buyable(state.market_haggle_item)"></mp-item-slider>
 		<label class="mt-3"><lang-string lang-id="MOD_MP_MARKET_HAGGLE_PRICE"></lang-string></label>
 		<input type="number" min="1" step="1" class="form-control" v-model.number="state.market_haggle_price">
-		<div class="text-center mt-2">{{ numberWithCommas(state.item_slider_value) }} × {{ numberWithCommas(state.market_haggle_price) }} GP</div>
+		<div class="text-center mt-2">{{ numberWithCommas(state.item_slider_value) }} × {{ numberWithCommas(state.market_haggle_price) }} {{ state.market_currency_shorthand(state.market_haggle_item) }}</div>
 		<p class="text-warning" v-if="state.get_market_haggle_cap_notice()"><mp-lang-string-f lang-id="MOD_MP_TRANSFER_CAP_NOTICE" :lang-arg-1="state.get_market_haggle_cap_notice()"></mp-lang-string-f></p>
 	</div>
 	<div class="mp-button-tray">
@@ -1617,7 +1563,7 @@
 	<div class="form-group mp-gp-group">
 		<label><lang-string lang-id="MOD_MP_MARKET_HAGGLE_PRICE"></lang-string></label>
 		<input type="number" min="1" step="1" class="form-control" v-model.number="state.market_haggle_price">
-		<div class="text-center mt-2">{{ numberWithCommas(state.market_haggle_counter.item_qty) }} × {{ numberWithCommas(state.market_haggle_price) }} GP</div>
+		<div class="text-center mt-2">{{ numberWithCommas(state.market_haggle_counter.item_qty) }} × {{ numberWithCommas(state.market_haggle_price) }} {{ state.market_currency_shorthand(state.market_haggle_counter) }}</div>
 		<p class="text-warning" v-if="state.get_market_haggle_counter_cap_notice()"><mp-lang-string-f lang-id="MOD_MP_TRANSFER_CAP_NOTICE" :lang-arg-1="state.get_market_haggle_counter_cap_notice()"></mp-lang-string-f></p>
 	</div>
 	<div class="mp-button-tray">
@@ -1726,8 +1672,42 @@
 			</button>
 		</div>
 		<div v-show="state.bank_action_mode !== ''" class="mp-bank-action-form">
-			<div class="mp-bank-action-item-name">{{ state.bank_action_item_name }}</div>
-			<div class="form-group mp-gp-group">
+			<div v-show="state.bank_action_mode !== 'market'" class="mp-bank-action-item-name">{{ state.bank_action_item_name }}</div>
+			<div class="mp-market-listing-form" v-show="state.bank_action_mode === 'market'" @click.stop @dblclick.stop.prevent>
+				<div class="mp-bank-action-item-name">{{ state.bank_action_item_name }}</div>
+				<section class="mp-listing-card">
+					<div class="mp-listing-row"><h3><lang-string lang-id="MOD_MP_LISTING_QUANTITY"></lang-string></h3><span><mp-lang-string-f lang-id="MOD_MP_ITEM_OWNED" :lang-arg-1="numberWithCommas(state.bank_action_item_owned_qty)"></mp-lang-string-f></span></div>
+					<div class="mp-listing-stepper mp-listing-quantity">
+						<button type="button" class="btn btn-secondary" :disabled="state.item_slider_value <= 1" :aria-label="getLangString('MOD_MP_LISTING_DECREASE')" @click="state.set_market_listing_qty(state.item_slider_value - 1)">−</button>
+						<input type="number" min="1" :max="state.bank_action_item_owned_qty" step="1" :aria-label="getLangString('MOD_MP_LISTING_QUANTITY')" v-model.number="state.item_slider_value" @change="state.set_market_listing_qty(state.item_slider_value)">
+						<button type="button" class="btn btn-secondary" :disabled="state.item_slider_value >= state.bank_action_item_owned_qty" :aria-label="getLangString('MOD_MP_LISTING_INCREASE')" @click="state.set_market_listing_qty(state.item_slider_value + 1)">+</button>
+					</div>
+					<div class="mp-listing-quick"><button type="button" class="btn btn-primary" :disabled="state.bank_action_item_owned_qty <= 1" @click="state.set_market_listing_qty(state.bank_action_item_owned_qty - 1)"><lang-string lang-id="MOD_MP_LISTING_ALL_BUT_ONE"></lang-string></button><button type="button" class="btn btn-primary" @click="state.set_market_listing_qty(state.bank_action_item_owned_qty)"><lang-string lang-id="MOD_MP_LISTING_ALL"></lang-string></button></div>
+				</section>
+				<section class="mp-listing-card mp-listing-currencies">
+					<h3><lang-string lang-id="MOD_MP_LISTING_CURRENCY"></lang-string></h3>
+					<div role="group" :aria-label="getLangString('MOD_MP_LISTING_CURRENCY')"><button type="button" v-for="entry in state.market_currencies" :key="entry.id" class="mp-listing-currency" :class="{ 'mp-listing-currency-selected': state.bank_action_market_currency_id === entry.id }" :aria-pressed="state.bank_action_market_currency_id === entry.id" :aria-label="getLangString(entry.lang_id)" @click="state.bank_action_market_currency_id = entry.id"><img :src="entry.currency.media" alt=""><span>{{ entry.shorthand }}</span></button></div>
+				</section>
+				<section class="mp-listing-card">
+					<div class="mp-listing-price-row"><label for="mp-listing-guild-price"><lang-string lang-id="MOD_MP_LISTING_GUILD_PRICE"></lang-string><small><lang-string lang-id="MOD_MP_MARKET_BANK_PPI"></lang-string></small></label><input id="mp-listing-guild-price" type="number" min="1" step="1" class="form-control" v-model.number="state.bank_action_market_price"></div>
+					<div class="mp-listing-price-row"><label for="mp-listing-alliance-price"><lang-string lang-id="MOD_MP_LISTING_ALLIANCE_PRICE"></lang-string><small><lang-string lang-id="MOD_MP_MARKET_BANK_PPI"></lang-string></small></label><input id="mp-listing-alliance-price" type="number" min="1" step="1" class="form-control" v-model="state.bank_action_alliance_price" :placeholder="getLangString('MOD_MP_LISTING_USE_GUILD_PRICE')"></div>
+				</section>
+				<section class="mp-listing-card">
+					<div class="mp-listing-row"><label for="mp-listing-limit"><lang-string lang-id="MOD_MP_LISTING_BUY_LIMIT"></lang-string></label><div class="mp-listing-stepper" :class="{ 'mp-listing-stepper-disabled': state.bank_action_unlimited }"><button type="button" class="btn btn-secondary" :disabled="state.bank_action_unlimited || state.bank_action_purchase_limit <= 1" :aria-label="getLangString('MOD_MP_LISTING_DECREASE')" @click="state.bank_action_purchase_limit = Math.max(1, state.bank_action_purchase_limit - 1)">−</button><input id="mp-listing-limit" type="number" min="1" step="1" v-model.number="state.bank_action_purchase_limit" :disabled="state.bank_action_unlimited"><button type="button" class="btn btn-secondary" :disabled="state.bank_action_unlimited" :aria-label="getLangString('MOD_MP_LISTING_INCREASE')" @click="state.bank_action_purchase_limit = Math.max(1, Number(state.bank_action_purchase_limit) || 1) + 1">+</button></div></div>
+					<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" :aria-checked="state.bank_action_unlimited" @click.stop="state.bank_action_unlimited = !state.bank_action_unlimited"><lang-string lang-id="MOD_MP_LISTING_UNLIMITED"></lang-string><span aria-hidden="true"></span></button>
+					<button type="button" class="mp-listing-row mp-listing-toggle mp-listing-divider" role="switch" :aria-checked="state.bank_action_allow_haggles" @click.stop="state.bank_action_allow_haggles = !state.bank_action_allow_haggles"><lang-string lang-id="MOD_MP_LISTING_HAGGLES"></lang-string><span aria-hidden="true"></span></button>
+				</section>
+				<section class="mp-listing-card mp-listing-summary">
+					<h3><lang-string lang-id="MOD_MP_LISTING_SUMMARY"></lang-string></h3>
+					<div class="mp-listing-row"><lang-string lang-id="MOD_MP_LISTING_ITEM_VALUE"></lang-string><span><img :src="state.get_transfer_currency(state.bank_action_item_sale_currency_id)?.currency.media" alt="">{{ state.bank_action_item_unit_value_number }}</span></div>
+					<div class="mp-listing-row"><span><lang-string lang-id="MOD_MP_LISTING_STACK_VALUE"></lang-string> ({{ numberWithCommas(state.item_slider_value) }})</span><span><img :src="state.get_transfer_currency(state.bank_action_item_sale_currency_id)?.currency.media" alt="">{{ state.bank_action_item_value_number }}</span></div>
+					<div class="mp-listing-row"><lang-string lang-id="MOD_MP_LISTING_GUILD_PRICE"></lang-string><span><img :src="state.market_currency_icon({ currency_id: state.bank_action_market_currency_id })" alt="">{{ state.market_listing_amount(state.bank_action_market_price, 1) }}</span></div>
+					<div class="mp-listing-row"><lang-string lang-id="MOD_MP_LISTING_GUILD_TOTAL"></lang-string><span><img :src="state.market_currency_icon({ currency_id: state.bank_action_market_currency_id })" alt="">{{ state.market_listing_amount(state.bank_action_market_price) }}</span></div>
+					<div class="mp-listing-row"><lang-string lang-id="MOD_MP_LISTING_ALLIANCE_PRICE"></lang-string><span><img :src="state.market_currency_icon({ currency_id: state.bank_action_market_currency_id })" alt="">{{ state.market_listing_amount(state.bank_action_alliance_price === '' ? state.bank_action_market_price : state.bank_action_alliance_price, 1) }}</span></div>
+					<div class="mp-listing-row"><lang-string lang-id="MOD_MP_LISTING_ALLIANCE_TOTAL"></lang-string><span><img :src="state.market_currency_icon({ currency_id: state.bank_action_market_currency_id })" alt="">{{ state.market_listing_amount(state.bank_action_alliance_price === '' ? state.bank_action_market_price : state.bank_action_alliance_price) }}</span></div>
+				</section>
+			</div>
+			<div v-show="state.bank_action_mode !== 'market'" class="form-group mp-gp-group">
 				<mp-item-slider :data-item-id="state.bank_action_item_id" :data-min="1" :data-max="state.bank_action_item_owned_qty"></mp-item-slider>
 				<div class="text-center mt-2">
 					<mp-lang-string-f lang-id="MOD_MP_ITEM_OWNED" :lang-arg-1="numberWithCommas(state.bank_action_item_owned_qty)"></mp-lang-string-f>
@@ -1740,14 +1720,14 @@
 					<input type="number" min="1" step="1" class="form-control" v-model.number="state.bank_action_market_price">
 				</div>
 			</div>
-			<div class="mp-button-tray">
-				<button type="button" class="btn btn-primary" @click="state.set_item_slider_max()">
+			<div class="mp-button-tray" :class="{ 'mp-listing-actions': state.bank_action_mode === 'market' }">
+				<button type="button" class="btn btn-primary" v-show="state.bank_action_mode !== 'market'" @click="state.set_item_slider_max()">
 					<lang-string lang-id="MOD_MP_BUTTON_MAX"></lang-string>
 				</button>
-				<button type="button" class="btn btn-success" @click="state.submit_bank_action($event)">
+				<button type="button" class="btn btn-success" :disabled="state.bank_action_mode === 'market' && !state.bank_action_listing_valid" @click="state.submit_bank_action($event)">
 					<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 					<span v-if="state.bank_action_mode === 'transfer'"><lang-string lang-id="MOD_MP_BUTTON_TRANSFER_ITEM"></lang-string></span>
-					<span v-else-if="state.bank_action_mode === 'market'"><lang-string lang-id="MOD_MP_BUTTON_MARKET_FULFILL"></lang-string> <img class="skill-icon-xxs ml-1 mr-1" src="assets/media/main/coins.svg"><span>{{ state.bank_action_market_total_formatted }}</span></span>
+					<span v-else-if="state.bank_action_mode === 'market'"><lang-string lang-id="MOD_MP_LISTING_CONFIRM"></lang-string></span>
 					<span v-else><lang-string lang-id="MOD_MP_CRUCIBLE_CAST">Cast into Crucible</lang-string></span>
 				</button>
 				<button type="button" class="btn btn-danger" @click="state.set_bank_action_mode('')">
@@ -1934,19 +1914,13 @@
 						<mp-item-icon :data-item-id="item.item_id"><img class="mp-market-item-icon mr-3" :src="state.get_item_icon(item.item_id)" draggable="false"></mp-item-icon>
 						<span>{{ state.get_item_name(item.item_id) }}</span>
 					</div>
-					<div class="mp-market-item-col" v-if="item.direction == 'sell'">
-						<lang-string lang-id="MOD_MP_MARKET_SOLD_BY" class="mp-market-item-label"></lang-string>
-						<template v-if="item.market_owner">
+					<div class="mp-market-item-col mp-market-owner">
+						<lang-string lang-id="MOD_MP_MARKET_SOLD_BY" class="mp-market-item-label" v-if="item.direction == 'sell'"></lang-string>
+						<lang-string lang-id="MOD_MP_MARKET_BOUGHT_BY" class="mp-market-item-label" v-else></lang-string>
+						<div class="mp-market-owner-identity" v-if="item.market_owner">
 							<img class="skill-icon-xs" :src="state.get_avatar_icon(item.market_owner.icon_id)"/>
 							<span>{{ item.market_owner.display_name }}</span>
-						</template>
-					</div>
-					<div class="mp-market-item-col" v-else>
-						<lang-string lang-id="MOD_MP_MARKET_BOUGHT_BY" class="mp-market-item-label"></lang-string>
-						<template v-if="item.market_owner">
-							<img class="skill-icon-xs" :src="state.get_avatar_icon(item.market_owner.icon_id)"/>
-							<span>{{ item.market_owner.display_name }}</span>
-						</template>
+						</div>
 					</div>
 					<div class="mp-market-item-col mp-market-quantity">
 						<div class="mp-market-quantity-row">
@@ -1954,6 +1928,7 @@
 							<lang-string lang-id="MOD_MP_MARKET_REQUESTED" class="mp-market-item-label" v-else></lang-string>
 							<span class="mp-market-item-value">{{ numberWithCommas(item.available) }}<template v-if="item.available !== item.qty"> / {{ numberWithCommas(item.qty) }}</template></span>
 						</div>
+						<div class="mp-market-quantity-row" v-show="item.purchase_limit > 0"><lang-string lang-id="MOD_MP_LISTING_BUY_LIMIT" class="mp-market-item-label"></lang-string><span class="mp-market-item-value">{{ numberWithCommas(item.purchase_limit ?? 0) }}</span></div>
 						<div class="mp-market-quantity-row">
 							<lang-string lang-id="MOD_MP_MARKET_OWNED" class="mp-market-item-label"></lang-string>
 							<span class="mp-market-item-value">{{ numberWithCommas(state.get_market_item_owned_qty(item.item_id)) }}</span>
@@ -1961,11 +1936,11 @@
 					</div>
 					<div class="mp-market-item-col">
 						<lang-string lang-id="MOD_MP_MARKET_PRICE" class="mp-market-item-label mp-market-price-label"></lang-string>
-						<span class="mp-market-item-value text-success mp-market-item-gp"><span>{{ numberWithCommas(item.price) }}</span><img class="skill-icon-xxs" src="assets/media/main/coins.svg"></span>
+						<span class="mp-market-item-value text-success mp-market-item-gp"><span>{{ numberWithCommas(item.price) }}</span><img class="skill-icon-xxs" :src="state.market_currency_icon(item)"></span>
 					</div>
-					<div class="mp-market-item-col">
-						<button type="button" class="btn btn-warning m-1" :disabled="item.available === 0" @click="state.show_market_haggle_modal(item)"><lang-string lang-id="MOD_MP_BUTTON_MARKET_HAGGLE"></lang-string></button>
-						<button v-if="state.market_direction == 'sell'" type="button" class="btn btn-success m-1" :disabled="item.available === 0" @click="state.show_market_buy_modal(item)">
+					<div class="mp-market-item-col mp-market-actions">
+						<button type="button" class="btn btn-warning m-1" :class="{ 'mp-market-haggle-hidden': item.allow_haggles === false }" :disabled="item.allow_haggles === false || state.market_buyable(item) === 0" @click="state.show_market_haggle_modal(item)"><lang-string lang-id="MOD_MP_BUTTON_MARKET_HAGGLE"></lang-string></button>
+						<button v-if="state.market_direction == 'sell'" type="button" class="btn btn-success m-1" :disabled="state.market_buyable(item) === 0" @click="state.show_market_buy_modal(item)">
 							<lang-string lang-id="MOD_MP_BUTTON_MARKET_BUY"></lang-string>
 						</button>
 						<button v-else type="button" class="btn btn-success m-1" :disabled="item.available === 0" @click="state.show_market_fulfill_modal(item)">
@@ -2025,11 +2000,11 @@
 						</div>
 						<div class="mp-market-item-col">
 							<lang-string lang-id="MOD_MP_MARKET_PRICE" class="mp-market-item-label mp-market-price-label"></lang-string>
-							<span class="mp-market-item-value mp-market-item-gp"><span>{{ numberWithCommas(item.price) }}</span><img class="skill-icon-xxs" src="assets/media/main/coins.svg"></span>
+							<span class="mp-market-item-value mp-market-item-gp"><span>{{ numberWithCommas(item.price) }}</span><img class="skill-icon-xxs" :src="state.market_currency_icon(item)"></span>
 						</div>
 						<div class="mp-market-item-col">
 							<lang-string lang-id="MOD_MP_MARKET_ESCROW" class="mp-market-item-label"></lang-string>
-							<span class="mp-market-item-value text-success mp-market-item-gp"><span>{{ numberWithCommas(item.escrow_gp) }}</span><img class="skill-icon-xxs" src="assets/media/main/coins.svg"></span>
+							<span class="mp-market-item-value text-success mp-market-item-gp"><span>{{ numberWithCommas(item.escrow_gp) }}</span><img class="skill-icon-xxs" :src="state.market_currency_icon(item)"></span>
 						</div>
 						<div class="mp-market-item-col">
 							<button type="button" class="btn m-1" :class="item.available === 0 && item.reserved === 0 ? 'btn-info' : 'btn-danger'" @click="state.resolve_market_listing($event, item, 'cancel')">
@@ -2046,7 +2021,7 @@
 						</div>
 						<div class="mp-market-item-col">
 							<lang-string lang-id="MOD_MP_MARKET_PRICE" class="mp-market-item-label mp-market-price-label"></lang-string>
-							<span class="mp-market-item-value mp-market-item-gp"><span>{{ numberWithCommas(item.price) }}</span><img class="skill-icon-xxs" src="assets/media/main/coins.svg"></span>
+							<span class="mp-market-item-value mp-market-item-gp"><span>{{ numberWithCommas(item.price) }}</span><img class="skill-icon-xxs" :src="state.market_currency_icon(item)"></span>
 						</div>
 						<div class="mp-market-item-col">
 							<template v-if="item.unresolved">
@@ -2079,39 +2054,50 @@
 </template>
 <template id="template-mp-crucible-page">
 	<div class="content d-none" id="mp-crucible-page">
-		<div class="block block-rounded p-4" v-if="state.is_social_only"><lang-string lang-id="MOD_MP_SOCIAL_ONLY_DISABLED"></lang-string></div>
-		<div class="block block-rounded p-4" v-else-if="!state.is_guild_member"><lang-string lang-id="MOD_MP_GUILD_REQUIRED_INFO"></lang-string></div>
-		<div v-else class="mp-crucible-page">
-			<div class="block block-rounded p-3 mp-crucible-heat" v-if="state.crucible" role="group" :aria-label="getLangString('MOD_MP_CRUCIBLE_HEAT')">
-				<div class="d-flex justify-content-between align-items-center"><strong><i class="fa fa-fire mr-1" aria-hidden="true"></i><lang-string lang-id="MOD_MP_CRUCIBLE_HEAT"></lang-string> {{ state.crucible?.heat?.tier ?? 0 }} / 9</strong><span>{{ formatNumber(state.crucible?.heat?.value ?? 0) }} <lang-string lang-id="MOD_MP_CRUCIBLE_HEAT_VALUE"></lang-string></span></div>
-				<div class="mp-crucible-heat-track" role="progressbar" :aria-valuenow="state.crucible?.heat?.tier ?? 0" aria-valuemin="0" aria-valuemax="9" :aria-valuetext="getLangString('MOD_MP_CRUCIBLE_HEAT_TIER').replace('%s', state.crucible?.heat?.tier ?? 0)"><span :style="{ width: ((state.crucible?.heat?.tier ?? 0) * 100 / 9) + '%' }"></span></div>
-				<small><lang-string lang-id="MOD_MP_CRUCIBLE_HEAT_RATE" class="mp-crucible-inline-label"></lang-string>{{ state.crucible?.heat?.points_per_minute || 1 }}×</small>
-			</div>
-			<div class="block block-rounded p-4" v-if="state.crucible_loading && !state.crucible"><lang-string lang-id="MOD_MP_LOADING"></lang-string></div>
-			<div class="block block-rounded p-4 text-danger" v-else-if="state.crucible_error"><lang-string lang-id="MOD_MP_MULTIPLAYER_CONNECTION_ERR"></lang-string></div>
-			<div class="block block-rounded p-4" v-else-if="!state.crucible"><lang-string lang-id="MOD_MP_CRUCIBLE_UNAVAILABLE"></lang-string></div>
-			<template v-else>
-				<div class="block block-rounded p-3" v-if="!state.crucible?.is_open"><i class="fa fa-lock mr-2" aria-hidden="true"></i><lang-string lang-id="MOD_MP_CRUCIBLE_SEALED"></lang-string></div>
+		<div class="block block-rounded p-4" v-show="state.is_social_only"><lang-string lang-id="MOD_MP_SOCIAL_ONLY_DISABLED"></lang-string></div>
+		<div class="block block-rounded p-4" v-show="!state.is_social_only && !state.is_guild_member"><lang-string lang-id="MOD_MP_GUILD_REQUIRED_INFO"></lang-string></div>
+		<div v-show="!state.is_social_only && state.is_guild_member" class="mp-crucible-page">
+			<section class="mp-crucible-panel mp-crucible-heat" v-show="state.crucible" aria-labelledby="mp-crucible-heat-title">
+				<h3 id="mp-crucible-heat-title" class="mp-crucible-panel-heading"><button type="button" class="mp-crucible-panel-toggle" :aria-expanded="state.crucible_panels_open.heat" aria-controls="mp-crucible-heat-body" @click="state.crucible_panels_open.heat = !state.crucible_panels_open.heat"><i class="fa fa-fire" aria-hidden="true"></i><span><strong><lang-string lang-id="MOD_MP_CRUCIBLE_HEAT"></lang-string> {{ state.crucible?.heat?.tier ?? 0 }} / 9</strong></span><small>{{ formatNumber(state.crucible?.heat?.value ?? 0) }} <lang-string lang-id="MOD_MP_CRUCIBLE_HEAT_VALUE"></lang-string></small><i class="fa" :class="state.crucible_panels_open.heat ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></button></h3>
+				<div class="mp-crucible-heat-summary">
+					<div class="mp-crucible-heat-frame">
+						<div class="mp-crucible-heat-glow" aria-hidden="true" :style="{ width: ((state.crucible?.heat?.tier ?? 0) * 100 / 9) + '%', backgroundSize: (900 / Math.max(1, state.crucible?.heat?.tier ?? 0)) + '% 100%' }"></div>
+						<div class="mp-crucible-heat-track" role="progressbar" :aria-valuenow="state.crucible?.heat?.tier ?? 0" aria-valuemin="0" aria-valuemax="9" :aria-valuetext="getLangString('MOD_MP_CRUCIBLE_HEAT_TIER').replace('%s', state.crucible?.heat?.tier ?? 0)"><span :style="{ width: ((state.crucible?.heat?.tier ?? 0) * 100 / 9) + '%', backgroundSize: (900 / Math.max(1, state.crucible?.heat?.tier ?? 0)) + '% 100%' }"></span><mp-crucible-heat-lava></mp-crucible-heat-lava><div class="mp-crucible-heat-notches" aria-hidden="true"><i v-for="notch in 9"></i></div></div>
+					</div>
+					<div class="mp-crucible-heat-scale" aria-hidden="true"><span>0</span><span>3</span><span>6</span><span>9</span></div>
+					<small>{{ state.crucible?.heat?.points_per_minute || 1 }}× <lang-string lang-id="MOD_MP_CRUCIBLE_MELD_SPEED"></lang-string></small>
+				</div>
+				<div id="mp-crucible-heat-body" class="mp-crucible-panel-body" v-show="state.crucible_panels_open.heat">
+					<table class="mp-crucible-heat-levels" :aria-label="getLangString('MOD_MP_CRUCIBLE_HEAT')"><tbody>
+						<tr v-for="level in state.crucible_heat_levels" :key="level.tier" :class="{ 'mp-crucible-heat-current': level.current }" :aria-current="level.current ? 'step' : null"><td><lang-string lang-id="MOD_MP_CRUCIBLE_HEAT"></lang-string> {{ level.tier }}</td><td class="mp-crucible-heat-dot" aria-hidden="true">·</td><td>{{ formatNumber(level.value) }} <lang-string lang-id="MOD_MP_CRUCIBLE_HEAT_VALUE"></lang-string></td><td class="mp-crucible-heat-dot" aria-hidden="true">·</td><td>{{ level.rate }}× <lang-string lang-id="MOD_MP_CRUCIBLE_MELD_SPEED"></lang-string></td></tr>
+					</tbody></table>
+				</div>
+			</section>
+			<div class="block block-rounded p-4" v-show="state.crucible_loading && !state.crucible"><lang-string lang-id="MOD_MP_LOADING"></lang-string></div>
+			<div class="block block-rounded p-4 text-danger" v-show="state.crucible_error && !state.crucible"><lang-string lang-id="MOD_MP_MULTIPLAYER_CONNECTION_ERR"></lang-string></div>
+			<div class="block block-rounded p-4" v-show="!state.crucible_loading && !state.crucible_error && !state.crucible"><lang-string lang-id="MOD_MP_CRUCIBLE_UNAVAILABLE"></lang-string></div>
+			<div class="mp-crucible-content" v-show="state.crucible">
+				<div class="block block-rounded p-3" v-show="!state.crucible?.is_open"><i class="fa fa-lock mr-2" aria-hidden="true"></i><lang-string lang-id="MOD_MP_CRUCIBLE_SEALED"></lang-string></div>
 				<section class="mp-crucible-panel" aria-labelledby="mp-crucible-wishes-title">
 					<h3 id="mp-crucible-wishes-title" class="mp-crucible-panel-heading"><button type="button" class="mp-crucible-panel-toggle" :aria-expanded="state.crucible_panels_open.wishes" aria-controls="mp-crucible-wishes-body" @click="state.crucible_panels_open.wishes = !state.crucible_panels_open.wishes"><i class="fa fa-star" aria-hidden="true"></i><span><lang-string lang-id="MOD_MP_CRUCIBLE_WISHES"></lang-string></span><small>{{ state.crucible?.wishes?.length ?? 0 }}</small><i class="fa" :class="state.crucible_panels_open.wishes ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></button></h3>
 					<div id="mp-crucible-wishes-body" class="mp-crucible-panel-body" v-show="state.crucible_panels_open.wishes">
 						<p><lang-string lang-id="MOD_MP_CRUCIBLE_WISHES_INFO"></lang-string></p>
-						<div class="mp-crucible-grid" v-if="state.crucible?.wishes?.length">
+						<div class="mp-crucible-grid" v-show="state.crucible?.wishes?.length">
 							<button type="button" class="mp-crucible-slot mp-crucible-wish-slot" v-for="wish of (state.crucible?.wishes ?? [])" :key="wish.id" :class="{ 'mp-crucible-slot-selected': state.crucible_selected_wish_id === wish.id, 'mp-crucible-wish-ready': wish.phase === 'melded', 'mp-crucible-wish-mine': wish.owned, 'mp-crucible-wish-forming': wish.phase === 'forming' }" :aria-pressed="state.crucible_selected_wish_id === wish.id" :aria-label="state.get_item_name(wish.item_id) + ' ×' + formatNumber(wish.qty)" @click="state.crucible_select_wish(wish)">
 								<mp-item-icon :data-item-id="wish.item_id"><img :src="state.get_item_icon(wish.item_id)" alt="" draggable="false"></mp-item-icon>
-								<span class="mp-crucible-avatars" v-if="wish.wisher"><img :src="state.get_avatar_icon(wish.contributors[0].icon_id)" :alt="wish.wisher || getLangString('MOD_MP_CRUCIBLE_WISH_MAKER')" :title="wish.wisher || getLangString('MOD_MP_CRUCIBLE_WISH_MAKER')"></span><span class="mp-crucible-slot-quantity">{{ formatNumber(wish.qty) }}</span>
-								<i class="fa fa-star mp-crucible-slot-owned" v-if="wish.owned" aria-hidden="true"></i>
-								<span class="mp-crucible-slot-time" v-if="wish.phase === 'forming'">{{ state.crucible_time(wish.estimated_formation_at) }}</span><span class="mp-crucible-slot-meter" v-if="wish.phase !== 'melded'"><span :style="{ width: state.crucible_wish_progress(wish) + '%' }"></span></span>
+								<span class="mp-crucible-avatars" v-show="wish.wisher"><img :src="state.get_avatar_icon(wish.contributors?.[0]?.icon_id)" :alt="wish.wisher || getLangString('MOD_MP_CRUCIBLE_WISH_MAKER')" :title="wish.wisher || getLangString('MOD_MP_CRUCIBLE_WISH_MAKER')"></span><span class="mp-crucible-slot-quantity">{{ formatNumber(wish.qty) }}</span>
+								<i class="fa fa-star mp-crucible-slot-owned" v-show="wish.owned" aria-hidden="true"></i>
+								<span class="mp-crucible-slot-time" v-show="wish.phase === 'forming'">{{ state.crucible_time(wish.estimated_formation_at) }}</span><span class="mp-crucible-slot-meter" v-show="wish.phase !== 'melded'"><span :style="{ width: state.crucible_wish_progress(wish) + '%' }"></span></span>
 							</button>
 						</div>
 						<div class="mp-crucible-selection" :class="{ 'mp-crucible-wish-forming': wish.phase === 'forming' }" v-for="wish of (state.crucible?.wishes ?? []).filter(row => row.id === state.crucible_selected_wish_id)" :key="wish.id">
 							<div class="mp-crucible-selection-title"><strong>{{ state.get_item_name(wish.item_id) }} ×{{ formatNumber(wish.qty) }}</strong><button type="button" class="btn btn-sm btn-secondary" :aria-label="getLangString('MOD_MP_CRUCIBLE_CLOSE_DETAILS')" @click="state.crucible_select_wish(wish)"><i class="fa fa-times" aria-hidden="true"></i></button></div>
 							<p>{{ wish.phase === 'forming' ? getLangString('MOD_MP_CRUCIBLE_FORMING') : wish.phase === 'melding' ? getLangString('MOD_MP_CRUCIBLE_MELDING') : getLangString('MOD_MP_CRUCIBLE_MELDED') }} · {{ formatNumber(wish.progress_gp) }} / {{ formatNumber(wish.required_gp) }} GP</p>
-							<p v-if="wish.phase === 'forming'">{{ state.crucible_time(wish.estimated_formation_at) }} <lang-string lang-id="MOD_MP_CRUCIBLE_TO_FORM"></lang-string></p><div class="mp-crucible-meter" v-if="wish.phase !== 'melded'" role="progressbar" :aria-valuenow="state.crucible_wish_progress(wish)" aria-valuemin="0" aria-valuemax="100" :aria-label="getLangString('MOD_MP_CRUCIBLE_FORMATION_PROGRESS')"><span :style="{ width: state.crucible_wish_progress(wish) + '%' }"></span></div>
-							<button type="button" class="btn btn-sm btn-danger" v-if="wish.owned && wish.phase === 'forming'" :disabled="state.crucible_busy" @click="state.crucible_cancel_wish()"><lang-string lang-id="MOD_MP_CRUCIBLE_CANCEL"></lang-string></button>
-							<button type="button" class="btn btn-sm btn-success" v-if="wish.owned && wish.phase === 'melded'" :disabled="state.crucible_busy" @click="state.crucible_claim_wish()"><lang-string lang-id="MOD_MP_CRUCIBLE_CLAIM"></lang-string></button>
+							<p v-show="wish.phase === 'forming'">{{ state.crucible_time(wish.estimated_formation_at) }} <lang-string lang-id="MOD_MP_CRUCIBLE_TO_FORM"></lang-string></p><div class="mp-crucible-meter" v-show="wish.phase !== 'melded'" role="progressbar" :aria-valuenow="state.crucible_wish_progress(wish)" aria-valuemin="0" aria-valuemax="100" :aria-label="getLangString('MOD_MP_CRUCIBLE_FORMATION_PROGRESS')"><span :style="{ width: state.crucible_wish_progress(wish) + '%' }"></span></div>
+							<button type="button" class="btn btn-sm btn-danger" v-show="wish.owned && wish.phase === 'forming'" :disabled="state.crucible_busy" @click="state.crucible_cancel_wish()"><lang-string lang-id="MOD_MP_CRUCIBLE_CANCEL"></lang-string></button>
+							<button type="button" class="btn btn-sm btn-success" v-show="wish.owned && wish.phase === 'melded'" :disabled="state.crucible_busy" @click="state.crucible_claim_wish()"><lang-string lang-id="MOD_MP_CRUCIBLE_CLAIM"></lang-string></button>
 						</div>
-						<div class="mp-crucible-wish-form" v-if="state.crucible?.is_open && !state.crucible?.active_wish"><button type="button" class="btn btn-success" :disabled="state.crucible_busy" @click="state.show_crucible_wish_modal()"><lang-string lang-id="MOD_MP_CRUCIBLE_MAKE_WISH"></lang-string></button></div>
+						<div class="mp-crucible-wish-form" v-show="state.crucible?.is_open && !state.crucible?.active_wish"><button type="button" class="btn btn-success" :disabled="state.crucible_busy" @click="state.show_crucible_wish_modal()"><lang-string lang-id="MOD_MP_CRUCIBLE_MAKE_WISH"></lang-string></button></div>
 					</div>
 				</section>
 				<section class="mp-crucible-panel mp-crucible-clearing" aria-labelledby="mp-crucible-clearing-title"><h3 id="mp-crucible-clearing-title" class="mp-crucible-panel-heading"><button type="button" class="mp-crucible-panel-toggle" :aria-expanded="state.crucible_panels_open.clearing" aria-controls="mp-crucible-clearing-body" @click="state.crucible_panels_open.clearing = !state.crucible_panels_open.clearing"><i class="fa fa-broom" aria-hidden="true"></i><span><lang-string lang-id="MOD_MP_CRUCIBLE_CLEARING_TITLE"></lang-string></span><i class="fa" :class="state.crucible_panels_open.clearing ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></button></h3><div id="mp-crucible-clearing-body" class="mp-crucible-panel-body" v-show="state.crucible_panels_open.clearing"><strong><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR_LEVEL" class="mp-crucible-inline-label"></lang-string>{{ state.crucible?.level ?? 0 }} / {{ state.crucible?.active_wish ? 10 : 20 }}</strong><p><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR_INFO"></lang-string></p><button type="button" class="btn btn-success mr-2" :disabled="state.crucible_busy || !state.crucible?.is_open || state.crucible?.level >= (state.crucible?.active_wish ? 10 : 20)" @click="state.crucible_clear(false)"><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR"></lang-string></button><button type="button" class="btn btn-secondary" :disabled="state.crucible_busy || !state.crucible?.is_open || state.crucible?.level >= (state.crucible?.active_wish ? 10 : 20)" @click="state.crucible_clear(true)"><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR_MAX"></lang-string></button></div></section>
@@ -2119,28 +2105,28 @@
 					<h3 id="mp-crucible-offerings-title" class="mp-crucible-panel-heading"><button type="button" class="mp-crucible-panel-toggle" :aria-expanded="state.crucible_panels_open.offerings" aria-controls="mp-crucible-offerings-body" @click="state.crucible_panels_open.offerings = !state.crucible_panels_open.offerings"><i class="fa fa-fire" aria-hidden="true"></i><span><lang-string lang-id="MOD_MP_CRUCIBLE_OFFERINGS"></lang-string></span><small>{{ state.crucible?.offerings?.length ?? 0 }}</small><i class="fa" :class="state.crucible_panels_open.offerings ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></button></h3>
 					<div id="mp-crucible-offerings-body" class="mp-crucible-panel-body" v-show="state.crucible_panels_open.offerings">
 						<p><lang-string lang-id="MOD_MP_CRUCIBLE_OFFERINGS_INFO"></lang-string></p>
-						<div class="mp-crucible-grid" v-if="state.crucible?.offerings?.length">
+						<div class="mp-crucible-grid" v-show="state.crucible?.offerings?.length">
 							<button type="button" class="mp-crucible-slot" v-for="item of (state.crucible?.offerings ?? [])" :key="item.id" :class="{ 'mp-crucible-slot-selected': state.crucible_selected_offering_id === item.id, 'mp-crucible-slot-slag': state.crucible_slag(item).covered, 'mp-crucible-new-item': !state.is_charity_item_discovered(item.id) }" :aria-pressed="state.crucible_selected_offering_id === item.id" :aria-label="(state.crucible_slag(item).covered ? getLangString('MOD_MP_CRUCIBLE_SLAG_COVERED') : state.get_item_name(item.id)) + ' ×' + formatNumber(item.qty)" @click="state.crucible_select_offering(item)">
-								<mp-item-icon v-if="!state.crucible_slag(item).covered" :data-item-id="item.id"><img :src="state.get_item_icon(item.id)" alt="" draggable="false"></mp-item-icon>
-								<i v-else class="fa fa-question-circle mp-crucible-slot-unknown" aria-hidden="true"></i>
-								<span class="mp-crucible-avatars" v-if="item.contributors?.length"><img v-for="contributor of item.contributors.slice(0, 3)" :key="contributor.client_id" :src="state.get_avatar_icon(contributor.icon_id)" alt=""></span><span class="mp-crucible-slot-quantity">{{ formatNumber(item.qty) }}</span>
-								<span class="mp-crucible-slot-time" v-if="!item.is_untimed">{{ state.crucible_time(item.estimated_meld_at) }}</span>
-								<span class="mp-crucible-slot-meter" v-if="!item.is_untimed"><span :style="{ width: item.meld_percent + '%' }"></span></span>
+								<mp-item-icon v-show="!state.crucible_slag(item).covered" :data-item-id="item.id"><img :src="state.get_item_icon(item.id)" alt="" draggable="false"></mp-item-icon>
+								<i v-show="state.crucible_slag(item).covered" class="fa fa-question-circle mp-crucible-slot-unknown" aria-hidden="true"></i>
+								<span class="mp-crucible-avatars" v-show="item.contributors?.length"><img v-for="contributor of (item.contributors ?? []).slice(0, 3)" :key="contributor.client_id" :src="state.get_avatar_icon(contributor.icon_id)" alt=""></span><span class="mp-crucible-slot-quantity">{{ formatNumber(item.qty) }}</span>
+								<span class="mp-crucible-slot-time" v-show="!item.is_untimed">{{ state.crucible_time(item.estimated_meld_at) }}</span>
+								<span class="mp-crucible-slot-meter" v-show="!item.is_untimed"><span :style="{ width: item.meld_percent + '%' }"></span></span>
 							</button>
 						</div>
-						<p v-else><lang-string lang-id="MOD_MP_CRUCIBLE_EMPTY"></lang-string></p>
+						<p v-show="!state.crucible?.offerings?.length"><lang-string lang-id="MOD_MP_CRUCIBLE_EMPTY"></lang-string></p>
 						<div class="mp-crucible-selection" v-for="item of (state.crucible?.offerings ?? []).filter(row => row.id === state.crucible_selected_offering_id)" :key="item.id">
 							<div class="mp-crucible-selection-title"><strong>{{ state.crucible_slag(item).covered ? getLangString('MOD_MP_CRUCIBLE_SLAG_COVERED') : state.get_item_name(item.id) }} ×{{ formatNumber(item.qty) }}</strong><button type="button" class="btn btn-sm btn-secondary" :aria-label="getLangString('MOD_MP_CRUCIBLE_CLOSE_DETAILS')" @click="state.crucible_select_offering(item)"><i class="fa fa-times" aria-hidden="true"></i></button></div>
-							<div class="mp-crucible-meter" v-if="!item.is_untimed" role="progressbar" :aria-valuenow="item.meld_percent" aria-valuemin="0" aria-valuemax="100" :aria-label="getLangString('MOD_MP_CRUCIBLE_MELD_PROGRESS')"><span :style="{ width: item.meld_percent + '%' }"></span></div>
-						<p v-if="!item.is_untimed">{{ state.crucible_time(item.estimated_meld_at) }} <lang-string lang-id="MOD_MP_CRUCIBLE_TO_MELD"></lang-string></p>
-						<p v-else><lang-string lang-id="MOD_MP_CRUCIBLE_UNTIMED"></lang-string></p>
-						<button type="button" class="btn btn-sm btn-success" v-if="state.crucible?.is_open" :disabled="state.crucible_busy || state.crucible_reclaim_block(item) !== null" @click="state.crucible_reclaim(item)"><lang-string v-if="state.crucible_reclaim_quantity(item) === item.qty" lang-id="MOD_MP_CRUCIBLE_RECLAIM_STACK"></lang-string><template v-else><lang-string lang-id="MOD_MP_CRUCIBLE_RECLAIM"></lang-string> {{ formatNumber(state.crucible_reclaim_quantity(item)) }}</template></button>
+							<div class="mp-crucible-meter" v-show="!item.is_untimed" role="progressbar" :aria-valuenow="item.meld_percent" aria-valuemin="0" aria-valuemax="100" :aria-label="getLangString('MOD_MP_CRUCIBLE_MELD_PROGRESS')"><span :style="{ width: item.meld_percent + '%' }"></span></div>
+						<p v-show="!item.is_untimed">{{ state.crucible_time(item.estimated_meld_at) }} <lang-string lang-id="MOD_MP_CRUCIBLE_TO_MELD"></lang-string></p>
+						<p v-show="item.is_untimed"><lang-string lang-id="MOD_MP_CRUCIBLE_UNTIMED"></lang-string></p>
+						<button type="button" class="btn btn-sm btn-success" v-show="state.crucible?.is_open" :disabled="state.crucible_busy || state.crucible_reclaim_block(item) !== null" @click="state.crucible_reclaim(item)"><lang-string v-show="state.crucible_reclaim_quantity(item) === item.qty" lang-id="MOD_MP_CRUCIBLE_RECLAIM_STACK"></lang-string><span v-show="state.crucible_reclaim_quantity(item) !== item.qty"><lang-string lang-id="MOD_MP_CRUCIBLE_RECLAIM"></lang-string> {{ formatNumber(state.crucible_reclaim_quantity(item)) }}</span></button>
 						</div>
-						<p v-if="state.crucible?.next_reclaim_at > state.crucible_clock_time"><lang-string lang-id="MOD_MP_CRUCIBLE_NEXT_RECLAIM"></lang-string> {{ state.crucible_time(state.crucible?.next_reclaim_at) }}</p>
+						<p v-show="state.crucible?.next_reclaim_at > state.crucible_clock_time"><lang-string lang-id="MOD_MP_CRUCIBLE_NEXT_RECLAIM"></lang-string> {{ state.crucible_time(state.crucible?.next_reclaim_at) }}</p>
 					</div>
 				</section>
 
-			</template>
+			</div>
 		</div>
 	</div>
 </template>
@@ -2342,11 +2328,11 @@
 												</div>
 												<div class="mp-transfer-haggle-value">
 													<dt><lang-string :lang-id="haggle.is_initiator ? 'MOD_MP_TRANSFER_LISTING_PRICE' : 'MOD_MP_TRANSFER_YOUR_PRICE'"></lang-string></dt>
-													<dd><img class="mp-transfer-haggle-currency" src="assets/media/main/coins.svg" alt="">{{ numberWithCommas(haggle.item_qty * haggle.listing_price) }} GP</dd>
+													<dd><img class="mp-transfer-haggle-currency" :src="state.market_currency_icon(haggle)" alt="">{{ numberWithCommas(haggle.item_qty * haggle.listing_price) }} {{ state.market_currency_shorthand(haggle) }}</dd>
 												</div>
 												<div class="mp-transfer-haggle-value mp-transfer-haggle-offered">
 													<dt><lang-string lang-id="MOD_MP_TRANSFER_OFFERED"></lang-string></dt>
-													<dd><img class="mp-transfer-haggle-currency" src="assets/media/main/coins.svg" alt="">{{ numberWithCommas(haggle.item_qty * haggle.offer_price) }} GP</dd>
+													<dd><img class="mp-transfer-haggle-currency" :src="state.market_currency_icon(haggle)" alt="">{{ numberWithCommas(haggle.item_qty * haggle.offer_price) }} {{ state.market_currency_shorthand(haggle) }}</dd>
 												</div>
 											</dl>
 										</div>
@@ -2363,7 +2349,7 @@
 										<div class="mp-transfer-haggle-claim" v-show="haggle.claim && !haggle.claim.claimed">
 											<span class="mp-market-item-label"><lang-string lang-id="MOD_MP_MARKET_HAGGLE_CLAIM_CONTENTS"></lang-string></span>
 											<span v-show="haggle.claim && haggle.claim.item_qty > 0">{{ haggle.claim ? numberWithCommas(haggle.claim.item_qty) + ' × ' + state.get_item_name(haggle.claim.item_id) : '' }}</span>
-											<span v-show="haggle.claim && haggle.claim.gp > 0">{{ haggle.claim ? numberWithCommas(haggle.claim.gp) + ' GP' : '' }}</span>
+											<span v-show="haggle.claim && haggle.claim.gp > 0">{{ haggle.claim ? numberWithCommas(haggle.claim.gp) + ' ' + state.market_currency_shorthand(haggle) : '' }}</span>
 										</div>
 									</div>
 									<div class="mp-transfer-buttons">
@@ -2966,5 +2952,27 @@
 	<div class="mp-button-tray mt-3">
 		<button type="button" class="btn btn-primary" @click="state.confirm_alliance_proposal($event)"><lang-string lang-id="MOD_MP_RAID_I_UNDERSTAND"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
 		<button type="button" class="btn btn-secondary" @click="state.close_alliance_confirmation()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
+	</div>
+</template>
+
+<template id="template-mp-multiplayer-settings-modal">
+	<div class="mp-multiplayer-settings" @click.stop @dblclick.stop.prevent>
+		<section><h3><lang-string lang-id="MOD_MP_MULTIPLAYER_SETTINGS_PRIVACY"></lang-string></h3>
+			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" :aria-checked="state.equipment_visible" :disabled="state.equipment_visibility_pending" @click.stop="state.set_equipment_visibility($event)"><span><lang-string lang-id="MOD_MP_EQUIPMENT_VISIBILITY"></lang-string><span class="spinner-border spinner-border-sm text-primary ml-2" role="status" v-if="state.equipment_visibility_pending"></span></span><span aria-hidden="true"></span></button>
+			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" :aria-checked="state.skills_visible" :disabled="state.skills_visibility_pending" @click.stop="state.set_skills_visibility($event)"><span><lang-string lang-id="MOD_MP_SKILLS_VISIBILITY"></lang-string><span class="spinner-border spinner-border-sm text-primary ml-2" role="status" v-if="state.skills_visibility_pending"></span></span><span aria-hidden="true"></span></button>
+			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" :aria-checked="state.activity_visible" :disabled="state.activity_visibility_pending" @click.stop="state.set_activity_visibility($event)"><span><lang-string lang-id="MOD_MP_ACTIVITY_VISIBILITY"></lang-string><span class="spinner-border spinner-border-sm text-primary ml-2" role="status" v-if="state.activity_visibility_pending"></span></span><span aria-hidden="true"></span></button>
+			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" :aria-checked="state.gp_visible" :disabled="state.gp_visibility_pending" @click.stop="state.set_gp_visibility($event)"><span><lang-string lang-id="MOD_MP_GP_VISIBILITY"></lang-string><span class="spinner-border spinner-border-sm text-primary ml-2" role="status" v-if="state.gp_visibility_pending"></span></span><span aria-hidden="true"></span></button>
+			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" :aria-checked="state.game_mode_visible" :disabled="state.game_mode_visibility_pending" @click.stop="state.set_game_mode_visibility($event)"><span><lang-string lang-id="MOD_MP_GAME_MODE_VISIBILITY"></lang-string><span class="spinner-border spinner-border-sm text-primary ml-2" role="status" v-if="state.game_mode_visibility_pending"></span></span><span aria-hidden="true"></span></button>
+			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" :aria-checked="state.active_mods_visible" :disabled="state.active_mods_visibility_pending" @click.stop="state.set_active_mods_visibility($event)"><span><lang-string lang-id="MOD_MP_ACTIVE_MODS_VISIBILITY"></lang-string><span class="spinner-border spinner-border-sm text-primary ml-2" role="status" v-if="state.active_mods_visibility_pending"></span></span><span aria-hidden="true"></span></button>
+			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" v-if="state.dev_tag_eligible" :aria-checked="state.dev_tag_visible" :disabled="state.dev_tag_visibility_pending" @click.stop="state.set_dev_tag_visibility($event)"><span><lang-string lang-id="MOD_MP_DEV_TAG_VISIBILITY"></lang-string><span class="spinner-border spinner-border-sm text-primary ml-2" role="status" v-if="state.dev_tag_visibility_pending"></span></span><span aria-hidden="true"></span></button>
+		</section>
+		<section><h3><lang-string lang-id="MOD_MP_MULTIPLAYER_SETTINGS_CHAT"></lang-string></h3>
+			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" :aria-checked="state.messaging_enabled" :disabled="state.chat_privacy_pending" @click.stop="state.set_messaging_enabled($event)"><span><lang-string lang-id="MOD_MP_CHAT_PRIVACY_ENABLE"></lang-string><span class="spinner-border spinner-border-sm text-primary ml-2" role="status" v-if="state.chat_privacy_pending"></span></span><span aria-hidden="true"></span></button>
+			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" :aria-checked="state.global_chat_enabled" :disabled="state.global_chat_participation_pending" @click.stop="state.set_global_chat_enabled($event)"><span><lang-string lang-id="MOD_MP_GLOBAL_CHAT_ENABLE"></lang-string><span class="spinner-border spinner-border-sm text-primary ml-2" role="status" v-if="state.global_chat_participation_pending"></span></span><span aria-hidden="true"></span></button>
+			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" v-if="state.alliance_access" :aria-checked="state.alliance_chat_enabled" :disabled="state.alliance_chat_participation_pending" @click.stop="state.set_alliance_chat_enabled($event)"><span><lang-string lang-id="MOD_MP_ALLIANCE_CHAT_ENABLE"></lang-string><span class="spinner-border spinner-border-sm text-primary ml-2" role="status" v-if="state.alliance_chat_participation_pending"></span></span><span aria-hidden="true"></span></button>
+			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" :aria-checked="state.guild_chat_enabled" :disabled="state.guild_chat_participation_pending" @click.stop="state.set_guild_chat_enabled($event)"><span><lang-string lang-id="MOD_MP_GUILD_CHAT_ENABLE"></lang-string><span class="spinner-border spinner-border-sm text-primary ml-2" role="status" v-if="state.guild_chat_participation_pending"></span></span><span aria-hidden="true"></span></button>
+		</section>
+		<div class="text-danger" role="alert" v-show="state.member_actions_error">{{ state.member_actions_error }}</div>
+		<button type="button" class="btn btn-primary mp-settings-close" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
 	</div>
 </template>

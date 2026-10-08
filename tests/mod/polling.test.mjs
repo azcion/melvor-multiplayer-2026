@@ -111,7 +111,8 @@ test('single-flights event and Guild refreshes and pauses recurring work in the 
 	const visibility = main.slice(visibility_start, main.indexOf('// #region', visibility_start));
 
 	assert.match(events, /if \(client_event_request !== null\)[\s\S]*return client_event_request/);
-	assert.match(events, /client_event_trailing = true/);
+	assert.doesNotMatch(events, /if \(client_event_request !== null\) \{\s*client_event_trailing = true/);
+	assert.match(main, /if \(client_event_request !== null\) client_event_trailing = true/);
 	assert.match(events, /if \(client_event_trailing\)[\s\S]*void get_client_events\(\)/);
 	assert.match(events, /\/api\/events\?revision=/);
 	assert.match(events, /res\.unchanged === true/);
@@ -142,13 +143,14 @@ test('refreshes event state after relevant navigation and successful mutations o
 	for (const endpoint of ['/api/client/status/sync', '/api/client/equipment/sync', '/api/market/search'])
 		assert.doesNotMatch(mutations, new RegExp(endpoint.replaceAll('/', '\\/')));
 	assert.match(main, /is_event_affecting_mutation\(endpoint\)[\s\S]*void get_client_events\(\)/);
-	assert.match(main, /async function refresh_guild_page\(\)[\s\S]*Promise\.all\(\[get_client_events\(\), refresh_guild_state\(\)\]\)/);
+	assert.match(main, /async function refresh_guild_page\(\)[\s\S]*await get_client_events\(\);[\s\S]*prepare_page_snapshot\('guild'\)[\s\S]*await refresh_guild_state\(\)/);
 	assert.match(main, /on_page_toggle\('mp-market-page'[\s\S]*Promise\.all\(\[get_client_events\(\), refresh_guild_state\(\)\]\)/);
 });
 
 test('bounds requests and releases guarded page loaders from finally blocks', () => {
 	const api = main.slice(main.indexOf('async function api_get'), main.indexOf('async function refresh_identities'));
-	assert.match(api, /polling\.fetch_with_timeout\(fetch/);
+	assert.match(api, /coordinated_request\(server_host/);
+	assert.match(main, /return polling\.fetch_with_timeout\(fetch, endpoint/);
 	assert.match(api, /return \{ response: null, json: null \}/);
 
 	for (const [function_name, loading_flag] of [

@@ -160,7 +160,7 @@ test('reloads Guild discovery after banishment and uses the reconciled affiliati
 	);
 
 	assert.match(banishment_refresh, /await refresh_guild_state_after_invalidation\(\);[\s\S]*guild_state\?\.affiliation === 'none'[\s\S]*await refresh_guild_list\(\);/);
-	assert.match(guild_page_refresh, /await Promise\.all\(\[get_client_events\(\), refresh_guild_state\(\)\]\);[\s\S]*state\.guild_state\.affiliation === 'none'/);
+	assert.match(guild_page_refresh, /await get_client_events\(\);[\s\S]*prepare_page_snapshot\('guild'\)[\s\S]*await refresh_guild_state\(\);[\s\S]*state\.guild_state\.affiliation === 'none'/);
 	assert.doesNotMatch(guild_page_refresh, /const \[, guild_state\] = await Promise\.all/);
 	assert.match(main, /async function refresh_guild_state_after_invalidation\(\)[\s\S]*pending_refresh[\s\S]*return refresh_guild_state\(true\)/);
 });
@@ -216,7 +216,7 @@ test('cache-busts authenticated GETs without using the Android-sensitive Fetch c
 		cache_bust_api_endpoint('/api/events?after=42'),
 		'/api/events?after=42&_mp_cache=runtime-nonce-2'
 	);
-	assert.match(api_get, /polling\.fetch_with_timeout\(fetch, server_host \+ cache_bust_api_endpoint\(resolve_api_endpoint\(endpoint\)\)/);
+	assert.match(api_get, /coordinated_request\(server_host \+ cache_bust_api_endpoint\(resolve_api_endpoint\(endpoint\)\)/);
 	assert.match(api_get, /const json = res\.headers\.get\('Content-Type'\)\?\.includes\('application\/json'\) \? await res\.json\(\) : null/);
 	assert.match(api_get, /if \(res\.status === 426\)\s*enter_unsupported_multiplayer\(json\?\.minimum_supported_mod_version\)/);
 	assert.doesNotMatch(api_get, /cache\s*:/);
@@ -519,5 +519,5 @@ test('Guild sidebar keeps a seeded aside and updates empty, count, vote, and gui
 	state.guild_state_loaded = false;
 	update();
 	assert.equal(aside.hidden, true);
-	assert.match(main, /else if \(state.is_guild_member\)\s*await Promise.all\(\[refresh_guild_state\(true\), state.refresh_alliance\(\), refresh_council\(\)\]\)/);
+	assert.match(main, /else if \(state.is_guild_member\) \{\s*await prepare_page_snapshot\(guild_page_visible \? 'guild' : 'decisions'\);\s*await Promise.all\(\[refresh_guild_state\(\), state.refresh_alliance\(\), refresh_council\(\)\]\)/);
 });

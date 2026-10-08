@@ -1,3 +1,5 @@
+import { can_cast_council_vote, council_voter_count } from './council-voting';
+import { register_page_read } from './page-reads';
 import { record_pending_exchange } from './transfer-history';
 import { cleanup_market_permissions } from './alliance-market';
 import { execute_alliance_petition, alliance_petition_withdrawable, maintain_alliances, remove_alliance_guild, alliance_for_guild, alliance_guilds } from './alliances';
@@ -1318,8 +1320,12 @@ export function apply_banishment_target(
 		for (const claim of target_haggle_claims) {
 			if (claim.item_id !== null)
 				add_banishment_return_item(target_return_id, claim.item_id, claim.item_qty);
-			if (claim.gp > 0)
-				db.query('UPDATE `banishment_returns` SET `gp` = `gp` + ? WHERE `id` = ?').run(claim.gp, target_return_id);
+			if (claim.gp > 0) {
+				const currency_id = db.query<{ currency_id: string }, [string]>('SELECT currency_id FROM market_haggles WHERE id=?').get(claim.haggle_id)!.currency_id;
+				if (currency_id === 'melvorD:GP')
+					db.query('UPDATE `banishment_returns` SET `gp` = `gp` + ? WHERE `id` = ?').run(claim.gp, target_return_id);
+				else add_banishment_return_item(target_return_id, currency_id, claim.gp);
+			}
 			db.query('UPDATE `market_haggle_claims` SET `claimed_at` = ? WHERE `haggle_id` = ? AND `client_id` = ?')
 				.run(now, claim.haggle_id, target_client_id);
 		}
@@ -1332,7 +1338,7 @@ export function apply_banishment_target(
 				gp += item.escrow_gp;
 			else {
 				add_banishment_return_item(target_return_id, item.item_id, item.available);
-				gp += Math.max((item.qty - item.available - item.reserved - item.haggled) * item.price - item.payout, 0);
+				gp += Math.max((item.qty - item.available - item.reserved - item.haggled) * item.price - item.price_adjustment - item.payout, 0);
 			}
 		}
 		if (gp > 0)
@@ -1656,7 +1662,7 @@ export async function get_market_completed(client_id: number) {
 
 	const results = await db_get_all(
 		'SELECT `id` FROM `market_items` WHERE `guild_id` = ? AND `client_id` = ? AND `direction` = \'sell\' AND `available` = 0 ' +
-		'AND `reserved` = 0 AND (`qty` - `haggled`) * `price` > `payout`',
+		'AND `reserved` = 0 AND (`qty` - `haggled`) * `price` - `price_adjustment` > `payout`',
 		[guild_id, client_id]
 	) as db_row.market_items[];
 	const completed = results.map(row => row.id);
@@ -2461,7 +2467,7 @@ export async function has_guild_departure_blocker(client_id: number): Promise<bo
 		'SELECT ' +
 		'EXISTS(SELECT 1 FROM `market_items` WHERE `client_id` = ? AND (' +
 			'`available` > 0 OR `reserved` > 0 OR `escrow_gp` > 0 OR ' +
-			'(`direction` = \'sell\' AND (`qty` - `available` - `reserved` - `haggled`) * `price` > `payout`))) OR ' +
+			'(`direction` = \'sell\' AND (`qty` - `available` - `reserved` - `haggled`) * `price` - `price_adjustment` > `payout`))) OR ' +
 		'EXISTS(SELECT 1 FROM `gifts` WHERE `client_id` = ? OR (`sender_id` = ? AND (`flags` & ?) = 0)) OR ' +
 		'EXISTS(SELECT 1 FROM `trade_offers` WHERE `sender_id` = ? OR `recipient_id` = ?) OR ' +
 		'EXISTS(SELECT 1 FROM `resolved_trade_offers` WHERE `client_id` = ?) AS `blocked`',
@@ -2472,7 +2478,11 @@ export async function has_guild_departure_blocker(client_id: number): Promise<bo
 
 export function petition_to_player_view(row: CouncilPetitionRow, client_id: number) {
 	const active = row.lifecycle === 'active';
-	const tally_visible = !active || (row.is_eligible === 1 && row.current_vote !== null);
+	const now = Date.now();
+	const eligible = can_cast_council_vote(row, client_id, now);
+	const tally_visible = !active || row.current_vote !== null;
+	const voter_count = row.voting_threshold === null || !active
+		? row.eligible_count : council_voter_count(row.id, row.guild_id, now);
 	let proposal: JsonSerializable;
 	if (row.type === 'appellation')
 		proposal = { name: row.proposed_name as string };
@@ -2512,19 +2522,20 @@ export function petition_to_player_view(row: CouncilPetitionRow, client_id: numb
 		resolved_at: row.resolved_at,
 		lifecycle: row.lifecycle,
 		execution_state: row.lifecycle === 'granted' ? row.execution_state : 'not_applicable',
-		eligible: row.is_eligible === 1,
+		eligible,
 		current_vote: row.current_vote,
-		can_vote: active && row.is_eligible === 1 && row.current_vote === null,
+		can_vote: active && eligible && row.current_vote === null,
 		can_withdraw: active && alliance_petition_withdrawable(row.id) && row.petitioner_id === client_id && (row.rule_version === 1 ||
 			db.query('SELECT 1 FROM guild_petition_votes WHERE petition_id = ? AND client_id != ? LIMIT 1')
 				.get(row.id, client_id) === null),
 		tally_visible,
 		...(tally_visible ? {
 			tally: {
-				eligible: row.eligible_count,
+				eligible: Math.max(voter_count, row.aye_count + row.nay_count),
+				...(row.voting_threshold === null ? {} : { required_aye: row.voting_threshold, required_nay: row.voting_threshold, snapshot_active: row.snapshot_active_count }),
 				aye: row.aye_count,
 				nay: row.nay_count,
-				uncast: row.eligible_count - row.aye_count - row.nay_count
+				uncast: Math.max(0, voter_count - row.aye_count - row.nay_count)
 			}
 		} : {})
 	};
@@ -3104,6 +3115,7 @@ export function validate_session_request(handler: SessionRequestHandler, json_bo
 }
 
 export function session_get_route(route: string, handler: SessionRequestHandler) {
+	register_page_read(route, handler);
 	server.route(
 		route,
 		allow_browser_access(require_source_capacity(require_service_available(validate_session_request(handler)))),

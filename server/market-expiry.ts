@@ -35,9 +35,9 @@ export function expire_market_listings_now(now = Date.now()): number {
 			add_inbox_gp(lot.client_id, lot.escrow_gp, EXPIRED_MARKET_SOURCE);
 		else {
 			const sold_qty = lot.qty - lot.available - lot.reserved - lot.haggled;
-			const payout = sold_qty * lot.price - lot.payout;
+			const payout = sold_qty * lot.price - lot.price_adjustment - lot.payout;
 			add_inbox_items(lot.client_id, [{ item_id: lot.item_id, qty: lot.available }], EXPIRED_MARKET_SOURCE);
-			add_inbox_gp(lot.client_id, payout, EXPIRED_MARKET_SOURCE);
+			add_inbox_items(lot.client_id, [{ item_id: lot.currency_id, qty: payout }], EXPIRED_MARKET_SOURCE);
 		}
 		count++;
 	}

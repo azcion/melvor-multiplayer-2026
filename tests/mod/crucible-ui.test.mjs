@@ -8,7 +8,7 @@ test('mounted Crucible bindings tolerate cleared state after leaving a Guild', a
 	const templates = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
 	const page = templates.slice(templates.indexOf('<template id="template-mp-crucible-page">'),
 		templates.indexOf('<template id="template-mp-transfer-page">'));
-	const expressions = [...page.matchAll(/(?:\bv-(?:if|else-if|for)|:[\w-]+)="([^"]+)"|\{\{\s*([^}]+?)\s*\}\}/g)]
+	const expressions = [...page.matchAll(/(?:\bv-(?:if|else-if|show|for)|:[\w-]+)="([^"]+)"|\{\{\s*([^}]+?)\s*\}\}/g)]
 		.map(match => match[1] ?? match[2])
 		.filter(expression => /state\.crucible\b/.test(expression))
 		.map(expression => expression.replace(/^\w+ of /, ''));
@@ -55,7 +55,7 @@ test('Crucible keeps migration unavailability distinct from a failed load', asyn
 	assert.deepEqual(state.crucible.wishes, []);
 	assert.equal(state.crucible_error, '');
 	const template = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
-	assert.match(template, /v-else-if="state\.crucible_error"><lang-string lang-id="MOD_MP_MULTIPLAYER_CONNECTION_ERR"/);
+	assert.match(template, /v-show="state\.crucible_error && !state\.crucible"><lang-string lang-id="MOD_MP_MULTIPLAYER_CONNECTION_ERR"/);
 });
 
 test('Crucible countdown uses localized text for each time scale', () => {
@@ -140,4 +140,31 @@ test('Crucible sidebar transitions from empty to claimable Wish or reclaim and h
 	}
 	assert.ok(main.indexOf('void state.refresh_crucible();', main.indexOf('async function get_client_events_request')) <
 		main.indexOf('if (res.unchanged === true)', main.indexOf('async function get_client_events_request')));
+});
+
+
+test('Crucible preserves a usable snapshot through failed refreshes and recovers without reload', async () => {
+	const snapshot = { enabled: true, is_open: true, offerings: [], wishes: [], wish_catalog: [] };
+	const responses = [snapshot, null, { ...snapshot, level: 2 }];
+	const state = { is_guild_member: true, is_social_only: false, is_connected: true };
+	const actions = install_crucible_actions({ state, update_charitree_nav() {}, api_get: async () => responses.shift(),
+		filter_local_available_items: rows => rows }, { compare_crucible_offerings: () => 0 });
+	await actions.refresh_crucible(true);
+	const previous = state.crucible;
+	await actions.refresh_crucible(true);
+	assert.equal(state.crucible, previous);
+	assert.ok(state.crucible_error);
+	assert.equal(state.crucible_loading, false);
+	await actions.refresh_crucible(true);
+	assert.equal(state.crucible.level, 2);
+	assert.equal(state.crucible_error, '');
+});
+
+test('Crucible state transitions keep conditional anchors mounted for the shared UI queue', async () => {
+	const templates = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
+	const page = templates.slice(templates.indexOf('<template id="template-mp-crucible-page">'),
+		templates.indexOf('<template id="template-mp-transfer-page">'));
+	assert.doesNotMatch(page, /v-(?:if|else|else-if)\b/);
+	assert.doesNotMatch(page, /<template[^>]+v-show/);
+	assert.match(page, /class="mp-crucible-content" v-show="state.crucible"/);
 });

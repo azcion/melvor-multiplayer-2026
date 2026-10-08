@@ -21,7 +21,7 @@ test('wires privacy-gated active-mod viewing into member actions and self previe
 		templates.indexOf('<template id="template-mp-identities-modal">')
 	);
 
-	assert.match(member_modal, /state\.set_active_mods_visibility\(\$event\)/);
+	assert.match(templates.slice(templates.indexOf('<template id="template-mp-multiplayer-settings-modal">')), /state\.set_active_mods_visibility\(\$event\)/);
 	assert.match(member_modal, /v-if="state\.selected_guild_member\.active_mods_visible && state\.selected_guild_member\.active_mods_available"/);
 	assert.match(member_modal, /state\.view_member_active_mods\(\$event\)/);
 	assert.match(active_mods_modal, /v-for="mod_name in state\.viewed_active_mods"/);

@@ -140,7 +140,7 @@ test('keeps reactive Guild state scoped to its page', async () => {
  const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
  assert.match(templates, /id="mp-market-page"/);
  assert.match(templates, /id="mp-crucible-page"/);
- assert.match(templates, /id="mp-crucible-page">[\s\S]*v-else-if="!state\.is_guild_member"/);
+ assert.match(templates, /id="mp-crucible-page">[\s\S]*v-show="!state\.is_social_only && !state\.is_guild_member"/);
 });
 
 test('mounts each Multiplayer page in one isolated Petite Vue scope', async () => {

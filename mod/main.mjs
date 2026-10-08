@@ -112,6 +112,15 @@ let modal_queue_guard = null;
 let modal_component_registry = null;
 let polling = null;
 let open_transfer_page = null;
+let request_scheduler = null;
+let read_cache = null;
+let page_snapshots_supported = false;
+let transfer_history_refresh_timer = null;
+let events_refreshed_at = 0;
+let last_events_result = null;
+const CACHED_READS = new Set(['/api/inbox', '/api/market/haggles', '/api/guilds/state', '/api/alliances',
+	'/api/guilds/council?page=0', '/api/guilds/members/shadowed?page=0&search=', '/api/guilds/activity', '/api/guilds/list',
+	...['inbox', 'outbox', 'pending'].map(pane => `/api/transfers/history?pane=${pane}`)]);
 let transfer_history_module = null;
 let load_transfer_history = null;
 let transfer_history_refresh_running = false;
@@ -360,6 +369,11 @@ const state = ui.createStore({
 	bank_action_item_id: '',
 	bank_action_mode: '',
 	bank_action_market_price: 1,
+	bank_action_market_currency_id: 'melvorD:GP',
+	bank_action_alliance_price: '',
+	bank_action_unlimited: true,
+	bank_action_purchase_limit: 1,
+	bank_action_allow_haggles: true,
 
 	transfer_inventory: [],
 	inbox_items: [],
@@ -400,7 +414,7 @@ const state = ui.createStore({
 	crucible_wish_item_id: '',
 	crucible_wish_qty: 1,
 	crucible_wish_search: '',
-	crucible_panels_open: { wishes: true, clearing: true, offerings: true },
+	crucible_panels_open: { heat: false, wishes: true, clearing: true, offerings: true },
 	crucible_clear_offers: [],
 	crucible_clear_max: false,
 	crucible_clear_totals: [],
@@ -684,6 +698,17 @@ const state = ui.createStore({
 		return this.bank_action_item_id === '' ? '' : this.get_item_name(this.bank_action_item_id);
 	},
 
+	get bank_action_item_sale_currency_id() {
+		return get_bank_action_item()?.sellsFor?.currency?.id ?? 'melvorD:GP';
+	},
+	get bank_action_item_unit_value_number() {
+		const item = get_bank_action_item();
+		return numberWithCommas(item === null ? 0 : game.bank.getItemSalePrice(item, 1));
+	},
+	get bank_action_item_value_number() {
+		const item = get_bank_action_item();
+		return numberWithCommas(item === null ? 0 : game.bank.getItemSalePrice(item, this.item_slider_value));
+	},
 	get bank_action_item_value_formatted() {
 		const item = get_bank_action_item();
 		if (item === null)
@@ -697,6 +722,43 @@ const state = ui.createStore({
 		return Number.isSafeInteger(total) && total >= 0 ? game.gp.formatAmount(numberWithCommas(total)) : game.gp.formatAmount('0');
 	},
 
+	get market_currencies() {
+		return (transfer_currency_support?.get_transfer_currencies(game) ?? [])
+			.filter(entry => is_local_item_available(entry.id));
+	},
+	market_currency(row) {
+		return this.get_transfer_currency(row?.currency_id ?? 'melvorD:GP');
+	},
+	market_currency_icon(row) {
+		return this.market_currency(row)?.currency.media ?? 'assets/media/main/coins.svg';
+	},
+	market_currency_shorthand(row) {
+		return this.market_currency(row)?.shorthand ??
+			transfer_currency_support?.TRANSFER_CURRENCY_DEFINITIONS?.find(entry => entry.id === row?.currency_id)?.shorthand ?? 'GP';
+	},
+	market_currency_amount(row) {
+		return this.market_currency(row)?.currency.amount ?? 0;
+	},
+	market_buyable(row) {
+		return Math.min(row?.available ?? 0, row?.buyable ?? row?.available ?? 0);
+	},
+	set_market_listing_qty(value) {
+		const qty = Number(value);
+		this.item_slider_value = Number.isSafeInteger(qty) ? Math.max(1, Math.min(qty, this.bank_action_item_owned_qty)) : 1;
+	},
+	get bank_action_listing_valid() {
+		const qty = Number(this.item_slider_value), price = Number(this.bank_action_market_price);
+		const alliance = this.bank_action_alliance_price === '' ? 0 : Number(this.bank_action_alliance_price);
+		return Number.isSafeInteger(qty) && qty > 0 && qty <= this.bank_action_item_owned_qty &&
+			Number.isSafeInteger(price) && price > 0 && Number.isSafeInteger(qty * price) &&
+			(this.bank_action_alliance_price === '' || (Number.isSafeInteger(alliance) && alliance > 0 && Number.isSafeInteger(qty * alliance))) &&
+			(this.bank_action_unlimited || (Number.isSafeInteger(this.bank_action_purchase_limit) && this.bank_action_purchase_limit > 0)) &&
+			this.market_currencies.some(row => row.id === this.bank_action_market_currency_id);
+	},
+	market_listing_amount(price, quantity = this.item_slider_value) {
+		const total = Number(price) * Number(quantity);
+		return Number.isSafeInteger(total) && total >= 0 ? numberWithCommas(total) : '—';
+	},
 	get transfer_currencies() {
 		return transfer_currency_support?.get_available_transfer_currencies(game) ?? [];
 	},
@@ -1112,6 +1174,12 @@ const state = ui.createStore({
 			String(item.name).toLocaleLowerCase().includes(search));
 	},
 
+	get crucible_heat_levels() {
+		const thresholds = [1, 1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000, 1_000_000_000, 10_000_000_000];
+		const rates = [1, 2, 3, 5, 8, 12, 17, 22, 28];
+		return thresholds.map((value, index) => ({ tier: index + 1, value, rate: rates[index],
+			current: this.crucible?.heat?.tier === index + 1 }));
+	},
 	get crucible_wish_item_name() {
 		return this.eligible_crucible_wish_items.find(item => item.id === this.crucible_wish_item_id)?.name ?? '';
 	},
@@ -1128,7 +1196,7 @@ const state = ui.createStore({
 
 	get market_buy_price_formatted() {
 		if (this.market_buy_item)
-			return formatNumber(this.market_buy_item.price * this.item_slider_value) + ' GP';
+			return formatNumber(this.market_buy_item.price * this.item_slider_value) + ' ' + this.market_currency_shorthand(this.market_buy_item);
 
 		return '0 GP';
 	},
@@ -3032,7 +3100,7 @@ async function update_market_page(force_reload = false) {
 	}
 }
 
-async function market_create_listing(item, item_qty, item_sell_price) {
+async function market_create_listing(item, item_qty, item_sell_price, terms = {}) {
 	if (state.is_social_only) {
 		notify_error('MOD_MP_SOCIAL_ONLY_DISABLED');
 		return false;
@@ -3063,6 +3131,7 @@ async function market_create_listing(item, item_qty, item_sell_price) {
 		item_id: item.id,
 		item_qty,
 		item_sell_price,
+		...terms,
 		command_id: crypto.randomUUID()
 	});
 
@@ -3102,9 +3171,9 @@ async function update_market_listings() {
 async function update_market_haggles() {
 	if (state.is_social_only)
 		return;
-	market_haggles_update_requested = true;
 	if (market_haggles_update_request !== null)
 		return market_haggles_update_request;
+	market_haggles_update_requested = true;
 
 	market_haggles_update_request = (async () => {
 		state.market_haggles_loading = true;
@@ -3114,7 +3183,8 @@ async function update_market_haggles() {
 				const res = await api_get('/api/market/haggles');
 				if (market_haggles_update_requested)
 					continue;
-				const haggles = res?.success ? res.haggles ?? [] : [];
+				if (!res?.success) return;
+				const haggles = res.haggles ?? [];
 				state.market_haggles = haggles.filter(haggle => haggle.status === 'active' ||
 					(haggle.claim && !haggle.claim.claimed));
 				state.market_haggle_pending = state.market_haggles.length;
@@ -3150,6 +3220,7 @@ async function update_market_search() {
 		else {
 			const catalog = await api_post('/api/market/catalog', {
 				item_namespaces,
+				currency_ids: state.market_currencies.map(row => row.id),
 				direction
 			});
 			if (generation !== market_search_generation)
@@ -3171,6 +3242,7 @@ async function update_market_search() {
 			direction,
 			...(item_id === null ? {} : { item_id }),
 			item_namespaces,
+			currency_ids: state.market_currencies.map(row => row.id),
 			unresolved_item_ids
 		});
 		if (generation !== market_search_generation)
@@ -3629,6 +3701,18 @@ async function reconcile_pending_gifts() {
 		state.gifts = state.gifts.filter(gift => !returned_gift_ids.includes(gift.id));
 }
 
+function schedule_transfer_history_refresh() {
+	clearTimeout(transfer_history_refresh_timer);
+	transfer_history_refresh_timer = setTimeout(() => {
+		// Finish durable claim/receipt acknowledgements before optional history reads.
+		if (state.inbox_claiming || state.is_updating_transfer_contents || !economy_commands_ready) {
+			if (state.is_connected && state.is_transfer_page_visible) schedule_transfer_history_refresh();
+			return;
+		}
+		if (state.is_transfer_page_visible) void refresh_transfer_history();
+	}, 500);
+}
+
 async function refresh_transfer_history() {
 	if (!load_transfer_history || !state.is_connected) return;
 	transfer_history_refresh_pending = true;
@@ -3638,6 +3722,7 @@ async function refresh_transfer_history() {
 		do {
 			transfer_history_refresh_pending = false;
 			state.transfer_history_clock = performance.now();
+			await prepare_page_snapshot('transfers');
 			await Promise.all(transfer_history_module.HISTORY_PANES.map(pane => load_transfer_history(pane)));
 		} while (transfer_history_refresh_pending && state.is_connected && state.is_transfer_page_visible);
 	} finally {
@@ -4142,6 +4227,7 @@ async function discover_api_contract() {
 		consume: async response => {
 			const body = response.status === 200 ? await response.json() : null;
 			minimum_supported_mod_version = body?.minimum_supported_mod_version ?? null;
+			page_snapshots_supported = body?.page_snapshots === true;
 			return api_contract.select_api_major(response.status, body);
 		}
 	});
@@ -4160,20 +4246,56 @@ function cache_bust_api_endpoint(endpoint) {
 	return `${endpoint}${separator}_mp_cache=${API_GET_CACHE_NONCE}-${++api_get_request_sequence}`;
 }
 
+async function prepare_page_snapshot(page) {
+	if (!page_snapshots_supported) return;
+	const endpoint = '/api/pages/snapshot?page=' + page;
+	const generation = session_generation;
+	const snapshot = await read_cache.read(endpoint, valid => api_get_request(endpoint, valid));
+	if (generation !== session_generation || !snapshot?.data) return;
+	for (const [route, value] of Object.entries(snapshot.data))
+		if (value && typeof value === 'object' && !value.error_lang && !value.status) read_cache.prime(route, value);
+}
+
+async function coordinated_request(endpoint, options, request) {
+	const generation = session_generation;
+	const origin = server_host;
+	const read_only_post = /\/api\/v\d+\/(?:market\/(?:search|catalog)|transfers\/get_contents)(?:\?|$)/.test(endpoint);
+	const acknowledgement = /\/api\/v\d+\/(?:inbox|economy\/receipts|banishment\/returns|raids\/cache)\/acknowledge(?:\?|$)/.test(endpoint);
+	const priority = acknowledgement ? 2 : options.method === 'POST' && !read_only_post ? 1 : 0;
+	return request_scheduler.run(priority, async () => {
+		if (generation !== session_generation || origin !== server_host) throw new DOMException('Stale request', 'AbortError');
+		const consume = request.consume;
+		return polling.fetch_with_timeout(fetch, endpoint, options, { ...request, consume: response => {
+			request_scheduler.observe(response);
+			return consume(response);
+		} });
+	}, () => generation === session_generation && origin === server_host &&
+		(priority > 0 || request.is_current?.() !== false));
+}
+
 async function api_get(endpoint) {
 	if (state.multiplayer_unsupported)
 		return null;
+	return read_cache.read(endpoint, valid => api_get_request(endpoint, valid), CACHED_READS.has(endpoint) || endpoint.startsWith('/api/alliances/guild-preview?'));
+}
+
+async function api_get_request(endpoint, is_current = () => true, retry_throttled = true) {
+	if (state.multiplayer_unsupported)
+		return null;
 	const request_generation = session_generation;
+	let throttled = false;
 	try {
 		if (selected_api_major === null) await discover_api_contract();
-		return await polling.fetch_with_timeout(fetch, server_host + cache_bust_api_endpoint(resolve_api_endpoint(endpoint)), {
+		const result = await coordinated_request(server_host + cache_bust_api_endpoint(resolve_api_endpoint(endpoint)), {
 			method: 'GET',
 			headers: {
 				'X-Session-Token': session_token ?? undefined
 			}
 		}, {
+			is_current,
 			observe: entry => transport_diagnostics?.record(entry),
 			consume: async res => {
+				throttled = res.status === 429;
 				handle_session_response(res, request_generation);
 				const json = res.headers.get('Content-Type')?.includes('application/json') ? await res.json() : null;
 				if (res.status === 426)
@@ -4181,8 +4303,12 @@ async function api_get(endpoint) {
 				return res.status === 200 && request_generation === session_generation ? json : null;
 			}
 		});
+		if (throttled && retry_throttled && is_current())
+			return api_get_request(endpoint, is_current, false);
+		return result;
 	} catch (e) {
-		error('GET transport failed for %s (%s)', endpoint, e?.name ?? 'Error');
+		if (e?.name !== 'AbortError' || is_current())
+			error('GET transport failed for %s (%s)', endpoint, e?.name ?? 'Error');
 		return null;
 	}
 }
@@ -4200,7 +4326,7 @@ async function api_post_response_raw(endpoint, payload, request_session_token = 
 		return { response: null, json: null };
 	const request_generation = session_generation;
 	try {
-		return await polling.fetch_with_timeout(fetch, server_host + resolve_api_endpoint(endpoint, major), {
+		return await coordinated_request(server_host + resolve_api_endpoint(endpoint, major), {
 			method: 'POST',
 			body: JSON.stringify(payload),
 			headers: {
@@ -4217,9 +4343,21 @@ async function api_post_response_raw(endpoint, payload, request_session_token = 
 				if (res.status === 426)
 					enter_unsupported_multiplayer(json?.minimum_supported_mod_version);
 				if (request_generation !== session_generation) return { response: null, json: null };
-				if (res.ok && json?.success !== false && !json?.error_lang && state.is_transfer_page_visible &&
-					/^\/api\/(?:gift|trade|market|crucible|inbox|banishment\/returns|economy\/receipts|social-mode)\//.test(endpoint) &&
-					(is_event_affecting_mutation(endpoint) || /^\/api\/(?:inbox\/|market\/haggle(?:\/|$))/.test(endpoint))) void refresh_transfer_history();
+				if (res.ok && json?.success !== false && !json?.error_lang &&
+					(is_event_affecting_mutation(endpoint) || /^\/api\/(?:inbox\/|market\/haggle(?:\/|$)|client\/(?:set_display_name|set_icon)$)/.test(endpoint))) {
+					if (endpoint !== '/api/economy/receipts/acknowledge') {
+						const governance = /^\/api\/(?:guilds|alliances|banishment|social-mode|client)\//.test(endpoint);
+						const transfers_affected = /^\/api\/(?:inbox|market|gift|trade|crucible|charity)\//.test(endpoint);
+						if (governance || transfers_affected) read_cache.invalidate(key => governance || key.includes('transfers') || key.includes('page=transfers') ||
+							key.startsWith('/api/inbox') || key.startsWith('/api/market') || key.startsWith('/api/crucible'));
+					}
+					if (endpoint.startsWith('/api/market/haggle') && market_haggles_update_request !== null)
+						market_haggles_update_requested = true;
+					events_refreshed_at = 0;
+					if (client_event_request !== null) client_event_trailing = true;
+					if (state.is_transfer_page_visible && /^\/api\/(?:inbox|market|gift|trade|crucible|banishment|economy\/receipts|guilds|social-mode)\//.test(endpoint))
+						schedule_transfer_history_refresh();
+				}
 				return { response: res, json };
 			}
 		});
@@ -4234,7 +4372,7 @@ async function api_post_binary_response(endpoint, bytes, media_type, upload_toke
 		return { response: null, json: null };
 	const request_generation = session_generation;
 	try {
-		return await polling.fetch_with_timeout(fetch, server_host + resolve_api_endpoint(endpoint), {
+		return await coordinated_request(server_host + resolve_api_endpoint(endpoint), {
 			method: 'POST',
 			body: bytes,
 			headers: {
@@ -4410,6 +4548,8 @@ function set_session_token(token) {
 	state.transfer_history = transfer_history_module.create_transfer_history_state();
 	session_token = token;
 	session_generation++;
+	events_refreshed_at = 0;
+	last_events_result = null;
 	state.is_connected = true;
 	state.expedition_state = null;
 	state.expedition_loading = false;
@@ -4714,9 +4854,12 @@ async function get_friends() {
 
 function invalidate_guild_state() {
 	guild_state_refreshed_at = 0;
+	read_cache?.invalidate(key => key.includes('guild') || key.includes('alliance') || key.includes('decisions'));
 }
 
 async function refresh_guild_state(force = false) {
+	if (force && guild_state_refresh_request === null)
+		read_cache?.invalidate(key => key === '/api/guilds/state' || key.includes('page=guild') || key.includes('page=decisions'));
 	if (!force && state.guild_state_loaded && Date.now() - guild_state_refreshed_at < GUILD_STATE_FRESHNESS)
 		return state.guild_state;
 	if (guild_state_refresh_request !== null)
@@ -4950,12 +5093,14 @@ async function refresh_shadowed_members(page = 0, search = state.shadowed_member
 
 async function refresh_guild_list() {
 	const res = await api_get('/api/guilds/list');
-	state.guilds = res?.guilds ?? [];
+	if (Array.isArray(res?.guilds)) state.guilds = res.guilds;
 }
 
 async function refresh_guild_page() {
 	setup_guild_icons();
-	await Promise.all([get_client_events(), refresh_guild_state()]);
+	await get_client_events();
+	await prepare_page_snapshot('guild');
+	await refresh_guild_state();
 
 	if (state.is_guild_member) {
 		state.shadowed_member_count = 0;
@@ -5075,18 +5220,21 @@ async function refresh_council(page = 0, append = false) {
 }
 
 async function get_client_events(reconcile_gifts = true) {
+	if (economy_commands_ready && last_events_result && Date.now() - events_refreshed_at < 2000) return last_events_result;
 	if (client_event_request !== null) {
-		client_event_trailing = true;
 		return client_event_request;
 	}
 	const request_generation = session_generation;
 	client_event_request = get_client_events_request(reconcile_gifts, request_generation);
 	try {
-		return await client_event_request;
+		const result = await client_event_request;
+		if (result !== null) { last_events_result = result; events_refreshed_at = Date.now(); }
+		return result;
 	} finally {
 		client_event_request = null;
 		if (client_event_trailing) {
 			client_event_trailing = false;
+			events_refreshed_at = 0;
 			if (state.is_connected && polling.is_foreground(document))
 				void get_client_events();
 		}
@@ -5116,7 +5264,13 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 		}
 		economy_commands_ready = false;
 		client_events_have_pending = polling.has_pending_events(res);
+		// Events invalidate event-backed snapshots, not unrelated startup/Chat reads.
+		read_cache.invalidate(key => CACHED_READS.has(key) || key.startsWith('/api/pages/snapshot?'));
 		invalidate_guild_state();
+		if (state.is_transfer_page_visible) {
+			await prepare_page_snapshot('transfers');
+			schedule_transfer_history_refresh();
+		}
 		state.events.friend_requests = res.friend_requests;
 		if (typeof res.alliance_access === 'boolean') state.alliance_access = res.alliance_access;
 		if (Array.isArray(res.account_tags)) state.account_tags = res.account_tags;
@@ -5183,8 +5337,10 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 			if (guild_state?.affiliation === 'none')
 				await refresh_guild_list();
 		}
-		else if (state.is_guild_member)
-			await Promise.all([refresh_guild_state(true), state.refresh_alliance(), refresh_council()]);
+		else if (state.is_guild_member) {
+			await prepare_page_snapshot(guild_page_visible ? 'guild' : 'decisions');
+			await Promise.all([refresh_guild_state(), state.refresh_alliance(), refresh_council()]);
+		}
 		update_guild_nav();
 		show_pending_banishment_notice();
 	}
@@ -5288,6 +5444,9 @@ export async function setup(ctx) {
 	});
 	const server_config = await ctx.loadModule('server-config.mjs');
 	polling = await ctx.loadModule('polling.mjs');
+	const requests = await ctx.loadModule('request-coordinator.mjs');
+	request_scheduler = requests.create_request_scheduler();
+	read_cache = requests.create_read_cache({ scope: () => server_host + ':' + session_generation });
 	api_contract = await ctx.loadModule('api-contract.mjs');
 	economy_command_module = await ctx.loadModule('economy-command-journal.mjs');
 	identity_bindings = await ctx.loadModule('identity-bindings.mjs');
@@ -5312,6 +5471,7 @@ export async function setup(ctx) {
 	expedition_tasks = await ctx.loadModule('expedition-tasks.mjs');
 	expedition_view = await ctx.loadModule('expedition-view.mjs');
 	const image_particles = await ctx.loadModule('image-particles.mjs');
+	const crucible_heat = await ctx.loadModule('crucible-heat.mjs');
 	const expedition_crystals = await ctx.loadModule('expedition-crystals.mjs');
 	const expedition_haze = await ctx.loadModule('expedition-haze.mjs');
 	const expedition_observatory = await ctx.loadModule('expedition-observatory.mjs');
@@ -5566,6 +5726,10 @@ export async function setup(ctx) {
 	
 	ctx.onInterfaceReady(() => {
 		interface_ready = true;
+		if (!customElements.get('mp-crucible-heat-lava')) customElements.define('mp-crucible-heat-lava',
+			image_particles.create_image_particle_element({ create_renderer: () => crucible_heat.create_heat_renderer({
+				get_tier: () => state.crucible?.heat?.tier ?? 0
+			}) }));
 		if (!customElements.get('mp-expedition-snow')) customElements.define('mp-expedition-snow',
 			expedition_snow.create_expedition_snow_element({
 				create_image_particle_element: image_particles.create_image_particle_element,
@@ -5603,7 +5767,7 @@ export async function setup(ctx) {
 			show_pending_banishment_notice();
 			show_pending_identity_notices();
 
-			on_page_toggle('mp-guild-page', set_guild_page_visible, true);
+			on_page_toggle('mp-guild-page', set_guild_page_visible);
 			on_page_toggle('mp-raid-page', set_raid_page_visible);
 			on_page_toggle('mp-expedition-page', set_expedition_page_visible);
 			on_page_toggle('mp-chat-page', is_visible => {
@@ -5725,6 +5889,9 @@ function apply_server_configuration() {
 	if (previous_server_host !== server_host) {
 		selected_api_major = null;
 		session_generation++;
+		events_refreshed_at = 0;
+		last_events_result = null;
+		page_snapshots_supported = false;
 		state.is_connected = false;
 		state.pending_preview = null;
 		economy_command_journal = null;
@@ -5854,6 +6021,7 @@ function update_bank_action_modal_header(mode) {
 	const item = get_bank_action_item();
 	const $title = document.getElementById('swal2-title');
 	const $image = document.querySelector('.swal2-image');
+	document.querySelector('.mp-bank-actions-modal-popup')?.classList.toggle('mp-market-listing-popup', mode === 'market');
 	if ($title)
 		$title.textContent = getLangString(BANK_ACTION_TITLE_LANG_IDS[mode]);
 	if ($image) {
@@ -5891,8 +6059,14 @@ function set_bank_action_mode(mode) {
 		return;
 	state.bank_action_mode = mode;
 	state.item_slider_value = 1;
-	if (mode === 'market')
+	if (mode === 'market') {
 		state.bank_action_market_price = Math.max(1, game.bank.getItemSalePrice(get_bank_action_item()));
+		state.bank_action_market_currency_id = 'melvorD:GP';
+		state.bank_action_alliance_price = '';
+		state.bank_action_unlimited = true;
+		state.bank_action_purchase_limit = 1;
+		state.bank_action_allow_haggles = true;
+	}
 	update_bank_action_modal_header(mode);
 }
 
@@ -5923,7 +6097,13 @@ async function submit_bank_action(event) {
 				notify_error('MOD_MP_MARKET_CANNOT_SELL_FREE');
 				return;
 			}
-			if (await market_create_listing(item, qty, price))
+			if (!state.bank_action_listing_valid) return notify_error('MOD_MP_LISTING_INVALID');
+			if (await market_create_listing(item, qty, price, {
+				currency_id: state.bank_action_market_currency_id,
+				alliance_price: state.bank_action_alliance_price === '' ? 0 : Number(state.bank_action_alliance_price),
+				purchase_limit: state.bank_action_unlimited ? 0 : state.bank_action_purchase_limit,
+				allow_haggles: state.bank_action_allow_haggles
+			}))
 				state.close_modal();
 			return;
 		}
@@ -5995,6 +6175,7 @@ function patch_bank_actions() {
 		if (is_visible) {
 			state.transfer_history_clock = performance.now();
 			await Promise.all([get_client_events(), refresh_guild_state()]);
+			await prepare_page_snapshot('transfers');
 			await Promise.all([update_transfer_contents(), update_market_haggles(), refresh_transfer_history()]);
 		}
 	});
@@ -6041,6 +6222,8 @@ async function start_multiplayer_session() {
 	state.multiplayer_unsupported = false;
 	state.minimum_supported_mod_version = '';
 	session_generation++;
+	events_refreshed_at = 0;
+	last_events_result = null;
 	state.transfer_history = transfer_history_module.create_transfer_history_state();
 	economy_commands_ready = false;
 	economy_command_journal = null;

@@ -33,17 +33,22 @@ test('declares every packaged locale and falls back unsupported languages to Eng
 	assert.equal(resolve_multiplayer_language('unsupported'), 'en');
 });
 
-test('translated locales preserve formatting placeholders and inherit missing English entries', async () => {
+test('every locale covers the English dictionary and preserves formatting placeholders', async () => {
 	const english = await readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse);
 
 	for (const language of MULTIPLAYER_SUPPORTED_LANGUAGES) {
 		const translations = await readFile(new URL(`mod/data/lang/${language}.json`, root), 'utf8').then(JSON.parse);
+		assert.deepEqual(Object.keys(translations).sort(), Object.keys(english).sort(),
+			`${language} must cover every English key without extra entries`);
 		for (const key of Object.keys(translations)) {
 			assert.equal(typeof english[key], 'string', `${language}:${key} must exist in English`);
 			assert.equal(typeof translations[key], 'string', `${language}:${key} must be text`);
 			assert.notEqual(translations[key].trim(), '', `${language}:${key} must not be empty`);
 			assert.equal(placeholder_signature(translations[key]), placeholder_signature(english[key]),
 				`${language}:${key} placeholders must match English`);
+			assert.deepEqual(translations[key].match(/\{[a-z_]+\}/g)?.sort() ?? [],
+				english[key].match(/\{[a-z_]+\}/g)?.sort() ?? [],
+				`${language}:${key} named placeholders must match English`);
 		}
 	}
 });

@@ -1,6 +1,7 @@
+import { snapshot_council_threshold } from './council-voting';
 import type { JsonObject } from './http';
 import { db, get_service_setting } from './db';
-import { PETITION_LIFETIME, type PetitionType } from './council';
+import type { PetitionType } from './council';
 import { is_client_version_at_least } from './client-version-policy';
 
 export type AllianceProcess = {
@@ -9,6 +10,7 @@ export type AllianceProcess = {
 	created_at: number; expires_at: number; resolved_at: number | null;
 	governance_version: number; resolution_reason: string | null; resolution_guild_name: string | null;
 };
+export const PROPOSAL_LIFETIME = 1000 * 60 * 60 * 96;
 const pending = "('local','waiting','recipient','collective')";
 export const alliance_capable = (version: unknown) => version === 'development' || is_client_version_at_least(version, '1.6.2');
 // Temporary preview gate: only characters linked to the maintainer's stored account.
@@ -47,14 +49,12 @@ function council_petition(guild_id: number, client_id: number, p: AllianceProces
 	const id = Number(db.query(`INSERT INTO guild_petitions
 		(guild_id,guild_name,type,conflict_subject,petitioner_id,created_at,expires_at,rule_version)
 		VALUES(?,?,?,?,?,?,?,2)`).run(guild_id, guild.name, type, `alliance:${p.id}:${role}`, client_id, now, p.expires_at).lastInsertRowid);
-	db.query(`INSERT INTO guild_petition_voters(petition_id,client_id) SELECT ?, m.client_id FROM guild_memberships m
-		JOIN clients c ON c.id = m.client_id WHERE m.guild_id = ? AND c.last_multiplayer_active_at >= ?`)
-		.run(id, guild_id, now - 4 * 86400000);
+	snapshot_council_threshold(id, guild_id, now);
 	db.query('INSERT INTO alliance_process_petitions VALUES(?,?,?)').run(id, p.id, role);
 	return id;
 }
 function extend(p: AllianceProcess, now: number) {
-	const expires_at = now + PETITION_LIFETIME;
+	const expires_at = now + PROPOSAL_LIFETIME;
 	db.query('UPDATE alliance_processes SET expires_at = ? WHERE id = ?').run(expires_at, p.id);
 	db.query(`UPDATE guild_petitions SET expires_at = ? WHERE lifecycle = 'active'
 		AND id IN (SELECT petition_id FROM alliance_process_petitions WHERE process_id = ?)`)
@@ -124,7 +124,7 @@ function collective(p: AllianceProcess, petitioner_id: number, now: number): num
 	const roster = alliance_guilds(p.alliance_id!);
 	if (roster.length < 2) { finish_alliance_process(p, 'cancelled', now, 'alliance_unavailable'); return null; }
 	db.query("UPDATE alliance_processes SET stage = 'collective' WHERE id = ?").run(p.id);
-	p.stage = 'collective'; p.expires_at = now + PETITION_LIFETIME;
+	p.stage = 'collective'; p.expires_at = now + PROPOSAL_LIFETIME;
 	extend(p, now);
 	let own_petition: number | null = null;
 	for (const guild_id of roster) {
@@ -251,7 +251,7 @@ export function raise_alliance_process(guild_id: number, client_id: number, kind
 	if (db.query(`SELECT 1 FROM alliance_processes WHERE subject = ? AND stage IN ${pending}`).get(subject)) return { error: 'A proposal on this subject is already pending.' };
 	const proposal_name = name ?? (kind === 'join' ? db.query<{name:string},[number]>('SELECT name FROM alliances WHERE id=?').get(target!)?.name : alliance?.name) ?? null;
 	const id = Number(db.query(`INSERT INTO alliance_processes(kind,initiator_guild_id,target_guild_id,alliance_id,name,subject,created_at,expires_at,governance_version)
-		VALUES(?,?,?,?,?,?,?,?,2)`).run(kind, guild_id, kind === 'found' || kind === 'remove' ? target : null, alliance_id, proposal_name, subject, now, now + PETITION_LIFETIME).lastInsertRowid);
+		VALUES(?,?,?,?,?,?,?,?,2)`).run(kind, guild_id, kind === 'found' || kind === 'remove' ? target : null, alliance_id, proposal_name, subject, now, now + PROPOSAL_LIFETIME).lastInsertRowid);
 	if (kind === 'found' || kind === 'join') db.query('INSERT INTO alliance_pending_slots VALUES(?,?)').run(guild_id, id);
 	const p = process(id)!;
 	let petition_id: number;
@@ -276,6 +276,6 @@ export function consider_alliance_process(id: number, guild_id: number, client_i
 	}
 	if (p.kind !== 'found' || p.stage !== 'waiting' || p.target_guild_id !== guild_id || slot(guild_id) || alliance_for_guild(guild_id)) return { error:'This Founding Proposal cannot be considered now.' };
 	db.query('INSERT INTO alliance_pending_slots VALUES(?,?)').run(guild_id,id);
-	db.query("UPDATE alliance_processes SET stage='recipient' WHERE id=?").run(id); extend(p,now); p.expires_at=now+PETITION_LIFETIME;
+	db.query("UPDATE alliance_processes SET stage='recipient' WHERE id=?").run(id); extend(p,now); p.expires_at=now+PROPOSAL_LIFETIME;
 	revise(); return { success:true, petition_id:council_petition(guild_id,client_id,p,'recipient','alliance_consider',now) };
 }

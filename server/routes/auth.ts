@@ -17,7 +17,7 @@ const { AUTH_RESPONSE_DELAY_MS, BACKEND_VERSION, DEFAULT_USER_ICON_ID, allow_bro
 
 export function register_auth_routes(): void {
 	server.route('/api/versions', allow_browser_access(require_source_capacity(require_service_available(() => ({
-		api_versions: API_VERSIONS, preferred_api_version: API_VERSIONS[API_VERSIONS.length - 1],
+		page_snapshots: true, api_versions: API_VERSIONS, preferred_api_version: API_VERSIONS[API_VERSIONS.length - 1],
 		minimum_supported_mod_version: get_minimum_supported_mod_version()
 	})))), ['GET', 'OPTIONS']);
 	server.route('/health', require_source_capacity(() => ({ status: 'ok', backend_version: BACKEND_VERSION })));

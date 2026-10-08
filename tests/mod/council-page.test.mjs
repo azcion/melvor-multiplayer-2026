@@ -96,7 +96,7 @@ test('shows the sealed Crucible and keeps its Cast controls guarded', async () =
  ]);
  const page = templates.slice(templates.indexOf('<template id="template-mp-crucible-page">'), templates.indexOf('<template id="template-mp-transfer-page">'));
  assert.match(main, /multiplayer:Crucible/);
- assert.match(page, /v-if="!state\.crucible\?\.is_open"/);
+ assert.match(page, /v-show="!state\.crucible\?\.is_open"/);
  assert.match(page, /MOD_MP_CRUCIBLE_SEALED/);
  assert.match(actions, /!state\.crucible\?\.is_open/);
  assert.match(main, /bank_crucible_cast:/);

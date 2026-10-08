@@ -5,7 +5,7 @@ import { register_guild_client } from '../support/fixtures';
 test('publishes only the v2 API contract', async () => {
 	const versions = await request('/api/versions');
 	expect(versions.status).toBe(200);
-	expect(await versions.json()).toEqual({ api_versions: [2], preferred_api_version: 2,
+	expect(await versions.json()).toEqual({ page_snapshots: true, api_versions: [2], preferred_api_version: 2,
 		minimum_supported_mod_version: null });
 	const auth = await post_json<Record<string, any>>('/api/v2/register', {
 		client_key: crypto.randomUUID(), display_name: 'V2 Bootstrap'

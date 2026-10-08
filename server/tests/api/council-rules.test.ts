@@ -13,7 +13,8 @@ for (const choice of ['aye', 'nay']) test(`another player's ${choice} locks with
 	await db_run('UPDATE guild_petitions SET expires_at = ? WHERE id = ?', [Date.now() + 60000, id]);
 	await post_json('/api/guilds/petitions/vote', { petition_id: id, choice }, members[1].session_token);
 	const row = (await db_all<{ expires_at: number }>('SELECT expires_at FROM guild_petitions WHERE id = ?', [id]))[0];
-	expect(row.expires_at).toBeGreaterThan(Date.now() + 86300000);
+	expect(row.expires_at).toBeGreaterThan(Date.now() + 48 * 3600000 - 10000);
+	expect(row.expires_at).toBeLessThanOrEqual(Date.now() + 48 * 3600000);
 	const withdrawn = await post_json<{ error_lang: string }>('/api/guilds/petitions/withdraw', { petition_id: id }, members[0].session_token);
 	expect(withdrawn.json.error_lang).toBe('MOD_MP_COUNCIL_WITHDRAW_FORBIDDEN');
 	const view = await get_json_with_session<{ petitions: { can_withdraw: boolean }[] }>('/api/guilds/council', members[0].session_token);

@@ -111,7 +111,9 @@ export function execute_client_deletion(
 	for (const claim of haggle_claims) {
 		if (claim.item_id !== null)
 			add_deletion_return_item(database, target_return_id(), claim.item_id, claim.item_qty);
-		haggle_gp += claim.gp;
+		const currency_id = database.query<{ currency_id: string }, [string]>('SELECT currency_id FROM market_haggles WHERE id=?').get(claim.haggle_id)!.currency_id;
+		if (currency_id === 'melvorD:GP') haggle_gp += claim.gp;
+		else if (claim.gp > 0) add_deletion_return_item(database, target_return_id(), currency_id, claim.gp);
 		database.query('UPDATE `market_haggle_claims` SET `claimed_at` = ? WHERE `haggle_id` = ? AND `client_id` = ?')
 			.run(now, claim.haggle_id, request.target_client_id);
 	}
@@ -128,7 +130,7 @@ export function execute_client_deletion(
 			market_gp += item.escrow_gp;
 		else {
 			add_deletion_return_item(database, target_return_id(), item.item_id, item.available);
-			market_gp += Math.max((item.qty - item.available - item.reserved - item.haggled) * item.price - item.payout, 0);
+			market_gp += Math.max((item.qty - item.available - item.reserved - item.haggled) * item.price - item.price_adjustment - item.payout, 0);
 		}
 	}
 	if (market_gp > 0)

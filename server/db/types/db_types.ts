@@ -219,6 +219,7 @@ export type guild_activity_events = {
 };
 
 export type market_haggles = {
+	currency_id: string;
 	id: string;
 	listing_id: number | null;
 	listing_ref: number;
@@ -474,6 +475,7 @@ export type guilds = {
 };
 
 export type guild_memberships = {
+	joined_at: number;
 	id: number;
 	client_id: number;
 	guild_id: number;
@@ -496,6 +498,8 @@ export type guild_chat_read_state = {
 };
 
 export type guild_petitions = {
+	snapshot_active_count: number | null;
+	voting_threshold: number | null;
 	rule_version: number;
 	id: number;
 	guild_id: number;
@@ -580,6 +584,11 @@ export type campaign_contributions = {
 };
 
 export type market_items = {
+	currency_id: string;
+	alliance_price: number;
+	purchase_limit: number;
+	allow_haggles: number;
+	price_adjustment: number;
 	id: number;
 	guild_id: number;
 	client_id: number;

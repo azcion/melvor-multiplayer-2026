@@ -1,3 +1,4 @@
+import { can_cast_council_vote, snapshot_council_threshold, resolve_threshold_vote } from '../council-voting';
 import { is_feature_tester, council_test_data, valid_council_test_action } from '../feature-testers';
 import { cleanup_market_permissions } from '../alliance-market';
 import { has_alliance_access, alliance_petition_withdrawable, alliance_capable, alliance_ballot_activity, maintain_alliances, remove_alliance_guild } from '../alliances';
@@ -236,12 +237,7 @@ export function register_guilds_routes(): void {
 				).run(petition.id, membership.guild_id);
 			if (is_crucible_petition_type(petition_type))
 				snapshot_crucible_petition(petition.id, membership.guild_id, petition_type);
-			db.query(
-				'INSERT INTO `guild_petition_voters` (`petition_id`, `client_id`) ' +
-				'SELECT ?, membership.`client_id` FROM `guild_memberships` AS membership ' +
-				'JOIN `clients` AS client ON client.`id` = membership.`client_id` ' +
-				'WHERE membership.`guild_id` = ? AND client.`last_multiplayer_active_at` >= ?'
-			).run(petition.id, membership.guild_id, now - 4 * 86400000);
+			snapshot_council_threshold(petition.id, membership.guild_id, now);
 			db.query('UPDATE clients SET event_revision = event_revision + 1 WHERE id IN (' +
 				'SELECT client_id FROM guild_memberships WHERE guild_id = ?)').run(membership.guild_id);
 			return { status: 'created' as const, petition_id: petition.id };
@@ -311,10 +307,7 @@ export function register_guilds_routes(): void {
 			).get(client_id, petition.guild_id);
 			if (membership === null)
 				return { status: 'forbidden' as const };
-			const eligible = db.query(
-				'SELECT 1 FROM `guild_petition_voters` WHERE `petition_id` = ? AND `client_id` = ? LIMIT 1'
-			).get(petition_id, client_id);
-			if (eligible === null)
+			if (!can_cast_council_vote(petition, client_id, now))
 				return { status: 'ineligible' as const };
 			const existing = db.query(
 				'SELECT 1 FROM `guild_petition_votes` WHERE `petition_id` = ? AND `client_id` = ? LIMIT 1'
@@ -322,6 +315,8 @@ export function register_guilds_routes(): void {
 			if (existing !== null)
 				return { status: 'duplicate' as const };
 
+			if (petition.voting_threshold !== null)
+				db.query('INSERT OR IGNORE INTO guild_petition_voters(petition_id, client_id) VALUES(?, ?)').run(petition_id, client_id);
 			db.query(
 				'INSERT INTO `guild_petition_votes` (`petition_id`, `client_id`, `choice`, `submitted_at`) ' +
 				'VALUES(?, ?, ?, ?)'
@@ -335,7 +330,9 @@ export function register_guilds_routes(): void {
 				"SUM(CASE WHEN `choice` = 'nay' THEN 1 ELSE 0 END) AS `nay` " +
 				'FROM `guild_petition_votes` WHERE `petition_id` = ?'
 			).get(petition_id, petition_id) as { eligible: number; aye: number; nay: number };
-			const lifecycle = get_petition_resolution(tally.eligible, tally.aye, tally.nay);
+			const lifecycle = petition.voting_threshold === null
+				? get_petition_resolution(tally.eligible, tally.aye, tally.nay)
+				: resolve_threshold_vote(petition.voting_threshold, tally.aye ?? 0, tally.nay ?? 0);
 			if (lifecycle !== null) {
 				db.query(
 					'UPDATE `guild_petitions` SET `lifecycle` = ?, `resolved_at` = ?, `execution_state` = ?, ' +
@@ -742,7 +739,7 @@ export function register_guilds_routes(): void {
 				'SELECT ' +
 				'EXISTS(SELECT 1 FROM `market_items` WHERE `client_id` = ? AND (' +
 					'`available` > 0 OR `reserved` > 0 OR `escrow_gp` > 0 OR ' +
-					'(`direction` = \'sell\' AND (`qty` - `available` - `reserved` - `haggled`) * `price` > `payout`))) OR ' +
+					'(`direction` = \'sell\' AND (`qty` - `available` - `reserved` - `haggled`) * `price` - `price_adjustment` > `payout`))) OR ' +
 				'EXISTS(SELECT 1 FROM `gifts` WHERE `client_id` = ? OR (`sender_id` = ? AND (`flags` & ?) = 0)) OR ' +
 				'EXISTS(SELECT 1 FROM `trade_offers` WHERE `sender_id` = ? OR `recipient_id` = ?) OR ' +
 				'EXISTS(SELECT 1 FROM `resolved_trade_offers` WHERE `client_id` = ?) AS `blocked`'

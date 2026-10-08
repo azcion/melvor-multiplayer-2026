@@ -215,7 +215,7 @@ test('wires first-find receipt and progress-based Slag into the Crucible page', 
  assert.match(page, /mp-crucible-heat-track[\s\S]*mp-crucible-grid/);
  assert.match(page, /state\.crucible_select_offering\(item\)/);
  assert.match(page, /state\.crucible_select_wish\(wish\)/);
- assert.match(page, /mp-item-icon v-if="!state\.crucible_slag\(item\)\.covered" :data-item-id="item\.id"/);
+ assert.match(page, /mp-item-icon v-show="!state\.crucible_slag\(item\)\.covered" :data-item-id="item\.id"/);
  assert.match(page, /mp-item-icon :data-item-id="wish\.item_id"/);
  assert.match(page, /state\.crucible_reclaim\(item\)/);
  assert.match(page, /state\.crucible_slag\(item\)\.covered/);

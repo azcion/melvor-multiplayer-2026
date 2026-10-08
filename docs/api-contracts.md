@@ -109,3 +109,20 @@ permissions are checked in the same transaction as settlement; losing access res
 through existing claims. Terminal claims and original command replay remain recoverable. Policy-loss cleanup never
 reverses committed purchases. Player responses omit member-proposal initiators and other Guild ballot identities or
 timestamps; founding participants, applicants and removal targets remain named as subjects of their proposals.
+
+## Page snapshots (1.6.6)
+
+`GET /api/versions` advertises `page_snapshots: true`. Clients without that capability continue using the individual
+reads. `GET /api/v2/pages/snapshot?page=transfers|guild|decisions` authenticates and charges one request, then returns
+`{ data: { "/api/logical/read?query": <existing read model>, ... } }`. The page names select fixed server-owned lists;
+unknown names return 400. All underlying Client ownership, Guild membership, Social Only, version and Alliance access
+checks remain effective. Unavailable sections return `{ status: HTTP_STATUS }` or the existing domain error model.
+
+Transfers includes Inbox, Haggles and the first page of each of the three history feeds. Guild includes Guild state,
+Council, Alliance, initial Shadowed Members and Activity; Guildless Clients receive state and discovery instead.
+Decisions includes Guild state, Council and Alliance for background badge updates. Existing routes and pagination
+remain unchanged for 1.6.5 clients. Snapshots do not claim items, acknowledge receipts or replace mutation protocols.
+
+The 1.6.6 client shares selected page reads for 15 seconds, invalidates affected reads after mutations and changed
+Events, and paces requests with acknowledgement priority. HTTP 429 applies a shared `Retry-After` cooldown; GETs retry
+once, while writes retain their existing explicit recovery protocol.

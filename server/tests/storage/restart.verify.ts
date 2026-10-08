@@ -10,6 +10,8 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	expect(alliance.json.alliance.id).toBe(state.alliance.alliance_id);
 	expect(alliance.json.alliance.shared_marketplace).toBe(0);
 	expect(alliance.json.processes.find((p: any) => p.process_id === state.alliance.process_id)).toMatchObject({ stage: 'collective', governance_version: 2, expires_at: state.alliance.expires_at, tally: { eligible: 2, aye: 0, nay: 0 } });
+	expect(await db_all('SELECT snapshot_active_count, voting_threshold FROM guild_petitions WHERE id = ?', [state.alliance.petition_id]))
+		.toEqual([{ snapshot_active_count: 1, voting_threshold: 1 }]);
 	expect(await db_all('SELECT rule_version, expires_at FROM guild_petitions WHERE id = ?', [state.alliance.petition_id]))
 		.toEqual([{ rule_version: 2, expires_at: state.alliance.expires_at }]);
 	const alliance_inbox = await get_json_with_session<any>('/api/chat/conversations', state.alliance.client.session_token);

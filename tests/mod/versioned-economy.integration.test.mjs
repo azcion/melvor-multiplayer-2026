@@ -63,17 +63,18 @@ test('real API and mod recovery expose Gifts during a blocked receipt and never 
 		items: [{ id: 'melvorD:Integration_Fish', qty: 2 }], command_id: crypto.randomUUID() }, sender.session_token);
 	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
 	const source = main.slice(main.indexOf('async function get_client_events_request('), main.indexOf('\nfunction start_client_event_polling('));
-	const state = { chat_notification_preferences: {}, events: {}, gifts: [], trades: [], resolved_trades: [], inbox_items: [] };
+	const state = { refresh_crucible: async () => {}, chat_notification_preferences: {}, events: {}, gifts: [], trades: [], resolved_trades: [], inbox_items: [] };
 	let contents;
 	const context = {
 		state, client_events_hydrated: false, session_generation: 1, client_event_revision: 0, CHAT_CAPABILITIES: '', chat_page_visible: false,
 		legacy_market_payout_migration_started: false, MOD_VERSION: '1.5.5', get_instance_storage_item: () => undefined,
 		polling: { has_pending_events: () => true }, event_snapshots, economy_command_journal: journal,
 		social_mode: { SOCIAL_MODE_FULL: 'full', SOCIAL_MODE_SOCIAL: 'social' },
-		enter_unsupported_multiplayer: () => false, check_released_mod_version() {},
+		enter_unsupported_multiplayer: () => false, check_released_mod_version() {}, maybe_auto_check_in_expedition() {},
+		read_cache: { invalidate() {} }, prepare_page_snapshot: async () => {},
 		api_get: async endpoint => (await request(endpoint, undefined, recipient.session_token)).json,
 		reconcile_economy_receipts: reconcile, invalidate_guild_state() {}, update_chat_nav() {},
-		reconcile_guild_member_social_modes() {}, update_transfer_inventory_nav() {}, update_multiplayer_nav() {},
+		reconcile_guild_member_social_modes() {}, update_transfer_inventory_nav() {}, update_multiplayer_nav() {}, update_guild_nav() {},
 		set_instance_storage_item() {}, leave_social_only_disabled_page() {},
 		reconcile_pending_gifts: () => contents = request('/api/transfers/get_contents', {
 			gift_ids: state.gifts.map(gift => gift.id), trade_ids: [], resolved_trade_ids: []

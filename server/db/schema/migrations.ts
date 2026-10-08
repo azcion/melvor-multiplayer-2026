@@ -1,3 +1,4 @@
+import { market_listing_terms_migration } from './migrations/market-listing-terms';
 import { crucible_guild_scope_migration } from './migrations/crucible-guild-scope';
 import { transfer_context_migration } from './migrations/transfer-context';
 import type { Migration } from './types';
@@ -93,4 +94,27 @@ export const migrations: Migration[] = [
 			DELETE FROM alliance_pending_slots WHERE process_id IN (SELECT id FROM alliance_processes WHERE stage='cancelled');
 		END;
 	` },
+	{ version: 165, sql: `
+		ALTER TABLE guild_memberships ADD COLUMN joined_at INTEGER NOT NULL DEFAULT 0
+			CHECK(joined_at BETWEEN 0 AND 9007199254740991);
+		UPDATE guild_memberships SET joined_at = COALESCE((
+			SELECT created_at FROM guild_activity_events
+			WHERE guild_id = guild_memberships.guild_id
+			AND source_key = 'membership:' || guild_memberships.id || ':joined'
+		), 0);
+		CREATE TRIGGER guild_membership_join_time AFTER INSERT ON guild_memberships
+		WHEN NEW.joined_at = 0 BEGIN
+			UPDATE guild_memberships SET joined_at = CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)
+			WHERE id = NEW.id;
+		END;
+		ALTER TABLE guild_petitions ADD COLUMN snapshot_active_count INTEGER
+			CHECK(snapshot_active_count IS NULL OR snapshot_active_count BETWEEN 0 AND 9007199254740991);
+		ALTER TABLE guild_petitions ADD COLUMN voting_threshold INTEGER
+			CHECK(voting_threshold IS NULL OR voting_threshold BETWEEN 1 AND 9007199254740991);
+		CREATE TRIGGER council_threshold_immutable BEFORE UPDATE OF snapshot_active_count, voting_threshold ON guild_petitions
+		WHEN OLD.voting_threshold IS NOT NULL AND
+			(NEW.voting_threshold IS NOT OLD.voting_threshold OR NEW.snapshot_active_count IS NOT OLD.snapshot_active_count)
+		BEGIN SELECT RAISE(ABORT, 'Council voting threshold is immutable'); END;
+	` },
+	market_listing_terms_migration,
 ];

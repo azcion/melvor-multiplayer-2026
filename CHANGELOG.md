@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.6
+
+- Redesigned Sell on Market with quantity steppers, All but 1 and All shortcuts, GP/SC/AP/ASC pricing, optional Alliance prices, per-player purchase limits, Haggle controls, and live listing totals. Unlimited purchases and Haggles start enabled. Purchases, negotiated payments, and refunds retain the chosen currency; existing listings and 1.6.5 clients remain compatible.
+- New Council votes lock an equal Aye/Nay requirement from the four-day active-member count. Any current Guild member can vote after 20 hours in the Guild, including returning players and later joiners. The first side to reach the requirement decides the vote; tallies remain hidden until voting.
+- Extended Council Petition expiry to 48 hours after the last ballot and Alliance proposal expiry to 96 hours after the last ballot.
+- Redesigned the Heat card with a collapsible level guide, an animated gear-and-coin heap melting into lava, progressively hotter colors and glow, and level notches labeled 0, 3, 6, and 9. The meter and Meld speed remain visible when collapsed; the guide highlights the current level.
+- Reduced API traffic when navigating Transfers and Guild, coalesced repeated refreshes, and prioritized commands and delivery acknowledgements over optional reads. Clients now pace requests and respect server throttling cooldowns.
+- Fixed transient Crucible refresh failures freezing Chat and other Multiplayer pages until a reload. Startup and page reads now recover from overlapping refresh invalidation.
+
 ## 1.6.5
 
 - Fixed mobile scrolling in Alliance pickers, Guild previews, proposal confirmations, Council heraldry and banishment pickers, and Expedition work prompts by matching the avatar picker’s native scrolling behavior.

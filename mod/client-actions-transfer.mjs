@@ -502,6 +502,15 @@ export function install_transfer_actions(runtime) {
 			this.show_member_actions(member, true);
 		},
 
+		async open_multiplayer_settings_from_options() {
+			this.member_actions_error = '';
+			await this.close_modal_and_wait('member-actions-modal');
+			queue_modal('MOD_MP_MULTIPLAYER_SETTINGS', 'multiplayer-settings-modal', '', {
+				imageUrl: '', showConfirmButton: false,
+				customClass: { popup: 'mp-multiplayer-settings-popup' }
+			}, true, false);
+		},
+
 		open_display_name_from_options() {
 			this.close_modal();
 			setTimeout(() => this.show_display_name_modal(), 0);

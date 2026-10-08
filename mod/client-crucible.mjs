@@ -65,7 +65,7 @@ export function install_crucible_actions(runtime, rules) {
 				state.crucible_error = '';
 				last_check = Date.now();
 			} catch (error) {
-				state.crucible = null;
+				// Keep the last usable snapshot through transient or invalidated reads.
 				state.crucible_error = String(error);
 			} finally {
 				state.crucible_loading = false;

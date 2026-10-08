@@ -146,6 +146,7 @@ describe('SQLite persistence probe', () => {
 			'market_haggle_claims',
 			'market_haggles',
 			'market_items',
+			'market_purchases',
 			'melvor_account_tags',
 			'melvor_accounts',
 			'multiplayer_pet_ownership',
