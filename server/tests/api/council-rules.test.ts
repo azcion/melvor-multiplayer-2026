@@ -13,15 +13,15 @@ for (const choice of ['aye', 'nay']) test(`another player's ${choice} locks with
 	await db_run('UPDATE guild_petitions SET expires_at = ? WHERE id = ?', [Date.now() + 60000, id]);
 	await post_json('/api/guilds/petitions/vote', { petition_id: id, choice }, members[1].session_token);
 	const row = (await db_all<{ expires_at: number }>('SELECT expires_at FROM guild_petitions WHERE id = ?', [id]))[0];
-	expect(row.expires_at).toBeGreaterThan(Date.now() + 48 * 3600000 - 10000);
-	expect(row.expires_at).toBeLessThanOrEqual(Date.now() + 48 * 3600000);
+	expect(row.expires_at).toBeGreaterThan(Date.now() + 24 * 3600000 - 10000);
+	expect(row.expires_at).toBeLessThanOrEqual(Date.now() + 24 * 3600000);
 	const withdrawn = await post_json<{ error_lang: string }>('/api/guilds/petitions/withdraw', { petition_id: id }, members[0].session_token);
 	expect(withdrawn.json.error_lang).toBe('MOD_MP_COUNCIL_WITHDRAW_FORBIDDEN');
 	const view = await get_json_with_session<{ petitions: { can_withdraw: boolean }[] }>('/api/guilds/council', members[0].session_token);
 	expect(view.json.petitions[0].can_withdraw).toBe(false);
 });
 
-test('own ballot permits withdrawal; legacy Petitions retain fixed expiry and withdrawal', async () => {
+test('own ballot permits withdrawal; legacy Petitions also reset expiry while retaining withdrawal', async () => {
 	for (const legacy of [false, true]) {
 		const members = await make_guild_group(['Legacy A', 'Legacy B', 'Legacy C', 'Legacy D'], 'Legacy Rules');
 		const raised = await post_json<{ petition_id: number }>('/api/guilds/petitions/raise', { type: 'appellation', name: 'Legacy renamed' }, members[0].session_token);
@@ -29,7 +29,7 @@ test('own ballot permits withdrawal; legacy Petitions retain fixed expiry and wi
 		const expiry = Date.now() + 60000;
 		await db_run('UPDATE guild_petitions SET rule_version = ?, expires_at = ? WHERE id = ?', [legacy ? 1 : 2, expiry, id]);
 		await post_json('/api/guilds/petitions/vote', { petition_id: id, choice: 'nay' }, members[legacy ? 1 : 0].session_token);
-		if (legacy) expect((await db_all('SELECT expires_at FROM guild_petitions WHERE id = ?', [id]))[0].expires_at).toBe(expiry);
+		expect((await db_all('SELECT expires_at FROM guild_petitions WHERE id = ?', [id]))[0].expires_at).toBeGreaterThan(Date.now() + 24 * 3600000 - 10000);
 		expect((await post_json<{ success: boolean }>('/api/guilds/petitions/withdraw', { petition_id: id }, members[0].session_token)).json.success).toBe(true);
 	}
 });

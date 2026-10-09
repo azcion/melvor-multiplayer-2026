@@ -1,3 +1,5 @@
+import { db } from '../db';
+import { is_admin } from '../admin_identity';
 import * as runtime from '../app-runtime';
 
 const { add_poll_options, chat_translation_worker, create_poll, delete_poll, get_request_mod_version, has_polls_capability, list_polls, session_get_route, session_post_route,
@@ -16,6 +18,19 @@ export function register_poll_routes(): void {
 		if (!has_polls_capability(url)) return 404;
 		const after = url.searchParams.get('after');
 		return result_response(list_polls(client_id, get_request_mod_version(req), after === null ? null : Number(after)));
+	});
+	session_get_route('/api/polls/responses', async (req, url, client_id) => {
+		if (!is_admin(client_id)) return 403;
+		if (!has_polls_capability(url) || !runtime.can_view_polls(get_request_mod_version(req))) return 404;
+		const poll_id = Number(url.searchParams.get('poll_id'));
+		if (!Number.isSafeInteger(poll_id) || poll_id < 1) return 400;
+		if (!db.query('SELECT id FROM polls WHERE id = ?').get(poll_id)) return 404;
+		const options = db.query<{ option_id: number; content: string }, [number]>(
+			'SELECT id AS option_id, content FROM poll_options WHERE poll_id = ? ORDER BY id').all(poll_id);
+		const votes = db.query<{ option_id: number; client_id: number; display_name: string; icon_id: string }, [number]>(
+			`SELECT vote.option_id, client.id AS client_id, client.display_name, client.icon_id FROM poll_votes vote
+			JOIN clients client ON client.id = vote.client_id WHERE vote.poll_id = ? ORDER BY vote.created_at, client.id`).all(poll_id);
+		return { options: options.map(option => ({ ...option, characters: votes.filter(vote => vote.option_id === option.option_id) })) };
 	});
 	session_post_route('/api/polls/create', async (req, url, client_id, json) => {
 		if (!has_polls_capability(url)) return 404;

@@ -22,7 +22,7 @@ test('Alliance schema preserves legacy electorate, ballots, rule version and tra
 	const job=(database.query<{id:number},[]>('SELECT id FROM chat_translation_jobs').get())!.id;
 	database.query("INSERT INTO chat_message_translations VALUES(?,'zh-CN','你好',150)").run(job);
 	for(const migration of migrations.filter(m=>m.version>=154)) apply(database,migration);
-	expect(database.query('SELECT rule_version,expires_at FROM guild_petitions').all()).toEqual([{rule_version:1,expires_at:200}]);
+	expect(database.query('SELECT rule_version,expires_at FROM guild_petitions').all()).toEqual([{rule_version:1,expires_at:86400150}]);
 	expect(database.query('SELECT choice FROM guild_petition_votes').all()).toEqual([{choice:'nay'}]);
 	expect(database.query('SELECT * FROM guild_petition_voters').all()).toEqual([{petition_id:petition,client_id:id}]);
 	expect(database.query('SELECT content FROM chat_message_translations').all()).toEqual([{content:'你好'}]);

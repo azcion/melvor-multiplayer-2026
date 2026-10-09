@@ -55,7 +55,7 @@ test('Council showcase covers all types, active variants and history without aff
 	expect((await post_json('/api/guilds/petitions/raise', { type: 'appellation', name: 'Real Council Name' }, pair.first.session_token)).json).toMatchObject({ success: true });
 	const original = (await read(pair.first.session_token)).json;
 	await db_run('INSERT INTO character_feature_testers(client_id,feature) VALUES (?,?)', [pair.first_id, 'pending']);
-	expect((await read(pair.first.session_token)).json).toEqual(original);
+	expect((await read(pair.first.session_token)).json).toEqual({ ...original, server_time: expect.any(Number) });
 	await db_run('INSERT INTO character_feature_testers(client_id,feature) VALUES (?,?)', [pair.first_id, 'council']);
 	const snapshot = (await read(pair.first.session_token)).json;
 	expect(snapshot.petitions.filter(row => row.petition_id > 0)).toEqual(original.petitions);
@@ -84,7 +84,7 @@ test('Council showcase covers all types, active variants and history without aff
 	expect((await read(pair.second.session_token)).json.petitions.every(row => row.petition_id > 0)).toBe(true);
 	expect((await read(pair.first.session_token, 1)).json.petitions.filter(row => row.synthetic).map(row => row.petition_id)).toEqual(active.map(row => row.petition_id));
 	await db_run('DELETE FROM character_feature_testers WHERE client_id=? AND feature=?', [pair.first_id, 'council']);
-	expect((await read(pair.first.session_token)).json).toEqual(original);
+	expect((await read(pair.first.session_token)).json).toEqual({ ...original, server_time: expect.any(Number) });
 });
 
 test('Council preview vote and withdraw enforce fixture affordances and never write real decisions', async () => {

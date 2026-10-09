@@ -1,4 +1,4 @@
-export const PETITION_LIFETIME = 1000 * 60 * 60 * 48;
+export const PETITION_LIFETIME = 1000 * 60 * 60 * 24;
 export const COUNCIL_HISTORY_PAGE_SIZE = 20;
 export const COUNCIL_MAINTENANCE_INTERVAL = 1000 * 30;
 export const PETITION_RUNNING_STALE_AFTER = 1000 * 60 * 5;

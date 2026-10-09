@@ -76,7 +76,7 @@
 	"MOD_MP_CRUCIBLE_WISH_INVALID": "Escolha um item elegível e uma quantidade de 1 a 100.",
 	"MOD_MP_CRUCIBLE_CLEAR_LEVEL": "Nível de limpeza de escória:",
 	"MOD_MP_CRUCIBLE_CLEARING_TITLE": "Limpeza de escória",
-	"MOD_MP_CRUCIBLE_CLEAR_INFO": "Gaste moedas para remover mais escória durante dois dias. Um desejo repõe o seu bónus em -10 e limita-o a um máximo de 10. O bónus de remoção de escória é partilhado pelas personagens da mesma conta nesta guilda.",
+	"MOD_MP_CRUCIBLE_CLEAR_INFO": "Gaste moedas para remover mais escória durante dois dias. Um desejo repõe o seu bónus em -10 e limita-o a um máximo de 10.",
 	"MOD_MP_CRUCIBLE_CLEAR": "Limpe a escória",
 	"MOD_MP_CRUCIBLE_CLEAR_MAX": "Limpar até ao máximo",
 	"MOD_MP_CRUCIBLE_CLEAR_QUOTE": "Aumente seu bônus de limpeza de escória em 1 nível.",
@@ -1316,5 +1316,11 @@
 	"MOD_MP_RAID_SCHEDULE": "Todas as sextas-feiras às 12:00 UTC até segunda-feira às 12:00 UTC.",
 	"MOD_MP_RAID_SCHEDULE_LOCAL": "A tua hora local: %s",
 	"MOD_MP_RAID_ENTRY_ENDS_IN": "Termina em %s",
-	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "O Raid do fim de semana começou."
+	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "O Raid do fim de semana começou.",
+	"MOD_MP_CHAT_SHOW_REACTIONS": "Mostrar reações",
+	"MOD_MP_CHAT_SHOW_SEEN": "Mostrar quem leu",
+	"MOD_MP_POLLS_SHOW_RESPONSES": "Mostrar respostas",
+	"MOD_MP_LAST_ACTIVE": "Última atividade",
+	"MOD_MP_ADMIN_DETAILS_EMPTY": "Nenhum",
+	"MOD_MP_CHAT_SEEN_INFO": "Com base nas confirmações de leitura registadas. Entrar num chat partilhado ou reativá-lo pode marcar mensagens anteriores como lidas."
 }

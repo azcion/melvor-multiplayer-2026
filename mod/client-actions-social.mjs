@@ -740,19 +740,26 @@ export function install_social_actions(runtime) {
 				: getLangString('MOD_MP_COUNCIL_ACTION_PENDING');
 		},
 
-		get_council_tally_width(petition, choice) {
-			if (!petition.tally || petition.tally.eligible === 0)
-				return '0%';
-			const count = choice === 'uncast' ? Math.max(0, petition.tally.eligible - petition.tally.aye - petition.tally.nay) : petition.tally[choice];
-			return (count / petition.tally.eligible * 100) + '%';
+		get_council_tally_width(petition, choice, alliance = false) {
+			if (!petition.tally) return '0%';
+			const total = alliance ? petition.tally.eligible : petition.tally.aye + petition.tally.nay;
+			if (!total) return '0%';
+			const count = choice === 'uncast' ? Math.max(0, total - petition.tally.aye - petition.tally.nay) : petition.tally[choice];
+			return (count / total * 100) + '%';
+		},
+
+		get_council_time_remaining(petition) {
+			if (petition.lifecycle !== 'active') return '';
+			const minutes = Math.max(0, Math.floor((petition.expires_at - this.council_update_time) / 60_000));
+			const hours = Math.floor(minutes / 60);
+			return hours > 0 ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
 		},
 
 		get_tally_threshold(petition, alliance = false) {
+			if (!alliance) return '50%';
 			const eligible = petition.tally?.eligible ?? 0;
 			if (!eligible) return '0%';
-			const required = petition.tally.required_aye ?? (alliance
-				? Math.floor(eligible / 2) + 1
-				: Math.ceil(eligible / 2));
+			const required = petition.tally.required_aye ?? Math.floor(eligible / 2) + 1;
 			return Math.min(100, required / eligible * 100) + '%';
 		},
 

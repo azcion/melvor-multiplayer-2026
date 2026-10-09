@@ -4178,7 +4178,9 @@ span:has([lang-id="MOD_MP_TRANSFER_HISTORY_RECONSTRUCTED"]) {
 .mp-alliance-roster-name:focus-visible { outline: 2px solid #6adbac; outline-offset: 2px; }
 .mp-council-threshold { transform: translateX(-100%); }
 
-.mp-council-counts { display: flex; justify-content: space-between; gap: .5rem; margin-top: .3rem; font-size: .75rem; color: #c4d0d5; }
+.mp-council-counts { display: grid; grid-template-columns: 1fr auto 1fr; gap: .5rem; margin-top: .3rem; font-size: .75rem; color: #c4d0d5; }
+.mp-council-counts > span:nth-child(2) { text-align: center; }
+.mp-council-counts > span:last-child { text-align: right; }
 
 .mp-policy-card { padding: .8rem; border: 1px solid #45616b; border-radius: .35rem; background: #1c303b; }
 .mp-policy-card-header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .5rem; }

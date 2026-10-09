@@ -79,7 +79,10 @@ describe('Banishment execution and returns', () => {
 
 		const petition = await raise_banishment(petitioner.session_token, target.client_id);
 		await vote_aye(petitioner.session_token, petition.json.petition_id);
-		const granted = await vote_aye(buyer.session_token, petition.json.petition_id);
+		const waiting = await vote_aye(buyer.session_token, petition.json.petition_id);
+		expect(waiting.json.lifecycle).toBe('active');
+		await vote_aye(counterpart.session_token, petition.json.petition_id);
+		const granted = await post_json<{ lifecycle: string }>('/api/guilds/petitions/vote', { petition_id: petition.json.petition_id, choice: 'nay' }, target.session_token);
 		expect(granted.json.lifecycle).toBe('granted');
 		expect((await get_json_with_session<{ affiliation: string }>(
 			'/api/guilds/state', target.session_token

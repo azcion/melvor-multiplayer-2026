@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.8
+
+- Council Petitions now decide from cast Aye/Nay votes when voting closes, including in-progress Petitions. Their bars show cast-vote proportions, a midpoint notch, and a remaining-time countdown. Guild-cast Alliance decisions retain their majority requirement.
+- Shortened the Crucible Slag-clearing description in every language.
+- Disabled Buy Order Haggle and Sell actions when no matching items are owned, and allowed direct fulfillment of orders that disable Haggles.
+- Expanded admin Chat actions with Delete for Everyone across all chats, reaction details, and read acknowledgements.
+- Added Last Active to admin character profile details.
+- Moved Add Options and Delete Poll to timestamp actions and added admin response details.
+
 ## 1.6.7
 
 - Crucible Offering tiles show per-player reclaim locks in the bottom-right corner, clear of contributor avatars.

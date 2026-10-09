@@ -76,7 +76,7 @@
 	"MOD_MP_CRUCIBLE_WISH_INVALID": "Choisissez un article éligible et une quantité de 1 à 100.",
 	"MOD_MP_CRUCIBLE_CLEAR_LEVEL": "Niveau d'élimination des scories :",
 	"MOD_MP_CRUCIBLE_CLEARING_TITLE": "Déblaiement des scories",
-	"MOD_MP_CRUCIBLE_CLEAR_INFO": "Dépensez des pièces pour éliminer davantage de scories pendant deux jours. Un souhait réinitialise votre bonus à -10 et le plafonne à 10. Le bonus de nettoyage des scories est partagé par les personnages du même compte dans cette guilde.",
+	"MOD_MP_CRUCIBLE_CLEAR_INFO": "Dépensez des pièces pour éliminer davantage de scories pendant deux jours. Un souhait réinitialise votre bonus à -10 et le plafonne à 10.",
 	"MOD_MP_CRUCIBLE_CLEAR": "Éliminer les scories",
 	"MOD_MP_CRUCIBLE_CLEAR_MAX": "Éliminer au maximum",
 	"MOD_MP_CRUCIBLE_CLEAR_QUOTE": "Augmentez votre bonus d'élimination des scories de 1 niveau.",
@@ -1316,5 +1316,11 @@
 	"MOD_MP_RAID_SCHEDULE": "Chaque vendredi à 12:00 UTC jusqu’au lundi à 12:00 UTC.",
 	"MOD_MP_RAID_SCHEDULE_LOCAL": "Votre heure locale : %s",
 	"MOD_MP_RAID_ENTRY_ENDS_IN": "Se termine dans %s",
-	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "Le raid du week-end a commencé."
+	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "Le raid du week-end a commencé.",
+	"MOD_MP_CHAT_SHOW_REACTIONS": "Voir les réactions",
+	"MOD_MP_CHAT_SHOW_SEEN": "Voir les lecteurs",
+	"MOD_MP_POLLS_SHOW_RESPONSES": "Voir les réponses",
+	"MOD_MP_LAST_ACTIVE": "Dernière activité",
+	"MOD_MP_ADMIN_DETAILS_EMPTY": "Aucun",
+	"MOD_MP_CHAT_SEEN_INFO": "Selon les confirmations de lecture enregistrées. Rejoindre ou réactiver une discussion partagée peut marquer les anciens messages comme lus."
 }

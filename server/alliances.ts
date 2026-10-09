@@ -1,3 +1,4 @@
+import { PETITION_LIFETIME } from './council';
 import { snapshot_council_threshold } from './council-voting';
 import type { JsonObject } from './http';
 import { db, get_service_setting } from './db';
@@ -48,7 +49,7 @@ function council_petition(guild_id: number, client_id: number, p: AllianceProces
 	const guild = db.query<{ name: string }, [number]>('SELECT name FROM guilds WHERE id = ?').get(guild_id)!;
 	const id = Number(db.query(`INSERT INTO guild_petitions
 		(guild_id,guild_name,type,conflict_subject,petitioner_id,created_at,expires_at,rule_version)
-		VALUES(?,?,?,?,?,?,?,2)`).run(guild_id, guild.name, type, `alliance:${p.id}:${role}`, client_id, now, p.expires_at).lastInsertRowid);
+		VALUES(?,?,?,?,?,?,?,2)`).run(guild_id, guild.name, type, `alliance:${p.id}:${role}`, client_id, now, Math.min(p.expires_at, now + PETITION_LIFETIME)).lastInsertRowid);
 	snapshot_council_threshold(id, guild_id, now);
 	db.query('INSERT INTO alliance_process_petitions VALUES(?,?,?)').run(id, p.id, role);
 	return id;
@@ -56,9 +57,6 @@ function council_petition(guild_id: number, client_id: number, p: AllianceProces
 function extend(p: AllianceProcess, now: number) {
 	const expires_at = now + PROPOSAL_LIFETIME;
 	db.query('UPDATE alliance_processes SET expires_at = ? WHERE id = ?').run(expires_at, p.id);
-	db.query(`UPDATE guild_petitions SET expires_at = ? WHERE lifecycle = 'active'
-		AND id IN (SELECT petition_id FROM alliance_process_petitions WHERE process_id = ?)`)
-		.run(expires_at, p.id);
 	revise();
 }
 export function alliance_ballot_activity(petition_id: number, now: number) {

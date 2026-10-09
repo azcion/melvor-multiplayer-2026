@@ -251,9 +251,8 @@ export function install_common_actions(runtime) {
 		},
 
 		can_moderate_chat_messages() {
-			const kind = this.selected_chat_conversation?.conversation_kind;
-			return (kind === 'alliance' || kind === 'global' || kind === 'guild' || kind === 'testers') &&
-				this.selected_chat_conversation?.can_moderate === true;
+			return (this.chat_is_admin || this.selected_chat_conversation?.can_moderate === true) &&
+				Number.isSafeInteger(this.selected_chat_message?.message_id) && this.selected_chat_message.message_id > 0;
 		},
 
 		get_pet_icon(id) {

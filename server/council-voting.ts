@@ -42,3 +42,24 @@ export function resolve_threshold_vote(threshold: number, aye: number, nay: numb
 	if (nay >= threshold) return 'denied';
 	return null;
 }
+
+// Ballots remain durable; only current, active, eligible members hold voting open.
+export function resolve_council_vote(petition: Pick<guild_petitions, 'id' | 'guild_id' | 'voting_threshold' | 'expires_at'>,
+	now: number, database: Database = db): 'granted' | 'denied' | null {
+	const tally = database.query<{ aye: number; nay: number }, [number]>(`SELECT
+		COALESCE(SUM(choice='aye'), 0) AS aye, COALESCE(SUM(choice='nay'), 0) AS nay
+		FROM guild_petition_votes WHERE petition_id=?`).get(petition.id)!;
+	if (petition.expires_at > now) {
+		// An empty electorate alone must not resolve a newly raised, unvoted Petition.
+		if (tally.aye + tally.nay === 0) return null;
+		const uncast = database.query(`SELECT 1 FROM guild_memberships m JOIN clients c ON c.id=m.client_id
+			WHERE m.guild_id=? AND c.last_multiplayer_active_at>=?
+			AND ((? IS NOT NULL AND m.joined_at<=?) OR (? IS NULL AND EXISTS (
+				SELECT 1 FROM guild_petition_voters v WHERE v.petition_id=? AND v.client_id=m.client_id)))
+			AND NOT EXISTS (SELECT 1 FROM guild_petition_votes v WHERE v.petition_id=? AND v.client_id=m.client_id)
+			LIMIT 1`).get(petition.guild_id, now - 4 * 86400000, petition.voting_threshold,
+				now - COUNCIL_MEMBERSHIP_WAIT, petition.voting_threshold, petition.id, petition.id);
+		if (uncast !== null) return null;
+	}
+	return tally.aye > tally.nay ? 'granted' : 'denied';
+}

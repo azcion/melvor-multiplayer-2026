@@ -67,7 +67,7 @@ test('renders local skill icons and levels while keeping activity in the member 
 	assert.match(member_modal, /state\.format_member_account_age\(state\.selected_guild_member\.account_age\)/);
 	assert.match(member_modal, /state\.format_member_total_skill_level\(state\.selected_guild_member\.total_skill_level\)/);
 	assert.match(member_modal, /<div class="mp-member-shared-stats">[\s\S]*<\/div>/);
-	assert.equal((member_modal.match(/class="mp-member-shared-stat-label"/g) ?? []).length, 5);
+	assert.equal((member_modal.match(/class="mp-member-shared-stat-label"/g) ?? []).length, 6);
 	assert.match(member_modal, /MOD_MP_PAGE_GUILD[\s\S]*state\.selected_guild_member\.guild_name/);
 	assert.match(main, /activity\.area_id === null \? null : game\.combatAreas\?\.getObjectByID\(activity\.area_id\)/);
 	assert.match(main, /is_official_game_id\(area\?\.id\) && area\.media/);

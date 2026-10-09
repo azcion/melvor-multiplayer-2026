@@ -151,6 +151,7 @@ describe('SQLite persistence probe', () => {
 			'melvor_accounts',
 			'multiplayer_pet_ownership',
 			'poll_deletions',
+			'poll_discussion_message_moderation',
 			'poll_discussion_message_reactions',
 			'poll_discussion_messages',
 			'poll_discussion_read_state',

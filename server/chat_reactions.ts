@@ -1,3 +1,4 @@
+import { is_admin } from './admin_identity';
 import { db } from './db';
 import { chat_shadow_visibility } from './chat_shadowban';
 import { can_access_support_conversation } from './support_chat';
@@ -52,7 +53,7 @@ const conversation_columns: Record<Exclude<ChatMessageKind, 'global' | 'testers'
 	'poll-discussion': 'poll_id'
 };
 
-function message_is_visible(client_id: number, kind: ChatMessageKind, conversation_id: number, message_id: number): boolean {
+export function message_is_visible(client_id: number, kind: ChatMessageKind, conversation_id: number, message_id: number, include_moderated = false): boolean {
 	if (kind === 'private') {
 		return db.query<{ visible: number }, [number, number, number, number, number, number]>(
 			'SELECT EXISTS(SELECT 1 FROM `chat_messages` AS message ' +
@@ -61,8 +62,8 @@ function message_is_visible(client_id: number, kind: ChatMessageKind, conversati
 			'WHERE message.`id` = ? AND message.`conversation_id` = ? AND participant.`client_id` = ? ' +
 			`AND ${chat_shadow_visibility()} ` +
 			'AND message.`id` > participant.`hidden_through_message_id` ' +
-			'AND NOT EXISTS (SELECT 1 FROM `chat_message_deletions` AS deletion ' +
-			'WHERE deletion.`message_id` = message.`id` AND deletion.`client_id` = ?)) AS `visible`'
+			(include_moderated ? 'AND (1 OR ' : 'AND (') + 'NOT EXISTS (SELECT 1 FROM `chat_message_deletions` AS deletion ' +
+			'WHERE deletion.`message_id` = message.`id` AND deletion.`client_id` = ?))) AS `visible`'
 		).get(message_id, conversation_id, client_id, client_id, client_id, client_id)?.visible === 1;
 	}
 	if (kind === 'alliance') {
@@ -106,7 +107,7 @@ function message_is_visible(client_id: number, kind: ChatMessageKind, conversati
 			'SELECT EXISTS(SELECT 1 FROM `poll_discussion_messages` AS message ' +
 			'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` ' +
 			'WHERE message.`id` = ? AND message.`poll_id` = ? AND ' +
-			`${chat_shadow_visibility()}) AS \`visible\``
+			`${include_moderated ? '1' : 'NOT EXISTS(SELECT 1 FROM poll_discussion_message_moderation WHERE message_id = message.id)'} AND ${chat_shadow_visibility()}) AS \`visible\``
 		).get(message_id, conversation_id, client_id, client_id)?.visible === 1;
 	}
 	if (!can_access_support_conversation(client_id, conversation_id))
@@ -114,8 +115,8 @@ function message_is_visible(client_id: number, kind: ChatMessageKind, conversati
 	return db.query<{ visible: number }, [number, number]>(
 		'SELECT EXISTS(SELECT 1 FROM `support_messages` AS message ' +
 		'WHERE message.`id` = ? AND message.`conversation_id` = ? ' +
-		'AND NOT EXISTS (SELECT 1 FROM `support_message_moderation` AS moderation ' +
-		'WHERE moderation.`message_id` = message.`id`)) AS `visible`'
+		(include_moderated ? 'AND (1 OR ' : 'AND (') + 'NOT EXISTS (SELECT 1 FROM `support_message_moderation` AS moderation ' +
+		'WHERE moderation.`message_id` = message.`id`))) AS `visible`'
 	).get(message_id, conversation_id)?.visible === 1;
 }
 
@@ -224,4 +225,65 @@ export function set_message_reaction(client_id: number, kind: ChatMessageKind, c
 			reaction_revision
 		} };
 	}).immediate();
+}
+
+// Admin reads share the reaction visibility boundary: no cross-conversation discovery.
+export function admin_message_details(viewer_id: number, kind: ChatMessageKind, conversation_id: number, message_id: number) {
+	if (!is_admin(viewer_id)) return null;
+	if (!message_is_visible(viewer_id, kind, conversation_id, message_id)) return null;
+	const reactions = db.query<{ reaction: string; client_id: number; display_name: string; icon_id: string }, [number]>(
+		`SELECT reaction.reaction, client.id AS client_id, client.display_name, client.icon_id
+		FROM ${reaction_tables[kind]} reaction JOIN clients client ON client.id = reaction.client_id
+		WHERE reaction.message_id = ? ORDER BY reaction.created_at, client.id`
+	).all(message_id);
+	let reads: string;
+	let values: number[];
+	if (kind === 'private') {
+		reads = 'SELECT client_id FROM chat_message_reads WHERE message_id = ?';
+		values = [message_id];
+	} else if (kind === 'support') {
+		reads = `SELECT client_id FROM support_player_message_reads WHERE message_id = ?
+			UNION SELECT membership.client_id FROM support_member_message_reads read
+			JOIN support_team_memberships membership ON membership.id = read.membership_id WHERE read.message_id = ?`;
+		values = [message_id, message_id];
+	} else {
+		const table = kind === 'poll-discussion' ? 'poll_discussion_read_state' :
+			kind === 'testers' ? 'tester_chat_read_state' : kind + '_chat_read_state';
+		const scope = kind === 'global' || kind === 'testers' ? '' : ` AND ${conversation_columns[kind]} = ?`;
+		reads = `SELECT client_id FROM ${table} WHERE last_read_message_id >= ?${scope}`;
+		values = scope ? [message_id, conversation_id] : [message_id];
+	}
+	const seen = db.query<{ client_id: number; display_name: string; icon_id: string }, number[]>(
+		`SELECT id AS client_id, display_name, icon_id FROM clients WHERE id IN (${reads}) ORDER BY display_name COLLATE NOCASE, id`
+	).all(...values);
+	return { reactions, seen };
+}
+
+export function moderate_additional_chat_message(viewer_id: number, kind: 'private' | 'support' | 'poll-discussion',
+	conversation_id: number, message_id: number, now = Date.now()): boolean {
+	if (!is_admin(viewer_id) || !message_is_visible(viewer_id, kind, conversation_id, message_id, true)) return false;
+	return db.transaction(() => {
+		if (kind === 'private') {
+			// Retain the immutable Message and its idempotency key; hide it for both participants.
+			db.query(`INSERT INTO chat_message_deletions(message_id, client_id, deleted_at)
+				SELECT ?, client_id, ? FROM chat_participants WHERE conversation_id = ? ON CONFLICT DO NOTHING`)
+				.run(message_id, now, conversation_id);
+		} else {
+			const table = kind === 'support' ? 'support_message_moderation' : 'poll_discussion_message_moderation';
+			db.query(`INSERT INTO ${table}(message_id, deleted_at) VALUES(?, ?) ON CONFLICT DO NOTHING`).run(message_id, now);
+		}
+		return true;
+	}).immediate();
+}
+
+export function message_moderation_count(kind: ChatMessageKind, viewer_id: number, conversation_id: number): number | undefined {
+	if (kind === 'private') return db.query<{ count: number }, [number, number]>(
+		`SELECT COUNT(*) AS count FROM chat_message_deletions deletion JOIN chat_messages message ON message.id = deletion.message_id
+		WHERE message.conversation_id = ? AND deletion.client_id = ?`).get(conversation_id, viewer_id)?.count ?? 0;
+	if (kind !== 'support' && kind !== 'poll-discussion') return undefined;
+	const table = kind === 'support' ? 'support' : 'poll_discussion';
+	const column = kind === 'support' ? 'conversation_id' : 'poll_id';
+	return db.query<{ count: number }, [number]>(
+		`SELECT COUNT(*) AS count FROM ${table}_message_moderation moderation JOIN ${table}_messages message
+		ON message.id = moderation.message_id WHERE message.${column} = ?`).get(conversation_id)?.count ?? 0;
 }

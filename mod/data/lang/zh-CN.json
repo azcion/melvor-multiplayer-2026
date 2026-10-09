@@ -76,7 +76,7 @@
 	"MOD_MP_CRUCIBLE_WISH_INVALID": "请选择符合条件的物品，数量为 1 至 100。",
 	"MOD_MP_CRUCIBLE_CLEAR_LEVEL": "炉渣清理等级：",
 	"MOD_MP_CRUCIBLE_CLEARING_TITLE": "清理炉渣",
-	"MOD_MP_CRUCIBLE_CLEAR_INFO": "花费货币可在两天内清理更多炉渣。许愿会将加成重置为 -10，并将其上限设为 10。 本公会中同一账号的角色共享清除炉渣加成。",
+	"MOD_MP_CRUCIBLE_CLEAR_INFO": "花费货币可在两天内清理更多炉渣。许愿会将加成重置为 -10，并将其上限设为 10。",
 	"MOD_MP_CRUCIBLE_CLEAR": "清理炉渣",
 	"MOD_MP_CRUCIBLE_CLEAR_MAX": "清理至上限",
 	"MOD_MP_CRUCIBLE_CLEAR_QUOTE": "将炉渣清理加成提高 1 级。",
@@ -1316,5 +1316,11 @@
 	"MOD_MP_RAID_SCHEDULE": "每周五 12:00 UTC 至周一 12:00 UTC。",
 	"MOD_MP_RAID_SCHEDULE_LOCAL": "你的当地时间：%s",
 	"MOD_MP_RAID_ENTRY_ENDS_IN": "距离结束还有%s",
-	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "周末团队突袭已开始。"
+	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "周末团队突袭已开始。",
+	"MOD_MP_CHAT_SHOW_REACTIONS": "查看反应",
+	"MOD_MP_CHAT_SHOW_SEEN": "查看已读角色",
+	"MOD_MP_POLLS_SHOW_RESPONSES": "查看回答",
+	"MOD_MP_LAST_ACTIVE": "最后活跃时间",
+	"MOD_MP_ADMIN_DETAILS_EMPTY": "无",
+	"MOD_MP_CHAT_SEEN_INFO": "根据已记录的已读确认。加入或重新启用共享聊天可能会将较早的消息标记为已读。"
 }

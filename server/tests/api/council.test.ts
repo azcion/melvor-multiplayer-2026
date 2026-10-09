@@ -106,7 +106,8 @@ describe('Council API', () => {
 		const granted = await post_json<{ success: boolean; lifecycle: string }>('/api/guilds/petitions/vote', {
 			petition_id, choice: 'aye'
 		}, members[2].session_token);
-		expect(granted.json.lifecycle).toBe('granted');
+		expect(granted.json.lifecycle).toBe('active');
+		await db_run('UPDATE guild_petitions SET expires_at=? WHERE id=?', [Date.now(), petition_id]);
 		const resolved = (await get_council(members[1].session_token)).petitions[0];
 		expect(resolved.tally).toMatchObject({ eligible: 3, aye: 1, nay: 0, uncast: 2, required_aye: 1, required_nay: 1, snapshot_active: 2 });
 	});
@@ -158,7 +159,9 @@ describe('Council API', () => {
 			{ petition_id: raised.json.petition_id, choice: 'aye' },
 			newly_shadowed.session_token
 		);
-		expect(second_vote.json.lifecycle).toBe('granted');
+		expect(second_vote.json.lifecycle).toBe('active');
+		await db_run('UPDATE guild_petitions SET expires_at=? WHERE id=?', [Date.now(), raised.json.petition_id]);
+		await get_council(petitioner.session_token);
 		expect(await db_count(
 			'SELECT COUNT(*) AS `count` FROM `guild_memberships` WHERE `client_id` = ?',
 			[remains_shadowed.client_id]
@@ -179,7 +182,7 @@ describe('Council API', () => {
 		)).toBe(0);
 	});
 
-	test('atomically grants at the threshold and rejects duplicate or final votes', async () => {
+	test('atomically grants at full turnout and rejects duplicate or final votes', async () => {
 		const members = await make_guild_group(['Threshold A', 'Threshold B', 'Threshold C'], 'Threshold Guild');
 		const petition_id = (await raise_appellation(members[0].session_token, 'Threshold Renamed')).json.petition_id as number;
 
@@ -198,6 +201,8 @@ describe('Council API', () => {
 			{ petition_id, choice: 'aye' },
 			members[1].session_token
 		);
+		const final_vote = await post_json('/api/guilds/petitions/vote', { petition_id, choice: 'nay' }, members[2].session_token);
+		expect(final_vote.json).toMatchObject({ success: true, lifecycle: 'granted' });
 		const after_final = await post_json<{ error_lang: string }>(
 			'/api/guilds/petitions/vote',
 			{ petition_id, choice: 'nay' },
@@ -206,14 +211,14 @@ describe('Council API', () => {
 
 		expect(first.json.lifecycle).toBe('active');
 		expect(duplicate.json.error_lang).toBe('MOD_MP_COUNCIL_ALREADY_VOTED');
-		expect(second.json.lifecycle).toBe('granted');
+		expect(second.json.lifecycle).toBe('active');
 		expect(after_final.json.error_lang).toBe('MOD_MP_COUNCIL_PETITION_FINAL');
 		const resolved = (await get_council(members[2].session_token)).petitions[0];
 		expect(resolved).toMatchObject({
 			lifecycle: 'granted',
 			execution_state: 'succeeded',
 			tally_visible: true,
-			tally: { eligible: 3, aye: 2, nay: 0, uncast: 1 }
+			tally: { eligible: 3, aye: 2, nay: 1, uncast: 0 }
 		});
 	});
 
@@ -513,6 +518,7 @@ describe('Council API', () => {
 			petition_id: interdict.json.petition_id,
 			choice: 'aye'
 		}, pair.first.session_token);
+		await post_json('/api/guilds/petitions/vote', { petition_id: interdict.json.petition_id, choice: 'aye' }, pair.second.session_token);
 		const confined = await get_json_with_session<{
 			social_mode: string;
 			social_mode_enforcement: string | null;
@@ -555,6 +561,7 @@ describe('Council API', () => {
 			petition_id: heresy.json.petition_id,
 			choice: 'aye'
 		}, pair.first.session_token);
+		await post_json('/api/guilds/petitions/vote', { petition_id: heresy.json.petition_id, choice: 'aye' }, pair.second.session_token);
 		const tolerated = await get_json_with_session<{ social_mode: string; social_mode_enforcement: string | null }>(
 			'/api/events', pair.first.session_token
 		);
@@ -587,6 +594,7 @@ describe('Council API', () => {
 			petition_id: temperance.json.petition_id,
 			choice: 'aye'
 		}, pair.second.session_token);
+		await post_json('/api/guilds/petitions/vote', { petition_id: temperance.json.petition_id, choice: 'aye' }, pair.first.session_token);
 		council = await get_council(pair.first.session_token);
 		expect(council).toMatchObject({ market_discovery_restriction_enabled: true });
 		expect(council.available_petition_types).toContain('indulgence');
@@ -599,6 +607,7 @@ describe('Council API', () => {
 			petition_id: indulgence.json.petition_id,
 			choice: 'aye'
 		}, pair.second.session_token);
+		await post_json('/api/guilds/petitions/vote', { petition_id: indulgence.json.petition_id, choice: 'aye' }, pair.first.session_token);
 		council = await get_council(pair.first.session_token);
 		expect(council).toMatchObject({ market_discovery_restriction_enabled: false });
 		expect(council.available_petition_types).toContain('temperance');
@@ -663,7 +672,7 @@ describe('Council API', () => {
 		)).toBe(1);
 	});
 
-	test('lapses expired petitions during request-time catch-up without recording a vote', async () => {
+	test('denies expired unvoted petitions during request-time catch-up without recording a vote', async () => {
 		const member = await register_guild_client('Expiry Member', 'Expiry Guild');
 		const petition_id = (await raise_appellation(member.session_token, 'Expired Name')).json.petition_id as number;
 		await db_run('UPDATE `guild_petitions` SET `expires_at` = `created_at` WHERE `id` = ?', [petition_id]);
@@ -675,7 +684,7 @@ describe('Council API', () => {
 		const view = (await get_council(member.session_token)).petitions[0];
 		expect(vote.json.error_lang).toBe('MOD_MP_COUNCIL_PETITION_FINAL');
 		expect(view).toMatchObject({
-			lifecycle: 'lapsed',
+			lifecycle: 'denied',
 			tally_visible: true,
 			tally: { eligible: 1, aye: 0, nay: 0, uncast: 1 }
 		});
@@ -685,7 +694,7 @@ describe('Council API', () => {
 		)).toBe(0);
 	});
 
-	test('serializes concurrent threshold votes into one immutable result', async () => {
+	test('serializes concurrent full-turnout votes into one immutable result', async () => {
 		const members = await make_guild_group(['Race A', 'Race B', 'Race C'], 'Race Guild');
 		const petition_id = (await raise_appellation(members[0].session_token, 'Race Renamed')).json.petition_id as number;
 		const [first, second] = await Promise.all([
@@ -701,11 +710,13 @@ describe('Council API', () => {
 			)
 		]);
 
-		expect([first.json.lifecycle, second.json.lifecycle].sort()).toEqual(['active', 'granted']);
+		expect([first.json.lifecycle, second.json.lifecycle].sort()).toEqual(['active', 'active']);
 		expect(await db_count(
 			'SELECT COUNT(*) AS `count` FROM `guild_petition_votes` WHERE `petition_id` = ?',
 			[petition_id]
 		)).toBe(2);
+		expect((await get_council(members[2].session_token)).petitions[0].lifecycle).toBe('active');
+		await post_json('/api/guilds/petitions/vote', { petition_id, choice: 'nay' }, members[2].session_token);
 		expect((await get_council(members[2].session_token)).petitions[0].lifecycle).toBe('granted');
 	});
 

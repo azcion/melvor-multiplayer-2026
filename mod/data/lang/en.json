@@ -76,7 +76,7 @@
 	"MOD_MP_CRUCIBLE_WISH_INVALID": "Choose an eligible item and a quantity from 1 to 100.",
 	"MOD_MP_CRUCIBLE_CLEAR_LEVEL": "Slag clearing level:",
 	"MOD_MP_CRUCIBLE_CLEARING_TITLE": "Slag clearing",
-	"MOD_MP_CRUCIBLE_CLEAR_INFO": "Spend coins to remove more Slag for two days. A Wish resets your bonus to -10 and caps it at 10. The Slag-clearing bonus is shared by characters on the same account in this Guild.",
+	"MOD_MP_CRUCIBLE_CLEAR_INFO": "Spend coins to remove more Slag for two days. A Wish resets your bonus to -10 and caps it at 10.",
 	"MOD_MP_CRUCIBLE_CLEAR": "Clear the Slag",
 	"MOD_MP_CRUCIBLE_CLEAR_MAX": "Clear to maximum",
 	"MOD_MP_CRUCIBLE_CLEAR_QUOTE": "Increase your Slag clearing bonus by 1 level.",
@@ -1316,5 +1316,11 @@
 	"MOD_MP_RAID_SCHEDULE": "Every Friday 12:00 UTC–Monday 12:00 UTC.",
 	"MOD_MP_RAID_SCHEDULE_LOCAL": "Your local time: %s",
 	"MOD_MP_RAID_ENTRY_ENDS_IN": "Ends in %s",
-	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "The weekend Raid started."
+	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "The weekend Raid started.",
+	"MOD_MP_CHAT_SHOW_REACTIONS": "Show Reactions",
+	"MOD_MP_CHAT_SHOW_SEEN": "Show Seen",
+	"MOD_MP_POLLS_SHOW_RESPONSES": "Show Responses",
+	"MOD_MP_LAST_ACTIVE": "Last Active",
+	"MOD_MP_ADMIN_DETAILS_EMPTY": "None",
+	"MOD_MP_CHAT_SEEN_INFO": "Based on recorded read acknowledgements. Joining or re-enabling a shared chat can mark earlier messages as read."
 }

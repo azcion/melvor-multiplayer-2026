@@ -140,4 +140,20 @@ export const migrations: Migration[] = [
 			PRIMARY KEY(raid_id, client_id)
 		);
 	` },
+	{ version: 168, sql: `
+		CREATE TABLE poll_discussion_message_moderation (
+			message_id INTEGER PRIMARY KEY REFERENCES poll_discussion_messages(id) ON DELETE CASCADE,
+			deleted_at INTEGER NOT NULL CHECK(deleted_at >= 0)
+		);
+		CREATE TRIGGER event_poll_discussion_moderation AFTER INSERT ON poll_discussion_message_moderation BEGIN
+			UPDATE clients SET event_revision = event_revision + 1 WHERE deleted_at IS NULL;
+		END;
+	` },
+	{ version: 169, sql: `
+		-- Apply the new inactivity deadline to every unfinished Council Petition.
+		-- Completed results and Guild-cast Alliance ballots remain unchanged.
+		UPDATE guild_petitions SET expires_at = COALESCE((
+			SELECT MAX(submitted_at) FROM guild_petition_votes WHERE petition_id=guild_petitions.id
+		), created_at) + 86400000 WHERE lifecycle='active';
+	` },
 ];

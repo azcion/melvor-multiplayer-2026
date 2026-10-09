@@ -1,3 +1,4 @@
+import { admin_message_details, message_moderation_count, moderate_additional_chat_message, type ChatMessageKind } from '../chat_reactions';
 import { has_alliance_access } from '../alliances';
 import { get_alliance_chat_inbox, list_alliance_chat_messages, send_alliance_chat_message, moderate_alliance_chat_message, set_alliance_chat_enabled } from '../alliance_chat';
 import { normalize_chat_parts, parts_text, attach_chat_parts, compatible_chat_parts } from '../chat_parts';
@@ -27,6 +28,7 @@ export function register_chat_routes(): void {
 	}
 
 	session_get_route('/api/chat/state', async (req, url, client_id) => ({
+		is_admin: is_admin(client_id),
 		...get_chat_state(client_id),
 		...(is_client_version_at_least(get_request_mod_version(req), '1.6.0')
 			? { account_tags: get_account_tags(client_id) } : {})
@@ -42,7 +44,7 @@ export function register_chat_routes(): void {
 			'c.`skills_visible`, c.`skills_available`, status.`account_creation_date`, status.`total_skill_level`, ' +
 			'c.`game_mode_visible`, runtime.`game_mode_id`, c.`active_mods_visible`, ' +
 			'(runtime.`active_mods` IS NOT NULL AND runtime.`active_mods` <> \'[]\') AS `active_mods_available`, ' +
-			'runtime.`language`, guild.`name` AS `guild_name`, account.`cloud_username` AS `account_name` ' +
+			'c.`last_multiplayer_active_at`, runtime.`language`, guild.`name` AS `guild_name`, account.`cloud_username` AS `account_name` ' +
 			'FROM `clients` AS c ' +
 			'LEFT JOIN `melvor_accounts` AS account ON account.`id` = c.`melvor_account_id` ' +
 			'LEFT JOIN `status_snapshots` AS status ON status.`client_id` = c.`id` ' +
@@ -57,7 +59,7 @@ export function register_chat_routes(): void {
 		const admin_view = is_admin(client_id);
 		return {
 			client_id: subject_id,
-			...(admin_view ? { account_name: profile.account_name } : {}),
+			...(admin_view ? { account_name: profile.account_name, last_active_at: profile.last_multiplayer_active_at } : {}),
 			display_name: profile.display_name,
 			icon_id: profile.icon_id,
 			can_start_chat: subject_id !== client_id && privacy_allows(client_id, subject_id),
@@ -175,11 +177,25 @@ export function register_chat_routes(): void {
 		return {
 			...result.value,
 			...reaction_result.value,
+			...(conversation_id === null ? {} : { moderation_count: message_moderation_count(kind, client_id, conversation_id) }),
 			messages: attach_translations(kind === 'testers' ? 'global' : kind, client_id,
 				attach_reactions(kind, client_id, result.value.messages))
 				.map(message => compatible_chat_parts(message,
 					is_client_version_at_least(get_request_mod_version(req), '1.6.0')))
 		};
+	});
+
+	session_get_route('/api/chat/messages/details', async (req, url, client_id) => {
+		if (!is_admin(client_id)) return 403;
+		const kind = url.searchParams.get('conversation_kind') ?? 'private';
+		const conversation_id = Number(url.searchParams.get('conversation_id'));
+		const message_id = Number(url.searchParams.get('message_id'));
+		if (!['private', 'alliance', 'guild', 'global', 'testers', 'support', 'poll-discussion'].includes(kind) ||
+			![conversation_id, message_id].every(id => Number.isSafeInteger(id) && id > 0)) return 400;
+		if ((kind === 'poll-discussion' && !can_view_polls(get_request_mod_version(req))) ||
+			(kind === 'alliance' && !has_alliance_access(client_id, get_request_mod_version(req))) ||
+			(kind === 'testers' && !is_client_version_at_least(get_request_mod_version(req), '1.6.0'))) return 404;
+		return admin_message_details(client_id, kind as ChatMessageKind, conversation_id, message_id) ?? 404;
 	});
 
 	session_post_route('/api/chat/messages/reaction', async (req, url, client_id, json) => {
@@ -307,6 +323,14 @@ export function register_chat_routes(): void {
 	});
 
 	session_post_route('/api/chat/messages/delete-for-all', async (req, url, client_id, json) => {
+		if (json.conversation_kind === 'private' || json.conversation_kind === 'support' || json.conversation_kind === 'poll-discussion') {
+			if (!is_admin(client_id)) return 403;
+			if (typeof json.message_id !== 'number' || typeof json.conversation_id !== 'number' ||
+				![json.message_id, json.conversation_id].every(id => Number.isSafeInteger(id) && id > 0)) return 400;
+			if (json.conversation_kind === 'poll-discussion' && !can_view_polls(get_request_mod_version(req))) return 404;
+			return moderate_additional_chat_message(client_id, json.conversation_kind, json.conversation_id, json.message_id)
+				? { success: true, deleted: true } : 404;
+		}
 		if (typeof json.message_id !== 'number' ||
 			(json.conversation_kind !== 'alliance' && json.conversation_kind !== 'global' && json.conversation_kind !== 'guild' && json.conversation_kind !== 'testers'))
 			return 400;

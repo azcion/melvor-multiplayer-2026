@@ -76,7 +76,7 @@
 	"MOD_MP_CRUCIBLE_WISH_INVALID": "적격 품목을 선택하고 수량을 1부터 100까지 선택하세요.",
 	"MOD_MP_CRUCIBLE_CLEAR_LEVEL": "슬래그 제거 수준:",
 	"MOD_MP_CRUCIBLE_CLEARING_TITLE": "슬래그 제거",
-	"MOD_MP_CRUCIBLE_CLEAR_INFO": "코인을 사용하면 이틀 동안 더 많은 슬래그를 제거할 수 있습니다. 소원을 빌면 보너스가 -10으로 초기화되고 상한이 10으로 제한됩니다. 슬래그 제거 보너스는 이 길드에 속한 같은 계정의 캐릭터들이 공유합니다.",
+	"MOD_MP_CRUCIBLE_CLEAR_INFO": "코인을 사용하면 이틀 동안 더 많은 슬래그를 제거할 수 있습니다. 소원을 빌면 보너스가 -10으로 초기화되고 상한이 10으로 제한됩니다.",
 	"MOD_MP_CRUCIBLE_CLEAR": "슬래그 제거",
 	"MOD_MP_CRUCIBLE_CLEAR_MAX": "최대 단계까지 제거",
 	"MOD_MP_CRUCIBLE_CLEAR_QUOTE": "슬래그 제거 보너스를 1레벨 늘립니다.",
@@ -1316,5 +1316,11 @@
 	"MOD_MP_RAID_SCHEDULE": "매주 금요일 12:00 UTC부터 월요일 12:00 UTC까지.",
 	"MOD_MP_RAID_SCHEDULE_LOCAL": "현지 시간: %s",
 	"MOD_MP_RAID_ENTRY_ENDS_IN": "종료까지 %s",
-	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "주말 레이드가 시작되었습니다."
+	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "주말 레이드가 시작되었습니다.",
+	"MOD_MP_CHAT_SHOW_REACTIONS": "반응 보기",
+	"MOD_MP_CHAT_SHOW_SEEN": "읽은 캐릭터 보기",
+	"MOD_MP_POLLS_SHOW_RESPONSES": "응답 보기",
+	"MOD_MP_LAST_ACTIVE": "마지막 활동",
+	"MOD_MP_ADMIN_DETAILS_EMPTY": "없음",
+	"MOD_MP_CHAT_SEEN_INFO": "기록된 읽음 확인을 기준으로 합니다. 공유 채팅에 참여하거나 다시 활성화하면 이전 메시지가 읽음으로 표시될 수 있습니다."
 }

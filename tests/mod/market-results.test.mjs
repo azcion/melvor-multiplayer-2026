@@ -848,3 +848,45 @@ test('passes currency support into the Charitree action module', () => {
 	assert.equal(state.get_charity_take_quantity({ id: 'test:currency', qty: 33_000 }), 5_000);
 	assert.equal(state.get_charity_take_block({ id: 'test:currency', qty: 33_000 }), null);
 });
+
+
+test('Buy Order buttons follow owned quantity without requiring the entire order stack', async () => {
+	const templates = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
+	const disabled = action => {
+		const button = templates.match(new RegExp(`<button[^>]*@click="state\\.${action}\\(item\\)"[^>]*>`))?.[0];
+		assert.ok(button, action);
+		return new Function('state', 'item', `return (${button.match(/:disabled="([^"]+)"/)[1]});`);
+	};
+	const haggle = disabled('show_market_haggle_modal');
+	const fulfill = disabled('show_market_fulfill_modal');
+	let owned = 0;
+	const state = { market_direction: 'buy', market_buyable: item => Math.min(item.available, item.buyable ?? item.available), get_market_item_owned_qty: () => owned };
+	const item = { direction: 'buy', item_id: 'melvorD:Logs', available: 10 };
+	assert.equal(haggle(state, item), true);
+	assert.equal(fulfill(state, item), true);
+	owned = 1;
+	assert.equal(haggle(state, item), false);
+	assert.equal(fulfill(state, item), false);
+	item.allow_haggles = false;
+	assert.equal(haggle(state, item), true);
+	assert.equal(fulfill(state, item), false);
+	item.available = 0;
+	assert.equal(fulfill(state, item), true);
+	item.available = 10; item.allow_haggles = true;
+	owned = 0; state.market_direction = 'sell';
+	assert.equal(haggle(state, item), false);
+});
+
+test('direct fulfillment remains available when the order disables Haggles', () => {
+	let owned = 0;
+	const modals = [];
+	const state = { market_buyable: item => item.available, get_market_item_owned_qty: () => owned, get_item_name: () => 'Logs', get_item_icon: () => 'logs.svg' };
+	const actions = install_market_charity_actions({ state, is_local_item_available: () => true, queue_modal: (...args) => modals.push(args) });
+	const item = { direction: 'buy', item_id: 'melvorD:Logs', available: 10, allow_haggles: false };
+	actions.show_market_fulfill_modal.call(state, item);
+	assert.equal(modals.length, 0);
+	owned = 1;
+	actions.show_market_fulfill_modal.call(state, item);
+	assert.equal(modals.length, 1);
+	assert.equal(state.market_fulfill_item, item);
+});

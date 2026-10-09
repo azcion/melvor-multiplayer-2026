@@ -1,15 +1,17 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { get_owned_dlc } from '../../mod/client-runtime.mjs';
+import { is_item_available_for_owned_dlc } from '../../mod/item-visibility.mjs';
 import { get_transfer_currencies, get_transfer_currency } from '../../mod/transfer-currencies.mjs';
 
 const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
-function fixture(owned = 261) {
-	const game = { gp: { id: 'melvorD:GP', amount: 500, media: 'gp.svg' }, slayerCoins: { id: 'melvorD:SlayerCoins', amount: 20, media: 'sc.svg' } };
+function fixture(owned = 261, cloud = {}) {
+	const game = { gp: { id: 'melvorD:GP', amount: 500, media: 'gp.svg' }, slayerCoins: { id: 'melvorD:SlayerCoins', amount: 20, media: 'sc.svg' }, abyssalPieces: { id: 'melvorItA:AbyssalPieces', amount: 0 }, abyssalSlayerCoins: { id: 'melvorItA:AbyssalSlayerCoins', amount: 0 } };
 	const getters = main.slice(main.indexOf('\tget market_currencies()'), main.indexOf('\tget transfer_currencies()'));
 	const fields = main.slice(main.indexOf('\tbank_action_item_id:'), main.indexOf('\n\ttransfer_inventory:', main.indexOf('\tbank_action_item_id:')));
 	const state = new Function('game', 'transfer_currency_support', 'is_local_item_available', 'numberWithCommas', `return ({${fields}${getters}})`)(
-		game, { get_transfer_currencies }, () => true, n => Number(n).toLocaleString('en-US'));
+		game, { get_transfer_currencies }, id => is_item_available_for_owned_dlc(id, get_owned_dlc(cloud)), n => Number(n).toLocaleString('en-US'));
 	Object.assign(state, { item_slider_value: 1, bank_action_item_owned_qty: owned, get_transfer_currency: id => get_transfer_currency(game, id) });
 	return { state, game };
 }
@@ -107,4 +109,16 @@ test('Multiplayer Settings waits for profile closure before opening a separate m
 	assert.equal(queued.length, 1);
 	assert.equal(queued[0].imageUrl, '');
 	assert.equal(queued[0].titleText, 'MOD_MP_MULTIPLAYER_SETTINGS');
+});
+
+
+test('Sell Listing currencies require active ItA even when Abyssal currency objects are registered', () => {
+	for (const enabled of [false, true]) {
+		const { state } = fixture(261, { hasItAEntitlementAndIsEnabled: enabled });
+		assert.deepEqual(state.market_currencies.map(entry => entry.shorthand), enabled ? ['GP', 'SC', 'AP', 'ASC'] : ['GP', 'SC']);
+		state.bank_action_market_currency_id = 'melvorItA:AbyssalPieces';
+		assert.equal(state.bank_action_listing_valid, enabled);
+		state.bank_action_market_currency_id = 'melvorItA:AbyssalSlayerCoins';
+		assert.equal(state.bank_action_listing_valid, enabled);
+	}
 });

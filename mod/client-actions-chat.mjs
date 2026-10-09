@@ -681,6 +681,72 @@ export function install_chat_actions(runtime) {
 				this.chat_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 		},
 
+		show_poll_actions(poll) {
+			if (!poll?.can_edit && !poll?.can_delete && !this.chat_is_admin) return;
+			this.selected_poll = poll;
+			queue_modal('MOD_MP_CHAT_MESSAGE_ACTIONS', 'poll-actions-modal', this.get_chat_participant_icon(),
+				{ showConfirmButton: false }, true, false);
+		},
+
+		async edit_selected_poll() {
+			const poll = this.selected_poll;
+			if (!poll?.can_edit || !poll.open) return;
+			await this.close_modal_and_wait('poll-actions-modal');
+			this.show_poll_creator(poll);
+		},
+
+		async delete_selected_poll() {
+			const poll = this.selected_poll;
+			if (!poll?.can_delete) return;
+			await this.close_modal_and_wait('poll-actions-modal');
+			this.show_poll_delete_confirmation(poll);
+		},
+
+		async show_admin_details(kind) {
+			if (!this.chat_is_admin) return;
+			const conversation = this.selected_chat_conversation;
+			const message = this.selected_chat_message;
+			const poll = this.selected_poll;
+			const view_generation = runtime.chat_view_generation;
+			let endpoint;
+			if (kind === 'responses') {
+				if (!poll) return;
+				endpoint = '/api/polls/responses?capabilities=polls-v1&poll_id=' + poll.poll_id;
+			} else {
+				if (!conversation || !Number.isSafeInteger(message?.message_id) || message.message_id < 1) return;
+				endpoint = '/api/chat/messages/details?conversation_kind=' + (conversation.conversation_kind ?? 'private') +
+					'&conversation_id=' + conversation.conversation_id + '&message_id=' + message.message_id;
+			}
+			const res = await api_get(endpoint);
+			if (view_generation !== runtime.chat_view_generation ||
+				(kind === 'responses' ? this.selected_poll !== poll : this.selected_chat_message !== message)) return;
+			if (!res) return show_modal_error(getLangString('MOD_MP_GENERIC_ERR'));
+			await this.close_modal_and_wait(kind === 'responses' ? 'poll-actions-modal' : 'chat-message-actions-modal');
+			if (view_generation !== runtime.chat_view_generation) return;
+			let groups;
+			if (kind === 'responses') groups = res.options.map(option => ({
+				label: this.get_chat_message_content(poll.options.find(entry => entry.option_id === option.option_id) ?? option),
+				characters: option.characters
+			}));
+			else if (kind === 'seen') groups = [{ label: '', characters: res.seen }];
+			else {
+				const reactions = new Map();
+				for (const character of res.reactions) {
+					if (!reactions.has(character.reaction)) reactions.set(character.reaction, []);
+					reactions.get(character.reaction).push(character);
+				}
+				groups = [...reactions].map(([label, characters]) => ({ label, characters }));
+			}
+			this.admin_details_kind = kind;
+			this.admin_detail_groups = groups;
+			const title = kind === 'seen' ? 'MOD_MP_CHAT_SHOW_SEEN' :
+				kind === 'responses' ? 'MOD_MP_POLLS_SHOW_RESPONSES' : 'MOD_MP_CHAT_SHOW_REACTIONS';
+			queue_modal(title, 'admin-details-modal', this.get_chat_participant_icon(), {
+				showConfirmButton: false,
+				didClose: () => { state.admin_detail_groups = []; state.admin_details_kind = null; }
+			}, true, false);
+		},
+
 		show_poll_creator(poll = null) {
 			if (!this.poll_can_create) return;
 			this.poll_creator_content = poll?.content ?? '';
@@ -1121,7 +1187,8 @@ export function install_chat_actions(runtime) {
 				return;
 			show_button_spinner($button);
 			const res = await api_post('/api/chat/messages/delete-for-all', {
-				conversation_kind: conversation.conversation_kind,
+				conversation_kind: conversation.conversation_kind ?? 'private',
+				conversation_id: conversation.conversation_id,
 				message_id: message.message_id
 			});
 			if (!res?.success) {

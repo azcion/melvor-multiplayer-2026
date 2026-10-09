@@ -76,7 +76,7 @@
 	"MOD_MP_CRUCIBLE_WISH_INVALID": "Uygun bir ürün ve 1'den 100'e kadar bir miktar seçin.",
 	"MOD_MP_CRUCIBLE_CLEAR_LEVEL": "Cüruf temizleme seviyesi:",
 	"MOD_MP_CRUCIBLE_CLEARING_TITLE": "Cüruf temizleme",
-	"MOD_MP_CRUCIBLE_CLEAR_INFO": "İki gün boyunca daha fazla Cüruf kaldırmak için para harcayın. Bir Dilek, bonusunuzu -10'a sıfırlar ve en fazla 10 ile sınırlar. Bu loncadaki aynı hesaba ait karakterler cüruf temizleme bonusunu paylaşır.",
+	"MOD_MP_CRUCIBLE_CLEAR_INFO": "İki gün boyunca daha fazla Cüruf kaldırmak için para harcayın. Bir Dilek, bonusunuzu -10'a sıfırlar ve en fazla 10 ile sınırlar.",
 	"MOD_MP_CRUCIBLE_CLEAR": "Cürufun Temizlenmesi",
 	"MOD_MP_CRUCIBLE_CLEAR_MAX": "En üst seviyeye kadar temizle",
 	"MOD_MP_CRUCIBLE_CLEAR_QUOTE": "Cüruf temizleme bonusunuzu 1 seviye artırın.",
@@ -1316,5 +1316,11 @@
 	"MOD_MP_RAID_SCHEDULE": "Her cuma 12:00 UTC ile pazartesi 12:00 UTC arasında.",
 	"MOD_MP_RAID_SCHEDULE_LOCAL": "Yerel saatin: %s",
 	"MOD_MP_RAID_ENTRY_ENDS_IN": "%s sonra biter",
-	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "Hafta sonu baskını başladı."
+	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "Hafta sonu baskını başladı.",
+	"MOD_MP_CHAT_SHOW_REACTIONS": "Tepkileri Göster",
+	"MOD_MP_CHAT_SHOW_SEEN": "Okuyanları Göster",
+	"MOD_MP_POLLS_SHOW_RESPONSES": "Yanıtları Göster",
+	"MOD_MP_LAST_ACTIVE": "Son Etkinlik",
+	"MOD_MP_ADMIN_DETAILS_EMPTY": "Yok",
+	"MOD_MP_CHAT_SEEN_INFO": "Kaydedilen okundu onaylarına dayanır. Ortak bir sohbete katılmak veya sohbeti yeniden etkinleştirmek önceki mesajları okundu olarak işaretleyebilir."
 }

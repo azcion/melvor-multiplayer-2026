@@ -79,3 +79,56 @@ test('migration backfills current membership tenures and preserves old petitions
 		expect(db.query('PRAGMA foreign_key_check').all()).toEqual([]);
 	} finally { db.close(); }
 });
+
+test('cast majority waits for active turnout, excludes inactive and young members, and denies ties', async () => {
+	const { resolve_council_vote } = await import('../../council-voting');
+	const db = fixture();
+	const now = 10 * 86400000;
+	try {
+		db.run('UPDATE clients SET last_multiplayer_active_at=? WHERE id=1', [now]);
+		for (const id of [2, 3, 4]) {
+			db.run('INSERT INTO clients(id,client_identifier,client_key,friend_code,display_name,icon_id,last_multiplayer_active_at) VALUES(?,?,?,?,?,?,?)',
+				[id, `v${id}`, 'key', `v${id}`, 'Voter', 'melvorD:Plant', id === 3 ? now - 4 * 86400000 - 1 : now]);
+			db.run('INSERT INTO guild_memberships(client_id,guild_id,joined_at) VALUES(?,2,?)', [id, id === 4 ? now : 1000]);
+		}
+		snapshot_council_threshold(1, 2, now, db);
+		const petition = { id: 1, guild_id: 2, voting_threshold: 2, expires_at: now + 86400000 };
+		expect(resolve_council_vote(petition, now, db)).toBeNull();
+		db.run("INSERT INTO guild_petition_votes VALUES(1,1,'aye',?)", [now]);
+		expect(resolve_council_vote(petition, now, db)).toBeNull();
+		// A threshold's worth of Ayes still waits for the other active eligible member.
+		db.run('INSERT INTO guild_petition_voters VALUES(1,3)');
+		db.run("INSERT INTO guild_petition_votes VALUES(1,3,'aye',?)", [now]);
+		expect(resolve_council_vote(petition, now, db)).toBeNull();
+		expect(resolve_council_vote({ ...petition, expires_at: now }, now, db)).toBe('granted');
+		db.run("INSERT INTO guild_petition_votes VALUES(1,2,'nay',?)", [now]);
+		expect(resolve_council_vote(petition, now, db)).toBe('granted');
+		db.run('DELETE FROM guild_petition_votes WHERE client_id=3');
+		expect(resolve_council_vote(petition, now, db)).toBe('denied');
+		// Later activity and tenure can hold an unfinished vote open; departure removes that hold.
+		db.run('UPDATE guild_memberships SET joined_at=1000 WHERE client_id=4');
+		expect(resolve_council_vote(petition, now, db)).toBeNull();
+		db.run('DELETE FROM guild_memberships WHERE client_id=4');
+		expect(resolve_council_vote(petition, now, db)).toBe('denied');
+		db.run('DELETE FROM guild_petition_votes');
+		expect(resolve_council_vote({ ...petition, expires_at: now }, now, db)).toBe('denied');
+	} finally { db.close(); }
+});
+
+test('deadline migration converts unfinished petitions from last ballot and preserves finished results and Alliance votes', async () => {
+	const { migrations } = await import('../../db/schema');
+	const db = fixture();
+	try {
+		db.run('INSERT INTO guild_petition_voters VALUES(1,1)');
+		db.run("INSERT INTO guild_petition_votes VALUES(1,1,'aye',2000)");
+		db.run("INSERT INTO guild_petitions(id,guild_id,guild_name,type,conflict_subject,petitioner_id,created_at,expires_at,rule_version,lifecycle) VALUES(2,2,'Threshold','fellowship','admission',1,3000,999999999,1,'active'),(3,2,'Threshold','fellowship','old-admission',1,3000,999999999,2,'denied')");
+		db.run(migrations.find(m => m.version === 169)!.sql);
+		expect(db.query('SELECT id,expires_at,lifecycle FROM guild_petitions ORDER BY id').all()).toEqual([
+			{ id: 1, expires_at: 2000 + 86400000, lifecycle: 'active' },
+			{ id: 2, expires_at: 3000 + 86400000, lifecycle: 'active' },
+			{ id: 3, expires_at: 999999999, lifecycle: 'denied' }
+		]);
+		expect(db.query('SELECT * FROM guild_petition_votes').all()).toEqual([{ petition_id: 1, client_id: 1, choice: 'aye', submitted_at: 2000 }]);
+		expect(db.query('PRAGMA foreign_key_check').all()).toEqual([]);
+	} finally { db.close(); }
+});

@@ -76,7 +76,7 @@
 	"MOD_MP_CRUCIBLE_WISH_INVALID": "Scegli un articolo idoneo e una quantità compresa tra 1 e 100.",
 	"MOD_MP_CRUCIBLE_CLEAR_LEVEL": "Livello di rimozione delle scorie:",
 	"MOD_MP_CRUCIBLE_CLEARING_TITLE": "Rimozione delle scorie",
-	"MOD_MP_CRUCIBLE_CLEAR_INFO": "Spendi monete per rimuovere più scorie per due giorni. Un Desiderio reimposta il tuo bonus a -10 e lo limita a un massimo di 10. Il bonus di rimozione delle scorie è condiviso dai personaggi dello stesso account in questa gilda.",
+	"MOD_MP_CRUCIBLE_CLEAR_INFO": "Spendi monete per rimuovere più scorie per due giorni. Un Desiderio reimposta il tuo bonus a -10 e lo limita a un massimo di 10.",
 	"MOD_MP_CRUCIBLE_CLEAR": "Elimina le scorie",
 	"MOD_MP_CRUCIBLE_CLEAR_MAX": "Pulisci fino al massimo",
 	"MOD_MP_CRUCIBLE_CLEAR_QUOTE": "Aumenta il tuo bonus di eliminazione delle scorie di 1 livello.",
@@ -1316,5 +1316,11 @@
 	"MOD_MP_RAID_SCHEDULE": "Ogni venerdì alle 12:00 UTC fino a lunedì alle 12:00 UTC.",
 	"MOD_MP_RAID_SCHEDULE_LOCAL": "La tua ora locale: %s",
 	"MOD_MP_RAID_ENTRY_ENDS_IN": "Termina tra %s",
-	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "Il raid del fine settimana è iniziato."
+	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "Il raid del fine settimana è iniziato.",
+	"MOD_MP_CHAT_SHOW_REACTIONS": "Mostra reazioni",
+	"MOD_MP_CHAT_SHOW_SEEN": "Mostra chi ha letto",
+	"MOD_MP_POLLS_SHOW_RESPONSES": "Mostra risposte",
+	"MOD_MP_LAST_ACTIVE": "Ultima attività",
+	"MOD_MP_ADMIN_DETAILS_EMPTY": "Nessuno",
+	"MOD_MP_CHAT_SEEN_INFO": "In base alle conferme di lettura registrate. Entrare in una chat condivisa o riattivarla può segnare i messaggi precedenti come letti."
 }

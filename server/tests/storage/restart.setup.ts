@@ -2,7 +2,7 @@ import { enter_transition_raid, seed_transition_raid } from '../support/raid';
 import { expect, test } from 'bun:test';
 import { allow_alliance_preview, get_events, make_guildmates, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post_json, register_client } from '../support/http';
-import { db_run } from '../support/persistence';
+import { db_all, db_run } from '../support/persistence';
 import { restart_state_path } from '../support/restart-state';
 import type { RestartState } from '../support/restart-state';
 import { wait_for } from '../support/wait';
@@ -186,6 +186,7 @@ test('creates representative state before a server restart', async () => {
 		petition_id: retry_petition.json.petition_id,
 		choice: 'aye'
 	}, pair.first.session_token);
+	await post_json('/api/guilds/petitions/vote', { petition_id: retry_petition.json.petition_id, choice: 'aye' }, pair.second.session_token);
 	await db_run("UPDATE `guilds` SET `icon_id` = 'melvorD:Farmlands' WHERE `id` = ?", [pair.guild_id]);
 	await db_run(
 		"UPDATE `guild_petitions` SET `execution_state` = 'running', `execution_last_attempt_at` = 0, " +
@@ -255,7 +256,8 @@ test('creates representative state before a server restart', async () => {
 	const pending_alliance = await get_json_with_session<any>('/api/alliances', founder.session_token);
 	const alliance = { client: founder, guild_id: founder.guild_id, alliance_id, message_id: alliance_message.json.message.message_id,
 		process_id: alliance_policy.json.process_id, petition_id: alliance_policy.json.petition_id,
-		expires_at: pending_alliance.json.processes.find((p: any) => p.process_id === alliance_policy.json.process_id).expires_at };
+		expires_at: pending_alliance.json.processes.find((p: any) => p.process_id === alliance_policy.json.process_id).expires_at,
+		petition_expires_at: (await db_all<{ expires_at: number }>('SELECT expires_at FROM guild_petitions WHERE id=?', [alliance_policy.json.petition_id]))[0].expires_at };
 
 	const state: RestartState = {
 		alliance,

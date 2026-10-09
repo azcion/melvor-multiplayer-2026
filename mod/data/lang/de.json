@@ -76,7 +76,7 @@
 	"MOD_MP_CRUCIBLE_WISH_INVALID": "Wählen Sie einen berechtigten Artikel und eine Menge von 1 bis 100.",
 	"MOD_MP_CRUCIBLE_CLEAR_LEVEL": "Schlackenräumniveau:",
 	"MOD_MP_CRUCIBLE_CLEARING_TITLE": "Schlackenbeseitigung",
-	"MOD_MP_CRUCIBLE_CLEAR_INFO": "Geben Sie Münzen aus, um zwei Tage lang mehr Schlacke zu entfernen. Ein Wunsch setzt Ihren Bonus auf -10 zurück und begrenzt ihn auf maximal 10. Der Bonus für das Entfernen von Schlacke wird von Charakteren desselben Accounts in dieser Gilde geteilt.",
+	"MOD_MP_CRUCIBLE_CLEAR_INFO": "Geben Sie Münzen aus, um zwei Tage lang mehr Schlacke zu entfernen. Ein Wunsch setzt Ihren Bonus auf -10 zurück und begrenzt ihn auf maximal 10.",
 	"MOD_MP_CRUCIBLE_CLEAR": "Beseitigen Sie die Schlacke",
 	"MOD_MP_CRUCIBLE_CLEAR_MAX": "Bis zum Maximum reinigen",
 	"MOD_MP_CRUCIBLE_CLEAR_QUOTE": "Erhöhen Sie Ihren Schlackenräumungsbonus um 1 Stufe.",
@@ -1316,5 +1316,11 @@
 	"MOD_MP_RAID_SCHEDULE": "Jeden Freitag 12:00 UTC bis Montag 12:00 UTC.",
 	"MOD_MP_RAID_SCHEDULE_LOCAL": "Deine Ortszeit: %s",
 	"MOD_MP_RAID_ENTRY_ENDS_IN": "Endet in %s",
-	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "Der Wochenend-Raid hat begonnen."
+	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "Der Wochenend-Raid hat begonnen.",
+	"MOD_MP_CHAT_SHOW_REACTIONS": "Reaktionen anzeigen",
+	"MOD_MP_CHAT_SHOW_SEEN": "Gelesen anzeigen",
+	"MOD_MP_POLLS_SHOW_RESPONSES": "Antworten anzeigen",
+	"MOD_MP_LAST_ACTIVE": "Zuletzt aktiv",
+	"MOD_MP_ADMIN_DETAILS_EMPTY": "Keine",
+	"MOD_MP_CHAT_SEEN_INFO": "Basierend auf gespeicherten Lesebestätigungen. Beim Beitreten oder erneuten Aktivieren eines gemeinsamen Chats können frühere Nachrichten als gelesen markiert werden."
 }

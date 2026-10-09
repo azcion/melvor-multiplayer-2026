@@ -1,4 +1,4 @@
-import { can_cast_council_vote, council_voter_count } from './council-voting';
+import { can_cast_council_vote, council_voter_count, resolve_council_vote } from './council-voting';
 import { register_page_read } from './page-reads';
 import { record_pending_exchange } from './transfer-history';
 import { cleanup_market_permissions } from './alliance-market';
@@ -1114,17 +1114,25 @@ export function sweep_client_session_cache() {
 }
 
 export function expire_petitions(now = Date.now()): number {
-	const expire = db.transaction(() => {
-		db.query(
-			'UPDATE `guild_petition_winnowing_targets` SET `subject_locked` = 0 WHERE `petition_id` IN (' +
-			"SELECT `id` FROM `guild_petitions` WHERE `lifecycle` = 'active' AND `expires_at` <= ?)"
-		).run(now);
-		return db.query(
-			"UPDATE `guild_petitions` SET `lifecycle` = 'lapsed', `resolved_at` = `expires_at`, " +
-			"`subject_locked` = 0 WHERE `lifecycle` = 'active' AND `expires_at` <= ?"
-		).run(now).changes;
-	});
-	return expire.immediate();
+	return db.transaction(() => {
+		let resolved = 0;
+		for (const petition of db.query<db_row.guild_petitions, []>(
+			"SELECT * FROM guild_petitions WHERE lifecycle='active'").all()) {
+			const lifecycle = resolve_council_vote(petition, now);
+			if (lifecycle === null) continue;
+			const resolved_at = Math.min(now, petition.expires_at);
+			db.query(`UPDATE guild_petitions SET lifecycle=?, resolved_at=?, execution_state=?, subject_locked=?
+				WHERE id=? AND lifecycle='active'`).run(lifecycle, resolved_at,
+					lifecycle === 'granted' ? 'pending' : 'not_applicable', lifecycle === 'granted' ? 1 : 0, petition.id);
+			if (lifecycle === 'denied') unlock_winnowing_targets(petition.id);
+			record_guild_activity({ guild_id: petition.guild_id,
+				event_type: lifecycle === 'granted' ? 'petition_carried' : 'petition_defeated',
+				source_key: `petition:${petition.id}:${lifecycle}`,
+				metadata: { petition_type: petition.type }, created_at: resolved_at });
+			resolved++;
+		}
+		return resolved;
+	}).immediate();
 }
 
 export function unlock_winnowing_targets(petition_id: number) {
@@ -2263,7 +2271,7 @@ export function guild_member_from_row(member: GuildMemberRow, now = Date.now(), 
 		activity_available: member.activity_available === 1,
 		status_activity,
 		status_activities: get_guild_member_status_activities(member, status_activity),
-		...(admin_view ? { account_name: member.account_name } : {}),
+		...(admin_view ? { account_name: member.account_name, last_active_at: member.last_multiplayer_active_at } : {}),
 		account_age,
 		total_skill_level: member.skills_visible === 1 && member.total_skill_level !== null &&
 			Number.isSafeInteger(member.total_skill_level) && member.total_skill_level >= 0

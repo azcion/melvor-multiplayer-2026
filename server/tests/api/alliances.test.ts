@@ -246,7 +246,9 @@ test('individual ballots extend a shared deadline without changing locked thresh
 	const deadline=(await db_all<{expires_at:number}>('SELECT expires_at FROM alliance_processes WHERE id=?',[policy.process_id]))[0].expires_at;
 	expect(deadline).toBeGreaterThanOrEqual(before+96*3600000);
 	expect(deadline).toBeLessThanOrEqual(Date.now()+96*3600000);
-	expect((await db_all<{expires_at:number}>('SELECT expires_at FROM guild_petitions WHERE id=?',[ballot]))[0].expires_at).toBe(deadline);
+	const council_deadline=(await db_all<{expires_at:number}>('SELECT expires_at FROM guild_petitions WHERE id=?',[ballot]))[0].expires_at;
+	expect(council_deadline).toBeGreaterThanOrEqual(before+24*3600000);
+	expect(council_deadline).toBeLessThanOrEqual(Date.now()+24*3600000);
 	expect((await db_all('SELECT client_id FROM guild_petition_voters WHERE petition_id=?',[ballot])).length).toBe(2);
 	const empty=await register_guild_client('Empty Council','Empty Council Guild');
 	await db_run('UPDATE clients SET last_multiplayer_active_at=? WHERE id=?',[Date.now()-5*86400000,empty.client_id]);

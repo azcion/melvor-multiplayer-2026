@@ -100,6 +100,7 @@ let guild_state_refresh_id = 0;
 let guild_state_refresh_request = null;
 let guild_state_refreshed_at = 0;
 let guild_page_visible = false;
+let council_clock_timer = null;
 let inbox_update_request = null;
 let server_host = SERVER_HOST;
 let server_instance_storage_prefix = SERVER_INSTANCE_STORAGE_PREFIX;
@@ -502,6 +503,8 @@ const state = ui.createStore({
 	guild_icons: [],
 	picked_guild_icon: '',
 	guild_page_error: '',
+	council_update_time: Date.now(),
+	council_time_offset: 0,
 	council_petitions: [],
 	council_available_petition_types: [],
 	council_has_more: false,
@@ -560,6 +563,10 @@ const state = ui.createStore({
 	chat_budget_enabled: true,
 	chat_budget: { credits: 5, maximum: 5, refill_interval: 60000, next_refill_at: 0 },
 	selected_chat_message: null,
+	chat_is_admin: false,
+	admin_detail_groups: [],
+	admin_details_kind: null,
+	selected_poll: null,
 	identities: [],
 	identities_loading: false,
 	identities_error: '',
@@ -4610,6 +4617,7 @@ async function refresh_chat_state() {
 	if (Array.isArray(res.account_tags)) state.account_tags = res.account_tags;
 	state.guild_chat_enabled = res.guild_chat_enabled !== false;
 	state.chat_client_id = res.client_id;
+	state.chat_is_admin = res.is_admin === true;
 	state.chat_budget_enabled = res.budget_enabled !== false;
 	if (res.budget)
 		state.chat_budget = res.budget;
@@ -4658,6 +4666,7 @@ async function refresh_chat_conversations() {
 				Number.isSafeInteger(selected.moderation_count) &&
 				Number.isSafeInteger(current.moderation_count) &&
 				current.moderation_count !== selected.moderation_count;
+			current.message_moderation_count = selected.message_moderation_count;
 			state.selected_chat_conversation = current;
 			if (moderation_changed) {
 				state.close_chat_conversation();
@@ -4730,6 +4739,7 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 		state.chat_messages_loading = true;
 	state.chat_error = '';
 	let res = null;
+	let moderation_changed = false;
 	try {
 		const conversation_parameter = conversation.conversation_id === null
 			? '' : '&conversation_id=' + conversation.conversation_id;
@@ -4741,11 +4751,26 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 			? '&reaction_after=' + state.chat_reaction_revision : '';
 		res = await api_get('/api/chat/messages?conversation_kind=' + kind + conversation_parameter + team_parameter +
 			cursor + reaction_parameter + capability_parameter);
+		if (Number.isSafeInteger(res?.moderation_count) &&
+			Number.isSafeInteger(conversation.message_moderation_count) &&
+			res.moderation_count !== conversation.message_moderation_count && cursor !== '') {
+			// Match shared-chat moderation: reload visible history when a Message is hidden.
+			res = await api_get('/api/chat/messages?conversation_kind=' + kind + conversation_parameter + team_parameter + capability_parameter);
+			cursor = '';
+			prepend = false;
+			moderation_changed = true;
+		}
 		if (view_generation !== chat_view_generation ||
 			state.selected_chat_conversation?.conversation_id !== conversation_id ||
 			state.selected_chat_conversation?.support_team_id !== conversation.support_team_id)
 			return false;
 		if (Array.isArray(res?.messages)) {
+			if (moderation_changed) {
+				state.chat_messages = [];
+				state.chat_before_cursor = null;
+				state.chat_reaction_revision = null;
+			}
+			if (Number.isSafeInteger(res.moderation_count)) conversation.message_moderation_count = res.moderation_count;
 			if (kind === 'poll-discussion' && res.messages.length > 0) {
 				const poll = state.polls.find(poll => poll.poll_id === conversation_id);
 				if (poll) poll.discussion_unread_count = 0;
@@ -5133,10 +5158,20 @@ async function refresh_guild_page() {
 
 function set_guild_page_visible(is_visible) {
 	guild_page_visible = is_visible;
+	clearInterval(council_clock_timer);
+	council_clock_timer = null;
 	clearInterval(guild_raid_badge_timer);
 	guild_raid_badge_timer = null;
 	if (!is_visible) return;
+	state.council_update_time = Date.now() + state.council_time_offset;
 	void refresh_guild_page();
+	council_clock_timer = setInterval(() => {
+		const previous_time = state.council_update_time;
+		state.council_update_time = Date.now() + state.council_time_offset;
+		if (state.council_petitions.some(petition => petition.lifecycle === 'active' &&
+			previous_time < petition.expires_at && state.council_update_time >= petition.expires_at))
+			void refresh_council();
+	}, 1_000);
 	guild_raid_badge_timer = setInterval(() => void refresh_guild_state(true), 120_000);
 }
 
@@ -5233,6 +5268,8 @@ async function refresh_council(page = 0, append = false) {
 	try {
 		const res = await api_get('/api/guilds/council?page=' + page);
 		if (res !== null) {
+			if (Number.isSafeInteger(res.server_time)) state.council_time_offset = res.server_time - Date.now();
+			state.council_update_time = Date.now() + state.council_time_offset;
 			await state.resolve_alliance_petition_guilds(res.petitions ?? []);
 			if (append) {
 				const known = new Set(state.council_petitions.map(petition => petition.petition_id));
@@ -6444,6 +6481,7 @@ function activate_multiplayer_identity(response) {
 	state.guild_chat_enabled = response.chat?.guild_chat_enabled !== false;
 	state.guild_chat_state = { affiliated: false, enabled: state.guild_chat_enabled };
 	state.chat_client_id = response.chat?.client_id ?? null;
+	state.chat_is_admin = false;
 	state.chat_budget_enabled = response.chat?.budget_enabled !== false;
 	check_released_mod_version(response.released_mod_version);
 	if (response.chat?.budget)

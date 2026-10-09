@@ -616,7 +616,8 @@ describe('guild API', () => {
 			const voted = await post_json<{ success: boolean; lifecycle: string }>('/api/guilds/petitions/vote', {
 				petition_id: raised.json.petition_id, choice: 'aye'
 			}, first.session_token);
-			expect(voted.json).toMatchObject({ success: true, lifecycle: 'granted' });
+			expect(voted.json).toMatchObject({ success: true, lifecycle: 'active' });
+			await db_run('UPDATE guild_petitions SET expires_at=? WHERE id=?', [Date.now(), raised.json.petition_id]);
 			expect((await council(first.session_token)).available_petition_types).toContain(
 				({ interdict: 'heresy', heresy: 'interdict', temperance: 'indulgence', indulgence: 'temperance' })[type]!
 			);

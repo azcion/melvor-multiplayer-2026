@@ -212,7 +212,7 @@ export function install_market_charity_actions(runtime) {
 		},
 
 		show_market_fulfill_modal(item) {
-			if (!item || state.market_buyable(item) <= 0 || item.allow_haggles === false)
+			if (!item || state.market_buyable(item) <= 0 || state.get_market_item_owned_qty(item.item_id) <= 0)
 				return;
 			if (!is_local_item_available(item?.item_id))
 				return;

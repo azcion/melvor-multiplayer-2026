@@ -51,7 +51,7 @@ test('wires quiet Polls below Global Chat with creator, voting, and discussion',
 	assert.match(actions, /show_poll_delete_confirmation/);
 	assert.match(actions, /choice_mode: this\.poll_creator_choice_mode/);
 	assert.match(actions, /api\/polls\/status/);
-	assert.match(templates, /poll\.can_delete/);
+	assert.match(templates, /state\.selected_poll\?\.can_delete/);
 	assert.match(templates, /template-mp-poll-delete-confirm-modal/);
 	assert.match(templates, /poll\.open \? 'MOD_MP_POLLS_OPEN' : 'MOD_MP_POLLS_CLOSED'/);
 	assert.match(templates, /poll\.choice_mode === 'single'/);

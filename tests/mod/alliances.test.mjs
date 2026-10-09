@@ -188,11 +188,11 @@ test('passing notches use half rounded up for Council and a strict Alliance majo
 	const { state } = setup();
 	for (const eligible of [1, 2, 3, 4, 5, 10]) {
 		const row = {kind: 'join', tally: {eligible, aye: 1, nay: 0}};
-		assert.equal(state.get_tally_threshold(row), Math.ceil(eligible / 2) / eligible * 100 + '%');
+		assert.equal(state.get_tally_threshold(row), '50%');
 		assert.equal(state.get_tally_threshold(row, true), (Math.floor(eligible / 2) + 1) / eligible * 100 + '%');
 		assert.equal(state.get_tally_threshold({...row, kind: 'found'}, true), (Math.floor(eligible / 2) + 1) / eligible * 100 + '%');
 	}
-	assert.equal(state.get_council_tally_width({tally: {eligible: 5, aye: 2, nay: 1}}, 'uncast'), '40%');
+	assert.equal(state.get_council_tally_width({tally: {eligible: 5, aye: 2, nay: 1}}, 'uncast', true), '40%');
 	assert.equal(state.get_tally_threshold({tally: {eligible: 5, required_aye: 4}}, true), '80%');
 });
 
@@ -453,4 +453,25 @@ test('every Alliance modal opts out of the outer SweetAlert scroll container', a
 	}
 	const style = readFileSync(new URL('../../mod/ui/style.css', import.meta.url), 'utf8');
 	assert.match(style, /\.mp-alliance-modal-popup \.swal2-html-container,[^{]*\{\s*overflow: visible;/);
+});
+
+test('Council bars use cast totals and a fixed midpoint with a live hour/minute countdown', () => {
+	const {state}=setup();
+	const petition={lifecycle:'active',expires_at:10_000_000,tally:{eligible:10,aye:3,nay:2}};
+	assert.equal(state.get_council_tally_width(petition,'aye'),'60%');
+	assert.equal(state.get_council_tally_width(petition,'nay'),'40%');
+	assert.equal(state.get_tally_threshold(petition),'50%');
+	assert.equal(state.get_council_tally_width({...petition,tally:{aye:0,nay:0}},'aye'),'0%');
+	state.council_update_time=petition.expires_at-(5*60+6)*60_000;
+	assert.equal(state.get_council_time_remaining(petition),'5h 6m');
+	state.council_update_time=petition.expires_at-2*60_000;
+	assert.equal(state.get_council_time_remaining(petition),'2m');
+	state.council_update_time=petition.expires_at-3_599_999;
+	assert.equal(state.get_council_time_remaining(petition),'59m');
+	state.council_update_time=petition.expires_at+1;
+	assert.equal(state.get_council_time_remaining(petition),'0m');
+	assert.equal(state.get_council_time_remaining({...petition,lifecycle:'granted'}),'');
+	const template=readFileSync(new URL('../../mod/ui/templates.html',import.meta.url),'utf8');
+	assert.doesNotMatch(template,/get_council_tally_width\(petition, 'uncast'\)/);
+	assert.match(template,/get_council_tally_width\(proposal, 'uncast', true\)/);
 });

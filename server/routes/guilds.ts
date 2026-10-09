@@ -1,4 +1,4 @@
-import { can_cast_council_vote, snapshot_council_threshold, resolve_threshold_vote } from '../council-voting';
+import { can_cast_council_vote, snapshot_council_threshold, resolve_council_vote } from '../council-voting';
 import { is_feature_tester, council_test_data, valid_council_test_action } from '../feature-testers';
 import { cleanup_market_permissions } from '../alliance-market';
 import { has_alliance_access, alliance_petition_withdrawable, alliance_capable, alliance_ballot_activity, maintain_alliances, remove_alliance_guild } from '../alliances';
@@ -14,7 +14,7 @@ import { cancel_client_haggles } from './haggle';
 import { is_client_version_at_least } from '../client-version-policy';
 import { crucible_migration_complete, is_crucible_petition_type, settle_departing_crucible_wish, snapshot_crucible_petition } from '../crucible-council';
 
-const { DIRECT_JOIN_CHARITREE_LOCK, FREE_FELLOWSHIP_TYPE, GiftFlags, PETITION_LIFETIME, PUBLIC_GUILD_TYPE, db, db_get_all, db_get_single, db_run, ensure_guild_campaign, expire_charity_items, expire_petitions, forget_guild_campaign, get_client_charity_state, get_client_display, get_client_guild_id, get_council_petitions, get_guild_applicants, get_guild_capabilities, get_guild_established_at, get_guild_member_directory, get_guild_members, get_guild_summary, get_guild_type, get_petition_conflict_subject, get_petition_resolution, guild_summary_from_row, has_guild_departure_blocker, is_petition_choice, is_petition_type, is_valid_guild_icon_id, parse_guild_name, process_council_actions, resize_unprogressed_campaign, session_get_route, session_post_route, settle_departing_charity_wish, shadowed_cutoff, unlock_winnowing_targets } = runtime;
+const { DIRECT_JOIN_CHARITREE_LOCK, FREE_FELLOWSHIP_TYPE, GiftFlags, PETITION_LIFETIME, PUBLIC_GUILD_TYPE, db, db_get_all, db_get_single, db_run, ensure_guild_campaign, expire_charity_items, expire_petitions, forget_guild_campaign, get_client_charity_state, get_client_display, get_client_guild_id, get_council_petitions, get_guild_applicants, get_guild_capabilities, get_guild_established_at, get_guild_member_directory, get_guild_members, get_guild_summary, get_guild_type, get_petition_conflict_subject, guild_summary_from_row, has_guild_departure_blocker, is_petition_choice, is_petition_type, is_valid_guild_icon_id, parse_guild_name, process_council_actions, resize_unprogressed_campaign, session_get_route, session_post_route, settle_departing_charity_wish, shadowed_cutoff, unlock_winnowing_targets } = runtime;
 
 function petition_visible_to_client(type: string, req: Request, client_id: number): boolean {
 	if (type.startsWith('alliance_')) return has_alliance_access(client_id, runtime.get_request_mod_version(req));
@@ -46,6 +46,7 @@ export function register_guilds_routes(): void {
 	session_get_route('/api/guilds/council', async (req, url, client_id): Promise<HandlerResult> => {
 		expire_petitions();
 		process_council_actions();
+		maintain_alliances();
 		const membership = await db_get_single(
 			'SELECT `guild_id` FROM `guild_memberships` WHERE `client_id` = ? LIMIT 1',
 			[client_id]
@@ -61,9 +62,9 @@ export function register_guilds_routes(): void {
 		const version = runtime.get_request_mod_version(req);
 		const result = await get_council_petitions(membership.guild_id, client_id, resolved_page,
 			version === 'development' || is_client_version_at_least(version, '1.6.0'), has_alliance_access(client_id, version), alliance_capable(version));
-		if (!council_preview_enabled(req, client_id)) return result;
+		if (!council_preview_enabled(req, client_id)) return { ...result, server_time: Date.now() };
 		const fixtures = council_test_data();
-		return { ...result, petitions: [...result.petitions, ...fixtures.active,
+		return { ...result, server_time: Date.now(), petitions: [...result.petitions, ...fixtures.active,
 			...(resolved_page === 0 ? fixtures.history : [])] };
 	});
 
@@ -279,6 +280,8 @@ export function register_guilds_routes(): void {
 
 		const now = Date.now();
 		const cast_vote = db.transaction(() => {
+			expire_petitions(now);
+			process_council_actions();
 			maintain_alliances(now);
 			const petition = db.query('SELECT * FROM `guild_petitions` WHERE `id` = ? LIMIT 1').get(
 				petition_id
@@ -291,14 +294,6 @@ export function register_guilds_routes(): void {
 			if (guild?.type === FREE_FELLOWSHIP_TYPE &&
 				(!alliance_capable(runtime.get_request_mod_version(req)) || !is_free_fellowship_petition(petition.type)))
 				return { status: 'unavailable' as const };
-			if (petition.lifecycle === 'active' && petition.expires_at <= now) {
-				unlock_winnowing_targets(petition_id);
-				db.query(
-					"UPDATE `guild_petitions` SET `lifecycle` = 'lapsed', `resolved_at` = `expires_at`, " +
-					"`subject_locked` = 0 WHERE `id` = ? AND `lifecycle` = 'active'"
-				).run(petition_id);
-				return { status: 'final' as const };
-			}
 			if (petition.lifecycle !== 'active')
 				return { status: 'final' as const };
 
@@ -321,18 +316,10 @@ export function register_guilds_routes(): void {
 				'INSERT INTO `guild_petition_votes` (`petition_id`, `client_id`, `choice`, `submitted_at`) ' +
 				'VALUES(?, ?, ?, ?)'
 			).run(petition_id, client_id, choice, now);
-			if (petition.rule_version === 2)
-				db.query('UPDATE guild_petitions SET expires_at = ? WHERE id = ?').run(now + PETITION_LIFETIME, petition_id);
+			petition.expires_at = now + PETITION_LIFETIME;
+			db.query('UPDATE guild_petitions SET expires_at = ? WHERE id = ?').run(petition.expires_at, petition_id);
 			alliance_ballot_activity(petition_id, now);
-			const tally = db.query(
-				'SELECT (SELECT COUNT(*) FROM `guild_petition_voters` WHERE `petition_id` = ?) AS `eligible`, ' +
-				"SUM(CASE WHEN `choice` = 'aye' THEN 1 ELSE 0 END) AS `aye`, " +
-				"SUM(CASE WHEN `choice` = 'nay' THEN 1 ELSE 0 END) AS `nay` " +
-				'FROM `guild_petition_votes` WHERE `petition_id` = ?'
-			).get(petition_id, petition_id) as { eligible: number; aye: number; nay: number };
-			const lifecycle = petition.voting_threshold === null
-				? get_petition_resolution(tally.eligible, tally.aye, tally.nay)
-				: resolve_threshold_vote(petition.voting_threshold, tally.aye ?? 0, tally.nay ?? 0);
+			const lifecycle = resolve_council_vote(petition, now);
 			if (lifecycle !== null) {
 				db.query(
 					'UPDATE `guild_petitions` SET `lifecycle` = ?, `resolved_at` = ?, `execution_state` = ?, ' +

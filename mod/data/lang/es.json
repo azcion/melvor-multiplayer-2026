@@ -76,7 +76,7 @@
 	"MOD_MP_CRUCIBLE_WISH_INVALID": "Elija un artículo elegible y una cantidad del 1 al 100.",
 	"MOD_MP_CRUCIBLE_CLEAR_LEVEL": "Nivel de limpieza de escoria:",
 	"MOD_MP_CRUCIBLE_CLEARING_TITLE": "limpieza de escoria",
-	"MOD_MP_CRUCIBLE_CLEAR_INFO": "Gasta monedas para eliminar más escoria durante dos días. Un Deseo restablece tu bonificación a -10 y la limita a un máximo de 10. Los personajes de la misma cuenta en este gremio comparten la bonificación por limpiar escoria.",
+	"MOD_MP_CRUCIBLE_CLEAR_INFO": "Gasta monedas para eliminar más escoria durante dos días. Un Deseo restablece tu bonificación a -10 y la limita a un máximo de 10.",
 	"MOD_MP_CRUCIBLE_CLEAR": "Limpiar la escoria",
 	"MOD_MP_CRUCIBLE_CLEAR_MAX": "Limpiar hasta el máximo",
 	"MOD_MP_CRUCIBLE_CLEAR_QUOTE": "Aumenta tu bonificación de eliminación de escoria en 1 nivel.",
@@ -1316,5 +1316,11 @@
 	"MOD_MP_RAID_SCHEDULE": "Cada viernes a las 12:00 UTC hasta el lunes a las 12:00 UTC.",
 	"MOD_MP_RAID_SCHEDULE_LOCAL": "Tu hora local: %s",
 	"MOD_MP_RAID_ENTRY_ENDS_IN": "Termina en %s",
-	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "La incursión del fin de semana ha comenzado."
+	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "La incursión del fin de semana ha comenzado.",
+	"MOD_MP_CHAT_SHOW_REACTIONS": "Mostrar reacciones",
+	"MOD_MP_CHAT_SHOW_SEEN": "Mostrar quién lo ha leído",
+	"MOD_MP_POLLS_SHOW_RESPONSES": "Mostrar respuestas",
+	"MOD_MP_LAST_ACTIVE": "Última actividad",
+	"MOD_MP_ADMIN_DETAILS_EMPTY": "Ninguno",
+	"MOD_MP_CHAT_SEEN_INFO": "Según las confirmaciones de lectura registradas. Unirse a un chat compartido o reactivarlo puede marcar mensajes anteriores como leídos."
 }

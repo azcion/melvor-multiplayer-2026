@@ -76,7 +76,7 @@
 	"MOD_MP_CRUCIBLE_WISH_INVALID": "対象のアイテムと 1～100 の数量を選んでください。",
 	"MOD_MP_CRUCIBLE_CLEAR_LEVEL": "スラグ除去レベル：",
 	"MOD_MP_CRUCIBLE_CLEARING_TITLE": "スラグ除去",
-	"MOD_MP_CRUCIBLE_CLEAR_INFO": "コインを使うと、2日間より多くのスラグを除去できます。願い事をするとボーナスが-10にリセットされ、上限が10になります。 スラグ除去ボーナスは、このギルドに所属する同じアカウントのキャラクター間で共有されます。",
+	"MOD_MP_CRUCIBLE_CLEAR_INFO": "コインを使うと、2日間より多くのスラグを除去できます。願い事をするとボーナスが-10にリセットされ、上限が10になります。",
 	"MOD_MP_CRUCIBLE_CLEAR": "スラグを除去する",
 	"MOD_MP_CRUCIBLE_CLEAR_MAX": "最大まで除去",
 	"MOD_MP_CRUCIBLE_CLEAR_QUOTE": "スラグ除去ボーナスを 1 レベル増やします。",
@@ -1316,5 +1316,11 @@
 	"MOD_MP_RAID_SCHEDULE": "毎週金曜日12:00 UTCから月曜日12:00 UTCまで。",
 	"MOD_MP_RAID_SCHEDULE_LOCAL": "現地時間：%s",
 	"MOD_MP_RAID_ENTRY_ENDS_IN": "終了まで%s",
-	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "週末のレイドが始まりました。"
+	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "週末のレイドが始まりました。",
+	"MOD_MP_CHAT_SHOW_REACTIONS": "リアクションを表示",
+	"MOD_MP_CHAT_SHOW_SEEN": "既読のキャラクターを表示",
+	"MOD_MP_POLLS_SHOW_RESPONSES": "回答を表示",
+	"MOD_MP_LAST_ACTIVE": "最終アクティブ日時",
+	"MOD_MP_ADMIN_DETAILS_EMPTY": "なし",
+	"MOD_MP_CHAT_SEEN_INFO": "記録された既読確認に基づきます。共有チャットへの参加や再有効化により、以前のメッセージが既読になる場合があります。"
 }

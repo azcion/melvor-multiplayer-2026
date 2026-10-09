@@ -112,6 +112,7 @@ export function list_polls(client_id: number, mod_version: string | null, after_
 			'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` ' +
 			'LEFT JOIN `poll_discussion_read_state` AS read ON read.`poll_id` = message.`poll_id` AND read.`client_id` = ? ' +
 			'WHERE message.`id` > COALESCE(read.`last_read_message_id`, 0) AND message.`sender_id` != ? ' +
+			'AND NOT EXISTS(SELECT 1 FROM poll_discussion_message_moderation WHERE message_id = message.id) ' +
 			'AND ' + chat_shadow_visibility() + ' GROUP BY message.`poll_id`'
 		).all(client_id, client_id, client_id, client_id);
 		for (const row of unread) discussion_unread_counts[row.poll_id] = row.unread_count;
@@ -275,7 +276,7 @@ export function list_poll_discussion_messages(client_id: number, mod_version: st
 	const rows = db.query<DiscussionMessage, number[]>(
 		'SELECT message.*, sender.`display_name`, sender.`icon_id` FROM `poll_discussion_messages` AS message ' +
 		'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` ' +
-		'WHERE message.`poll_id` = ? AND ' + chat_shadow_visibility() + clause +
+		'WHERE message.`poll_id` = ? AND NOT EXISTS(SELECT 1 FROM poll_discussion_message_moderation WHERE message_id = message.id) AND ' + chat_shadow_visibility() + clause +
 		' ORDER BY message.`id` DESC LIMIT 21'
 	).all(values[0] as number, client_id, client_id, ...values.slice(1));
 	const has_more = rows.length > 20;
