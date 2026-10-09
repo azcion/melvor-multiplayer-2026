@@ -200,9 +200,11 @@
 	"MOD_MP_RAID_BACK_GUILD": "Назад к гильдии",
 	"MOD_MP_RAID_LOADING": "Загрузка рейда гильдии…",
 	"MOD_MP_RAID_GUILD_REQUIRED": "Вступите в гильдию, чтобы участвовать в рейдах.",
+	"MOD_MP_RAID_DORMANT_TITLE": "Он дремлет.",
+	"MOD_MP_RAID_DORMANT_INFO": "Следующий рейд начнётся в пятницу. Войдите, когда он начнётся, чтобы вступить в бой.",
 	"MOD_MP_RAID_READY_TITLE": "Пришло время.",
-	"MOD_MP_RAID_READY_INFO": "Любой участник может открыть 72-часовой период. При запуске фиксируется состав гильдии, а общее здоровье зависит от числа игроков, активных за последние четыре дня.",
-	"MOD_MP_RAID_ACTIVATE": "Начать рейд",
+	"MOD_MP_RAID_READY_INFO": "Войдите, чтобы увидеть прогресс своей гильдии и вступить в бой.",
+	"MOD_MP_RAID_ACTIVATE": "Войти в рейд",
 	"MOD_MP_RAID_ACTIVATE_NEXT": "Начать следующий рейд",
 	"MOD_MP_RAID_SHARED_HEALTH": "Здоровье рейда",
 	"MOD_MP_RAID_STATUS": "Статус",
@@ -239,7 +241,7 @@
 	"MOD_MP_RAID_TIME": "Осталось времени",
 	"MOD_MP_RAID_ASSAULTS": "Доступно атак",
 	"MOD_MP_RAID_NEXT_ASSAULTS": "+3 через %s",
-	"MOD_MP_RAID_AVAILABLE_IN": "Следующий рейд через %s",
+	"MOD_MP_RAID_AVAILABLE_IN": "Начнётся через %s",
 	"MOD_MP_RAID_MEMBER_DEFEATS": "Рейд %s×",
 	"MOD_MP_RAID_CONTRIBUTION": "Ваш вклад",
 	"MOD_MP_RAID_NOT_ROSTERED": "Вы вступили или вернулись после начала этого рейда. Вы сможете участвовать в следующем.",
@@ -1310,5 +1312,9 @@
 	"MOD_MP_ALLIANCE_CANCEL_ALLIANCE": "Отменено, поскольку Альянса больше не существует.",
 	"MOD_MP_ALLIANCE_CANCEL_TARGET": "Отменено, поскольку цель предложения больше не доступна.",
 	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED_GUILD": "Отменено, поскольку {guild} присоединился к другому Альянсу.",
-	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED": "Отменено, поскольку участвующая гильдия присоединилась к другому Альянсу."
+	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED": "Отменено, поскольку участвующая гильдия присоединилась к другому Альянсу.",
+	"MOD_MP_RAID_SCHEDULE": "Каждую пятницу с 12:00 UTC до понедельника 12:00 UTC.",
+	"MOD_MP_RAID_SCHEDULE_LOCAL": "Ваше местное время: %s",
+	"MOD_MP_RAID_ENTRY_ENDS_IN": "Закончится через %s",
+	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "Начался рейд выходного дня."
 }

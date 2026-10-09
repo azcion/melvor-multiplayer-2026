@@ -239,6 +239,18 @@ test('language fetch preserves the base dictionary and adds mod translations', a
 	assert.deepEqual(base_language, { BASE_KEY: 'Base value', MOD_KEY: 'Mod value' });
 });
 
+function template_text_boundaries(templates) {
+	// Quoted attributes may contain > comparisons; only tag endings delimit visible text.
+	return templates.replace(/<(?:"[^"]*"|'[^']*'|[^'">])*>/g, '<>');
+}
+
+test('template text review ignores attribute comparisons while detecting visible English', () => {
+	const literal = />\s*[A-Za-z][^<{]*\{\{/;
+	assert.doesNotMatch(template_text_boundaries('<span :class="{ locked: until > clock }">{{ qty }}</span>'), literal);
+	assert.doesNotMatch(template_text_boundaries("<span :class='{ locked: until > clock }'>{{ qty }}</span>"), literal);
+	assert.match(template_text_boundaries('<span :class="{ locked: until > clock }">Quantity: {{ qty }}</span>'), literal);
+});
+
 test('templates contain no static English placeholders or reviewed text literals', async () => {
 	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
 	assert.match(templates, /<template id="template-mp-expedition-page">/);
@@ -247,7 +259,7 @@ test('templates contain no static English placeholders or reviewed text literals
 	assert.doesNotMatch(localized_templates, /\splaceholder="[A-Za-z]/);
 	assert.doesNotMatch(localized_templates, /\s(?:aria-label|title)="[A-Za-z]/);
 	assert.doesNotMatch(localized_templates, />\s*(?:Loading\.\.\.|Load more|Space:)\s*</);
-	assert.doesNotMatch(localized_templates, />\s*[A-Za-z][^<{]*\{\{/);
+	assert.doesNotMatch(template_text_boundaries(localized_templates), />\s*[A-Za-z][^<{]*\{\{/);
 });
 
 async function runtime_sources(directory) {

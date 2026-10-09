@@ -200,9 +200,11 @@
 	"MOD_MP_RAID_BACK_GUILD": "ギルドに戻る",
 	"MOD_MP_RAID_LOADING": "ギルドレイドを読み込み中…",
 	"MOD_MP_RAID_GUILD_REQUIRED": "ギルドレイドに参加するには、ギルドに加入してください。",
+	"MOD_MP_RAID_DORMANT_TITLE": "眠りについている。",
+	"MOD_MP_RAID_DORMANT_INFO": "次のレイドは金曜日に始まります。開始後に入場して、戦いに参加しましょう。",
 	"MOD_MP_RAID_READY_TITLE": "時間です。",
-	"MOD_MP_RAID_READY_INFO": "どのメンバーも72時間のレイドを開始できます。開始時にメンバー一覧が固定され、直近4日間に活動したメンバー数に応じて共有HPが調整されます。",
-	"MOD_MP_RAID_ACTIVATE": "レイド開始",
+	"MOD_MP_RAID_READY_INFO": "入場してギルドの進行状況を確認し、戦いに参加しましょう。",
+	"MOD_MP_RAID_ACTIVATE": "レイドに入る",
 	"MOD_MP_RAID_ACTIVATE_NEXT": "次のレイドを開始",
 	"MOD_MP_RAID_SHARED_HEALTH": "レイドHP",
 	"MOD_MP_RAID_STATUS": "状態",
@@ -239,7 +241,7 @@
 	"MOD_MP_RAID_TIME": "残り時間",
 	"MOD_MP_RAID_ASSAULTS": "攻撃可能回数",
 	"MOD_MP_RAID_NEXT_ASSAULTS": "%s後に+3",
-	"MOD_MP_RAID_AVAILABLE_IN": "次のレイドまで%s",
+	"MOD_MP_RAID_AVAILABLE_IN": "開始まで%s",
 	"MOD_MP_RAID_MEMBER_DEFEATS": "レイド %s×",
 	"MOD_MP_RAID_CONTRIBUTION": "自分の貢献",
 	"MOD_MP_RAID_NOT_ROSTERED": "このレイドの開始後に加入または再加入しました。次のレイドから参加できます。",
@@ -1310,5 +1312,9 @@
 	"MOD_MP_ALLIANCE_CANCEL_ALLIANCE": "アライアンスが存在しないためキャンセルされました。",
 	"MOD_MP_ALLIANCE_CANCEL_TARGET": "プロポーザルのターゲットが利用できなくなったため、キャンセルされました。",
 	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED_GUILD": "{guild} が別のアライアンスに参加したためキャンセルされました。",
-	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED": "参加ギルドが別の同盟に参加したためキャンセルされました。"
+	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED": "参加ギルドが別の同盟に参加したためキャンセルされました。",
+	"MOD_MP_RAID_SCHEDULE": "毎週金曜日12:00 UTCから月曜日12:00 UTCまで。",
+	"MOD_MP_RAID_SCHEDULE_LOCAL": "現地時間：%s",
+	"MOD_MP_RAID_ENTRY_ENDS_IN": "終了まで%s",
+	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "週末のレイドが始まりました。"
 }

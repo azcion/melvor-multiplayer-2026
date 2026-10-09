@@ -200,9 +200,11 @@
 	"MOD_MP_RAID_BACK_GUILD": "返回公會",
 	"MOD_MP_RAID_LOADING": "正在載入公會突襲……",
 	"MOD_MP_RAID_GUILD_REQUIRED": "加入公會後才能參加公會突襲。",
+	"MOD_MP_RAID_DORMANT_TITLE": "它沉睡著。",
+	"MOD_MP_RAID_DORMANT_INFO": "下一次團隊突襲將在週五開始。開始後進入，加入戰鬥。",
 	"MOD_MP_RAID_READY_TITLE": "是時候了。",
-	"MOD_MP_RAID_READY_INFO": "任何成員都可以開啓這72小時的時間窗口。開啓時會鎖定成員名單，並根據最近四天內活躍的成員人數調整共享生命值。",
-	"MOD_MP_RAID_ACTIVATE": "激活突襲",
+	"MOD_MP_RAID_READY_INFO": "進入以查看公會進度並加入戰鬥。",
+	"MOD_MP_RAID_ACTIVATE": "進入團隊突襲",
 	"MOD_MP_RAID_ACTIVATE_NEXT": "激活下一次突襲",
 	"MOD_MP_RAID_SHARED_HEALTH": "突襲生命值",
 	"MOD_MP_RAID_STATUS": "狀態",
@@ -239,7 +241,7 @@
 	"MOD_MP_RAID_TIME": "剩餘時間",
 	"MOD_MP_RAID_ASSAULTS": "可用進攻次數",
 	"MOD_MP_RAID_NEXT_ASSAULTS": "%s後+3",
-	"MOD_MP_RAID_AVAILABLE_IN": "%s後可開始下一次突襲",
+	"MOD_MP_RAID_AVAILABLE_IN": "距離開始還有%s",
 	"MOD_MP_RAID_MEMBER_DEFEATS": "突襲 %s×",
 	"MOD_MP_RAID_CONTRIBUTION": "你的貢獻",
 	"MOD_MP_RAID_NOT_ROSTERED": "你是在本次突襲開始後加入或重新加入公會的。你可以參加下一次突襲。",
@@ -1310,5 +1312,9 @@
 	"MOD_MP_ALLIANCE_CANCEL_ALLIANCE": "由於聯盟不復存在而取消。",
 	"MOD_MP_ALLIANCE_CANCEL_TARGET": "由於提案的目標不再可用而被取消。",
 	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED_GUILD": "由於 {guild} 加入另一個聯盟而取消。",
-	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED": "由於參與公會加入另一個聯盟而被取消。"
+	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED": "由於參與公會加入另一個聯盟而被取消。",
+	"MOD_MP_RAID_SCHEDULE": "每週五 12:00 UTC 至週一 12:00 UTC。",
+	"MOD_MP_RAID_SCHEDULE_LOCAL": "你的當地時間：%s",
+	"MOD_MP_RAID_ENTRY_ENDS_IN": "距離結束還有%s",
+	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "週末團隊突襲已開始。"
 }

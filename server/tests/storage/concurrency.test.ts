@@ -1,3 +1,4 @@
+import { enter_transition_raid, seed_transition_raid } from '../support/raid';
 import { describe, expect, test } from 'bun:test';
 import { get_events, make_guild_group, make_guildmates, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post_json, register_client } from '../support/http';
@@ -13,7 +14,7 @@ type OperationResult = {
 describe('concurrent persistence invariants', () => {
 	test('reserves one Assault and credits one settlement under concurrent retries', async () => {
 		const member = await register_guild_client('Concurrent Raider', 'Concurrent Raid');
-		await post_json('/api/raids/activate', {}, member.session_token);
+		await enter_transition_raid('/api/raids/activate', {}, member.session_token);
 		const reservation_requests = await Promise.all(Array.from({ length: 10 }, () => post_json<{
 			assault_id?: string;
 			settlement_key?: string;

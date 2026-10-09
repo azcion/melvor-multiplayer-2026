@@ -231,13 +231,23 @@
 <template id="template-mp-raid-page">
 	<div class="content d-none" id="mp-raid-page">
 		<div class="block block-rounded">
-			<div class="block-content text-center" v-if="state.raid_loading && !state.raid"><span class="spinner-border spinner-border-sm text-primary mr-2"></span><lang-string lang-id="MOD_MP_RAID_LOADING"></lang-string></div>
-			<div class="block-content text-muted" v-else-if="state.raid_state.affiliation === 'none'"><lang-string lang-id="MOD_MP_RAID_GUILD_REQUIRED"></lang-string></div>
-			<div class="block-content mp-raid-activation" v-else-if="!state.raid">
+			<div class="block-content text-center" v-show="state.raid_loading && !state.raid_loaded"><span class="spinner-border spinner-border-sm text-primary mr-2"></span><lang-string lang-id="MOD_MP_RAID_LOADING"></lang-string></div>
+			<div class="block-content text-muted" v-show="state.raid_loaded && state.raid_state.affiliation === 'none'"><lang-string lang-id="MOD_MP_RAID_GUILD_REQUIRED"></lang-string></div>
+			<div class="block-content mp-raid-activation" v-show="state.raid_loaded && state.raid_state.affiliation !== 'none' && !state.raid_visible">
 				<img class="mp-raid-hero" :src="state.get_raid_nav_icon()">
-				<div><h4><lang-string lang-id="MOD_MP_RAID_READY_TITLE"></lang-string></h4><p class="text-muted" v-if="!state.raid_state.can_activate && state.raid_state.activation_available_at"><mp-lang-string-f lang-id="MOD_MP_RAID_AVAILABLE_IN" :lang-arg-1="state.format_raid_time(state.raid_state.activation_available_at)"></mp-lang-string-f></p><button type="button" class="btn btn-primary" :disabled="!state.raid_state.can_activate || state.raid_action_pending" @click="state.activate_raid()"><span class="spinner-border spinner-border-sm mr-2" v-if="state.raid_action_pending"></span><lang-string lang-id="MOD_MP_RAID_ACTIVATE"></lang-string></button></div>
+				<div>
+					<h4 v-show="!state.raid_entry_available"><lang-string lang-id="MOD_MP_RAID_DORMANT_TITLE"></lang-string></h4>
+					<h4 v-show="state.raid_entry_available"><lang-string lang-id="MOD_MP_RAID_READY_TITLE"></lang-string></h4>
+					<p class="text-muted" v-show="!state.raid_entry_available"><lang-string lang-id="MOD_MP_RAID_DORMANT_INFO"></lang-string></p>
+					<p class="text-muted" v-show="state.raid_entry_available"><lang-string lang-id="MOD_MP_RAID_READY_INFO"></lang-string></p>
+					<p class="text-muted"><lang-string lang-id="MOD_MP_RAID_SCHEDULE"></lang-string></p>
+					<p class="text-muted" v-show="state.raid_state.schedule"><mp-lang-string-f lang-id="MOD_MP_RAID_SCHEDULE_LOCAL" :lang-arg-1="state.format_raid_schedule_local()"></mp-lang-string-f></p>
+					<p class="text-muted" v-show="state.raid_entry_available"><mp-lang-string-f lang-id="MOD_MP_RAID_ENTRY_ENDS_IN" :lang-arg-1="state.format_raid_time(state.raid?.expires_at)"></mp-lang-string-f></p>
+					<p class="text-muted" v-show="!state.raid_entry_available && state.raid_state.activation_available_at"><mp-lang-string-f lang-id="MOD_MP_RAID_AVAILABLE_IN" :lang-arg-1="state.format_raid_time(state.raid_state.activation_available_at)"></mp-lang-string-f></p>
+					<button type="button" class="btn btn-primary" :disabled="!state.raid_entry_available || state.raid_action_pending" @click="state.activate_raid()"><span class="spinner-border spinner-border-sm mr-2" v-show="state.raid_action_pending"></span><lang-string lang-id="MOD_MP_RAID_ACTIVATE"></lang-string></button>
+				</div>
 			</div>
-			<template v-else>
+			<div v-show="state.raid_visible">
 				<div class="block-content mp-raid-overview">
 					<div class="mp-raid-health-copy"><span class="font-w600"><lang-string lang-id="MOD_MP_RAID_SHARED_HEALTH"></lang-string></span><span>{{ state.raid?.remaining_health }} / {{ state.raid?.max_health }}</span></div>
 					<div class="progress mp-raid-health"><div class="progress-bar" :style="{ width: state.raid_progress_pct + '%' }"></div></div>
@@ -249,16 +259,13 @@
 					</div>
 					<div class="alert alert-warning mt-3" v-if="!state.raid?.member"><lang-string lang-id="MOD_MP_RAID_NOT_ROSTERED"></lang-string></div>
 					<div class="alert alert-success mt-3" v-if="state.raid?.secured && state.raid?.active"><lang-string lang-id="MOD_MP_RAID_SECURED_INFO"></lang-string></div>
-					<div class="alert alert-secondary mt-3" v-else-if="!state.raid?.active"><lang-string lang-id="MOD_MP_RAID_ENDED_INFO"></lang-string></div>
-					<div class="mt-3" v-if="!state.raid?.active && state.raid_state.can_activate"><button type="button" class="btn btn-primary" :disabled="state.raid_action_pending" @click="state.activate_raid()"><span class="spinner-border spinner-border-sm mr-2" v-if="state.raid_action_pending"></span><lang-string lang-id="MOD_MP_RAID_ACTIVATE_NEXT"></lang-string></button></div>
-					<div class="mt-3 text-muted" v-else-if="!state.raid?.active && state.raid_state.activation_available_at"><mp-lang-string-f lang-id="MOD_MP_RAID_AVAILABLE_IN" :lang-arg-1="state.format_raid_time(state.raid_state.activation_available_at)"></mp-lang-string-f></div>
 				</div>
-			</template>
+			</div>
 			<div class="block-content text-danger" v-if="state.raid_error">{{ state.raid_error }}</div>
 			<div class="block-content alert alert-info m-3" v-if="state.is_social_only"><lang-string lang-id="MOD_MP_SOCIAL_ONLY_RAID_INFO"></lang-string></div>
 		</div>
 
-		<div class="block block-rounded" v-if="state.raid?.active && state.raid?.member">
+		<div class="block block-rounded" v-show="state.raid_visible && state.raid?.member">
 			<div class="block-header block-header-default"><h3 class="block-title"><lang-string lang-id="MOD_MP_RAID_CHOOSE_TIER"></lang-string></h3></div>
 				<div class="block-content mp-raid-tiers">
 				<div class="mp-raid-tier" :class="{ 'mp-raid-tier-locked': !state.is_raid_tier_unlocked(tier) }" v-for="tier in [1, 2, 3, 4]" :key="tier">
@@ -275,7 +282,7 @@
 			</div>
 		</div>
 
-		<div class="block block-rounded" v-if="state.raid">
+		<div class="block block-rounded" v-show="state.raid_visible">
 			<div class="block-header block-header-default"><h3 class="block-title"><lang-string lang-id="MOD_MP_RAID_PARTICIPANTS"></lang-string></h3></div>
 			<div class="block-content p-0 mp-raid-leaderboard">
 				<div class="mp-raid-leaderboard-row" v-for="member in state.raid?.leaderboard" :key="member.client_id"><img class="skill-icon-xs" :src="state.get_avatar_icon(member.icon_id)"><span class="font-w600">{{ member.display_name }}</span><span><mp-lang-string-f lang-id="MOD_MP_RAID_TIER" :lang-arg-1="member.highest_tier || '—'"></mp-lang-string-f></span><span>{{ member.contribution }}</span></div>
@@ -2109,8 +2116,9 @@
 							<button type="button" class="mp-crucible-slot" v-for="item of (state.crucible?.offerings ?? [])" :key="item.id" :class="{ 'mp-crucible-slot-selected': state.crucible_selected_offering_id === item.id, 'mp-crucible-slot-slag': state.crucible_slag(item).covered, 'mp-crucible-new-item': !state.is_charity_item_discovered(item.id) }" :aria-pressed="state.crucible_selected_offering_id === item.id" :aria-label="(state.crucible_slag(item).covered ? getLangString('MOD_MP_CRUCIBLE_SLAG_COVERED') : state.get_item_name(item.id)) + ' ×' + formatNumber(item.qty)" @click="state.crucible_select_offering(item)">
 								<mp-item-icon v-show="!state.crucible_slag(item).covered" :data-item-id="item.id"><img :src="state.get_item_icon(item.id)" alt="" draggable="false"></mp-item-icon>
 								<i v-show="state.crucible_slag(item).covered" class="fa fa-question-circle mp-crucible-slot-unknown" aria-hidden="true"></i>
-								<span class="mp-crucible-avatars" v-show="item.contributors?.length"><img v-for="contributor of (item.contributors ?? []).slice(0, 3)" :key="contributor.client_id" :src="state.get_avatar_icon(contributor.icon_id)" alt=""></span><span class="mp-crucible-slot-quantity">{{ formatNumber(item.qty) }}</span>
+								<span class="mp-crucible-avatars" v-show="item.contributors?.length"><img v-for="contributor of (item.contributors ?? []).slice(0, 3)" :key="contributor.client_id" :src="state.get_avatar_icon(contributor.icon_id)" alt=""></span><span class="mp-crucible-slot-quantity" :class="{ 'mp-crucible-slot-quantity-locked': item.blocked_until > state.crucible_clock_time }">{{ formatNumber(item.qty) }}</span>
 								<span class="mp-crucible-slot-time" v-show="!item.is_untimed">{{ state.crucible_time(item.estimated_meld_at) }}</span>
+								<i class="fa fa-lock mp-crucible-slot-lock" v-show="item.blocked_until > state.crucible_clock_time" aria-hidden="true"></i>
 								<span class="mp-crucible-slot-meter" v-show="!item.is_untimed"><span :style="{ width: item.meld_percent + '%' }"></span></span>
 							</button>
 						</div>

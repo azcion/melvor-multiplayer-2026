@@ -29,6 +29,7 @@ import { chat_translation_worker, default_handler, expire_charity_items_now, flu
 import { create_shutdown_handler } from './shutdown';
 import { maintain_inactive_expeditions } from './guild-expedition';
 import { maintain_crucibles } from './crucible-service';
+import { maintain_raids } from './raid';
 
 register_market_routes();
 register_campaign_routes();
@@ -73,6 +74,13 @@ const expedition_maintenance_timer = setInterval(() => {
 	}
 }, 6 * 60 * 60 * 1000);
 expedition_maintenance_timer.unref();
+const raid_maintenance_timer = setInterval(() => {
+	try { maintain_raids(); }
+	catch (error) { report_error('Raid schedule maintenance failed', error); }
+}, 30_000);
+raid_maintenance_timer.unref();
+try { maintain_raids(); }
+catch (error) { report_error('Raid startup maintenance failed', error); }
 chat_translation_worker.start();
 
 server.error((err: Error) => {
@@ -86,6 +94,7 @@ server.start();
 const shutdown = create_shutdown_handler(
 	() => {
 		clearInterval(expedition_maintenance_timer);
+		clearInterval(raid_maintenance_timer);
 		chat_translation_worker.stop();
 		return server.stop();
 	},

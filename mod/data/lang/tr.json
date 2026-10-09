@@ -200,9 +200,11 @@
 	"MOD_MP_RAID_BACK_GUILD": "Loncaya dön",
 	"MOD_MP_RAID_LOADING": "Lonca baskını yükleniyor…",
 	"MOD_MP_RAID_GUILD_REQUIRED": "Lonca baskınlarına katılmak için bir loncaya katılın.",
+	"MOD_MP_RAID_DORMANT_TITLE": "Uykuda.",
+	"MOD_MP_RAID_DORMANT_INFO": "Sonraki baskın cuma günü başlar. Başladığında gir ve savaşa katıl.",
 	"MOD_MP_RAID_READY_TITLE": "Zamanı geldi.",
-	"MOD_MP_RAID_READY_INFO": "Herhangi bir üye 72 saatlik süreyi başlatabilir. Başlangıçta üye listesi sabitlenir ve ortak can, son dört günde etkin olan üye sayısına göre ölçeklenir.",
-	"MOD_MP_RAID_ACTIVATE": "Baskını başlat",
+	"MOD_MP_RAID_READY_INFO": "Loncanın ilerlemesini görmek ve savaşa katılmak için gir.",
+	"MOD_MP_RAID_ACTIVATE": "Baskına Gir",
 	"MOD_MP_RAID_ACTIVATE_NEXT": "Sonraki baskını başlat",
 	"MOD_MP_RAID_SHARED_HEALTH": "Baskın canı",
 	"MOD_MP_RAID_STATUS": "Durum",
@@ -239,7 +241,7 @@
 	"MOD_MP_RAID_TIME": "Kalan süre",
 	"MOD_MP_RAID_ASSAULTS": "Kullanılabilir saldırılar",
 	"MOD_MP_RAID_NEXT_ASSAULTS": "%s sonra +3",
-	"MOD_MP_RAID_AVAILABLE_IN": "Sonraki baskın %s sonra",
+	"MOD_MP_RAID_AVAILABLE_IN": "%s sonra başlar",
 	"MOD_MP_RAID_MEMBER_DEFEATS": "Baskın %s×",
 	"MOD_MP_RAID_CONTRIBUTION": "Katkınız",
 	"MOD_MP_RAID_NOT_ROSTERED": "Bu baskın başladıktan sonra katıldınız veya yeniden katıldınız. Sonraki baskına katılabilirsiniz.",
@@ -1310,5 +1312,9 @@
 	"MOD_MP_ALLIANCE_CANCEL_ALLIANCE": "İttifak artık mevcut olmadığından iptal edildi.",
 	"MOD_MP_ALLIANCE_CANCEL_TARGET": "Teklifin hedefi artık mevcut olmadığından iptal edildi.",
 	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED_GUILD": "{guild} başka bir İttifaka katıldığı için iptal edildi.",
-	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED": "Katılımcı bir Loncanın başka bir İttifaka katılması nedeniyle iptal edildi."
+	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED": "Katılımcı bir Loncanın başka bir İttifaka katılması nedeniyle iptal edildi.",
+	"MOD_MP_RAID_SCHEDULE": "Her cuma 12:00 UTC ile pazartesi 12:00 UTC arasında.",
+	"MOD_MP_RAID_SCHEDULE_LOCAL": "Yerel saatin: %s",
+	"MOD_MP_RAID_ENTRY_ENDS_IN": "%s sonra biter",
+	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "Hafta sonu baskını başladı."
 }

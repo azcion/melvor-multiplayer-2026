@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.7
+
+- Crucible Offering tiles show per-player reclaim locks in the bottom-right corner, clear of contributor avatars.
+- Raids now run for every Guild on a shared weekend schedule, Friday 12:00 UTC–Monday 12:00 UTC, with Assault grants at noon UTC on Friday, Saturday, and Sunday. The entry screen shows “It’s dormant.” between Raids and “It’s time.” when entry is available, with local schedule times and start/end countdowns. Each character enters once per Raid cycle; entering does not change its deadline. Progress and results remain visible during the active Raid, then the page returns to the simple entry screen with the next start time. Existing Raids finish normally before the global schedule begins. Interrupted Assaults recover after rejoining, expired reservations no longer block new attempts, and lost responses can recover the last reserved Assault.
+
 ## 1.6.6
 
 - Redesigned Sell on Market with quantity steppers, All but 1 and All shortcuts, GP/SC/AP/ASC pricing, optional Alliance prices, per-player purchase limits, Haggle controls, and live listing totals. Unlimited purchases and Haggles start enabled. Purchases, negotiated payments, and refunds retain the chosen currency; existing listings and 1.6.5 clients remain compatible.

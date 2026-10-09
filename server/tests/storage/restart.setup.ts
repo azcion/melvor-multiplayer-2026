@@ -1,3 +1,4 @@
+import { enter_transition_raid, seed_transition_raid } from '../support/raid';
 import { expect, test } from 'bun:test';
 import { allow_alliance_preview, get_events, make_guildmates, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post_json, register_client } from '../support/http';
@@ -155,7 +156,7 @@ test('creates representative state before a server restart', async () => {
 		conversation_kind: 'support', conversation_id: null, support_team_id,
 		idempotency_key: crypto.randomUUID(), content: 'Restart-safe Support Message'
 	}, support_player.session_token);
-	const raid_activation = await post_json<{ raid: { raid_id: number } }>(
+	const raid_activation = await enter_transition_raid<{ raid: { raid_id: number } }>(
 		'/api/raids/activate', {}, pair.first.session_token
 	);
 	const raid_assault = await post_json<{

@@ -1,5 +1,5 @@
 import { db } from './db';
-import { recently_active_cutoff } from './recent-activity';
+import { maintain_global_raids, raid_schedule_state, RAID_WEEKEND } from './raid-schedule';
 import { scale_expedition_hours } from './guild-expedition';
 import { record_guild_activity } from './guild-activity';
 import { add_inbox_items } from './inbox';
@@ -7,8 +7,7 @@ import { client_uses_legacy_transfer_protocol } from './transfer-compatibility';
 import { is_client_version_at_least } from './client-version-policy';
 import { shadowed_cutoff } from './shadowed';
 
-export const RAID_DURATION = 72 * 60 * 60 * 1000;
-export const RAID_COOLDOWN = 96 * 60 * 60 * 1000;
+export const RAID_DURATION = RAID_WEEKEND;
 export const RAID_CUTOVER_PAUSE = 7 * 24 * 60 * 60 * 1000;
 export const ASSAULT_DURATION = 30 * 60 * 1000;
 export const ASSAULT_SETTLEMENT_GRACE = 24 * 60 * 60 * 1000;
@@ -183,12 +182,6 @@ function raid_cutover(): RaidCutover | null {
 		.get() as RaidCutover | null;
 }
 
-function latest_cooldown_raid(guild_id: number, cutover: RaidCutover | null): RaidRow | null {
-	if (cutover === null) return latest_raid(guild_id);
-	return db.query('SELECT * FROM `guild_raids` WHERE `guild_id` = ? AND `id` > ? ' +
-		'ORDER BY `started_at` DESC LIMIT 1').get(guild_id, cutover.max_raid_id) as RaidRow | null;
-}
-
 function legacy_raid_client(mod_version: string | null): boolean {
 	return mod_version !== 'development' && !is_client_version_at_least(mod_version, '1.6.0');
 }
@@ -353,6 +346,10 @@ function public_raid(raid: RaidRow, membership_id: number, now: number) {
 	const roster = db.query(
 		'SELECT * FROM `guild_raid_roster` WHERE `raid_id` = ? AND `membership_id` = ?'
 	).get(raid.id, membership_id) as RosterRow | null;
+	const pending_assault = db.query<Pick<AssaultRow, 'tier' | 'loaded_session_id' | 'combat_deadline'>, [number, number]>(
+		'SELECT tier, loaded_session_id, combat_deadline FROM guild_raid_assaults ' +
+		'WHERE raid_id = ? AND membership_id = ? AND outcome IS NULL'
+	).get(raid.id, membership_id);
 	const leaderboard = db.query(
 		'SELECT roster.`client_id`, client.`display_name`, client.`icon_id`, roster.`contribution`, ' +
 		'roster.`highest_tier`, roster.`successful_assaults` FROM `guild_raid_roster` AS roster ' +
@@ -376,6 +373,7 @@ function public_raid(raid: RaidRow, membership_id: number, now: number) {
 		contribution_cap: raid.max_health,
 		member: roster === null ? null : {
 			eligible: true,
+			pending_assault,
 			contribution: roster.contribution,
 			highest_tier: roster.highest_tier,
 			successful_assaults: roster.successful_assaults,
@@ -392,70 +390,55 @@ export function get_raid_state(client_id: number, now = Date.now(), mod_version:
 		'SELECT EXISTS(SELECT 1 FROM `guild_raid_victory_caches` WHERE `client_id` = ? AND `acknowledged_at` IS NULL) AS `pending`'
 	).get(client_id) as { pending: number };
 	if (membership === null)
-		return { affiliation: 'none', cache_pending: cache_pending.pending === 1 };
+		return { affiliation: 'none', cache_pending: cache_pending.pending === 1, server_now: now };
 
-	const cutover = raid_cutover();
-	const raid = latest_raid(membership.guild_id);
-	const cooldown_raid = latest_cooldown_raid(membership.guild_id, cutover);
-	const legacy_blocked = cutover !== null && legacy_raid_client(mod_version);
-	const available_at = legacy_blocked ? now + RAID_CUTOVER_PAUSE :
-		cooldown_raid === null ? now : cooldown_raid.expires_at + RAID_COOLDOWN;
+	maintain_raids(now, membership.guild_id);
+	const latest = latest_raid(membership.guild_id);
+	const raid = latest !== null && now < latest.expires_at ? latest : null;
+	const legacy_blocked = raid_cutover() !== null && legacy_raid_client(mod_version);
+	const schedule = raid_schedule_state(db, now);
+	const available_at = raid === null && schedule.active ? schedule.next_starts_at : schedule.available_at;
+	const entered = raid !== null && db.query('SELECT 1 FROM raid_entries WHERE raid_id = ? AND client_id = ?')
+		.get(raid.id, client_id) !== null;
 	return {
 		affiliation: membership.guild_type,
 		cache_pending: cache_pending.pending === 1,
+		server_now: now,
 		activation_available_at: available_at,
-		can_activate: !legacy_blocked && now >= available_at,
+		can_activate: !legacy_blocked && raid !== null,
+		entered,
+		schedule: { starts_at: raid !== null && schedule.active ? schedule.starts_at : available_at,
+			ends_at: raid !== null && schedule.active ? schedule.ends_at : available_at + RAID_DURATION,
+			first_starts_at: schedule.first_starts_at },
 		tier_defeats: guild_raid_tier_defeats(membership.guild_id, now),
 		unlocked_tiers: raid_unlocked_tiers(client_id),
 		raid: raid === null ? null : public_raid(raid, membership.membership_id, now)
 	};
 }
 
-export function activate_raid(client_id: number, now = Date.now(), mod_version: string | null = null) {
-	const activate = db.transaction(() => {
+export function maintain_raids(now = Date.now(), guild_id?: number): number {
+	// Preserve delayed terminal results through the full settlement grace period.
+	db.query("UPDATE guild_raid_assaults SET outcome = 'abandoned', occurred_at = combat_deadline, " +
+		'settled_at = ? WHERE outcome IS NULL AND settlement_deadline < ?').run(now, now);
+	return maintain_global_raids(db, now, raid_max_health, guild_id);
+}
+
+// Retain the endpoint for older clients; activation now only enters an existing Raid.
+export function activate_raid(client_id: number, now = Date.now(), mod_version: string | null = null):
+	{ error_lang: string } | { success: true; raid: ReturnType<typeof public_raid> } {
+	return db.transaction(() => {
 		const membership = membership_for(client_id);
-		if (membership === null)
-			return { error_lang: 'MOD_MP_GUILD_REQUIRED' } as const;
-
-		const cutover = raid_cutover();
-		if (cutover !== null && legacy_raid_client(mod_version))
+		if (membership === null) return { error_lang: 'MOD_MP_GUILD_REQUIRED' } as const;
+		if (raid_cutover() !== null && legacy_raid_client(mod_version))
 			return { error_lang: 'MOD_MP_RAID_COOLDOWN' } as const;
-		const previous = latest_cooldown_raid(membership.guild_id, cutover);
-		if (previous !== null && now < previous.expires_at + RAID_COOLDOWN)
+		maintain_raids(now, membership.guild_id);
+		const raid = latest_raid(membership.guild_id);
+		if (raid === null || now >= raid.expires_at)
 			return { error_lang: 'MOD_MP_RAID_COOLDOWN' } as const;
-
-		const members = db.query(
-			'SELECT membership.`id` AS `membership_id`, membership.`client_id`, client.`last_multiplayer_active_at` ' +
-			'FROM `guild_memberships` AS membership JOIN `clients` AS client ON client.`id` = membership.`client_id` ' +
-			'WHERE membership.`guild_id` = ? ORDER BY membership.`id`'
-		).all(membership.guild_id) as Array<{ membership_id: number; client_id: number; last_multiplayer_active_at: number }>;
-		const active_member_count = members.filter(
-			member => member.last_multiplayer_active_at >= recently_active_cutoff(now)
-		).length;
-		const raid_player_count = Math.max(active_member_count, 1);
-		const max_health = raid_max_health(raid_player_count);
-		const inserted = db.query(
-			'INSERT INTO `guild_raids` (`guild_id`, `started_at`, `expires_at`, `active_member_count`, ' +
-			'`required_contributors`, `max_health`, `remaining_health`) VALUES(?, ?, ?, ?, ?, ?, ?) RETURNING `id`'
-		).get(
-			membership.guild_id, now, now + RAID_DURATION, raid_player_count,
-			raid_player_count, max_health, max_health
-		) as { id: number };
-		const insert_roster = db.query(
-			'INSERT INTO `guild_raid_roster` (`raid_id`, `membership_id`, `client_id`) VALUES(?, ?, ?)'
-		);
-		for (const member of members)
-			insert_roster.run(inserted.id, member.membership_id, member.client_id);
-		record_guild_activity({ guild_id: membership.guild_id, event_type: 'raid_started', actor_client_id: client_id,
-			source_key: `raid:${inserted.id}:started`, created_at: now });
-		return { raid_id: inserted.id, membership_id: membership.membership_id } as const;
-	});
-
-	const result = activate.immediate();
-	if ('error_lang' in result)
-		return result;
-	const raid = latest_raid(membership_for(client_id)!.guild_id)!;
-	return { success: true, raid: public_raid(raid, result.membership_id, now) };
+		db.query('INSERT INTO raid_entries(raid_id, client_id, entered_at) VALUES(?, ?, ?) ON CONFLICT DO NOTHING')
+			.run(raid.id, client_id, now);
+		return { success: true as const, raid: public_raid(raid, membership.membership_id, now) };
+	}).immediate();
 }
 
 export function reserve_assault(client_id: number, tier: number, loaded_session_id: string, now = Date.now(), mod_version: string | null = null) {
@@ -467,6 +450,9 @@ export function reserve_assault(client_id: number, tier: number, loaded_session_
 		const membership = membership_for(client_id);
 		if (membership === null)
 			return { error_lang: 'MOD_MP_GUILD_REQUIRED' } as const;
+		if (raid_cutover() !== null && legacy_raid_client(mod_version))
+			return { error_lang: 'MOD_MP_RAID_COOLDOWN' } as const;
+		maintain_raids(now, membership.guild_id);
 		const raid = latest_raid(membership.guild_id);
 		if (raid === null || now >= raid.expires_at)
 			return { error_lang: 'MOD_MP_RAID_INACTIVE' } as const;
@@ -475,18 +461,18 @@ export function reserve_assault(client_id: number, tier: number, loaded_session_
 		).get(raid.id, membership.membership_id, client_id) as RosterRow | null;
 		if (roster === null)
 			return { error_lang: 'MOD_MP_RAID_NOT_ELIGIBLE' } as const;
-		if (assault_balance(raid, membership.membership_id, now) < 1)
-			return { error_lang: 'MOD_MP_RAID_NO_ASSAULTS' } as const;
 		const unresolved = db.query(
 			'SELECT `id`, `loaded_session_id`, `settlement_key`, `tier`, `combat_deadline`, `fortified_resistance` ' +
 			'FROM `guild_raid_assaults` WHERE `membership_id` = ? AND `outcome` IS NULL LIMIT 1'
 		).get(membership.membership_id) as Pick<AssaultRow,
 			'id' | 'loaded_session_id' | 'settlement_key' | 'tier' | 'combat_deadline' | 'fortified_resistance'> | null;
 		if (unresolved !== null) {
-			if (unresolved.loaded_session_id === loaded_session_id)
+			if (unresolved.loaded_session_id === loaded_session_id && now < unresolved.combat_deadline)
 				return reservation_from_assault(unresolved);
 			return { error_lang: 'MOD_MP_RAID_ASSAULT_PENDING' } as const;
 		}
+		if (assault_balance(raid, membership.membership_id, now) < 1)
+			return { error_lang: 'MOD_MP_RAID_NO_ASSAULTS' } as const;
 		if (tier > 1 && !raid_unlocked_tiers(client_id).includes(tier - 1))
 			return { error_lang: 'MOD_MP_RAID_TIER_LOCKED' } as const;
 

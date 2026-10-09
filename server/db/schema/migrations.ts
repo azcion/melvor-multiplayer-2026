@@ -117,4 +117,27 @@ export const migrations: Migration[] = [
 		BEGIN SELECT RAISE(ABORT, 'Council voting threshold is immutable'); END;
 	` },
 	market_listing_terms_migration,
+	{ version: 167, sql: `
+		ALTER TABLE guild_raids ADD COLUMN cycle_start INTEGER
+			CHECK(cycle_start IS NULL OR cycle_start = started_at);
+		CREATE UNIQUE INDEX guild_raid_cycle ON guild_raids(guild_id, cycle_start)
+			WHERE cycle_start IS NOT NULL;
+		CREATE TABLE raid_schedule (
+			id INTEGER PRIMARY KEY CHECK(id = 1),
+			starts_at INTEGER NOT NULL CHECK(starts_at >= 0)
+		);
+		-- Round up to Friday noon after every existing active Raid has ended.
+		WITH cutoff AS (
+			SELECT MAX(CAST(strftime('%s','now') AS INTEGER) * 1000,
+				COALESCE(MAX(expires_at), 0)) AS ends_at FROM guild_raids
+		)
+		INSERT INTO raid_schedule(id, starts_at)
+		SELECT 1, 129600000 + ((ends_at - 129600000 + 604799999) / 604800000) * 604800000 FROM cutoff;
+		CREATE TABLE raid_entries (
+			raid_id INTEGER NOT NULL REFERENCES guild_raids(id) ON DELETE CASCADE,
+			client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+			entered_at INTEGER NOT NULL CHECK(entered_at >= 0),
+			PRIMARY KEY(raid_id, client_id)
+		);
+	` },
 ];

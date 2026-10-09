@@ -200,9 +200,11 @@
 	"MOD_MP_RAID_BACK_GUILD": "Zurück zur Gilde",
 	"MOD_MP_RAID_LOADING": "Gildenraid wird geladen …",
 	"MOD_MP_RAID_GUILD_REQUIRED": "Tritt einer Gilde bei, um an Gildenraids teilzunehmen.",
+	"MOD_MP_RAID_DORMANT_TITLE": "Es schlummert.",
+	"MOD_MP_RAID_DORMANT_INFO": "Der nächste Raid beginnt am Freitag. Tritt ihm bei, sobald er beginnt, um mitzukämpfen.",
 	"MOD_MP_RAID_READY_TITLE": "Es ist Zeit.",
-	"MOD_MP_RAID_READY_INFO": "Jedes Mitglied kann das 72-Stunden-Zeitfenster eröffnen. Bei der Aktivierung wird die Mitgliederliste festgehalten und die gemeinsame Gesundheit nach den in den letzten vier Tagen aktiven Mitgliedern skaliert.",
-	"MOD_MP_RAID_ACTIVATE": "Raid aktivieren",
+	"MOD_MP_RAID_READY_INFO": "Tritt dem Raid bei, um den Fortschritt deiner Gilde zu sehen und mitzukämpfen.",
+	"MOD_MP_RAID_ACTIVATE": "Raid betreten",
 	"MOD_MP_RAID_ACTIVATE_NEXT": "Nächsten Raid aktivieren",
 	"MOD_MP_RAID_SHARED_HEALTH": "Raid-TP",
 	"MOD_MP_RAID_STATUS": "Status",
@@ -239,7 +241,7 @@
 	"MOD_MP_RAID_TIME": "Verbleibende Zeit",
 	"MOD_MP_RAID_ASSAULTS": "Verfügbare Angriffe",
 	"MOD_MP_RAID_NEXT_ASSAULTS": "+3 in %s",
-	"MOD_MP_RAID_AVAILABLE_IN": "Nächster Raid in %s",
+	"MOD_MP_RAID_AVAILABLE_IN": "Beginnt in %s",
 	"MOD_MP_RAID_MEMBER_DEFEATS": "Raid %s×",
 	"MOD_MP_RAID_CONTRIBUTION": "Dein Beitrag",
 	"MOD_MP_RAID_NOT_ROSTERED": "Du bist dieser Gilde nach Beginn des Raids beigetreten oder erneut beigetreten. Du kannst am nächsten Raid teilnehmen.",
@@ -1310,5 +1312,9 @@
 	"MOD_MP_ALLIANCE_CANCEL_ALLIANCE": "Abgesagt, da die Allianz nicht mehr existiert.",
 	"MOD_MP_ALLIANCE_CANCEL_TARGET": "Abgebrochen, da das Ziel des Vorschlags nicht mehr verfügbar ist.",
 	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED_GUILD": "Abgesagt, da {guild} einer anderen Allianz beigetreten ist.",
-	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED": "Abgesagt, da eine teilnehmende Gilde einer anderen Allianz beigetreten ist."
+	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED": "Abgesagt, da eine teilnehmende Gilde einer anderen Allianz beigetreten ist.",
+	"MOD_MP_RAID_SCHEDULE": "Jeden Freitag 12:00 UTC bis Montag 12:00 UTC.",
+	"MOD_MP_RAID_SCHEDULE_LOCAL": "Deine Ortszeit: %s",
+	"MOD_MP_RAID_ENTRY_ENDS_IN": "Endet in %s",
+	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "Der Wochenend-Raid hat begonnen."
 }

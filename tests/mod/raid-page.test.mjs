@@ -83,7 +83,7 @@ test('registers and mounts the Guild Raid page as a first-class multiplayer view
 	assert.match(style, /\.mp-raid-nav\.mp-raid-active[\s\S]*background-color: #8f3030/);
 	assert.equal(language.MOD_MP_SIDEBAR_RAID_ACTIVE, 'active');
 	assert.match(templates, /template-mp-raid-page/);
-	assert.doesNotMatch(templates, /lang-id="MOD_MP_RAID_READY_INFO"/);
+	assert.match(templates, /lang-id="MOD_MP_RAID_READY_INFO"/);
 	assert.doesNotMatch(templates, /MOD_MP_RAID_GUILD_EVENT/);
 	assert.doesNotMatch(templates, /template-mp-dropdown|state\.open_raid_page\(\)/);
 	assert.doesNotMatch(templates, /MOD_MP_RAID_FELLOWSHIP_EXCLUDED/);
@@ -467,7 +467,6 @@ test('leaves Raid Monsters without native loot for server Inbox delivery', () =>
 		entry.modifications?.monsters?.some(monster => monster.id.startsWith('multiplayer:Raid_Tier_'))), false);
 });
 
-
 test('opens boss drops with the Raid navigation icon and exact odds', () => {
 	const table = [{ item_id: 'melvorD:Bird_Nest', min: 30, max: 60, weight: 8, total_weight: 10 }];
 	const calls = [];
@@ -491,7 +490,6 @@ test('opens boss drops with the Raid navigation icon and exact odds', () => {
 	assert.match(templates, /drop\.min }} - {{ drop\.max }} ×/);
 	assert.doesNotMatch(style, /\.mp-raid-boss-info\s*\{[^}]*(?:max-height|overflow-y)/);
 });
-
 
 test('previews registered boss stats and attacks with current Guild resistance', () => {
 	const calls = [];
@@ -536,4 +534,139 @@ test('previews registered boss stats and attacks with current Guild resistance',
 	assert.match(templates, /class="mp-raid-info-buttons"/);
 	assert.match(templates, /class="mp-raid-drop-row-label"/);
 	assert.match(templates, /MOD_MP_RAID_WEAK_DESCRIPTION/);
+});
+
+test('requires entry each cycle and hides all Raid results at the closing boundary', () => {
+	const start = main.indexOf('\tget raid_visible()');
+	const end = main.indexOf('\tget raid_progress_pct()', start);
+	const view = new Function(`return { ${main.slice(start, end)} };`)();
+	const expires_at = Date.parse('2026-10-19T12:00:00Z');
+	Object.assign(view, {
+		raid: { raid_id: 1, active: true, expires_at },
+		raid_state: { entered: false, can_activate: true },
+		raid_update_time: expires_at - 1
+	});
+	assert.equal(view.raid_visible, false);
+	assert.equal(view.raid_entry_available, true);
+	view.raid_state.entered = true;
+	assert.equal(view.raid_visible, true);
+	view.raid.secured = true;
+	assert.equal(view.raid_visible, true);
+	view.raid_update_time = expires_at;
+	assert.equal(view.raid_visible, false);
+	assert.equal(view.raid_entry_available, false);
+	view.raid = { raid_id: 2, active: true, expires_at: expires_at + 604800000 };
+	view.raid_state.entered = false;
+	assert.equal(view.raid_visible, false);
+	assert.equal(view.raid_entry_available, true);
+	assert.match(templates, /mp-raid-activation" v-show="[^\"]*!state\.raid_visible/);
+	assert.match(templates, /block block-rounded" v-show="state\.raid_visible && state\.raid\?\.member"/);
+	assert.match(templates, /block block-rounded" v-show="state\.raid_visible"/);
+});
+
+test('formats the server-provided schedule in the player’s local time', () => {
+	const state = { raid_state: { schedule: {
+		starts_at: Date.parse('2026-10-16T12:00:00Z'), ends_at: Date.parse('2026-10-19T12:00:00Z')
+	} } };
+	Object.assign(state, install_transfer_actions({ state }));
+	assert.equal(state.format_raid_schedule_local().split(' – ').length, 2);
+	state.raid_state = {};
+	assert.equal(state.format_raid_schedule_local(), '');
+});
+
+test('a stale refresh cannot undo a later successful Raid entry', async () => {
+	const start = main.indexOf('async function refresh_raid_state()');
+	const end = main.indexOf('\nfunction set_raid_page_visible', start);
+	const replies = [];
+	const state = { raid_time_offset: 0, raid_loaded: false };
+	const refresh = new Function('state', 'api_get', 'update_raid_nav', 'reconcile_raid_cache', `
+		let raid_refresh_generation = 0;
+		${main.slice(start, end)}
+		return refresh_raid_state;
+	`)(state, () => new Promise(resolve => replies.push(resolve)), () => {}, () => {});
+	const older = refresh();
+	const newer = refresh();
+	replies[1]({ entered: true, server_now: Date.now() });
+	await newer;
+	replies[0]({ entered: false, server_now: Date.now() });
+	await older;
+	assert.equal(state.raid_state.entered, true);
+	assert.equal(state.raid_loaded, true);
+	assert.equal(state.raid_loading, false);
+});
+
+test('allows the last reserved Assault to resume only in its loaded session before expiry', () => {
+	const start = main.indexOf('\tget raid_can_assault()');
+	const end = main.indexOf('\n\tget ', start + 1);
+	const view = new Function('raid_loaded_session_id', 'raid_combat', `return { ${main.slice(start, end)} };`)(
+		'loaded-session', { has_active: () => false }
+	);
+	Object.assign(view, { raid_visible: true, raid_update_time: 1000, raid_action_pending: false,
+		raid: { member: { eligible: true, assaults: 0, pending_assault: {
+			loaded_session_id: 'loaded-session', combat_deadline: 2000
+		} } } });
+	assert.equal(view.raid_can_assault, true);
+	view.raid.member.pending_assault.loaded_session_id = 'old-session';
+	assert.equal(view.raid_can_assault, false);
+	view.raid.member.pending_assault.loaded_session_id = 'loaded-session';
+	view.raid_update_time = 2000;
+	assert.equal(view.raid_can_assault, false);
+	view.raid.member.assaults = 1;
+	assert.equal(view.raid_can_assault, true);
+	view.raid_action_pending = true;
+	assert.equal(view.raid_can_assault, false);
+});
+
+test('abandons a stale reservation and retries once, including an expired same-session reply', async () => {
+	for (const reply of [{ error_lang: 'MOD_MP_RAID_ASSAULT_PENDING' }, {
+		assault_id: 'expired', combat_deadline: Date.now() - 1000
+	}]) {
+		const calls = [];
+		let reservations = 0;
+		const state = { raid_can_assault: true, raid_state: {}, raid_time_offset: 0 };
+		const runtime = { state, game: { combat: { player: {} } }, getLangString: key => key, error: () => {},
+			raid_loaded_session_id: 'new-session', refresh_raid_state: async () => calls.push('refresh'),
+			raid_combat: { has_full_hitpoints: () => true, has_active: () => false,
+				start: reservation => calls.push(reservation.assault_id) },
+			api_post: async path => {
+				calls.push(path);
+				if (path.endsWith('/abandon')) return { success: true };
+				return reservations++ === 0 ? reply : { assault_id: 'replacement', combat_deadline: Date.now() + 60000 };
+			} };
+		Object.assign(state, install_transfer_actions(runtime));
+		await state.begin_raid_assault(1);
+		assert.deepEqual(calls, ['/api/raids/assaults/reserve', '/api/raids/assaults/abandon',
+			'/api/raids/assaults/reserve', 'replacement', 'refresh']);
+		assert.equal(state.raid_action_pending, false);
+	}
+});
+
+test('failed Raid start logs through runtime and releases the action guard even when refresh fails', async () => {
+	const logs = [];
+	const state = { raid_can_assault: true, raid_state: {} };
+	const runtime = { state, game: { combat: { player: {} } }, getLangString: key => key,
+		error: (...args) => logs.push(args), raid_loaded_session_id: 'session',
+		raid_combat: { has_full_hitpoints: () => true, has_active: () => false },
+		api_post: async () => null,
+		refresh_raid_state: async () => { throw new Error('refresh failed'); } };
+	Object.assign(state, install_transfer_actions(runtime));
+	await assert.rejects(state.begin_raid_assault(1), /refresh failed/);
+	assert.equal(state.raid_error, 'MOD_MP_RAID_START_FAILED');
+	assert.equal(logs.length, 1);
+	assert.equal(state.raid_action_pending, false);
+	runtime.api_post = async () => ({ success: true });
+	Object.assign(state, install_transfer_actions(runtime));
+	await assert.rejects(state.activate_raid(), /refresh failed/);
+	assert.equal(state.raid_action_pending, false);
+});
+
+test('a recovered reservation only enables its originally reserved tier', () => {
+	const state = { raid_can_assault: true, raid_update_time: 1000, raid_state: { unlocked_tiers: [1, 2, 3] },
+		raid: { member: { pending_assault: { loaded_session_id: 'current-session', combat_deadline: 2000, tier: 2 } } } };
+	Object.assign(state, install_transfer_actions({ state, raid_loaded_session_id: 'current-session' }));
+	assert.equal(state.can_assault_raid_tier(2), true);
+	assert.equal(state.can_assault_raid_tier(1), false);
+	assert.equal(state.can_assault_raid_tier(4), false);
+	state.raid.member.pending_assault.loaded_session_id = 'previous-session';
+	assert.equal(state.can_assault_raid_tier(4), true);
 });

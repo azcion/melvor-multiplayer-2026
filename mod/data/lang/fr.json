@@ -200,9 +200,11 @@
 	"MOD_MP_RAID_BACK_GUILD": "Retour à la guilde",
 	"MOD_MP_RAID_LOADING": "Chargement du raid de guilde…",
 	"MOD_MP_RAID_GUILD_REQUIRED": "Rejoignez une guilde pour participer aux raids de guilde.",
+	"MOD_MP_RAID_DORMANT_TITLE": "Il sommeille.",
+	"MOD_MP_RAID_DORMANT_INFO": "Le prochain raid commence vendredi. Entrez dès son début pour rejoindre le combat.",
 	"MOD_MP_RAID_READY_TITLE": "Il est temps.",
-	"MOD_MP_RAID_READY_INFO": "Tout membre peut ouvrir la période de 72 heures. À l’activation, le raid fige la liste des membres et ajuste les points de vie partagés selon les membres actifs au cours des quatre derniers jours.",
-	"MOD_MP_RAID_ACTIVATE": "Activer le raid",
+	"MOD_MP_RAID_READY_INFO": "Entrez pour voir la progression de votre guilde et rejoindre le combat.",
+	"MOD_MP_RAID_ACTIVATE": "Entrer dans le raid",
 	"MOD_MP_RAID_ACTIVATE_NEXT": "Activer le prochain raid",
 	"MOD_MP_RAID_SHARED_HEALTH": "PV du raid",
 	"MOD_MP_RAID_STATUS": "Statut",
@@ -239,7 +241,7 @@
 	"MOD_MP_RAID_TIME": "Temps restant",
 	"MOD_MP_RAID_ASSAULTS": "Assauts disponibles",
 	"MOD_MP_RAID_NEXT_ASSAULTS": "+3 dans %s",
-	"MOD_MP_RAID_AVAILABLE_IN": "Prochain raid dans %s",
+	"MOD_MP_RAID_AVAILABLE_IN": "Commence dans %s",
 	"MOD_MP_RAID_MEMBER_DEFEATS": "Raid %s×",
 	"MOD_MP_RAID_CONTRIBUTION": "Votre contribution",
 	"MOD_MP_RAID_NOT_ROSTERED": "Vous avez rejoint ou réintégré la guilde après le début de ce raid. Vous pourrez participer au prochain.",
@@ -1310,5 +1312,9 @@
 	"MOD_MP_ALLIANCE_CANCEL_ALLIANCE": "Annulé car l'Alliance n'existe plus.",
 	"MOD_MP_ALLIANCE_CANCEL_TARGET": "Annulé car la cible de la proposition n’est plus disponible.",
 	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED_GUILD": "Annulé car {guild} a rejoint une autre Alliance.",
-	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED": "Annulé car une guilde participante a rejoint une autre alliance."
+	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED": "Annulé car une guilde participante a rejoint une autre alliance.",
+	"MOD_MP_RAID_SCHEDULE": "Chaque vendredi à 12:00 UTC jusqu’au lundi à 12:00 UTC.",
+	"MOD_MP_RAID_SCHEDULE_LOCAL": "Votre heure locale : %s",
+	"MOD_MP_RAID_ENTRY_ENDS_IN": "Se termine dans %s",
+	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "Le raid du week-end a commencé."
 }

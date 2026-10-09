@@ -200,9 +200,11 @@
 	"MOD_MP_RAID_BACK_GUILD": "Volver al gremio",
 	"MOD_MP_RAID_LOADING": "Cargando incursión del gremio…",
 	"MOD_MP_RAID_GUILD_REQUIRED": "Únete a un gremio para participar en incursiones de gremio.",
+	"MOD_MP_RAID_DORMANT_TITLE": "Está dormido.",
+	"MOD_MP_RAID_DORMANT_INFO": "La próxima incursión empieza el viernes. Entra cuando empiece para unirte al combate.",
 	"MOD_MP_RAID_READY_TITLE": "Es hora.",
-	"MOD_MP_RAID_READY_INFO": "Cualquier miembro puede iniciar el plazo de 72 horas. Al activarse, la incursión fija la lista de miembros y ajusta la salud compartida según los miembros activos en los últimos cuatro días.",
-	"MOD_MP_RAID_ACTIVATE": "Activar incursión",
+	"MOD_MP_RAID_READY_INFO": "Entra para ver el progreso de tu gremio y unirte al combate.",
+	"MOD_MP_RAID_ACTIVATE": "Entrar en la incursión",
 	"MOD_MP_RAID_ACTIVATE_NEXT": "Activar próxima incursión",
 	"MOD_MP_RAID_SHARED_HEALTH": "PV de la incursión",
 	"MOD_MP_RAID_STATUS": "Estado",
@@ -239,7 +241,7 @@
 	"MOD_MP_RAID_TIME": "Tiempo restante",
 	"MOD_MP_RAID_ASSAULTS": "Asaltos disponibles",
 	"MOD_MP_RAID_NEXT_ASSAULTS": "+3 en %s",
-	"MOD_MP_RAID_AVAILABLE_IN": "Próxima incursión en %s",
+	"MOD_MP_RAID_AVAILABLE_IN": "Empieza en %s",
 	"MOD_MP_RAID_MEMBER_DEFEATS": "Incursión %s×",
 	"MOD_MP_RAID_CONTRIBUTION": "Tu contribución",
 	"MOD_MP_RAID_NOT_ROSTERED": "Te uniste o regresaste al gremio después de comenzar esta incursión. Puedes participar en la próxima.",
@@ -1310,5 +1312,9 @@
 	"MOD_MP_ALLIANCE_CANCEL_ALLIANCE": "Cancelado porque la Alianza ya no existe.",
 	"MOD_MP_ALLIANCE_CANCEL_TARGET": "Cancelado porque el objetivo de la propuesta ya no está disponible.",
 	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED_GUILD": "Cancelado porque {guild} se unió a otra Alianza.",
-	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED": "Cancelado porque un gremio participante se unió a otra alianza."
+	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED": "Cancelado porque un gremio participante se unió a otra alianza.",
+	"MOD_MP_RAID_SCHEDULE": "Cada viernes a las 12:00 UTC hasta el lunes a las 12:00 UTC.",
+	"MOD_MP_RAID_SCHEDULE_LOCAL": "Tu hora local: %s",
+	"MOD_MP_RAID_ENTRY_ENDS_IN": "Termina en %s",
+	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "La incursión del fin de semana ha comenzado."
 }

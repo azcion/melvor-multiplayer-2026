@@ -164,6 +164,8 @@ describe('SQLite persistence probe', () => {
 			'polls',
 			'raid_cutover',
 			'raid_defeat_totals',
+			'raid_entries',
+			'raid_schedule',
 			'raid_tier_unlocks',
 			'resolved_trade_offers',
 			'service_settings',

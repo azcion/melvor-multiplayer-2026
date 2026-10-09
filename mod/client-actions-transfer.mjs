@@ -53,6 +53,7 @@ export function install_transfer_actions(runtime) {
 		get_mod_asset_url = media => ctx.getResourceUrl(media),
 		destroy_selected_transfer_inventory,
 		document,
+		error,
 		formatNumber,
 		game,
 		get_client_events,
@@ -228,6 +229,15 @@ export function install_transfer_actions(runtime) {
 			changePage(game.pages.getObjectByID('multiplayer:Guild_Raid'));
 		},
 
+		format_raid_schedule_local() {
+			const schedule = this.raid_state.schedule;
+			if (!schedule) return '';
+			const format = new Intl.DateTimeFormat(undefined, {
+				weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
+			});
+			return `${format.format(new Date(schedule.starts_at))} – ${format.format(new Date(schedule.ends_at))}`;
+		},
+
 		format_raid_time(timestamp) {
 			if (!Number.isSafeInteger(timestamp))
 				return '';
@@ -308,6 +318,10 @@ export function install_transfer_actions(runtime) {
 		},
 
 		can_assault_raid_tier(tier) {
+			const pending = this.raid?.member?.pending_assault;
+			if (pending?.loaded_session_id === runtime.raid_loaded_session_id &&
+				this.raid_update_time < pending?.combat_deadline && tier !== pending.tier)
+				return false;
 			return this.raid_can_assault && this.is_raid_tier_unlocked(tier);
 		},
 
@@ -341,12 +355,15 @@ export function install_transfer_actions(runtime) {
 				return;
 			this.raid_action_pending = true;
 			this.raid_error = '';
-			const res = await api_post('/api/raids/activate', {});
-			if (res?.success)
-				await refresh_raid_state();
-			else
-				this.raid_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
-			this.raid_action_pending = false;
+			try {
+				const res = await api_post('/api/raids/activate', {});
+				if (res?.success)
+					await refresh_raid_state();
+				else
+					this.raid_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+			} finally {
+				this.raid_action_pending = false;
+			}
 		},
 
 		async begin_raid_assault(tier) {
@@ -364,7 +381,9 @@ export function install_transfer_actions(runtime) {
 					loaded_session_id: runtime.raid_loaded_session_id
 				});
 				let reservation = await reserve();
-				if (reservation?.error_lang === 'MOD_MP_RAID_ASSAULT_PENDING' && !runtime.raid_combat.has_active()) {
+				if ((reservation?.error_lang === 'MOD_MP_RAID_ASSAULT_PENDING' ||
+					(Number.isSafeInteger(reservation?.combat_deadline) &&
+						reservation.combat_deadline <= Date.now() + (this.raid_time_offset ?? 0))) && !runtime.raid_combat.has_active()) {
 					const abandoned = await api_post('/api/raids/assaults/abandon', {});
 					if (!abandoned?.success)
 						throw new Error('MOD_MP_RAID_START_FAILED');
@@ -377,8 +396,10 @@ export function install_transfer_actions(runtime) {
 			} catch (e) {
 				this.raid_error = getLangString(e?.message?.startsWith('MOD_') ? e.message : 'MOD_MP_RAID_START_FAILED');
 				error('failed to begin Raid Assault (%s)', e);
+				await refresh_raid_state();
+			} finally {
+				this.raid_action_pending = false;
 			}
-			this.raid_action_pending = false;
 		},
 
 		async show_options_modal() {

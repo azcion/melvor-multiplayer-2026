@@ -210,6 +210,7 @@ let last_charity_check = 0;
 let charity_clock_timer = null;
 let expedition_clock_timer = null;
 let raid_clock_timer = null;
+let raid_refresh_generation = 0;
 let guild_raid_badge_timer = null;
 let last_expedition_state_refresh_at = 0;
 let charity_page_visible = false;
@@ -571,10 +572,12 @@ const state = ui.createStore({
 	raid_drop_entries: [],
 	raid_boss_info: null,
 	raid_loading: false,
+	raid_loaded: false,
 	raid_action_pending: false,
 	raid_error: '',
 	raid_confirmation_full_hp: false,
 	raid_update_time: Date.now(),
+	raid_time_offset: 0,
 	expedition_tracking_active: false,
 	expedition_tracking_loading: false,
 	expedition_debug_text: '',
@@ -1056,14 +1059,28 @@ const state = ui.createStore({
 		return this.raid_state.raid ?? null;
 	},
 
+	get raid_visible() {
+		return this.raid?.active === true && this.raid_update_time < this.raid.expires_at &&
+			this.raid_state.entered !== false;
+	},
+
+	get raid_entry_available() {
+		return this.raid_state.can_activate === true && this.raid?.active === true &&
+			this.raid_update_time < this.raid.expires_at;
+	},
+
 	get raid_progress_pct() {
 		return this.raid === null || this.raid.max_health <= 0 ? 0 : Math.max(0, Math.min(100,
 			(this.raid.remaining_health / this.raid.max_health) * 100));
 	},
 
 	get raid_can_assault() {
-		return this.raid?.active === true && this.raid?.member?.eligible === true &&
-			(this.raid?.member?.assaults ?? 0) > 0 && !this.raid_action_pending;
+		const pending = this.raid?.member?.pending_assault;
+		const can_resume = pending?.loaded_session_id === raid_loaded_session_id &&
+			this.raid_update_time < pending?.combat_deadline;
+		return this.raid_visible && this.raid?.member?.eligible === true &&
+			((this.raid?.member?.assaults ?? 0) > 0 || can_resume) && !this.raid_action_pending &&
+			!raid_combat?.has_active();
 	},
 
 	get is_charity_ready() {
@@ -1341,6 +1358,7 @@ function create_action_runtime() {
 		load_market_filter_items,
 		sort_market_filter_items,
 		log,
+		error,
 		notify,
 		notify_error,
 		notify_item,
@@ -5015,6 +5033,8 @@ async function load_more_guild_activity() {
 }
 
 function get_guild_activity_lang_id(event) {
+	if (event.event_type === 'raid_started' && event.actor_client_id === null)
+		return 'MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC';
 	return 'MOD_MP_GUILD_ACTIVITY_' + event.event_type.toUpperCase();
 }
 
@@ -5121,19 +5141,24 @@ function set_guild_page_visible(is_visible) {
 }
 
 async function refresh_raid_state() {
-	state.raid_update_time = Date.now();
+	const generation = ++raid_refresh_generation;
+	state.raid_update_time = Date.now() + state.raid_time_offset;
 	state.raid_loading = true;
 	try {
 		const res = await api_get('/api/raids/state');
-		if (res !== null) {
+		if (res !== null && generation === raid_refresh_generation) {
+			state.raid_loaded = true;
 			state.raid_state = res;
+			state.raid_time_offset = Number.isSafeInteger(res.server_now) ? res.server_now - Date.now() : 0;
+			state.raid_update_time = Date.now() + state.raid_time_offset;
 			update_raid_nav();
 			if (res.cache_pending)
 				void reconcile_raid_cache();
 		}
 		return res;
 	} finally {
-		state.raid_loading = false;
+		if (generation === raid_refresh_generation)
+			state.raid_loading = false;
 	}
 }
 
@@ -5141,12 +5166,19 @@ function set_raid_page_visible(is_visible) {
 	clearInterval(raid_clock_timer);
 	raid_clock_timer = null;
 	if (!is_visible) return;
-	state.raid_update_time = Date.now();
+	state.raid_update_time = Date.now() + state.raid_time_offset;
 	void Promise.all([get_client_events(), refresh_raid_state()]);
+	let refreshed_at = Date.now();
 	raid_clock_timer = setInterval(() => {
-		state.raid_update_time = Date.now();
-		void refresh_raid_state();
-	}, 60_000);
+		const previous_time = state.raid_update_time;
+		state.raid_update_time = Date.now() + state.raid_time_offset;
+		const boundary = state.raid?.expires_at ?? state.raid_state.activation_available_at;
+		if (Date.now() - refreshed_at >= 60_000 ||
+			(previous_time < boundary && state.raid_update_time >= boundary)) {
+			refreshed_at = Date.now();
+			void refresh_raid_state();
+		}
+	}, 1_000);
 }
 
 async function reconcile_raid_cache() {
@@ -5625,6 +5657,7 @@ export async function setup(ctx) {
 		tippy
 	});
 	const raid_controller = new raid_module.RaidCombatController({
+		now: () => Date.now() + state.raid_time_offset,
 		storage: {
 			get: () => get_instance_storage_item('raid_terminal_result') ?? null,
 			set: terminal => set_instance_storage_item('raid_terminal_result', terminal),

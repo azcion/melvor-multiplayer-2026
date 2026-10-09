@@ -185,9 +185,11 @@
 	"MOD_MP_RAID_BACK_GUILD": "Back to Guild",
 	"MOD_MP_RAID_LOADING": "Loading Guild Raid...",
 	"MOD_MP_RAID_GUILD_REQUIRED": "Join a Guild to participate in Guild Raids.",
+	"MOD_MP_RAID_DORMANT_TITLE": "It's dormant.",
+	"MOD_MP_RAID_DORMANT_INFO": "The next Raid starts Friday. Enter when it starts to join the fight.",
 	"MOD_MP_RAID_READY_TITLE": "It's time.",
-	"MOD_MP_RAID_READY_INFO": "Any member may begin the 72-hour window. At activation, the Raid snapshots the roster and scales shared health from members active within four days.",
-	"MOD_MP_RAID_ACTIVATE": "Activate Raid",
+	"MOD_MP_RAID_READY_INFO": "Enter to see your Guild’s progress and join the fight.",
+	"MOD_MP_RAID_ACTIVATE": "Enter Raid",
 	"MOD_MP_RAID_ACTIVATE_NEXT": "Activate Next Raid",
 	"MOD_MP_RAID_SHARED_HEALTH": "Raid HP",
 	"MOD_MP_RAID_STATUS": "Status",
@@ -224,7 +226,7 @@
 	"MOD_MP_RAID_TIME": "Time remaining",
 	"MOD_MP_RAID_ASSAULTS": "Assaults available",
 	"MOD_MP_RAID_NEXT_ASSAULTS": "+3 in %s",
-	"MOD_MP_RAID_AVAILABLE_IN": "Next Raid in %s",
+	"MOD_MP_RAID_AVAILABLE_IN": "Starts in %s",
 	"MOD_MP_RAID_MEMBER_DEFEATS": "Raid %s×",
 	"MOD_MP_RAID_CONTRIBUTION": "Your contribution",
 	"MOD_MP_RAID_NOT_ROSTERED": "You joined or rejoined after this Raid began. You can participate in the next Raid.",
@@ -1310,5 +1312,9 @@
 	"MOD_MP_LISTING_CONFIRM": "Confirm listing",
 	"MOD_MP_LISTING_INVALID": "Enter valid quantities and prices.",
 	"MOD_MP_MARKET_PURCHASE_LIMIT_REACHED": "You have reached this listing’s purchase limit.",
-	"MOD_MP_MARKET_LISTING_CHANGED": "This listing has changed. Refresh the Marketplace and try again."
+	"MOD_MP_MARKET_LISTING_CHANGED": "This listing has changed. Refresh the Marketplace and try again.",
+	"MOD_MP_RAID_SCHEDULE": "Every Friday 12:00 UTC–Monday 12:00 UTC.",
+	"MOD_MP_RAID_SCHEDULE_LOCAL": "Your local time: %s",
+	"MOD_MP_RAID_ENTRY_ENDS_IN": "Ends in %s",
+	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "The weekend Raid started."
 }

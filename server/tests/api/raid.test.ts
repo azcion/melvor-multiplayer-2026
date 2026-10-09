@@ -1,13 +1,15 @@
+import { enter_transition_raid, seed_transition_raid } from '../support/raid';
 import { describe, expect, test } from 'bun:test';
 import { get_json_with_session, post, post_json, register_client } from '../support/http';
 import { attach_to_free_fellowship, make_guild_group, make_guildmates, register_guild_client } from '../support/fixtures';
-import { db_count, db_run } from '../support/persistence';
+import { db_all, db_count, db_run } from '../support/persistence';
 import { RECENTLY_ACTIVE_AFTER } from '../../recent-activity';
 import { get_raid_monster_drops, RAID_MONSTER_DROPS, RAID_TIER_PROGRESS, RAID_VICTORY_CACHE, raid_max_health, raid_fortified_resistance } from '../../raid';
 
 type RaidState = {
 	affiliation: string;
 	can_activate?: boolean;
+	entered?: boolean;
 	cache_pending: boolean;
 	tier_defeats?: Record<number, number>;
 	unlocked_tiers?: number[];
@@ -158,7 +160,7 @@ describe('Guild Raids', () => {
 		const guild = await make_guildmates('Raid Unlock Winner', 'Raid Unlock Peer', 'Raid Unlock Guild');
 		await db_run('INSERT INTO `raid_defeat_totals` (`client_id`, `tier`, `defeats`) VALUES(?, 1, 20)',
 			[guild.first.client_id]);
-		await post_json('/api/raids/activate', {}, guild.first.session_token);
+		await enter_transition_raid('/api/raids/activate', {}, guild.first.session_token);
 		await db_run('UPDATE `guild_raid_roster` SET `manual_assaults_remaining` = 10 WHERE `client_id` = ?',
 			[guild.first.client_id]);
 		const reject_locked = async (session_token: string, tier: number) => {
@@ -188,7 +190,7 @@ describe('Guild Raids', () => {
 
 	test('allows Social Only Raid progress but forfeits cache delivery', async () => {
 		const member = await register_guild_client('Social Raid Member', 'Social Raid Guild');
-		await post_json('/api/raids/activate', {}, member.session_token);
+		await enter_transition_raid('/api/raids/activate', {}, member.session_token);
 		await db_run('UPDATE `guild_raids` SET `remaining_health` = 1000 WHERE `guild_id` = ?', [member.guild_id]);
 		const mode = await post_json<{ success: boolean; social_mode: string }>('/api/social-mode/set', {
 			mode: 'social', command_id: crypto.randomUUID()
@@ -209,11 +211,12 @@ describe('Guild Raids', () => {
 	test('activates a private-Guild Raid and secures it through bounded idempotent Assaults', async () => {
 		const member = await register_guild_client('Raid Founder', 'Raid Test Guild');
 		await seed_raid_unlock(member.client_id, 4);
+		seed_transition_raid(member.session_token);
 		const before = await get_json_with_session<RaidState>('/api/raids/state', member.session_token);
 		expect(before.response.status).toBe(200);
-		expect(before.json).toMatchObject({ affiliation: 'private', can_activate: true, raid: null });
+		expect(before.json).toMatchObject({ affiliation: 'private', can_activate: true, entered: false, raid: { active: true } });
 
-		const activated = await post_json<{ success: boolean; raid: RaidState['raid'] }>(
+		const activated = await enter_transition_raid<{ success: boolean; raid: RaidState['raid'] }>(
 			'/api/raids/activate', {}, member.session_token
 		);
 		expect(activated.response.status).toBe(200);
@@ -250,6 +253,24 @@ describe('Guild Raids', () => {
 		)).json.items).toEqual([...RAID_VICTORY_CACHE].sort((a, b) => a.item_id.localeCompare(b.item_id)));
 	});
 
+	test('enters the same Raid idempotently per character and hides it after expiry', async () => {
+		const guild = await make_guildmates('Raid Entry One', 'Raid Entry Two', 'Raid Entry Guild');
+		seed_transition_raid(guild.first.session_token);
+		const initial = await get_json_with_session<RaidState>('/api/raids/state', guild.first.session_token);
+		expect(initial.json.entered).toBe(false);
+		const times_before = await db_all('SELECT id, started_at, expires_at FROM guild_raids WHERE guild_id = ?', [guild.guild_id]);
+		const entries = await Promise.all(Array.from({ length: 5 }, () => post_json<{ success: boolean }>('/api/raids/activate', {}, guild.first.session_token)));
+		expect(entries.every(entry => entry.json.success)).toBe(true);
+		expect(await db_count('SELECT COUNT(*) AS count FROM raid_entries WHERE client_id = ?', [guild.first.client_id])).toBe(1);
+		expect(await db_all('SELECT id, started_at, expires_at FROM guild_raids WHERE guild_id = ?', [guild.guild_id])).toEqual(times_before);
+		expect((await get_json_with_session<RaidState>('/api/raids/state', guild.first.session_token)).json.entered).toBe(true);
+		expect((await get_json_with_session<RaidState>('/api/raids/state', guild.second.session_token)).json.entered).toBe(false);
+		await db_run('UPDATE guild_raids SET expires_at = started_at + 1 WHERE guild_id = ?', [guild.guild_id]);
+		const ended = await get_json_with_session<RaidState>('/api/raids/state', guild.first.session_token);
+		expect(ended.json).toMatchObject({ raid: null, entered: false, can_activate: false });
+		expect((await post_json<{ error_lang: string }>('/api/raids/activate', {}, guild.first.session_token)).json.error_lang).toBe('MOD_MP_RAID_COOLDOWN');
+	});
+
 	test('delivers one tier roll per 1.6.0 win and fixes each participant cache by TotH ownership', async () => {
 		const guild = await make_guildmates('Raid Base Reward', 'Raid TotH Reward', 'Raid Inbox Rewards',
 			{ first: '1.6.0', second: '1.6.0' });
@@ -257,7 +278,7 @@ describe('Guild Raids', () => {
 		await seed_raid_unlock(guild.second.client_id, 4);
 		await db_run('UPDATE `client_runtime_snapshots` SET `owned_dlc` = ? WHERE `client_id` = ?',
 			['["melvorTotH"]', guild.second.client_id]);
-		await post_json('/api/raids/activate', {}, guild.first.session_token);
+		await enter_transition_raid('/api/raids/activate', {}, guild.first.session_token);
 		await db_run('UPDATE `guild_raids` SET `remaining_health` = 9000 WHERE `guild_id` = ?', [guild.guild_id]);
 
 		const base_assault = await reserve(guild.first.session_token, 4);
@@ -293,7 +314,7 @@ describe('Guild Raids', () => {
 
 	test('keeps pending pre-change legacy cache contents after the reward migration', async () => {
 		const member = await register_guild_client('Raid Legacy Cache', 'Legacy Cache Guild', '1.4.5');
-		await post_json('/api/raids/activate', {}, member.session_token);
+		await enter_transition_raid('/api/raids/activate', {}, member.session_token);
 		const cache_id = crypto.randomUUID();
 		await db_run(
 			'INSERT INTO `guild_raid_victory_caches` (`id`, `raid_id`, `membership_id`, `client_id`, `created_at`) ' +
@@ -314,7 +335,7 @@ describe('Guild Raids', () => {
 
 	test('lists only members who have started an Assault, including an unresolved Assault at Tier 0', async () => {
 		const guild = await make_guildmates('Raid Participant One', 'Raid Participant Two', 'Raid Participants');
-		const activated = await post_json<{ success: boolean; raid: RaidState['raid'] }>(
+		const activated = await enter_transition_raid<{ success: boolean; raid: RaidState['raid'] }>(
 			'/api/raids/activate', {}, guild.first.session_token
 		);
 		expect(activated.json.raid?.leaderboard).toEqual([]);
@@ -334,7 +355,7 @@ describe('Guild Raids', () => {
 	test('lets one member finish a two-player Raid without a personal contribution cap', async () => {
 		const guild = await make_guildmates('Raid Carrier', 'Raid Companion', 'Raid Carry Guild');
 		await seed_raid_unlock(guild.first.client_id, 4);
-		const activated = await post_json<{ raid: RaidState['raid'] }>('/api/raids/activate', {}, guild.first.session_token);
+		const activated = await enter_transition_raid<{ raid: RaidState['raid'] }>('/api/raids/activate', {}, guild.first.session_token);
 		expect(activated.json.raid).toMatchObject({ max_health: 10_000, required_contributors: 2 });
 		for (const expected of [4_500, 4_500, 4_500]) {
 			const result = await settle(guild.first.session_token, await reserve(guild.first.session_token));
@@ -347,7 +368,7 @@ describe('Guild Raids', () => {
 
 	test('reports the next three-Assault grant while a tranche remains', async () => {
 		const member = await register_guild_client('Raid Grant', 'Raid Grant Guild');
-		const activated = await post_json<{ raid: RaidState['raid'] }>('/api/raids/activate', {}, member.session_token);
+		const activated = await enter_transition_raid<{ raid: RaidState['raid'] }>('/api/raids/activate', {}, member.session_token);
 		const started_at = Date.now();
 		const first = await get_json_with_session<RaidState>('/api/raids/state', member.session_token);
 		expect(first.json.raid?.member?.next_assault_grant_at).toBeGreaterThan(started_at + 23 * 60 * 60 * 1000);
@@ -365,7 +386,7 @@ describe('Guild Raids', () => {
 
 	test('consumes a manual Assault allowance beyond the automatic daily limit', async () => {
 		const member = await register_guild_client('Raid Override', 'Raid Override Guild');
-		await post_json('/api/raids/activate', {}, member.session_token);
+		await enter_transition_raid('/api/raids/activate', {}, member.session_token);
 		expect(await db_run(
 			'UPDATE `guild_raid_roster` SET `manual_assaults_remaining` = 10 WHERE `client_id` = ?',
 			[member.client_id]
@@ -385,15 +406,16 @@ describe('Guild Raids', () => {
 		const guildless = await register_client('Guildless Raider');
 		const guildless_state = await get_json_with_session<RaidState>('/api/raids/state', guildless.session_token);
 		expect(guildless_state.json.affiliation).toBe('none');
-		const guildless_activate = await post_json<{ error_lang: string }>('/api/raids/activate', {}, guildless.session_token);
+		const guildless_activate = await enter_transition_raid<{ error_lang: string }>('/api/raids/activate', {}, guildless.session_token);
 		expect(guildless_activate.json.error_lang).toBe('MOD_MP_GUILD_REQUIRED');
 
 		const fellowship = await attach_to_free_fellowship(
 			await register_client('Fellowship Raider')
 		);
+		seed_transition_raid(fellowship.session_token);
 		const fellowship_state = await get_json_with_session<RaidState>('/api/raids/state', fellowship.session_token);
-		expect(fellowship_state.json).toMatchObject({ affiliation: 'free_fellowship', can_activate: true, raid: null });
-		const fellowship_activate = await post_json<{ success: boolean; raid: RaidState['raid'] }>(
+		expect(fellowship_state.json).toMatchObject({ affiliation: 'free_fellowship', can_activate: true, entered: false, raid: { active: true } });
+		const fellowship_activate = await enter_transition_raid<{ success: boolean; raid: RaidState['raid'] }>(
 			'/api/raids/activate', {}, fellowship.session_token
 		);
 		expect(fellowship_activate.response.status).toBe(200);
@@ -412,7 +434,7 @@ describe('Guild Raids', () => {
 
 	test('keeps members who join after activation outside the Raid roster', async () => {
 		const guild = await make_guildmates('Raid Roster Founder', 'Raid Roster Member', 'Raid Roster Guild');
-		await post_json('/api/raids/activate', {}, guild.first.session_token);
+		await enter_transition_raid('/api/raids/activate', {}, guild.first.session_token);
 		const late_member = await register_client('Late Raid Member');
 		await post_json('/api/guilds/apply', { guild_id: guild.guild_id }, late_member.session_token);
 		const guild_state = await get_json_with_session<{
@@ -454,7 +476,7 @@ describe('Guild Raids', () => {
 			]
 		);
 
-		const activated = await post_json<{ success: boolean; raid: RaidState['raid'] }>(
+		const activated = await enter_transition_raid<{ success: boolean; raid: RaidState['raid'] }>(
 			'/api/raids/activate', {}, members[0].session_token
 		);
 		expect(activated.json.raid).toMatchObject({
@@ -481,7 +503,7 @@ describe('Guild Raids', () => {
 			Array.from({ length: 13 }, (_, index) => `Raid Scale ${index + 1}`),
 			'Raid Scale Guild'
 		);
-		const activated = await post_json<{ success: boolean; raid: RaidState['raid'] }>(
+		const activated = await enter_transition_raid<{ success: boolean; raid: RaidState['raid'] }>(
 			'/api/raids/activate', {}, members[0].session_token
 		);
 
@@ -494,7 +516,7 @@ describe('Guild Raids', () => {
 
 	test('rejects malformed reservations and conflicting settlement replays', async () => {
 		const member = await register_guild_client('Raid Boundary', 'Raid Boundary Guild');
-		await post_json('/api/raids/activate', {}, member.session_token);
+		await enter_transition_raid('/api/raids/activate', {}, member.session_token);
 		const invalid = await post('/api/raids/assaults/reserve', {
 			tier: 9,
 			loaded_session_id: 'short'
@@ -515,7 +537,7 @@ describe('Guild Raids', () => {
 
 	test('finalizes an out-of-window terminal result so the next Assault can begin', async () => {
 		const member = await register_guild_client('Raid Expiry', 'Raid Expiry Guild');
-		await post_json('/api/raids/activate', {}, member.session_token);
+		await enter_transition_raid('/api/raids/activate', {}, member.session_token);
 		const assault = await reserve(member.session_token, 1);
 		const late = await post_json<{
 			success: boolean;
@@ -548,10 +570,26 @@ describe('Guild Raids', () => {
 		expect(next.assault_id).not.toBe(assault.assault_id);
 	});
 
+	test('recovers a lost last-Assault response without charging again', async () => {
+		const member = await register_guild_client('Raid Last Response', 'Raid Last Guild');
+		await enter_transition_raid('/api/raids/activate', {}, member.session_token);
+		for (let spent = 0; spent < 2; spent++)
+			await settle(member.session_token, await reserve(member.session_token, 1), 'flee');
+		const payload = { tier: 1, loaded_session_id: crypto.randomUUID() };
+		const first = await post_json<Reservation>('/api/raids/assaults/reserve', payload, member.session_token);
+		const state = await get_json_with_session<RaidState>('/api/raids/state', member.session_token);
+		expect(state.json.raid?.member?.assaults).toBe(0);
+		const replay = await post_json<Reservation>('/api/raids/assaults/reserve', payload, member.session_token);
+		expect(replay.response.status).toBe(200);
+		expect(replay.json).toEqual(first.json);
+		expect(await db_count('SELECT COUNT(*) AS count FROM guild_raid_assaults WHERE client_id = ?', [member.client_id])).toBe(3);
+		expect((await settle(member.session_token, replay.json)).json.credited_progress).toBe(1000);
+	});
+
 	test('replays a same-session pending Assault and explicitly abandons it for a new session', async () => {
 		const member = await register_guild_client('Raid Resume', 'Raid Resume Guild');
 		await seed_raid_unlock(member.client_id, 2);
-		await post_json('/api/raids/activate', {}, member.session_token);
+		await enter_transition_raid('/api/raids/activate', {}, member.session_token);
 		const loaded_session_id = crypto.randomUUID();
 		const first = await post_json<Reservation>('/api/raids/assaults/reserve', {
 			tier: 2,
@@ -596,7 +634,7 @@ describe('Guild Raids', () => {
 	test('tracks player-owned tier wins through a Guild change and excludes Shadowed members', async () => {
 		const guild = await make_guildmates('Raid Lifetime Winner', 'Raid Lifetime Peer', 'Raid Lifetime Guild');
 		await seed_raid_unlock(guild.first.client_id, 2);
-		await post_json('/api/raids/activate', {}, guild.first.session_token);
+		await enter_transition_raid('/api/raids/activate', {}, guild.first.session_token);
 		await db_run('UPDATE `guild_raid_roster` SET `manual_assaults_remaining` = 10 WHERE `client_id` = ?',
 			[guild.first.client_id]);
 		let last: Reservation | null = null;
@@ -624,10 +662,10 @@ describe('Guild Raids', () => {
 		expect(shadowed.json.tier_defeats?.[2]).toBe(0);
 	});
 
-	test('cuts over active Raids once, lets 1.6.0 start immediately, and gates old clients', async () => {
+	test('preserves the old cutover payouts and blocks replacement legacy Raids', async () => {
 		const participant = await register_guild_client('Raid Cutover Winner', 'Raid Cutover Guild', '1.6.0');
 		const older = await register_guild_client('Raid Cutover Legacy', 'Raid Old Guild', '1.5.16');
-		await post_json('/api/raids/activate', {}, participant.session_token);
+		await enter_transition_raid('/api/raids/activate', {}, participant.session_token);
 		await settle(participant.session_token, await reserve(participant.session_token, 1));
 		const cutover_at = Date.now();
 		try {
@@ -637,20 +675,20 @@ describe('Guild Raids', () => {
 			expect(completed.new_payouts).toBe(preview.new_payouts);
 			expect(await raid_admin('cutover', cutover_at)).toEqual(completed);
 			const state = await get_json_with_session<RaidState>('/api/raids/state', participant.session_token);
-			expect(state.json).toMatchObject({ can_activate: true, raid: { secured: true, active: false } });
+			expect(state.json).toMatchObject({ can_activate: false, entered: false, raid: null });
 			const inbox = await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
 				'/api/inbox', participant.session_token);
 			expect(inbox.json.items).toEqual(expect.arrayContaining([...RAID_VICTORY_CACHE]));
-			const blocked = await post_json<{ error_lang: string }>('/api/raids/activate', {}, older.session_token);
+			const blocked = await enter_transition_raid<{ error_lang: string }>('/api/raids/activate', {}, older.session_token);
 			expect(blocked.json.error_lang).toBe('MOD_MP_RAID_COOLDOWN');
-			const next = await post_json('/api/raids/activate', {}, participant.session_token);
-			expect(next.json).toMatchObject({ success: true });
+			const next = await enter_transition_raid('/api/raids/activate', {}, participant.session_token);
+			expect(next.json).toMatchObject({ error_lang: 'MOD_MP_RAID_COOLDOWN' });
 			const cooling_down = await get_json_with_session<RaidState>('/api/raids/state', participant.session_token);
 			expect(cooling_down.json.can_activate).toBe(false);
-			const repeated = await post_json<{ error_lang: string }>('/api/raids/activate', {}, participant.session_token);
+			const repeated = await enter_transition_raid<{ error_lang: string }>('/api/raids/activate', {}, participant.session_token);
 			expect(repeated.json.error_lang).toBe('MOD_MP_RAID_COOLDOWN');
 			await db_run('UPDATE `raid_cutover` SET `resume_at` = `cutover_at` + 1 WHERE `id` = 1');
-			const still_blocked = await post_json<{ error_lang: string }>('/api/raids/activate', {}, older.session_token);
+			const still_blocked = await enter_transition_raid<{ error_lang: string }>('/api/raids/activate', {}, older.session_token);
 			expect(still_blocked.json.error_lang).toBe('MOD_MP_RAID_COOLDOWN');
 		} finally {
 			await db_run('DELETE FROM `raid_cutover` WHERE `id` = 1');

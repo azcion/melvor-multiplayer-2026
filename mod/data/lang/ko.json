@@ -200,9 +200,11 @@
 	"MOD_MP_RAID_BACK_GUILD": "길드로 돌아가기",
 	"MOD_MP_RAID_LOADING": "길드 레이드를 불러오는 중…",
 	"MOD_MP_RAID_GUILD_REQUIRED": "길드 레이드에 참여하려면 길드에 가입하세요.",
+	"MOD_MP_RAID_DORMANT_TITLE": "잠들어 있다.",
+	"MOD_MP_RAID_DORMANT_INFO": "다음 레이드는 금요일에 시작됩니다. 시작되면 입장해 전투에 참여하세요.",
 	"MOD_MP_RAID_READY_TITLE": "시간이다.",
-	"MOD_MP_RAID_READY_INFO": "모든 길드원이 72시간의 레이드를 시작할 수 있습니다. 시작 시 길드원 명단이 고정되며 최근 4일 동안 활동한 길드원 수에 따라 공유 체력이 조정됩니다.",
-	"MOD_MP_RAID_ACTIVATE": "레이드 시작",
+	"MOD_MP_RAID_READY_INFO": "입장해 길드의 진행 상황을 확인하고 전투에 참여하세요.",
+	"MOD_MP_RAID_ACTIVATE": "레이드 입장",
 	"MOD_MP_RAID_ACTIVATE_NEXT": "다음 레이드 시작",
 	"MOD_MP_RAID_SHARED_HEALTH": "레이드 체력",
 	"MOD_MP_RAID_STATUS": "상태",
@@ -239,7 +241,7 @@
 	"MOD_MP_RAID_TIME": "남은 시간",
 	"MOD_MP_RAID_ASSAULTS": "남은 공격 횟수",
 	"MOD_MP_RAID_NEXT_ASSAULTS": "%s 후 +3",
-	"MOD_MP_RAID_AVAILABLE_IN": "다음 레이드까지 %s",
+	"MOD_MP_RAID_AVAILABLE_IN": "시작까지 %s",
 	"MOD_MP_RAID_MEMBER_DEFEATS": "레이드 %s×",
 	"MOD_MP_RAID_CONTRIBUTION": "내 기여도",
 	"MOD_MP_RAID_NOT_ROSTERED": "이번 레이드가 시작된 후 가입하거나 재가입했습니다. 다음 레이드에 참여할 수 있습니다.",
@@ -1310,5 +1312,9 @@
 	"MOD_MP_ALLIANCE_CANCEL_ALLIANCE": "동맹이 더 이상 존재하지 않기 때문에 취소되었습니다.",
 	"MOD_MP_ALLIANCE_CANCEL_TARGET": "제안의 타겟을 더 이상 사용할 수 없기 때문에 취소되었습니다.",
 	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED_GUILD": "{guild}가 다른 동맹에 가입했기 때문에 취소되었습니다.",
-	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED": "참여 길드가 다른 동맹에 가입하여 취소되었습니다."
+	"MOD_MP_ALLIANCE_CANCEL_AFFILIATED": "참여 길드가 다른 동맹에 가입하여 취소되었습니다.",
+	"MOD_MP_RAID_SCHEDULE": "매주 금요일 12:00 UTC부터 월요일 12:00 UTC까지.",
+	"MOD_MP_RAID_SCHEDULE_LOCAL": "현지 시간: %s",
+	"MOD_MP_RAID_ENTRY_ENDS_IN": "종료까지 %s",
+	"MOD_MP_GUILD_ACTIVITY_RAID_AUTOMATIC": "주말 레이드가 시작되었습니다."
 }
