@@ -180,3 +180,52 @@ test('recent destination backfill uses exact command links and saved names, leav
 	expect(db.query('PRAGMA foreign_key_check').all()).toEqual([]);
 	db.close();
 });
+
+test('command-keyed Inbox arrivals remain separate within one millisecond and generic updates clear attribution', () => {
+	const db = create_test_database(); seed(db); const now = Date.now();
+	const write = db.query("INSERT INTO inbox_items(client_id,item_id,qty,source_type,source_name,created_at,updated_at,history_key) VALUES(101,'test:Ore',?,'market_bought','Seller',?,?,?) ON CONFLICT(client_id,source_type,source_name,item_id) DO UPDATE SET qty=qty+excluded.qty,updated_at=excluded.updated_at,history_key=excluded.history_key");
+	write.run(2, now, now, 'exchange:first');
+	write.run(3, now, now, 'exchange:second');
+	write.run(4, now, now, null);
+	const entries = get_transfer_history(db, 101, 'inbox', null, now).entries;
+	expect(entries.map(row => row.items[0]?.qty)).toEqual([4, 3, 2]);
+	expect(db.query('SELECT qty,history_key FROM inbox_items').get()).toEqual({ qty: 9, history_key: null });
+	expect(get_transfer_history(db, 102, 'inbox', null, now).entries).toEqual([]);
+	expect(() => db.transaction(() => { write.run(5, now, now, 'exchange:rollback'); throw Error('rollback'); })()).toThrow();
+	expect(get_transfer_history(db, 101, 'inbox', null, now).entries).toHaveLength(3);
+	db.close();
+});
+
+test('exchange migration enriches only exact recent actor receipts and retains all historical movements', () => {
+	const db = new Database(':memory:');
+	for (const migration of migrations.filter(row => row.version < 170)) {
+		if (migration.foreign_keys_disabled) db.run('PRAGMA foreign_keys=OFF');
+		db.run(migration.sql); db.run('PRAGMA foreign_keys=ON');
+	}
+	seed(db); const now = Date.now() - 1000;
+	const insert = (id: string, kind: string, at: number, fields: Record<string, unknown>) => {
+		db.query('INSERT INTO economy_receipts(id,client_id,kind,response_json,created_at) VALUES(?,101,?,?,?)').run(id, kind,
+			JSON.stringify({ success: true, ...fields, receipt: { id, kind, effects: [{ storage: 'bank', item_id: 'test:Ore', qty: -2 }] } }), at);
+	};
+	insert('buy', 'market-buy', now, { item_id: 'test:Token', item_qty: 2, gp_loss: 70700 });
+	insert('fulfill', 'market-fulfill', now, { item_id: 'test:Ore', item_qty: 2, gp_gain: 14 });
+	insert('old', 'market-buy', now - TRANSFER_HISTORY_WINDOW - 1000, { item_id: 'test:Token', item_qty: 2 });
+	insert('future', 'market-buy', now + 60000, { item_id: 'test:Token', item_qty: 2 });
+	insert('unknown', 'market-buy', now, {});
+	insert('invalid', 'market-buy', now, { item_id: 'test:Token', item_qty: 0 });
+	insert('invalid-gp', 'market-fulfill', now, { item_id: 'test:Ore', item_qty: 2, gp_gain: -1 });
+	db.query("INSERT INTO inbox_items(client_id,item_id,qty,source_type,source_name,updated_at) VALUES(102,'test:Token',2,'market_bought','Player 101',?)").run(now);
+	const before = db.query('SELECT * FROM transfer_history_items ORDER BY event_id,ordinal').all();
+	const count = db.query('SELECT COUNT(*) AS n FROM transfer_history_events').get();
+	db.run(migrations.find(row => row.version === 170)!.sql);
+	expect(db.query('SELECT * FROM transfer_history_items ORDER BY event_id,ordinal').all()).toEqual(before);
+	expect(db.query('SELECT COUNT(*) AS n FROM transfer_history_events').get()).toEqual(count);
+	const enriched = db.query<{ source_key: string; exchange_json: string }, []>('SELECT source_key,exchange_json FROM transfer_history_events WHERE exchange_json IS NOT NULL ORDER BY source_key').all();
+	expect(enriched.map(row => [row.source_key, JSON.parse(row.exchange_json)])).toEqual([
+		['receipt:buy', { label: 'purchased', item_id: 'test:Token', qty: 2 }],
+		['receipt:fulfill', { label: 'proceeds', item_id: 'melvorD:GP', qty: 14 }]
+	]);
+	expect(get_transfer_history(db, 102, 'inbox', null, now).entries[0]?.exchange).toBeUndefined();
+	expect(db.query('PRAGMA foreign_key_check').all()).toEqual([]);
+	db.close();
+});

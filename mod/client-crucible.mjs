@@ -7,7 +7,7 @@ export function install_crucible_actions(runtime, rules) {
 	let request = null;
 	const currencies = () => transfer_currency_support.get_transfer_currencies(game);
 	const is_currency = id => transfer_currency_support.is_transfer_currency(game, id);
-	const discovered = id => is_currency(id) || state.is_charity_item_discovered(id);
+	const discovered = id => is_currency(id) || state.is_crucible_item_discovered(id);
 	const rule_options = {
 		is_currency, is_discovered: discovered,
 		get_sale_currency(id) {
@@ -70,7 +70,7 @@ export function install_crucible_actions(runtime, rules) {
 			} finally {
 				state.crucible_loading = false;
 				request = null;
-				runtime.update_charitree_nav();
+				runtime.update_crucible_nav();
 			}
 		})();
 		return request;

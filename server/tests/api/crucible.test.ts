@@ -5,35 +5,13 @@ import { db_all, db_run } from '../support/persistence';
 
 beforeAll(async () => {
 	const now = Date.now();
-	await db_run('INSERT OR IGNORE INTO crucible_migration ' +
-		'(id, started_at, completed_at, source_json, destination_json) VALUES (1, ?, ?, ?, ?)',
-		[now, now, '{}', '{}']);
 	await db_run('INSERT OR IGNORE INTO crucible_guilds (guild_id, processed_minute, created_at) ' +
 		'SELECT id, ?, ? FROM guilds', [Math.floor(now / 60_000), now]);
 });
 
-test('1.5.16 Guildmates retain Charitree contents, donation, and taking during Crucible testing', async () => {
-	const pair = await make_guildmates('Legacy Donor', 'Legacy Taker', 'Legacy Crucible',
-		{ first: '1.5.16', second: '1.5.16' });
-	await db_run('UPDATE guild_memberships SET charitree_take_available_at = 0 WHERE client_id = ?',
-		[pair.second_id]);
-	const item_id = `test:Legacy_Offering_${crypto.randomUUID().replaceAll('-', '')}`;
-	const donated = await post_json<{ success: boolean }>('/api/charity/donate', {
-		command_id: crypto.randomUUID(), items: [{ id: item_id, qty: 2 }]
-	}, pair.first.session_token);
-	expect(donated.json.success).toBe(true);
-	const contents = await get_json_with_session<{ items: Array<{ id: string; qty: number }> }>(
-		'/api/charity/contents', pair.second.session_token);
-	expect(contents.json.items).toContainEqual(expect.objectContaining({ id: item_id, qty: 2 }));
-	const taken = await post_json<{ success: boolean }>('/api/charity/take', {
-		command_id: crypto.randomUUID(), item_id, qty: 1
-	}, pair.second.session_token);
-	expect(taken.json.success).toBe(true);
-	expect(await db_all<{ qty: number }>('SELECT qty FROM charity_items WHERE guild_id = ? AND item_id = ?',
-		[pair.guild_id, item_id])).toEqual([{ qty: 1 }]);
-});
 
-test('1.6.0 Cast and Reclaim use receipts while 1.5.16 Charitree remains usable', async () => {
+
+test('Cast and Reclaim use Crucible receipts and audited custody', async () => {
 	const newer = await register_guild_client('Crucible New', 'Crucible New Guild', '1.6.0');
 	const older = await register_guild_client('Crucible Old', 'Crucible Old Guild', '1.5.16');
 	const item_id = `test:Crucible_Ore_${crypto.randomUUID().replaceAll('-', '')}`;
@@ -84,17 +62,6 @@ test('1.6.0 Cast and Reclaim use receipts while 1.5.16 Charitree remains usable'
 		{ position_kind: 'inbox', position_key: `${newer.client_id}:crucible:`, qty: 1 }
 	]);
 
-	const legacy = await post_json<{ success: boolean }>('/api/charity/donate', {
-		items: [{ id: 'test:Legacy_Charitree_Item', qty: 1 }]
-	}, older.session_token);
-	expect(legacy.json.success).toBe(true);
-	expect(await db_all<{ qty: number }>(
-		'SELECT qty FROM charity_items WHERE guild_id = ? AND item_id = ?',
-		[older.guild_id, 'test:Legacy_Charitree_Item'])).toEqual([{ qty: 1 }]);
-	const wrong_version = await post('/api/charity/donate', {
-		items: [{ id: 'test:Not_Legacy', qty: 1 }]
-	}, newer.session_token);
-	expect(wrong_version.status).toBe(426);
 });
 
 test('Reclaim bonus creates audited Gloop in the Guild Crucible', async () => {
@@ -106,7 +73,7 @@ test('Reclaim bonus creates audited Gloop in the Guild Crucible', async () => {
 	const account_id = (await db_all<{ id: number }>(
 		'SELECT id FROM melvor_accounts ORDER BY id DESC LIMIT 1'))[0]!.id;
 	await db_run('UPDATE clients SET melvor_account_id = ? WHERE id = ?', [account_id, pair.first_id]);
-	await db_run('UPDATE guild_memberships SET charitree_take_available_at = 0 WHERE client_id = ?',
+	await db_run('UPDATE guild_memberships SET crucible_reclaim_available_at = 0 WHERE client_id = ?',
 		[pair.second_id]);
 	const item_id = `test:Bonus_Ore_${crypto.randomUUID().replaceAll('-', '')}`;
 	const cast = await post_json<{ success: boolean }>('/api/crucible/cast', {
@@ -230,4 +197,11 @@ test('linked characters share Wishes and Slag within each Guild and remain indep
 	expect((await post_json<{ success: boolean }>('/api/crucible/wish/cancel', {}, other.session_token)).json.success).toBe(true);
 	expect(await state(other.session_token)).toMatchObject({ level: -10, active_wish: false });
 	expect(await state(pair.second.session_token)).toMatchObject({ level: -9, active_wish: true });
+});
+
+
+test('retired Charitree endpoints are absent for every supported client', async () => {
+	const client = await register_guild_client('Retired Endpoint', 'Retired Endpoint', '1.6.9');
+	for (const endpoint of ['/api/charity/donate', '/api/charity/take', '/api/charity/shuffle', '/api/charity/wish/make'])
+		expect((await post(endpoint, { command_id: crypto.randomUUID() }, client.session_token)).status).toBe(404);
 });

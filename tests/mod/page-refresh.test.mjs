@@ -126,14 +126,14 @@ test('runs a visible-only page callback once when the page opens', async () => {
 
 test('refreshes the Crucible only while its page is visible', async () => {
  const main = await read_client_source(root);
- const clock = main.slice(main.indexOf('function set_charity_page_visible'), main.indexOf('// #endregion', main.indexOf('function set_charity_page_visible')));
- assert.match(clock, /clearInterval\(charity_clock_timer\)/);
- assert.match(clock, /if \(!charity_page_visible\)\s*return/);
+ const clock = main.slice(main.indexOf('function set_crucible_page_visible'), main.indexOf('// #endregion', main.indexOf('function set_crucible_page_visible')));
+ assert.match(clock, /clearInterval\(crucible_clock_timer\)/);
+ assert.match(clock, /if \(!crucible_page_visible\)\s*return/);
  assert.match(clock, /state\.refresh_crucible\(true\)/);
  assert.match(clock, /polling\.is_foreground\(document\)/);
  const setup = main.slice(main.indexOf('ctx.onInterfaceReady'), main.indexOf('function setup_account_menu'));
  assert.match(setup, /on_page_toggle\('mp-crucible-page'/);
- assert.match(main, /ctx\.onCharacterSelectionLoaded\(\(\) => \{\s*set_charity_page_visible\(false\)/);
+ assert.match(main, /ctx\.onCharacterSelectionLoaded\(\(\) => \{\s*set_crucible_page_visible\(false\)/);
 });
 
 test('keeps reactive Guild state scoped to its page', async () => {

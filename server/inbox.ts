@@ -1,3 +1,4 @@
+import type { HistoryExchange } from './transfer-history';
 import { db } from './db';
 import type { JsonObject } from './http';
 import type * as db_row from './db/types/db_types';
@@ -11,6 +12,8 @@ type InboxItem = { item_id: string; qty: number };
 export type InboxSource = {
 	type: string;
 	name?: string;
+	history_key?: string;
+	exchange?: HistoryExchange;
 };
 
 export function get_inbox_source_name(client_id: number): string {
@@ -37,14 +40,17 @@ export function add_inbox_items(client_id: number, items: readonly InboxItem[], 
 		if (item.qty <= 0)
 			continue;
 		db.query(
-			'INSERT INTO `inbox_items` (`client_id`, `source_type`, `source_name`, `item_id`, `qty`, `created_at`, `updated_at`) ' +
-			'VALUES(?, ?, ?, ?, ?, ?, ?) ON CONFLICT (`client_id`, `source_type`, `source_name`, `item_id`) ' +
+			'INSERT INTO `inbox_items` (`client_id`, `source_type`, `source_name`, `item_id`, `qty`, `created_at`, `updated_at`, `history_key`) ' +
+			'VALUES(?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (`client_id`, `source_type`, `source_name`, `item_id`) ' +
 			'DO UPDATE SET `qty` = `qty` + excluded.`qty`, ' +
 			'`created_at` = COALESCE(`inbox_items`.`created_at`, excluded.`created_at`), ' +
-			'`updated_at` = excluded.`updated_at`'
-		).run(client_id, source.type, source_name, item.item_id, item.qty, created_at, created_at);
+			'`updated_at` = excluded.`updated_at`, `history_key` = excluded.`history_key`'
+		).run(client_id, source.type, source_name, item.item_id, item.qty, created_at, created_at, source.history_key ?? null);
 		added = true;
 	}
+	if (added && source.history_key && source.exchange) db.query(
+		"UPDATE transfer_history_events SET exchange_json=? WHERE client_id=? AND pane='inbox' AND source_key=?"
+	).run(JSON.stringify(source.exchange), client_id, source.history_key);
 	if (added)
 		db.query('UPDATE `clients` SET `event_revision` = `event_revision` + 1 WHERE `id` = ?').run(client_id);
 }

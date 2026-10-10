@@ -35,14 +35,12 @@ const TRANSFER_INVENTORY_MAX_LIMIT = 6;
 const ECONOMY_RECEIPT_PAGE_SIZE = 64;
 const GIFT_FLAG_RETURNED = 1 << 0;
 
-const CHARITY_CHECK_TIMEOUT = 10 * 1000; // 10 seconds
-const CHARITY_CLOCK_INTERVAL = 30 * 1000; // 30 seconds
+const CRUCIBLE_CLOCK_INTERVAL = 30 * 1000; // 30 seconds
 const EXPEDITION_CLOCK_INTERVAL = 30 * 1000;
 const EXPEDITION_STATE_REFRESH_INTERVAL = 30 * 1000;
 const EXPEDITION_AUTO_CHECK_IN_INTERVAL = 10 * 60_000;
 const EXPEDITION_VOTE_COOLDOWN = 1000;
 const EXPEDITION_CHECK_IN_COOLDOWN = 10 * 1000;
-const CHARITY_WEIRD_GLOOP_ID = 'melvorD:Weird_Gloop';
 
 const MARKET_ITEMS_PER_PAGE = 30;
 const MARKET_FILTER_ITEMS_LIMIT = 24;
@@ -139,7 +137,6 @@ let replace_transfer_delivery_inventory = null;
 let trade_returns = null;
 let transfer_inventory = null;
 let item_visibility = null;
-let charitree_rules = null;
 let crucible_rules = null;
 let client_runtime = null;
 let connection_diagnostics = null;
@@ -207,14 +204,13 @@ let is_reconciling_raid_cache = false;
 const pending_identity_notices = [];
 let social_mode_choice_selection = false;
 
-let last_charity_check = 0;
-let charity_clock_timer = null;
+let crucible_clock_timer = null;
 let expedition_clock_timer = null;
 let raid_clock_timer = null;
 let raid_refresh_generation = 0;
 let guild_raid_badge_timer = null;
 let last_expedition_state_refresh_at = 0;
-let charity_page_visible = false;
+let crucible_page_visible = false;
 
 let has_sorted_market_filter_items = false;
 let has_done_first_market_search = false;
@@ -385,30 +381,8 @@ const state = ui.createStore({
 	inbox_claiming: false,
 	selected_transfer_item_id: '',
 
-	charity_tree_inventory: [],
-	charity_wishes: [],
-	charity_wish_catalog: [],
-	charity_active_wish: false,
-	charity_filter_wishes: false,
-	selected_charity_wish_id: 0,
-	charity_wish_item_id: '',
-	charity_wish_search: '',
-	charity_wish_qty: 1,
-	charity_shuffled_at: null,
-	charity_shuffle_count: 0,
-	charity_currency_locks: [],
-	charity_shuffle_offer: null,
-	charity_shuffle_max_offers: [],
-	charity_shuffle_supported: false,
-	selected_charity_item_id: '',
-	charity_server_supported: false,
-	charity_enabled: false,
-	charity_eligible: false,
-	charity_next_opportunity_timestamp: 0,
 	server_owned_pets: false,
 	owned_pet_ids: [],
-	charity_update_time: Date.now(),
-	charity_tree_loading: false,
 	crucible: null,
 	crucible_loading: false,
 	crucible_busy: false,
@@ -529,6 +503,8 @@ const state = ui.createStore({
 	chat_drafts: {},
 	chat_item_drafts: {},
 	chat_item_search: '',
+	chat_person_search: '',
+	chat_person_catalog: [],
 	chat_feature_search: '',
 	chat_feature_catalog: [],
 	chat_item_catalog: [],
@@ -594,11 +570,12 @@ const state = ui.createStore({
 	expedition_loading: false,
 	expedition_clock_time: Date.now(),
 	expedition_active_activities: [],
-	expedition_work_prompts_enabled: true,
+	expedition_work_tracking_mode: 'prompt',
 	expedition_action_pending: false,
 	expedition_vote_cooldown_until: 0,
 	expedition_check_in_cooldown_until: 0,
 	expedition_pending_report: null,
+	expedition_report_notice_visible: false,
 	expedition_catalog: null,
 	expedition_supply_item_id: '',
 	expedition_supply_qty: 1,
@@ -616,13 +593,21 @@ const state = ui.createStore({
 		return transfer_currency_support?.get_transfer_currency(game, currency_id) ?? null;
 	},
 
+	currency_display_shorthand(entry) {
+		return localization.localize_currency_shorthand(entry, setLang, getLangString);
+	},
+
+	format_currency_amount(currency, amount) {
+		return localization.format_multiplayer_currency_amount(currency, amount, setLang, getLangString);
+	},
+
 	get_capped_transfer_items(items) {
 		return transfer_currency_support?.cap_transfer_items(game, items) ?? items;
 	},
 
 	get_transfer_cap_notice(items = this.transfer_inventory) {
 		const overages = transfer_currency_support?.get_transfer_currency_overages(game, items) ?? [];
-		return overages.map(({ shorthand, cap }) => `${shorthand}: ${numberWithCommas(cap)}`).join(', ');
+		return overages.map(entry => `${this.currency_display_shorthand(entry)}: ${numberWithCommas(entry.cap)}`).join(', ');
 	},
 
 	get pending_gifts() { return [...this.gifts, ...(this.pending_preview?.gifts ?? [])]; },
@@ -646,7 +631,7 @@ const state = ui.createStore({
 		if (item === undefined)
 			return '—';
 		const value = item.sellsFor?.currency === game.gp ? game.bank.getItemSalePrice(item, haggle.item_qty) : 0;
-		return game.gp.formatAmount(numberWithCommas(value));
+		return this.format_currency_amount(game.gp, numberWithCommas(value));
 	},
 
 	get transfer_inventory_value_raw() {
@@ -692,7 +677,7 @@ const state = ui.createStore({
 	},
 
 	get transfer_inventory_value() {
-		return game.gp.formatAmount(numberWithCommas(this.transfer_inventory_value_raw));
+		return this.format_currency_amount(game.gp, numberWithCommas(this.transfer_inventory_value_raw));
 	},
 
 	get add_currency_value_formatted() {
@@ -722,14 +707,14 @@ const state = ui.createStore({
 	get bank_action_item_value_formatted() {
 		const item = get_bank_action_item();
 		if (item === null)
-			return game.gp.formatAmount('0');
+			return this.format_currency_amount(game.gp, '0');
 		const value = game.bank.getItemSalePrice(item, this.item_slider_value);
-		return item.sellsFor?.currency?.formatAmount(numberWithCommas(value)) ?? numberWithCommas(value);
+		return this.format_currency_amount(item.sellsFor?.currency, numberWithCommas(value));
 	},
 
 	get bank_action_market_total_formatted() {
 		const total = Number(this.item_slider_value) * Number(this.bank_action_market_price);
-		return Number.isSafeInteger(total) && total >= 0 ? game.gp.formatAmount(numberWithCommas(total)) : game.gp.formatAmount('0');
+		return Number.isSafeInteger(total) && total >= 0 ? this.format_currency_amount(game.gp, numberWithCommas(total)) : this.format_currency_amount(game.gp, '0');
 	},
 
 	get market_currencies() {
@@ -743,8 +728,10 @@ const state = ui.createStore({
 		return this.market_currency(row)?.currency.media ?? 'assets/media/main/coins.svg';
 	},
 	market_currency_shorthand(row) {
-		return this.market_currency(row)?.shorthand ??
-			transfer_currency_support?.TRANSFER_CURRENCY_DEFINITIONS?.find(entry => entry.id === row?.currency_id)?.shorthand ?? 'GP';
+		const entry = this.market_currency(row) ??
+			transfer_currency_support?.TRANSFER_CURRENCY_DEFINITIONS?.find(entry => entry.id === row?.currency_id) ??
+			{ id: 'melvorD:GP', shorthand: 'GP' };
+		return this.currency_display_shorthand(entry);
 	},
 	market_currency_amount(row) {
 		return this.market_currency(row)?.currency.amount ?? 0;
@@ -889,10 +876,6 @@ const state = ui.createStore({
 		if (this.guild_state_loading || !this.guild_state_loaded)
 			return 'loading';
 		return this.guild_state.affiliation === 'none' ? 'onboarding' : 'loading';
-	},
-
-	get is_charitree_enabled() {
-		return this.is_guild_member && !this.is_social_only && this.guild_state.guild.charitree_enabled !== false;
 	},
 
 	get guild_member_count() {
@@ -1090,101 +1073,6 @@ const state = ui.createStore({
 			!raid_combat?.has_active();
 	},
 
-	get is_charity_ready() {
-		return state.charity_enabled && (state.charity_eligible ||
-			(state.charity_next_opportunity_timestamp > 0 && state.charity_next_opportunity_timestamp <= state.charity_update_time));
-	},
-
-	get is_charity_bonus_ready() {
-		return false;
-	},
-
-	get can_take_charity() {
-		return this.is_charity_ready;
-	},
-
-	get charity_next_opportunity_at() {
-		return state.charity_next_opportunity_timestamp;
-	},
-
-	get charity_next_opportunity_formatted() {
-		return charitree_rules.format_charitree_remaining(
-			this.charity_next_opportunity_at,
-			this.charity_update_time
-		);
-	},
-
-	get selected_charity_take_block() {
-		const item = this.charity_tree_inventory.find(entry => entry.id === this.selected_charity_item_id);
-		return item === undefined ? null : this.get_charity_take_block(item);
-	},
-
-	get selected_charity_take_quantity() {
-		const item = this.charity_tree_inventory.find(entry => entry.id === this.selected_charity_item_id);
-		return item === undefined ? 0 : this.get_charity_take_quantity(item);
-	},
-
-	get selected_charity_take_amount() {
-		const item = this.charity_tree_inventory.find(entry => entry.id === this.selected_charity_item_id);
-		return item !== undefined && this.get_charity_take_quantity(item) === item.qty
-			? getLangString('MOD_MP_CHARITY_ENTIRE_STACK')
-			: formatNumber(this.selected_charity_take_quantity);
-	},
-
-	get selected_charity_take_warning() {
-		const item = this.charity_tree_inventory.find(entry => entry.id === this.selected_charity_item_id);
-		if (item === undefined || item.qty <= 1 || this.get_charity_take_block(item) !== null ||
-			this.is_charity_item_discovered(item.id))
-			return null;
-		return getLangString('MOD_MP_CHARITY_UNDISCOVERED_STACK');
-	},
-
-	get charity_tree_entries() {
-		const wishes = this.charity_filter_wishes
-			? this.charity_wishes.filter(wish => wish.owned === true)
-			: this.charity_wishes;
-		return [
-			...this.charity_tree_inventory.map(item => ({ ...item, kind: 'offering' })),
-			...wishes.map(wish => ({ ...wish, id: wish.item_id, kind: 'wish', wish_id: wish.id }))
-		].sort((left, right) => {
-			const rank = entry => entry.kind === 'offering' && entry.id === CHARITY_WEIRD_GLOOP_ID ? 0
-				: entry.kind === 'wish' && entry.phase === 'ripe' ? 1
-					: entry.kind === 'wish' && entry.phase === 'ripening' ? 2 : 3;
-			const ranked = rank(left) - rank(right);
-			if (ranked !== 0) return ranked;
-			const left_time = left.kind === 'wish' ? left.matures_at : left.expires_at;
-			const right_time = right.kind === 'wish' ? right.matures_at : right.expires_at;
-			return (left_time ?? 0) - (right_time ?? 0) || left.id.localeCompare(right.id);
-		});
-	},
-
-	get selected_charity_wish() {
-		return this.charity_wishes.find(wish => wish.id === this.selected_charity_wish_id) ?? null;
-	},
-
-	get eligible_charity_wish_items() {
-		return this.charity_wish_catalog.map(entry => {
-			const item = game.items.getObjectByID(entry.id);
-			return item && game.stats.itemFindCount(item) > 0 ? { ...entry, name: item.name } : null;
-		}).filter(Boolean).sort((left, right) => right.max_item_value - left.max_item_value || left.name.localeCompare(right.name));
-	},
-
-	get filtered_charity_wish_items() {
-		const search = String(this.charity_wish_search ?? '').trim().toLocaleLowerCase();
-		return this.eligible_charity_wish_items.filter(item => search === '' ||
-			String(item.name).toLocaleLowerCase().includes(search));
-	},
-
-	get charity_wish_item_name() {
-		return this.eligible_charity_wish_items.find(item => item.id === this.charity_wish_item_id)?.name ?? '';
-	},
-
-	get charity_wish_requirement() {
-		const entry = this.charity_wish_catalog.find(item => item.id === this.charity_wish_item_id);
-		const qty = Number(this.charity_wish_qty);
-		return entry && Number.isSafeInteger(qty) && qty >= 1 && qty <= 100 ? entry.max_item_value * qty * 5 : 0;
-	},
-
 	get eligible_crucible_wish_items() {
 		return (this.crucible?.wish_catalog ?? []).map(entry => {
 			const item = game.items.getObjectByID(entry.id);
@@ -1214,22 +1102,18 @@ const state = ui.createStore({
 		return entry && Number.isSafeInteger(qty) && qty >= 1 && qty <= 100 ? entry.max_item_value * qty * 5 : 0;
 	},
 
-	charity_wish_progress_percentage(wish) {
-		return !wish || wish.phase === 'ripe' ? null : Math.min(99, Math.floor(wish.progress_gp * 100 / wish.required_gp));
-	},
-
 	get market_buy_price_formatted() {
 		if (this.market_buy_item)
 			return formatNumber(this.market_buy_item.price * this.item_slider_value) + ' ' + this.market_currency_shorthand(this.market_buy_item);
 
-		return '0 GP';
+		return '0 ' + this.market_currency_shorthand(null);
 	},
 
 	get market_fulfill_price_formatted() {
 		if (this.market_fulfill_item)
-			return formatNumber(this.market_fulfill_item.price * this.item_slider_value) + ' GP';
+			return formatNumber(this.market_fulfill_item.price * this.item_slider_value) + ' ' + this.market_currency_shorthand(null);
 
-		return '0 GP';
+		return '0 ' + this.market_currency_shorthand(null);
 	},
 
 	get market_fulfill_item_owned_qty() {
@@ -1251,15 +1135,15 @@ const state = ui.createStore({
 
 	get market_create_total_formatted() {
 		const total = Number(this.market_create_qty) * Number(this.market_create_price);
-		return Number.isSafeInteger(total) && total > 0 ? formatNumber(total) + ' GP' : '0 GP';
+		return Number.isSafeInteger(total) && total > 0 ? formatNumber(total) + ' ' + this.market_currency_shorthand(null) : '0 ' + this.market_currency_shorthand(null);
 	},
 
 	get market_create_calculation_formatted() {
 		const item_qty = Number(this.market_create_qty);
 		const item_price = Number(this.market_create_price);
 		return Number.isSafeInteger(item_qty) && item_qty > 0 && Number.isSafeInteger(item_price) && item_price > 0
-			? `${formatNumber(item_qty)} × ${formatNumber(item_price)} GP`
-			: '0 × 0 GP';
+			? `${formatNumber(item_qty)} × ${formatNumber(item_price)} ${this.market_currency_shorthand(null)}`
+			: '0 × 0 ' + this.market_currency_shorthand(null);
 	},
 
 	get market_listings_filtered() {
@@ -1310,7 +1194,7 @@ function create_action_runtime() {
 		$,
 		nativeManager: typeof nativeManager === 'undefined' ? undefined : nativeManager,
 		crypto,
-		get_charity_item_valuation,
+		get_offering_item_valuation,
 		SUPPORT_TEAM_ICON_ASSETS,
 		GIFT_FLAG_RETURNED,
 		MARKET_ITEMS_PER_PAGE,
@@ -1319,20 +1203,16 @@ function create_action_runtime() {
 		is_social_only: () => state.is_social_only,
 		game_mode_sharing,
 		client_runtime,
-		charitree_rules,
 		trade_returns,
 		transfer_currency_support,
 		transfer_inventory,
 		api_get,
 		api_post,
 		run_pending_economy_action,
-		run_pending_charity_wish_action,
 		run_pending_crucible_wish_action,
-		request_charity_tree_contents,
 		filter_local_available_items,
 		add_currency_to_transfer,
 		add_gp_to_transfer,
-		apply_charity_state,
 		is_transfer_currency: currency_id => transfer_currency_support?.is_transfer_currency(game, currency_id) === true,
 		claim_inbox,
 		capture_equipment_snapshot,
@@ -1399,7 +1279,7 @@ function create_action_runtime() {
 		stop_gp_sampling,
 		stop_status_observer,
 		unmount_connected_modal_components,
-		update_charitree_nav,
+		update_crucible_nav,
 		update_multiplayer_nav,
 		update_market_listings,
 		update_market_haggles,
@@ -1415,8 +1295,6 @@ function create_action_runtime() {
 		get active_mod_names() { return active_mod_names; },
 		get has_sorted_market_filter_items() { return has_sorted_market_filter_items; },
 		set has_sorted_market_filter_items(value) { has_sorted_market_filter_items = value; },
-		get last_charity_check() { return last_charity_check; },
-		set last_charity_check(value) { last_charity_check = value; },
 		get last_synced_status_statistics() { return last_synced_status_statistics; },
 		set last_synced_status_statistics(value) { last_synced_status_statistics = value; },
 		get last_synced_equipment() { return last_synced_equipment; },
@@ -1674,7 +1552,7 @@ function capture_expedition_work_statistics() {
 		['melvorD:Agility', 'Agility', [3]],
 		['melvorD:Summoning', 'Summoning', [1]],
 		['melvorD:Astrology', 'Astrology', [0]],
-		['melvorD:AltMagic', 'Magic', [1]],
+		['melvorD:Magic', 'Magic', [1]],
 		['melvorAoD:Archaeology', 'Archaeology', [2]],
 		['melvorAoD:Cartography', 'Cartography', [1, 3, 9]],
 		['melvorItA:Harvesting', 'Harvesting', [1]],
@@ -1772,8 +1650,25 @@ function expedition_status(kind, value) {
 	return loadedLangJson?.[key] ? getLangString(key) : String(value ?? '');
 }
 
+function format_time_remaining(expires_at, now) {
+	const remaining = expires_at - now;
+	if (!Number.isSafeInteger(expires_at) || remaining <= 0)
+		return '0m';
+
+	const total_minutes = Math.ceil(remaining / 60_000);
+	const days = Math.floor(total_minutes / (24 * 60));
+	const hours = Math.floor((total_minutes % (24 * 60)) / 60);
+	const minutes = total_minutes % 60;
+	if (days > 0)
+		return `${days}d ${hours}h`;
+	if (hours > 0)
+		return `${hours}h ${minutes}m`;
+	return `${minutes}m`;
+}
+
+
 function expedition_time_remaining(timestamp) {
-	return charitree_rules.format_charitree_remaining(timestamp, state.expedition_clock_time);
+	return format_time_remaining(timestamp, state.expedition_clock_time);
 }
 
 function expedition_time_since(timestamp) {
@@ -1797,7 +1692,7 @@ let expedition_work_prompt_gate = null;
 let expedition_work_prompt_loading = false;
 
 function expedition_prompt_tasks() {
-	if (!state.expedition_work_prompts_enabled || !state.is_connected || !state.is_guild_member ||
+	if (state.expedition_work_tracking_mode === 'manual' || !state.is_connected || !state.is_guild_member ||
 		state.expedition_personal?.tracking)
 		return [];
 	return expedition_tasks.eligible_prompt_tasks(state.expedition_state, state.expedition_active_activities);
@@ -1813,17 +1708,20 @@ function close_expedition_work_prompt() {
 	if (document.querySelector('mp-modal-component[data-template-id="expedition-work-prompt-modal"]')) Swal.close();
 }
 
-function set_expedition_work_prompts(event) {
-	state.expedition_work_prompts_enabled = event.target.checked;
-	set_instance_storage_item('expedition_work_prompts_enabled', state.expedition_work_prompts_enabled);
+function set_expedition_work_tracking_mode(event) {
+	const mode = event.target.value;
+	if (!['manual', 'prompt', 'automatic'].includes(mode)) return;
+	state.expedition_work_tracking_mode = mode;
+	set_instance_storage_item('expedition_work_tracking_mode', mode);
 	expedition_work_prompt_gate?.reset();
-	if (!state.expedition_work_prompts_enabled) close_expedition_work_prompt();
+	if (mode !== 'prompt') close_expedition_work_prompt();
 }
 
 async function start_prompted_expedition_task(task_id) {
 	if (state.expedition_action_pending || state.expedition_pending_report) return;
 	const generation = session_generation;
-	if (!expedition_prompt_tasks().some(task => task.task_id === task_id)) return;
+	if (state.expedition_work_tracking_mode !== 'prompt' ||
+		!expedition_prompt_tasks().some(task => task.task_id === task_id)) return;
 	await submit_expedition_work('start', task_id);
 	if (generation === session_generation && state.expedition_state?.tracking?.task_id === task_id &&
 		document.querySelector('mp-modal-component[data-template-id="expedition-work-prompt-modal"]'))
@@ -1831,18 +1729,19 @@ async function start_prompted_expedition_task(task_id) {
 }
 
 async function maybe_prompt_expedition_work(activities) {
+	const mode = state.expedition_work_tracking_mode;
+	const automatic = mode === 'automatic';
 	expedition_work_prompt_gate ??= expedition_tasks.create_work_prompt_gate();
 	const due = expedition_work_prompt_gate.observe({ session: session_generation, activities,
-		enabled: state.expedition_work_prompts_enabled,
+		enabled: mode !== 'manual', automatic,
 		tracking: !!(state.expedition_state?.tracking || state.expedition_personal?.tracking || state.expedition_pending_report),
 		now: Date.now() });
 	if (!due || expedition_work_prompt_loading || state.expedition_loading || state.expedition_action_pending) return;
-	if (!state.is_guild_member || !state.expedition_work_prompts_enabled ||
-		state.expedition_state?.expedition?.registered === false) {
+	if (!state.is_guild_member || mode === 'manual') {
 		expedition_work_prompt_gate.consume();
 		return;
 	}
-	if (Swal.isVisible() || modal_queue_guard.pending_templates.size > 0) {
+	if (!automatic && (Swal.isVisible() || modal_queue_guard.pending_templates.size > 0)) {
 		expedition_work_prompt_gate.defer(Date.now());
 		return;
 	}
@@ -1851,14 +1750,25 @@ async function maybe_prompt_expedition_work(activities) {
 	expedition_work_prompt_loading = true;
 	try {
 		const refreshed = await refresh_expedition_state();
-		if (generation !== session_generation || !state.is_connected || !polling.is_foreground(document) ||
+		if (generation !== session_generation || mode !== state.expedition_work_tracking_mode ||
+			!state.is_connected || !polling.is_foreground(document) ||
 			activity_key !== expedition_tasks.work_activity_key(capture_status_activities())) return;
 		if (!refreshed || !state.expedition_state) {
-			expedition_work_prompt_gate.consume();
+			if (automatic) expedition_work_prompt_gate.defer(Date.now(), 30_000);
+			else expedition_work_prompt_gate.consume();
 			return;
 		}
 		if (expedition_prompt_tasks().length === 0) {
-			expedition_work_prompt_gate.consume();
+			if (automatic) expedition_work_prompt_gate.defer(Date.now(), 30_000);
+			else expedition_work_prompt_gate.consume();
+			return;
+		}
+		if (automatic) {
+			if (state.expedition_action_pending || state.expedition_pending_report || state.expedition_personal?.tracking) return;
+			const task = expedition_tasks.best_eligible_task(state.expedition_state, activities);
+			// Retry later when the chamber changes or a request is rejected; never replace a saved report.
+			expedition_work_prompt_gate.defer(Date.now(), 30_000);
+			if (task) await submit_expedition_work('start', task.task_id, true);
 			return;
 		}
 		if (Swal.isVisible() || modal_queue_guard.pending_templates.size > 0) {
@@ -1873,7 +1783,8 @@ async function maybe_prompt_expedition_work(activities) {
 				customClass: { popup: 'mp-expedition-work-prompt-popup',
 					confirmButton: 'mp-expedition-button mp-expedition-button-secondary' },
 				didOpen: () => {
-					if (generation !== session_generation || expedition_prompt_tasks().length === 0 ||
+					if (generation !== session_generation || state.expedition_work_tracking_mode !== 'prompt' ||
+						expedition_prompt_tasks().length === 0 ||
 						activity_key !== expedition_tasks.work_activity_key(capture_status_activities())) Swal.close();
 				}
 			});
@@ -1918,7 +1829,6 @@ function expedition_percent(task) {
 
 function expedition_work_name(skill_id) {
 	if (skill_id === 'melvorD:Combat') return getLangString('MOD_MP_EXPEDITION_SKILL_COMBAT');
-	if (skill_id === 'melvorD:AltMagic') return getLangString('MOD_MP_EXPEDITION_SKILL_ALT_MAGIC');
 	return expedition_view.work_skill_name(game, skill_id);
 }
 
@@ -2031,7 +1941,7 @@ function show_expedition_supply_modal() {
 	state.expedition_supply_qty = 1;
 	queue_modal('MOD_MP_EXPEDITION_UI_CHOOSE_SUPPLIES', 'expedition-supply-modal', 'assets/multiplayer.svg', {
 		showConfirmButton: false,
-		customClass: { popup: 'mp-charity-wish-modal-popup' }
+		customClass: { popup: 'mp-crucible-wish-modal-popup' }
 	});
 }
 
@@ -2078,7 +1988,7 @@ async function donate_expedition_supply() {
 		const result = await run_pending_economy_action('expedition_supply_donate',
 			'/api/expedition/supply/donate', {
 				expedition_id: expedition.id, item_id, qty, source: 'bank',
-				...get_charity_item_valuation(item_id)
+				...get_offering_item_valuation(item_id)
 			});
 		if (result?.success) {
 			state.expedition_supply_qty = 1;
@@ -2111,9 +2021,17 @@ async function retry_expedition_report(automatic = false, quiet = false) {
 	const report_generation = session_generation;
 	const previous_tracking = state.expedition_state?.tracking ?? state.expedition_personal?.tracking;
 	state.expedition_action_pending = true;
+	const notice_delay = Math.max(0, 5000 - (Date.now() - (pending.payload?.captured_at ?? Date.now())));
+	if (notice_delay === 0) state.expedition_report_notice_visible = true;
+	const notice_timer = setTimeout(() => {
+		if (report_generation === session_generation &&
+			state.expedition_pending_report?.payload?.operation_id === pending.payload.operation_id)
+			state.expedition_report_notice_visible = true;
+	}, notice_delay);
 	try {
 		let result = await api_post(pending.endpoint, pending.payload);
 		if (report_generation !== session_generation) return;
+		if (!result?.success && !result?.pending) state.expedition_report_notice_visible = true;
 		if (automatic && result === null) result = await api_post(pending.endpoint, pending.payload);
 		if (report_generation !== session_generation) return;
 		if (result?.pending) {
@@ -2159,7 +2077,9 @@ async function retry_expedition_report(automatic = false, quiet = false) {
 				: result?.error ?? getLangString('MOD_MP_EXPEDITION_WORK_REPORT_FAILED'), 'danger');
 		}
 	} finally {
+		clearTimeout(notice_timer);
 		if (report_generation === session_generation) {
+			state.expedition_report_notice_visible = !!state.expedition_pending_report;
 			state.expedition_action_pending = false;
 			update_expedition_nav();
 		}
@@ -2203,6 +2123,7 @@ async function submit_expedition_work(kind, task_id = null, automatic = false, q
 	};
 	const pending = { endpoint: `/api/expedition/task/${kind}`, payload };
 	set_instance_storage_item(EXPEDITION_PENDING_KEY, pending);
+	state.expedition_report_notice_visible = false;
 	state.expedition_pending_report = pending;
 	if (kind === 'check-in' && !automatic)
 		start_expedition_action_cooldown('expedition_check_in_cooldown_until', EXPEDITION_CHECK_IN_COOLDOWN);
@@ -2865,32 +2786,8 @@ function set_instance_storage_item(key, value) {
 	set_character_storage_item(server_instance_storage_prefix + key, value);
 }
 
-function apply_charity_state(charity) {
-	if (charity === null || typeof charity !== 'object' || Array.isArray(charity) ||
-		typeof charity.enabled !== 'boolean' || typeof charity.eligible !== 'boolean' ||
-		!Number.isSafeInteger(charity.next_opportunity_at) || charity.next_opportunity_at < 0) {
-		state.charity_server_supported = false;
-		state.charity_enabled = false;
-		state.charity_eligible = false;
-		state.charity_next_opportunity_timestamp = 0;
-		state.charity_update_time = Date.now();
-		return;
-	}
-	state.charity_server_supported = true;
-	state.charity_enabled = charity.enabled === true;
-	state.charity_eligible = charity.eligible === true;
-	state.charity_next_opportunity_timestamp = Number.isSafeInteger(charity.next_opportunity_at) &&
-		charity.next_opportunity_at >= 0 ? charity.next_opportunity_at : 0;
-	state.charity_update_time = Date.now();
-}
-
 function remove_instance_storage_item(key) {
 	remove_character_storage_item(server_instance_storage_prefix + key);
-}
-
-function is_charity_wish_endpoint(endpoint) {
-	return endpoint === '/api/charity/wish/make' || endpoint === '/api/charity/wish/forsake' ||
-		endpoint === '/api/charity/wish/pick';
 }
 
 async function run_pending_crucible_wish_action(kind, endpoint, payload = {}) {
@@ -2917,35 +2814,6 @@ async function recover_pending_crucible_wish_actions() {
 		const result = await api_post_without_economy_journal(pending.endpoint, pending.payload);
 		if (result?.success === true || result?.success === false || typeof result?.error_lang === 'string')
 			remove_instance_storage_item(key);
-	}
-}
-
-async function run_pending_charity_wish_action(kind, endpoint, payload = {}) {
-	const storage_key = `pending_charity_wish:${kind}`;
-	let pending = get_instance_storage_item(storage_key);
-	if (pending === undefined) {
-		pending = { endpoint, payload: { ...payload, command_id: crypto.randomUUID() } };
-		set_instance_storage_item(storage_key, pending);
-		if (JSON.stringify(get_instance_storage_item(storage_key)) !== JSON.stringify(pending))
-			return null;
-	}
-	if (pending?.endpoint !== endpoint || typeof pending?.payload?.command_id !== 'string')
-		return null;
-	const result = await api_post_without_economy_journal(pending.endpoint, pending.payload);
-	if (result?.success === true || result?.success === false || typeof result?.error_lang === 'string')
-		remove_instance_storage_item(storage_key);
-	return result;
-}
-
-async function recover_pending_charity_wish_actions() {
-	for (const kind of ['make', 'forsake', 'pick']) {
-		const storage_key = `pending_charity_wish:${kind}`;
-		const pending = get_instance_storage_item(storage_key);
-		if (pending?.endpoint !== `/api/charity/wish/${kind}` || typeof pending?.payload?.command_id !== 'string')
-			continue;
-		const result = await api_post_without_economy_journal(pending.endpoint, pending.payload);
-		if (result?.success === true || result?.success === false || typeof result?.error_lang === 'string')
-			remove_instance_storage_item(storage_key);
 	}
 }
 
@@ -2990,14 +2858,7 @@ async function request_social_mode(next) {
 		state.market_listings = [];
 		state.market_completed = [];
 		state.market_results = [];
-		state.charity_tree_inventory = [];
 		state.crucible = null;
-		state.charity_shuffled_at = null;
-		state.charity_shuffle_count = 0;
-		state.charity_currency_locks = [];
-		state.charity_shuffle_offer = null;
-		state.charity_shuffle_max_offers = [];
-		state.charity_shuffle_supported = false;
 		state.inbox_items = [];
 		state.inbox_groups = [];
 		state.inbox_pending_claim = false;
@@ -3420,12 +3281,36 @@ function localize_multiplayer_page_names() {
 	localization.localize_multiplayer_page_names({ game, sidebar, getLangString, createElement });
 }
 
+let chat_header_resize_observer = null;
+
+function update_chat_header_offset() {
+	const header = document.getElementById('page-header');
+	const page = document.getElementById('mp-chat-page');
+	if (!header || !page) return;
+	const style = getComputedStyle(header);
+	const pinned = style.position === 'fixed' || style.position === 'sticky';
+	const offset = pinned ? header.getBoundingClientRect().height + (parseFloat(style.top) || 0) : 0;
+	page.style.setProperty('--mp-chat-header-top', `${offset}px`);
+}
+
+function setup_chat_sticky_header() {
+	chat_header_resize_observer?.disconnect();
+	const header = document.getElementById('page-header');
+	if (header && typeof ResizeObserver !== 'undefined') {
+		chat_header_resize_observer = new ResizeObserver(update_chat_header_offset);
+		chat_header_resize_observer.observe(header);
+	}
+	window.removeEventListener('resize', update_chat_header_offset);
+	window.addEventListener('resize', update_chat_header_offset);
+	update_chat_header_offset();
+}
+
 function watch_chat_nav() {
 	const nav_item = sidebar.category('Multiplayer').item('multiplayer:Chat');
 	nav_item.rootEl?.addEventListener('click', () => state.close_chat_conversation(), true);
 }
 
-function update_charitree_nav() {
+function update_crucible_nav() {
 	const nav_item = sidebar.category('Multiplayer').item('multiplayer:Crucible');
 	nav_item.rootEl?.classList.toggle('mp-nav-unavailable', state.multiplayer_unsupported || !state.is_guild_member || state.is_social_only);
 	const aside = document.querySelector('.mp-crucible-nav');
@@ -3437,9 +3322,9 @@ function update_charitree_nav() {
 	const wish_ready = ready && (state.crucible?.wishes ?? []).some(wish => wish.phase === 'melded' && wish.owned);
 	const reclaim_available = ready && (state.crucible?.offerings ?? []).some(offering =>
 		state.crucible_reclaim_block(offering) === null);
-	aside.classList.toggle('mp-charitree-wish', wish_ready);
+	aside.classList.toggle('mp-crucible-wish', wish_ready);
 	set_nav_ready(aside, ready);
-	aside.textContent = wish_ready ? getLangString('MOD_MP_SIDEBAR_CHARITY_WISH')
+	aside.textContent = wish_ready ? getLangString('MOD_MP_SIDEBAR_CRUCIBLE_WISH')
 		: reclaim_available ? getLangString('MOD_MP_SIDEBAR_CRUCIBLE_RECLAIM') : '';
 	aside.hidden = !wish_ready && !reclaim_available;
 }
@@ -3476,7 +3361,7 @@ function update_multiplayer_nav() {
 
 	const transfer_nav_item = multiplayer_category.item('multiplayer:Transfer_Items');
 	transfer_nav_item.rootEl?.classList.toggle('mp-nav-unavailable', state.multiplayer_unsupported || !state.has_transfer_access);
-	update_charitree_nav();
+	update_crucible_nav();
 	update_expedition_nav();
 }
 // #endregion
@@ -3489,80 +3374,19 @@ async function load_pets(ctx) {
 }
 // #endregion
 
-// #region CHARITY FUNCTIONS
-async function request_charity_tree_contents(force_reload = false, show_loading = true) {
-	state.charity_update_time = Date.now();
-	update_charitree_nav();
-
-	if (!state.is_guild_member || state.is_social_only)
-		return;
-
-	if (state.charity_tree_loading)
-		return;
-
-	const current_time = Date.now();
-	if (!force_reload && current_time < last_charity_check + CHARITY_CHECK_TIMEOUT)
-		return;
-
-	last_charity_check = current_time;
-	if (show_loading)
-		state.charity_tree_loading = true;
-	try {
-		await recover_pending_charity_wish_actions();
-		const res = await api_get('/api/charity/contents');
-		if (Array.isArray(res?.items)) {
-			state.charity_tree_inventory = filter_local_available_items(res.items, item => item.id)
-				.filter(item => item.qty > 0)
-				.sort((left, right) => Number(left.id !== CHARITY_WEIRD_GLOOP_ID) - Number(right.id !== CHARITY_WEIRD_GLOOP_ID));
-			state.charity_shuffle_supported = Object.hasOwn(res, 'shuffled_at');
-			state.charity_shuffled_at = res.shuffled_at ?? null;
-			state.charity_shuffle_count = Number.isSafeInteger(res.shuffle_count) ? Math.max(-10, res.shuffle_count) : 0;
-			state.charity_currency_locks = res.currency_locks ?? [];
-			state.charity_wishes = item_visibility.filter_items_for_owned_dlc(
-				Array.isArray(res.wishes) ? res.wishes : [], wish => wish.item_id, owned_dlc_namespaces
-			);
-			state.charity_wish_catalog = item_visibility.filter_items_for_owned_dlc(
-				Array.isArray(res.wish_catalog) ? res.wish_catalog : [], item => item.id, owned_dlc_namespaces
-			);
-			state.charity_active_wish = res.active_wish === true;
-			update_charitree_nav();
-		}
-	} finally {
-		if (show_loading)
-			state.charity_tree_loading = false;
-	}
-}
-
-function update_charity_clock() {
-	const weird_gloop_id = 'melvorD:Weird_Gloop';
-	state.charity_update_time = Date.now();
-	if (typeof update_charitree_nav === 'function')
-		update_charitree_nav();
-	const has_expired_items = state.charity_tree_inventory.some(
-		item => item.id !== weird_gloop_id && Number.isSafeInteger(item.expires_at) && item.expires_at <= state.charity_update_time
-	);
-	if (has_expired_items) {
-		state.charity_tree_inventory = state.charity_tree_inventory.filter(
-			item => item.id === weird_gloop_id || !Number.isSafeInteger(item.expires_at) || item.expires_at > state.charity_update_time
-		);
-	}
-	if ((state.charity_wishes ?? []).some(wish => wish.phase === 'maturing' && wish.matures_at <= state.charity_update_time))
-		void request_charity_tree_contents(true, false);
-}
-
-function set_charity_page_visible(is_visible) {
-	charity_page_visible = is_visible;
-	clearInterval(charity_clock_timer);
-	charity_clock_timer = null;
-	if (!charity_page_visible)
+function set_crucible_page_visible(is_visible) {
+	crucible_page_visible = is_visible;
+	clearInterval(crucible_clock_timer);
+	crucible_clock_timer = null;
+	if (!crucible_page_visible)
 		return;
 	void state.refresh_crucible(true);
-	charity_clock_timer = setInterval(() => {
+	crucible_clock_timer = setInterval(() => {
 		state.crucible_clock_time = Date.now();
-		update_charitree_nav();
+		update_crucible_nav();
 		if (state.is_connected && polling.is_foreground(document))
 			void state.refresh_crucible(true);
-	}, CHARITY_CLOCK_INTERVAL);
+	}, CRUCIBLE_CLOCK_INTERVAL);
 }
 // #endregion
 
@@ -4068,8 +3892,8 @@ function reconcile_economy_receipts(receipts) {
 				add_bank_item: (item_id, qty) => add_bank_item(
 					item_id,
 					qty,
-					(receipt.kind === 'charity-take' || receipt.kind === 'crucible-reclaim') &&
-						!state.is_charity_item_discovered(item_id)
+					receipt.kind === 'crucible-reclaim' &&
+						!state.is_crucible_item_discovered(item_id)
 				),
 				remove_bank_item: (item_id, qty) => {
 					const currency = transfer_currency_support?.get_transfer_currency(game, item_id)?.currency;
@@ -4372,7 +4196,7 @@ async function api_post_response_raw(endpoint, payload, request_session_token = 
 					(is_event_affecting_mutation(endpoint) || /^\/api\/(?:inbox\/|market\/haggle(?:\/|$)|client\/(?:set_display_name|set_icon)$)/.test(endpoint))) {
 					if (endpoint !== '/api/economy/receipts/acknowledge') {
 						const governance = /^\/api\/(?:guilds|alliances|banishment|social-mode|client)\//.test(endpoint);
-						const transfers_affected = /^\/api\/(?:inbox|market|gift|trade|crucible|charity)\//.test(endpoint);
+						const transfers_affected = /^\/api\/(?:inbox|market|gift|trade|crucible)\//.test(endpoint);
 						if (governance || transfers_affected) read_cache.invalidate(key => governance || key.includes('transfers') || key.includes('page=transfers') ||
 							key.startsWith('/api/inbox') || key.startsWith('/api/market') || key.startsWith('/api/crucible'));
 					}
@@ -4445,8 +4269,6 @@ async function api_post(endpoint, payload, major = selected_api_major) {
 const EVENT_AFFECTING_MUTATIONS = new Set([
 	'/api/banishment/returns/acknowledge',
 	'/api/banishment/returns/claim',
-	'/api/charity/donate',
-	'/api/charity/take',
 	'/api/crucible/cast',
 	'/api/crucible/reclaim',
 	'/api/crucible/clear',
@@ -4578,10 +4400,13 @@ function set_session_token(token) {
 	state.is_connected = true;
 	state.expedition_state = null;
 	state.expedition_loading = false;
-	state.expedition_work_prompts_enabled = get_instance_storage_item('expedition_work_prompts_enabled') !== false;
+	state.expedition_work_tracking_mode = expedition_tasks.work_tracking_mode(
+		get_instance_storage_item('expedition_work_tracking_mode'),
+		get_instance_storage_item('expedition_work_prompts_enabled'));
 	expedition_work_prompt_gate?.reset();
 	state.expedition_personal = null;
 	state.expedition_pending_report = null;
+	state.expedition_report_notice_visible = false;
 	state.expedition_catalog = null;
 	state.expedition_vote_cooldown_until = 0;
 	state.expedition_check_in_cooldown_until = 0;
@@ -4680,15 +4505,18 @@ async function refresh_chat_conversations() {
 }
 
 function update_chat_nav() {
+	const tagged = state.get_chat_notification_tagged();
 	const aside = document.querySelector('.mp-chat-nav');
 	if (aside !== null) {
 		set_nav_ready(aside, true);
-		aside.textContent = state.chat_unread > 0 ? String(state.chat_unread) : '';
+		aside.classList.toggle('mp-chat-tagged-nav', tagged);
+		aside.textContent = tagged ? '@' : state.chat_unread > 0 ? String(state.chat_unread) : '';
 		aside.hidden = state.chat_unread <= 0;
 	}
 	const header_badge = document.getElementById('mp-chat-header-unread');
 	if (header_badge !== null) {
-		header_badge.textContent = state.chat_unread > 0 ? String(state.chat_unread) : '';
+		header_badge.classList.toggle('mp-chat-tagged-nav', tagged);
+		header_badge.textContent = tagged ? '@' : state.chat_unread > 0 ? String(state.chat_unread) : '';
 		header_badge.hidden = state.chat_unread <= 0;
 	}
 }
@@ -4938,7 +4766,6 @@ async function refresh_guild_state_request() {
 		}
 
 		state.guild_state = res;
-		apply_charity_state(res.charity);
 		guild_state_refreshed_at = Date.now();
 		state.guild_state_loaded = true;
 		state.guild_client_id = res.current_client_id ?? null;
@@ -4973,14 +4800,7 @@ async function refresh_guild_state_request() {
 			state.market_completed = [];
 			state.market_results = [];
 			state.market_listings = [];
-			state.charity_tree_inventory = [];
 			state.crucible = null;
-			state.charity_shuffled_at = null;
-			state.charity_shuffle_count = 0;
-			state.charity_currency_locks = [];
-			state.charity_shuffle_offer = null;
-			state.charity_shuffle_max_offers = [];
-			state.charity_shuffle_supported = false;
 		}
 
 		return res;
@@ -5353,7 +5173,7 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 			state.chat_unread = res.chat_unread ?? 0;
 		state.inbox_pending_claim = res.inbox_pending === true;
 		update_chat_nav();
-		if (chat_page_visible || has_muted_chats)
+		if (chat_page_visible || has_muted_chats || state.chat_unread > 0 || state.get_chat_notification_tagged())
 			await refresh_chat_conversations();
 		if (request_generation !== session_generation)
 			return null;
@@ -5524,7 +5344,6 @@ export async function setup(ctx) {
 	event_snapshots = await ctx.loadModule('event-snapshots.mjs');
 	gift_contents = await ctx.loadModule('gift-contents.mjs');
 	item_visibility = await ctx.loadModule('item-visibility.mjs');
-	charitree_rules = await ctx.loadModule('charitree-rules.mjs');
 	crucible_rules = await ctx.loadModule('crucible-rules.mjs');
 	client_runtime = await ctx.loadModule('client-runtime.mjs');
 	connection_diagnostics = await ctx.loadModule('connection-diagnostics.mjs');
@@ -5567,7 +5386,7 @@ export async function setup(ctx) {
 	const { install_common_actions } = await ctx.loadModule('client-actions-common.mjs');
 	const { install_chat_actions } = await ctx.loadModule('client-actions-chat.mjs');
 	const chat_items = await ctx.loadModule('chat-items.mjs');
-	const { install_market_charity_actions } = await ctx.loadModule('client-actions-market-charity.mjs');
+	const { install_market_actions } = await ctx.loadModule('client-actions-market.mjs');
 	const { install_crucible_actions } = await ctx.loadModule('client-crucible.mjs');
 	const { install_trading_actions } = await ctx.loadModule('client-actions-trading.mjs');
 	const { install_transfer_actions } = await ctx.loadModule('client-actions-transfer.mjs');
@@ -5595,7 +5414,7 @@ export async function setup(ctx) {
 			expedition_points,
 			expedition_prompt_tasks,
 			expedition_prompt_activity_names,
-			set_expedition_work_prompts,
+			set_expedition_work_tracking_mode,
 			start_prompted_expedition_task,
 			expedition_available_points: task => expedition_points(expedition_tasks.task_available_points_micros(task)),
 			expedition_time_remaining,
@@ -5661,6 +5480,7 @@ export async function setup(ctx) {
 			has_more_transfer_history: pane => state.transfer_history[pane].entries.length > state.transfer_history[pane].visible_count || !!state.transfer_history[pane].next_cursor,
 			get_transfer_history_items: entry => transfer_history_module.transfer_history_items(entry.items, item_id => transfer_currency_support.is_transfer_currency(game, item_id)),
 			format_transfer_history_item: item => formatNumber(item.qty) + (transfer_currency_support.is_transfer_currency(game, item.item_id) ? ' ' : ' × ') + state.get_item_name(item.item_id),
+			get_transfer_history_exchange: entry => transfer_history_module.transfer_history_exchange(entry, getLangString, state.format_transfer_history_item),
 			get_transfer_history_context: entry => transfer_history_module.transfer_history_context(entry, getLangString),
 			get_transfer_history_sources: item => transfer_history_module.transfer_history_sources(item, getLangString, state.get_inbox_group_title),
 			get_transfer_history_title: entry => transfer_history_module.transfer_history_label(entry, getLangString, state.get_inbox_group_title),
@@ -5668,7 +5488,7 @@ export async function setup(ctx) {
 		},
 		install_common_actions(action_runtime),
 		install_chat_actions(action_runtime),
-		install_market_charity_actions(action_runtime),
+		install_market_actions(action_runtime),
 		install_crucible_actions(action_runtime, crucible_rules),
 		install_trading_actions(action_runtime),
 		install_transfer_actions(action_runtime),
@@ -5781,7 +5601,7 @@ export async function setup(ctx) {
 
 	});
 	ctx.onCharacterSelectionLoaded(() => {
-		set_charity_page_visible(false);
+		set_crucible_page_visible(false);
 		set_expedition_page_visible(false);
 		raid_combat?.abandon();
 	});
@@ -5828,6 +5648,7 @@ export async function setup(ctx) {
 
 			for (const page of ['guild', 'raid', 'expedition', 'chat', 'transfer', 'crucible', 'market', 'updates'])
 				make_scoped_template(page + '-page', $main_container);
+			setup_chat_sticky_header();
 			void refresh_changelog();
 			void refresh_updates();
 
@@ -5842,6 +5663,7 @@ export async function setup(ctx) {
 			on_page_toggle('mp-expedition-page', set_expedition_page_visible);
 			on_page_toggle('mp-chat-page', is_visible => {
 				chat_page_visible = is_visible;
+				if (is_visible) update_chat_header_offset();
 				if (is_visible && state.is_connected) {
 					void get_client_events();
 					void refresh_chat_page();
@@ -5852,7 +5674,7 @@ export async function setup(ctx) {
 				}
 			});
 			on_page_toggle('mp-crucible-page', async is_visible => {
-				set_charity_page_visible(is_visible);
+				set_crucible_page_visible(is_visible);
 				if (!is_visible)
 					return;
 				await Promise.all([get_client_events(), refresh_guild_state()]);
@@ -6078,7 +5900,7 @@ function get_bank_action_donation_value(item, qty) {
 	return item.id.includes(':Summoning_Familiar_') ? 0 : qty;
 }
 
-function get_charity_item_valuation(item_id) {
+function get_offering_item_valuation(item_id) {
 	const item = game.items.getObjectByID(item_id);
 	const value_currency_id = item?.sellsFor?.currency?.id;
 	const value_per_item = item?.sellsFor?.quantity;
@@ -6185,7 +6007,7 @@ async function submit_bank_action(event) {
 				return;
 			}
 			const res = await run_pending_economy_action('bank_crucible_cast:' + item.id, '/api/crucible/cast', {
-				items: [{ id: item.id, qty, ...get_charity_item_valuation(item.id) }],
+				items: [{ id: item.id, qty, ...get_offering_item_valuation(item.id) }],
 				source: 'bank',
 				donation_value: get_bank_action_donation_value(item, qty)
 			});
@@ -6429,9 +6251,6 @@ function activate_multiplayer_identity(response) {
 	economy_commands_ready = false;
 	const generation = session_generation;
 	const storage_key = `pending_economy_command:${response.chat.client_id}`;
-	const pending_economy_command = get_instance_storage_item(storage_key);
-	if (is_charity_wish_endpoint(pending_economy_command?.endpoint))
-		remove_instance_storage_item(storage_key);
 	economy_command_journal = economy_command_module.create_economy_command_journal({
 		read: () => get_instance_storage_item(storage_key),
 		write: value => set_instance_storage_item(storage_key, value),
@@ -6452,14 +6271,9 @@ function activate_multiplayer_identity(response) {
 	state.profile_icon = response.icon_id;
 	state.server_owned_pets = response.server_owned_pets === true;
 	state.owned_pet_ids = Array.isArray(response.owned_pet_ids) ? response.owned_pet_ids : [];
-	state.charity_enabled = false;
-	state.charity_eligible = false;
-	state.charity_next_opportunity_timestamp = 0;
-	state.charity_server_supported = false;
 	state.raid_monster_drops = response.raid_monster_drops ?? {};
 	state.raid_tier_progress = response.raid_tier_progress && typeof response.raid_tier_progress === 'object'
 		? response.raid_tier_progress : {};
-	apply_charity_state(response.charity);
 	state.social_mode = social_mode.normalize_social_mode(response.social_mode);
 	state.social_mode_enforcement = ['identity', 'account', 'guild'].includes(response.social_mode_enforcement)
 		? response.social_mode_enforcement : null;

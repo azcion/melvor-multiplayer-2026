@@ -5,6 +5,8 @@ export const TRANSFER_HISTORY_PAGE_SIZE = 20;
 export type HistoryPane = 'inbox' | 'outbox' | 'pending';
 export type HistoryItem = { item_id: string; qty: number; direction?: 'in' | 'out' | 'context' };
 
+export type HistoryExchange = { label: 'purchased' | 'paid' | 'sold' | 'proceeds'; item_id: string; qty: number };
+
 type HistoryInput = {
 	client_id: number; pane: HistoryPane; event_type: string; source_key: string;
 	occurred_at: number; source_name?: string; items?: HistoryItem[];
@@ -57,9 +59,9 @@ export function record_pending_exchange(database: Database, kind: 'gift' | 'trad
 export function get_transfer_history(database: Database, client_id: number, pane: HistoryPane,
 	cursor: { occurred_at: number; id: number } | null = null, now = Date.now()) {
 	const rows = database.query<{
-		id: number; pane: HistoryPane; event_type: string; occurred_at: number; source_type: string; source_name: string; reconstructed: number;
+		id: number; pane: HistoryPane; event_type: string; occurred_at: number; source_type: string; source_name: string; reconstructed: number; exchange_json: string | null;
 	}, number[] | (number | string)[]>(
-		'SELECT id,pane,event_type,occurred_at,source_type,source_name,reconstructed FROM transfer_history_events ' +
+		'SELECT id,pane,event_type,occurred_at,source_type,source_name,reconstructed,exchange_json FROM transfer_history_events ' +
 		'WHERE client_id=? AND pane=? AND occurred_at>=? AND occurred_at<=? ' +
 		(cursor ? 'AND (occurred_at<? OR (occurred_at=? AND id<?)) ' : '') +
 		'ORDER BY occurred_at DESC,id DESC LIMIT ?'
@@ -79,7 +81,8 @@ export function get_transfer_history(database: Database, client_id: number, pane
 	const last = page[page.length - 1];
 	return {
 		server_time: now,
-		entries: page.map(row => ({ ...row, reconstructed: row.reconstructed === 1,
+		entries: page.map(({ exchange_json, ...row }) => ({ ...row, reconstructed: row.reconstructed === 1,
+			...(exchange_json ? { exchange: JSON.parse(exchange_json) as HistoryExchange } : {}),
 			items: items.filter(item => item.event_id === row.id).map(({ event_id, ...item }) => {
 				const attribution = sources.filter(source => source.event_id === row.id && source.item_id === item.item_id)
 					.map(({ event_id, item_id, ...source }) => source);

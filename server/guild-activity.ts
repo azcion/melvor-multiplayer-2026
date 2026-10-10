@@ -4,7 +4,7 @@ export const GUILD_ACTIVITY_PAGE_SIZE = 20;
 export const GUILD_ACTIVITY_THROTTLE = 12 * 60 * 60 * 1000;
 
 export type GuildActivityType =
-	| 'joined' | 'left' | 'banished' | 'charitree_donated' | 'raid_started'
+	| 'joined' | 'left' | 'banished' | 'raid_started'
 	| 'raid_boss_defeated' | 'raid_completed' | 'market_listing_created'
 	| 'market_purchased' | 'market_fulfilled'
 	| 'petition_raised' | 'petition_carried' | 'petition_defeated'
@@ -79,7 +79,8 @@ export function get_guild_activity(guild_id: number, viewer_client_id: number,
 		'`buyer_client_id`, `buyer_display_name`, `seller_client_id`, `seller_display_name`, `item_id`, `quantity` ' +
 		'FROM `guild_activity_events` WHERE `guild_id` = ? ' +
 		'AND (`buyer_client_id` IS NULL OR `buyer_client_id` = ? OR `seller_client_id` = ?) ' +
-		(include_legacy ? '' : "AND `event_type` NOT IN ('charitree_donated', 'campaign_started', " +
+		"AND `event_type` != 'charitree_donated' " +
+		(include_legacy ? '' : "AND `event_type` NOT IN ('campaign_started', " +
 			"'campaign_completed', 'campaign_contributed') ") +
 		(include_alliance ? '' : "AND COALESCE(json_extract(metadata, '$.petition_type'), '') NOT LIKE 'alliance_%' ") +
 		(cursor === null ? '' : 'AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?)) ') +

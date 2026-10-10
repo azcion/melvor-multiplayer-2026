@@ -11,10 +11,6 @@ export function is_crucible_petition_type(type: string): type is CruciblePetitio
 	return type === 'crucible_purging' || type === 'crucible_sealing' || type === 'crucible_unsealing';
 }
 
-export function crucible_migration_complete(database: Database = db): boolean {
-	return database.query('SELECT 1 FROM crucible_migration WHERE id = 1 AND completed_at IS NOT NULL').get() !== null;
-}
-
 export function snapshot_crucible_petition(petition_id: number, guild_id: number,
 	type: CruciblePetitionType, database: Database = db): void {
 	if (type !== 'crucible_purging') return;
@@ -32,7 +28,6 @@ export function apply_crucible_petition(petition: db_row.guild_petitions,
 function apply_crucible_petition_transaction(petition: db_row.guild_petitions,
 	now: number, database: Database): string {
 	if (!is_crucible_petition_type(petition.type)) throw new RangeError('Not a Crucible petition');
-	if (!crucible_migration_complete(database)) throw new Error('Crucible snapshot migration is incomplete');
 	if (reconcile_crucible(petition.guild_id, now, database) < Math.floor(now / 60_000))
 		throw new Error('Crucible is catching up');
 	if (petition.type === 'crucible_unsealing') {
@@ -101,7 +96,6 @@ function audit_petition_disposal(petition: db_row.guild_petitions, now: number,
 
 export function settle_departing_crucible_wish(client_id: number, guild_id: number,
 	now = Date.now(), database: Database = db): void {
-	if (!crucible_migration_complete(database)) return;
 	if (reconcile_crucible(guild_id, now, database) < Math.floor(now / 60_000))
 		throw new Error('Crucible is catching up');
 	const wish = database.query<db_row.crucible_wishes, [number, number]>(

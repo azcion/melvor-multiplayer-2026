@@ -34,7 +34,7 @@ test('feature tags keep stable IDs and list Multiplayer pages, skills, Bank, Sho
 		registeredObjects: registered_skills, getObjectByID: id => registered_skills.get(id)
 	} };
 	const catalog = items.feature_catalog(game, id => id === 'MOD_MP_PAGE_RAID' ? 'Raid (preview)' : id);
-	assert.deepEqual(catalog.map(feature => feature.id),
+	assert.deepEqual(catalog.filter(feature => feature.media).map(feature => feature.id),
 		['melvorD:Shop', 'melvorD:Bank', 'multiplayer:Guild_Raid', 'melvorD:Combat',
 			'melvorItA:Corruption', 'melvorD:Farming', 'melvorD:Cooking',
 			'melvorAoD:Cartography', 'melvorItA:Harvesting', 'melvorTotH:FutureSkill']);
@@ -43,6 +43,35 @@ test('feature tags keep stable IDs and list Multiplayer pages, skills, Bank, Sho
 	assert.deepEqual(items.compact_parts([raid_feature]), [raid_feature]);
 	assert.equal(items.fallback_text([raid_feature]), '$Raid');
 	assert.equal(items.valid_parts(Array(21).fill(raid_feature)), false);
+});
+
+test('Alt. Magic is distinct from Magic and shares its icon; lowercase concepts have no icons', () => {
+	const magic = { id: 'melvorD:Magic', name: 'Magic', media: 'magic.png' };
+	const game = { skills: { registeredObjects: new Map([[magic.id, magic]]),
+		getObjectByID: id => id === magic.id ? magic : undefined } };
+	const catalog = items.feature_catalog(game, id => id);
+	assert.deepEqual(catalog.find(feature => feature.id === 'melvorD:Magic'), magic);
+	assert.deepEqual(catalog.find(feature => feature.id === 'melvorD:AltMagic'),
+		{ id: 'melvorD:AltMagic', name: 'Alt. Magic', media: magic.media });
+	assert.equal(items.official_chat_feature('multiplayer:toString'), false);
+	const concepts = ['alliance', 'alliance member guild', 'guild member', 'petition', 'policy', 'buy order', 'sell listing',
+		'trade', 'gift', 'wish', 'haggle', 'chamber'];
+	assert.deepEqual(catalog.filter(feature => !feature.media).map(feature => feature.name).sort(), concepts.sort());
+	let ChatComposer;
+	items.register_chat_elements({ game, HTMLElement: class {}, customElements: {
+		define(name, element) { if (name === 'mp-chat-composer') ChatComposer = element; }
+	} });
+	const composer = new ChatComposer();
+	composer.editor = { focus() {} };
+	let inserted;
+	composer.replace_selection = parts => { inserted = parts; };
+	for (const feature of catalog) {
+		const part = { type: 'feature', feature_id: feature.id };
+		assert.equal(items.official_chat_feature(feature.id), true);
+		assert.equal(items.fallback_text([part]), '$' + feature.name);
+		composer.insert_feature(feature.id);
+		assert.deepEqual(inserted, [part, text(' ')]);
+	}
 });
 
 test('picker includes only discovered registered official items without Bank, category or DLC ownership filters', () => {
@@ -61,7 +90,7 @@ test('picker includes only discovered registered official items without Bank, ca
 });
 
 test('ASCII and fullwidth item and feature shortcuts work at word starts before and after IME composition', () => {
-	for (const trigger of ['#', '＃', '$', '＄']) {
+	for (const trigger of ['#', '＃', '$', '＄', '@', '＠']) {
 		assert.deepEqual(items.chat_item_shortcut_range([], 0, trigger), [0, 1]);
 		assert.deepEqual(items.chat_item_shortcut_range([text('hello ')], 6, trigger), [6, 7]);
 		assert.deepEqual(items.chat_item_shortcut_range([text(`hello ${trigger}`)], 7, trigger, true), [6, 7]);
@@ -170,7 +199,7 @@ function context() {
 		refresh_chat_conversations: async () => {}, start_chat_polling() {}, now: () => 0 };
 	Object.assign(state, install_chat_actions(runtime));
 	state.close_modal_and_wait = async template => { state.closed_modal = template; };
-	return { state, game, requests, opened, pages, market_page, set_response: value => { response = value; } };
+	return { state, game, runtime, requests, opened, pages, market_page, set_response: value => { response = value; } };
 }
 
 test('rendering resolves item names independently of chat translation and keeps missing items readable', () => {
@@ -234,6 +263,26 @@ test('sends structured tags, reuses identical retries, and changes the key when 
 	await state.send_chat_message();
 	assert.equal(state.chat_drafts['private:2'], '');
 	assert.equal(state.chat_item_drafts['private:2'], undefined);
+});
+
+test('feature picker renders iconless concepts without creating broken images', () => {
+	const { state, runtime } = context();
+	const node = tag => ({ tag, children: [], addEventListener() {},
+		append(...children) { this.children.push(...children); } });
+	const host = { replaceChildren(fragment) { this.children = fragment.children; } };
+	runtime.document.querySelector = selector => selector === '.mp-chat-feature-results' ? host :
+		selector === '.mp-chat-feature-empty' ? { classList: { toggle() {} } } : null;
+	runtime.document.createDocumentFragment = () => node('fragment');
+	runtime.document.createElement = tag => node(tag);
+	state.chat_feature_search = '';
+	state.chat_feature_catalog = [{ id: 'melvorD:AltMagic', name: 'Alt. Magic', media: 'magic.png' },
+		{ id: 'multiplayer:Alliance', name: 'alliance', media: null }];
+	state.render_chat_feature_results();
+	assert.deepEqual(host.children.map(button => button.children.map(child => child.tag)), [['img', 'span'], ['span']]);
+	assert.equal(host.children[0].children[0].src, 'magic.png');
+	assert.equal(host.children[1].children[0].textContent, 'alliance');
+	state.chat_feature_search = 'ALLIANCE';
+	assert.deepEqual(state.get_chat_feature_results().map(feature => feature.id), ['multiplayer:Alliance']);
 });
 
 test('feature tags send stable IDs and open their page from Chat', async () => {
@@ -364,4 +413,72 @@ test('rendered message item tags expose the item actions modal', async () => {
 	assert.match(templates, /class="btn mp-actions-marketplace" v-show=/);
 	assert.match(style, /\.mp-chat-item-actions \{[\s\S]*flex-direction: column/);
 	assert.match(style, /\.mp-chat-item-actions \.btn-outline-secondary \{[\s\S]*color: #fff;/);
+});
+
+test('person tags stay atomic, readable, and route ASCII/fullwidth IME shortcuts to their picker', () => {
+	const person = { type: 'person', client_id: 2, display_name: 'Lucy', icon_id: 'multiplayer' };
+	assert.deepEqual(items.compact_parts([text('Hi '), person]), [text('Hi '), person]);
+	assert.equal(items.fallback_text([person]), '@Lucy');
+	assert.equal(items.parts_length([person]), 1);
+	assert.deepEqual(items.replace_parts([person], 0, 1, []), []);
+	assert.equal(items.valid_parts(Array(21).fill(person)), false);
+	let Composer;
+	items.register_chat_elements({ HTMLElement: class {}, customElements: { define(name, element) {
+		if (name === 'mp-chat-composer') Composer = element;
+	} } });
+	for (const trigger of ['@', '＠']) {
+		const composer = new Composer();
+		composer.parts = [text('Hi ')]; composer.selection = () => [3, 3];
+		composer.replace_selection = inserted => { composer.parts = [text('Hi ' + inserted[0].text)]; };
+		const opened = [];
+		composer.open_picker = (...args) => opened.push(args);
+		composer.before_input({ inputType: 'insertText', data: trigger, preventDefault() {} });
+		assert.deepEqual(opened.pop(), [[3, 4], true, 'person']);
+		composer.composition_trigger = trigger; composer.selection = () => [4, 4];
+		composer.open_composed_shortcut();
+		assert.deepEqual(opened.pop(), [[3, 4], true, 'person']);
+	}
+});
+
+test('person tags render avatar/name buttons, open profiles, and remain readable in inbox previews', () => {
+	const person = { type: 'person', client_id: 2, display_name: 'Lucy', icon_id: 'multiplayer' };
+	const { state } = context();
+	assert.equal(state.get_chat_plain_content({ parts: [text('Hi '), person] }), 'Hi Lucy');
+	const opened = [];
+	const node = name => ({ name, dataset: {}, children: [], listeners: {},
+		append(...children) { this.children.push(...children); },
+		replaceChildren(fragment) { this.children = fragment.children; },
+		setAttribute() {}, addEventListener(event, callback) { this.listeners[event] = callback; }
+	});
+	let Message, Composer;
+	items.register_chat_elements({ game: {}, state: { chat_client_id: 1,
+		get_avatar_icon: id => id + '.png', show_chat_message_member: message => opened.push(message) },
+		document: { createElement: node, createDocumentFragment: () => node('fragment'), createTextNode: text => ({ text }) },
+		HTMLElement: class { replaceChildren(fragment) { this.children = fragment.children; } },
+		customElements: { define(name, element) { if (name === 'mp-chat-message-body') Message = element; else Composer = element; } }
+	});
+	const message = new Message(); message.getAttribute = () => JSON.stringify([person]); message.render();
+	const chip = message.children[0];
+	assert.equal(chip.name, 'button');
+	assert.equal(chip.children[0].src, 'multiplayer.png');
+	assert.equal(chip.children[1].text, 'Lucy');
+	chip.listeners.click();
+	assert.deepEqual(opened, [{ sender_id: 2, sender: person }]);
+	const composer = new Composer(); const inserted = [];
+	composer.editor = { focus() {} }; composer.picker_selection = [3, 4];
+	composer.replace_selection = (...args) => inserted.push(args);
+	composer.insert_person({ ...person, client_id: 1 });
+	assert.equal(inserted.length, 0);
+	composer.insert_person(person);
+	assert.deepEqual(inserted[0], [[person, text(' ')], [3, 4]]);
+});
+
+
+test('person picker renders at most 100 results after searching the complete catalog', () => {
+	const { state } = context();
+	state.chat_person_catalog = Array.from({ length: 150 }, (_, id) => ({ id, name: `Person ${id}` }));
+	state.chat_person_search = '';
+	assert.equal(state.get_chat_person_results().length, 100);
+	state.chat_person_search = 'Person 149';
+	assert.deepEqual(state.get_chat_person_results().map(person => person.id), [149]);
 });

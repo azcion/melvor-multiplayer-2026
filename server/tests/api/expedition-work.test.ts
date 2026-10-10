@@ -42,6 +42,52 @@ async function restore_v1_content(expedition_id: number, visit_id: number) {
 }
 
 describe('Expedition verified work', () => {
+	for (const [start_key, end_key, dissolve] of [
+		['melvorD:AltMagic', 'melvorD:AltMagic', false],
+		['melvorD:AltMagic', 'melvorD:Magic', false],
+		['melvorD:Magic', 'melvorD:AltMagic', false],
+		['melvorD:AltMagic', 'melvorD:Magic', true]
+	] as const) {
+		test(`credits Magic from legacy content and ${start_key} to ${end_key}, dissolution=${dissolve}`, async () => {
+			const { guild, expedition_id, visit_id, task } = await entrance();
+			const content = structuredClone(EXPEDITION_CONTENT_PREVIEW);
+			content.chambers.find(chamber => chamber.id === 'entrance')!.tasks
+				.find(entry => entry.id === task)!.evidence.skill_ids = ['melvorD:AltMagic'];
+			await db_run('UPDATE expeditions SET content_snapshot = ? WHERE id = ?',
+				[JSON.stringify(content), expedition_id]);
+			const state = (await get_json_with_session<State>('/api/expedition/state', guild.first.session_token)).json;
+			expect(state.expedition.chamber.tasks.find(entry => entry.task_id === task)!.evidence.skill_ids)
+				.toEqual(['melvorD:Magic']);
+			const activity = { type: 'skill', skill_id: 'melvorD:Magic', action_id: 'melvorD:Superheat' };
+			const report = (key: string, amount: number) => ({ operation_id: crypto.randomUUID(), expedition_id,
+				visit_id, task_id: task, statistics: { version: 1, time_ms: { [key]: amount } },
+				activities: [activity], captured_at: Date.now() });
+			const start = await post_json<any>('/api/expedition/task/start', report(start_key, 1000), guild.first.session_token);
+			expect(start.json.tracking).not.toBeNull();
+			const start_at = Date.now() - 60_000;
+			// Reproduce an already-running pre-fix session, including its saved evidence.
+			await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ?, evidence_skill_ids = ? WHERE id = ?',
+				[start_at, start_at, JSON.stringify(['melvorD:AltMagic']), start.json.tracking.session_id]);
+			if (dissolve) {
+				await post_json('/api/guilds/leave', {}, guild.first.session_token);
+				await post_json('/api/guilds/leave', {}, guild.second.session_token);
+			}
+			const stop = { ...report(end_key, 31_000), captured_at: start_at + 60_000 };
+			// A transition client sending both aliases must not double-count concurrency.
+			if (start_key === 'melvorD:Magic') {
+				stop.statistics.time_ms['melvorD:AltMagic'] = 31_000;
+				stop.statistics.time_ms['melvorD:Magic'] = 31_000;
+			}
+			const settled = await post_json<any>('/api/expedition/task/stop', stop, guild.first.session_token);
+			expect(settled.json.settlement).toMatchObject({ credited_ms: 30_000,
+				guild_ms: dissolve ? 0 : 30_000, total_ms: 30_000, points_micros: 8333 });
+			expect((await post_json<any>('/api/expedition/task/stop', stop, guild.first.session_token)).json).toEqual(settled.json);
+			if (!dissolve)
+				expect((await db_all('SELECT content_snapshot FROM expeditions WHERE id = ?', [expedition_id]))[0])
+					.toEqual({ content_snapshot: JSON.stringify(content) });
+		});
+	}
+
 	test('credits a short verified statistic delta in full after task completion', async () => {
 		const { guild, expedition_id, visit_id, task } = await entrance();
 		const hour = 3_600_000;

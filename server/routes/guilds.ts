@@ -12,17 +12,15 @@ import { get_guild_activity, parse_guild_activity_cursor } from '../guild-activi
 import { record_guild_activity } from '../guild-activity';
 import { cancel_client_haggles } from './haggle';
 import { is_client_version_at_least } from '../client-version-policy';
-import { crucible_migration_complete, is_crucible_petition_type, settle_departing_crucible_wish, snapshot_crucible_petition } from '../crucible-council';
+import { is_crucible_petition_type, settle_departing_crucible_wish, snapshot_crucible_petition } from '../crucible-council';
 
-const { DIRECT_JOIN_CHARITREE_LOCK, FREE_FELLOWSHIP_TYPE, GiftFlags, PETITION_LIFETIME, PUBLIC_GUILD_TYPE, db, db_get_all, db_get_single, db_run, ensure_guild_campaign, expire_charity_items, expire_petitions, forget_guild_campaign, get_client_charity_state, get_client_display, get_client_guild_id, get_council_petitions, get_guild_applicants, get_guild_capabilities, get_guild_established_at, get_guild_member_directory, get_guild_members, get_guild_summary, get_guild_type, get_petition_conflict_subject, guild_summary_from_row, has_guild_departure_blocker, is_petition_choice, is_petition_type, is_valid_guild_icon_id, parse_guild_name, process_council_actions, resize_unprogressed_campaign, session_get_route, session_post_route, settle_departing_charity_wish, shadowed_cutoff, unlock_winnowing_targets } = runtime;
+const { DIRECT_JOIN_CRUCIBLE_LOCK, FREE_FELLOWSHIP_TYPE, GiftFlags, PETITION_LIFETIME, PUBLIC_GUILD_TYPE, db, db_get_all, db_get_single, db_run, ensure_guild_campaign, expire_petitions, forget_guild_campaign, get_client_display, get_client_guild_id, get_council_petitions, get_guild_applicants, get_guild_capabilities, get_guild_established_at, get_guild_member_directory, get_guild_members, get_guild_summary, get_guild_type, get_petition_conflict_subject, guild_summary_from_row, has_guild_departure_blocker, is_petition_choice, is_petition_type, is_valid_guild_icon_id, parse_guild_name, process_council_actions, resize_unprogressed_campaign, session_get_route, session_post_route, shadowed_cutoff, unlock_winnowing_targets } = runtime;
 
 function petition_visible_to_client(type: string, req: Request, client_id: number): boolean {
 	if (type.startsWith('alliance_')) return has_alliance_access(client_id, runtime.get_request_mod_version(req));
-	if (type.startsWith('charitree_') && runtime.get_service_setting('crucible_cutover') === '1')
-		return false;
 	const version = runtime.get_request_mod_version(req);
 	const crucible_client = version === 'development' || is_client_version_at_least(version, '1.6.0');
-	return crucible_client ? !type.startsWith('charitree_') : !type.startsWith('crucible_');
+	return crucible_client || !type.startsWith('crucible_');
 }
 
 function council_preview_enabled(req: Request, client_id: number): boolean {
@@ -76,10 +74,7 @@ export function register_guilds_routes(): void {
 		if (petition_type.startsWith('alliance_')) return 400;
 		const version = runtime.get_request_mod_version(req);
 		const crucible_client = version === 'development' || is_client_version_at_least(version, '1.6.0');
-		if ((petition_type.startsWith('charitree_') && crucible_client) ||
-			(is_crucible_petition_type(petition_type) && !crucible_client)) return 400;
-		if (petition_type.startsWith('charitree_') && runtime.get_service_setting('crucible_cutover') === '1')
-			return 426;
+		if (is_crucible_petition_type(petition_type) && !crucible_client) return 400;
 		const proposed_name = petition_type === 'appellation' ? parse_guild_name(json.name) : null;
 		const proposed_icon_id = petition_type === 'heraldry' && is_valid_guild_icon_id(json.icon_id) ? json.icon_id : null;
 		let target_client_id: number | null = null;
@@ -103,16 +98,15 @@ export function register_guilds_routes(): void {
 				return { status: 'forbidden' as const };
 
 			const guild = db.query(
-				'SELECT `type`, `name`, `charitree_enabled`, `cheat_restriction_enabled`, ' +
+				'SELECT `type`, `name`, `cheat_restriction_enabled`, ' +
 				'`market_discovery_restriction_enabled` FROM `guilds` WHERE `id` = ? LIMIT 1'
 			).get(
 				membership.guild_id
-			) as { type: GuildType; name: string; charitree_enabled: number; cheat_restriction_enabled: number;
+			) as { type: GuildType; name: string; cheat_restriction_enabled: number;
 				market_discovery_restriction_enabled: number } | null;
 			if (guild === null)
 				return { status: 'forbidden' as const };
 			if (is_crucible_petition_type(petition_type)) {
-				if (!crucible_migration_complete()) return { status: 'crucible_unavailable' as const };
 				const crucible = db.query<{ is_open: number }, [number]>(
 					'SELECT is_open FROM crucible_guilds WHERE guild_id = ?').get(membership.guild_id);
 				if (crucible === null) return { status: 'crucible_unavailable' as const };
@@ -137,20 +131,6 @@ export function register_guilds_routes(): void {
 			if ((petition_type === 'temperance' && guild.market_discovery_restriction_enabled !== 0) ||
 				(petition_type === 'indulgence' && guild.market_discovery_restriction_enabled !== 1))
 				return { status: 'market_discovery_policy_unavailable' as const };
-			expire_charity_items(now, membership.guild_id);
-			if (petition_type === 'charitree_ingratitude') {
-				const has_contents = db.query(
-					'SELECT 1 FROM `charity_items` WHERE `guild_id` = ? UNION ALL ' +
-					'SELECT 1 FROM `charity_wishes` WHERE `guild_id` = ? LIMIT 1'
-				).get(membership.guild_id, membership.guild_id);
-				if (guild.charitree_enabled !== 1 || has_contents === null)
-					return { status: 'charitree_unavailable' as const };
-			} else if (petition_type === 'charitree_sacrilege' && guild.charitree_enabled !== 1) {
-				return { status: 'charitree_unavailable' as const };
-			} else if (petition_type === 'charitree_beneficence' && guild.charitree_enabled !== 0) {
-				return { status: 'charitree_unavailable' as const };
-			}
-
 			let target_membership_id: number | null = null;
 			let winnowing_targets: Array<{ id: number; client_id: number }> = [];
 			if (petition_type === 'banishment') {
@@ -194,18 +174,12 @@ export function register_guilds_routes(): void {
 			).get(membership.guild_id, conflict_subject);
 			if (conflict !== null)
 				return { status: 'conflict' as const };
-			const charitree_expires_before = petition_type === 'charitree_ingratitude'
-				? (db.query(
-					'SELECT MAX(`expires_at`) AS `expires_at` FROM `charity_items` WHERE `guild_id` = ?'
-				).get(membership.guild_id) as { expires_at: number | null }).expires_at ?? now
-				: null;
-
 			maintain_alliances(now);
 			const petition = db.query(
 				'INSERT INTO `guild_petitions` (`guild_id`, `guild_name`, `type`, `conflict_subject`, ' +
 				'`petitioner_id`, `proposed_name`, `proposed_icon_id`, `target_client_id`, `target_membership_id`, ' +
-				'`charitree_expires_before`, `created_at`, `expires_at`, `rule_version`) ' +
-				'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2) RETURNING `id`'
+				'`created_at`, `expires_at`, `rule_version`) ' +
+				'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2) RETURNING `id`'
 			).get(
 				membership.guild_id,
 				guild.name,
@@ -216,7 +190,6 @@ export function register_guilds_routes(): void {
 				proposed_icon_id,
 				target_client_id,
 				target_membership_id,
-				charitree_expires_before,
 				now,
 				now + PETITION_LIFETIME
 			) as { id: number };
@@ -231,11 +204,6 @@ export function register_guilds_routes(): void {
 				for (const target of winnowing_targets)
 					insert_target.run(petition.id, target.id, target.client_id);
 			}
-			if (petition_type === 'charitree_ingratitude')
-				db.query(
-					'INSERT INTO `guild_petition_charity_wishes` (`petition_id`, `wish_id`) ' +
-					'SELECT ?, `id` FROM `charity_wishes` WHERE `guild_id` = ?'
-				).run(petition.id, membership.guild_id);
 			if (is_crucible_petition_type(petition_type))
 				snapshot_crucible_petition(petition.id, membership.guild_id, petition_type);
 			snapshot_council_threshold(petition.id, membership.guild_id, now);
@@ -255,8 +223,6 @@ export function register_guilds_routes(): void {
 			return { error_lang: 'MOD_MP_COUNCIL_CONFLICT' };
 		if (result.status === 'unavailable')
 			return { error_lang: 'MOD_MP_GUILD_COUNCIL_UNAVAILABLE' };
-		if (result.status === 'charitree_unavailable')
-			return { error_lang: 'MOD_MP_COUNCIL_CHARITREE_UNAVAILABLE' };
 		if (result.status === 'crucible_unavailable')
 			return { error: 'Crucible petition is unavailable.' };
 		if (result.status === 'admission_unavailable')
@@ -489,18 +455,12 @@ export function register_guilds_routes(): void {
 			const member_directory = guild_type === FREE_FELLOWSHIP_TYPE
 				? await get_guild_member_directory(guild_id, 0, '', client_id)
 				: null;
-			const charitree = await db_get_single(
-				'SELECT `charitree_enabled` FROM `guilds` WHERE `id` = ? LIMIT 1',
-				[guild_id]
-			) as { charitree_enabled: number } | null;
 			return {
 				affiliation: 'member',
 				current_client_id: client_id,
-				charity: await get_client_charity_state(client_id, runtime.get_request_mod_version(req), Date.now(), true),
 				guild: {
 					...guild,
 					established_at,
-					charitree_enabled: charitree?.charitree_enabled === 1,
 					capabilities: {
 						...get_guild_capabilities(guild_type),
 						council: guild_type !== FREE_FELLOWSHIP_TYPE || alliance_capable(runtime.get_request_mod_version(req))
@@ -621,8 +581,8 @@ export function register_guilds_routes(): void {
 
 			const now = Date.now();
 			const membership = db.query(
-				'INSERT INTO `guild_memberships` (`client_id`, `guild_id`, `charitree_take_available_at`) VALUES(?, ?, ?) RETURNING `id`'
-			).get(client_id, open_guild.id, now + DIRECT_JOIN_CHARITREE_LOCK) as { id: number };
+				'INSERT INTO `guild_memberships` (`client_id`, `guild_id`, `crucible_reclaim_available_at`) VALUES(?, ?, ?) RETURNING `id`'
+			).get(client_id, open_guild.id, now + DIRECT_JOIN_CRUCIBLE_LOCK) as { id: number };
 			record_guild_activity({ guild_id: open_guild.id, event_type: 'joined', actor_client_id: client_id,
 				source_key: `membership:${membership.id}:joined`, created_at: now });
 			return { status: 'joined' as const, guild_id: open_guild.id };
@@ -736,7 +696,6 @@ export function register_guilds_routes(): void {
 
 			record_guild_activity({ guild_id: membership.guild_id, event_type: 'left', actor_client_id: client_id,
 				source_key: `membership:${membership.id}:left` });
-			settle_departing_charity_wish(client_id, membership.guild_id);
 			settle_departing_crucible_wish(client_id, membership.guild_id);
 			db.query('DELETE FROM `guild_memberships` WHERE `client_id` = ?').run(client_id);
 			const remaining = db.query(

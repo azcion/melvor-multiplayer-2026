@@ -114,3 +114,55 @@ test('tracking, opt-out and session changes cancel pending work prompts', () => 
 	assert.equal(gate.observe({ ...input, now: 30001 }), false);
 	assert.equal(gate.observe({ ...input, now: 38001 }), true);
 });
+
+test('tracking modes preserve the legacy opt-out and prefer a valid saved mode', async () => {
+	const { work_tracking_mode } = await import('../../mod/expedition-tasks.mjs');
+	assert.equal(work_tracking_mode(undefined, undefined), 'prompt');
+	assert.equal(work_tracking_mode(undefined, true), 'prompt');
+	assert.equal(work_tracking_mode(undefined, false), 'manual');
+	assert.equal(work_tracking_mode('invalid', false), 'manual');
+	for (const mode of ['manual', 'prompt', 'automatic'])
+		assert.equal(work_tracking_mode(mode, false), mode);
+});
+
+test('automatic tracking ranks Required work before remaining EP and preserves ties', async () => {
+	const { best_eligible_task } = await import('../../mod/expedition-tasks.mjs');
+	const hour = 3_600_000;
+	const activity = [{ type: 'skill', skill_id: 'melvorD:Astrology' }];
+	const task = { unlocked_at: 1, completed_at: null, target_ms: 10 * hour,
+		requirement: 'optional', evidence: { skill_ids: ['melvorD:Astrology'] } };
+	const tasks = [
+		{ ...task, task_id: 'optional', target_ms: 100 * hour },
+		{ ...task, task_id: 'required-small', requirement: 'required', player_ms: 8 * hour },
+		{ ...task, task_id: 'required-best', requirement: 'required', system_ms: hour },
+		{ ...task, task_id: 'required-tie', requirement: 'required', system_ms: hour },
+		{ ...task, task_id: 'locked', requirement: 'required', target_ms: 100 * hour, unlocked_at: null },
+		{ ...task, task_id: 'done', completed_at: 2, requirement: 'required', target_ms: 100 * hour },
+		{ ...task, task_id: 'hidden', requirement: 'conditional', exit_id: 'hidden', target_ms: 100 * hour },
+		{ ...task, task_id: 'other-skill', requirement: 'required', target_ms: 100 * hour,
+			evidence: { skill_ids: ['melvorD:Mining'] } }
+	];
+	const state = { expedition: { status: 'active', registered: true, chamber: { tasks } } };
+	assert.equal(best_eligible_task(state, activity).task_id, 'required-best');
+	assert.equal(best_eligible_task(state, []), null);
+	state.tracking = { task_id: 'existing' };
+	assert.equal(best_eligible_task(state, activity), null);
+	delete state.tracking;
+	for (const entry of tasks.filter(entry => entry.requirement === 'required')) entry.completed_at = 2;
+	assert.equal(best_eligible_task(state, activity).task_id, 'optional');
+	tasks[0].player_ms = tasks[0].target_ms;
+	assert.equal(best_eligible_task(state, activity), null);
+});
+
+test('automatic gate selects again after tracking ends without an activity change', () => {
+	const gate = create_work_prompt_gate();
+	const input = { session: 1, activities: [{ type: 'combat' }], enabled: true, automatic: true, tracking: false };
+	assert.equal(gate.observe({ ...input, now: 0 }), false);
+	assert.equal(gate.observe({ ...input, now: 8000 }), true);
+	gate.defer(8000, 30_000);
+	assert.equal(gate.observe({ ...input, now: 37999 }), false);
+	assert.equal(gate.observe({ ...input, now: 38000 }), true);
+	assert.equal(gate.observe({ ...input, tracking: true, now: 38001 }), false);
+	assert.equal(gate.observe({ ...input, now: 39000 }), false);
+	assert.equal(gate.observe({ ...input, now: 41500 }), true);
+});

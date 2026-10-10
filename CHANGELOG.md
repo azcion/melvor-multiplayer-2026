@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.6.9
+
+- Expanded $Feature Chat tags with Alt. Magic using Magic’s icon, plus lowercase alliance, alliance member guild, guild member, petition, policy, buy order, sell listing, trade, gift, wish, haggle, and chamber tags without icons. Tag labels are localized in all supported languages.
+- Restyled Chat’s page shell and separate Global, Guild, Private, and Support cards with the Expedition/Crucible appearance, preserving the translucent conversation backdrop, content, and controls, removing the Private section’s explanatory subtitle, and keeping conversation controls visible beneath Melvor’s header while the page scrolls. Updates uses matching cards and a 1:2 desktop layout, giving the changelog more room while retaining mobile tabs.
+- Removed the retired Charitree client and backend, obsolete assets, and legacy cutover tooling. Crucible uses its own helpers and styles throughout. Existing pets remain available.
+- Expedition work reports now show the retry banner only after five seconds or a failed submission, keeping normal check-ins quiet apart from their existing notification.
+- Added Manual, Prompt, and Automatic Expedition work tracking modes. Automatic tracking prioritizes Required tasks, then the most remaining earnable EP, with the usual in-game tracking notification.
+- Fixed Expedition Magic requirements and tracking to match the active Magic skill, including existing runs and 1.6.8 clients through backend compatibility.
+- Transfers history now shows both sides of Marketplace purchases and Buy Order fulfillments together: exchanged items beside outgoing payments and incoming proceeds, and the amount paid beside incoming items. Outgoing exchange entries show the player directly.
+- Fixed Crucible Offering locks to show whenever no quantity can be reclaimed, including insufficient currency balance, reclaim cooldowns, and a sealed Crucible.
+- Improved Chinese localization: Simplified Chinese Chat uses scoped terminology for plain-text Bank Slot Tokens and explicit Guild/group members, and Chinese Multiplayer currency displays use 金币/金幣 without a GP abbreviation. Typed Chat links, mod titles, and amounts remain preserved.
+- Added @Person Chat tags with avatars and clickable profiles. The searchable picker puts recent speakers first, then active Guild members by recent activity, then everyone else alphabetically, including players outside the chat. Shadowed players are excluded and at most 100 search results render at once. Tagged readers see a magenta message glow; unread tags show a magenta @ in Chat navigation and previews, taking precedence over the normal red unread count. Supports @ and fullwidth ＠; self-tagging is disabled.
+
 ## 1.6.8
 
 - Council Petitions now decide from cast Aye/Nay votes when voting closes, including in-progress Petitions. Their bars show cast-vote proportions, a midpoint notch, and a remaining-time countdown. Guild-cast Alliance decisions retain their majority requirement.

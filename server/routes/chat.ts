@@ -1,7 +1,7 @@
 import { admin_message_details, message_moderation_count, moderate_additional_chat_message, type ChatMessageKind } from '../chat_reactions';
 import { has_alliance_access } from '../alliances';
 import { get_alliance_chat_inbox, list_alliance_chat_messages, send_alliance_chat_message, moderate_alliance_chat_message, set_alliance_chat_enabled } from '../alliance_chat';
-import { normalize_chat_parts, parts_text, attach_chat_parts, compatible_chat_parts } from '../chat_parts';
+import { normalize_chat_parts, parts_text, attach_chat_parts, compatible_chat_parts, chat_people, has_unread_person_tag } from '../chat_parts';
 import { is_client_version_at_least } from '../client-version-policy';
 import { get_account_tags } from '../account_tags';
 import { get_tester_chat_inbox, list_tester_chat_messages, moderate_tester_chat_message, send_tester_chat_message } from '../tester_chat';
@@ -35,6 +35,7 @@ export function register_chat_routes(): void {
 	}));
 
 	session_get_route('/api/chat/profile', async (req, url, client_id): Promise<HandlerResult> => {
+		if (url.searchParams.get('people') === '1') return { people: chat_people(client_id) };
 		const subject_id = Number(url.searchParams.get('client_id'));
 		if (!Number.isSafeInteger(subject_id) || subject_id < 1)
 			return 400;
@@ -95,6 +96,8 @@ export function register_chat_routes(): void {
 			...list_support_conversations(client_id)
 		].sort((a, b) => (b.latest_message?.created_at ?? b.created_at) -
 			(a.latest_message?.created_at ?? a.created_at));
+		for (const conversation of conversations)
+			Object.assign(conversation, { unread_tagged: has_unread_person_tag(client_id, conversation) });
 		for (const kind of ['private', 'alliance', 'guild', 'global', 'testers', 'support']) {
 			const matching = conversations.filter(conversation => (conversation.conversation_kind ?? 'private') === kind);
 			const latest = attach_chat_parts(kind === 'testers' ? 'global' : kind,
@@ -104,7 +107,8 @@ export function register_chat_routes(): void {
 				if (conversation.latest_message && conversation.latest_message.message_id > 0) {
 					const parts = by_id.get(conversation.latest_message.message_id)?.parts;
 					if (parts) Object.assign(conversation.latest_message, { parts });
-					compatible_chat_parts(conversation.latest_message, supports_features);
+					compatible_chat_parts(conversation.latest_message, supports_features,
+						is_client_version_at_least(get_request_mod_version(req), '1.6.9'));
 				}
 		}
 		return {
@@ -123,7 +127,7 @@ export function register_chat_routes(): void {
 		return result.status === 'ok' ? { success: true, conversation: result.value } : chat_error(result.status);
 	});
 
-	session_get_route('/api/chat/messages', async (req, url, client_id) => {
+	session_get_route('/api/chat/messages', async (req, url, client_id): Promise<HandlerResult> => {
 		const kind = url.searchParams.get('conversation_kind') ?? 'private';
 		const conversation_parameter = url.searchParams.get('conversation_id');
 		const conversation_id = conversation_parameter === null || conversation_parameter === ''
@@ -169,6 +173,7 @@ export function register_chat_routes(): void {
 			return 500;
 		if (result.status !== 'ok')
 			return chat_error(result.status);
+		if (url.searchParams.get('people') === '1') return { people: chat_people(client_id, kind, conversation_id) };
 		const reaction_result = conversation_id === null
 			? { status: 'ok' as const, value: { reaction_revision: 0, reaction_updates: [] } }
 			: reaction_updates(kind, client_id, conversation_id, reaction_after);
@@ -181,7 +186,8 @@ export function register_chat_routes(): void {
 			messages: attach_translations(kind === 'testers' ? 'global' : kind, client_id,
 				attach_reactions(kind, client_id, result.value.messages))
 				.map(message => compatible_chat_parts(message,
-					is_client_version_at_least(get_request_mod_version(req), '1.6.0')))
+					is_client_version_at_least(get_request_mod_version(req), '1.6.0'),
+					is_client_version_at_least(get_request_mod_version(req), '1.6.9')))
 		};
 	});
 
@@ -241,8 +247,10 @@ export function register_chat_routes(): void {
 			typeof json.idempotency_key !== 'string' ||
 			typeof json.content !== 'string')
 			return 400;
-		const parts = json.parts === undefined ? undefined : normalize_chat_parts(json.parts);
+		const parts = json.parts === undefined ? undefined : normalize_chat_parts(json.parts, client_id);
 		if (parts === null) return 400;
+		if (parts?.some(part => part.type === 'person') &&
+			!is_client_version_at_least(get_request_mod_version(req), '1.6.9')) return 400;
 		if (parts?.some(part => part.type === 'feature') &&
 			!is_client_version_at_least(get_request_mod_version(req), '1.6.0')) return 400;
 		const content = parts ? parts_text(parts) : json.content;
@@ -289,7 +297,8 @@ export function register_chat_routes(): void {
 		Object.assign(response, result.value as JsonObject);
 		response.message = compatible_chat_parts(
 			attach_chat_parts(kind === 'testers' ? 'global' : kind, [result.value.message])[0]!,
-			is_client_version_at_least(get_request_mod_version(req), '1.6.0')) as JsonObject;
+			is_client_version_at_least(get_request_mod_version(req), '1.6.0'),
+			is_client_version_at_least(get_request_mod_version(req), '1.6.9')) as JsonObject;
 		if (kind === 'support')
 			response.budget = get_chat_state(client_id).budget;
 		return response;

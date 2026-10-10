@@ -2,8 +2,8 @@ import { expedition_capture_time, EXPEDITION_BOUNDARY_TOLERANCE_MS, EXPEDITION_F
 import { write_log } from './log';
 import { createHash } from 'node:crypto';
 import { db } from './db';
-import { EXPEDITION_WORK_SKILLS, preview_task_available } from './expedition-content';
-import type { ExpeditionContent, ExpeditionTask } from './expedition-content';
+import { EXPEDITION_WORK_SKILLS, preview_task_available, parse_expedition_content, expedition_skill_id } from './expedition-content';
+import type { ExpeditionTask } from './expedition-content';
 import { RECENTLY_ACTIVE_AFTER } from './recent-activity';
 import type { WorkStatistics } from './routes/expedition';
 import type { JsonObject } from './http';
@@ -25,8 +25,18 @@ const HOUR_MS = 3_600_000;
 const MICROS_PER_HOUR = 1_000_000;
 const UNVERIFIED_WAIT_MS = 24 * HOUR_MS;
 
+function canonical_statistics(statistics: WorkStatistics): WorkStatistics {
+	const time_ms = { ...statistics.time_ms };
+	if (time_ms['melvorD:Magic'] === undefined && time_ms['melvorD:AltMagic'] !== undefined)
+		time_ms['melvorD:Magic'] = time_ms['melvorD:AltMagic'];
+	delete time_ms['melvorD:AltMagic'];
+	return { version: 1, time_ms };
+}
+
 function comparable_evidence(start_json: string, statistics: WorkStatistics, evidence: string[]): boolean {
-	const start = JSON.parse(start_json) as WorkStatistics;
+	const start = canonical_statistics(JSON.parse(start_json) as WorkStatistics);
+	statistics = canonical_statistics(statistics);
+	evidence = evidence.map(expedition_skill_id);
 	return evidence.some(skill_id => start.time_ms[skill_id] !== undefined &&
 		statistics.time_ms[skill_id] !== undefined && statistics.time_ms[skill_id] >= start.time_ms[skill_id]);
 }
@@ -57,7 +67,7 @@ function task_definition(expedition_id: number, visit_id: number, task_id: strin
 		'SELECT chamber_id FROM expedition_visits WHERE id = ? AND expedition_id = ?'
 	).get(visit_id, expedition_id);
 	if (!expedition || !visit) return null;
-	const content = JSON.parse(expedition.content_snapshot) as ExpeditionContent;
+	const content = parse_expedition_content(expedition.content_snapshot);
 	const chamber = content.chambers.find(chamber => chamber.id === visit.chamber_id);
 	const task = chamber?.tasks.find(entry => entry.id === task_id);
 	if (!chamber || !task) return null;
@@ -65,8 +75,10 @@ function task_definition(expedition_id: number, visit_id: number, task_id: strin
 }
 
 function eligible_activity(activities: Activity[], skill_ids: string[]): boolean {
+	skill_ids = skill_ids.map(expedition_skill_id);
 	return activities.some(activity => activity.type === 'skill'
-		? skill_ids.includes(activity.skill_id ?? '') && EXPEDITION_WORK_SKILLS.has(activity.skill_id ?? '')
+		? skill_ids.includes(expedition_skill_id(activity.skill_id ?? '')) &&
+			EXPEDITION_WORK_SKILLS.has(expedition_skill_id(activity.skill_id ?? ''))
 		: skill_ids.includes('melvorD:Combat') && activity.type === 'combat');
 }
 
@@ -78,7 +90,7 @@ export function update_unlocks(expedition_id: number, visit_id: number, now: num
 		'SELECT chamber_id, charted_on_arrival FROM expedition_visits WHERE id = ?'
 	).get(visit_id);
 	if (!expedition || !visit) return;
-	const content = JSON.parse(expedition.content_snapshot) as ExpeditionContent;
+	const content = parse_expedition_content(expedition.content_snapshot);
 	const chamber = content.chambers.find(entry => entry.id === visit.chamber_id);
 	if (!chamber) return;
 	const progress = new Map(db.query<{ task_id: string; completed_at: number | null }, [number]>(
@@ -117,7 +129,8 @@ function settle(session: Session, statistics: WorkStatistics, activities: Activi
 	const captured_elapsed_ms = captured_at - session.started_at;
 	if (captured_elapsed_ms < 0 || captured_at > now) return { success: false, error: 'invalid_capture_time' };
 	const elapsed_ms = captured_elapsed_ms;
-	const start = JSON.parse(session.start_statistics) as WorkStatistics;
+	const start = canonical_statistics(JSON.parse(session.start_statistics) as WorkStatistics);
+	statistics = canonical_statistics(statistics);
 	const start_activities = JSON.parse(session.start_activities) as Activity[];
 	const tolerance = Math.max(30_000, Math.floor(elapsed_ms * 0.02));
 	let target_ms = 0;
@@ -174,8 +187,9 @@ function settle_claim(claim: Claim, statistics: WorkStatistics, captured_at: num
 	if (captured_at < claim.started_at || captured_at > now)
 		return { success: false, error: 'invalid_capture_time' };
 	const elapsed_ms = captured_at - claim.started_at;
-	const start = JSON.parse(claim.start_statistics) as WorkStatistics;
-	const evidence = JSON.parse(claim.evidence_skill_ids) as string[];
+	const start = canonical_statistics(JSON.parse(claim.start_statistics) as WorkStatistics);
+	statistics = canonical_statistics(statistics);
+	const evidence = (JSON.parse(claim.evidence_skill_ids) as string[]).map(expedition_skill_id);
 	const tolerance = Math.max(30_000, Math.floor(elapsed_ms * 0.02));
 	let target_ms = 0;
 	let total_ms = 0;

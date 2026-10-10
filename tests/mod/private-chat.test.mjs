@@ -58,7 +58,7 @@ test('adds a first-class Chat page, inbox, unread indicators, and Guild-roster i
 test('returns to the Chat home list when the sidebar entry is clicked', async () => {
 	const main = await read_client_source(root);
 	const watch_start = main.indexOf('function watch_chat_nav');
-	const watch_end = main.indexOf('\nfunction update_charitree_nav', watch_start);
+	const watch_end = main.indexOf('\nfunction update_crucible_nav', watch_start);
 	const navigation = main.slice(watch_start, watch_end);
 	const state = { close_count: 0, close_chat_conversation() { this.close_count++; } };
 	let click_handler = null;
@@ -82,7 +82,7 @@ test('mirrors the shared unread count on the mobile sidebar button without dupli
 	const main = await read_client_source(root);
 	const update_start = main.indexOf('function update_chat_nav');
 	const functions = main.slice(update_start, main.indexOf('\nasync function refresh_chat_messages', update_start));
-	const state = { chat_unread: 4 };
+	const state = { chat_unread: 4, tagged: false, get_chat_notification_tagged() { return this.tagged; } };
 	const nodes = new Map();
 	let append_count = 0;
 	const aside = { textContent: '', hidden: true, classList: {
@@ -100,7 +100,7 @@ test('mirrors the shared unread count on the mobile sidebar button without dupli
 	const document = {
 		getElementById: id => id === 'sidebar-btn' ? sidebar_button : nodes.get(id) ?? null,
 		querySelector: selector => selector === '.mp-chat-nav' ? aside : null,
-		createElement: tag => ({ tag, id: '', className: '', hidden: false, textContent: '', attributes: {}, setAttribute(name, value) { this.attributes[name] = value; } })
+		createElement: tag => ({ classList: { toggle(name, value) { this[name] = value; } }, tag, id: '', className: '', hidden: false, textContent: '', attributes: {}, setAttribute(name, value) { this.attributes[name] = value; } })
 	};
 	const { setup_mobile_sidebar_unread, update_chat_nav } = new Function('document', 'state', `
 		function set_nav_ready(aside, ready) {
@@ -121,8 +121,16 @@ test('mirrors the shared unread count on the mobile sidebar button without dupli
 	assert.equal(aside.textContent, '4');
 	assert.equal(aside.hidden, false);
 
+	state.tagged = true;
+	update_chat_nav();
+	assert.equal(badge.textContent, '@');
+	assert.equal(aside.textContent, '@');
+	assert.equal(aside.classList['mp-chat-tagged-nav'], true);
+	assert.equal(badge.classList['mp-chat-tagged-nav'], true);
+	state.tagged = false;
 	state.chat_unread = 0;
 	update_chat_nav();
+	assert.equal(aside.classList['mp-chat-tagged-nav'], false);
 	assert.equal(badge.textContent, '');
 	assert.equal(badge.hidden, true);
 	assert.equal(aside.hidden, true);
@@ -439,7 +447,10 @@ test('styles Chat messages by viewer-relative alignment and isolates the convers
 	assert.match(style, /\.mp-chat-message-own \.mp-chat-message-meta\s*\{[\s\S]*justify-content: end;/);
 	assert.match(style, /\.mp-chat-message-own \.mp-chat-message-content\s*\{[\s\S]*margin-left: auto;/);
 	assert.match(style, /\.mp-chat-message-author\s*\{[\s\S]*color: #fffe;/);
-	assert.match(style, /\.mp-chat-conversation-view\s*\{[\s\S]*color: white;[\s\S]*border: 5px solid #232a35;[\s\S]*border-radius: \.5rem;[\s\S]*backdrop-filter: blur\(8px\);[\s\S]*background-color: #0004;/);
+	assert.match(style, /\.mp-chat-conversation-view\s*\{[\s\S]*color: #f5f7fa;[\s\S]*border: 1px solid #45616b;[\s\S]*border-radius: \.55rem;[\s\S]*background: #182732;/);
+	assert.match(style, /\.mp-chat-conversation-view\s*\{[^}]*overflow: clip;[^}]*backdrop-filter: blur\(8px\);\s*background: #0004;/);
+	assert.doesNotMatch(style, /\.mp-chat-inbox-panel[^{]*\{/);
+	assert.match(style, /\.mp-chat-category,\s*\.mp-chat-loading-panel,\s*\.mp-chat-conversation-view\s*\{/);
 });
 
 test('renders the curated reaction picker and applies aggregate reaction toggles', async () => {
@@ -712,7 +723,7 @@ test('does not poll an empty or background Chat inbox and refreshes visible meta
 	assert.doesNotMatch(polling, /refresh_chat_state\(\)/);
 	assert.match(polling, /state\.is_chat_message_translation_pending\(message\)/);
 	assert.match(polling, /state\.selected_chat_conversation && polling\.is_foreground\(document\)/);
-	assert.match(events, /if \(res\.unchanged === true\) \{\s*void economy_command_journal\?\.recover\(\);\s*return res;[\s\S]*if \(chat_page_visible \|\| has_muted_chats\)\s*await refresh_chat_conversations\(\)/);
+	assert.match(events, /if \(res\.unchanged === true\) \{\s*void economy_command_journal\?\.recover\(\);\s*return res;[\s\S]*if \(chat_page_visible \|\| has_muted_chats \|\| state.chat_unread > 0 \|\| state.get_chat_notification_tagged\(\)\)\s*await refresh_chat_conversations\(\)/);
 });
 
 test('renders Support Chat identity, alignment, virtual welcomes, and restricted actions', async () => {
@@ -838,5 +849,30 @@ test('notification bell renders the current enabled state and locks while thrott
 	assert.doesNotMatch(bell, /aria-haspopup|modal/);
 	assert.match(main, /apply_server_configuration\(\);\s*state.load_chat_notification_preferences\(\)/);
 	assert.match(main, /if \(!has_muted_chats\)\s*state.chat_unread = res.chat_unread/);
-	assert.match(main, /if \(chat_page_visible \|\| has_muted_chats\)\s*await refresh_chat_conversations/);
+	assert.match(main, /if \(chat_page_visible \|\| has_muted_chats \|\| state.chat_unread > 0 \|\| state.get_chat_notification_tagged\(\)\)\s*await refresh_chat_conversations/);
+});
+
+
+test('person tag glow uses character IDs and navigation tags respect unread, access and mute eligibility', async () => {
+	const state = { chat_client_id: 7, chat_notification_preferences: {}, chat_conversations: [] };
+	Object.assign(state, install_chat_actions({ state, get_chat_conversation_key: c => c.conversation_kind + ':' + c.conversation_id }));
+	assert.equal(state.is_chat_message_tagged({ parts: [{ type: 'person', client_id: 7 }] }), true);
+	assert.equal(state.is_chat_message_tagged({ parts: [{ type: 'person', client_id: 8, display_name: '@Me' }] }), false);
+	assert.equal(state.is_chat_message_tagged({ content: '@Me' }), false);
+	const conversation = { conversation_kind: 'guild', conversation_id: 3, unread_count: 2, unread_tagged: true };
+	state.chat_conversations = [conversation];
+	assert.equal(state.get_chat_notification_tagged(), true);
+	state.chat_notification_preferences['guild:3'] = false;
+	assert.equal(state.get_chat_notification_tagged(), false);
+	state.chat_notification_preferences = {};
+	conversation.contributes_unread = false;
+	assert.equal(state.get_chat_notification_tagged(), false);
+	conversation.contributes_unread = true;
+	conversation.unread_count = 0;
+	assert.equal(state.get_chat_notification_tagged(), false);
+	const { main, templates, style } = await sources();
+	assert.match(templates, /mp-chat-message-content" :class="\{ 'mp-chat-tagged': state.is_chat_message_tagged\(message\)/);
+	assert.match(templates, /conversation.unread_tagged \? '@' : conversation.unread_count/);
+	assert.match(main, /chat_page_visible \|\| has_muted_chats \|\| state.chat_unread > 0 \|\| state.get_chat_notification_tagged\(\)/);
+	assert.match(style, /box-shadow: 0 0 4px 2px rgb\(255, 0, 227\)/);
 });

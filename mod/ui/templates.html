@@ -46,7 +46,7 @@
 				<button type="button" class="mp-expedition-button" role="tab" id="mp-expedition-journey-tab" aria-controls="mp-expedition-journey-view" :aria-selected="state.expedition_mobile_tab === 'journey'" :class="{ 'mp-expedition-button-secondary': state.expedition_mobile_tab !== 'journey' }" @click="state.expedition_mobile_tab = 'journey'"><lang-string lang-id="MOD_MP_EXPEDITION_UI_JOURNEY"></lang-string><span class="badge mp-expedition-vote-badge" v-if="state.expedition_needs_vote()"><lang-string lang-id="MOD_MP_VOTE_BADGE"></lang-string></span></button>
 			</div>
 			<p class="mp-expedition-message" v-if="state.expedition_loading && !state.expedition_state && !state.expedition_personal"><lang-string lang-id="MOD_MP_EXPEDITION_UI_LOADING_EXPEDITION"></lang-string></p>
-			<div class="mp-expedition-panel mp-expedition-notice" v-if="state.expedition_pending_report">
+			<div class="mp-expedition-panel mp-expedition-notice" v-if="state.expedition_pending_report && state.expedition_report_notice_visible">
 				<p><lang-string lang-id="MOD_MP_EXPEDITION_UI_A_WORK_REPORT_IS_WAITING_FOR_SERVER_CONFIRMATION_THE_EXACT_CAPTURED_REPORT_"></lang-string></p>
 				<button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending" @click="state.retry_expedition_report()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_RETRY_SAVED_REPORT"></lang-string></button>
 			</div>
@@ -84,7 +84,12 @@
 							<p><lang-string lang-id="MOD_MP_EXPEDITION_UI_GATHERING_FOR_THE_EXPEDITION"></lang-string></p>
 							<p><strong>{{ state.expedition_state?.expedition?.registered_count }}</strong> <lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTERED"></lang-string></p>
 							<p class="mp-expedition-points"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOUR_EP"></lang-string> <strong>{{ state.expedition_points(state.expedition_state?.points_micros) }}</strong></p>
-							<label class="mp-expedition-work-prompts-toggle"><input type="checkbox" :checked="state.expedition_work_prompts_enabled" @change="state.set_expedition_work_prompts($event)"><lang-string lang-id="MOD_MP_EXPEDITION_WORK_PROMPTS_TOGGLE"></lang-string></label>
+							<fieldset class="mp-expedition-work-modes">
+								<legend><lang-string lang-id="MOD_MP_EXPEDITION_WORK_TRACKING_MODE"></lang-string></legend>
+								<label class="mp-poll-option mp-expedition-work-mode" :class="{ 'mp-poll-option-selected': state.expedition_work_tracking_mode === 'manual' }"><input type="radio" name="mp-expedition-work-mode-entrance" value="manual" :checked="state.expedition_work_tracking_mode === 'manual'" @change="state.set_expedition_work_tracking_mode($event)"><lang-string lang-id="MOD_MP_EXPEDITION_WORK_MODE_MANUAL"></lang-string></label>
+								<label class="mp-poll-option mp-expedition-work-mode" :class="{ 'mp-poll-option-selected': state.expedition_work_tracking_mode === 'prompt' }"><input type="radio" name="mp-expedition-work-mode-entrance" value="prompt" :checked="state.expedition_work_tracking_mode === 'prompt'" @change="state.set_expedition_work_tracking_mode($event)"><lang-string lang-id="MOD_MP_EXPEDITION_WORK_MODE_PROMPT"></lang-string></label>
+								<label class="mp-poll-option mp-expedition-work-mode" :class="{ 'mp-poll-option-selected': state.expedition_work_tracking_mode === 'automatic' }"><input type="radio" name="mp-expedition-work-mode-entrance" value="automatic" :checked="state.expedition_work_tracking_mode === 'automatic'" @change="state.set_expedition_work_tracking_mode($event)"><lang-string lang-id="MOD_MP_EXPEDITION_WORK_MODE_AUTOMATIC"></lang-string></label>
+							</fieldset>
 						</div>
 					</div>
 					<div class="mp-expedition-registration" v-if="state.expedition_state?.expedition?.status === 'registration'">
@@ -124,7 +129,12 @@
 								<h2 :class="{ 'mp-expedition-chamber-title': state.expedition_state?.expedition?.chamber?.id === 'entrance' }">{{ state.expedition_display_label(state.expedition_state?.expedition?.chamber?.label) }}</h2>
 								<p>{{ state.expedition_text(state.expedition_state?.expedition?.chamber?.participant_count === 1 ? 'MOD_MP_EXPEDITION_PARTICIPANT_AT_ARRIVAL' : 'MOD_MP_EXPEDITION_PARTICIPANTS_AT_ARRIVAL', state.expedition_state?.expedition?.chamber?.participant_count) }}</p>
 								<p class="mp-expedition-points"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOUR_EP"></lang-string> <strong>{{ state.expedition_points(state.expedition_state?.points_micros) }}</strong></p>
-								<label class="mp-expedition-work-prompts-toggle"><input type="checkbox" :checked="state.expedition_work_prompts_enabled" @change="state.set_expedition_work_prompts($event)"><lang-string lang-id="MOD_MP_EXPEDITION_WORK_PROMPTS_TOGGLE"></lang-string></label>
+								<fieldset class="mp-expedition-work-modes">
+									<legend><lang-string lang-id="MOD_MP_EXPEDITION_WORK_TRACKING_MODE"></lang-string></legend>
+									<label class="mp-poll-option mp-expedition-work-mode" :class="{ 'mp-poll-option-selected': state.expedition_work_tracking_mode === 'manual' }"><input type="radio" name="mp-expedition-work-mode-chamber" value="manual" :checked="state.expedition_work_tracking_mode === 'manual'" @change="state.set_expedition_work_tracking_mode($event)"><lang-string lang-id="MOD_MP_EXPEDITION_WORK_MODE_MANUAL"></lang-string></label>
+									<label class="mp-poll-option mp-expedition-work-mode" :class="{ 'mp-poll-option-selected': state.expedition_work_tracking_mode === 'prompt' }"><input type="radio" name="mp-expedition-work-mode-chamber" value="prompt" :checked="state.expedition_work_tracking_mode === 'prompt'" @change="state.set_expedition_work_tracking_mode($event)"><lang-string lang-id="MOD_MP_EXPEDITION_WORK_MODE_PROMPT"></lang-string></label>
+									<label class="mp-poll-option mp-expedition-work-mode" :class="{ 'mp-poll-option-selected': state.expedition_work_tracking_mode === 'automatic' }"><input type="radio" name="mp-expedition-work-mode-chamber" value="automatic" :checked="state.expedition_work_tracking_mode === 'automatic'" @change="state.set_expedition_work_tracking_mode($event)"><lang-string lang-id="MOD_MP_EXPEDITION_WORK_MODE_AUTOMATIC"></lang-string></label>
+								</fieldset>
 								<button type="button" class="mp-expedition-button" v-if="!state.expedition_state?.expedition?.registered" :disabled="state.expedition_action_pending" @click="state.register_expedition()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTER_TO_WORK"></lang-string></button>
 							</div>
 						</div>
@@ -292,53 +302,55 @@
 </template>
 <template id="template-mp-updates-page">
 	<div class="content d-none" id="mp-updates-page">
-		<div class="mp-updates-tabs" role="tablist">
-			<button type="button" class="btn" :class="state.updates_mobile_tab === 'updates' ? 'btn-primary' : 'btn-secondary'" role="tab" :aria-selected="state.updates_mobile_tab === 'updates'" @click="state.set_updates_mobile_tab('updates')">
-				<lang-string lang-id="MOD_MP_PAGE_UPDATES"></lang-string>
-			</button>
-			<button type="button" class="btn" :class="state.updates_mobile_tab === 'changelog' ? 'btn-primary' : 'btn-secondary'" role="tab" :aria-selected="state.updates_mobile_tab === 'changelog'" @click="state.set_updates_mobile_tab('changelog')">
-				<lang-string lang-id="MOD_MP_UPDATES_CHANGELOG"></lang-string><span class="badge mp-updates-tab-badge" v-show="state.updates_new"><lang-string lang-id="MOD_MP_SIDEBAR_NEW"></lang-string></span>
-			</button>
-		</div>
-		<div class="mp-updates-layout">
-			<div class="mp-updates-column mp-updates-notices" :class="{ 'mp-updates-mobile-hidden': state.updates_mobile_tab !== 'updates' }">
-				<div class="block block-rounded" v-if="state.updates_loading">
-					<div class="block-content text-center">
-						<span class="spinner-border spinner-border-sm text-primary mr-2" role="status"></span>
-						<lang-string lang-id="MOD_MP_UPDATES_LOADING"></lang-string>
-					</div>
-				</div>
-				<div class="block block-rounded" v-else-if="state.updates_error">
-					<div class="block-content text-danger">{{ state.updates_error }}</div>
-				</div>
-				<div class="block block-rounded" v-else-if="state.updates_sections.length === 0">
-					<div class="block-content text-muted"><lang-string lang-id="MOD_MP_UPDATES_EMPTY"></lang-string></div>
-				</div>
-				<div class="block block-rounded mp-updates-notice" v-for="section in state.updates_sections" :key="section.id">
-					<div class="block-header block-header-default"><h3 class="block-title">{{ section.title }}</h3></div>
-					<div class="block-content">
-						<p v-for="(paragraph, index) in section.paragraphs" :key="section.id + '-' + index">{{ paragraph }}</p>
-					</div>
-				</div>
+		<div class="mp-updates-shell">
+			<div class="mp-updates-tabs" role="tablist">
+				<button type="button" class="btn" :class="state.updates_mobile_tab === 'updates' ? 'btn-primary' : 'btn-secondary'" role="tab" :aria-selected="state.updates_mobile_tab === 'updates'" @click="state.set_updates_mobile_tab('updates')">
+					<lang-string lang-id="MOD_MP_PAGE_UPDATES"></lang-string>
+				</button>
+				<button type="button" class="btn" :class="state.updates_mobile_tab === 'changelog' ? 'btn-primary' : 'btn-secondary'" role="tab" :aria-selected="state.updates_mobile_tab === 'changelog'" @click="state.set_updates_mobile_tab('changelog')">
+					<lang-string lang-id="MOD_MP_UPDATES_CHANGELOG"></lang-string><span class="badge mp-updates-tab-badge" v-show="state.updates_new"><lang-string lang-id="MOD_MP_SIDEBAR_NEW"></lang-string></span>
+				</button>
 			</div>
-			<div class="mp-updates-column mp-updates-changelog" :class="{ 'mp-updates-mobile-hidden': state.updates_mobile_tab !== 'changelog' }">
-				<div class="block block-rounded">
-					<div class="block-header block-header-default">
-						<h3 class="block-title"><lang-string lang-id="MOD_MP_UPDATES_CHANGELOG"></lang-string></h3>
+			<div class="mp-updates-layout">
+				<div class="mp-updates-column mp-updates-notices" :class="{ 'mp-updates-mobile-hidden': state.updates_mobile_tab !== 'updates' }">
+					<div class="mp-updates-panel" v-if="state.updates_loading">
+						<div class="mp-updates-panel-body text-center">
+							<span class="spinner-border spinner-border-sm text-primary mr-2" role="status"></span>
+							<lang-string lang-id="MOD_MP_UPDATES_LOADING"></lang-string>
+						</div>
 					</div>
-					<div class="block-content text-center" v-if="state.changelog_loading">
-						<span class="spinner-border spinner-border-sm text-primary mr-2" role="status"></span>
-						<lang-string lang-id="MOD_MP_CHANGELOG_LOADING"></lang-string>
+					<div class="mp-updates-panel" v-else-if="state.updates_error">
+						<div class="mp-updates-panel-body text-danger">{{ state.updates_error }}</div>
 					</div>
-					<div class="block-content text-danger" v-else-if="state.changelog_error">{{ state.changelog_error }}</div>
-					<div class="block-content text-muted" v-else-if="state.changelog_entries.length === 0">
-						<lang-string lang-id="MOD_MP_CHANGELOG_EMPTY"></lang-string>
+					<div class="mp-updates-panel" v-else-if="state.updates_sections.length === 0">
+						<div class="mp-updates-panel-body text-muted"><lang-string lang-id="MOD_MP_UPDATES_EMPTY"></lang-string></div>
 					</div>
-					<div class="block-content mp-changelog-list" v-else>
-						<article class="mp-changelog-entry" v-for="entry in state.changelog_entries" :key="entry.version">
-							<h4 class="font-w600">{{ entry.version }}</h4>
-							<p v-for="(line, index) in entry.lines" :key="entry.version + '-' + index">{{ line }}</p>
-						</article>
+					<div class="mp-updates-panel mp-updates-notice" v-for="section in state.updates_sections" :key="section.id">
+						<div class="mp-updates-panel-header"><h3 class="mp-updates-panel-title">{{ section.title }}</h3></div>
+						<div class="mp-updates-panel-body">
+							<p v-for="(paragraph, index) in section.paragraphs" :key="section.id + '-' + index">{{ paragraph }}</p>
+						</div>
+					</div>
+				</div>
+				<div class="mp-updates-column mp-updates-changelog" :class="{ 'mp-updates-mobile-hidden': state.updates_mobile_tab !== 'changelog' }">
+					<div class="mp-updates-panel">
+						<div class="mp-updates-panel-header">
+							<h3 class="mp-updates-panel-title"><lang-string lang-id="MOD_MP_UPDATES_CHANGELOG"></lang-string></h3>
+						</div>
+						<div class="mp-updates-panel-body text-center" v-if="state.changelog_loading">
+							<span class="spinner-border spinner-border-sm text-primary mr-2" role="status"></span>
+							<lang-string lang-id="MOD_MP_CHANGELOG_LOADING"></lang-string>
+						</div>
+						<div class="mp-updates-panel-body text-danger" v-else-if="state.changelog_error">{{ state.changelog_error }}</div>
+						<div class="mp-updates-panel-body text-muted" v-else-if="state.changelog_entries.length === 0">
+							<lang-string lang-id="MOD_MP_CHANGELOG_EMPTY"></lang-string>
+						</div>
+						<div class="mp-updates-panel-body mp-changelog-list" v-else>
+							<article class="mp-changelog-entry" v-for="entry in state.changelog_entries" :key="entry.version">
+								<h4 class="font-w600">{{ entry.version }}</h4>
+								<p v-for="(line, index) in entry.lines" :key="entry.version + '-' + index">{{ line }}</p>
+							</article>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -522,23 +534,23 @@
 <template id="template-mp-chat-page">
 	<div class="content d-none" id="mp-chat-page">
 		<div class="mp-chat-layout">
-			<div class="block block-rounded" v-if="!state.selected_chat_conversation">
-				<div class="block-content text-center" v-if="state.chat_loading && state.chat_conversations.length === 0">
+			<div class="mp-chat-inbox-panel" v-if="!state.selected_chat_conversation">
+				<div class="block-content text-center mp-chat-loading-panel" v-if="state.chat_loading && state.chat_conversations.length === 0">
 					<span class="spinner-border spinner-border-sm text-primary mr-2" role="status"></span>
 					<lang-string lang-id="MOD_MP_CHAT_LOADING"></lang-string>
 				</div>
 				<div class="mp-chat-categories" v-else>
 					<section class="mp-chat-category">
-						<div class="mp-chat-category-heading"><div class="font-w600"><lang-string lang-id="MOD_MP_CHAT_CATEGORY_GLOBAL"></lang-string></div></div>
+						<div class="mp-chat-category-heading"><h3 class="mp-chat-category-title"><lang-string lang-id="MOD_MP_CHAT_CATEGORY_GLOBAL"></lang-string></h3></div>
 						<div class="block-content text-muted mp-guild-chat-opted-out" v-if="!state.global_chat_enabled"><lang-string lang-id="MOD_MP_GLOBAL_CHAT_OPTED_OUT"></lang-string></div>
 						<div class="mp-chat-conversations" v-else>
 							<button type="button" class="mp-chat-conversation" v-for="conversation in state.global_chat_conversations" :key="'global:' + conversation.conversation_id" @click="state.open_chat_conversation(conversation)">
-								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600">{{ state.get_chat_participant_name(conversation) }}</div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ state.get_chat_plain_content(conversation.latest_message) }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge badge-danger" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
+								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600">{{ state.get_chat_participant_name(conversation) }}</div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ state.get_chat_plain_content(conversation.latest_message) }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge mp-chat-unread-badge" :class="{ 'mp-chat-tagged-nav': conversation.unread_tagged }" v-if="conversation.unread_count > 0">{{ conversation.unread_tagged ? '@' : conversation.unread_count }}</span>
 							</button>
 						</div>
 						<div class="mp-chat-conversations">
 							<button type="button" class="mp-chat-conversation" v-for="conversation in state.tester_chat_conversations" :key="'testers:' + conversation.conversation_id" @click="state.open_chat_conversation(conversation)">
-								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600"><lang-string lang-id="MOD_MP_TESTER_CHAT_TITLE"></lang-string></div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ state.get_chat_plain_content(conversation.latest_message) }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge" :class="conversation.contributes_unread ? 'badge-danger' : 'badge-info'" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
+								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600"><lang-string lang-id="MOD_MP_TESTER_CHAT_TITLE"></lang-string></div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ state.get_chat_plain_content(conversation.latest_message) }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge" :class="conversation.unread_tagged ? 'mp-chat-unread-badge mp-chat-tagged-nav' : conversation.contributes_unread ? 'mp-chat-unread-badge' : 'badge-info'" v-if="conversation.unread_count > 0">{{ conversation.unread_tagged ? '@' : conversation.unread_count }}</span>
 							</button>
 						</div>
 						<div class="mp-chat-conversations">
@@ -548,32 +560,32 @@
 						</div>
 					</section>
 					<section class="mp-chat-category" v-if="state.show_guild_chat_category">
-						<div class="mp-chat-category-heading"><div class="font-w600"><lang-string lang-id="MOD_MP_CHAT_CATEGORY_GUILD"></lang-string></div></div>
+						<div class="mp-chat-category-heading"><h3 class="mp-chat-category-title"><lang-string lang-id="MOD_MP_CHAT_CATEGORY_GUILD"></lang-string></h3></div>
 						<div class="mp-chat-conversations" v-if="state.alliance_access && state.alliance_chat_enabled">
 							<button type="button" class="mp-chat-conversation" v-for="conversation in state.alliance_chat_conversations" :key="'alliance:' + conversation.conversation_id" @click="state.open_chat_conversation(conversation)">
-								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600"><lang-string lang-id="MOD_MP_ALLIANCE_TITLE"></lang-string></div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ state.get_chat_plain_content(conversation.latest_message) }}</div><div class="font-size-sm text-muted" v-if="!conversation.latest_message"><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge badge-danger" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
+								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600"><lang-string lang-id="MOD_MP_ALLIANCE_TITLE"></lang-string></div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ state.get_chat_plain_content(conversation.latest_message) }}</div><div class="font-size-sm text-muted" v-if="!conversation.latest_message"><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge mp-chat-unread-badge" :class="{ 'mp-chat-tagged-nav': conversation.unread_tagged }" v-if="conversation.unread_count > 0">{{ conversation.unread_tagged ? '@' : conversation.unread_count }}</span>
 							</button>
 						</div>
 						<div class="block-content text-muted mp-guild-chat-opted-out" v-if="!state.guild_chat_enabled"><lang-string lang-id="MOD_MP_GUILD_CHAT_OPTED_OUT"></lang-string></div>
 						<div class="mp-chat-conversations" v-else>
 							<button type="button" class="mp-chat-conversation" v-for="conversation in state.guild_chat_conversations" :key="'guild:' + conversation.conversation_id" @click="state.open_chat_conversation(conversation)">
-								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600">{{ conversation.participant.display_name }}</div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ state.get_chat_plain_content(conversation.latest_message) }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge badge-danger" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
+								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600">{{ conversation.participant.display_name }}</div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ state.get_chat_plain_content(conversation.latest_message) }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge mp-chat-unread-badge" :class="{ 'mp-chat-tagged-nav': conversation.unread_tagged }" v-if="conversation.unread_count > 0">{{ conversation.unread_tagged ? '@' : conversation.unread_count }}</span>
 							</button>
 						</div>
 					</section>
 					<section class="mp-chat-category" v-if="state.personal_chat_conversations.length > 0">
-						<div class="mp-chat-category-heading"><div class="font-w600"><lang-string lang-id="MOD_MP_CHAT_CATEGORY_PRIVATE"></lang-string></div><div class="font-size-sm text-muted"><lang-string lang-id="MOD_MP_CHAT_CATEGORY_PERSONAL_INFO"></lang-string></div></div>
+						<div class="mp-chat-category-heading"><h3 class="mp-chat-category-title"><lang-string lang-id="MOD_MP_CHAT_CATEGORY_PRIVATE"></lang-string></h3></div>
 						<div class="mp-chat-conversations">
 							<button type="button" class="mp-chat-conversation" v-for="conversation in state.personal_chat_conversations" :key="'private:' + (conversation.conversation_id || 'virtual')" @click="state.open_chat_conversation(conversation)">
-								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600">{{ conversation.participant.display_name }}</div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ state.get_chat_plain_content(conversation.latest_message) }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge badge-danger" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
+								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600">{{ conversation.participant.display_name }}</div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ state.get_chat_plain_content(conversation.latest_message) }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge mp-chat-unread-badge" :class="{ 'mp-chat-tagged-nav': conversation.unread_tagged }" v-if="conversation.unread_count > 0">{{ conversation.unread_tagged ? '@' : conversation.unread_count }}</span>
 							</button>
 						</div>
 					</section>
 					<section class="mp-chat-category" v-if="state.support_chat_conversations.length > 0">
-						<div class="mp-chat-category-heading"><div class="font-w600"><lang-string lang-id="MOD_MP_CHAT_CATEGORY_SUPPORT"></lang-string></div></div>
+						<div class="mp-chat-category-heading"><h3 class="mp-chat-category-title"><lang-string lang-id="MOD_MP_CHAT_CATEGORY_SUPPORT"></lang-string></h3></div>
 						<div class="mp-chat-conversations">
 							<button type="button" class="mp-chat-conversation" v-for="conversation in state.support_chat_conversations" :key="'support:' + (conversation.support_team_id || '') + ':' + (conversation.conversation_id || 'virtual')" @click="state.open_chat_conversation(conversation)">
-								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600">{{ conversation.participant.display_name }}</div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ state.get_chat_plain_content(conversation.latest_message) }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge badge-danger" v-if="conversation.unread_count > 0">{{ conversation.unread_count }}</span>
+								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600">{{ conversation.participant.display_name }}</div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ state.get_chat_plain_content(conversation.latest_message) }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge mp-chat-unread-badge" :class="{ 'mp-chat-tagged-nav': conversation.unread_tagged }" v-if="conversation.unread_count > 0">{{ conversation.unread_tagged ? '@' : conversation.unread_count }}</span>
 							</button>
 						</div>
 					</section>
@@ -615,7 +627,7 @@
 					<div class="mp-chat-message" :class="{ 'mp-chat-message-own': message.sent_by_viewer === true || (message.sent_by_viewer === undefined && message.sender_id === state.chat_client_id) }" v-for="message in state.chat_messages" :key="message.message_id">
 						<div class="mp-chat-message-meta"><button type="button" class="mp-chat-message-author" @click="state.show_chat_message_member(message)" :disabled="!message.sender_id"><img class="mp-chat-message-avatar" :src="state.get_chat_message_icon(message)" alt=""><span class="font-w600">{{ message.sender.display_name }}</span></button><button type="button" class="mp-chat-message-timestamp" @click="state.show_chat_message_actions(message)"><time :datetime="state.format_chat_datetime(message.created_at)">{{ state.format_chat_time(message.created_at) }}</time></button></div>
 						<div class="mp-chat-message-bubble">
-							<div class="mp-chat-message-content" :class="{ 'mp-chat-message-translating': state.get_chat_message_content(message) === getLangString('MOD_MP_CHAT_TRANSLATING') }"><mp-chat-message-body :parts="state.get_chat_message_document(message)"></mp-chat-message-body></div>
+							<div class="mp-chat-message-content" :class="{ 'mp-chat-tagged': state.is_chat_message_tagged(message), 'mp-chat-message-translating': state.get_chat_message_content(message) === getLangString('MOD_MP_CHAT_TRANSLATING') }"><mp-chat-message-body :parts="state.get_chat_message_document(message)"></mp-chat-message-body></div>
 							<div class="mp-chat-reactions" :class="{ 'mp-chat-reactions-empty': !message.reactions?.length }">
 								<button type="button" class="mp-chat-reaction-summary" :class="{ 'mp-chat-reaction-reacted': summary.reacted }" :disabled="state.selected_chat_conversation?.conversation_kind === 'testers' && state.selected_chat_conversation?.can_send !== true" v-for="summary in message.reactions" :key="summary.reaction" @click="state.toggle_chat_reaction(message, summary.reaction)"><span>{{ summary.reaction }}</span><span>{{ summary.count }}</span></button>
 								<button type="button" class="mp-chat-reaction-add" v-if="message.message_id > 0 && (state.selected_chat_conversation?.conversation_kind !== 'testers' || state.selected_chat_conversation?.can_send)" :aria-label="state.get_chat_reaction_add_label()" :aria-expanded="state.chat_reaction_picker_message_id === message.message_id" @click="state.toggle_chat_reaction_picker(message, $event)">☻<span aria-hidden="true">+</span></button>
@@ -640,8 +652,9 @@
 					<form v-else @submit="state.send_chat_message($event)">
 						<mp-chat-composer :value="state.get_chat_draft_document()" :disabled="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && !state.messaging_enabled ? 'disabled' : null" :placeholder="state.get_chat_compose_placeholder()"></mp-chat-composer>
 						<div class="mp-chat-compose-actions">
-							<button type="button" class="btn btn-secondary mp-chat-insert-item" @mousedown.prevent @click="state.open_chat_item_picker()" :disabled="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && !state.messaging_enabled"><lang-string lang-id="MOD_MP_CHAT_INSERT_ITEM"></lang-string></button>
+							<button type="button" class="btn btn-secondary mp-chat-insert-person" @mousedown.prevent @click="state.open_chat_person_picker()" :disabled="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && !state.messaging_enabled"><lang-string lang-id="MOD_MP_CHAT_TAG_PERSON">@Person</lang-string></button>
 							<button type="button" class="btn btn-secondary mp-chat-insert-feature" @mousedown.prevent @click="state.open_chat_feature_picker()" :disabled="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && !state.messaging_enabled"><lang-string lang-id="MOD_MP_CHAT_TAG_FEATURE">$Feature</lang-string></button>
+							<button type="button" class="btn btn-secondary mp-chat-insert-item" @mousedown.prevent @click="state.open_chat_item_picker()" :disabled="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && !state.messaging_enabled"><lang-string lang-id="MOD_MP_CHAT_INSERT_ITEM"></lang-string></button>
 							<span class="mp-chat-compose-count" :class="{ 'text-danger': !state.is_chat_item_draft_valid() }">{{ state.get_chat_item_count_label() }}</span>
 							<button type="button" class="mp-chat-budget" v-if="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && state.chat_budget_enabled" @click="state.show_chat_budget_modal()" aria-haspopup="dialog" :aria-label="getLangString('MOD_MP_CHAT_BUDGET_ARIA')">
 								<mp-lang-string-f lang-id="MOD_MP_CHAT_BUDGET" :lang-arg-1="state.chat_budget.credits" :lang-arg-2="state.chat_budget.maximum"></mp-lang-string-f>
@@ -660,6 +673,15 @@
 				<button type="button" v-for="reaction in state.chat_reaction_random_choices" :key="reaction" @click="state.toggle_chat_reaction(state.get_chat_reaction_picker_message(), reaction)">{{ reaction }}</button>
 			</div>
 		</div>
+	</div>
+</template>
+<template id="template-mp-chat-person-picker-modal">
+	<div class="mp-chat-item-picker">
+		<input type="search" class="mp-input-text mp-chat-item-search mp-chat-person-search" :placeholder="getLangString('MOD_MP_CHAT_PERSON_SEARCH')" :aria-label="getLangString('MOD_MP_CHAT_PERSON_SEARCH')" @input="state.update_chat_person_search($event)" @keydown="state.handle_chat_person_search_key($event)">
+		<div class="mp-chat-item-results mp-chat-person-results" @touchmove="state.stop_icon_scroll_propagation($event)"></div>
+		<div class="text-muted p-3 mp-chat-person-empty d-none" role="status"><lang-string lang-id="MOD_MP_CHAT_NO_PERSON_MATCHES"></lang-string></div>
+		<div class="text-muted font-size-sm mt-2"><lang-string lang-id="MOD_MP_CHAT_PERSON_SEARCH_HINT"></lang-string></div>
+		<div class="mp-button-tray mt-3"><button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button></div>
 	</div>
 </template>
 <template id="template-mp-chat-feature-picker-modal">
@@ -1552,7 +1574,7 @@
 	</div>
 	<div class="mp-button-tray">
 		<button type="button" class="btn btn-success" @click="state.add_currency_to_transfer($event)">
-			<mp-lang-string-f lang-id="MOD_MP_BUTTON_ADD_CURRENCY_F" :lang-arg-1="state.add_currency_value_formatted" :lang-arg-2="state.selected_transfer_currency.shorthand"></mp-lang-string-f>
+			<mp-lang-string-f lang-id="MOD_MP_BUTTON_ADD_CURRENCY_F" :lang-arg-1="state.add_currency_value_formatted" :lang-arg-2="state.currency_display_shorthand(state.selected_transfer_currency)"></mp-lang-string-f>
 		</button>
 		<button type="button" class="btn btn-danger" @click="state.close_modal()">
 			<lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string>
@@ -1722,7 +1744,7 @@
 				</section>
 				<section class="mp-listing-card mp-listing-currencies">
 					<h3><lang-string lang-id="MOD_MP_LISTING_CURRENCY"></lang-string></h3>
-					<div role="group" :aria-label="getLangString('MOD_MP_LISTING_CURRENCY')"><button type="button" v-for="entry in state.market_currencies" :key="entry.id" class="mp-listing-currency" :class="{ 'mp-listing-currency-selected': state.bank_action_market_currency_id === entry.id }" :aria-pressed="state.bank_action_market_currency_id === entry.id" :aria-label="getLangString(entry.lang_id)" @click="state.bank_action_market_currency_id = entry.id"><img :src="entry.currency.media" alt=""><span>{{ entry.shorthand }}</span></button></div>
+					<div role="group" :aria-label="getLangString('MOD_MP_LISTING_CURRENCY')"><button type="button" v-for="entry in state.market_currencies" :key="entry.id" class="mp-listing-currency" :class="{ 'mp-listing-currency-selected': state.bank_action_market_currency_id === entry.id }" :aria-pressed="state.bank_action_market_currency_id === entry.id" :aria-label="getLangString(entry.lang_id)" @click="state.bank_action_market_currency_id = entry.id"><img :src="entry.currency.media" alt=""><span>{{ state.currency_display_shorthand(entry) }}</span></button></div>
 				</section>
 				<section class="mp-listing-card">
 					<div class="mp-listing-price-row"><label for="mp-listing-guild-price"><lang-string lang-id="MOD_MP_LISTING_GUILD_PRICE"></lang-string><small><lang-string lang-id="MOD_MP_MARKET_BANK_PPI"></lang-string></small></label><input id="mp-listing-guild-price" type="number" min="1" step="1" class="form-control" v-model.number="state.bank_action_market_price"></div>
@@ -2128,7 +2150,7 @@
 						</div>
 						<div class="mp-crucible-selection" :class="{ 'mp-crucible-wish-forming': wish.phase === 'forming' }" v-for="wish of (state.crucible?.wishes ?? []).filter(row => row.id === state.crucible_selected_wish_id)" :key="wish.id">
 							<div class="mp-crucible-selection-title"><strong>{{ state.get_item_name(wish.item_id) }} ×{{ formatNumber(wish.qty) }}</strong><button type="button" class="btn btn-sm btn-secondary" :aria-label="getLangString('MOD_MP_CRUCIBLE_CLOSE_DETAILS')" @click="state.crucible_select_wish(wish)"><i class="fa fa-times" aria-hidden="true"></i></button></div>
-							<p>{{ wish.phase === 'forming' ? getLangString('MOD_MP_CRUCIBLE_FORMING') : wish.phase === 'melding' ? getLangString('MOD_MP_CRUCIBLE_MELDING') : getLangString('MOD_MP_CRUCIBLE_MELDED') }} · {{ formatNumber(wish.progress_gp) }} / {{ formatNumber(wish.required_gp) }} GP</p>
+							<p>{{ wish.phase === 'forming' ? getLangString('MOD_MP_CRUCIBLE_FORMING') : wish.phase === 'melding' ? getLangString('MOD_MP_CRUCIBLE_MELDING') : getLangString('MOD_MP_CRUCIBLE_MELDED') }} · {{ formatNumber(wish.progress_gp) }} / {{ formatNumber(wish.required_gp) }} {{ state.market_currency_shorthand(null) }}</p>
 							<p v-show="wish.phase === 'forming'">{{ state.crucible_time(wish.estimated_formation_at) }} <lang-string lang-id="MOD_MP_CRUCIBLE_TO_FORM"></lang-string></p><div class="mp-crucible-meter" v-show="wish.phase !== 'melded'" role="progressbar" :aria-valuenow="state.crucible_wish_progress(wish)" aria-valuemin="0" aria-valuemax="100" :aria-label="getLangString('MOD_MP_CRUCIBLE_FORMATION_PROGRESS')"><span :style="{ width: state.crucible_wish_progress(wish) + '%' }"></span></div>
 							<button type="button" class="btn btn-sm btn-danger" v-show="wish.owned && wish.phase === 'forming'" :disabled="state.crucible_busy" @click="state.crucible_cancel_wish()"><lang-string lang-id="MOD_MP_CRUCIBLE_CANCEL"></lang-string></button>
 							<button type="button" class="btn btn-sm btn-success" v-show="wish.owned && wish.phase === 'melded'" :disabled="state.crucible_busy" @click="state.crucible_claim_wish()"><lang-string lang-id="MOD_MP_CRUCIBLE_CLAIM"></lang-string></button>
@@ -2142,12 +2164,12 @@
 					<div id="mp-crucible-offerings-body" class="mp-crucible-panel-body" v-show="state.crucible_panels_open.offerings">
 						<p><lang-string lang-id="MOD_MP_CRUCIBLE_OFFERINGS_INFO"></lang-string></p>
 						<div class="mp-crucible-grid" v-show="state.crucible?.offerings?.length">
-							<button type="button" class="mp-crucible-slot" v-for="item of (state.crucible?.offerings ?? [])" :key="item.id" :class="{ 'mp-crucible-slot-selected': state.crucible_selected_offering_id === item.id, 'mp-crucible-slot-slag': state.crucible_slag(item).covered, 'mp-crucible-new-item': !state.is_charity_item_discovered(item.id) }" :aria-pressed="state.crucible_selected_offering_id === item.id" :aria-label="(state.crucible_slag(item).covered ? getLangString('MOD_MP_CRUCIBLE_SLAG_COVERED') : state.get_item_name(item.id)) + ' ×' + formatNumber(item.qty)" @click="state.crucible_select_offering(item)">
+							<button type="button" class="mp-crucible-slot" v-for="item of (state.crucible?.offerings ?? [])" :key="item.id" :class="{ 'mp-crucible-slot-selected': state.crucible_selected_offering_id === item.id, 'mp-crucible-slot-slag': state.crucible_slag(item).covered, 'mp-crucible-new-item': !state.is_crucible_item_discovered(item.id) }" :aria-pressed="state.crucible_selected_offering_id === item.id" :aria-label="(state.crucible_slag(item).covered ? getLangString('MOD_MP_CRUCIBLE_SLAG_COVERED') : state.get_item_name(item.id)) + ' ×' + formatNumber(item.qty)" @click="state.crucible_select_offering(item)">
 								<mp-item-icon v-show="!state.crucible_slag(item).covered" :data-item-id="item.id"><img :src="state.get_item_icon(item.id)" alt="" draggable="false"></mp-item-icon>
 								<i v-show="state.crucible_slag(item).covered" class="fa fa-question-circle mp-crucible-slot-unknown" aria-hidden="true"></i>
-								<span class="mp-crucible-avatars" v-show="item.contributors?.length"><img v-for="contributor of (item.contributors ?? []).slice(0, 3)" :key="contributor.client_id" :src="state.get_avatar_icon(contributor.icon_id)" alt=""></span><span class="mp-crucible-slot-quantity" :class="{ 'mp-crucible-slot-quantity-locked': item.blocked_until > state.crucible_clock_time }">{{ formatNumber(item.qty) }}</span>
+								<span class="mp-crucible-avatars" v-show="item.contributors?.length"><img v-for="contributor of (item.contributors ?? []).slice(0, 3)" :key="contributor.client_id" :src="state.get_avatar_icon(contributor.icon_id)" alt=""></span><span class="mp-crucible-slot-quantity" :class="{ 'mp-crucible-slot-quantity-locked': state.crucible_reclaim_block(item) !== null }">{{ formatNumber(item.qty) }}</span>
 								<span class="mp-crucible-slot-time" v-show="!item.is_untimed">{{ state.crucible_time(item.estimated_meld_at) }}</span>
-								<i class="fa fa-lock mp-crucible-slot-lock" v-show="item.blocked_until > state.crucible_clock_time" aria-hidden="true"></i>
+								<i class="fa fa-lock mp-crucible-slot-lock" v-show="state.crucible_reclaim_block(item) !== null" aria-hidden="true"></i>
 								<span class="mp-crucible-slot-meter" v-show="!item.is_untimed"><span :style="{ width: item.meld_percent + '%' }"></span></span>
 							</button>
 						</div>
@@ -2234,6 +2256,7 @@
 											<div class="mp-transfer-history-source" v-for="(source, source_index) of state.get_transfer_history_sources(item)" :key="source_index">{{ source.title }} · {{ formatNumber(source.qty) }}</div>
 										</div>
 									</div>
+									<div class="mp-transfer-history-exchange" v-show="state.get_transfer_history_exchange(entry)">{{ state.get_transfer_history_exchange(entry) }}</div>
 								</article>
 							</div>
 							<div class="mp-transfer-history-controls">
@@ -2323,6 +2346,7 @@
 											<div class="mp-transfer-history-source" v-for="(source, source_index) of state.get_transfer_history_sources(item)" :key="source_index">{{ source.title }} · {{ formatNumber(source.qty) }}</div>
 										</div>
 									</div>
+									<div class="mp-transfer-history-exchange" v-show="state.get_transfer_history_exchange(entry)">{{ state.get_transfer_history_exchange(entry) }}</div>
 								</article>
 							</div>
 							<div class="mp-transfer-history-controls">
@@ -2618,6 +2642,7 @@
 											<div class="mp-transfer-history-source" v-for="(source, source_index) of state.get_transfer_history_sources(item)" :key="source_index">{{ source.title }} · {{ formatNumber(source.qty) }}</div>
 										</div>
 									</div>
+									<div class="mp-transfer-history-exchange" v-show="state.get_transfer_history_exchange(entry)">{{ state.get_transfer_history_exchange(entry) }}</div>
 								</article>
 							</div>
 							<div class="mp-transfer-history-controls">
@@ -2737,57 +2762,7 @@
 		<lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string>
 	</button>
 </template>
-<template id="template-mp-charity-wish-forsake-confirm-modal">
-	<div class="mp-modal-text"><lang-string lang-id="MOD_MP_CHARITY_WISH_FORSAKE_CONFIRM"></lang-string></div>
-	<div class="mp-button-tray">
-		<button type="button" class="btn btn-danger" @click="state.confirm_charity_wish_forsake($event)">
-			<div class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></div>
-			<lang-string lang-id="MOD_MP_CHARITY_WISH_FORSAKE"></lang-string>
-		</button>
-		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
-	</div>
-</template>
 
-<template id="template-mp-charity-shuffle-modal">
-	<div class="mp-modal-text" v-if="state.charity_shuffle_offer">
-		<p class="mb-2"><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_INTRO"></lang-string></p>
-		<p class="mb-2"><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_PRICE"></lang-string> <img class="skill-icon-sm mx-1" :src="state.charity_shuffle_currency()?.currency?.media" :alt="state.charity_shuffle_currency()?.currency?.name || ''"> <strong>{{ state.charity_shuffle_price() }} {{ state.charity_shuffle_currency()?.shorthand || '' }}</strong></p>
-		<p class="mb-2 font-w600 text-info"><mp-lang-string-f lang-id="MOD_MP_CHARITY_SHUFFLE_BONUS" :lang-arg-1="state.charity_shuffle_bonus()"></mp-lang-string-f></p>
-		<p class="mb-2"><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_COVERAGE"></lang-string></p>
-		<p class="mb-0"><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_INFO"></lang-string></p>
-	</div>
-	<div class="mp-modal-text" v-else><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_POOR"></lang-string></div>
-	<div class="mp-button-tray">
-		<button type="button" class="btn btn-success" v-if="state.charity_shuffle_offer" @click="state.confirm_charity_shuffle($event)">
-			<div class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></div>
-			<lang-string lang-id="MOD_MP_CHARITY_SHUFFLE"></lang-string>
-		</button>
-		<button type="button" class="btn btn-info" v-if="state.charity_shuffle_offer && state.charity_shuffle_bonus() < 20" @click="state.show_charity_shuffle_max()"><lang-string lang-id="MOD_MP_BUTTON_MAX"></lang-string></button>
-		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
-	</div>
-</template>
-<template id="template-mp-charity-shuffle-max-modal">
-	<div class="mp-modal-text">
-		<p class="mb-2"><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_MAX_INTRO"></lang-string></p>
-		<p class="mb-2 font-w600 text-info"><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_MAX_TARGET"></lang-string></p>
-		<p class="mb-2"><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_PRICE"></lang-string></p>
-		<div class="mp-charity-shuffle-max-offers mb-2">
-			<div class="mp-charity-shuffle-max-offer" v-for="offer in state.charity_shuffle_max_totals()" :key="offer.currency_id">
-				<img class="skill-icon-sm mr-2" :src="offer.currency?.currency?.media" :alt="offer.currency?.currency?.name || ''">
-				<strong>{{ numberWithCommas(offer.qty) }} {{ offer.currency?.shorthand || '' }}</strong>
-			</div>
-		</div>
-		<p class="mb-2"><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_COVERAGE"></lang-string></p>
-		<p class="mb-0"><lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_INFO"></lang-string></p>
-	</div>
-	<div class="mp-button-tray">
-		<button type="button" class="btn btn-success" @click="state.confirm_charity_shuffle($event, true)">
-			<div class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></div>
-			<lang-string lang-id="MOD_MP_CHARITY_SHUFFLE_MAX_CONFIRM"></lang-string>
-		</button>
-		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
-	</div>
-</template>
 <template id="template-mp-expedition-debug-confirm-modal">
 	<div class="mp-modal-text">
 		<p v-if="state.expedition_debug_action === 'cancel'"><lang-string lang-id="MOD_MP_EXPEDITION_UI_END_THIS_GUILD_S_CURRENT_EXPEDITION_ITS_HISTORY_AND_EARNED_EP_STAY_UNFINISH"></lang-string></p>
@@ -2843,7 +2818,7 @@
 			<input id="mp-crucible-wish-qty" class="mp-crucible-wish-quantity-input" type="number" min="1" max="100" step="1" inputmode="numeric" v-model="state.crucible_wish_qty">
 			<button type="button" class="mp-crucible-wish-quantity-button" :aria-label="getLangString('MOD_MP_CRUCIBLE_WISH_INCREASE')" @click="state.adjust_crucible_wish_qty(1)">+</button>
 		</div>
-		<p class="mp-crucible-wish-requirement"><lang-string lang-id="MOD_MP_CRUCIBLE_WISH_REQUIREMENT"></lang-string> <strong>{{ formatNumber(state.crucible_wish_requirement) }} GP</strong></p>
+		<p class="mp-crucible-wish-requirement"><lang-string lang-id="MOD_MP_CRUCIBLE_WISH_REQUIREMENT"></lang-string> <strong>{{ formatNumber(state.crucible_wish_requirement) }} {{ state.market_currency_shorthand(null) }}</strong></p>
 	</div>
 	<div class="mp-button-tray">
 		<button type="button" class="btn btn-success" :disabled="state.crucible_busy" @click="state.crucible_make_wish($event)"><div class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_CRUCIBLE_MAKE_WISH"></lang-string></button>
@@ -2856,39 +2831,12 @@
 		<div class="mp-crucible-clear-totals mb-2">
 			<div class="mp-crucible-clear-total" v-for="offer in state.crucible_clear_totals" :key="offer.currency_id">
 				<img class="skill-icon-sm mr-2" :src="offer.currency?.currency?.media" :alt="offer.currency?.currency?.name || ''">
-				<strong>{{ formatNumber(offer.qty) }} {{ offer.currency?.shorthand || '' }}</strong>
+				<strong>{{ formatNumber(offer.qty) }} {{ state.currency_display_shorthand(offer.currency) }}</strong>
 			</div>
 		</div>
 	</div>
 	<div class="mp-button-tray">
 		<button type="button" class="btn btn-success" :disabled="state.crucible_busy" @click="state.crucible_confirm_clear($event)"><div class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR"></lang-string></button>
-		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
-	</div>
-</template>
-<template id="template-mp-charity-wish-modal">
-	<div class="mp-modal-text">
-		<p class="mp-charity-wish-intro"><lang-string lang-id="MOD_MP_CHARITY_WISH_INTRO"></lang-string></p>
-		<input id="mp-charity-wish-search" class="form-control mb-3" type="search" :placeholder="getLangString('MOD_MP_CHARITY_WISH_SEARCH')" autocomplete="off" v-model="state.charity_wish_search">
-		<div id="mp-charity-wish-item" class="mp-charity-wish-grid mb-3" role="listbox" :aria-label="getLangString('MOD_MP_CHARITY_WISH_ELIGIBLE_ITEMS')" @touchmove="state.stop_icon_scroll_propagation($event)">
-			<mp-item-icon v-for="item in state.filtered_charity_wish_items" :key="item.id" class="mp-charity-wish-tile" :class="{ 'mp-charity-wish-tile-selected': state.charity_wish_item_id === item.id }" :data-item-id="item.id" role="option" :aria-selected="state.charity_wish_item_id === item.id" tabindex="0" @click="state.select_charity_wish_item(item)" @keydown.enter="state.select_charity_wish_item(item)" @keydown.space.prevent="state.select_charity_wish_item(item)">
-				<img :src="state.get_item_icon(item.id)" :alt="item.name" draggable="false">
-				<span class="mp-charity-wish-tile-name">{{ item.name }}</span>
-			</mp-item-icon>
-		</div>
-		<div class="mp-charity-wish-selected-item-name">{{ state.charity_wish_item_name }}</div>
-		<label id="mp-charity-wish-qty-label" for="mp-charity-wish-qty"><lang-string lang-id="MOD_MP_CHARITY_WISH_QUANTITY"></lang-string></label>
-		<div class="mp-charity-wish-quantity" role="group" aria-labelledby="mp-charity-wish-qty-label">
-			<button type="button" class="mp-charity-wish-quantity-button" :aria-label="getLangString('MOD_MP_CHARITY_WISH_DECREASE')" @click="state.adjust_charity_wish_qty(-1)">−</button>
-			<input id="mp-charity-wish-qty" class="mp-charity-wish-quantity-input" type="number" min="1" max="100" step="1" inputmode="numeric" v-model="state.charity_wish_qty">
-			<button type="button" class="mp-charity-wish-quantity-button" :aria-label="getLangString('MOD_MP_CHARITY_WISH_INCREASE')" @click="state.adjust_charity_wish_qty(1)">+</button>
-		</div>
-		<p class="mp-charity-wish-requirement"><lang-string lang-id="MOD_MP_CHARITY_WISH_REQUIREMENT"></lang-string> <strong>{{ formatNumber(state.charity_wish_requirement) }} GP</strong></p>
-	</div>
-	<div class="mp-button-tray">
-		<button type="button" class="btn btn-success" @click="state.make_charity_wish($event)">
-			<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
-			<lang-string lang-id="MOD_MP_CHARITY_WISH_MAKE"></lang-string>
-		</button>
 		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
 	</div>
 </template>

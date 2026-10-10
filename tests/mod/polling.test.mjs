@@ -156,7 +156,6 @@ test('bounds requests and releases guarded page loaders from finally blocks', ()
 	for (const [function_name, loading_flag] of [
 		['update_market_listings', 'market_listings_loading'],
 		['update_market_search', 'market_search_loading'],
-		['request_charity_tree_contents', 'charity_tree_loading'],
 		['update_transfer_contents', 'is_updating_transfer_contents'],
 		['refresh_chat_messages', 'chat_messages_loading'],
 		['refresh_chat_page', 'chat_loading'],

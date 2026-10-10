@@ -1,7 +1,6 @@
 import { record_pending_exchange } from './transfer-history';
 import type { Database } from 'bun:sqlite';
 import type * as db_row from './db/types/db_types';
-import { settle_departing_charity_wish } from './charity-wishes';
 import { settle_departing_crucible_wish } from './crucible-council';
 
 export type DeletionExecution = {
@@ -174,7 +173,6 @@ export function execute_client_deletion(
 	database.query('DELETE FROM `guild_applications` WHERE `client_id` = ?').run(request.target_client_id);
 	let dissolved = false;
 	if (membership !== null) {
-		settle_departing_charity_wish(request.target_client_id, membership.guild_id, now, database);
 		settle_departing_crucible_wish(request.target_client_id, membership.guild_id, now, database);
 		database.query('DELETE FROM `guild_memberships` WHERE `id` = ?').run(membership.id);
 		const remaining = database.query<{ count: number }, [number]>(

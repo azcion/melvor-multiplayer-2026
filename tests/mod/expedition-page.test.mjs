@@ -134,7 +134,7 @@ test('renders phased Chamber work, accepted activities, and obscured passages', 
 	assert.match(page, /role="tablist" :aria-label="getLangString\('MOD_MP_EXPEDITION_VIEWS'\)"/);
 	assert.match(page, /mp-expedition-mobile-hidden/);
 	assert.match(page, /<details class="mp-expedition-panel mp-expedition-debug-controls"/);
-	assert.match(page, /state\.expedition_pending_report/);
+	assert.match(page, /v-if="state\.expedition_pending_report && state\.expedition_report_notice_visible"/);
 	assert.match(main, /EXPEDITION_PENDING_KEY = 'expedition_pending_report'/);
 	assert.match(main, /set_instance_storage_item\(EXPEDITION_PENDING_KEY, pending\)/);
 	assert.match(main, /remove_instance_storage_item\(EXPEDITION_PENDING_KEY\)/);
@@ -215,7 +215,7 @@ test('an automatic report does not retry or clear state after switching characte
 	const main = await read_client_source(root);
 	let sent = 0;
 	const state = { expedition_pending_report: { endpoint: '/saved', payload: { operation_id: 'old' } } };
-	const context = { state, session_generation: 1, api_post: async () => {
+	const context = { state, session_generation: 1, setTimeout: () => 1, clearTimeout() {}, api_post: async () => {
 		sent++;
 		context.session_generation++;
 		state.expedition_pending_report = { payload: { operation_id: 'new' } };
@@ -236,7 +236,7 @@ test('eligible work prompt waits for startup modals and starts tracking without 
 	const queued = [];
 	const writes = [];
 	const activities = [{ type: 'skill', skill_id: 'melvorD:Astrology' }];
-	const state = { is_connected: true, is_guild_member: true, expedition_work_prompts_enabled: true,
+	const state = { is_connected: true, is_guild_member: true, expedition_work_tracking_mode: 'prompt',
 		expedition_active_activities: activities, expedition_state: { expedition: { status: 'active', registered: true,
 			chamber: { tasks: [{ task_id: 'chart', unlocked_at: 1, completed_at: null,
 				evidence: { skill_ids: ['melvorD:Astrology'] } }] } } } };
@@ -251,7 +251,7 @@ test('eligible work prompt waits for startup modals and starts tracking without 
 	};
 	const actions = runInNewContext(main.slice(main.indexOf('let expedition_work_prompt_gate'),
 		main.indexOf('function expedition_notify')) +
-		'\n({ maybe_prompt_expedition_work, start_prompted_expedition_task, set_expedition_work_prompts });', context);
+		'\n({ maybe_prompt_expedition_work, start_prompted_expedition_task, set_expedition_work_tracking_mode });', context);
 	await actions.maybe_prompt_expedition_work(activities);
 	now = 8000;
 	await actions.maybe_prompt_expedition_work(activities);
@@ -267,8 +267,8 @@ test('eligible work prompt waits for startup modals and starts tracking without 
 	assert.equal(queued.length, 1);
 	await actions.start_prompted_expedition_task('chart');
 	assert.equal(state.expedition_state.tracking.task_id, 'chart');
-	actions.set_expedition_work_prompts({ target: { checked: false } });
-	assert.deepEqual(writes, [['expedition_work_prompts_enabled', false]]);
+	actions.set_expedition_work_tracking_mode({ target: { value: 'manual' } });
+	assert.deepEqual(writes, [['expedition_work_tracking_mode', 'manual']]);
 });
 
 test('a delayed prompt refresh cannot open after the character or server changes', async () => {
@@ -276,7 +276,7 @@ test('a delayed prompt refresh cannot open after the character or server changes
 	let now = 0;
 	let finish_refresh;
 	const activities = [{ type: 'combat' }];
-	const context = { state: { expedition_work_prompts_enabled: true, is_guild_member: true }, expedition_tasks,
+	const context = { state: { expedition_work_tracking_mode: 'prompt', is_guild_member: true }, expedition_tasks,
 		session_generation: 1, Date: { now: () => now }, Swal: { isVisible: () => false },
 		modal_queue_guard: { pending_templates: new Set() },
 		refresh_expedition_state: () => new Promise(resolve => { finish_refresh = resolve; }),
@@ -309,11 +309,11 @@ test('active Chamber exposes the work prompt preference below Your EP', async ()
 	assert.ok(active_start >= 0);
 	const start = html.indexOf('<div class="mp-expedition-chamber-copy">', active_start);
 	assert.ok(start > active_start);
-	assert.equal([...html.matchAll(/<label class="mp-expedition-work-prompts-toggle"/g)].length, 2);
+	assert.equal([...html.matchAll(/<fieldset class="mp-expedition-work-modes"/g)].length, 2);
 	const chamber_copy = html.slice(start, html.indexOf('</div>', start));
-	assert.match(chamber_copy, /MOD_MP_EXPEDITION_UI_YOUR_EP[\s\S]*mp-expedition-work-prompts-toggle/);
-	assert.match(chamber_copy, /:checked="state.expedition_work_prompts_enabled"/);
-	assert.match(chamber_copy, /@change="state.set_expedition_work_prompts\(\$event\)"/);
+	assert.match(chamber_copy, /MOD_MP_EXPEDITION_UI_YOUR_EP[\s\S]*mp-expedition-work-modes/);
+	assert.match(chamber_copy, /type="radio"/);
+	assert.match(chamber_copy, /@change="state.set_expedition_work_tracking_mode\(\$event\)"/);
 });
 
 test('Required labels use a class for bold inherited color on page and prompt cards', async () => {
@@ -353,4 +353,152 @@ test('mobile Journey starts with shared passages and its vote badge', async () =
 	assert.match(css, /\.mp-expedition-mobile-passages \{ display: none; \}/);
 	assert.match(css, /@media \(max-width: 767\.98px\) \{\s*\.mp-expedition-shell[^}]*\}\s*\.mp-expedition-desktop-passages \{ display: none; \}\s*\.mp-expedition-mobile-passages \{ display: block; \}/);
 	assert.match(main, /expedition_needs_vote: \(\) => expedition_view.needs_passage_vote\(state.expedition_state\)/);
+});
+
+
+test('captures Magic time under the active skill ID and enables its Expedition requirement', async () => {
+	const main = await read_client_source(root);
+	const capture = runInNewContext(main.slice(main.indexOf('function capture_expedition_work_statistics()'),
+		main.indexOf('function format_expedition_activities')) + '\ncapture_expedition_work_statistics;', {
+		game: { stats: { Magic: { get: id => id === 1 ? 42_000 : 0 } } }
+	});
+	const statistics = capture();
+	assert.equal(statistics.time_ms['melvorD:Magic'], 42_000);
+	assert.equal(statistics.time_ms['melvorD:AltMagic'], undefined);
+	assert.equal(expedition_tasks.can_track_task({ evidence: { skill_ids: ['melvorD:Magic'] } },
+		[{ type: 'skill', skill_id: 'melvorD:Magic', action_id: 'melvorD:Superheat' }]), true);
+});
+
+test('automatic tracking starts eligible work through the saved-report path without a prompt', async () => {
+	const main = await read_client_source(root);
+	let now = 0;
+	let refreshed = 0;
+	const starts = [];
+	const activities = [{ type: 'skill', skill_id: 'melvorD:Astrology' }];
+	const state = { is_connected: true, is_guild_member: true, expedition_work_tracking_mode: 'automatic',
+		expedition_active_activities: activities, expedition_state: { expedition: { status: 'active', registered: true,
+			chamber: { tasks: [{ task_id: 'chart', requirement: 'required', target_ms: 3_600_000,
+				unlocked_at: 1, completed_at: null, evidence: { skill_ids: ['melvorD:Astrology'] } }] } } } };
+	const context = { state, expedition_tasks, session_generation: 1, Date: { now: () => now },
+		Swal: { isVisible: () => true }, modal_queue_guard: { pending_templates: new Set(['other-modal']) },
+		polling: { is_foreground: () => true }, document: {}, capture_status_activities: () => activities,
+		refresh_expedition_state: async () => { refreshed++; return true; },
+		queue_modal: () => assert.fail('automatic mode opened a work prompt'),
+		submit_expedition_work: async (...args) => { starts.push(args); state.expedition_state.tracking = { task_id: args[1] }; }
+	};
+	const observe = runInNewContext(main.slice(main.indexOf('let expedition_work_prompt_gate'),
+		main.indexOf('function expedition_notify')) + '\nmaybe_prompt_expedition_work;', context);
+	await observe(activities);
+	now = 8000;
+	await observe(activities);
+	assert.deepEqual(starts, [['start', 'chart', true]]);
+	assert.equal(refreshed, 1);
+	now = 9000;
+	await observe(activities);
+	assert.equal(starts.length, 1);
+	state.expedition_state.tracking = null;
+	now = 10000;
+	await observe(activities);
+	now = 12500;
+	await observe(activities);
+	assert.equal(starts.length, 2);
+	state.expedition_state.tracking = null;
+	state.expedition_pending_report = { payload: { operation_id: 'saved' } };
+	now = 50000;
+	await observe(activities);
+	assert.equal(starts.length, 2);
+	state.expedition_pending_report = null;
+	state.expedition_work_tracking_mode = 'manual';
+	now = 100000;
+	await observe(activities);
+	assert.equal(refreshed, 2);
+});
+
+test('automatic selection cancels after delayed refresh if its mode, activity or session changes', async () => {
+	const main = await read_client_source(root);
+	for (const change of ['mode', 'activity', 'session', 'pending', 'hidden']) {
+		let now = 0;
+		let finish_refresh;
+		let activities = [{ type: 'combat' }];
+		const state = { is_connected: true, is_guild_member: true, expedition_work_tracking_mode: 'automatic',
+			expedition_active_activities: activities, expedition_state: { expedition: { status: 'active', registered: true,
+				chamber: { tasks: [{ task_id: 'fight', target_ms: 3_600_000, unlocked_at: 1, completed_at: null,
+					evidence: { skill_ids: ['melvorD:Combat'] } }] } } } };
+		const context = { state, expedition_tasks, session_generation: 1, Date: { now: () => now },
+			Swal: { isVisible: () => false }, modal_queue_guard: { pending_templates: new Set() },
+			polling: { is_foreground: () => change !== 'hidden' }, document: {},
+			capture_status_activities: () => activities,
+			refresh_expedition_state: () => new Promise(resolve => { finish_refresh = resolve; }),
+			queue_modal: () => assert.fail('automatic mode opened a prompt'),
+			submit_expedition_work: () => assert.fail(`automatic start survived ${change} change`)
+		};
+		const observe = runInNewContext(main.slice(main.indexOf('let expedition_work_prompt_gate'),
+			main.indexOf('function expedition_notify')) + '\nmaybe_prompt_expedition_work;', context);
+		await observe(activities);
+		now = 8000;
+		const pending = observe(activities);
+		if (change === 'mode') state.expedition_work_tracking_mode = 'manual';
+		if (change === 'activity') activities = [];
+		if (change === 'session') context.session_generation++;
+		if (change === 'pending') state.expedition_pending_report = { payload: {} };
+		finish_refresh(true);
+		await pending;
+	}
+});
+
+test('saved work banner stays quiet for fast success and appears for slow or failed reports', async () => {
+	const main = await read_client_source(root);
+	const source = main.slice(main.indexOf('async function retry_expedition_report('),
+		main.indexOf('async function maybe_auto_check_in_expedition()')) + '\nretry_expedition_report;';
+	for (const scenario of ['fast', 'slow', 'failed', 'automatic-retry', 'restored', 'stale', 'throws']) {
+		const pending = { endpoint: '/saved', payload: { operation_id: 'saved', captured_at: 0 } };
+		const state = { expedition_pending_report: pending, expedition_report_notice_visible: false };
+		const notices = [];
+		let callback, delay, resolve_post, reject_post, cleared = false;
+		const context = { state, session_generation: 1, Date: { now: () => scenario === 'restored' ? 6000 : 0 },
+			setTimeout: (fn, ms) => { callback = fn; delay = ms; return 1; },
+			clearTimeout: id => { assert.equal(id, 1); cleared = true; },
+			api_post: () => new Promise((resolve, reject) => { resolve_post = resolve; reject_post = reject; }),
+			api_get: async () => ({ contract_version: 1 }),
+			remove_instance_storage_item: () => {}, EXPEDITION_PENDING_KEY: 'saved-report',
+			getLangString: key => key, expedition_notify: text => notices.push(text),
+			notify_expedition_tracking_ended() {}, update_expedition_nav() {}
+		};
+		const retry = runInNewContext(source, context);
+		const request = retry(scenario === 'automatic-retry');
+		assert.equal(state.expedition_report_notice_visible, scenario === 'restored');
+		assert.equal(delay, scenario === 'restored' ? 0 : 5000);
+		if (scenario === 'slow') {
+			callback();
+			assert.equal(state.expedition_report_notice_visible, true);
+		}
+		if (scenario === 'stale') {
+			context.session_generation++;
+			state.expedition_pending_report = { payload: { operation_id: 'new' } };
+			callback();
+			assert.equal(state.expedition_report_notice_visible, false);
+		}
+		if (scenario === 'throws') {
+			reject_post(new Error('transport failure'));
+			await assert.rejects(request, /transport failure/);
+		} else {
+			resolve_post(scenario === 'failed' || scenario === 'automatic-retry' ? null
+				: { success: true, tracking: { task_id: 'chart' } });
+			if (scenario === 'automatic-retry') {
+				await new Promise(setImmediate);
+				assert.equal(state.expedition_report_notice_visible, true);
+				assert.equal(state.expedition_pending_report, pending);
+				resolve_post({ success: true, tracking: { task_id: 'chart' } });
+			}
+			await request;
+		}
+		assert.equal(cleared, true);
+		assert.equal(state.expedition_report_notice_visible, scenario === 'failed' || scenario === 'throws');
+		if (scenario === 'failed' || scenario === 'throws') assert.equal(state.expedition_pending_report, pending);
+		else if (scenario === 'stale') assert.equal(state.expedition_pending_report.payload.operation_id, 'new');
+		else {
+			assert.equal(state.expedition_pending_report, null);
+			assert.deepEqual(notices, ['MOD_MP_EXPEDITION_TRACKING_ACCEPTED']);
+		}
+	}
 });

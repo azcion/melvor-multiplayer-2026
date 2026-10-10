@@ -50,7 +50,7 @@ test('Preview actions cannot mutate real exchanges, receipts, inventory or histo
 
 test('Council showcase covers all types, active variants and history without affecting ordinary members or pagination', async () => {
 	const pair = await make_guildmates('Council Tester', 'Council Ordinary', 'Council Preview', { first: '1.6.3', second: '1.6.3' });
-	type Snapshot = { petitions: ReturnType<typeof council_test_data>['active']; available_petition_types: string[]; has_more: boolean };
+	type Snapshot = { petitions: ReturnType<typeof council_test_data>['active']; available_petition_types: string[]; has_more: boolean; server_time: number };
 	const read = (token: string, page = 0) => get_json_with_session<Snapshot>('/api/guilds/council?page=' + page, token);
 	expect((await post_json('/api/guilds/petitions/raise', { type: 'appellation', name: 'Real Council Name' }, pair.first.session_token)).json).toMatchObject({ success: true });
 	const original = (await read(pair.first.session_token)).json;

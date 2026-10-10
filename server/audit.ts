@@ -28,7 +28,7 @@ export type AuditEventInput = {
 	details?: Record<string, string | number | boolean | null>;
 };
 
-export type AuditPositionKind = 'charitree' | 'crucible' | 'gift' | 'inbox' | 'client';
+export type AuditPositionKind = 'crucible' | 'gift' | 'inbox' | 'client';
 
 export function audit_command_source(kind: string, client_id: number, command_id: unknown): string {
 	return typeof command_id === 'string'

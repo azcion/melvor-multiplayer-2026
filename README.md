@@ -9,7 +9,7 @@ pursue collective goals, face Guild Raids, and shape your community together.
 
 - Group chat, private chat, in-app support chat.
 - Public and private Guilds, or the Free Fellowship.
-- Trading, gifting, the Marketplace, and Charitree.
+- Trading, gifting, the Marketplace, and Crucible.
 - Cooperative Guild goals and Guild Raids.
 - Showing off profiles for equipment, skill levels, GP, and current activity.
 - Guild Council petitions, so members can shape their Guild together.
@@ -18,6 +18,11 @@ pursue collective goals, face Guild Raids, and shape your community together.
 
 See the [self-hosting guide](docs/self-hosting.md) for Docker setup, connecting the published mod, and building a
 Creator Toolkit ZIP.
+
+## Repository tools
+
+The standalone [Expedition graph viewer](tools/expedition-viewer.html) opens directly in a browser and loads
+content from a local JSON file or URL. See [viewer usage](tools/README.md) for supported formats and controls.
 
 ## Validate the source
 

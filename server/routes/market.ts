@@ -6,7 +6,7 @@ import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonSerializable } from '../http';
 import { record_guild_activity } from '../guild-activity';
-import { add_inbox_gp, add_inbox_items, get_inbox_source_name } from '../inbox';
+import { add_inbox_gp, add_inbox_items, get_inbox_source_name, type InboxSource } from '../inbox';
 import { client_uses_legacy_transfer_protocol } from '../transfer-compatibility';
 import { cancel_listing_haggles } from './haggle';
 import { expire_market_listings, expire_market_listings_now } from '../market-expiry';
@@ -58,11 +58,11 @@ function create_market_buyer_receipt(client_id: number, item_id: string, item_qt
 	db.query('UPDATE `clients` SET `event_revision` = `event_revision` + 1 WHERE `id` = ?').run(client_id);
 }
 
-function deliver_market_purchase(client_id: number, item_id: string, item_qty: number, seller_name: string): void {
+function deliver_market_purchase(client_id: number, item_id: string, item_qty: number, seller_name: string, history: Pick<InboxSource, 'history_key' | 'exchange'>): void {
 	if (client_uses_legacy_transfer_protocol(client_id))
 		create_market_buyer_receipt(client_id, item_id, item_qty);
 	else
-		add_inbox_items(client_id, [{ item_id, qty: item_qty }], { type: 'market_fulfilled', name: seller_name });
+		add_inbox_items(client_id, [{ item_id, qty: item_qty }], { type: 'market_fulfilled', name: seller_name, ...history });
 }
 
 function claim_legacy_market_payouts(client_id: number): number {
@@ -246,14 +246,18 @@ export function register_market_routes(): void {
 			remove_player_cache_entry(market_completed_cached, lot.client_id, lot.id);
 			const buyer_name = get_inbox_source_name(client_id);
 			const seller_name = get_inbox_source_name(lot.client_id);
+			const history_key = `market-exchange:${json.command_id ?? crypto.randomUUID()}`;
 			add_inbox_items(client_id, [{ item_id: lot.item_id, qty: final_qty }],
-				{ type: 'market_bought', name: seller_name });
-			add_inbox_items(lot.client_id, [{ item_id: lot.currency_id, qty: final_cost }], { type: 'market_sold', name: buyer_name });
+				{ type: 'market_bought', name: seller_name, history_key,
+					exchange: { label: 'paid', item_id: lot.currency_id, qty: final_cost } });
+			add_inbox_items(lot.client_id, [{ item_id: lot.currency_id, qty: final_cost }], { type: 'market_sold', name: buyer_name, history_key,
+				exchange: { label: 'sold', item_id: lot.item_id, qty: final_qty } });
 			record_market_purchase(lot, client_id, final_qty);
 			record_guild_activity({ guild_id, event_type: 'market_purchased', actor_client_id: client_id,
 				buyer_client_id: client_id, seller_client_id: lot.client_id, item_id: lot.item_id,
 				quantity: final_qty, source_key: `market-purchase:${json.command_id ?? crypto.randomUUID()}` });
 			return { success: true, item_id: lot.item_id, item_qty: final_qty, gp_loss: final_cost, history_name: seller_name,
+				history_exchange: { label: 'purchased', item_id: lot.item_id, qty: final_qty },
 				new_item_qty, effects: [
 					market_currency_effect(lot.currency_id, -final_cost)
 				] };
@@ -295,13 +299,17 @@ export function register_market_routes(): void {
 			if (updated.changes === 0)
 				return { error_lang: 'MOD_MP_MARKET_FULFILL_ERROR_INVALID' };
 
-			deliver_market_purchase(lot.client_id, lot.item_id, final_qty, get_inbox_source_name(client_id));
+			const history_key = `market-exchange:${json.command_id}`;
+			deliver_market_purchase(lot.client_id, lot.item_id, final_qty, get_inbox_source_name(client_id),
+				{ history_key, exchange: { label: 'paid', item_id: 'melvorD:GP', qty: final_cost } });
 			add_inbox_gp(client_id, final_cost,
-				{ type: 'market_sold', name: get_inbox_source_name(lot.client_id) });
+				{ type: 'market_sold', name: get_inbox_source_name(lot.client_id), history_key,
+					exchange: { label: 'sold', item_id: lot.item_id, qty: final_qty } });
 			record_guild_activity({ guild_id, event_type: 'market_fulfilled', actor_client_id: client_id,
 				buyer_client_id: lot.client_id, seller_client_id: client_id, item_id: lot.item_id,
 				quantity: final_qty, source_key: `market-fulfillment:${json.command_id}` });
 			return { success: true, item_id: lot.item_id, item_qty: final_qty, gp_gain: final_cost, history_name: get_inbox_source_name(lot.client_id),
+				history_exchange: { label: 'proceeds', item_id: 'melvorD:GP', qty: final_cost },
 				new_item_qty, effects: [
 					{ storage: 'bank' as const, item_id: lot.item_id, qty: -final_qty }
 				] };

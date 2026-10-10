@@ -20,10 +20,10 @@ export const MULTIPLAYER_PET_IDS = [
 
 export type MultiplayerPetId = typeof MULTIPLAYER_PET_IDS[number];
 
-export const CHARITY_PET_BASE_CHANCE = 0.001;
-export const CHARITY_PET_INCREMENT_VALUE = 10_000_000;
-export const CHARITY_PET_INCREMENT_CHANCE = 0.01;
-export const CHARITY_PET_MAX_CHANCE = 0.1;
+export const CRUCIBLE_PET_BASE_CHANCE = 0.001;
+export const CRUCIBLE_PET_INCREMENT_VALUE = 10_000_000;
+export const CRUCIBLE_PET_INCREMENT_CHANCE = 0.01;
+export const CRUCIBLE_PET_MAX_CHANCE = 0.1;
 
 export function get_campaign_pet_id(campaign_id: string): MultiplayerPetId | null {
 	return CAMPAIGN_PET_IDS[campaign_id as keyof typeof CAMPAIGN_PET_IDS] ?? null;
@@ -61,16 +61,11 @@ export function grant_campaign_pet_if_eligible(client_id: number, campaign_id: s
 	return completed >= 4 && grant_pet(client_id, pet_id, now);
 }
 
-export function get_charity_pet_chance(donation_value: number): number {
+export function get_crucible_pet_chance(donation_value: number): number {
 	const value = Number.isSafeInteger(donation_value) && donation_value >= 0 ? donation_value : 0;
-	const increments = Math.floor(value / CHARITY_PET_INCREMENT_VALUE);
+	const increments = Math.floor(value / CRUCIBLE_PET_INCREMENT_VALUE);
 	return Math.min(
-		CHARITY_PET_BASE_CHANCE + increments * CHARITY_PET_INCREMENT_CHANCE,
-		CHARITY_PET_MAX_CHANCE
+		CRUCIBLE_PET_BASE_CHANCE + increments * CRUCIBLE_PET_INCREMENT_CHANCE,
+		CRUCIBLE_PET_MAX_CHANCE
 	);
-}
-
-export function grant_charity_pet_if_rolled(client_id: number, donation_value: number, random_value = Math.random(), now = Date.now()): boolean {
-	const chance = get_charity_pet_chance(donation_value);
-	return random_value < chance && grant_pet(client_id, CHARITY_PET_ID, now);
 }

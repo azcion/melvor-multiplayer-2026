@@ -7,7 +7,7 @@ const root = new URL('../../', import.meta.url);
 
 function load_nav_updater(main) {
 	const load = load_sidebar_function(main, 'update_multiplayer_nav',
-		['sidebar', 'state', 'update_charitree_nav', 'getLangString', 'document', 'update_expedition_nav = () => {}']);
+		['sidebar', 'state', 'update_crucible_nav', 'getLangString', 'document', 'update_expedition_nav = () => {}']);
 	return (sidebar, state, ...args) => {
 		state.guild_state ??= { guild: { is_public: false } };
 		state.visible_guild_applicants ??= [];
@@ -141,10 +141,10 @@ test('preserves feature gates across native expansion and collapse across state 
 	const sidebar = make_sidebar();
 	const state = { is_guild_member: true, is_social_only: true, has_transfer_access: false,
 		is_charitree_enabled: false, account_tags: ['expedition-tester'] };
-	const update_charitree_nav = load_sidebar_function(main, 'update_charitree_nav',
+	const update_crucible_nav = load_sidebar_function(main, 'update_crucible_nav',
 		['sidebar', 'state', 'document', 'getLangString'])(
 			sidebar.sidebar, state, sidebar.document, value => value);
-	const update = load_nav_updater(main)(sidebar.sidebar, state, update_charitree_nav, value => value, sidebar.document);
+	const update = load_nav_updater(main)(sidebar.sidebar, state, update_crucible_nav, value => value, sidebar.document);
 	const gated = ['Multiplayer_Market', 'Crucible', 'Transfer_Items'];
 	update();
 	sidebar.toggle(true);
@@ -169,11 +169,11 @@ test('prioritizes a Melded Crucible Wish over Reclaim readiness', async () => {
  const state = { guild_state_loaded: true, is_connected: true, is_guild_member: true, is_social_only: false,
   crucible_reclaim_block() { return this.crucible.next_reclaim_at > Date.now() ? 'cooldown' : null; },
   crucible: { is_open: true, next_reclaim_at: 0, offerings: [{}], wishes: [{ phase: 'melded', owned: true }] } };
- const update = load_sidebar_function(main, 'update_charitree_nav',
+ const update = load_sidebar_function(main, 'update_crucible_nav',
   ['sidebar', 'state', 'document', 'getLangString'])(
    sidebar.sidebar, state, sidebar.document, value => value);
  update();
- assert.equal(sidebar.charity_aside.textContent, 'MOD_MP_SIDEBAR_CHARITY_WISH');
+ assert.equal(sidebar.charity_aside.textContent, 'MOD_MP_SIDEBAR_CRUCIBLE_WISH');
  assert.equal(sidebar.charity_aside.classList.contains('mp-nav-ready'), true);
  state.crucible.wishes = [];
  update();

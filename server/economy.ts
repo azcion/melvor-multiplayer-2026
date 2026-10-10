@@ -1,3 +1,4 @@
+import type { HistoryExchange } from './transfer-history';
 import { db } from './db';
 import type { JsonObject } from './http';
 
@@ -37,6 +38,7 @@ type EconomyResponse = Record<string, unknown> & {
 	success?: boolean;
 	effects?: EconomyEffect[];
 	history_name?: string;
+	history_exchange?: HistoryExchange;
 };
 
 type StoredReceipt = {
@@ -55,6 +57,7 @@ function receipt_response(id: string, kind: string, response: EconomyResponse): 
 	const value = { ...response };
 	delete value.effects;
 	delete value.history_name;
+	delete value.history_exchange;
 	return { ...value, receipt: { id, kind, effects } satisfies EconomyReceipt };
 }
 
@@ -95,6 +98,9 @@ export function run_economy_command(
 		if (result.history_name) db.query(
 			'UPDATE transfer_history_events SET source_name=? WHERE client_id=? AND source_key=?'
 		).run(result.history_name, client_id, `receipt:${command_id}`);
+		if (result.history_exchange) db.query(
+			"UPDATE transfer_history_events SET exchange_json=? WHERE client_id=? AND pane='outbox' AND source_key=?"
+		).run(JSON.stringify(result.history_exchange), client_id, `receipt:${command_id}`);
 		db.query('UPDATE `clients` SET `event_revision` = `event_revision` + 1 WHERE `id` = ?').run(client_id);
 		return response as JsonObject;
 	});

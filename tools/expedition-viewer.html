@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Expedition graph viewer</title>
+<style>
+	:root { color-scheme: light; font: 14px system-ui, sans-serif; color: #202830; background: #f4f5f6; }
+	* { box-sizing: border-box; }
+	body { margin: 0; }
+	h1 { font-size: 20px; margin: 0 0 12px; }
+	header { padding: 16px 20px 12px; background: #fff; border-bottom: 1px solid #cbd1d7; }
+	form, .controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+	form { margin-bottom: 10px; }
+	input, button, select { font: inherit; padding: 7px 9px; border: 1px solid #aeb8c2; border-radius: 3px; background: #fff; color: inherit; }
+	button { cursor: pointer; }
+	button:hover { background: #eef2f5; }
+	button:disabled { cursor: default; opacity: .5; }
+	input[type=url] { flex: 1; min-width: 220px; }
+	input[type=file] { max-width: 290px; padding: 4px; }
+	input[type=search] { width: 220px; }
+	:focus-visible { outline: 3px solid #2c73b9; outline-offset: 2px; }
+	.hint { color: #53606c; margin: 8px 0; font-size: 13px; }
+	#status { margin: 10px 0 0; overflow-wrap: anywhere; }
+	#status.error { color: #a12121; }
+	main { display: grid; grid-template-columns: minmax(0, 1fr) 310px; height: calc(100dvh - var(--header-height, 220px)); min-height: 380px; }
+	#viewport { overflow: auto; position: relative; background: #f4f5f6; overscroll-behavior: contain; touch-action: pan-x pan-y; }
+	#empty { padding: 40px 24px; color: #53606c; }
+	#graph { display: block; }
+	#graph[hidden] { display: none; }
+	aside { padding: 16px; background: #fff; border-left: 1px solid #cbd1d7; overflow: auto; }
+	aside h2 { margin: 0 0 12px; font-size: 17px; overflow-wrap: anywhere; }
+	aside h3 { font-size: 14px; margin: 18px 0 8px; }
+	aside p { margin: 8px 0; overflow-wrap: anywhere; }
+	aside ul { padding-left: 20px; }
+	aside li { margin: 8px 0; overflow-wrap: anywhere; }
+	aside button { padding: 3px 6px; text-align: left; }
+	pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+	.layer-label { fill: #52606d; font-size: 14px; font-weight: 600; }
+	.layer-line { stroke: #d6dce1; }
+	.edge { fill: none; stroke: #94a1ad; stroke-width: 1.6; }
+	.edge.active { stroke: #1769aa; stroke-width: 3; }
+	.edge.dim { opacity: .16; }
+	.node { cursor: pointer; }
+	.node rect { fill: #fff; stroke: #7f8d99; stroke-width: 1.5; }
+	.node.start rect { fill: #edf6ed; stroke: #507b50; }
+	.node.ending rect { fill: #fff5df; stroke: #997623; }
+	.node.selected rect { stroke: #1769aa; stroke-width: 3; }
+	.node.match rect { fill: #e4f1ff; }
+	.node.dim { opacity: .35; }
+	.node text { fill: #202830; font-size: 14px; pointer-events: none; }
+	.node .metadata { fill: #52606d; font-size: 11px; }
+	@media (max-width: 760px) {
+		main { grid-template-columns: 1fr; height: auto; }
+		#viewport { height: 65dvh; min-height: 320px; }
+		aside { border-left: 0; border-top: 1px solid #cbd1d7; max-height: 60dvh; }
+		header { padding: 12px; }
+	}
+</style>
+</head>
+<body>
+<header>
+	<h1>Expedition graph viewer</h1>
+	<form id="source-form">
+		<label for="url">JSON URL</label>
+		<input id="url" type="url" placeholder="https://raw.githubusercontent.com/…/expedition-content-v1.json" required>
+		<button type="submit">Load URL</button>
+		<label for="file">or file</label>
+		<input id="file" type="file" accept=".json,application/json">
+	</form>
+	<p class="hint">Choose expedition content JSON. GitHub file links are converted to raw URLs. Other hosts must allow browser access (CORS). Files stay in your browser.</p>
+	<div class="controls">
+		<label for="search">Find chamber</label><input id="search" type="search" placeholder="Name or ID" disabled>
+		<select id="matches" aria-label="Matching chambers" disabled><option value="">Select a chamber</option></select>
+		<button id="zoom-out" aria-label="Zoom out" disabled>−</button>
+		<output id="zoom-label">100%</output>
+		<button id="zoom-in" aria-label="Zoom in" disabled>+</button>
+		<button id="fit" disabled>Fit</button><button id="actual" disabled>100%</button>
+		<button id="clear" disabled>Clear selection</button>
+		<button id="download" disabled>Save SVG</button>
+	</div>
+	<p id="status" role="status" aria-live="polite">No content loaded.</p>
+</header>
+<main>
+	<div id="viewport" tabindex="0" aria-label="Scrollable expedition graph">
+		<p id="empty">Load a JSON file or URL to view chambers by depth. Select a chamber to inspect its exits and tasks.</p>
+		<svg id="graph" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="Expedition chambers and exits" hidden></svg>
+	</div>
+	<aside id="details" aria-label="Chamber details"><h2>Chamber details</h2><p>Select a node in the graph.</p></aside>
+</main>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const NODE_WIDTH = 220, NODE_HEIGHT = 100, GAP_X = 36, GAP_Y = 90, MARGIN = 70;
+let graph = null, selected = null, zoom = 1, loadSequence = 0, activeRequest = null;
+
+// This viewer validates graph structure, not the backend's gameplay rules.
+function normalizeContent(content) {
+	if (!content || typeof content !== 'object') throw new Error('Expected a JSON object.');
+	let nodes, edges;
+	if (Array.isArray(content.chambers)) {
+		nodes = content.chambers;
+		edges = nodes.flatMap(node => {
+			if (!node || !Array.isArray(node.exits)) throw new Error('Every chamber must have an exits array.');
+			return node.exits.map(exit => ({ ...exit, source: node.id }));
+		});
+	} else if (Array.isArray(content.nodes) && Array.isArray(content.edges)) {
+		nodes = content.nodes.map(node => node?.data ?? node);
+		edges = content.edges.map(edge => edge?.data ?? edge);
+	} else throw new Error('Expected chambers[] or nodes[] with edges[].');
+	if (!nodes.length) throw new Error('The graph has no chambers.');
+	if (nodes.length > 2000 || edges.length > 10000) throw new Error('Graph too large (maximum 2,000 chambers and 10,000 exits).');
+	const byId = new Map();
+	for (const node of nodes) {
+		if (!node || typeof node.id !== 'string' || !node.id.trim()) throw new Error('Every chamber needs a non-empty string ID.');
+		if (byId.has(node.id)) throw new Error(`Duplicate chamber ID: ${node.id}`);
+		if (!Number.isSafeInteger(node.depth) || node.depth < 0) throw new Error(`Invalid depth for ${node.id}: expected a non-negative integer.`);
+		if (typeof node.label !== 'string' || !node.label.trim()) throw new Error(`Missing label for ${node.id}.`);
+		byId.set(node.id, node);
+	}
+	for (const edge of edges) {
+		if (!edge || !byId.has(edge.source) || !byId.has(edge.target)) throw new Error(`Exit references an unknown chamber: ${edge?.source} → ${edge?.target}`);
+		if (byId.get(edge.target).depth <= byId.get(edge.source).depth) throw new Error(`Exit must lead to a deeper layer: ${edge.source} → ${edge.target}`);
+	}
+	return { nodes, edges, byId };
+}
+
+function rawUrl(value) {
+	const url = new URL(value);
+	if (!['https:', 'http:'].includes(url.protocol)) throw new Error('Use an HTTP or HTTPS URL, or choose a local file.');
+	if (url.username || url.password) throw new Error('URLs with embedded credentials are not supported.');
+	if (url.hostname === 'github.com') {
+		const parts = url.pathname.split('/');
+		if (parts[3] === 'blob' || parts[3] === 'raw') {
+			parts.splice(3, 1);
+			url.hostname = 'raw.githubusercontent.com';
+			url.pathname = parts.join('/');
+			url.search = '';
+		}
+	}
+	return url.href;
+}
+
+function svgElement(tag, attributes = {}, text) {
+	const element = document.createElementNS(SVG_NS, tag);
+	for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, value);
+	if (text !== undefined) element.textContent = text;
+	return element;
+}
+function htmlElement(tag, text) {
+	const element = document.createElement(tag);
+	if (text !== undefined) element.textContent = text;
+	return element;
+}
+function wrapLabel(label) {
+	const lines = [];
+	let line = '';
+	for (const word of label.match(/\S{1,24}/gu) || []) {
+		if (line && (line + ' ' + word).length > 24) { lines.push(line); line = ''; }
+		line += (line ? ' ' : '') + word;
+	}
+	if (line) lines.push(line);
+	if (lines.length > 3) return [...lines.slice(0, 2), lines[2].slice(0, 21) + '…'];
+	return lines;
+}
+function layoutGraph(model) {
+	const layers = new Map();
+	for (const node of model.nodes) {
+		if (!layers.has(node.depth)) layers.set(node.depth, []);
+		layers.get(node.depth).push(node);
+	}
+	const depths = [...layers.keys()].sort((a, b) => a - b);
+	const width = MARGIN * 2 + Math.max(...[...layers.values()].map(layer => layer.length)) * (NODE_WIDTH + GAP_X) - GAP_X;
+	const height = MARGIN * 2 + depths.length * (NODE_HEIGHT + GAP_Y) - GAP_Y;
+	const positions = new Map();
+	depths.forEach((depth, index) => {
+		const layer = layers.get(depth), span = layer.length * (NODE_WIDTH + GAP_X) - GAP_X;
+		layer.forEach((node, column) => positions.set(node.id, { x: (width - span) / 2 + column * (NODE_WIDTH + GAP_X), y: MARGIN + index * (NODE_HEIGHT + GAP_Y) }));
+	});
+	return { width, height, positions, depths, layers };
+}
+function renderGraph(model) {
+	Object.assign(model, layoutGraph(model));
+	const svg = $('graph');
+	svg.replaceChildren();
+	svg.setAttribute('viewBox', `0 0 ${model.width} ${model.height}`);
+	const defs = svgElement('defs');
+	for (const [id, color] of [['arrow', '#94a1ad'], ['arrow-active', '#1769aa']]) {
+		const marker = svgElement('marker', { id, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' });
+		marker.append(svgElement('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: color }));
+		defs.append(marker);
+	}
+	svg.append(defs);
+	model.depths.forEach((depth, index) => {
+		const y = MARGIN + index * (NODE_HEIGHT + GAP_Y) - 18;
+		svg.append(svgElement('text', { x: 16, y, class: 'layer-label' }, `Depth ${depth} · ${model.layers.get(depth).length} chamber(s)`));
+		svg.append(svgElement('line', { x1: 16, x2: model.width - 16, y1: y + 7, y2: y + 7, class: 'layer-line' }));
+	});
+	model.edgeElements = model.edges.map(edge => {
+		const a = model.positions.get(edge.source), b = model.positions.get(edge.target);
+		const x1 = a.x + NODE_WIDTH / 2, y1 = a.y + NODE_HEIGHT, x2 = b.x + NODE_WIDTH / 2, y2 = b.y;
+		const path = svgElement('path', { d: `M ${x1} ${y1} C ${x1} ${y1 + 40}, ${x2} ${y2 - 40}, ${x2} ${y2}`, class: 'edge', 'marker-end': 'url(#arrow)' });
+		path.append(svgElement('title', {}, `${model.byId.get(edge.source).label} → ${model.byId.get(edge.target).label}${edge.slot ? ` (exit ${edge.slot})` : ''}`));
+		svg.append(path);
+		return { edge, element: path };
+	});
+	model.nodeElements = new Map();
+	for (const node of model.nodes) {
+		const { x, y } = model.positions.get(node.id);
+		const group = svgElement('g', { transform: `translate(${x}, ${y})`, class: `node ${node.type === 'start' ? 'start' : node.type === 'ending' ? 'ending' : ''}`, tabindex: 0, role: 'button', 'aria-label': `${node.label}, depth ${node.depth}`, 'aria-pressed': 'false' });
+		group.append(svgElement('title', {}, `${node.label}\n${node.id}\n${node.theme || ''}`));
+		group.append(svgElement('rect', { width: NODE_WIDTH, height: NODE_HEIGHT, rx: 4 }));
+		const lines = wrapLabel(node.label);
+		lines.forEach((line, index) => group.append(svgElement('text', { x: 12, y: 23 + index * 18 }, line)));
+		group.append(svgElement('text', { x: 12, y: 87, class: 'metadata' }, String(node.type || 'chamber')));
+		group.addEventListener('click', () => selectNode(node.id));
+		group.addEventListener('keydown', event => {
+			if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectNode(node.id); }
+		});
+		svg.append(group);
+		model.nodeElements.set(node.id, group);
+	}
+	svg.removeAttribute('hidden');
+	$('empty').hidden = true;
+}
+function updateHighlights() {
+	if (!graph) return;
+	const query = $('search').value.trim().toLowerCase();
+	const connected = new Set([selected]);
+	for (const { edge, element } of graph.edgeElements) {
+		const active = selected && (edge.source === selected || edge.target === selected);
+		if (active) { connected.add(edge.source); connected.add(edge.target); }
+		element.classList.toggle('active', !!active);
+		element.classList.toggle('dim', !!selected && !active);
+		element.setAttribute('marker-end', active ? 'url(#arrow-active)' : 'url(#arrow)');
+	}
+	for (const node of graph.nodes) {
+		const element = graph.nodeElements.get(node.id);
+		element.classList.toggle('selected', node.id === selected);
+		element.classList.toggle('dim', !!selected && !connected.has(node.id));
+		element.classList.toggle('match', !!query && `${node.label} ${node.id}`.toLowerCase().includes(query));
+		element.setAttribute('aria-pressed', String(node.id === selected));
+	}
+}
+function nodeLink(id) {
+	const button = htmlElement('button', graph.byId.get(id).label);
+	button.type = 'button';
+	button.addEventListener('click', () => selectNode(id, true));
+	return button;
+}
+function selectNode(id, reveal = false) {
+	selected = id;
+	updateHighlights();
+	const panel = $('details');
+	panel.replaceChildren();
+	if (!id) { panel.append(htmlElement('h2', 'Chamber details'), htmlElement('p', 'Select a node in the graph.')); return; }
+	const node = graph.byId.get(id);
+	panel.append(htmlElement('h2', node.label), htmlElement('p', node.id), htmlElement('p', `Depth ${node.depth} · ${node.type || 'chamber'}${node.theme ? ` · ${node.theme}` : ''}`));
+	for (const [heading, incoming] of [['Exits', false], ['Incoming', true]]) {
+		panel.append(htmlElement('h3', heading));
+		const edges = graph.edges.filter(edge => incoming ? edge.target === id : edge.source === id);
+		if (!edges.length) panel.append(htmlElement('p', 'None.'));
+		else {
+			const list = htmlElement('ul');
+			for (const edge of edges) {
+				const item = htmlElement('li');
+				if (!incoming && edge.slot) item.append(document.createTextNode(`${edge.slot}: `));
+				item.append(nodeLink(incoming ? edge.source : edge.target));
+				list.append(item);
+			}
+			panel.append(list);
+		}
+	}
+	if (Array.isArray(node.tasks)) {
+		panel.append(htmlElement('h3', `Tasks (${node.tasks.length})`));
+		const list = htmlElement('ul');
+		for (const task of node.tasks) {
+			const item = htmlElement('li', task?.title || task?.id || 'Untitled task');
+			item.append(htmlElement('p', [task?.phase, task?.requirement, task?.baseline_hours == null ? null : `${task.baseline_hours} baseline hours`].filter(Boolean).join(' · ')));
+			list.append(item);
+		}
+		panel.append(list);
+	}
+	const raw = htmlElement('details');
+	raw.append(htmlElement('summary', 'Chamber JSON'), htmlElement('pre', JSON.stringify(node, null, 2)));
+	panel.append(raw);
+	if (reveal) {
+		const position = graph.positions.get(id);
+		$('viewport').scrollTo({ left: (position.x + NODE_WIDTH / 2) * zoom - $('viewport').clientWidth / 2, top: (position.y + NODE_HEIGHT / 2) * zoom - $('viewport').clientHeight / 2 });
+	}
+}
+function updateMatches() {
+	const query = $('search').value.trim().toLowerCase();
+	const matches = graph.nodes.filter(node => `${node.label} ${node.id}`.toLowerCase().includes(query));
+	$('matches').replaceChildren(new Option(query ? `${matches.length} match(es)` : 'Select a chamber', ''), ...matches.map(node => new Option(`Depth ${node.depth}: ${node.label}`, node.id)));
+	updateHighlights();
+}
+function setZoom(value) {
+	if (!graph) return;
+	const viewport = $('viewport'), previous = zoom;
+	zoom = Math.max(.1, Math.min(3, value));
+	$('graph').setAttribute('width', graph.width * zoom);
+	$('graph').setAttribute('height', graph.height * zoom);
+	$('zoom-label').textContent = `${Math.round(zoom * 100)}%`;
+	viewport.scrollLeft = (viewport.scrollLeft + viewport.clientWidth / 2) / previous * zoom - viewport.clientWidth / 2;
+	viewport.scrollTop = (viewport.scrollTop + viewport.clientHeight / 2) / previous * zoom - viewport.clientHeight / 2;
+}
+function fitGraph() {
+	if (!graph) return;
+	setZoom(Math.min(($('viewport').clientWidth - 24) / graph.width, ($('viewport').clientHeight - 24) / graph.height, 1));
+	$('viewport').scrollTo(0, 0);
+}
+function showStatus(message, error = false) {
+	$('status').textContent = message;
+	$('status').classList.toggle('error', error);
+}
+async function loadContent(read, source) {
+	const sequence = ++loadSequence;
+	activeRequest?.abort();
+	const controller = new AbortController();
+	activeRequest = controller;
+	const timeout = setTimeout(() => controller.abort(), 30000);
+	showStatus(`Loading ${source}…`);
+	try {
+		const text = await read(controller.signal);
+		if (sequence !== loadSequence) return;
+		const candidate = normalizeContent(JSON.parse(text.replace(/^\uFEFF/, '')));
+		graph = candidate;
+		selected = null;
+		$('search').value = '';
+		renderGraph(graph);
+		for (const id of ['search', 'matches', 'zoom-out', 'zoom-in', 'fit', 'actual', 'clear', 'download']) $(id).disabled = false;
+		selectNode(null);
+		updateMatches();
+		showStatus(`${graph.nodes.length} chambers · ${graph.edges.length} exits · ${graph.depths.length} layers · ${source}`);
+		requestAnimationFrame(fitGraph);
+	} catch (error) {
+		if (sequence === loadSequence) showStatus(`Could not load content: ${error.name === 'AbortError' ? 'request timed out.' : error.message}${graph ? ' Previous graph retained.' : ''}`, true);
+	} finally {
+		clearTimeout(timeout);
+		if (sequence === loadSequence) activeRequest = null;
+	}
+}
+$('source-form').addEventListener('submit', event => {
+	event.preventDefault();
+	let url;
+	try { url = rawUrl($('url').value.trim()); } catch (error) { showStatus(error.message, true); return; }
+	loadContent(async signal => {
+		let response;
+		try { response = await fetch(url, { signal, credentials: 'omit', referrerPolicy: 'no-referrer' }); }
+		catch (error) { if (error.name === 'AbortError') throw error; throw new Error('Network or CORS error. Use a raw JSON URL that allows browser access, or download the JSON and choose the file.'); }
+		if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
+		return response.text();
+	}, url);
+});
+$('file').addEventListener('change', event => {
+	const file = event.target.files[0];
+	if (file) loadContent(() => file.text(), file.name);
+	event.target.value = '';
+});
+$('search').addEventListener('input', updateMatches);
+$('matches').addEventListener('change', event => { if (event.target.value) selectNode(event.target.value, true); });
+$('zoom-in').addEventListener('click', () => setZoom(zoom * 1.25));
+$('zoom-out').addEventListener('click', () => setZoom(zoom / 1.25));
+$('actual').addEventListener('click', () => setZoom(1));
+$('fit').addEventListener('click', fitGraph);
+$('clear').addEventListener('click', () => selectNode(null));
+$('download').addEventListener('click', () => {
+	const clone = $('graph').cloneNode(true);
+	clone.setAttribute('width', graph.width);
+	clone.setAttribute('height', graph.height);
+	const style = svgElement('style', {}, [...document.styleSheets[0].cssRules].map(rule => rule.cssText).join('\n'));
+	clone.prepend(style);
+	const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml' }));
+	const link = htmlElement('a');
+	link.href = url; link.download = 'expedition-graph.svg'; link.click();
+	setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+new ResizeObserver(() => document.documentElement.style.setProperty('--header-height', `${document.querySelector('header').offsetHeight}px`)).observe(document.querySelector('header'));
+</script>
+</body>
+</html>

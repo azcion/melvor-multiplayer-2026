@@ -36,156 +36,6 @@ mp-modal-component input.form-control[type="number"],
 	outline: 1px solid #fff7;
 }
 
-#mp-charity-wish-search {
-	outline: 1px solid;
-}
-
-.mp-charity-wish-modal-popup .swal2-html-container {
-	overflow: visible;
-}
-
-.mp-charity-wish-grid {
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
-	grid-auto-flow: row;
-	gap: 8px;
-	max-height: min(420px, 30vh);
-	max-height: min(420px, 30dvh);
-	border: 1px solid #fff5;
-	border-radius: .25rem;
-	overflow-y: scroll;
-	-webkit-overflow-scrolling: touch;
-	touch-action: pan-y;
-	overscroll-behavior-y: contain;
-	padding: 6px;
-}
-
-.mp-charity-wish-tile {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: flex-start;
-	min-width: 0;
-	min-height: 94px;
-	padding: 8px 4px 6px;
-	border: 1px solid rgba(255, 255, 255, .16);
-	border-radius: 6px;
-	background: rgba(0, 0, 0, .16);
-	color: inherit;
-	cursor: pointer;
-	text-align: center;
-}
-
-.mp-charity-wish-tile:hover,
-.mp-charity-wish-tile:focus-visible {
-	border-color: rgba(255, 255, 255, .6);
-	background: rgba(255, 255, 255, .08);
-	outline: 0;
-}
-
-.mp-charity-wish-tile-selected {
-	border-color: #46c37b;
-	box-shadow: 0 0 0 2px rgb(70 195 123 / 45%);
-}
-
-.mp-charity-wish-tile > img {
-	width: 56px;
-	height: 56px;
-	margin-bottom: 4px;
-	object-fit: contain;
-	-webkit-user-drag: none;
-	user-select: none;
-}
-
-.mp-charity-wish-tile-name {
-	width: 100%;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	font-size: .8rem;
-}
-
-.mp-charity-wish-selected-item-name {
-	min-height: 1.5rem;
-	margin-bottom: 5px;
-	font-weight: 600;
-	text-align: center;
-}
-
-.mp-charity-wish-requirement {
-	margin-bottom: 0;
-}
-
-.mp-charity-wish-intro {
-	margin-bottom: 0;
-}
-
-.mp-charity-wish-quantity {
-	display: grid;
-	grid-template-columns: 36px minmax(0, 1fr) 36px;
-	grid-template-rows: minmax(0, 1fr);
-	gap: 5px;
-	height: 50px;
-	width: 180px;
-	box-sizing: border-box;
-	margin: 0 auto;
-	padding: 5px;
-	border: 2px solid rgba(255, 255, 255, .22);
-	border-radius: 6px;
-	background: rgba(0, 0, 0, .14);
-}
-
-.mp-charity-wish-quantity-button {
-	min-width: 0;
-	min-height: 0;
-	width: 100%;
-	height: 100%;
-	padding: 0;
-	border: 0;
-	border-radius: 5px;
-	-webkit-appearance: none;
-	appearance: none;
-	background: rgba(120, 135, 150, .45);
-	color: #fff;
-	font-size: 1.5rem;
-	font-weight: 700;
-	line-height: 1;
-}
-
-.mp-charity-wish-quantity-button:hover,
-.mp-charity-wish-quantity-button:focus-visible {
-	background: rgba(145, 160, 175, .65);
-	outline: 0;
-}
-
-.mp-charity-wish-quantity-input {
-	min-width: 0;
-	min-height: 0;
-	width: 100%;
-	height: 100%;
-	padding: 0;
-	border: 0;
-	background: transparent;
-	color: #fff;
-	font-size: 1.75rem;
-	font-weight: 600;
-	text-align: center;
-}
-
-.mp-charity-wish-quantity-input:focus {
-	outline: 0;
-}
-
-.mp-charity-wish-quantity-input::-webkit-outer-spin-button,
-.mp-charity-wish-quantity-input::-webkit-inner-spin-button {
-	margin: 0;
-	-webkit-appearance: none;
-}
-
-.mp-charity-wish-quantity-input {
-	-moz-appearance: textfield;
-}
-
 .mp-modal-tray {
 	display: flex;
 	justify-content: center;
@@ -329,7 +179,7 @@ mp-modal-component input.form-control[type="number"],
 .mp-changelog-entry {
 	padding-bottom: 1.25rem;
 	margin-bottom: 1.25rem;
-	border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+	border-bottom: 1px solid #3e5964;
 }
 
 .mp-changelog-entry:last-child {
@@ -342,10 +192,49 @@ mp-modal-component input.form-control[type="number"],
 	margin-bottom: 0;
 }
 
+#mp-updates-page {
+	padding: 0;
+}
+
+.mp-updates-shell {
+	max-width: 1100px;
+	margin: 0 auto;
+	padding: 1rem;
+	color: #f5f7fa;
+}
+
+.mp-updates-panel {
+	min-width: 0;
+	margin-bottom: .75rem;
+	border: 1px solid #45616b;
+	border-radius: .55rem;
+	background: #182732;
+	overflow: hidden;
+}
+
+.mp-updates-panel-header {
+	padding: .7rem .9rem;
+}
+
+#mp-updates-page .mp-updates-panel-title {
+	margin: 0;
+	color: #f5f7fa;
+	overflow-wrap: anywhere;
+}
+
+.mp-updates-panel-body {
+	padding: .85rem .9rem;
+	overflow-wrap: anywhere;
+}
+
+.mp-updates-panel-header + .mp-updates-panel-body {
+	border-top: 1px solid #3e5964;
+}
+
 .mp-updates-layout {
 	display: grid;
-	grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr);
-	gap: 1rem;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+	gap: .75rem;
 	align-items: start;
 }
 
@@ -353,7 +242,7 @@ mp-modal-component input.form-control[type="number"],
 	min-width: 0;
 }
 
-.mp-updates-notice .block-content p:last-child {
+.mp-updates-notice .mp-updates-panel-body p:last-child {
 	margin-bottom: 0;
 }
 
@@ -677,7 +566,7 @@ mp-modal-component input.form-control[type="number"],
 
 @media (max-width: 767.98px) {
 	:is(.mp-chat-bg, .mp-guild-bg, .mp-transfer-bg, .mp-market-bg,
-		.mp-charity-bg, .mp-expedition-bg, .mp-crucible-bg, .mp-raid-bg, .mp-updates-bg)
+		.mp-expedition-bg, .mp-crucible-bg, .mp-raid-bg, .mp-updates-bg)
 		#header-title {
 		font-size: 1rem !important;
 	}
@@ -689,7 +578,7 @@ mp-modal-component input.form-control[type="number"],
 }
 
 :is(.mp-chat-bg, .mp-guild-bg, .mp-transfer-bg, .mp-market-bg,
-	.mp-charity-bg, .mp-expedition-bg, .mp-crucible-bg, .mp-raid-bg, .mp-updates-bg)
+	.mp-expedition-bg, .mp-crucible-bg, .mp-raid-bg, .mp-updates-bg)
 	.m-header-icon {
 	background-color: #232a35;
 }
@@ -699,7 +588,6 @@ mp-modal-component input.form-control[type="number"],
 .mp-guild-bg #page-header-potions-dropdown,
 .mp-transfer-bg #page-header-potions-dropdown,
 .mp-market-bg #page-header-potions-dropdown,
-.mp-charity-bg #page-header-potions-dropdown,
 .mp-expedition-bg #page-header-potions-dropdown,
 .mp-crucible-bg #page-header-potions-dropdown,
 .mp-raid-bg #page-header-potions-dropdown,
@@ -709,7 +597,7 @@ mp-modal-component input.form-control[type="number"],
 
 /* Another mod adds a book button that is irrelevant on Multiplayer pages. */
 :is(.mp-chat-bg, .mp-guild-bg, .mp-transfer-bg, .mp-market-bg,
-	.mp-charity-bg, .mp-expedition-bg, .mp-crucible-bg, .mp-raid-bg, .mp-updates-bg)
+	.mp-expedition-bg, .mp-crucible-bg, .mp-raid-bg, .mp-updates-bg)
 	.btn:has(.fa.fa-book-open.mr-1.font-size-lg) {
 	display: none;
 }
@@ -735,16 +623,36 @@ mp-modal-component input.form-control[type="number"],
 	color: inherit;
 }
 
+#mp-chat-page {
+	padding: 0;
+}
+
 .mp-chat-layout {
+	max-width: 1100px;
+	margin: 0 auto;
+	padding: 1rem;
+	color: #f5f7fa;
 	min-height: calc(100vh - 235px);
 }
 
+.mp-chat-category,
+.mp-chat-loading-panel,
 .mp-chat-conversation-view {
-	color: white;
-	border: 5px solid #232a35;
-	border-radius: .5rem;
+	min-width: 0;
+	margin-bottom: .75rem;
+	color: #f5f7fa;
+	border: 1px solid #45616b;
+	border-radius: .55rem;
+	background: #182732;
+	overflow: hidden;
+}
+
+/* Preserve the original conversation backdrop over Melvor's page artwork. */
+.mp-chat-conversation-view {
+	/* Clip rounded corners without creating a scroll container for the sticky toolbar. */
+	overflow: clip;
 	backdrop-filter: blur(8px);
-	background-color: #0004;
+	background: #0004;
 }
 
 .mp-chat-visibility {
@@ -822,13 +730,14 @@ mp-modal-component input.form-control[type="number"],
 	flex-direction: column;
 }
 
-.mp-chat-category + .mp-chat-category {
-	border-top: 1px solid rgba(255, 255, 255, 0.12);
+.mp-chat-category-heading {
+	padding: .7rem .9rem;
+	border-bottom: 1px solid #3e5964;
 }
 
-.mp-chat-category-heading {
-	padding: 12px 16px 8px;
-	background: rgba(255, 255, 255, 0.03);
+#mp-chat-page .mp-chat-category-title {
+	margin: 0;
+	color: #f5f7fa;
 }
 
 .mp-guild-chat-opted-out {
@@ -882,7 +791,11 @@ mp-modal-component input.form-control[type="number"],
 }
 
 .mp-chat-header {
+	position: sticky;
+	top: var(--mp-chat-header-top, 0px);
+	z-index: 2;
 	justify-content: space-between;
+	border-radius: .5rem .5rem 0 0;
 }
 
 .mp-chat-buttons {
@@ -1980,22 +1893,6 @@ mp-modal-component input.form-control[type="number"],
 .mp-transfer-buttons {
 	padding-top: 0 !important;
 }
-
-.mp-charitree-take-amount {
-	color: #fff;
-}
-
-.mp-charitree-take-label,
-.mp-charitree-wisher-label,
-.mp-charitree-wish-progress-text {
-	color: #adb5bd;
-}
-
-.mp-charitree-take-value,
-.mp-charitree-wisher-value {
-	color: #fff;
-}
-
 .mp-dual-trade {
 	display: grid;
 	grid-template-columns: 1fr 1px 1fr;
@@ -2031,19 +1928,6 @@ mp-modal-component input.form-control[type="number"],
 	flex-wrap: wrap;
 	justify-content: center;
 }
-
-.mp-charity-shuffle-max-offers {
-	display: inline-flex;
-	flex-direction: column;
-	align-items: center;
-	gap: .5rem;
-}
-
-.mp-charity-shuffle-max-offer {
-	display: flex;
-	align-items: center;
-}
-
 #bank-item-box {
 	height: unset;
 }
@@ -2062,200 +1946,6 @@ mp-item-slider .noUi-target,
 mp-item-slider .noUi-target * {
 	touch-action: none;
 }
-
-.mp-charity-bg {
-	background: linear-gradient(135deg, #116654, #779900) !important;
-}
-
-.mp-charity-border {
-	border-color: #2B9546 !important;
-}
-
-.mp-charitree-window-copy {
-	display: flex;
-	flex: 1 1 0;
-	flex-direction: column;
-	min-width: 0;
-}
-
-.mp-charitree-info-section summary {
-	display: flex;
-	align-items: center;
-	gap: .5rem;
-	width: 100%;
-	cursor: pointer;
-	list-style: none;
-}
-
-.mp-charitree-info-section summary::-webkit-details-marker {
-	display: none;
-}
-
-.mp-charitree-info-section summary:focus-visible {
-	outline: 2px solid currentColor;
-	outline-offset: 3px;
-}
-
-.mp-charitree-info-chevron-up {
-	display: none;
-}
-
-.mp-charitree-info-section[open] .mp-charitree-info-chevron-down {
-	display: none;
-}
-
-.mp-charitree-info-section[open] .mp-charitree-info-chevron-up {
-	display: inline-block;
-}
-
-.mp-charitree-item .mp-charitree-timer {
-	all: unset;
-	position: absolute;
-	top: -2px;
-	left: -2px;
-	background: #424242;
-	border-radius: .25rem;
-	outline: 1px solid #adadad;
-	padding: 0 .125rem;
-	font-size: 9px;
-}
-
-.mp-charitree-item .mp-charitree-lock {
-	all: unset;
-	position: absolute;
-	top: 0;
-	right: 2px;
-	font-size: 10px;
-	color: #e56767;
-}
-
-.mp-charitree-item.mp-charitree-has-avatars .mp-charitree-lock {
-	top: auto;
-	right: 2px;
-	bottom: 2px;
-}
-
-.mp-charitree-item .mp-charitree-avatars {
-	all: unset;
-	position: absolute;
-	right: -2px;
-	top: -2px;
-	z-index: 1;
-	display: flex;
-	flex-direction: column;
-	gap: 1px;
-	align-items: center;
-}
-
-.mp-charitree-avatar {
-	width: 20px;
-	height: 20px;
-	background: #424242;
-	border-radius: 4px;
-	outline: 1px solid #adadad;
-}
-
-.mp-charitree-avatar:nth-child(2) {
-	width: 17px;
-	height: 17px;
-}
-
-.mp-charitree-avatar:nth-child(3) {
-	width: 14px;
-	height: 14px;
-}
-
-.mp-charitree-item .mp-charitree-wish-progress {
-	all: unset;
-	position: absolute;
-	top: -2px;
-	left: -2px;
-	background: #424242;
-	border-radius: 4px;
-	padding: 1px 4px;
-	font-size: 9px;
-	outline: 1px solid #adadad;
-}
-
-.mp-charitree-wish-ripe .mp-charitree-img {
-	border-radius: 5px;
-	outline: 2px solid rgb(255 196 45);
-	box-shadow: 0 0 8px 2px rgb(255 196 45 / 80%);
-}
-
-.mp-charitree-wish {
-	border-radius: 6.5px;
-	outline: 2px solid rgb(252, 231, 152);
-	box-shadow: 0 0 8px 2px rgb(252 231 152 / 75%);
-}
-
-.mp-charitree-new-item {
-	border-radius: 6.5px;
-	outline: 2px solid rgb(45 210 75);
-	box-shadow: 0 0 8px 2px rgb(45 210 75 / 75%);
-}
-
-.mp-charitree-item .mp-charitree-img {
-	padding: 1rem;
-	border: 0 solid #46c37b;
-	border-radius: 6px;
-}
-
-.mp-charitree-item .mp-charitree-border {
-	padding: .75rem;
-	border-width: .25rem;
-}
-
-.mp-charitree-item.mp-charitree-leaf .mp-charitree-img {
-	transform: scaleX(-100%) rotate(90deg);
-	padding: .5rem;
-}
-
-.mp-charitree-item.mp-charitree-leaf .mp-charitree-border {
-	padding: .25rem;
-	border-width: .25rem;
-}
-
-.mp-charitree-item.mp-charitree-leaf.mp-charitree-leaf-coverage-0 .mp-charitree-img {
-	filter: hue-rotate(-80deg);
-}
-
-.mp-charitree-item.mp-charitree-leaf.mp-charitree-leaf-coverage-5 .mp-charitree-img {
-	filter: hue-rotate(-50deg);
-}
-
-.mp-charitree-item.mp-charitree-leaf.mp-charitree-leaf-coverage-15 .mp-charitree-img {
-	filter: hue-rotate(-20deg);
-}
-
-.mp-charitree-item.mp-charitree-leaf.mp-charitree-leaf-coverage-30 .mp-charitree-img {
-	filter: hue-rotate(-10deg);
-}
-
-.mp-charitree-item.mp-charitree-leaf.mp-charitree-leaf-coverage-50 .mp-charitree-img {
-	filter: hue-rotate(0deg);
-}
-
-.mp-charitree-item.mp-charitree-leaf.mp-charitree-leaf-coverage-70 .mp-charitree-img {
-	filter: hue-rotate(10deg);
-}
-
-.mp-charitree-item.mp-charitree-leaf.mp-charitree-leaf-coverage-85 .mp-charitree-img {
-	filter: hue-rotate(50deg);
-}
-
-.mp-charitree-item.mp-charitree-leaf.mp-charitree-leaf-coverage-95 .mp-charitree-img {
-	filter: hue-rotate(60deg);
-}
-
-.mp-charitree-item.mp-charitree-leaf.mp-charitree-leaf-coverage-100 .mp-charitree-img {
-	filter: hue-rotate(80deg);
-}
-
-.mp-charitree-item.mp-charitree-leaf.mp-charitree-new-item .mp-charitree-img {
-	filter: hue-rotate(-130deg);
-}
-
 @media (max-width: 767.98px) {
 	.mp-guild-page-layout {
 		min-height: calc(100vh - 190px);
@@ -3388,7 +3078,9 @@ button.mp-transfer-item:hover {
 }
 
 @media (max-width: 767.98px) {
-	.mp-transfers-shell {
+	.mp-transfers-shell,
+	.mp-updates-shell,
+	.mp-chat-layout {
 		padding: .6rem;
 	}
 
@@ -3399,7 +3091,8 @@ button.mp-transfer-item:hover {
 		margin-bottom: 1rem;
 	}
 
-	.mp-transfers-tabs .btn {
+	.mp-transfers-tabs .btn,
+	.mp-updates-tabs .btn {
 		position: relative;
 		min-height: 44px;
 		padding: .55rem .5rem;
@@ -3411,12 +3104,14 @@ button.mp-transfer-item:hover {
 		white-space: normal;
 	}
 
-	.mp-transfers-tabs [aria-selected="true"] {
+	.mp-transfers-tabs [aria-selected="true"],
+	.mp-updates-tabs [aria-selected="true"] {
 		border-color: #6adbac;
 		background: #176547;
 	}
 
-	.mp-transfers-tabs .btn:focus-visible {
+	.mp-transfers-tabs .btn:focus-visible,
+	.mp-updates-tabs .btn:focus-visible {
 		outline: 2px solid #6adbac;
 		outline-offset: 2px;
 	}
@@ -3463,9 +3158,6 @@ button.mp-transfer-item:hover {
 		margin-bottom: 1rem;
 	}
 
-	.mp-updates-tabs .btn {
-		position: relative;
-	}
 
 	.mp-updates-tab-badge {
 		position: absolute !important;
@@ -3593,8 +3285,8 @@ mp-chat-composer { display: block; min-width: 0; }
 }
 .mp-chat-editor:focus-visible { box-shadow: 0 0 0 2px rgba(92, 128, 209, .5); }
 .mp-chat-editor[contenteditable="false"] { opacity: .5; cursor: default; }
-.mp-chat-insert-item, .mp-chat-insert-feature { padding: .25rem .5rem; font-size: .875rem; font-weight: 400; }
-.mp-chat-insert-feature { margin-right: auto; }
+.mp-chat-insert-person, .mp-chat-insert-item, .mp-chat-insert-feature { padding: .25rem .5rem; font-size: .875rem; font-weight: 400; }
+.mp-chat-insert-item { margin-right: auto; }
 .mp-chat-compose-count { font-size: .8rem; opacity: .75; }
 .mp-chat-item-picker { text-align: start; }
 .mp-chat-item-search { width: 100%; margin-bottom: 10px; }
@@ -3624,6 +3316,10 @@ mp-chat-composer { display: block; min-width: 0; }
 .mp-chat-item-result:hover, .mp-chat-item-result:focus-visible { background: rgba(92, 128, 209, .2); outline: 2px solid #5c80d1; outline-offset: -2px; }
 @media (max-width: 767px) {
 	.mp-chat-compose-actions { flex-wrap: wrap; gap: 8px; }
+	.mp-chat-insert-person, .mp-chat-insert-item, .mp-chat-insert-feature {
+		font-size: 11px;
+		padding: .1rem .2rem;
+	}
 	.mp-chat-editor { font-size: 16px; }
 	.mp-chat-item-search { font-size: 16px; }
 	.mp-chat-item-results { max-height: 32vh; max-height: 32dvh; }
@@ -3651,7 +3347,7 @@ mp-chat-composer { display: block; min-width: 0; }
 .mp-expedition-debug-controls summary { cursor: pointer; font-weight: 600; }
 .mp-expedition-debug-controls summary:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .mp-expedition-chamber-card { position: relative; display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 1.1rem; padding: .65rem; align-items: stretch; }
-.mp-expedition-chamber-art-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: .3rem; background: #122631; }
+.mp-expedition-chamber-art-frame { position: relative; align-self: start; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: .3rem; background: #122631; }
 .mp-expedition-chamber-art { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: .3rem; background: #122631; }
 .mp-expedition-chamber-art[data-chamber-id="prismatic_descent"] {
 	filter: brightness(0.5) contrast(1.1);
@@ -3836,7 +3532,7 @@ mp-chat-composer { display: block; min-width: 0; }
 .mp-crucible-wish-form { margin-top: 1rem; }
 .mp-crucible-clear-total { display: flex; align-items: center; justify-content: center; margin: .3rem 0; }
 
-/* Wish picker follows the Charitree item-grid interaction. */
+/* Crucible Wish picker. */
 #mp-crucible-wish-search {
 	outline: 1px solid;
 }
@@ -4010,8 +3706,10 @@ mp-chat-composer { display: block; min-width: 0; }
 	overscroll-behavior-y: contain;
 }
 
-.mp-expedition-work-prompts-toggle { display: flex; align-items: center; gap: .5rem; margin: .6rem 0 0; color: #c5d4da; font-size: .85rem; cursor: pointer; }
-.mp-expedition-work-prompts-toggle input { flex-shrink: 0; width: 1rem; height: 1rem; }
+.mp-expedition-work-modes { border: 0; padding: 0; margin: .6rem 0 0; color: #c5d4da; font-size: .85rem; }
+.mp-expedition-work-modes legend { width: auto; margin: 0; font-size: inherit; font-weight: 600; }
+.mp-expedition-work-mode { justify-content: flex-start; align-items: center; cursor: pointer; }
+.mp-expedition-work-mode input { flex-shrink: 0; width: 1rem; height: 1rem; margin: 0; accent-color: #5c80d1; }
 .mp-expedition-work-prompt-popup { width: min(40rem, 95vw) !important; }
 .mp-expedition-prompt-tasks { display: flex; flex-direction: column; gap: .75rem; max-height: 55vh; max-height: 40dvh; overflow-y: scroll; -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior-y: contain; text-align: left; padding: .25rem; }
 .mp-expedition-prompt-tasks .mp-expedition-task { background: #1c303b; border: 1px solid #45616b; border-radius: .45rem; padding: .85rem; color: #d4e2e7; }
@@ -4145,6 +3843,7 @@ span:has([lang-id="MOD_MP_TRANSFER_HISTORY_RECONSTRUCTED"]) {
 }
 
 .mp-transfer-history-item-detail { min-width: 0; }
+.mp-transfer-history-exchange { margin-top: .35rem; color: #a8bec5; font-size: .8rem; overflow-wrap: anywhere; }
 .mp-transfer-history-source { color: #a8bec5; font-size: .75rem; overflow-wrap: anywhere; }
 
 .mp-guild-cheats-badge:focus-visible {
@@ -4319,3 +4018,20 @@ span:has([lang-id="MOD_MP_TRANSFER_HISTORY_RECONSTRUCTED"]) {
 .mp-multiplayer-settings .mp-listing-toggle > span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .mp-multiplayer-settings .mp-listing-toggle:disabled { opacity: .6; cursor: wait; }
 .mp-settings-close { display: block; width: 100%; margin-top: .75rem; }
+
+.mp-chat-tagged {
+	box-shadow: 0 0 4px 2px rgb(255, 0, 227);
+}
+
+.mp-chat-unread-badge {
+	background-color: #ff4545;
+	color: white;
+	padding: 3px 5px;
+	font-weight: 700 !important;
+	text-align: center;
+}
+
+.mp-chat-tagged-nav,
+#mp-chat-header-unread.mp-chat-tagged-nav {
+	background-color: rgb(255, 0, 227);
+}

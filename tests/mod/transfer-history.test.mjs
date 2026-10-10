@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { create_transfer_history_state, create_transfer_history_loader, visible_transfer_history, transfer_history_label, transfer_history_items, transfer_history_context, transfer_history_sources, HISTORY_WINDOW } from '../../mod/transfer-history.mjs';
+import { create_transfer_history_state, create_transfer_history_loader, visible_transfer_history, transfer_history_label, transfer_history_items, transfer_history_context, transfer_history_sources, transfer_history_exchange, HISTORY_WINDOW } from '../../mod/transfer-history.mjs';
 
 const entry = (id, at = 1000) => ({ id, occurred_at: at, event_type: 'market-sell', items: [] });
 
@@ -150,6 +150,47 @@ test('every supported locale translates the new history context labels and prese
 			const value = strings['MOD_MP_TRANSFER_HISTORY_' + key];
 			assert.ok(typeof value === 'string' && value.trim(), `${locale}: ${key}`);
 			if (['FROM', 'TO', 'WITH'].includes(key)) assert.equal(value.split('%s').length, 2, `${locale}: ${key}`);
+		}
+	}
+});
+
+
+test('direct marketplace exchanges show the counterparty while escrow destinations retain the feature', () => {
+	const lang = key => ({ MOD_MP_TRANSFER_HISTORY_TO: 'To: %s', MOD_MP_PAGE_MARKET: 'Marketplace' }[key] ?? key);
+	for (const event_type of ['market-buy', 'market-fulfill'])
+		assert.equal(transfer_history_context({ pane: 'outbox', source_type: 'market', source_name: 'Valkorian', event_type }, lang), 'To: Valkorian');
+	for (const event_type of ['market-sell', 'market-buy-order'])
+		assert.equal(transfer_history_context({ pane: 'outbox', source_type: 'market', event_type }, lang), 'To: Marketplace');
+});
+
+test('exchange context renders all four labels without signs and rejects incomplete or unsafe snapshots', async () => {
+	const lang = JSON.parse(await readFile(new URL('../../mod/data/lang/en.json', import.meta.url), 'utf8'));
+	const format = item => item.qty.toLocaleString('en-US') + (item.item_id === 'SC' ? ' Slayer Coins' : ' × Bank Slot Token');
+	for (const [label, expected] of [['purchased', 'Purchased: 25 × Bank Slot Token'], ['paid', 'Paid: 70,700 Slayer Coins'],
+		['sold', 'Sold: 25 × Bank Slot Token'], ['proceeds', 'Proceeds: 70,700 Slayer Coins']]) {
+		const exchange = { label, item_id: ['paid', 'proceeds'].includes(label) ? 'SC' : 'Token', qty: ['paid', 'proceeds'].includes(label) ? 70700 : 25 };
+		assert.equal(transfer_history_exchange({ exchange }, key => lang[key], format), expected);
+		assert.equal(transfer_history_exchange({ exchange, event_type: 'inbox.claimed' }, key => lang[key], format), '');
+	}
+	for (const exchange of [undefined, {}, { label: 'unknown', item_id: 'SC', qty: 2 }, { label: '__proto__', item_id: 'SC', qty: 2 },
+		{ label: 'paid', item_id: '', qty: 2 }, { label: 'paid', item_id: 'SC', qty: 0 },
+		{ label: 'paid', item_id: 'SC', qty: -1 }, { label: 'paid', item_id: 'SC', qty: 1.5 },
+		{ label: 'paid', item_id: 'SC', qty: Number.MAX_SAFE_INTEGER + 1 }])
+		assert.equal(transfer_history_exchange({ exchange }, key => lang[key], format), '');
+});
+
+test('all history panes render unsigned exchange context and every locale preserves its value placeholder', async () => {
+	const templates = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
+	assert.equal((templates.match(/class="mp-transfer-history-exchange"/g) ?? []).length, 3);
+	assert.equal((templates.match(/v-show="state.get_transfer_history_exchange\(entry\)"/g) ?? []).length, 3);
+	const { readdir } = await import('node:fs/promises');
+	const directory = new URL('../../mod/data/lang/', import.meta.url);
+	for (const locale of (await readdir(directory)).filter(name => name.endsWith('.json'))) {
+		const strings = JSON.parse(await readFile(new URL(locale, directory), 'utf8'));
+		for (const key of ['PURCHASED', 'PAID', 'SOLD', 'PROCEEDS']) {
+			const value = strings['MOD_MP_TRANSFER_HISTORY_EXCHANGE_' + key];
+			assert.ok(typeof value === 'string' && value.trim(), `${locale}: ${key}`);
+			assert.equal(value.split('%s').length, 2, `${locale}: ${key}`);
 		}
 	}
 });

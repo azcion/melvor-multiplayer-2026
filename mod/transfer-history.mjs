@@ -107,7 +107,9 @@ export function transfer_history_context(entry, get_lang) {
 	const labels = { market: 'MOD_MP_PAGE_MARKET', crucible: 'MOD_MP_PAGE_CRUCIBLE',
 		campaign: 'MOD_MP_TRANSFER_HISTORY_CAMPAIGN', gift: 'MOD_MP_TRANSFER_HISTORY_GIFT', trade: 'MOD_MP_TRANSFER_HISTORY_TRADE' };
 	const feature = labels[entry.source_type] ? get_lang(labels[entry.source_type]) : '';
-	const destination = [feature, entry.source_name].filter(Boolean).join(' · ');
+	const direct_exchange = entry.pane === 'outbox' && ['market-buy', 'market-fulfill'].includes(entry.event_type);
+	const destination = direct_exchange && entry.source_name ? entry.source_name
+		: [feature, entry.source_name].filter(Boolean).join(' · ');
 	return destination ? get_lang(entry.pane === 'outbox' ? 'MOD_MP_TRANSFER_HISTORY_TO' : 'MOD_MP_TRANSFER_HISTORY_FROM').replace('%s', destination) : '';
 }
 
@@ -126,4 +128,14 @@ function history_source_title(source, get_lang, inbox_title) {
 		(source.source_name === 'Wish Granted' ? 'WISH_GRANTED' : 'CRUCIBLE_RECLAIM'));
 	if (source.source_type === 'campaign') return get_lang('MOD_MP_TRANSFER_HISTORY_CAMPAIGN');
 	return inbox_title(source);
+}
+
+// Context explains the exchange; it never participates in signed movements or claims.
+export function transfer_history_exchange(entry, get_lang, format_item) {
+	const exchange = entry.exchange;
+	const labels = { purchased: 'PURCHASED', paid: 'PAID', sold: 'SOLD', proceeds: 'PROCEEDS' };
+	if (entry.event_type === 'inbox.claimed' || !exchange || !Object.hasOwn(labels, exchange.label) ||
+		typeof exchange.item_id !== 'string' || !exchange.item_id.trim() ||
+		!Number.isSafeInteger(exchange.qty) || exchange.qty <= 0) return '';
+	return get_lang('MOD_MP_TRANSFER_HISTORY_EXCHANGE_' + labels[exchange.label]).replace('%s', format_item(exchange));
 }

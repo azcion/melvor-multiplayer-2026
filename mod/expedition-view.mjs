@@ -134,13 +134,11 @@ export function sync_phase_state(state, chamber) {
 
 export function work_skill_name(game, skill_id) {
 	if (skill_id === 'melvorD:Combat') return 'Combat';
-	if (skill_id === 'melvorD:AltMagic') return 'Alt. Magic';
 	return game.skills?.getObjectByID(skill_id)?.name ?? skill_id;
 }
 
 export function work_skill_icon(game, skill_id) {
 	if (skill_id === 'melvorD:Combat') return 'assets/media/skills/combat/combat.png';
-	if (skill_id === 'melvorD:AltMagic') return game.altMagic?.media ?? 'assets/media/main/question.png';
 	return game.skills?.getObjectByID(skill_id)?.media ?? 'assets/media/main/question.png';
 }
 

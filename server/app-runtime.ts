@@ -1,3 +1,4 @@
+import { CHEAT_MOD_NAMES } from './mod_names';
 import { can_cast_council_vote, council_voter_count, resolve_council_vote } from './council-voting';
 import { register_page_read } from './page-reads';
 import { record_pending_exchange } from './transfer-history';
@@ -74,9 +75,7 @@ import {
 	get_campaign_pet_id,
 	get_owned_pet_ids,
 	grant_campaign_pet_if_eligible,
-	grant_charity_pet_if_rolled,
 	grant_pet,
-	get_charity_pet_chance,
 	has_owned_pet
 } from './pets';
 import {
@@ -155,9 +154,7 @@ import {
 	settle_assault,
 	type RaidOutcome
 } from './raid';
-import { add_charity_gloop, auto_claim_due_charity_wishes, destroy_charity_wishes, distribute_charity_wish_progress_from_stack, get_charity_shuffle_owner_key, normalize_charity_shuffle_events, settle_departing_charity_wish } from './charity-wishes';
-import { apply_crucible_petition, crucible_migration_complete, is_crucible_petition_type, settle_departing_crucible_wish } from './crucible-council';
-import { CHARITY_NORMAL_DECAY_MS, get_charity_decay_context, get_effective_charity_expiry } from './charity-decay';
+import { apply_crucible_petition, is_crucible_petition_type, settle_departing_crucible_wish } from './crucible-council';
 // #endregion
 export { db, db_get_single, db_execute, db_insert, db_exists, db_get_all, db_run, get_service_setting, register_client } from './db';
 export { CAMPAIGN_AUTO_ADVANCE_INTERVAL, CAMPAIGN_AUTO_CONTRIBUTION_CAP, CAMPAIGN_AUTO_PROGRESS_SQL, get_campaign_auto_advance, get_campaign_item_total } from './campaign';
@@ -179,12 +176,8 @@ export { attach_reactions, reaction_updates, set_message_reaction } from './chat
 export { acknowledge_deletion_return_claim, associate_client_with_melvor_account, cancel_deletion_on_authentication, cancel_scheduled_client_deletion, CLIENT_DELETION_MAINTENANCE_INTERVAL, create_deletion_return_claim, get_client_deletion_status, get_deletion_claim_view, has_deletion_returns, list_sibling_identities, parse_melvor_account, process_due_client_deletions, recover_deleted_client, schedule_client_deletion } from './identity';
 export { acknowledge_economy_receipt, economy_item_effects, pending_economy_receipts, run_economy_command } from './economy';
 export { acknowledge_victory_cache, abandon_assault, activate_raid, get_raid_state, get_victory_cache, reserve_assault, settle_assault } from './raid';
-export { CHARITY_KNOWN_CURRENCY_VALUATIONS, get_charity_known_valuation } from './charity-values';
 export { BACKEND_VERSION } from './version';
-export { CHARITY_SHUFFLE_BONUS_LIMIT, CHARITY_WISH_AUTO_CLAIM_MS, CHARITY_WISH_MATURING_MS, CHARITY_WISH_SHUFFLE_PENALTY, CHARITY_WISH_VALUES, add_charity_gloop, apply_taken_charity_wish_bonuses, auto_claim_due_charity_wishes, destroy_charity_wishes, get_charity_shuffle_owner_key, get_charity_wish_account, get_charity_wish_maturing_ms, grant_charity_wish_to_inbox,
-	list_charity_wishes, normalize_charity_shuffle_events, run_charity_wish_command, settle_departing_charity_wish } from './charity-wishes';
 export { settle_departing_crucible_wish } from './crucible-council';
-export { get_charity_decay_context, get_effective_charity_expiry } from './charity-decay';
 export {
 	CHARITY_PET_ID,
 	CAMPAIGN_PET_IDS,
@@ -192,9 +185,7 @@ export {
 	get_campaign_pet_id,
 	get_owned_pet_ids,
 	grant_campaign_pet_if_eligible,
-	grant_charity_pet_if_rolled,
 	grant_pet,
-	get_charity_pet_chance,
 	has_owned_pet
 } from './pets';
 
@@ -298,16 +289,7 @@ export type GuildMemberRow = {
 };
 
 export const CHEAT_USE_WINDOW = 7 * 24 * 60 * 60 * 1000;
-export const CHEAT_MOD_NAMES = new Set([
-	'Add Items',
-	'God Mode',
-	'dev.Console',
-	'[Creative Mode] God mode w/ Loot + XP Multipliers',
-	'Melvor Cheat Suite',
-	'Cheat Chest',
-	'Universal Item Spawner',
-	'Loot Chests'
-]);
+export { CHEAT_MOD_NAMES } from './mod_names';
 
 export function is_using_cheats(cheats_detected_at: number | null, now = Date.now()): boolean {
 	return cheats_detected_at !== null && Number.isSafeInteger(cheats_detected_at) &&
@@ -386,7 +368,6 @@ export type GuildCapabilities = {
 	gifts: boolean;
 	trades: boolean;
 	marketplace: boolean;
-	charitree: boolean;
 	campaigns: boolean;
 	council: boolean;
 	member_search: boolean;
@@ -395,7 +376,7 @@ export type GuildCapabilities = {
 export const FREE_FELLOWSHIP_TYPE: GuildType = 'free_fellowship';
 export const PUBLIC_GUILD_TYPE: GuildType = 'public';
 export const GUILD_MEMBER_PAGE_SIZE = 50;
-export const DIRECT_JOIN_CHARITREE_LOCK = 1000 * 60 * 60 * 4;
+export const DIRECT_JOIN_CRUCIBLE_LOCK = 1000 * 60 * 60 * 4;
 
 export const GUILD_CAPABILITIES: Record<GuildType, GuildCapabilities> = {
 	private: {
@@ -405,7 +386,6 @@ export const GUILD_CAPABILITIES: Record<GuildType, GuildCapabilities> = {
 		gifts: true,
 		trades: true,
 		marketplace: true,
-		charitree: true,
 		campaigns: true,
 		council: true,
 		member_search: true
@@ -417,7 +397,6 @@ export const GUILD_CAPABILITIES: Record<GuildType, GuildCapabilities> = {
 		gifts: true,
 		trades: true,
 		marketplace: true,
-		charitree: true,
 		campaigns: true,
 		council: true,
 		member_search: true
@@ -429,7 +408,6 @@ export const GUILD_CAPABILITIES: Record<GuildType, GuildCapabilities> = {
 		gifts: true,
 		trades: true,
 		marketplace: true,
-		charitree: true,
 		campaigns: true,
 		council: true,
 		member_search: true
@@ -519,84 +497,6 @@ export const CACHE_SESSION_LIFETIME = 1000 * 60 * 60; // 1 hour
 // time between data cache sweeps
 export const CACHE_RESET_INTERVAL = 1000 * 60 * 60 * 24; // 24 hours
 export const CLIENT_ACTIVITY_WRITE_INTERVAL = 1000 * 60 * 5; // 5 minutes
-
-// time between players taking charity items
-export const CHARITY_TIMEOUT = 1000 * 60 * 60 * 20; // 20 hours
-export const CHARITY_ITEM_LIFETIME = CHARITY_NORMAL_DECAY_MS; // 4 days
-export const CHARITY_MAINTENANCE_INTERVAL = 1000 * 60 * 60; // 1 hour
-export const CHARITY_WEIRD_GLOOP_ID = 'melvorD:Weird_Gloop';
-export const CHARITY_WEIRD_GLOOP_GP_VALUE = 1000;
-
-export type CharityState = {
-	enabled: boolean;
-	eligible: boolean;
-	next_opportunity_at: number;
-};
-
-export function charity_state_from_values({
-	charitree_enabled,
-	social_only,
-	charitree_take_available_at,
-	last_charity,
-	last_bonus_charity,
-	server_owned_pets,
-	now = Date.now()
-}: {
-	charitree_enabled: boolean;
-	social_only: boolean;
-	charitree_take_available_at: number;
-	last_charity: number;
-	last_bonus_charity: number;
-	server_owned_pets: boolean;
-	now?: number;
-}): CharityState {
-	if (!charitree_enabled || social_only)
-		return { enabled: false, eligible: false, next_opportunity_at: 0 };
-
-	const normal_opportunity_at = last_charity + CHARITY_TIMEOUT;
-	const bonus_opportunity_at = server_owned_pets ? Number.POSITIVE_INFINITY : last_bonus_charity + CHARITY_TIMEOUT;
-	const next_opportunity_at = Math.max(
-		charitree_take_available_at,
-		Math.min(normal_opportunity_at, bonus_opportunity_at)
-	);
-	return {
-		enabled: true,
-		eligible: next_opportunity_at <= now,
-		next_opportunity_at: next_opportunity_at <= now ? 0 : next_opportunity_at
-	};
-}
-
-export async function get_client_charity_state(client_id: number, _mod_version: string | null | undefined, now = Date.now(), server_owned_pets = true): Promise<CharityState> {
-	if (get_service_setting('crucible_cutover') === '1')
-		return { enabled: false, eligible: false, next_opportunity_at: 0 };
-	const row = await db_get_single(
-		' SELECT membership.`charitree_take_available_at`, guild.`charitree_enabled`, ' +
-		'client.`social_mode`, client.`last_charity`, client.`last_bonus_charity` ' +
-		'FROM `guild_memberships` AS membership ' +
-		'JOIN `guilds` AS guild ON guild.`id` = membership.`guild_id` ' +
-		'JOIN `clients` AS client ON client.`id` = membership.`client_id` ' +
-		'WHERE membership.`client_id` = ? LIMIT 1',
-		[client_id]
-	) as {
-		charitree_take_available_at: number;
-		charitree_enabled: number;
-		social_mode: SocialMode;
-		last_charity: number;
-		last_bonus_charity: number;
-	} | null;
-	if (row === null)
-		return { enabled: false, eligible: false, next_opportunity_at: 0 };
-
-	return charity_state_from_values({
-		charitree_enabled: row.charitree_enabled === 1,
-		social_only: is_social_only_client(client_id),
-		charitree_take_available_at: row.charitree_take_available_at,
-		last_charity: row.last_charity,
-		last_bonus_charity: row.last_bonus_charity,
-		server_owned_pets,
-		now
-	});
-}
 
 export const CAMPAIGN_RESTART_TIMER = 1000 * 60 * 60 * 12; // 12 hours
 
@@ -1141,90 +1041,22 @@ export function unlock_winnowing_targets(petition_id: number) {
 	).run(petition_id);
 }
 
-export function expire_charity_items_now(now = Date.now(), guild_id?: number): number {
-	if (get_service_setting('crucible_cutover') === '1') return 0;
-	const preserve_unknown_values = get_service_setting('charity_value_backfill_pending') === '1' ? 1 : 0;
-	type ExpirableCharityItem = Pick<db_row.charity_items,
-		'guild_id' | 'item_id' | 'qty' | 'expires_at' | 'value_currency_id' | 'value_per_item'>;
-	const candidates = guild_id === undefined
-		? db.query<ExpirableCharityItem, SQLQueryBindings[]>(
-			'SELECT `guild_id`, `item_id`, `qty`, `expires_at`, `value_currency_id`, `value_per_item` ' +
-			'FROM `charity_items` WHERE `item_id` != ? AND (? = 0 OR `value_per_item` IS NOT NULL) ' +
-			'ORDER BY `guild_id`, `item_id`'
-		).all(CHARITY_WEIRD_GLOOP_ID, preserve_unknown_values)
-		: db.query<ExpirableCharityItem, SQLQueryBindings[]>(
-			'SELECT `guild_id`, `item_id`, `qty`, `expires_at`, `value_currency_id`, `value_per_item` ' +
-			'FROM `charity_items` WHERE `guild_id` = ? AND `item_id` != ? ' +
-			'AND (? = 0 OR `value_per_item` IS NOT NULL) ORDER BY `item_id`'
-		).all(guild_id, CHARITY_WEIRD_GLOOP_ID, preserve_unknown_values);
-	const decay_contexts = new Map<number, ReturnType<typeof get_charity_decay_context>>();
-	const expired = candidates.filter(item => {
-		if (!decay_contexts.has(item.guild_id))
-			decay_contexts.set(item.guild_id, get_charity_decay_context(item.guild_id, db, now));
-		return get_effective_charity_expiry(item.expires_at, decay_contexts.get(item.guild_id) ?? null) <= now;
-	});
-	const gloop_gp_by_guild = new Map<number, bigint>();
-	for (const item of expired)
-		if (item.value_currency_id === 'melvorD:GP' && item.value_per_item !== null && item.value_per_item > 0) {
-			const total_gp = BigInt(item.qty) * BigInt(item.value_per_item);
-			const remainder = distribute_charity_wish_progress_from_stack(item.guild_id, item.item_id, total_gp, now, db);
-			if (remainder > 0n)
-				gloop_gp_by_guild.set(item.guild_id, (gloop_gp_by_guild.get(item.guild_id) ?? 0n) + remainder);
-		}
-	for (const [expired_guild_id, gloop_gp] of gloop_gp_by_guild) {
-		add_charity_gloop(expired_guild_id, gloop_gp, db);
-	}
-	for (const item of expired) {
-		const event_id = record_audit_event({
-			event_type: 'charitree.expired',
-			source_key: `charitree-expired:${item.guild_id}:${item.item_id}:${now}`,
-			actor: { kind: 'system' },
-			guild_id: item.guild_id,
-			occurred_at: now,
-			values: [{ object_id: item.item_id, quantity: item.qty, direction: 'destroy' }],
-			details: {
-				value_currency_id: item.value_currency_id,
-				value_per_item: item.value_per_item
-			}
-		});
-		move_audit_value_with_fallback(event_id, item.item_id, item.qty, 'charitree',
-			audit_position_key('charitree', item.guild_id), null, null);
-	}
-	let deleted = 0;
-	for (const item of expired)
-		deleted += db.query('DELETE FROM `charity_items` WHERE `guild_id` = ? AND `item_id` = ?')
-			.run(item.guild_id, item.item_id).changes;
-	for (const expired_guild_id of decay_contexts.keys())
-		get_charity_decay_context(expired_guild_id, db, now);
-	auto_claim_due_charity_wishes(now, guild_id);
-	return deleted;
-}
-
-export function expire_charity_items(now = Date.now(), guild_id?: number): number {
-	const expire = db.transaction(() => expire_charity_items_now(now, guild_id));
-	return expire.immediate();
-}
-
 export function claim_council_action(now = Date.now()): db_row.guild_petitions | null {
 	const claim = db.transaction(() => {
 		const petition = db.query(
 			"SELECT * FROM `guild_petitions` WHERE `lifecycle` = 'granted' " +
-			"AND `type` IN ('appellation', 'heraldry', 'banishment', 'winnowing', 'charitree_ingratitude', " +
-			"'charitree_sacrilege', 'charitree_beneficence', 'fellowship', 'enclosure', 'interdict', 'heresy', " +
+			"AND `type` IN ('appellation', 'heraldry', 'banishment', 'winnowing', " +
+			"'fellowship', 'enclosure', 'interdict', 'heresy', " +
 			"'temperance', 'indulgence', 'crucible_purging', 'crucible_sealing', 'crucible_unsealing', " +
 			"'alliance_found','alliance_consider','alliance_join','alliance_leave','alliance_remove'," +
 			"'alliance_market_enable','alliance_market_disable','alliance_withdraw','alliance_ballot') AND (" +
 			"`execution_state` = 'pending' OR " +
 			"(`execution_state` = 'failed' AND `execution_last_attempt_at` <= ?) OR " +
 			"(`execution_state` = 'running' AND `execution_last_attempt_at` <= ?)) " +
-			"AND (? = 0 OR `type` NOT LIKE 'charitree_%') " +
-			"AND (? = 1 OR `type` NOT LIKE 'crucible_%') " +
 			'ORDER BY `id` LIMIT 1'
 		).get(
 			now - PETITION_FAILED_RETRY_AFTER,
-			now - PETITION_RUNNING_STALE_AFTER,
-			get_service_setting('crucible_cutover') === '1' ? 1 : 0,
-			crucible_migration_complete() ? 1 : 0
+			now - PETITION_RUNNING_STALE_AFTER
 		) as db_row.guild_petitions;
 		if (petition === null)
 			return null;
@@ -1380,7 +1212,6 @@ export function apply_banishment_target(
 
 		record_guild_activity({ guild_id: petition.guild_id, event_type: 'banished', actor_client_id: target_client_id,
 			source_key: `petition:${petition.id}:membership:${membership.id}:banished`, created_at: now });
-		settle_departing_charity_wish(target_client_id, petition.guild_id, now);
 		settle_departing_crucible_wish(target_client_id, petition.guild_id, now);
 		db.query('DELETE FROM `guild_memberships` WHERE `id` = ?').run(membership.id);
 		const remaining = db.query(
@@ -1460,8 +1291,6 @@ export function apply_council_guild_action(petition: db_row.guild_petitions): st
 		cleanup_market_permissions();
 		return effect;
 	}).immediate();
-	if (petition.type.startsWith('charitree_') && get_service_setting('crucible_cutover') === '1')
-		return 'retired_at_crucible_cutover';
 	if (is_crucible_petition_type(petition.type))
 		return apply_crucible_petition(petition);
 	if (petition.type === 'appellation') {
@@ -1515,44 +1344,6 @@ export function apply_council_guild_action(petition: db_row.guild_petitions): st
 			).run(petition.guild_id);
 		return updated.changes === 1 ? (enabled === 1 ? 'tempered' : 'indulged') : 'already_applied_or_absent';
 	}
-	if (petition.type === 'charitree_ingratitude') {
-		const clear = db.transaction(() => {
-			const captured_wishes = db.query<db_row.charity_wishes, [number]>(
-				'SELECT wish.* FROM `charity_wishes` AS wish ' +
-					'JOIN `guild_petition_charity_wishes` AS captured ON captured.`wish_id` = wish.`id` ' +
-					'WHERE captured.`petition_id` = ?'
-			).all(petition.id);
-			const items = db.query(
-				'DELETE FROM `charity_items` WHERE `guild_id` = ? AND `expires_at` <= ?'
-			).run(petition.guild_id, petition.charitree_expires_before).changes;
-			const wishes = destroy_charity_wishes(captured_wishes, Date.now(), db);
-			return items + wishes;
-		}).immediate();
-		return clear > 0 ? 'cleared' : 'already_empty';
-	}
-	if (petition.type === 'charitree_sacrilege') {
-		const disable = db.transaction(() => {
-			const destroyed_wishes = db.query<db_row.charity_wishes, [number]>(
-				'SELECT * FROM `charity_wishes` WHERE `guild_id` = ?'
-			).all(petition.guild_id);
-			const updated = db.query(
-				'UPDATE `guilds` SET `charitree_enabled` = 0 WHERE `id` = ? AND `charitree_enabled` = 1'
-			).run(petition.guild_id);
-			const removed = db.query('DELETE FROM `charity_items` WHERE `guild_id` = ?').run(petition.guild_id);
-			const wishes = destroy_charity_wishes(destroyed_wishes, Date.now(), db);
-			return { updated: updated.changes, removed: removed.changes + wishes };
-		});
-		const result = disable.immediate();
-		if (result.updated === 0)
-			return 'already_disabled';
-		return result.removed > 0 ? 'disabled_and_destroyed' : 'disabled_empty';
-	}
-	if (petition.type === 'charitree_beneficence') {
-		const updated = db.query(
-			'UPDATE `guilds` SET `charitree_enabled` = 1 WHERE `id` = ? AND `charitree_enabled` = 0'
-		).run(petition.guild_id);
-		return updated.changes === 1 ? 'enabled' : 'already_enabled';
-	}
 	if (petition.type === 'winnowing')
 		return apply_winnowing_action(petition);
 	return apply_banishment_action(petition);
@@ -1602,16 +1393,6 @@ export function maintain_council() {
 	setTimeout(maintain_council, COUNCIL_MAINTENANCE_INTERVAL);
 }
 
-export function maintain_charity() {
-	if (get_service_setting('crucible_cutover') === '1') return;
-	try {
-		expire_charity_items();
-	} catch (error) {
-		report_error('Charity maintenance failed', error);
-	}
-	setTimeout(maintain_charity, CHARITY_MAINTENANCE_INTERVAL);
-}
-
 export function execute_due_client_deletions(now = Date.now()) {
 	const executions = process_due_client_deletions(now);
 	if (executions.length === 0)
@@ -1641,7 +1422,6 @@ export function maintain_client_deletions() {
 setTimeout(sweep_client_session_cache, CACHE_SESSION_LIFETIME);
 setTimeout(sweep_data_caches, CACHE_RESET_INTERVAL);
 maintain_council();
-maintain_charity();
 maintain_client_deletions();
 // #endregion
 
@@ -2554,13 +2334,8 @@ export async function get_council_petitions(guild_id: number, client_id: number,
 	if (!free_fellowship_council && await get_guild_type(guild_id) === FREE_FELLOWSHIP_TYPE)
 		return { petitions: [], available_petition_types: [], market_discovery_restriction_enabled: false,
 			resolved_page, has_more: false };
-	const cutover = get_service_setting('crucible_cutover') === '1';
-	const excluded = (alliance_client ? "" : " AND p.type NOT LIKE 'alliance_%'") + (crucible_client
-		? (crucible_migration_complete()
-			? " AND p.`type` NOT LIKE 'charitree_%'"
-			: " AND p.`type` NOT LIKE 'charitree_%' AND p.`type` NOT LIKE 'crucible_%'")
-		: cutover ? " AND p.`type` NOT LIKE 'charitree_%' AND p.`type` NOT LIKE 'crucible_%'"
-			: " AND p.`type` NOT LIKE 'crucible_%'");
+	const excluded = (alliance_client ? "" : " AND p.type NOT LIKE 'alliance_%'") +
+		(crucible_client ? "" : " AND p.type NOT LIKE 'crucible_%'");
 	const select =
 		'SELECT p.*, target.`display_name` AS `target_display_name`, target.`icon_id` AS `target_icon_id`, ' +
 		'(SELECT COUNT(*) FROM `guild_petition_winnowing_targets` WHERE `petition_id` = p.`id`) AS `winnowing_target_count`, ' +
@@ -2588,17 +2363,15 @@ export async function get_council_petitions(guild_id: number, client_id: number,
 	) as CouncilPetitionRow[];
 
 	const guild = await db_get_single(
-		'SELECT g.`type`, g.`charitree_enabled`, g.`cheat_restriction_enabled`, ' +
+		'SELECT g.`type`, g.`cheat_restriction_enabled`, ' +
 			'g.`market_discovery_restriction_enabled`, ' +
-			'(EXISTS(SELECT 1 FROM `charity_items` WHERE `guild_id` = g.`id`) OR ' +
-			'EXISTS(SELECT 1 FROM `charity_wishes` WHERE `guild_id` = g.`id`)) AS `has_contents`, ' +
 			'EXISTS(SELECT 1 FROM `guild_memberships` AS membership ' +
 			'JOIN `clients` AS client ON client.`id` = membership.`client_id` ' +
 			'WHERE membership.`guild_id` = g.`id` AND client.`last_multiplayer_active_at` < ?) AS `has_shadowed` ' +
 			'FROM `guilds` AS g WHERE g.`id` = ? LIMIT 1',
 		[shadowed_cutoff(), guild_id]
-	) as { type: GuildType; charitree_enabled: number; cheat_restriction_enabled: number;
-		market_discovery_restriction_enabled: number; has_contents: number; has_shadowed: number } | null;
+	) as { type: GuildType; cheat_restriction_enabled: number;
+		market_discovery_restriction_enabled: number; has_shadowed: number } | null;
 	const available_petition_types: PetitionType[] = ['appellation', 'heraldry', 'banishment'];
 	if (guild?.has_shadowed === 1)
 		available_petition_types.push('winnowing');
@@ -2614,14 +2387,7 @@ export async function get_council_petitions(guild_id: number, client_id: number,
 		available_petition_types.push('indulgence');
 	else if (guild?.market_discovery_restriction_enabled === 0)
 		available_petition_types.push('temperance');
-	if (!crucible_client && !cutover && guild?.charitree_enabled === 1) {
-		available_petition_types.push('charitree_sacrilege');
-		if (guild.has_contents === 1)
-			available_petition_types.push('charitree_ingratitude');
-	} else if (!crucible_client && !cutover && guild?.charitree_enabled === 0) {
-		available_petition_types.push('charitree_beneficence');
-	}
-	if (crucible_client && crucible_migration_complete()) {
+	if (crucible_client) {
 		const crucible = db.query<{ is_open: number }, [number]>(
 			'SELECT is_open FROM crucible_guilds WHERE guild_id = ?').get(guild_id);
 		if (crucible?.is_open === 1) {
@@ -3106,7 +2872,7 @@ export function validate_session_request(handler: SessionRequestHandler, json_bo
 			}
 
 			const now = Date.now();
-			catch_up_expedition_before_activity(client_id, expire_charity_items_now, now);
+			catch_up_expedition_before_activity(client_id, now);
 			if (now - (client_activity_writes.get(client_id) ?? 0) >= CLIENT_ACTIVITY_WRITE_INTERVAL) {
 				db.query('UPDATE `clients` SET `last_multiplayer_active_at` = ? WHERE `id` = ?')
 					.run(now, client_id);

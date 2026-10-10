@@ -174,7 +174,7 @@ test('keeps top-level Guild views mounted when affiliation changes', async () =>
 		templates.indexOf('<template id="template-mp-guild-page">'),
 		templates.indexOf('<template id="template-mp-free-fellowship-confirm-modal">')
 	);
-	const page_view_getter = main.slice(main.indexOf('get guild_page_view()'), main.indexOf('get is_charitree_enabled()'));
+	const page_view_getter = main.slice(main.indexOf('get guild_page_view()'), main.indexOf('get guild_member_count()'));
 
 	assert.match(page_view_getter, /return 'member'/);
 	assert.match(page_view_getter, /return 'applicant'/);
@@ -282,7 +282,6 @@ test('does not structurally detach UI branches when Guild membership changes', a
 	]);
 
 	assert.doesNotMatch(templates, /v-if="[^"]*state\.(?:is_guild_member|is_free_fellowship|is_charitree_enabled)/);
-	assert.match(main, /get is_charitree_enabled\(\) \{[\s\S]*return this\.is_guild_member/);
 });
 
 test('keeps Free Fellowship confirmation titles localized and guild results responsive', async () => {

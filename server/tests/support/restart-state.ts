@@ -17,7 +17,8 @@ export type RestartState = {
 	trade_id: number;
 	market_item_id: string;
 	market_lot_id: number;
-	charity_item_id: string;
+	crucible_item_id: string;
+	crucible_session_token: string;
 	campaign_contribution: number;
 	campaign_history_client: RegisteredClient;
 	campaign_completion_id: number;

@@ -9,6 +9,12 @@ function changed(change: (copy: ExpeditionContent) => void): ExpeditionContent {
 }
 
 describe('Expedition content v1', () => {
+	test('uses Magic for every authored magic requirement', () => {
+		const skills = EXPEDITION_CONTENT_V1.chambers.flatMap(chamber => chamber.tasks.flatMap(task => task.evidence.skill_ids));
+		expect(skills).toContain('melvorD:Magic');
+		expect(skills).not.toContain('melvorD:AltMagic');
+	});
+
 	test('keeps the preview on the seven-Chamber path while retaining poll options', () => {
 		expect(() => validate_expedition_content(EXPEDITION_CONTENT_PREVIEW)).not.toThrow();
 		expect(EXPEDITION_CONTENT_PREVIEW.version).toBe(2);

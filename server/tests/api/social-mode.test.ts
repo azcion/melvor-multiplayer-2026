@@ -82,9 +82,6 @@ describe('Social Only mode cancellation', () => {
 		const campaign_claim = await post('/api/campaign/claim', {
 			campaign_id: 1, value: 1, command_id: crypto.randomUUID()
 		}, authenticated.json.session_token);
-		const charity = await post_json<{ error_lang: string }>('/api/charity/donate', {
-			items: [{ id: 'melvorD:Blocked_Social_Charity', qty: 1 }], command_id: crypto.randomUUID()
-		}, authenticated.json.session_token);
 		const transfer_contents = await post_json<{ error_lang: string }>('/api/transfers/get_contents', {
 			gift_ids: [], trade_ids: [], resolved_trade_ids: []
 		}, authenticated.json.session_token);
@@ -111,7 +108,6 @@ describe('Social Only mode cancellation', () => {
 		expect(trade.json.error_lang).toBe('MOD_MP_SOCIAL_ONLY_DISABLED');
 		expect(campaign.json.error_lang).toBe('MOD_MP_SOCIAL_ONLY_DISABLED');
 		expect(campaign_claim.status).toBe(400);
-		expect(charity.json.error_lang).toBe('MOD_MP_SOCIAL_ONLY_DISABLED');
 		expect(transfer_contents.json.error_lang).toBe('MOD_MP_SOCIAL_ONLY_DISABLED');
 
 		const restored = await post_json<{ success: boolean; social_mode: string }>('/api/social-mode/set', {

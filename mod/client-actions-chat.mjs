@@ -112,6 +112,7 @@ export function install_chat_actions(runtime) {
 	const items = runtime.chat_items;
 	let item_picker_composer = null;
 	let feature_picker_composer = null;
+	let person_picker_composer = null;
 	let notifications_next_toggle_at = 0;
 	const reaction_throttle_ms = 1000;
 	const translation_wait_ms = 10000;
@@ -280,6 +281,111 @@ export function install_chat_actions(runtime) {
 			document.querySelector('mp-chat-composer')?.open_picker();
 		},
 
+		async show_chat_person_picker(composer) {
+			person_picker_composer = composer;
+			this.chat_person_search = '';
+			this.chat_person_catalog = [];
+			const conversation = this.selected_chat_conversation;
+			const key = get_chat_conversation_key(conversation);
+			try {
+				const kind = conversation?.conversation_kind ?? 'private';
+				const query = new URLSearchParams({ people: '1', conversation_kind: kind, capabilities: 'global-chat-v1,guild-chat-v1,polls-v1' });
+				if (conversation?.conversation_id != null) query.set('conversation_id', conversation.conversation_id);
+				if (conversation?.support_team_id != null) query.set('support_team_id', conversation.support_team_id);
+				const result = await api_get((conversation?.conversation_id == null && kind === 'private' ? '/api/chat/profile?' : '/api/chat/messages?') + query);
+				if (!composer.isConnected || key !== get_chat_conversation_key(this.selected_chat_conversation)) return;
+				this.chat_person_catalog = (result.people ?? []).map(person => ({ ...person, id: person.client_id, name: person.display_name, media: this.get_avatar_icon(person.icon_id) }));
+			} catch (error) {
+				log('chat person picker fetch failed (%s)', error);
+				this.chat_error = getLangString('MOD_MP_GENERIC_ERR');
+				return;
+			}
+			queue_modal('MOD_MP_CHAT_TAG_PERSON', 'chat-person-picker-modal', undefined, {
+				showConfirmButton: false,
+				customClass: { popup: 'mp-chat-item-picker-modal-popup' },
+				didOpen: () => {
+					this.render_chat_person_results();
+					document.querySelector('.mp-chat-person-search')?.focus();
+				},
+				didClose: () => {
+					if (person_picker_composer === composer) person_picker_composer = null;
+					if (composer.isConnected && composer.key === get_chat_conversation_key(state.selected_chat_conversation)) {
+						if (composer.picker_person) composer.insert_person(composer.picker_person);
+						else {
+							composer.editor.focus();
+							composer.set_selection(...composer.picker_restore_selection);
+						}
+					}
+				}
+			});
+		},
+
+		open_chat_person_picker() {
+			document.querySelector('mp-chat-composer')?.open_picker(undefined, false, 'person');
+		},
+
+		get_chat_person_results() {
+			const search = this.chat_person_search.trim().toLocaleLowerCase();
+			return (this.chat_person_catalog ?? []).filter(person => !search ||
+				person.name.toLocaleLowerCase().includes(search)).slice(0, 100);
+		},
+
+		update_chat_person_search(event) {
+			this.chat_person_search = event.target.value;
+			this.render_chat_person_results();
+		},
+
+		render_chat_person_results() {
+			const host = document.querySelector('.mp-chat-person-results');
+			const empty = document.querySelector('.mp-chat-person-empty');
+			if (!host || !empty) return;
+			const results = this.get_chat_person_results();
+			const fragment = document.createDocumentFragment();
+			for (const person of results) {
+				const button = document.createElement('button');
+				button.type = 'button';
+				button.className = 'mp-chat-item-result mp-chat-person-result';
+				button.addEventListener('click', () => state.choose_chat_person(person.id));
+				button.addEventListener('keydown', event => state.handle_chat_person_result_key(event, person.id));
+				const image = document.createElement('img');
+				image.src = person.media; image.alt = ''; image.draggable = false;
+				const name = document.createElement('span');
+				name.textContent = person.name;
+				button.append(image, name); fragment.append(button);
+			}
+			host.replaceChildren(fragment);
+			empty.classList.toggle('d-none', results.length !== 0);
+		},
+
+		choose_chat_person(id) {
+			const composer = person_picker_composer;
+			if (!composer?.isConnected || composer.key !== get_chat_conversation_key(this.selected_chat_conversation)) return;
+			if (!(this.chat_person_catalog ?? []).some(person => person.id === id)) return;
+			const person = this.chat_person_catalog.find(person => person.id === id);
+			if (id === this.chat_client_id) return;
+			composer.picker_person = { client_id: id, display_name: person.display_name, icon_id: person.icon_id };
+			this.close_modal();
+		},
+
+		handle_chat_person_search_key(event) {
+			if (event.isComposing) return;
+			if (event.key === 'ArrowDown') {
+				event.preventDefault(); document.querySelector('.mp-chat-person-result')?.focus();
+			} else if (event.key === 'Enter') {
+				event.preventDefault(); const first = this.get_chat_person_results()[0]; if (first) this.choose_chat_person(first.id);
+			}
+		},
+
+		handle_chat_person_result_key(event, id) {
+			if (event.key === 'Enter' || event.key === ' ') {
+				event.preventDefault(); this.choose_chat_person(id); return;
+			}
+			if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+			event.preventDefault();
+			const next = event.key === 'ArrowDown' ? event.currentTarget.nextElementSibling : event.currentTarget.previousElementSibling;
+			(next ?? document.querySelector('.mp-chat-person-search'))?.focus();
+		},
+
 		show_chat_feature_picker(composer) {
 			feature_picker_composer = composer;
 			this.chat_feature_search = '';
@@ -332,11 +438,14 @@ export function install_chat_actions(runtime) {
 				button.className = 'mp-chat-item-result mp-chat-feature-result';
 				button.addEventListener('click', () => state.choose_chat_feature(feature.id));
 				button.addEventListener('keydown', event => state.handle_chat_feature_result_key(event, feature.id));
-				const image = document.createElement('img');
-				image.src = feature.media; image.alt = ''; image.draggable = false;
+				if (feature.media) {
+					const image = document.createElement('img');
+					image.src = feature.media; image.alt = ''; image.draggable = false;
+					button.append(image);
+				}
 				const name = document.createElement('span');
 				name.textContent = feature.name;
-				button.append(image, name); fragment.append(button);
+				button.append(name); fragment.append(button);
 			}
 			host.replaceChildren(fragment);
 			empty.classList.toggle('d-none', results.length !== 0);
@@ -472,7 +581,7 @@ export function install_chat_actions(runtime) {
 
 		get_chat_plain_content(message) {
 			return (message.parts ?? [{ type: 'text', text: message.content ?? '' }]).map(part => part.type === 'text' ? part.text :
-				part.type === 'feature' ? items.feature_name(game, getLangString, part.feature_id) :
+				part.type === 'person' ? part.display_name : part.type === 'feature' ? items.feature_name(game, getLangString, part.feature_id) :
 				game.items.getObjectByID(part.item_id)?.name ?? items.fallback_item_name(part.item_id)).join('');
 		},
 
@@ -485,6 +594,15 @@ export function install_chat_actions(runtime) {
 		is_chat_notifications_enabled(conversation = this.selected_chat_conversation) {
 			const key = get_chat_conversation_key(conversation);
 			return this.chat_notification_preferences[key] !== false;
+		},
+
+		is_chat_message_tagged(message) {
+			return (message.parts ?? []).some(part => part.type === 'person' && part.client_id === this.chat_client_id);
+		},
+
+		get_chat_notification_tagged(conversations = this.chat_conversations) {
+			return conversations.some(conversation => conversation.unread_count > 0 && conversation.unread_tagged === true &&
+				conversation.contributes_unread !== false && this.is_chat_notifications_enabled(conversation));
 		},
 
 		get_chat_notification_unread(conversations = this.chat_conversations) {

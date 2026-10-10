@@ -20,6 +20,19 @@ export function resolve_multiplayer_language(lang) {
 	return MULTIPLAYER_SUPPORTED_LANGUAGES.includes(lang) ? lang : 'en';
 }
 
+// Display-only: keep currency definitions and native game currency objects unchanged.
+export function localize_currency_shorthand(entry, lang, getLangString) {
+	if (entry?.id === 'melvorD:GP' && (lang === 'zh-CN' || lang === 'zh-TW'))
+		return getLangString('MOD_MP_CURRENCY_GOLD_PIECES');
+	return entry?.shorthand ?? '';
+}
+
+export function format_multiplayer_currency_amount(currency, amount, lang, getLangString) {
+	if (currency?.id === 'melvorD:GP' && (lang === 'zh-CN' || lang === 'zh-TW'))
+		return `${amount} ${getLangString('MOD_MP_CURRENCY_GOLD_PIECES')}`;
+	return currency?.formatAmount(amount) ?? amount;
+}
+
 export function localize_raid_content({ game, getLangString }) {
 	const localize = (object, property, value) => {
 		if (object)

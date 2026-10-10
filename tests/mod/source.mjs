@@ -4,7 +4,7 @@ const source_files = [
 	'mod/main.mjs',
 	'mod/client-actions-common.mjs',
 	'mod/client-actions-chat.mjs',
-	'mod/client-actions-market-charity.mjs',
+	'mod/client-actions-market.mjs',
 	'mod/client-actions-trading.mjs',
 	'mod/client-actions-transfer.mjs',
 	'mod/client-actions-social.mjs',
@@ -34,7 +34,7 @@ export async function read_release_changelog(root = new URL('../../', import.met
 
 export function load_sidebar_function(main, function_name, parameters) {
 	const function_start = main.indexOf(`function ${function_name}`);
-	const function_end_marker = function_name === 'update_charitree_nav'
+	const function_end_marker = function_name === 'update_crucible_nav'
 		? 'function update_multiplayer_nav'
 		: '\n// #endregion';
 	const function_end = main.indexOf(function_end_marker, function_start);

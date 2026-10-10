@@ -39,10 +39,12 @@ test('creates representative state before a server restart', async () => {
 	);
 	const market_lot_id = market.items.find(item => item.item_id === market_item_id)?.id as number;
 
-	const charity_item_id = 'melvorD:Restart_Charity';
-	await post_json('/api/charity/donate', {
-		items: [{ id: charity_item_id, qty: 11 }]
-	}, pair.first.session_token);
+	const crucible_client = await register_guild_client('Restart Crucible', 'Restart Crucible', '1.6.9');
+	const crucible_item_id = 'melvorD:Restart_Crucible';
+	await post_json('/api/crucible/cast', {
+		source: 'transfer',
+		items: [{ id: crucible_item_id, qty: 11 }], command_id: crypto.randomUUID()
+	}, crucible_client.session_token);
 
 	const campaign_contribution = 7;
 	await post_json('/api/campaign/contribute', {
@@ -268,7 +270,8 @@ test('creates representative state before a server restart', async () => {
 		trade_id: offered.json.trade_id,
 		market_item_id,
 		market_lot_id,
-		charity_item_id,
+		crucible_item_id,
+		crucible_session_token: crucible_client.session_token,
 		campaign_contribution,
 		campaign_history_client,
 		campaign_completion_id,

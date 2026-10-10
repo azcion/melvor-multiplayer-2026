@@ -14,12 +14,11 @@ export type AllianceProcess = {
 export const PROPOSAL_LIFETIME = 1000 * 60 * 60 * 96;
 const pending = "('local','waiting','recipient','collective')";
 export const alliance_capable = (version: unknown) => version === 'development' || is_client_version_at_least(version, '1.6.2');
-// Temporary preview gate: only characters linked to the maintainer's stored account.
-export const ALLIANCE_PREVIEW_ACCOUNT_ID = 1;
+// Keep the operator switch and protocol floor; Alliance access is public for every identity.
 export function has_alliance_access(client_id: number, version: unknown): boolean {
-	return get_service_setting('alliance_preview_enabled') !== '0' && alliance_capable(version) && db.query<{ melvor_account_id: number | null }, [number]>(
-		'SELECT melvor_account_id FROM clients WHERE id = ?'
-	).get(client_id)?.melvor_account_id === ALLIANCE_PREVIEW_ACCOUNT_ID;
+	return get_service_setting('alliance_preview_enabled') !== '0' && alliance_capable(version) && db.query(
+		'SELECT 1 FROM clients WHERE id = ?'
+	).get(client_id) !== null;
 }
 export function alliance_for_guild(guild_id: number) {
 	return db.query<{ id: number; name: string; shared_marketplace: number; created_at: number }, [number]>(

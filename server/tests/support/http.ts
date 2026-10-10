@@ -29,8 +29,7 @@ type RequestHeaders = NonNullable<RequestInit['headers']>;
 // Give those fixtures the same stable command identity as a current client; tests that
 // exercise rejection pass an explicit /api/v2 path and command_id value.
 const journaled_mutations = new Set([
-	'/api/campaign/claim', '/api/campaign/contribute', '/api/charity/donate', '/api/charity/shuffle', '/api/charity/take',
-	'/api/charity/wish/make', '/api/charity/wish/forsake', '/api/charity/wish/pick',
+	'/api/campaign/claim', '/api/campaign/contribute',
 	'/api/crucible/cast', '/api/crucible/reclaim', '/api/crucible/clear',
 	'/api/crucible/wish/make', '/api/crucible/wish/cancel', '/api/crucible/wish/claim',
 	'/api/gift/accept', '/api/gift/decline', '/api/gift/discard', '/api/gift/send',

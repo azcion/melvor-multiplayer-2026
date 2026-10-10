@@ -1,9 +1,7 @@
-import { db, get_service_setting } from './db';
-import { EXPEDITION_CONTENT_PREVIEW, preview_task_available } from './expedition-content';
+import { db } from './db';
+import { EXPEDITION_CONTENT_PREVIEW, preview_task_available, parse_expedition_content } from './expedition-content';
 import type { ExpeditionChamber, ExpeditionContent } from './expedition-content';
 import { RECENTLY_ACTIVE_AFTER } from './recent-activity';
-import { CHARITY_NORMAL_DECAY_MS } from './charity-decay';
-import { add_charity_contribution } from './charity-contributors';
 import { createHash } from 'node:crypto';
 import { update_unlocks } from './expedition-work';
 import { transfer_expedition_stash_to_crucible } from './crucible-actions';
@@ -26,7 +24,7 @@ export function can_debug_expedition(client_id: number): boolean {
 
 export function debug_advance_expedition(guild_id: number, expedition_id: number,
 	visit_id: number | null, action: 'registration' | 'task' | 'vote', task_id: string | null,
-	expire_charity: ExpireCharity, now = Date.now()): boolean {
+	now = Date.now()): boolean {
 	const changed = db.transaction(() => {
 		const expedition = current_expedition(guild_id);
 		if (!expedition || expedition.id !== expedition_id) return false;
@@ -53,7 +51,7 @@ export function debug_advance_expedition(guild_id: number, expedition_id: number
 			'SELECT target_ms, player_ms, system_ms, unlocked_at, completed_at, promoted_at FROM expedition_tasks WHERE visit_id = ? AND task_id = ?'
 		).get(visit_id, task_id);
 		if (!task || task.unlocked_at === null || task.completed_at !== null) return false;
-		const content = JSON.parse(expedition.content_snapshot) as ExpeditionContent;
+		const content = parse_expedition_content(expedition.content_snapshot);
 		const chamber_id = db.query<{ chamber_id: string }, [number]>(
 			'SELECT chamber_id FROM expedition_visits WHERE id = ?'
 		).get(visit_id)?.chamber_id;
@@ -72,16 +70,16 @@ export function debug_advance_expedition(guild_id: number, expedition_id: number
 		db.query('UPDATE expeditions SET revision = revision + 1 WHERE id = ?').run(expedition.id);
 		return true;
 	}).immediate();
-	if (changed) reconcile_expedition_visit(guild_id, expire_charity, now);
+	if (changed) reconcile_expedition_visit(guild_id, now);
 	return changed;
 }
 
 export function debug_cancel_expedition(guild_id: number, expedition_id: number,
-	expire_charity: ExpireCharity, now = Date.now()): boolean {
+	now = Date.now()): boolean {
 	return db.transaction(() => {
 		const expedition = current_expedition(guild_id);
 		if (!expedition || expedition.id !== expedition_id) return false;
-		dispose_stash(expedition, now, expire_charity);
+		dispose_stash(expedition, now);
 		db.query("UPDATE expedition_work_sessions SET ended_at = MAX(started_at, ?), credited_ms = 0, guild_ms = 0, end_reason = 'cancelled' WHERE expedition_id = ? AND ended_at IS NULL")
 			.run(now, expedition_id);
 		db.query('UPDATE expedition_work_claims SET settled_at = MAX(started_at, ?), credited_ms = 0 WHERE expedition_id = ? AND settled_at IS NULL')
@@ -144,7 +142,7 @@ type ExpeditionRow = {
 	current_visit_id: number | null;
 	last_qualifying_activity_at: number;
 	ended_at: number | null;
-	stash_outcome: 'pending' | 'empty' | 'charitree' | 'destroyed';
+	stash_outcome: 'pending' | 'empty' | 'crucible' | 'destroyed';
 	revision: number;
 };
 
@@ -163,9 +161,7 @@ function current_expedition(guild_id: number): ExpeditionRow | null {
 	).get(guild_id);
 }
 
-type ExpireCharity = (now: number, guild_id: number) => number;
-
-function dispose_stash(expedition: ExpeditionRow, now: number, expire_charity: ExpireCharity): void {
+function dispose_stash(expedition: ExpeditionRow, now: number): void {
 	const supplies = db.query<{
 		item_id: string; qty: number; value_currency_id: string | null; value_per_item: number | null;
 	}, [number]>('SELECT item_id, qty, value_currency_id, value_per_item FROM expedition_supplies WHERE expedition_id = ?')
@@ -175,72 +171,23 @@ function dispose_stash(expedition: ExpeditionRow, now: number, expire_charity: E
 			.run(expedition.id);
 		return;
 	}
-	if (get_service_setting('crucible_cutover') === '1') {
-		const outcome = transfer_expedition_stash_to_crucible(expedition.guild_id, expedition.id, now);
-		db.query('INSERT INTO expedition_crucible_outcomes ' +
-			'(expedition_id, source_guild_id, outcome, disposed_at) VALUES (?, ?, ?, ?)')
-			.run(expedition.id, expedition.guild_id, outcome, now);
-		for (const supply of supplies)
-			db.query('INSERT INTO expedition_crucible_disposals (expedition_id, item_id, qty) VALUES (?, ?, ?)')
-				.run(expedition.id, supply.item_id, supply.qty);
-		db.query('DELETE FROM expedition_supplies WHERE expedition_id = ?').run(expedition.id);
-		// The legacy column cannot store the new outcome. The companion row is authoritative for 1.6 clients.
-		db.query("UPDATE expeditions SET stash_outcome = 'empty' WHERE id = ? AND stash_outcome = 'pending'")
-			.run(expedition.id);
-		return;
-	}
-	const guild = db.query<{ charitree_enabled: number }, [number]>(
-		'SELECT charitree_enabled FROM guilds WHERE id = ?'
-	).get(expedition.guild_id);
-	const outcome = guild?.charitree_enabled === 1 ? 'charitree' : 'destroyed';
-	if (outcome === 'charitree') {
-		expire_charity(now, expedition.guild_id);
-		const clearing = db.query<{ cutoff: number | null }, [number]>(
-			'SELECT MAX(charitree_expires_before) AS cutoff FROM guild_petitions ' +
-			"WHERE guild_id = ? AND type = 'charitree_ingratitude' AND subject_locked = 1"
-		).get(expedition.guild_id);
-		const expires_at = Math.max(now + CHARITY_NORMAL_DECAY_MS, (clearing?.cutoff ?? -1) + 1);
-		for (const supply of supplies) {
-			const lots = db.query<{ client_id: number; owner_key: string; qty: number; contributed_at: number }, [number, string]>(
-				'SELECT client_id, owner_key, qty, contributed_at FROM expedition_supply_lots ' +
-				'WHERE expedition_id = ? AND item_id = ? ORDER BY contributed_at, id'
-			).all(expedition.id, supply.item_id);
-			if (lots.reduce((total, lot) => total + lot.qty, 0) !== supply.qty)
-				throw new Error('Expedition stash provenance does not match held quantity');
-			const existing = db.query<{ qty: number }, [number, string]>(
-				'SELECT qty FROM charity_items WHERE guild_id = ? AND item_id = ?'
-			).get(expedition.guild_id, supply.item_id);
-			if (!Number.isSafeInteger((existing?.qty ?? 0) + supply.qty))
-				throw new Error('Expedition stash exceeds safe Charitree quantity');
-			db.query('INSERT INTO charity_items ' +
-				'(guild_id, item_id, qty, expires_at, donated_at, value_currency_id, value_per_item) ' +
-				'VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (guild_id, item_id) DO UPDATE SET ' +
-				'qty = qty + excluded.qty, expires_at = excluded.expires_at, donated_at = excluded.donated_at, ' +
-				'value_currency_id = CASE WHEN value_per_item IS NULL THEN excluded.value_currency_id ELSE value_currency_id END, ' +
-				'value_per_item = COALESCE(value_per_item, excluded.value_per_item)')
-				.run(expedition.guild_id, supply.item_id, supply.qty, expires_at, now,
-					supply.value_currency_id, supply.value_per_item);
-			for (const lot of lots) {
-				add_charity_contribution(expedition.guild_id, supply.item_id, lot.client_id, lot.qty, now);
-				db.query('INSERT INTO charity_currency_locks (guild_id, owner_key, currency_id, locked_until) ' +
-					'VALUES (?, ?, ?, ?) ON CONFLICT (guild_id, owner_key, currency_id) DO UPDATE SET ' +
-					'locked_until = MAX(locked_until, excluded.locked_until)')
-					.run(expedition.guild_id, lot.owner_key, supply.item_id, now + 24 * HOUR_MS);
-			}
-		}
-	}
+	const outcome = transfer_expedition_stash_to_crucible(expedition.guild_id, expedition.id, now);
+	db.query('INSERT INTO expedition_crucible_outcomes ' +
+		'(expedition_id, source_guild_id, outcome, disposed_at) VALUES (?, ?, ?, ?)')
+		.run(expedition.id, expedition.guild_id, outcome, now);
 	for (const supply of supplies)
-		db.query('INSERT INTO expedition_stash_disposals ' +
-			'(expedition_id, source_guild_id, item_id, qty, outcome, disposed_at) VALUES (?, ?, ?, ?, ?, ?)')
-			.run(expedition.id, expedition.guild_id, supply.item_id, supply.qty, outcome, now);
+		db.query('INSERT INTO expedition_crucible_disposals (expedition_id, item_id, qty) VALUES (?, ?, ?)')
+			.run(expedition.id, supply.item_id, supply.qty);
 	db.query('DELETE FROM expedition_supplies WHERE expedition_id = ?').run(expedition.id);
-	db.query('UPDATE expeditions SET stash_outcome = ? WHERE id = ? AND stash_outcome = \'pending\'')
-		.run(outcome, expedition.id);
+	// Crucible disposal outcomes are stored in the companion row.
+	db.query("UPDATE expeditions SET stash_outcome = 'empty' WHERE id = ? AND stash_outcome = 'pending'")
+		.run(expedition.id);
+	return;
 }
 
-function end_if_inactive(expedition: ExpeditionRow, now: number, expire_charity: ExpireCharity): boolean {
+function end_if_inactive(expedition: ExpeditionRow, now: number): boolean {
 	if (expedition.last_qualifying_activity_at > now - RECENTLY_ACTIVE_AFTER) return false;
-	dispose_stash(expedition, now, expire_charity);
+	dispose_stash(expedition, now);
 	const ended = db.query(
 		"UPDATE expeditions SET status = 'inactive', ended_at = ?, current_visit_id = NULL, " +
 		"revision = revision + 1 WHERE id = ? AND status IN ('registration', 'active') " +
@@ -255,7 +202,7 @@ function end_if_inactive(expedition: ExpeditionRow, now: number, expire_charity:
 
 // Called before the session guard writes last_multiplayer_active_at. A return after four
 // days must not make the old Expedition appear active again.
-export function catch_up_expedition_before_activity(client_id: number, expire_charity: ExpireCharity,
+export function catch_up_expedition_before_activity(client_id: number,
 	now = Date.now()): void {
 	db.transaction(() => {
 		const membership = db.query<{ id: number; guild_id: number }, [number]>(
@@ -263,7 +210,7 @@ export function catch_up_expedition_before_activity(client_id: number, expire_ch
 		).get(client_id);
 		if (!membership) return;
 		const expedition = current_expedition(membership.guild_id);
-		if (!expedition || end_if_inactive(expedition, now, expire_charity)) return;
+		if (!expedition || end_if_inactive(expedition, now)) return;
 		const registered = db.query<{ found: number }, [number, number]>(
 			'SELECT 1 AS found FROM expedition_registrations WHERE expedition_id = ? AND client_id = ?'
 		).get(expedition.id, client_id);
@@ -278,7 +225,7 @@ export function catch_up_expedition_before_activity(client_id: number, expire_ch
 	}).immediate();
 }
 
-export function maintain_inactive_expeditions(expire_charity: ExpireCharity, now = Date.now()): number {
+export function maintain_inactive_expeditions(now = Date.now()): number {
 	return db.transaction(() => {
 		const overdue = db.query<ExpeditionRow, [number]>(
 			"SELECT * FROM expeditions WHERE status IN ('registration', 'active') " +
@@ -286,7 +233,7 @@ export function maintain_inactive_expeditions(expire_charity: ExpireCharity, now
 		).all(now - RECENTLY_ACTIVE_AFTER);
 		let ended = 0;
 		for (const expedition of overdue)
-			if (end_if_inactive(expedition, now, expire_charity)) ended++;
+			if (end_if_inactive(expedition, now)) ended++;
 		return ended;
 	}).immediate();
 }
@@ -329,7 +276,7 @@ function advance_registration(guild_id: number, now: number): void {
 	if (!expedition || expedition.status !== 'registration' || now < expedition.registration_ends_at) return;
 	const participants = recent_registered_participants(expedition, now);
 	if (participants === 0) return; // An empty Fellowship may gain a registrant before the inactivity deadline.
-	const content = JSON.parse(expedition.content_snapshot) as ExpeditionContent;
+	const content = parse_expedition_content(expedition.content_snapshot);
 	const entrance = content.chambers.find(chamber => chamber.id === 'entrance');
 	if (!entrance) throw new Error('Expedition snapshot lacks Entrance');
 	begin_visit(expedition, content, entrance, participants, now);
@@ -338,12 +285,12 @@ function advance_registration(guild_id: number, now: number): void {
 // The locked vote records its winner in chosen_exit_id. This reconciliation is safe to
 // repeat on reads and settlements after restart: the old visit is closed before the next
 // one is inserted in the same transaction.
-export function reconcile_expedition_visit(guild_id: number, expire_charity: ExpireCharity,
+export function reconcile_expedition_visit(guild_id: number,
 	now = Date.now()): boolean {
 	return db.transaction(() => {
 		const expedition = current_expedition(guild_id);
 		if (!expedition || expedition.status !== 'active' || expedition.current_visit_id === null) return false;
-		if (end_if_inactive(expedition, now, expire_charity)) return true;
+		if (end_if_inactive(expedition, now)) return true;
 		const visit = db.query<{ id: number; chamber_id: string; charted_on_arrival: number;
 			chosen_exit_id: string | null; vote_opened_at: number | null; vote_deadline_at: number | null;
 			vote_locked_at: number | null; vote_full_shortened: number }, [number]>(
@@ -351,7 +298,7 @@ export function reconcile_expedition_visit(guild_id: number, expire_charity: Exp
 			'WHERE id = ? AND departed_at IS NULL'
 		).get(expedition.current_visit_id);
 		if (!visit) throw new Error('Current Expedition visit is missing');
-		const content = JSON.parse(expedition.content_snapshot) as ExpeditionContent;
+		const content = parse_expedition_content(expedition.content_snapshot);
 		const chamber = content.chambers.find(entry => entry.id === visit.chamber_id);
 		if (!chamber) throw new Error('Current Chamber is missing from content snapshot');
 		const preview_exit_id = content.preview_route?.[chamber.id];
@@ -449,7 +396,7 @@ export function reconcile_expedition_visit(guild_id: number, expire_charity: Exp
 			return false;
 		if (chamber.type === 'ending') {
 			if (!chamber.tasks.some(task => task.kind === 'completion' && done(task.id))) return false;
-			dispose_stash(expedition, now, expire_charity);
+			dispose_stash(expedition, now);
 			db.query('UPDATE expedition_visits SET departed_at = ? WHERE id = ? AND departed_at IS NULL')
 				.run(now, visit.id);
 			db.query("UPDATE expeditions SET status = 'completed', ended_at = ?, current_visit_id = NULL, " +
@@ -546,7 +493,7 @@ export function cast_expedition_vote(guild_id: number, client_id: number, expedi
 		).get(visit_id);
 		if (!visit || visit.vote_opened_at === null || visit.vote_locked_at !== null)
 			return { success: false, error: 'vote_closed' };
-		const content = JSON.parse(expedition.content_snapshot) as ExpeditionContent;
+		const content = parse_expedition_content(expedition.content_snapshot);
 		const chamber = content.chambers.find(entry => entry.id === visit.chamber_id);
 		if (!chamber?.exits.some(edge => edge.id === exit_id)) return { success: false, error: 'invalid_exit' };
 		if (content.preview_route?.[chamber.id] && content.preview_route[chamber.id] !== exit_id)
@@ -622,7 +569,7 @@ export function get_expedition_state(guild_id: number, client_id: number, now = 
 		const registered_count = db.query<{ count: number }, [number]>(
 			'SELECT COUNT(*) AS count FROM expedition_registrations WHERE expedition_id = ?'
 		).get(expedition.id)?.count ?? 0;
-		const content = JSON.parse(expedition.content_snapshot) as ExpeditionContent;
+		const content = parse_expedition_content(expedition.content_snapshot);
 		const chamber_names = new Map(content.chambers.map(entry => [entry.id, entry.label]));
 		const history = db.query<{
 			chamber_id: string; entered_at: number; departed_at: number | null; chosen_exit_id: string | null;

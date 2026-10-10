@@ -1,5 +1,5 @@
 import { db } from './db';
-import { has_alliance_access, ALLIANCE_PREVIEW_ACCOUNT_ID, alliance_for_guild } from './alliances';
+import { has_alliance_access, alliance_for_guild } from './alliances';
 
 type MarketParticipant = { guild_id:number; mod_version:string|null; cheats_detected_at:number|null;
 	cheat_restriction_enabled:number; social_mode:string; enforced:number };
@@ -33,7 +33,7 @@ export function market_visibility_sql(alias:string,client_id:number,version:stri
 	) AND EXISTS(SELECT 1 FROM clients ac JOIN guild_memberships agm ON agm.client_id=ac.id
 		JOIN guilds ag ON ag.id=agm.guild_id JOIN client_runtime_snapshots ar ON ar.client_id=ac.id
 		LEFT JOIN melvor_accounts aa ON aa.id=ac.melvor_account_id
-		WHERE ac.melvor_account_id=${ALLIANCE_PREVIEW_ACCOUNT_ID} AND ac.id=${alias}.client_id AND agm.guild_id=${alias}.guild_id AND (ar.mod_version='development' OR (ar.mod_version NOT GLOB '*[^0-9.]*'
+		WHERE ac.id=${alias}.client_id AND agm.guild_id=${alias}.guild_id AND (ar.mod_version='development' OR (ar.mod_version NOT GLOB '*[^0-9.]*'
 		AND length(ar.mod_version)-length(replace(ar.mod_version,'.',''))=2 AND (
 		CAST(substr(ar.mod_version,1,instr(ar.mod_version,'.')-1) AS INTEGER)>1 OR
 		(CAST(substr(ar.mod_version,1,instr(ar.mod_version,'.')-1) AS INTEGER)=1 AND (

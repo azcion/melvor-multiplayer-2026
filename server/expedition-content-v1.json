@@ -193,7 +193,7 @@
             "type": "skill_time",
             "skill_ids": [
               "melvorD:Runecrafting",
-              "melvorD:AltMagic",
+              "melvorD:Magic",
               "melvorItA:Harvesting"
             ]
           }
@@ -349,7 +349,7 @@
             "skill_ids": [
               "melvorD:Firemaking",
               "melvorD:Runecrafting",
-              "melvorD:AltMagic"
+              "melvorD:Magic"
             ]
           }
         },
@@ -368,7 +368,7 @@
             "type": "skill_time",
             "skill_ids": [
               "melvorD:Woodcutting",
-              "melvorD:AltMagic",
+              "melvorD:Magic",
               "melvorD:Combat"
             ]
           }
@@ -466,7 +466,7 @@
             "skill_ids": [
               "melvorD:Smithing",
               "melvorD:Runecrafting",
-              "melvorD:AltMagic"
+              "melvorD:Magic"
             ]
           }
         }
@@ -587,7 +587,7 @@
           "evidence": {
             "type": "skill_time",
             "skill_ids": [
-              "melvorD:AltMagic"
+              "melvorD:Magic"
             ]
           }
         },
@@ -605,7 +605,7 @@
           "evidence": {
             "type": "skill_time",
             "skill_ids": [
-              "melvorD:AltMagic"
+              "melvorD:Magic"
             ]
           }
         },
@@ -857,7 +857,7 @@
             "skill_ids": [
               "melvorD:Woodcutting",
               "melvorD:Runecrafting",
-              "melvorD:AltMagic"
+              "melvorD:Magic"
             ]
           }
         },
@@ -917,7 +917,7 @@
             "skill_ids": [
               "melvorD:Agility",
               "melvorD:Astrology",
-              "melvorD:AltMagic"
+              "melvorD:Magic"
             ]
           }
         },
@@ -957,7 +957,7 @@
             "skill_ids": [
               "melvorD:Firemaking",
               "melvorD:Herblore",
-              "melvorD:AltMagic"
+              "melvorD:Magic"
             ]
           }
         },
@@ -1037,7 +1037,7 @@
           "evidence": {
             "type": "skill_time",
             "skill_ids": [
-              "melvorD:AltMagic"
+              "melvorD:Magic"
             ]
           }
         },
@@ -1670,7 +1670,7 @@
           "evidence": {
             "type": "skill_time",
             "skill_ids": [
-              "melvorD:AltMagic"
+              "melvorD:Magic"
             ]
           }
         },
@@ -2160,7 +2160,7 @@
             "type": "skill_time",
             "skill_ids": [
               "melvorD:Agility",
-              "melvorD:AltMagic",
+              "melvorD:Magic",
               "melvorAoD:Archaeology"
             ]
           }
@@ -2199,7 +2199,7 @@
           "evidence": {
             "type": "skill_time",
             "skill_ids": [
-              "melvorD:AltMagic",
+              "melvorD:Magic",
               "melvorAoD:Archaeology",
               "melvorItA:Harvesting"
             ]
@@ -2375,7 +2375,7 @@
             "type": "skill_time",
             "skill_ids": [
               "melvorD:Astrology",
-              "melvorD:AltMagic",
+              "melvorD:Magic",
               "melvorAoD:Cartography"
             ]
           }
@@ -2396,7 +2396,7 @@
             "skill_ids": [
               "melvorD:Woodcutting",
               "melvorD:Mining",
-              "melvorD:AltMagic"
+              "melvorD:Magic"
             ]
           }
         },
@@ -2533,7 +2533,7 @@
           "evidence": {
             "type": "skill_time",
             "skill_ids": [
-              "melvorD:AltMagic"
+              "melvorD:Magic"
             ]
           }
         },
@@ -2551,7 +2551,7 @@
           "evidence": {
             "type": "skill_time",
             "skill_ids": [
-              "melvorD:AltMagic"
+              "melvorD:Magic"
             ]
           }
         },
@@ -3161,7 +3161,7 @@
           "evidence": {
             "type": "skill_time",
             "skill_ids": [
-              "melvorD:AltMagic"
+              "melvorD:Magic"
             ]
           }
         },
@@ -3179,7 +3179,7 @@
           "evidence": {
             "type": "skill_time",
             "skill_ids": [
-              "melvorD:AltMagic"
+              "melvorD:Magic"
             ]
           }
         },
@@ -3545,7 +3545,7 @@
           "evidence": {
             "type": "skill_time",
             "skill_ids": [
-              "melvorD:AltMagic"
+              "melvorD:Magic"
             ]
           }
         }
@@ -3924,7 +3924,7 @@
             "skill_ids": [
               "melvorD:Firemaking",
               "melvorD:Fletching",
-              "melvorD:AltMagic"
+              "melvorD:Magic"
             ]
           }
         },
@@ -4215,7 +4215,7 @@
           "evidence": {
             "type": "skill_time",
             "skill_ids": [
-              "melvorD:AltMagic"
+              "melvorD:Magic"
             ]
           }
         },
@@ -4545,7 +4545,7 @@
             "skill_ids": [
               "melvorD:Firemaking",
               "melvorD:Summoning",
-              "melvorD:AltMagic"
+              "melvorD:Magic"
             ]
           }
         },
@@ -4603,7 +4603,7 @@
             "skill_ids": [
               "melvorD:Agility",
               "melvorD:Summoning",
-              "melvorD:AltMagic"
+              "melvorD:Magic"
             ]
           }
         },
@@ -4622,7 +4622,7 @@
             "skill_ids": [
               "melvorD:Firemaking",
               "melvorD:Summoning",
-              "melvorD:AltMagic"
+              "melvorD:Magic"
             ]
           }
         },

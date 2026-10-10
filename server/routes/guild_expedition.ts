@@ -21,7 +21,7 @@ export function register_guild_expedition_routes(): void {
 	session_get_route('/api/expedition/state', async (req, url, client_id): Promise<HandlerResult> => {
 		const guild_id = await get_client_guild_id(client_id);
 		if (guild_id === null) return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
-		reconcile_expedition_visit(guild_id, runtime.expire_charity_items_now);
+		reconcile_expedition_visit(guild_id);
 		const state = get_expedition_state(guild_id, client_id);
 		return { ...state, debug_enabled: can_debug_expedition(client_id), ...get_expedition_work(client_id),
 			supply_score: get_expedition_supply_score(client_id, state.expedition?.id ?? null) };
@@ -37,7 +37,7 @@ export function register_guild_expedition_routes(): void {
 		if (guild_id === null) return 403;
 		const advanced = debug_advance_expedition(guild_id, json.expedition_id as number,
 			json.visit_id as number | null, json.action as 'registration' | 'task' | 'vote',
-			json.task_id as string | null, runtime.expire_charity_items_now);
+			json.task_id as string | null);
 		return advanced ? { success: true } : 409;
 	});
 
@@ -46,7 +46,7 @@ export function register_guild_expedition_routes(): void {
 		if (!Number.isSafeInteger(json.expedition_id)) return 400;
 		const guild_id = await get_client_guild_id(client_id);
 		if (guild_id === null) return 403;
-		return debug_cancel_expedition(guild_id, json.expedition_id as number, runtime.expire_charity_items_now)
+		return debug_cancel_expedition(guild_id, json.expedition_id as number)
 			? { success: true } : 409;
 	});
 
@@ -89,7 +89,7 @@ export function register_guild_expedition_routes(): void {
 			});
 			const guild_id = await get_client_guild_id(client_id);
 			if (result.success && guild_id !== null)
-				reconcile_expedition_visit(guild_id, runtime.expire_charity_items_now);
+				reconcile_expedition_visit(guild_id);
 			return result;
 		});
 	}
@@ -100,7 +100,7 @@ export function register_guild_expedition_routes(): void {
 			typeof json.exit_id !== 'string') return 400;
 		const guild_id = await get_client_guild_id(client_id);
 		if (guild_id === null) return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
-		reconcile_expedition_visit(guild_id, runtime.expire_charity_items_now);
+		reconcile_expedition_visit(guild_id);
 		return cast_expedition_vote(guild_id, client_id, json.expedition_id as number,
 			json.visit_id as number, json.exit_id, json.operation_id);
 	});

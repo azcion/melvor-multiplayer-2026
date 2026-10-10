@@ -9,7 +9,6 @@ export function install_trading_actions(runtime) {
 		add_gp_to_transfer,
 		capture_equipment_snapshot,
 		capture_status_snapshot,
-		charitree_rules,
 		changePage,
 		close_account_dropdown,
 		close_modal_and_wait,
@@ -120,7 +119,7 @@ export function install_trading_actions(runtime) {
 				}
 			}
 
-			return game.gp.formatAmount(numberWithCommas(total_value));
+			return state.format_currency_amount(game.gp, numberWithCommas(total_value));
 		},
 
 		filter_trade_items_home(trade) {

@@ -47,6 +47,18 @@ export function eligible_prompt_tasks(expedition_state, activities) {
 		(task.requirement !== 'conditional' || discovered.has(task.exit_id)) && can_track_task(task, activities));
 }
 
+export function work_tracking_mode(saved_mode, legacy_prompts_enabled) {
+	return ['manual', 'prompt', 'automatic'].includes(saved_mode) ? saved_mode
+		: legacy_prompts_enabled === false ? 'manual' : 'prompt';
+}
+
+export function best_eligible_task(expedition_state, activities) {
+	return eligible_prompt_tasks(expedition_state, activities)
+		.filter(task => task_available_points_micros(task) > 0)
+		.sort((a, b) => Number(b.requirement === 'required') - Number(a.requirement === 'required') ||
+			task_available_points_micros(b) - task_available_points_micros(a))[0] ?? null;
+}
+
 export function work_activity_key(activities) {
 	return [...new Set((activities ?? []).map(activity => activity.type === 'combat' ? 'combat'
 		: activity.type === 'skill' ? activity.skill_id : null).filter(Boolean))].sort().join('|');
@@ -57,7 +69,7 @@ export function create_work_prompt_gate() {
 	let activity_key = '';
 	let due_at = null;
 	return {
-		observe({ session, activities, enabled, tracking, now }) {
+		observe({ session, activities, enabled, tracking, automatic = false, now }) {
 			const next_key = work_activity_key(activities);
 			const new_session = session !== generation;
 			if (new_session || next_key !== activity_key) {
@@ -66,9 +78,10 @@ export function create_work_prompt_gate() {
 				activity_key = next_key;
 			}
 			if (!enabled || tracking) due_at = null;
+			else if (automatic && next_key && due_at === null) due_at = now + 2500;
 			return due_at !== null && now >= due_at;
 		},
-		defer(now) { if (due_at !== null) due_at = now + 1500; },
+		defer(now, delay = 1500) { if (due_at !== null) due_at = now + delay; },
 		consume() { due_at = null; },
 		reset() { generation = null; activity_key = ''; due_at = null; }
 	};

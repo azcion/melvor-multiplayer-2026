@@ -126,3 +126,13 @@ remain unchanged for 1.6.5 clients. Snapshots do not claim items, acknowledge re
 The 1.6.6 client shares selected page reads for 15 seconds, invalidates affected reads after mutations and changed
 Events, and paces requests with acknowledgement priority. HTTP 429 applies a shared `Retry-After` cooldown; GETs retry
 once, while writes retain their existing explicit recovery protocol.
+
+## Transfers exchange history (1.6.9)
+
+`GET /api/v2/transfers/history?pane=inbox|outbox|pending` may include an optional `exchange` object on a
+history entry: `{ label: "purchased" | "paid" | "sold" | "proceeds", item_id: string, qty: number }`.
+It is unsigned presentation context for the other half of a direct Marketplace purchase or Buy Order fulfillment;
+`items` continues to contain only the existing recorded movements. Paid and Proceeds use the actual payment currency
+and total, and Purchased and Sold use the actual exchanged quantity. Clients must not apply exchange context as an
+economy effect. Claim source breakdowns and receipt replay are unchanged. Older entries without reliable retained
+context omit the object. Transfers page snapshots reuse this same read model.

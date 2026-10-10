@@ -106,7 +106,11 @@ test('keeps three Transfers panels mounted with mobile-only tab visibility', asy
 	assert.match(page, /MOD_MP_TRANSFER_OUTBOX"><\/lang-string><span class="badge badge-secondary mp-transfer-tab-badge" v-show="state\.transfer_inventory\.length > 0">\{\{ formatNumber\(state\.transfer_inventory\.length\) \}\}<\/span>/);
 	assert.match(page, /MOD_MP_TRANSFER_PENDING"><\/lang-string><span class="badge badge-danger mp-transfer-tab-badge mp-transfer-tab-badge-pending" v-show="state\.num_active_transfers > 0">\{\{ formatNumber\(state\.num_active_transfers\) \}\}<\/span>/);
 	assert.match(style, /\.mp-transfers-layout \{[^}]*display: grid;[^}]*grid-template-columns:/);
-	assert.match(style, /@media \(max-width: 767\.98px\) \{\s*\.mp-transfers-shell \{[^}]+\}\s*\.mp-transfers-tabs/);
+	const mobile_transfers = style.match(/@media \(max-width: 767\.98px\) \{\s*\.mp-transfers-shell(?:\s*,\s*[^{}]+)?\s*\{([^}]+)\}\s*\.mp-transfers-tabs\s*\{([^}]+)\}/);
+	assert.ok(mobile_transfers, 'Transfers shell and tabs have mobile layout rules, including shared shell selectors');
+	assert.match(mobile_transfers[1], /padding:\s*\.6rem;/);
+	assert.match(mobile_transfers[2], /display:\s*grid;/);
+	assert.match(mobile_transfers[2], /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\);/);
 	assert.match(style, /\.mp-transfer-tab-badge \{[\s\S]*position: absolute !important;[\s\S]*top: unset !important;[\s\S]*background-color: #232a35;[\s\S]*border: 1px solid rgba\(128, 128, 128, \.5\);/);
 	assert.match(style, /\.mp-transfer-tab-badge-inbox \{[\s\S]*background-color: orange;[\s\S]*border: 0;/);
 	assert.match(style, /\.mp-transfer-tab-badge-pending \{[\s\S]*background-color: #ff4545;[\s\S]*border: 0;/);
@@ -360,6 +364,7 @@ test('Pending stack valuation uses Bank GP value for the haggled quantity and ha
 		bank: { getItemSalePrice: (resolved, qty) => { calls.push([resolved, qty]); return qty * 7; } }
 	};
 	const state = new Function('game', 'numberWithCommas', `return ({${method}})`)(game, String);
+	state.format_currency_amount = (currency, amount) => currency.formatAmount(amount);
 	assert.equal(state.get_haggle_stack_value({ item_id: 'known', item_qty: 12 }), '84 GP');
 	assert.deepEqual(calls, [[item, 12]]);
 	assert.equal(state.get_haggle_stack_value({ item_id: 'missing', item_qty: 12 }), '—');

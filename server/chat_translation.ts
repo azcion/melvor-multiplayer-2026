@@ -1,4 +1,4 @@
-import { attach_chat_parts, translation_html, translated_parts, parts_text, type ChatPart } from './chat_parts';
+import { attach_chat_parts, translation_document, translated_parts, parts_text, type ChatPart } from './chat_parts';
 import { readFileSync } from 'node:fs';
 import type { Database } from 'bun:sqlite';
 import { db } from './db';
@@ -231,8 +231,11 @@ export class ChatTranslationWorker {
 		translations: Array<{ language: ChatTranslationLanguage; content: string; parts?: ChatPart[] }>;
 	}> {
 		const url = new URL('/translate', this.endpoint);
+		const source: ChatPart[] = parts ?? [{ type: 'text', text: content }];
+		const document = translation_document(source);
+		const use_html = !!parts || document.markers.length > 0;
 		url.searchParams.set('api-version', '3.0');
-		if (parts) url.searchParams.set('textType', 'html');
+		if (use_html) url.searchParams.set('textType', 'html');
 		for (const language of CHAT_TRANSLATION_LANGUAGES)
 			url.searchParams.append('to', azure_language[language]);
 		const controller = new AbortController();
@@ -246,7 +249,7 @@ export class ChatTranslationWorker {
 					'Ocp-Apim-Subscription-Region': this.region,
 					'Content-Type': 'application/json; charset=UTF-8'
 				},
-				body: JSON.stringify([{ Text: parts ? translation_html(parts) : content }]),
+				body: JSON.stringify([{ Text: use_html ? document.html : content }]),
 				signal: controller.signal
 			});
 		} catch (error) {
@@ -274,8 +277,10 @@ export class ChatTranslationWorker {
 		const translations = result.translations.flatMap(translation => {
 			const language = typeof translation.to === 'string' ? client_language[translation.to] : undefined;
 			if (!language || language === detected_client_language || typeof translation.text !== 'string' || !translation.text.length) return [];
-			const translated = parts ? translated_parts(translation.text, parts) : undefined;
-			return [{ language, content: translated ? parts_text(translated) : translation.text, ...(translated ? { parts: translated } : {}) }];
+			const translated = use_html ? translated_parts(translation.text, source,
+				language === 'zh-CN' && detected_language === 'en' ? document.chinese_markers : document.markers) : undefined;
+			return [{ language, content: translated ? parts_text(translated) : translation.text,
+				...(parts && translated ? { parts: translated } : {}) }];
 		});
 		return { detected_language, translations };
 	}

@@ -205,49 +205,9 @@ describe('concurrent persistence invariants', () => {
 		)).toEqual([{ available: 0, reserved: 0 }]);
 	});
 
-	test('allows only one player to take a charity item', async () => {
-		const group = await make_guild_group([
-			'Concurrent Charity Donor',
-			...Array.from({ length: 20 }, (_, index) => `Charity Taker ${index}`)
-		]);
-		const [donor, ...takers] = group;
-		const item_id = `melvorD:Concurrent_Charity_${crypto.randomUUID()}`;
-		await post_json('/api/charity/donate', {
-			items: [{ id: item_id, qty: 41 }]
-		}, donor.session_token);
 
-		const results = await Promise.all(takers.map(taker => post_json<OperationResult>(
-			'/api/charity/take',
-			{ item_id },
-			taker.session_token
-		)));
-		const successful = results.filter(result => result.json.success);
-		const item_total = successful.reduce((total, result) => total + (result.json.item_qty ?? 0), 0);
 
-		expect(successful).toHaveLength(1);
-		expect(item_total).toBe(41);
-		expect(await db_count(
-			'SELECT COUNT(*) AS count FROM `charity_items` WHERE `item_id` = ?',
-			[item_id]
-		)).toBe(0);
-	});
 
-	test('adds concurrent charity donations without losing quantities', async () => {
-		const donor = await register_guild_client('Concurrent Charity Donations');
-		const item_id = `melvorD:Concurrent_Donation_${crypto.randomUUID()}`;
-
-		await Promise.all(Array.from({ length: 30 }, () => post_json(
-			'/api/charity/donate',
-			{ items: [{ id: item_id, qty: 2 }] },
-			donor.session_token
-		)));
-		const rows = await db_all<{ qty: number }>(
-			'SELECT `qty` FROM `charity_items` WHERE `item_id` = ?',
-			[item_id]
-		);
-
-		expect(rows).toEqual([{ qty: 60 }]);
-	});
 
 	test('adds concurrent campaign contributions without losing quantities', async () => {
 		const contributor = await register_guild_client('Concurrent Campaign Contributor');

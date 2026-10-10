@@ -6,7 +6,7 @@ import type { JsonObject } from './http';
 import { crucible_contents, distribute_crucible_value, reconcile_crucible } from './crucible-service';
 import { CRUCIBLE_GLOOP_ID, CRUCIBLE_PROGRESS_MAX, crucible_heat_value, crucible_known_valuation,
 	crucible_stack_value, safe_crucible_add, type CrucibleValuation } from './crucible-values';
-import { CRUCIBLE_PET_ID, get_charity_pet_chance, grant_pet } from './pets';
+import { CRUCIBLE_PET_ID, get_crucible_pet_chance, grant_pet } from './pets';
 
 const RECLAIM_COOLDOWN_MS = 20 * 60 * 60_000;
 const CLEAR_LOCK_MS = 4 * 60 * 60_000;
@@ -31,7 +31,6 @@ export function crucible_actor(client_id: number): CrucibleActor | null {
 }
 
 export function crucible_available(actor: CrucibleActor, now: number): boolean {
-	if (!crucible_migration_complete()) return false;
 	const state = db.query<db_row.crucible_guilds, [number]>(
 		'SELECT * FROM crucible_guilds WHERE guild_id = ?').get(actor.guild_id);
 	if (state === null) return false;
@@ -39,10 +38,6 @@ export function crucible_available(actor: CrucibleActor, now: number): boolean {
 	return db.query<{ processed_minute: number }, [number]>(
 		'SELECT processed_minute FROM crucible_guilds WHERE guild_id = ?'
 	).get(actor.guild_id)!.processed_minute >= Math.floor(now / 60_000);
-}
-
-function crucible_migration_complete(): boolean {
-	return db.query('SELECT 1 FROM crucible_migration WHERE id = 1 AND completed_at IS NOT NULL').get() !== null;
 }
 
 function is_open(guild_id: number): boolean {
@@ -86,7 +81,6 @@ export function add_crucible_offering(guild_id: number, item: CastItem, now: num
 
 export function transfer_expedition_stash_to_crucible(guild_id: number, expedition_id: number,
 	now = Date.now()): 'crucible' | 'destroyed' {
-	if (!crucible_migration_complete()) throw new Error('Crucible snapshot migration is incomplete');
 	const state = db.query<{ is_open: number; processed_minute: number }, [number]>(
 		'SELECT is_open, processed_minute FROM crucible_guilds WHERE guild_id = ?').get(guild_id);
 	if (state === null) throw new Error('Crucible Guild state is missing');
@@ -144,7 +138,7 @@ export function cast_crucible_items(actor: CrucibleActor, items: CastItem[], sou
 			'crucible', String(actor.guild_id));
 	crucible_heat_value(db.query<db_row.crucible_offerings, [number]>(
 		'SELECT * FROM crucible_offerings WHERE guild_id = ?').all(actor.guild_id));
-	const pet_granted = Math.random() < get_charity_pet_chance(donation_value) &&
+	const pet_granted = Math.random() < get_crucible_pet_chance(donation_value) &&
 		grant_pet(actor.client_id, CRUCIBLE_PET_ID, now);
 	return { success: true, ...(pet_granted ? { pet_id: CRUCIBLE_PET_ID } : {}) };
 }
@@ -216,10 +210,10 @@ export function reclaim_crucible_offering(actor: CrucibleActor, item_id: string,
 	now = Date.now(), source_id: string = crypto.randomUUID()): JsonObject {
 	if (!crucible_available(actor, now)) return { success: false, error: 'Crucible is catching up.' };
 	if (!is_open(actor.guild_id)) return { success: false, error: 'Crucible is sealed.' };
-	const membership = db.query<{ charitree_take_available_at: number }, [number]>(
-		'SELECT charitree_take_available_at FROM guild_memberships WHERE client_id = ?').get(actor.client_id);
-	if (membership !== null && membership.charitree_take_available_at > now)
-		return { success: false, error: 'Guild join lock is active.', available_at: membership.charitree_take_available_at };
+	const membership = db.query<{ crucible_reclaim_available_at: number }, [number]>(
+		'SELECT crucible_reclaim_available_at FROM guild_memberships WHERE client_id = ?').get(actor.client_id);
+	if (membership !== null && membership.crucible_reclaim_available_at > now)
+		return { success: false, error: 'Guild join lock is active.', available_at: membership.crucible_reclaim_available_at };
 	const last = db.query<{ last_reclaimed_at: number }, [number]>(
 		'SELECT last_reclaimed_at FROM crucible_reclaim_state WHERE client_id = ?').get(actor.client_id)?.last_reclaimed_at;
 	if (last !== undefined && last + RECLAIM_COOLDOWN_MS > now)
@@ -325,7 +319,7 @@ export function clear_crucible_slag(actor: CrucibleActor, offers: Array<{ curren
 			'crucible', String(actor.guild_id));
 	crucible_heat_value(db.query<db_row.crucible_offerings, [number]>(
 		'SELECT * FROM crucible_offerings WHERE guild_id = ?').all(actor.guild_id));
-	const pet_granted = offers.some(offer => Math.random() < get_charity_pet_chance(offer.qty)) &&
+	const pet_granted = offers.some(offer => Math.random() < get_crucible_pet_chance(offer.qty)) &&
 		grant_pet(actor.client_id, CRUCIBLE_PET_ID, now);
 	return { success: true, ...crucible_clear_state(actor, now),
 		...(pet_granted ? { pet_id: CRUCIBLE_PET_ID } : {}) };
@@ -420,7 +414,6 @@ export function claim_crucible_wish(actor: CrucibleActor, now = Date.now()): Jso
 }
 
 export function get_crucible_state(actor: CrucibleActor, now = Date.now()) {
-	if (!crucible_migration_complete()) return { enabled: false };
 	const reconcile = db.transaction(() => {
 		reconcile_crucible(actor.guild_id, now);
 		const contents = crucible_contents(actor.guild_id, now);
@@ -437,9 +430,9 @@ export function get_crucible_state(actor: CrucibleActor, now = Date.now()) {
 			'AND (lot.client_id = ? OR (owner.melvor_account_id IS NOT NULL AND owner.melvor_account_id = ?)) ' +
 			'GROUP BY offering.item_id'
 		).all(actor.guild_id, now, actor.client_id, actor.account_id ?? -1);
-		const join_lock = db.query<{ charitree_take_available_at: number }, [number]>(
-			'SELECT charitree_take_available_at FROM guild_memberships WHERE client_id = ?'
-		).get(actor.client_id)?.charitree_take_available_at ?? 0;
+		const join_lock = db.query<{ crucible_reclaim_available_at: number }, [number]>(
+			'SELECT crucible_reclaim_available_at FROM guild_memberships WHERE client_id = ?'
+		).get(actor.client_id)?.crucible_reclaim_available_at ?? 0;
 		return { enabled: true, ...contents, ...crucible_clear_state(actor, now), server_now: now,
 			join_lock_until: join_lock, currency_locks, expedition_locks,
 			offerings: contents.offerings.map(row => ({ ...row,

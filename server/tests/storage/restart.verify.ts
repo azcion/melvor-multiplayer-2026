@@ -72,12 +72,12 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 			item_id: string;
 		}>;
 	}>('/api/market/listings', state.first.session_token);
-	const charity = await get_json_with_session<{
-		items: Array<{
-			id: string;
+	const crucible = await get_json_with_session<{
+		offerings: Array<{
+			item_id: string;
 			qty: number;
 		}>;
-	}>('/api/charity/contents', state.first.session_token);
+	}>('/api/crucible/contents', state.crucible_session_token);
 	const campaign = await get_json_with_session<{
 		active: boolean;
 		contribution: number;
@@ -197,8 +197,8 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 		id: state.market_lot_id,
 		item_id: state.market_item_id
 	}));
-	expect(charity.json.items).toContainEqual(expect.objectContaining({
-		id: state.charity_item_id,
+	expect(crucible.json.offerings).toContainEqual(expect.objectContaining({
+		item_id: state.crucible_item_id,
 		qty: 11
 	}));
 	expect(campaign.json.active).toBe(true);

@@ -33,7 +33,7 @@ test('replaces inline bank multiplayer panels with the single actions entry', as
 	assert.match(main, /game\.bank\.selectedBankItem\?\.item/);
 	assert.match(main, /insertBefore\(\$actions_panel, \$sell_panel\)/);
 	assert.match(main, /run_pending_economy_action\('bank_crucible_cast:/);
-	assert.match(main, /items: \[\{ id: item\.id, qty, \.\.\.get_charity_item_valuation\(item\.id\) \}\],\n\s+source: 'bank'/);
+	assert.match(main, /items: \[\{ id: item\.id, qty, \.\.\.get_offering_item_valuation\(item\.id\) \}\],\n\s+source: 'bank'/);
 	assert.match(main, /api_post\('\/api\/market\/sell'/);
 	assert.match(main, /add_item_to_transfer_inventory\(item, qty\)/);
 	assert.match(styles, /\.mp-bank-actions-entry \{/);

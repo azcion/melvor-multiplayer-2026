@@ -1,7 +1,6 @@
 import { register_alliance_routes } from './routes/alliances';
 import { register_market_routes } from './routes/market';
 import { register_campaign_routes } from './routes/campaign';
-import { register_charity_routes } from './routes/charity';
 import { register_crucible_routes } from './routes/crucible';
 import { register_banishment_returns_routes } from './routes/banishment_returns';
 import { register_inbox_routes } from './routes/inbox';
@@ -25,7 +24,7 @@ import { register_poll_routes } from './routes/polls';
 import { register_expedition_routes } from './routes/expedition';
 import { register_guild_expedition_routes } from './routes/guild_expedition';
 import { maintain_market_listings } from './market-expiry';
-import { chat_translation_worker, default_handler, expire_charity_items_now, flush_logs, report_error, server } from './app-runtime';
+import { chat_translation_worker, default_handler, flush_logs, report_error, server } from './app-runtime';
 import { create_shutdown_handler } from './shutdown';
 import { maintain_inactive_expeditions } from './guild-expedition';
 import { maintain_crucibles } from './crucible-service';
@@ -33,7 +32,6 @@ import { maintain_raids } from './raid';
 
 register_market_routes();
 register_campaign_routes();
-register_charity_routes();
 register_crucible_routes();
 register_banishment_returns_routes();
 register_inbox_routes();
@@ -58,7 +56,7 @@ register_poll_routes();
 register_expedition_routes();
 register_guild_expedition_routes();
 maintain_market_listings();
-maintain_inactive_expeditions(expire_charity_items_now);
+maintain_inactive_expeditions();
 const crucible_maintenance_timer = setInterval(() => {
 	try { maintain_crucibles(); }
 	catch (error) { report_error('Crucible maintenance failed', error); }
@@ -68,7 +66,7 @@ try { maintain_crucibles(); }
 catch (error) { report_error('Crucible startup maintenance failed', error); }
 const expedition_maintenance_timer = setInterval(() => {
 	try {
-		maintain_inactive_expeditions(expire_charity_items_now);
+		maintain_inactive_expeditions();
 	} catch (error) {
 		report_error('Expedition inactivity maintenance failed', error);
 	}

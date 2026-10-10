@@ -13,7 +13,7 @@ import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
 import type { PetitionType } from '../council';
 
-const { AUTH_RESPONSE_DELAY_MS, BACKEND_VERSION, DEFAULT_USER_ICON_ID, allow_browser_access, associate_client_with_melvor_account, cancel_deletion_on_authentication, db_get_single, execute_due_client_deletions, generate_friend_code, generate_session_token, get_chat_state, get_client_charity_state, get_client_social_mode, get_client_social_mode_enforcement, get_minimum_supported_mod_version, get_owned_pet_ids, get_released_mod_version, identify_request, is_valid_uuid, log, parse_client_runtime, parse_melvor_account, persist_client_runtime, recover_deleted_client, register_client, require_registration_capacity, require_service_available, require_source_capacity, server, temporary_unavailable, validate_display_name, validate_json_request } = runtime;
+const { AUTH_RESPONSE_DELAY_MS, BACKEND_VERSION, DEFAULT_USER_ICON_ID, allow_browser_access, associate_client_with_melvor_account, cancel_deletion_on_authentication, db_get_single, execute_due_client_deletions, generate_friend_code, generate_session_token, get_chat_state, get_client_social_mode, get_client_social_mode_enforcement, get_minimum_supported_mod_version, get_owned_pet_ids, get_released_mod_version, identify_request, is_valid_uuid, log, parse_client_runtime, parse_melvor_account, persist_client_runtime, recover_deleted_client, register_client, require_registration_capacity, require_service_available, require_source_capacity, server, temporary_unavailable, validate_display_name, validate_json_request } = runtime;
 
 export function register_auth_routes(): void {
 	server.route('/api/versions', allow_browser_access(require_source_capacity(require_service_available(() => ({
@@ -108,7 +108,6 @@ export function register_auth_routes(): void {
 			server_owned_pets: true,
 			raid_tier_progress: RAID_TIER_PROGRESS,
 			raid_monster_drops: get_raid_monster_drops(client_row.id),
-			charity: await get_client_charity_state(client_row.id, client_runtime?.mod_version, Date.now(), true),
 			owned_pet_ids: get_owned_pet_ids(client_row.id, client_runtime?.mod_version),
 			released_mod_version: get_released_mod_version(),
 			minimum_supported_mod_version: get_minimum_supported_mod_version(),
@@ -167,7 +166,6 @@ export function register_auth_routes(): void {
 			server_owned_pets: true,
 			raid_tier_progress: RAID_TIER_PROGRESS,
 			raid_monster_drops: get_raid_monster_drops(client_id),
-			charity: await get_client_charity_state(client_id, client_runtime?.mod_version, Date.now(), true),
 			owned_pet_ids: get_owned_pet_ids(client_id, client_runtime?.mod_version),
 			released_mod_version: get_released_mod_version(),
 			minimum_supported_mod_version: get_minimum_supported_mod_version() };

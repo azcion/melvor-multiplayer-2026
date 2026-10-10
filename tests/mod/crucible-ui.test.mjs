@@ -3,6 +3,50 @@ import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { readFile } from 'node:fs/promises';
 import { install_crucible_actions } from '../../mod/client-crucible.mjs';
+import * as crucible_rules from '../../mod/crucible-rules.mjs';
+import * as transfer_currency_support from '../../mod/transfer-currencies.mjs';
+
+test('Offering locks follow reclaim eligibility and clear when a partial reclaim becomes affordable', async () => {
+	const templates = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
+	const lock_expression = templates.match(/class="fa fa-lock mp-crucible-slot-lock" v-show="([^"]+)"/)[1];
+	const quantity_expression = templates.match(/'mp-crucible-slot-quantity-locked': ([^}]+) }/)[1];
+	const currency = { id: 'melvorItA:AbyssalSlayerCoins', amount: 0 };
+	const sale_item = { id: 'test:ore', sellsFor: { currency } };
+	const state = { crucible: { is_open: true, next_reclaim_at: 0 }, crucible_clock_time: 1_000,
+		is_crucible_item_discovered: () => true };
+	Object.assign(state, install_crucible_actions({ state, transfer_currency_support,
+		game: { abyssalSlayerCoins: currency, items: { getObjectByID: () => sale_item },
+			bank: { getItemSalePrice: (_item, qty) => qty * 100 } }
+	}, crucible_rules));
+	const currency_offering = { id: currency.id, qty: 3_000_000, blocked_until: 0 };
+	const item_offering = { id: sale_item.id, qty: 10, blocked_until: 0 };
+	const assert_locked = (item, expected) => {
+		for (const expression of [lock_expression, quantity_expression])
+			assert.equal(new Function('state', 'item', `return (${expression});`)(state, item), expected);
+	};
+	assert.equal(state.crucible_reclaim_quantity(currency_offering), 0);
+	assert_locked(currency_offering, true);
+	assert_locked(item_offering, true);
+	currency.amount = 2;
+	assert.equal(state.crucible_reclaim_quantity(currency_offering), 1);
+	assert_locked(currency_offering, false);
+	assert_locked(item_offering, true);
+	currency.amount = 200;
+	assert.equal(state.crucible_reclaim_quantity(item_offering), 1);
+	assert_locked(item_offering, false);
+	item_offering.blocked_until = 2_000;
+	assert_locked(item_offering, true);
+	state.crucible_clock_time = 2_000;
+	assert_locked(item_offering, false);
+	state.crucible.next_reclaim_at = 3_000;
+	assert_locked(item_offering, true);
+	state.crucible_clock_time = 3_000;
+	assert_locked(item_offering, false);
+	state.crucible.is_open = false;
+	assert_locked(item_offering, true);
+	state.crucible = null;
+	assert_locked(item_offering, true);
+});
 
 test('mounted Crucible bindings tolerate cleared state after leaving a Guild', async () => {
 	const templates = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
@@ -35,7 +79,7 @@ test('Crucible keeps migration unavailability distinct from a failed load', asyn
 	const state = { is_guild_member: true, is_social_only: false, is_connected: true,
 		crucible: null, crucible_error: '', crucible_loading: false };
 	let nav_updates = 0;
-	const actions = install_crucible_actions({ state, update_charitree_nav: () => { nav_updates++; },
+	const actions = install_crucible_actions({ state, update_crucible_nav: () => { nav_updates++; },
 		api_get: async () => {
 			const response = responses.shift();
 			if (response instanceof Error) throw response;
@@ -93,11 +137,11 @@ test('Crucible sidebar transitions from empty to claimable Wish or reclaim and h
 				this.crucible.next_reclaim_at > this.crucible_clock_time ? 'cooldown' : null);
 		} };
 	let now = 1000;
-	const update = runInNewContext(main.slice(main.indexOf('function update_charitree_nav()'),
-		main.indexOf('function update_guild_nav()')) + '\nupdate_charitree_nav;', {
+	const update = runInNewContext(main.slice(main.indexOf('function update_crucible_nav()'),
+		main.indexOf('function update_guild_nav()')) + '\nupdate_crucible_nav;', {
 		state, sidebar: { category: () => ({ item: () => ({}) }) }, document: { querySelector: () => aside },
 		Date: { now: () => now }, set_nav_ready() {},
-		getLangString: key => key === 'MOD_MP_SIDEBAR_CHARITY_WISH' ? 'wish' : 'reclaim'
+		getLangString: key => key === 'MOD_MP_SIDEBAR_CRUCIBLE_WISH' ? 'wish' : 'reclaim'
 	});
 	update();
 	assert.equal(aside.textContent, '');
@@ -147,7 +191,7 @@ test('Crucible preserves a usable snapshot through failed refreshes and recovers
 	const snapshot = { enabled: true, is_open: true, offerings: [], wishes: [], wish_catalog: [] };
 	const responses = [snapshot, null, { ...snapshot, level: 2 }];
 	const state = { is_guild_member: true, is_social_only: false, is_connected: true };
-	const actions = install_crucible_actions({ state, update_charitree_nav() {}, api_get: async () => responses.shift(),
+	const actions = install_crucible_actions({ state, update_crucible_nav() {}, api_get: async () => responses.shift(),
 		filter_local_available_items: rows => rows }, { compare_crucible_offerings: () => 0 });
 	await actions.refresh_crucible(true);
 	const previous = state.crucible;

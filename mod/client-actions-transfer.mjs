@@ -44,7 +44,6 @@ export function install_transfer_actions(runtime) {
 		capture_equipment_snapshot,
 		capture_status_snapshot,
 		invalidate_status_icon_collection,
-		charitree_rules,
 		changePage,
 		close_account_dropdown,
 		close_modal_and_wait,
@@ -164,7 +163,6 @@ export function install_transfer_actions(runtime) {
 				market_cancelled: 'MOD_MP_INBOX_SOURCE_MARKET_CANCELLED',
 				market_expired: 'MOD_MP_INBOX_SOURCE_MARKET_EXPIRED',
 				market_haggle_cancelled: 'MOD_MP_INBOX_SOURCE_HAGGLE_CANCELLED',
-				charitree: 'MOD_MP_INBOX_SOURCE_CHARITREE',
 				wish_granted: 'MOD_MP_INBOX_SOURCE_WISH_GRANTED',
 				raid_victory_cache: 'MOD_MP_INBOX_SOURCE_RAID',
 				gift_received: 'MOD_MP_INBOX_SOURCE_GIFT_RECEIVED',
@@ -194,7 +192,7 @@ export function install_transfer_actions(runtime) {
 				}
 			}
 
-			return game.gp.formatAmount(numberWithCommas(total_value));
+			return state.format_currency_amount(game.gp, numberWithCommas(total_value));
 		},
 
 		async open_transfer_data_page() {

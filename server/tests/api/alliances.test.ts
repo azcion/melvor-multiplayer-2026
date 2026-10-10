@@ -297,39 +297,23 @@ test('1.6.1 members retain ordinary Council and same-Guild Marketplace while All
 });
 
 
-test('non-preview accounts cannot see or act on Alliances even with a development client',async()=> {
-	const a=await register_guild_client('Preview A','Preview Guild A'),b=await register_guild_client('Preview B','Preview Guild B','development');
+test('ordinary accounts and unlinked characters can found Alliances, vote, chat, and share Marketplace listings',async()=> {
+	const a=await register_versioned_guild('Public A','Public Guild A','1.6.8');
+	const b=await register_versioned_guild('Public B','Public Guild B','1.6.8');
+	await db_run('UPDATE clients SET melvor_account_id=NULL WHERE id IN (?,?)',[a.client_id,b.client_id]);
+	for(const client of [a,b]) {
+		expect((await get_json_with_session<any>('/api/events',client.session_token)).json.alliance_access).toBe(true);
+		expect((await request('/api/alliances',{headers:{'x-session-token':client.session_token}})).status).toBe(200);
+	}
 	const alliance=await found(a,b);
-	expect((await get_json_with_session<any>('/api/events',b.session_token)).json.alliance_access).toBe(true);
-	const policy=await propose(a,{kind:'market_enable'});await vote(a,policy.petition_id);await vote(b,await next_ballot(b,policy.process_id));
-	const pending=await propose(a,{kind:'market_disable'});
-	await post_json('/api/market/sell',{item_id:'melvorD:Preview_Item',item_qty:4,item_sell_price:2},a.session_token);
+	expect(alliance.name).toBe('Test Alliance');
+	const policy=await propose(a,{kind:'market_enable'});
+	await vote(a,policy.petition_id);await vote(b,await next_ballot(b,policy.process_id));
+	await post_json('/api/market/sell',{item_id:'melvorD:Public_Alliance_Item',item_qty:4,item_sell_price:2},a.session_token);
 	const listing=(await get_json_with_session<any>('/api/market/listings',a.session_token)).json.items[0];
-	const other_account_key=crypto.randomUUID();
-	await db_run('INSERT INTO melvor_accounts(cloud_username,playfab_id,created_at) VALUES(?,?,0)',['azcn',other_account_key]);
-	const other_account=(await db_all<{id:number}>('SELECT id FROM melvor_accounts WHERE playfab_id=?',[other_account_key]))[0].id;
-	await db_run('UPDATE clients SET melvor_account_id=? WHERE id=?',[other_account,b.client_id]);
-	for(const endpoint of ['/api/alliances','/api/alliances/discover?mode=found','/api/alliances/guild-preview?guild_id='+a.guild_id])
-		expect((await request(endpoint,{headers:{'x-session-token':b.session_token}})).status).toBe(404);
-	for(const endpoint of ['/api/alliances/propose','/api/alliances/consider','/api/alliances/withdraw','/api/chat/alliance-participation'])
-		expect((await post(endpoint,{},b.session_token)).status).toBe(404);
-	for(const endpoint of ['/api/chat/messages/send','/api/chat/messages/reaction','/api/chat/messages/delete-for-all'])
-		expect((await post(endpoint,{conversation_kind:'alliance',message_id:1},b.session_token)).status).toBe(404);
-	expect((await request('/api/chat/messages?conversation_kind=alliance&conversation_id='+alliance.id,{headers:{'X-Session-Token':b.session_token}})).status).toBe(404);
-	expect((await get_json_with_session<any>('/api/chat/conversations',b.session_token)).json.conversations.some((c:any)=>c.conversation_kind==='alliance')).toBe(false);
-	expect((await get_json_with_session<any>('/api/events',b.session_token)).json.alliance_access).toBe(false);
-	expect((await get_json_with_session<any>('/api/guilds/council',b.session_token)).json.petitions.some((p:any)=>p.type.startsWith('alliance_'))).toBe(false);
-	expect((await vote(b,pending.petition_id)).success).toBeUndefined();
-	expect((await post_json<any>('/api/guilds/petitions/withdraw',{petition_id:pending.petition_id},b.session_token)).json.success).toBeUndefined();
-	// Inject a historical Alliance activity into the viewer's Guild; it must be filtered before pagination.
-	await db_run("INSERT INTO guild_activity_events(guild_id,event_type,metadata,source_key,created_at) VALUES(?,'petition_carried',?,?,?)",
-		[b.guild_id,JSON.stringify({petition_type:'alliance_market_enable'}),crypto.randomUUID(),Date.now()]);
-	expect((await get_json_with_session<any>('/api/guilds/activity',b.session_token)).json.events.some((event:any)=>event.metadata.petition_type?.startsWith('alliance_'))).toBe(false);
-	expect((await post_json<any>('/api/market/search',{item_id:'melvorD:Preview_Item'},b.session_token)).json.items).toEqual([]);
-	expect((await post_json<any>('/api/market/buy',{id:listing.id,qty:1},b.session_token)).json.success).toBeUndefined();
-	// Both sides must qualify: the preview buyer cannot discover an ineligible seller either.
-	await post_json('/api/market/sell',{item_id:'melvorD:Excluded_Seller',item_qty:4,item_sell_price:2},b.session_token);
-	expect((await post_json<any>('/api/market/search',{item_id:'melvorD:Excluded_Seller'},a.session_token)).json.items).toEqual([]);
+	expect((await post_json<any>('/api/market/search',{item_id:'melvorD:Public_Alliance_Item'},b.session_token)).json.items.length).toBe(1);
+	expect((await post_json<any>('/api/market/buy',{id:listing.id,qty:1},b.session_token)).json.success).toBe(true);
+	expect((await request('/api/chat/messages?conversation_kind=alliance&conversation_id='+alliance.id,{headers:{'X-Session-Token':b.session_token}})).status).toBe(200);
 });
 
 

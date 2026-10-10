@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { localize_currency_shorthand } from '../../mod/localization.mjs';
 import { get_owned_dlc } from '../../mod/client-runtime.mjs';
 import { is_item_available_for_owned_dlc } from '../../mod/item-visibility.mjs';
 import { get_transfer_currencies, get_transfer_currency } from '../../mod/transfer-currencies.mjs';
@@ -12,7 +13,7 @@ function fixture(owned = 261, cloud = {}) {
 	const fields = main.slice(main.indexOf('\tbank_action_item_id:'), main.indexOf('\n\ttransfer_inventory:', main.indexOf('\tbank_action_item_id:')));
 	const state = new Function('game', 'transfer_currency_support', 'is_local_item_available', 'numberWithCommas', `return ({${fields}${getters}})`)(
 		game, { get_transfer_currencies }, id => is_item_available_for_owned_dlc(id, get_owned_dlc(cloud)), n => Number(n).toLocaleString('en-US'));
-	Object.assign(state, { item_slider_value: 1, bank_action_item_owned_qty: owned, get_transfer_currency: id => get_transfer_currency(game, id) });
+	Object.assign(state, { item_slider_value: 1, bank_action_item_owned_qty: owned, get_transfer_currency: id => get_transfer_currency(game, id), currency_display_shorthand: entry => localize_currency_shorthand(entry, 'en', () => assert.fail('unexpected Chinese lookup')) });
 	return { state, game };
 }
 
@@ -53,14 +54,14 @@ test('selected currency drives balances and totals; absent currencies cannot be 
 });
 
 test('Haggle submissions check and identify the selected currency rather than the GP balance', async () => {
-	const { install_market_charity_actions } = await import('../../mod/client-actions-market-charity.mjs');
+	const { install_market_actions } = await import('../../mod/client-actions-market.mjs');
 	const currencies = await import('../../mod/transfer-currencies.mjs');
 	const { state, game } = fixture();
 	game.gp.amount = 1000000; game.slayerCoins.amount = 19;
 	game.items = { getObjectByID: () => ({}) };
 	const errors = [], requests = [];
 	Object.assign(state, { market_haggle_item: { id: 4, direction: 'sell', item_id: 'melvorD:Apple', price: 10, currency_id: 'melvorD:SlayerCoins' }, market_haggle_price: 10, item_slider_value: 2 });
-	const actions = install_market_charity_actions({ state, game, transfer_currency_support: currencies,
+	const actions = install_market_actions({ state, game, transfer_currency_support: currencies,
 		crypto: { randomUUID: () => 'command' }, is_market_item_discovered: () => true,
 		notify_error: key => errors.push(key), show_button_spinner: () => {}, hide_button_spinner: () => {},
 		api_post: async (route, payload) => { requests.push({ route, payload }); return { success: true, receipt: {} }; },

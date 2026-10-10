@@ -1,3 +1,5 @@
+import { charitree_retirement_migration } from './migrations/charitree-retirement';
+import { market_exchange_history_migration } from './migrations/market-exchange-history';
 import { market_listing_terms_migration } from './migrations/market-listing-terms';
 import { crucible_guild_scope_migration } from './migrations/crucible-guild-scope';
 import { transfer_context_migration } from './migrations/transfer-context';
@@ -156,4 +158,6 @@ export const migrations: Migration[] = [
 			SELECT MAX(submitted_at) FROM guild_petition_votes WHERE petition_id=guild_petitions.id
 		), created_at) + 86400000 WHERE lifecycle='active';
 	` },
+	market_exchange_history_migration,
+	charitree_retirement_migration,
 ];

@@ -4,7 +4,7 @@ export const EXPEDITION_BASE_SKILLS = new Set([
 	'melvorD:Woodcutting', 'melvorD:Fishing', 'melvorD:Firemaking', 'melvorD:Cooking',
 	'melvorD:Mining', 'melvorD:Smithing', 'melvorD:Thieving', 'melvorD:Fletching',
 	'melvorD:Crafting', 'melvorD:Runecrafting', 'melvorD:Herblore', 'melvorD:Agility',
-	'melvorD:Summoning', 'melvorD:Astrology', 'melvorD:AltMagic', 'melvorD:Combat'
+	'melvorD:Summoning', 'melvorD:Astrology', 'melvorD:Magic', 'melvorD:Combat'
 ]);
 export const EXPEDITION_DLC_SKILLS = new Set([
 	'melvorAoD:Archaeology', 'melvorAoD:Cartography', 'melvorItA:Harvesting'
@@ -40,6 +40,19 @@ export type ExpeditionContent = {
 	chambers: ExpeditionChamber[];
 	preview_route?: Record<string, string>;
 };
+
+// Old clients and saved runs used AltMagic for the Magic skill's time counter.
+export function expedition_skill_id(skill_id: string): string {
+	return skill_id === 'melvorD:AltMagic' ? 'melvorD:Magic' : skill_id;
+}
+
+export function parse_expedition_content(snapshot: string): ExpeditionContent {
+	const content = JSON.parse(snapshot) as ExpeditionContent;
+	for (const chamber of content.chambers)
+		for (const task of chamber.tasks)
+			task.evidence.skill_ids = [...new Set(task.evidence.skill_ids.map(expedition_skill_id))];
+	return content;
+}
 
 const content_id = /^[a-z][a-z0-9_]*$/;
 

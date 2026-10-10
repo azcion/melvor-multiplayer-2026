@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { access, readFile, readdir } from 'node:fs/promises';
 import test from 'node:test';
 import {
+	localize_currency_shorthand,
+	format_multiplayer_currency_amount,
 	MULTIPLAYER_PAGE_LANG_IDS,
 	MULTIPLAYER_SUPPORTED_LANGUAGES,
 	create_localized_language_fetch,
@@ -9,6 +11,8 @@ import {
 	localize_raid_content,
 	resolve_multiplayer_language
 } from '../../mod/localization.mjs';
+
+import { TEXT_FEATURE_NAMES, feature_catalog, feature_name, fallback_feature_name } from '../../mod/chat-items.mjs';
 
 const root = new URL('../../', import.meta.url);
 
@@ -51,6 +55,43 @@ test('every locale covers the English dictionary and preserves formatting placeh
 				`${language}:${key} named placeholders must match English`);
 		}
 	}
+});
+
+test('iconless feature tags resolve every packaged locale while preserving IDs and English wire labels', async () => {
+	const dictionaries = {};
+	for (const language of MULTIPLAYER_SUPPORTED_LANGUAGES)
+		dictionaries[language] = JSON.parse(await readFile(new URL(`mod/data/lang/${language}.json`, root), 'utf8'));
+	let language = 'en';
+	const getLangString = key => dictionaries[language][key];
+	for (const locale of MULTIPLAYER_SUPPORTED_LANGUAGES) {
+		language = locale;
+		const catalog = feature_catalog({}, getLangString);
+		assert.equal(catalog.length, Object.keys(TEXT_FEATURE_NAMES).length);
+		for (const [key, english] of Object.entries(TEXT_FEATURE_NAMES)) {
+			const id = `multiplayer:${key}`;
+			const lang_id = 'MOD_MP_CHAT_FEATURE_' + key.toUpperCase();
+			const localized = dictionaries[locale][lang_id];
+			assert.ok(localized?.trim(), `${locale}:${lang_id} must be translated`);
+			assert.equal(feature_name({}, getLangString, id), localized);
+			assert.deepEqual(catalog.find(feature => feature.id === id), { id, name: localized, media: null });
+			assert.equal(fallback_feature_name(id), english);
+			assert.equal(feature_name({}, key => key, id), english);
+		}
+		if (locale !== 'en') assert.notEqual(feature_name({}, getLangString, 'multiplayer:Guild_Member'), 'guild member');
+	}
+	language = 'zh-CN';
+	assert.equal(feature_name({}, getLangString, 'multiplayer:Alliance_Member_Guild'), '联盟成员公会');
+	assert.equal(feature_name({}, getLangString, 'multiplayer:Guild_Member'), '公会成员');
+	language = 'tr';
+	assert.equal(feature_name({}, getLangString, 'multiplayer:Alliance'), 'ittifak');
+	language = 'en';
+	assert.equal(feature_name({}, getLangString, 'multiplayer:Alliance'), 'alliance');
+	const alt_magic = { get name() { return language === 'zh-CN' ? '非战斗魔法' : 'Alt. Magic'; } };
+	const game = { pages: { getObjectByID: id => id === 'melvorD:AltMagic' ? alt_magic : undefined } };
+	language = 'zh-CN';
+	assert.equal(feature_name(game, getLangString, 'melvorD:AltMagic'), '非战斗魔法');
+	language = 'en';
+	assert.equal(feature_name(game, getLangString, 'melvorD:AltMagic'), 'Alt. Magic');
 });
 
 test('every packaged locale labels both Raid reward groups and the tier', async () => {
@@ -298,12 +339,12 @@ test('localization inventory covers runtime and server errors without unused ent
 	for (const state of ['ACCEPTED', 'DENIED', 'LAPSED', 'WITHDRAWN', 'CANCELLED'])
 		dynamic.add('MOD_MP_ALLIANCE_OUTCOME_' + state);
 	for (const action of ['WINNOWING', 'FELLOWSHIP', 'ENCLOSURE', 'INTERDICT', 'HERESY', 'TEMPERANCE', 'INDULGENCE',
-		'INGRATITUDE', 'SACRILEGE', 'BENEFICENCE', 'CRUCIBLE_PURGING', 'CRUCIBLE_SEALING',
+		'CRUCIBLE_PURGING', 'CRUCIBLE_SEALING',
 		'CRUCIBLE_UNSEALING']) {
 		for (const suffix of ['CONFIRM', 'PROPOSAL'])
 			dynamic.add(`MOD_MP_COUNCIL_${action}_${suffix}`);
 	}
-	for (const event of ['JOINED', 'LEFT', 'BANISHED', 'CHARITREE_DONATED', 'RAID_STARTED', 'RAID_BOSS_DEFEATED',
+	for (const event of ['JOINED', 'LEFT', 'BANISHED', 'RAID_STARTED', 'RAID_BOSS_DEFEATED',
 		'RAID_COMPLETED', 'MARKET_LISTING_CREATED', 'MARKET_BOUGHT', 'MARKET_BOUGHT_BY', 'MARKET_SOLD',
 		'MARKET_SOLD_TO', 'PETITION_RAISED', 'PETITION_CARRIED', 'PETITION_DEFEATED'])
 		dynamic.add('MOD_MP_GUILD_ACTIVITY_' + event);
@@ -325,4 +366,111 @@ test('Chinese Marketplace activity keeps quantity item and counterparty in sourc
 			assert.match(rendered, action === 'BOUGHT' ? /[卖賣]家[为為]PLAYER/ : /[买買]家[为為]PLAYER/);
 		}
 	}
+});
+
+
+test('Chinese currency labels omit GP while all other currency shorthand and native formatting survive', async () => {
+	const definitions = (await import('../../mod/transfer-currencies.mjs')).TRANSFER_CURRENCY_DEFINITIONS;
+	for (const lang of [...MULTIPLAYER_SUPPORTED_LANGUAGES, 'unsupported']) {
+		const dictionary = JSON.parse(await readFile(new URL(`mod/data/lang/${resolve_multiplayer_language(lang)}.json`, root), 'utf8'));
+		const getLangString = key => dictionary[key];
+		const chinese = lang === 'zh-CN' || lang === 'zh-TW';
+		const label = lang === 'zh-CN' ? '金币' : '金幣';
+		for (const entry of definitions) {
+			const localized = chinese && entry.id === 'melvorD:GP';
+			assert.equal(localize_currency_shorthand(entry, lang, getLangString), localized ? label : entry.shorthand);
+			const currency = { id: entry.id, formatAmount: amount => `native(${amount} ${entry.shorthand})` };
+			for (const amount of ['0', '175,000', '525k'])
+				assert.equal(format_multiplayer_currency_amount(currency, amount, lang, getLangString),
+					localized ? `${amount} ${label}` : `native(${amount} ${entry.shorthand})`);
+		}
+		if (chinese) {
+			assert.equal(dictionary.MOD_MP_GP_NAME, label);
+			assert.equal(dictionary.MOD_MP_CURRENCY_GOLD_PIECES, label);
+			assert.match(dictionary.MOD_MP_MARKET_HAGGLE_PRICE, new RegExp(label));
+			for (const [key, value] of Object.entries(dictionary))
+				assert.doesNotMatch(value, /\bGP\b/, `${lang}:${key}`);
+		}
+		assert.equal(localize_currency_shorthand(null, lang, getLangString), '');
+		assert.equal(format_multiplayer_currency_amount(undefined, '17', lang, getLangString), '17');
+	}
+});
+
+test('actual Marketplace display getters preserve each/total prices, zero fallbacks and language switching', async () => {
+	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const currencies = await import('../../mod/transfer-currencies.mjs');
+	const dictionaries = {};
+	for (const locale of ['en', 'zh-CN', 'zh-TW'])
+		dictionaries[locale] = JSON.parse(await readFile(new URL(`mod/data/lang/${locale}.json`, root), 'utf8'));
+	const environment = {
+		setLang: 'en', localization: { localize_currency_shorthand, format_multiplayer_currency_amount },
+		getLangString: key => dictionaries[resolve_multiplayer_language(environment.setLang)][key],
+		game: { gp: { id: 'melvorD:GP', formatAmount: amount => `${amount} native GP` } },
+		transfer_currency_support: currencies,
+		formatNumber: n => n >= 1000 ? `${n / 1000}k` : String(n),
+		numberWithCommas: n => Number(n).toLocaleString('en-US')
+	};
+	const helpers = main.slice(main.indexOf('\tcurrency_display_shorthand(entry)'), main.indexOf('\tget_capped_transfer_items(items)'));
+	const market = main.slice(main.indexOf('\tmarket_currency(row)'), main.indexOf('\tmarket_currency_amount(row)'));
+	const totals = main.slice(main.indexOf('\tget market_buy_price_formatted()'), main.indexOf('\tget market_listings_filtered()'));
+	const bank = main.slice(main.indexOf('\tget bank_action_market_total_formatted()'), main.indexOf('\tget market_currencies()'));
+	const state = new Function('environment', `with (environment) { return ({${helpers}${market}${totals}${bank}}); }`)(environment);
+	state.get_transfer_currency = id => currencies.get_transfer_currency(environment.game, id);
+	state.market_create_qty = state.item_slider_value = 3;
+	state.market_create_price = state.bank_action_market_price = 175000;
+	state.market_buy_item = state.market_fulfill_item = { price: 175000 };
+	for (const [locale, label] of [['zh-CN', '金币'], ['zh-TW', '金幣'], ['en', 'GP'], ['unsupported', 'GP'], ['zh-CN', '金币']]) {
+		environment.setLang = locale;
+		assert.equal(state.market_buy_price_formatted, `525k ${label}`);
+		assert.equal(state.market_fulfill_price_formatted, `525k ${label}`);
+		assert.equal(state.market_create_total_formatted, `525k ${label}`);
+		assert.equal(state.market_create_calculation_formatted, `3 × 175k ${label}`);
+		assert.equal(state.bank_action_market_total_formatted, locale.startsWith('zh-') ? `525,000 ${label}` : '525,000 native GP');
+		// Optional DLC currencies resolve from their definitions even if unavailable locally.
+		for (const [id, shorthand] of [['melvorD:SlayerCoins', 'SC'], ['melvorItA:AbyssalPieces', 'AP'], ['melvorItA:AbyssalSlayerCoins', 'ASC']]) {
+			state.market_buy_item = { price: 175000, currency_id: id };
+			assert.equal(state.market_buy_price_formatted, `525k ${shorthand}`);
+		}
+		state.market_buy_item = state.market_fulfill_item = null;
+		state.market_create_qty = state.item_slider_value = 0;
+		assert.equal(state.market_buy_price_formatted, `0 ${label}`);
+		assert.equal(state.market_fulfill_price_formatted, `0 ${label}`);
+		assert.equal(state.market_create_total_formatted, `0 ${label}`);
+		assert.equal(state.market_create_calculation_formatted, `0 × 0 ${label}`);
+		assert.equal(state.bank_action_market_total_formatted, locale.startsWith('zh-') ? `0 ${label}` : '0 native GP');
+		state.market_create_qty = state.item_slider_value = 3;
+		state.market_buy_item = state.market_fulfill_item = { price: 175000 };
+	}
+});
+
+test('Transfer and Trade value displays retain GP valuation and skip other currencies in both Chinese locales', async () => {
+	const transfer = await readFile(new URL('mod/client-actions-transfer.mjs', root), 'utf8');
+	const trade = await readFile(new URL('mod/client-actions-trading.mjs', root), 'utf8');
+	const methods = transfer.slice(transfer.indexOf('\t\tget_transfer_value(transfer)'), transfer.indexOf('\t\tasync open_transfer_data_page()')) +
+		trade.slice(trade.indexOf('\t\tget_trade_items_value(items)'), trade.indexOf('\t\tfilter_trade_items_home(trade)'));
+	const game = { gp: { id: 'melvorD:GP', formatAmount: n => `${n} GP` },
+		items: { getObjectByID: () => ({ sellsFor: { currency: game.gp } }) },
+		bank: { getItemSalePrice: (_item, qty) => qty * 1000 } };
+	for (const [lang, label] of [['zh-CN', '金币'], ['zh-TW', '金幣'], ['en', 'GP']]) {
+		const state = { format_currency_amount: (currency, amount) => format_multiplayer_currency_amount(currency, amount, lang, () => label) };
+		const actions = new Function('state', 'game', 'numberWithCommas', 'is_transfer_currency', `return ({${methods}})`)(
+			state, game, n => Number(n).toLocaleString('en-US'), id => id === 'melvorD:SlayerCoins');
+		const items = [{ item_id: 'melvorD:GP', qty: 175000 }, { item_id: 'melvorD:Coal', qty: 3 }, { item_id: 'melvorD:SlayerCoins', qty: 50 }];
+		assert.equal(actions.get_transfer_value({ data: { items } }), `178,000 ${label}`);
+		assert.equal(actions.get_trade_items_value(items), `178,000 ${label}`);
+		assert.equal(actions.get_transfer_value({ data: { items: [] } }), `0 ${label}`);
+		assert.equal(actions.get_trade_items_value([]), `0 ${label}`);
+		assert.equal(actions.get_transfer_value({ data: null }), '...');
+	}
+});
+
+test('Multiplayer templates route currency suffixes through display helpers without literal GP', async () => {
+	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
+	assert.doesNotMatch(templates, /\bGP\b/);
+	assert.doesNotMatch(templates, /\.shorthand/);
+	for (const expression of ['state.selected_transfer_currency', 'entry', 'offer.currency'])
+		assert.ok(templates.includes(`state.currency_display_shorthand(${expression})`), expression);
+	const start = templates.indexOf('<template id="template-mp-market-buy-modal">');
+	assert.ok(start >= 0);
+	assert.match(templates.slice(start, templates.indexOf('</template>', start)), /state\.market_buy_price_formatted/);
 });

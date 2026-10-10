@@ -4,20 +4,20 @@ import { get_json_with_session, post_json } from '../support/http';
 import { db_all, db_run } from '../support/persistence';
 
 describe('durable audit log', () => {
-	test('traces a FIFO Charitree lot through a Gift and acknowledged Inbox claim', async () => {
+	test('traces a FIFO Crucible lot through a Gift and acknowledged Inbox claim', async () => {
 		const [donor, picker, recipient] = await make_guild_group(
 			['Bob', 'Picker', 'Recipient'],
-			'Audit Guild'
+			'Audit Guild', '1.6.9'
 		);
 		const item_id = 'melvorD:Audit_Apple';
 		const donate_command = crypto.randomUUID();
-		await post_json('/api/charity/donate', {
-			command_id: donate_command,
+		await post_json('/api/crucible/cast', {
+			command_id: donate_command, source: 'transfer',
 			items: [{ id: item_id, qty: 6, value_currency_id: 'melvorD:GP', value_per_item: 1 }]
 		}, donor.session_token);
-		await db_run('UPDATE `clients` SET `last_charity` = 0, `last_bonus_charity` = 0 WHERE `id` = ?', [picker.client_id]);
+		await db_run('UPDATE guild_memberships SET crucible_reclaim_available_at = 0 WHERE client_id = ?', [picker.client_id]);
 		const take_command = crypto.randomUUID();
-		await post_json('/api/charity/take', {
+		await post_json('/api/crucible/reclaim', {
 			command_id: take_command,
 			item_id,
 			qty: 1
@@ -53,13 +53,13 @@ describe('durable audit log', () => {
 		}>(
 			' SELECT `id`, `event_type`, `actor_client_id`, `actor_display_name`, `guild_id`, `guild_name` ' +
 			'FROM `audit_event_timeline` WHERE `event_type` IN ' +
-			"('charitree.donated', 'charitree.taken', 'gift.sent', 'gift.accepted', " +
+			"('crucible.cast', 'crucible.reclaimed', 'gift.sent', 'gift.accepted', " +
 			"'inbox.claim_created', 'inbox.claim_acknowledged') AND (`guild_id` = ? OR `actor_client_id` IN (?, ?)) ORDER BY `id`",
 			[donor.guild_id, picker.client_id, recipient.client_id]
 		);
 		expect(events.map(event => event.event_type)).toEqual([
-			'charitree.donated',
-			'charitree.taken',
+			'crucible.cast',
+			'crucible.reclaimed',
 			'inbox.claim_created',
 			'inbox.claim_acknowledged',
 			'gift.sent',
@@ -76,7 +76,7 @@ describe('durable audit log', () => {
 		const donor_lot = await db_all<{ lot_id: number; quantity: number }>(
 			' SELECT movement.`lot_id`, movement.`quantity` FROM `audit_value_movements` AS movement ' +
 			'JOIN `audit_events` AS event ON event.`id` = movement.`event_id` ' +
-			'WHERE event.`event_type` = \'charitree.donated\' AND movement.`to_kind` = \'charitree\' ' +
+			'WHERE event.`event_type` = \'crucible.cast\' AND movement.`to_kind` = \'crucible\' ' +
 			'AND movement.`object_id` = ?', [item_id]
 		);
 		expect(donor_lot).toHaveLength(1);
@@ -87,7 +87,7 @@ describe('durable audit log', () => {
 			'WHERE movement.`lot_id` = ? ORDER BY event.`id`, movement.`ordinal`', [donor_lot[0].lot_id]
 		);
 		expect(lineage.map(row => row.event_type)).toEqual([
-			'charitree.donated', 'charitree.taken', 'inbox.claim_created', 'gift.sent',
+			'crucible.cast', 'crucible.reclaimed', 'inbox.claim_created', 'gift.sent',
 			'gift.accepted', 'inbox.claim_created'
 		]);
 		expect(lineage.every(row => row.quantity === 1 || row.quantity === 6)).toBe(true);
@@ -99,7 +99,7 @@ describe('durable audit log', () => {
 			position_kind: 'client', position_key: String(recipient.client_id), quantity: 1
 		});
 		expect(final_position).toContainEqual({
-			position_kind: 'charitree', position_key: String(donor.guild_id), quantity: 5
+			position_kind: 'crucible', position_key: String(donor.guild_id), quantity: 5
 		});
 	});
 
@@ -122,24 +122,4 @@ describe('durable audit log', () => {
 		)).toEqual([]);
 	});
 
-	test('records automatic Charitree expiry as a system event and closes its lots', async () => {
-		const [client] = await make_guild_group(['Expiry Auditor'], 'Expiry Audit Guild');
-		const item_id = 'melvorD:Audit_Expired';
-		await post_json('/api/charity/donate', {
-			items: [{ id: item_id, qty: 3, value_currency_id: null, value_per_item: 0 }]
-		}, client.session_token);
-		await db_run('UPDATE `charity_items` SET `expires_at` = 1 WHERE `guild_id` = ? AND `item_id` = ?',
-			[client.guild_id, item_id]);
-		await get_json_with_session('/api/charity/contents', client.session_token);
-		const expiry = await db_all<{ id: number; actor_kind: string; guild_name: string }>(
-			'SELECT `id`, `actor_kind`, `guild_name` FROM `audit_events` WHERE `event_type` = \'charitree.expired\' ' +
-			'AND `guild_id` = ?', [client.guild_id]
-		);
-		expect(expiry).toHaveLength(1);
-		expect(expiry[0]).toMatchObject({ actor_kind: 'system', guild_name: 'Expiry Audit Guild' });
-		expect(await db_all(
-			'SELECT position.* FROM `audit_value_lot_positions` AS position ' +
-			'JOIN `audit_value_lots` AS lot ON lot.`id` = position.`lot_id` WHERE lot.`object_id` = ?', [item_id]
-		)).toEqual([]);
-	});
 });

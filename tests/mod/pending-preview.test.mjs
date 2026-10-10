@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { install_trading_actions } from '../../mod/client-actions-trading.mjs';
-import { install_market_charity_actions } from '../../mod/client-actions-market-charity.mjs';
+import { install_market_actions } from '../../mod/client-actions-market.mjs';
 
 test('every synthetic Pending action exits before Bank, Outbox, journal, confirmation or real API code', async () => {
 	const calls = [];
@@ -11,7 +11,7 @@ test('every synthetic Pending action exits before Bank, Outbox, journal, confirm
 	};
 	// Missing real runtime dependencies deliberately fail if an action crosses the no-op boundary.
 	Object.assign(state, install_trading_actions({ state }));
-	Object.assign(state, install_market_charity_actions({ state }));
+	Object.assign(state, install_market_actions({ state }));
 	for (const [method, action] of [['counter_trade', 'counter'], ['resolve_trade', 'resolve'],
 		['decline_trade', 'decline'], ['accept_trade', 'accept'], ['cancel_trade', 'cancel']]) {
 		await state[method](null, -1);

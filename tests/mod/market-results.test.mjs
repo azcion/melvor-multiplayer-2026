@@ -8,8 +8,7 @@ import {
 	remove_sold_out_market_result,
 	sort_market_filter_items
 } from '../../mod/market-results.mjs';
-import { install_market_charity_actions } from '../../mod/client-actions-market-charity.mjs';
-import * as charitree_rules from '../../mod/charitree-rules.mjs';
+import { install_market_actions } from '../../mod/client-actions-market.mjs';
 
 test('removes a sold-out result and updates buyer pagination', () => {
 	const state = {
@@ -111,7 +110,7 @@ test('captures Marketplace queries and ignores stale generations', async () => {
 test('limits Marketplace discovery to locally owned official DLC', async () => {
 	const [main, actions] = await Promise.all([
 		read_client_source(),
-		readFile(new URL('../../mod/client-actions-market-charity.mjs', import.meta.url), 'utf8')
+		readFile(new URL('../../mod/client-actions-market.mjs', import.meta.url), 'utf8')
 	]);
 	const namespaces = main.slice(
 		main.indexOf('function get_local_item_namespaces()'),
@@ -153,7 +152,7 @@ test('serializes overlapping Haggle refreshes and keeps the post-response refres
 test('defaults Marketplace sorting to Recent and toggles to direction-specific Price sorting', async () => {
 	const [main, actions, templates, english, chinese] = await Promise.all([
 		read_client_source(),
-		readFile(new URL('../../mod/client-actions-market-charity.mjs', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/client-actions-market.mjs', import.meta.url), 'utf8'),
 		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
 		readFile(new URL('../../mod/data/lang/en.json', import.meta.url), 'utf8'),
 		readFile(new URL('../../mod/data/lang/zh-CN.json', import.meta.url), 'utf8')
@@ -172,7 +171,7 @@ test('defaults Marketplace sorting to Recent and toggles to direction-specific P
 });
 
 test('clears stale results when switching Marketplace direction', async () => {
-	const actions = await readFile(new URL('../../mod/client-actions-market-charity.mjs', import.meta.url), 'utf8');
+	const actions = await readFile(new URL('../../mod/client-actions-market.mjs', import.meta.url), 'utf8');
 	const direction_switch = actions.slice(
 		actions.indexOf('\t\tswitch_market_direction(direction)'),
 		actions.indexOf('\n\t\tshow_market_buy_modal', actions.indexOf('\t\tswitch_market_direction(direction)'))
@@ -248,7 +247,7 @@ test('tears down the buy modal before changing its reactive slider maximum', asy
 
 test('exposes distinct buy-order creation and fulfillment flows', async () => {
 	const [actions, templates, style] = await Promise.all([
-		readFile(new URL('../../mod/client-actions-market-charity.mjs', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/client-actions-market.mjs', import.meta.url), 'utf8'),
 		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
 		readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8')
 	]);
@@ -279,7 +278,7 @@ test('exposes distinct buy-order creation and fulfillment flows', async () => {
 test('enforces the Guild Temperance policy with character-local item discovery', async () => {
 	const [main, actions, templates, languages] = await Promise.all([
 		read_client_source(),
-		readFile(new URL('../../mod/client-actions-market-charity.mjs', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/client-actions-market.mjs', import.meta.url), 'utf8'),
 		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
 		Promise.all((await import('../../mod/localization.mjs')).MULTIPLAYER_SUPPORTED_LANGUAGES.map(async language => ({
 			language,
@@ -357,7 +356,7 @@ test('renders a responsive buy-order form with a calculated escrow breakdown', a
 test('limits fulfillment to bank quantity and splits the fulfillment title across two lines', async () => {
 	const [main, actions, templates, style] = await Promise.all([
 		read_client_source(),
-		readFile(new URL('../../mod/client-actions-market-charity.mjs', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/client-actions-market.mjs', import.meta.url), 'utf8'),
 		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
 		readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8')
 	]);
@@ -375,7 +374,7 @@ test('limits fulfillment to bank quantity and splits the fulfillment title acros
 
 test('renders Haggle counteroffers in a Marketplace-style modal without a quantity picker', async () => {
 	const [actions, templates] = await Promise.all([
-		readFile(new URL('../../mod/client-actions-market-charity.mjs', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/client-actions-market.mjs', import.meta.url), 'utf8'),
 		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8')
 	]);
 	const counter_template_start = templates.indexOf('template-mp-market-haggle-counter-modal');
@@ -526,7 +525,7 @@ test('shows queued Marketplace fulfillment notices with item details', async () 
 test('splits owned Marketplace orders into responsive direction tabs', async () => {
 	const [main, actions, templates, style] = await Promise.all([
 		read_client_source(),
-		readFile(new URL('../../mod/client-actions-market-charity.mjs', import.meta.url), 'utf8'),
+		readFile(new URL('../../mod/client-actions-market.mjs', import.meta.url), 'utf8'),
 		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
 		readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8')
 	]);
@@ -559,7 +558,7 @@ test('keys Marketplace rows by listing ID instead of nested action buttons', asy
 
 test('switches the owned Marketplace direction without accepting invalid values', () => {
 	const state = { market_listing_direction: 'buy' };
-	const actions = install_market_charity_actions({ state });
+	const actions = install_market_actions({ state });
 
 	actions.switch_market_listing_direction.call(state, 'sell');
 	assert.equal(state.market_listing_direction, 'sell');
@@ -592,7 +591,7 @@ test('keeps the top Marketplace cards equal-width on desktop and full-width on m
 test('places Haggle before the direct Marketplace action and exposes source-labelled claims', async () => {
 	const [templates, actions] = await Promise.all([
 		readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'),
-		readFile(new URL('../../mod/client-actions-market-charity.mjs', import.meta.url), 'utf8')
+		readFile(new URL('../../mod/client-actions-market.mjs', import.meta.url), 'utf8')
 	]);
 	const result_actions = templates.slice(templates.indexOf('state.show_market_haggle_modal(item)'),
 		templates.indexOf('</div>', templates.indexOf('state.show_market_haggle_modal(item)')));
@@ -671,7 +670,7 @@ test('defaults a selected buy order item to its game sale value', () => {
 		market_create_item: null,
 		market_create_price: 1
 	};
-	const actions = install_market_charity_actions({
+	const actions = install_market_actions({
 		state,
 		game: {
 			items: { getObjectByID: item_id => item_id === item.id ? item : undefined },
@@ -697,7 +696,7 @@ function haggle_actions_fixture({ gp = 0, bank_qty = 0, price = 10, confirm = tr
 	state.market_currency_amount = () => game.gp.amount;
 	state.market_currency_shorthand = () => 'GP';
 	const game = { gp: { amount: gp }, items: { getObjectByID: () => ({}) }, bank: { getQty: () => bank_qty } };
-	const actions = install_market_charity_actions({
+	const actions = install_market_actions({
 		state, game, crypto: { randomUUID: () => 'command' },
 		getLangString: key => key,
 		queue_modal: (...args) => { modals.push(args); return true; },
@@ -813,7 +812,7 @@ test('counter affordability uses the current balance when the offer modal is sub
 	const errors = [];
 	const game = { gp: { amount: 100 } };
 	const state = { market_haggle_price: 10, market_currency_amount: () => game.gp.amount };
-	const actions = install_market_charity_actions({
+	const actions = install_market_actions({
 		state, game,
 		is_button_spinning: () => false, show_button_spinner: () => {}, hide_button_spinner: () => {},
 		notify_error: key => errors.push(key), api_post: () => assert.fail('unaffordable counter submitted')
@@ -824,31 +823,6 @@ test('counter affordability uses the current balance when the offer modal is sub
 	}, 'counter', true);
 	assert.deepEqual(errors, ['MOD_MP_MARKET_INSUFFICIENT_GP']);
 });
-
-test('passes currency support into the Charitree action module', () => {
-	const currency = { amount: 10_000 };
-	const game = {
-		gp: currency,
-		items: { getObjectByID: () => undefined },
-		bank: { getItemSalePrice: () => 0 }
-	};
-	const state = {};
-	const actions = install_market_charity_actions({
-		state,
-		game,
-		charitree_rules,
-		is_transfer_currency: item_id => item_id === 'test:currency',
-		transfer_currency_support: {
-			get_transfer_currency: (_game, item_id) => item_id === 'test:currency' ? { currency } : null,
-			get_transfer_currency_for_currency: () => null
-		}
-	});
-	Object.assign(state, actions);
-
-	assert.equal(state.get_charity_take_quantity({ id: 'test:currency', qty: 33_000 }), 5_000);
-	assert.equal(state.get_charity_take_block({ id: 'test:currency', qty: 33_000 }), null);
-});
-
 
 test('Buy Order buttons follow owned quantity without requiring the entire order stack', async () => {
 	const templates = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
@@ -881,7 +855,7 @@ test('direct fulfillment remains available when the order disables Haggles', () 
 	let owned = 0;
 	const modals = [];
 	const state = { market_buyable: item => item.available, get_market_item_owned_qty: () => owned, get_item_name: () => 'Logs', get_item_icon: () => 'logs.svg' };
-	const actions = install_market_charity_actions({ state, is_local_item_available: () => true, queue_modal: (...args) => modals.push(args) });
+	const actions = install_market_actions({ state, is_local_item_available: () => true, queue_modal: (...args) => modals.push(args) });
 	const item = { direction: 'buy', item_id: 'melvorD:Logs', available: 10, allow_haggles: false };
 	actions.show_market_fulfill_modal.call(state, item);
 	assert.equal(modals.length, 0);

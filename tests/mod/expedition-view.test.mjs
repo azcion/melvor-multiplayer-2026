@@ -42,20 +42,20 @@ test('each Chamber opens all phases and preserves manual toggles during the same
 	assert.deepEqual(state.expedition_phase_open, { arrival: true, exploration: true, departure: true });
 });
 
-test('resolves Expedition skill names and icons, including Alt. Magic outside the skill registry', () => {
+test('resolves Expedition skill names and icons, including Magic from the skill registry', () => {
 	const game = {
-		altMagic: { media: 'alt-magic.png' },
 		skills: { getObjectByID: id => id === 'melvorD:Woodcutting'
-			? { name: 'Woodcutting', media: 'woodcutting.png' } : undefined }
+			? { name: 'Woodcutting', media: 'woodcutting.png' } : id === 'melvorD:Magic'
+				? { name: 'Magic', media: 'magic.png' } : undefined }
 	};
-	assert.equal(work_skill_name(game, 'melvorD:AltMagic'), 'Alt. Magic');
-	assert.equal(work_skill_icon(game, 'melvorD:AltMagic'), 'alt-magic.png');
+	assert.equal(work_skill_name(game, 'melvorD:Magic'), 'Magic');
+	assert.equal(work_skill_icon(game, 'melvorD:Magic'), 'magic.png');
 	assert.equal(work_skill_name(game, 'melvorD:Combat'), 'Combat');
 	assert.equal(work_skill_name(game, 'melvorD:Woodcutting'), 'Woodcutting');
 	assert.equal(work_skill_icon(game, 'melvorD:Woodcutting'), 'woodcutting.png');
 	assert.equal(work_skill_name(game, 'unknown:Skill'), 'unknown:Skill');
 	assert.equal(work_skill_icon(game, 'unknown:Skill'), 'assets/media/main/question.png');
-	assert.equal(work_skill_icon({}, 'melvorD:AltMagic'), 'assets/media/main/question.png');
+	assert.equal(work_skill_icon({}, 'melvorD:Magic'), 'assets/media/main/question.png');
 });
 
 test('work stages use completion, Guild progress, and the viewer tracking session', () => {

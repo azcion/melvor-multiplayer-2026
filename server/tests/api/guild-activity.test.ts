@@ -69,7 +69,7 @@ describe('Guild Activity', () => {
 		})).status).toBe(400);
 	});
 
-	test('hides legacy Campaign and Charitree events only from 1.6.0 Activity pages', async () => {
+	test('hides retired Charitree events from every client and Campaign events from current Activity pages', async () => {
 		const pair = await make_guildmates('Legacy Feed', 'Crucible Feed', 'Versioned Activity',
 			{ first: '1.5.16', second: '1.6.0' });
 		const kinds = ['joined', 'campaign_started', 'campaign_completed', 'campaign_contributed',
@@ -85,25 +85,10 @@ describe('Guild Activity', () => {
 		const legacy_first = await activity(pair.first.session_token);
 		expect(legacy_first.json.events).toHaveLength(20);
 		expect(legacy_first.json.next_cursor).not.toBeNull();
-		expect(legacy_first.json.events.some(event => event.event_type === 'charitree_donated')).toBe(true);
+		expect(legacy_first.json.events.some(event => event.event_type === 'charitree_donated')).toBe(false);
 	});
 
-	test('throttles noisy successful actions without suppressing their underlying mutations', async () => {
-		const client = await register_guild_client('Activity Donor', 'Donation Guild');
-		const first = await post_json<{ success: boolean }>('/api/charity/donate', {
-			items: [{ id: 'melvorD:Logs', qty: 1 }], command_id: crypto.randomUUID()
-		}, client.session_token);
-		const second = await post_json<{ success: boolean }>('/api/charity/donate', {
-			items: [{ id: 'melvorD:Logs', qty: 2 }], command_id: crypto.randomUUID()
-		}, client.session_token);
 
-		expect(first.json.success).toBe(true);
-		expect(second.json.success).toBe(true);
-		expect(await db_count(
-			"SELECT COUNT(*) AS `count` FROM `guild_activity_events` WHERE `guild_id` = ? AND `event_type` = 'charitree_donated'",
-			[client.guild_id]
-		)).toBe(1);
-	});
 
 	test('records Marketplace purchases and fulfillments privately for both participants', async () => {
 		const pair = await make_guildmates('Market Seller', 'Market Buyer', 'Activity Market');

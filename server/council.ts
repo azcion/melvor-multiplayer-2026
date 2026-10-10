@@ -11,9 +11,6 @@ export const PETITION_TYPES = [
 	'heraldry',
 	'banishment',
 	'winnowing',
-	'charitree_ingratitude',
-	'charitree_sacrilege',
-	'charitree_beneficence',
 	'fellowship',
 	'enclosure',
 	'interdict',
@@ -68,8 +65,6 @@ export function get_petition_conflict_subject(type: PetitionType, target_members
 		return 'guild:name';
 	if (type === 'heraldry')
 		return 'guild:icon';
-	if (type.startsWith('charitree_'))
-		return 'guild:charitree';
 	if (type.startsWith('crucible_'))
 		return 'guild:crucible';
 	if (type === 'fellowship' || type === 'enclosure')

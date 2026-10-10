@@ -30,7 +30,7 @@ test('renders the new badge on the Updates sidebar item and mobile Changelog tab
 	assert.match(main, /set_character_storage_item\(UPDATES_LAST_SEEN_MOD_VERSION_KEY, MOD_VERSION\)/);
 	assert.match(main, /tab === 'changelog' && is_mobile_layout\(\)/);
 	assert.match(main, /is_visible && !is_mobile_layout\(\)/);
-	assert.match(style, /\.mp-updates-tabs \.btn \{\s*position: relative;\s*\}/);
+	assert.match(style, /\.mp-updates-tabs \.btn \{\s*position: relative;/);
 	assert.match(style, /\.mp-updates-tab-badge \{[\s\S]*background: #30c78d;/);
 	assert.equal(english.MOD_MP_SIDEBAR_NEW, 'new');
 	assert.equal(chinese.MOD_MP_SIDEBAR_NEW, '新');

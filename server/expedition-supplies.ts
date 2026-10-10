@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { db } from './db';
 import { economy_item_effects, run_economy_command } from './economy';
-import { get_charity_shuffle_owner_key } from './charity-wishes';
 import { is_social_only_client } from './app-runtime';
 import type { JsonObject } from './http';
 
@@ -65,7 +64,7 @@ export function donate_expedition_supply(client_id: number, command_id: unknown,
 			.run(expedition_id as number, item_id, qty as number, item.value_currency_id, item.value_per_item);
 		const lot = db.query<{ id: number }, [number, string, number, string, number, number]>(
 			'INSERT INTO expedition_supply_lots (expedition_id, item_id, client_id, owner_key, qty, contributed_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING id'
-		).get(expedition_id as number, item_id, client_id, get_charity_shuffle_owner_key(client_id), qty as number, now);
+		).get(expedition_id as number, item_id, client_id, get_supply_owner_key(client_id), qty as number, now);
 		if (!lot) throw new Error('Expedition supply lot was not created');
 		db.query('INSERT INTO expedition_supply_scores (client_id, expedition_id, value_gp_equiv, score_micros) VALUES (?, ?, ?, ?) ' +
 			'ON CONFLICT (client_id, expedition_id) DO UPDATE SET value_gp_equiv = excluded.value_gp_equiv, score_micros = excluded.score_micros')
@@ -82,4 +81,10 @@ export function donate_expedition_supply(client_id: number, command_id: unknown,
 			points_micros: score_micros, delta_micros,
 			effects: economy_item_effects([{ id: item_id, qty: qty as number }], source as 'bank' | 'transfer', -1) };
 	});
+}
+
+function get_supply_owner_key(client_id: number): string {
+	const account_id = db.query<{ melvor_account_id: number | null }, [number]>(
+		'SELECT melvor_account_id FROM clients WHERE id = ?').get(client_id)?.melvor_account_id;
+	return account_id == null ? `client:${client_id}` : `account:${account_id}`;
 }

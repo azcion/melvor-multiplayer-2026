@@ -586,101 +586,39 @@ describe('Guild Expedition registration', () => {
 		expect(tenures[1].ended_at).toBeNull();
 	});
 
-	test('transfers an inactive run Stash into a merged Charitree stack once with a 24-hour owner lock', async () => {
-		const guild = await make_guildmates('Stash One', 'Stash Two', 'Stash Guild');
+	test.each([true, false])('disposes an inactive Stash once through an open=%s Crucible', async (is_open) => {
+		const guild = await make_guildmates('Crucible Supply A', 'Crucible Supply B', 'Crucible Stash',
+			{ first: '1.6.9', second: '1.6.9' });
 		const started = await post_json<{ expedition_id: number }>(
 			'/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.first.session_token);
 		const now = Date.now();
-		await db_run('UPDATE guilds SET charitree_enabled = 1 WHERE id = ?', [guild.guild_id]);
-		await db_run('INSERT INTO charity_items ' +
-			'(guild_id, item_id, qty, expires_at, donated_at, value_currency_id, value_per_item) ' +
-			'VALUES (?, ?, ?, ?, ?, ?, ?)',
-			[guild.guild_id, 'melvorD:Shrimp', 2, now + 3_600_000, now, 'melvorD:GP', 1]);
+		await post_json('/api/crucible/cast', { source: 'transfer', items: [{ id: 'melvorD:Shrimp', qty: 9 }],
+			command_id: crypto.randomUUID() }, guild.first.session_token);
+		await db_run('UPDATE crucible_guilds SET is_open=? WHERE guild_id=?', [is_open ? 1 : 0, guild.guild_id]);
 		await db_run('INSERT INTO expedition_supplies ' +
 			'(expedition_id, item_id, qty, value_currency_id, value_per_item) VALUES (?, ?, ?, ?, ?)',
 			[started.json.expedition_id, 'melvorD:Shrimp', 3, 'melvorD:GP', 1]);
 		await db_run('INSERT INTO expedition_supply_lots ' +
 			'(expedition_id, item_id, client_id, owner_key, qty, contributed_at) VALUES (?, ?, ?, ?, ?, ?)',
 			[started.json.expedition_id, 'melvorD:Shrimp', guild.first_id, `client:${guild.first_id}`, 3, now]);
-		await db_run('UPDATE expeditions SET last_qualifying_activity_at = ? WHERE id = ?',
+		await db_run('UPDATE expeditions SET last_qualifying_activity_at=? WHERE id=?',
 			[now - RECENTLY_ACTIVE_AFTER - 1, started.json.expedition_id]);
-		const returned = await get_json_with_session<ExpeditionState>('/api/expedition/state', guild.first.session_token);
-		expect(returned.json.expedition?.status).toBe('inactive');
-		expect(returned.json.expedition?.stash_outcome).toBe('charitree');
-		const stack = await db_all<{ qty: number }>(
-			'SELECT qty FROM charity_items WHERE guild_id = ? AND item_id = ?', [guild.guild_id, 'melvorD:Shrimp']);
-		expect(stack).toEqual([{ qty: 5 }]);
-		const lock = await db_all<{ locked_until: number }>(
-			'SELECT locked_until FROM charity_currency_locks WHERE guild_id = ? AND owner_key = ? AND currency_id = ?',
-			[guild.guild_id, `client:${guild.first_id}`, 'melvorD:Shrimp']);
-		expect(lock[0].locked_until).toBeGreaterThanOrEqual(now + 24 * 3_600_000);
-		expect(await db_all('SELECT * FROM expedition_supplies WHERE expedition_id = ?',
-			[started.json.expedition_id])).toEqual([]);
-		await get_json_with_session('/api/expedition/state', guild.first.session_token);
-		expect(await db_all<{ qty: number }>(
-			'SELECT qty FROM charity_items WHERE guild_id = ? AND item_id = ?', [guild.guild_id, 'melvorD:Shrimp']))
-			.toEqual([{ qty: 5 }]);
-		expect(await db_all<{ outcome: string }>(
-			'SELECT outcome FROM expedition_stash_disposals WHERE expedition_id = ?', [started.json.expedition_id]))
-			.toEqual([{ outcome: 'charitree' }]);
-	});
-
-	test('records Crucible Stash disposal after an explicit cutover', async () => {
-		const guild = await make_guildmates('Crucible Supply A', 'Crucible Supply B', 'Crucible Stash');
-		const started = await post_json<{ expedition_id: number }>(
-			'/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.first.session_token);
-		const now = Date.now();
-		await db_run('INSERT INTO expedition_supplies ' +
-			'(expedition_id, item_id, qty, value_currency_id, value_per_item) VALUES (?, ?, ?, ?, ?)',
-			[started.json.expedition_id, 'melvorD:Shrimp', 3, 'melvorD:GP', 1]);
-		await db_run('INSERT INTO expedition_supply_lots ' +
-			'(expedition_id, item_id, client_id, owner_key, qty, contributed_at) VALUES (?, ?, ?, ?, ?, ?)',
-			[started.json.expedition_id, 'melvorD:Shrimp', guild.first_id, `client:${guild.first_id}`, 3, now]);
-		await db_run('UPDATE expeditions SET last_qualifying_activity_at = ? WHERE id = ?',
-			[now - RECENTLY_ACTIVE_AFTER - 1, started.json.expedition_id]);
-		await db_run("INSERT INTO service_settings (key, value) VALUES ('crucible_cutover', '1') " +
-			"ON CONFLICT (key) DO UPDATE SET value = '1'");
-		try {
-			const migrated_at = Date.now();
-			await db_run('INSERT OR IGNORE INTO crucible_migration ' +
-				'(id, started_at, completed_at, source_json, destination_json) VALUES (1, ?, ?, ?, ?)',
-				[migrated_at, migrated_at, '{}', '{}']);
-			await db_run('INSERT OR IGNORE INTO crucible_guilds (guild_id, processed_minute, created_at) ' +
-				'SELECT id, ?, ? FROM guilds', [Math.floor(migrated_at / 60_000), migrated_at]);
+		for (let retry = 0; retry < 2; retry++) {
 			const state = await get_json_with_session<ExpeditionState>('/api/expedition/state', guild.first.session_token);
-			expect(state.json.expedition?.stash_outcome).toBe('crucible');
-			expect(await db_all<{ qty: number }>(
-				'SELECT qty FROM crucible_offerings WHERE guild_id = ? AND item_id = ?',
-				[guild.guild_id, 'melvorD:Shrimp'])).toEqual([{ qty: 3 }]);
-			expect(await db_all<{ outcome: string }>(
-				'SELECT outcome FROM expedition_crucible_outcomes WHERE expedition_id = ?',
-				[started.json.expedition_id])).toEqual([{ outcome: 'crucible' }]);
-			expect(await db_all('SELECT 1 FROM charity_items WHERE guild_id = ? AND item_id = ?',
-				[guild.guild_id, 'melvorD:Shrimp'])).toEqual([]);
-		} finally {
-			await db_run("UPDATE service_settings SET value = '0' WHERE key = 'crucible_cutover'");
+			expect(state.json.expedition?.stash_outcome).toBe(is_open ? 'crucible' : 'destroyed');
 		}
-	});
-
-	test('destroys an inactive run Stash when its Charitree is absent', async () => {
-		const guild = await make_guildmates('No Tree One', 'No Tree Two', 'No Tree Guild');
-		const started = await post_json<{ expedition_id: number }>(
-			'/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.first.session_token);
-		await db_run('UPDATE guilds SET charitree_enabled = 0 WHERE id = ?', [guild.guild_id]);
-		await db_run('INSERT INTO expedition_supplies ' +
-			'(expedition_id, item_id, qty, value_currency_id, value_per_item) VALUES (?, ?, ?, ?, ?)',
-			[started.json.expedition_id, 'melvorD:Shrimp', 3, 'melvorD:GP', 1]);
-		await db_run('INSERT INTO expedition_supply_lots ' +
-			'(expedition_id, item_id, client_id, owner_key, qty, contributed_at) VALUES (?, ?, ?, ?, ?, ?)',
-			[started.json.expedition_id, 'melvorD:Shrimp', guild.first_id, `client:${guild.first_id}`, 3, Date.now()]);
-		await db_run('UPDATE expeditions SET last_qualifying_activity_at = ? WHERE id = ?',
-			[Date.now() - RECENTLY_ACTIVE_AFTER - 1, started.json.expedition_id]);
-		const state = await get_json_with_session<ExpeditionState>('/api/expedition/state', guild.first.session_token);
-		expect(state.json.expedition?.stash_outcome).toBe('destroyed');
-		expect(await db_all('SELECT * FROM expedition_supplies WHERE expedition_id = ?',
-			[started.json.expedition_id])).toEqual([]);
-		expect(await db_all<{ outcome: string }>(
-			'SELECT outcome FROM expedition_stash_disposals WHERE expedition_id = ?', [started.json.expedition_id]))
-			.toEqual([{ outcome: 'destroyed' }]);
+		expect(await db_all('SELECT qty FROM crucible_offerings WHERE guild_id=? AND item_id=?',
+			[guild.guild_id, 'melvorD:Shrimp'])).toEqual([{ qty: is_open ? 12 : 9 }]);
+		expect(await db_all('SELECT outcome FROM expedition_crucible_outcomes WHERE expedition_id=?',
+			[started.json.expedition_id])).toEqual([{ outcome: is_open ? 'crucible' : 'destroyed' }]);
+		expect(await db_all('SELECT qty FROM expedition_supplies WHERE expedition_id=?', [started.json.expedition_id])).toEqual([]);
+		const lots = await db_all<{ qty: number; locked_until: number }>(
+			"SELECT lot.qty, lot.locked_until FROM crucible_contribution_lots lot JOIN crucible_offerings offering ON offering.id=lot.offering_id WHERE offering.guild_id=? AND lot.source_kind='expedition'",
+			[guild.guild_id]);
+		if (is_open) {
+			expect(lots).toHaveLength(1);
+			expect(lots[0].qty).toBe(3);
+			expect(lots[0].locked_until).toBeGreaterThan(now + 23 * 3_600_000);
+		} else expect(lots).toEqual([]);
 	});
 });

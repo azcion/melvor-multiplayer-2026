@@ -41,9 +41,9 @@ describe('Council petition rules', () => {
 	test('accepts only the closed petition and ballot vocabularies', () => {
 		expect(is_petition_type('banishment')).toBe(true);
 		expect(is_petition_type('winnowing')).toBe(true);
-		expect(is_petition_type('charitree_ingratitude')).toBe(true);
-		expect(is_petition_type('charitree_sacrilege')).toBe(true);
-		expect(is_petition_type('charitree_beneficence')).toBe(true);
+		expect(is_petition_type('charitree_ingratitude')).toBe(false);
+		expect(is_petition_type('charitree_sacrilege')).toBe(false);
+		expect(is_petition_type('charitree_beneficence')).toBe(false);
 		expect(is_petition_type('fellowship')).toBe(true);
 		expect(is_petition_type('enclosure')).toBe(true);
 		expect(is_petition_type('interdict')).toBe(true);
@@ -59,9 +59,9 @@ describe('Council petition rules', () => {
 	test('derives stable conflict subjects', () => {
 		expect(get_petition_conflict_subject('appellation')).toBe('guild:name');
 		expect(get_petition_conflict_subject('heraldry')).toBe('guild:icon');
-		expect(get_petition_conflict_subject('charitree_ingratitude')).toBe('guild:charitree');
-		expect(get_petition_conflict_subject('charitree_sacrilege')).toBe('guild:charitree');
-		expect(get_petition_conflict_subject('charitree_beneficence')).toBe('guild:charitree');
+		expect(get_petition_conflict_subject('crucible_purging')).toBe('guild:crucible');
+		expect(get_petition_conflict_subject('crucible_sealing')).toBe('guild:crucible');
+		expect(get_petition_conflict_subject('crucible_unsealing')).toBe('guild:crucible');
 		expect(get_petition_conflict_subject('fellowship')).toBe('guild:admission');
 		expect(get_petition_conflict_subject('enclosure')).toBe('guild:admission');
 		expect(get_petition_conflict_subject('interdict')).toBe('guild:cheat-policy');

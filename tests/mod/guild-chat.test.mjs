@@ -32,7 +32,7 @@ test('renders Chat categories in Global, Guild, Private, Support order', async (
 	assert.match(chat, /v-if="state\.personal_chat_conversations\.length > 0"/);
 	assert.match(chat, /v-if="state\.show_guild_chat_category"/);
 	assert.match(chat, /v-if="state\.support_chat_conversations\.length > 0"/);
-	assert.match(style, /\.mp-chat-category \+ \.mp-chat-category/);
+	assert.match(style, /\.mp-chat-category,[^{]*\{[^}]*margin-bottom: \.75rem;/);
 	assert.equal(language.MOD_MP_CHAT_CATEGORY_GLOBAL, 'Global');
 	assert.equal(language.MOD_MP_CHAT_CATEGORY_PRIVATE, 'Private');
 	assert.equal(language.MOD_MP_CHAT_CATEGORY_GUILD, 'Guild');
@@ -100,5 +100,5 @@ test('closes inaccessible Guild conversations and reloads cached Messages after 
 	assert.match(main, /selected\.conversation_kind === 'guild' \|\| selected\.conversation_kind === 'global'/);
 	assert.match(main, /current\.moderation_count !== selected\.moderation_count/);
 	assert.match(main, /if \(moderation_changed\) \{\s*state\.close_chat_conversation\(\);\s*await state\.open_chat_conversation\(current\)/);
-	assert.match(main, /if \(chat_page_visible \|\| has_muted_chats\)\s*await refresh_chat_conversations\(\)/);
+	assert.match(main, /if \(chat_page_visible \|\| has_muted_chats \|\| state.chat_unread > 0 \|\| state.get_chat_notification_tagged\(\)\)\s*await refresh_chat_conversations\(\)/);
 });

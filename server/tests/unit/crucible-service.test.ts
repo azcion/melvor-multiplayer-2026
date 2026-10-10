@@ -8,7 +8,7 @@ import { apply_crucible_petition, snapshot_crucible_petition, settle_departing_c
 function database_at_minute(minute: number): Database {
 	const database = create_test_database();
 
-	database.query('INSERT INTO crucible_guilds (guild_id, processed_minute, created_at) VALUES (1, ?, ?)')
+	database.query('UPDATE crucible_guilds SET processed_minute=?, created_at=? WHERE guild_id=1')
 		.run(minute, minute * 60_000);
 	return database;
 }
@@ -61,8 +61,6 @@ test('departure reconciles a newly formed and funded Wish before settling it', (
 	database.query('INSERT INTO crucible_wishes (guild_id, owner_client_id, melvor_account_id, item_id, qty, ' +
 		'required_gp, formation_points, created_at) VALUES (1, 100, 1, ?, 1, 100, 10079, 1)')
 		.run('test:Departure_Reward');
-	database.run("INSERT INTO crucible_migration (id, started_at, completed_at, source_json, destination_json) " +
-		"VALUES (1, 1, 1, '{}', '{}')");
 	const now = (minute + 1) * 60_000;
 	settle_departing_crucible_wish(100, 1, now, database);
 	expect(database.query('SELECT item_id, qty FROM inbox_items WHERE client_id = 100').all())
@@ -80,8 +78,6 @@ test('departure cancellation records the Gloop created from residual Wish value'
 	database.run("INSERT INTO melvor_accounts (id, cloud_username, playfab_id, created_at) VALUES (1, 'Cloud', 'playfab', 1)");
 	database.run("INSERT INTO clients (id, client_identifier, client_key, friend_code, display_name, icon_id, melvor_account_id) " +
 		"VALUES (100, 'crucible-departure-gloop', 'key', '111-222-333', 'Client', 'melvorD:Plant', 1)");
-	database.run("INSERT INTO crucible_migration (id, started_at, completed_at, source_json, destination_json) " +
-		"VALUES (1, 1, 1, '{}', '{}')");
 	database.query('INSERT INTO crucible_wishes (guild_id, owner_client_id, melvor_account_id, item_id, qty, ' +
 		'required_gp, progress_gp, created_at) VALUES (1, 100, 1, ?, 1, 2000, 1500, 1)')
 		.run('test:Departure_Reward');
@@ -168,7 +164,6 @@ for (const type of ['crucible_sealing', 'crucible_purging', 'crucible_unsealing'
 		try {
 			database.run("INSERT INTO clients (id, client_identifier, client_key, friend_code, display_name, icon_id) " +
 				"VALUES (100, 'petition-rollback', 'key', '111-222-333', 'Client', 'melvorD:Plant')");
-			database.run("INSERT INTO crucible_migration (id, started_at, completed_at, source_json) VALUES (1, 1, 1, '{}')");
 			database.query('UPDATE crucible_guilds SET is_open = ? WHERE guild_id = 1')
 				.run(type === 'crucible_unsealing' ? 0 : 1);
 			database.run("INSERT INTO crucible_offerings (guild_id, item_id, qty, created_at, refreshed_at, is_untimed) " +

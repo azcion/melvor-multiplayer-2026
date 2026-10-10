@@ -22,7 +22,7 @@ test('real API and mod recovery expose Gifts during a blocked receipt and never 
 		return { response, json: await response.json() };
 	}
 	const register = async name => (await request('/api/register', { client_key: crypto.randomUUID(), display_name: name,
-		client_runtime: { mod_version: '1.5.5', active_mods: [] } })).json;
+		client_runtime: { mod_version: '1.6.9', active_mods: [] } })).json;
 	const sender = await register('Integrated Sender'), recipient = await register('Integrated Recipient');
 	for (const client of [sender, recipient]) await request('/api/guilds/join-free', {}, client.session_token);
 	let transfer = []; // Reproduce a missing local donation snapshot without altering server history.
@@ -54,9 +54,9 @@ test('real API and mod recovery expose Gifts during a blocked receipt and never 
 		reconcile, uuid: () => crypto.randomUUID()
 	};
 	const actions = create_pending_economy_actions(options);
-	const payload = { items: [{ id: 'melvorD:Integration_Logs', qty: 3 }], donation_value: 30 };
-	const first = actions.run('donation', '/api/charity/donate', payload);
-	assert.equal(first, actions.run('donation', '/api/charity/donate', payload));
+	const payload = { source: 'transfer', items: [{ id: 'melvorD:Integration_Logs', qty: 3 }], donation_value: 30 };
+	const first = actions.run('donation', '/api/crucible/cast', payload);
+	assert.equal(first, actions.run('donation', '/api/crucible/cast', payload));
 	assert.equal(await first, null);
 	const command_id = storage.get('journal').payload.command_id;
 	await request('/api/gift/send', { recipient_id: recipient.chat.client_id,
@@ -67,7 +67,7 @@ test('real API and mod recovery expose Gifts during a blocked receipt and never 
 	let contents;
 	const context = {
 		state, client_events_hydrated: false, session_generation: 1, client_event_revision: 0, CHAT_CAPABILITIES: '', chat_page_visible: false,
-		legacy_market_payout_migration_started: false, MOD_VERSION: '1.5.5', get_instance_storage_item: () => undefined,
+		legacy_market_payout_migration_started: false, MOD_VERSION: '1.6.9', get_instance_storage_item: () => undefined,
 		polling: { has_pending_events: () => true }, event_snapshots, economy_command_journal: journal,
 		social_mode: { SOCIAL_MODE_FULL: 'full', SOCIAL_MODE_SOCIAL: 'social' },
 		enter_unsupported_multiplayer: () => false, check_released_mod_version() {}, maybe_auto_check_in_expedition() {},
@@ -93,7 +93,7 @@ test('real API and mod recovery expose Gifts during a blocked receipt and never 
 	assert.equal(transfer.length, 0);
 	assert.ok(acknowledged.includes(command_id));
 	const reloaded = create_pending_economy_actions(options);
-	assert.equal((await reloaded.run('donation', '/api/charity/donate', payload)).success, true);
-	const stock = (await request('/api/charity/contents', undefined, recipient.session_token)).json.items;
-	assert.equal(stock.find(item => item.id === 'melvorD:Integration_Logs').qty, 3);
+	assert.equal((await reloaded.run('donation', '/api/crucible/cast', payload)).success, true);
+	const stock = (await request('/api/crucible/contents', undefined, recipient.session_token)).json.offerings;
+	assert.equal(stock.find(item => item.item_id === 'melvorD:Integration_Logs').qty, 3);
 });

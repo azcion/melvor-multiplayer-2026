@@ -356,10 +356,9 @@ describe('guild API', () => {
 
 	test('reserves shared and player-to-player features for guild members', async () => {
 		const guildless = await register_client('Guildless Player');
-		const [campaign, market, charity, gift, trade] = await Promise.all([
+		const [campaign, market, gift, trade] = await Promise.all([
 			get_json_with_session<{ error_lang: string }>('/api/campaign/info', guildless.session_token),
 			get_json_with_session<{ error_lang: string }>('/api/market/listings', guildless.session_token),
-			get_json_with_session<{ error_lang: string }>('/api/charity/contents', guildless.session_token),
 			post_json<{ error_lang: string }>('/api/gift/send', {
 				recipient_id: -1,
 				items: [{ id: 'melvorD:Guildless_Gift', qty: 1 }]
@@ -370,7 +369,7 @@ describe('guild API', () => {
 			}, guildless.session_token)
 		]);
 
-		for (const result of [campaign, market, charity])
+		for (const result of [campaign, market])
 			expect(result.json.error_lang).toBe('MOD_MP_GUILD_REQUIRED');
 		for (const result of [gift, trade])
 			expect(result.json.error_lang).toBe('MOD_MP_GUILD_MEMBERSHIP_MISSING');

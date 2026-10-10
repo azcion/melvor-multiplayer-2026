@@ -23,16 +23,6 @@ export type campaign_completions = {
 	updated_at: number | null;
 };
 
-export type charity_items = {
-	guild_id: number;
-	item_id: string;
-	qty: number;
-	expires_at: number;
-	donated_at: number;
-	value_currency_id: string | null;
-	value_per_item: number | null;
-};
-
 export type crucible_guilds = {
 	guild_id: number;
 	is_open: number;
@@ -83,41 +73,6 @@ export type crucible_wishes = {
 	delivered_at: number | null;
 };
 
-export type charity_contribution_lots = {
-	id: number;
-	guild_id: number;
-	item_id: string;
-	client_id: number;
-	qty: number;
-	contributed_at: number;
-	source_audit_lot_id: number | null;
-};
-
-export type charity_decay_activations = {
-	guild_id: number;
-	activated_at: number;
-};
-
-export type charity_shuffle_events = {
-	id: number;
-	owner_key: string;
-	shuffled_at: number;
-};
-
-export type charity_wishes = {
-	id: number;
-	guild_id: number;
-	owner_client_id: number;
-	melvor_account_id: number;
-	item_id: string;
-	qty: number;
-	required_gp: number;
-	progress_gp: number;
-	created_at: number;
-	matures_at: number;
-	ripe_at: number | null;
-};
-
 export type multiplayer_pet_ownership = {
 	client_id: number;
 	pet_id: string;
@@ -161,8 +116,6 @@ export type clients = {
 	friend_code: string,
 	display_name: string,
 	icon_id: string,
-	last_charity: number,
-	last_bonus_charity: number,
 	disabled: number,
 	equipment_visible: number,
 	status_visible: number,
@@ -468,7 +421,6 @@ export type guilds = {
 	type: 'private' | 'public' | 'free_fellowship';
 	name: string;
 	icon_id: string;
-	charitree_enabled: number;
 	cheat_restriction_enabled: number;
 	market_discovery_restriction_enabled: number;
 	created_at: number | null;
@@ -479,7 +431,7 @@ export type guild_memberships = {
 	id: number;
 	client_id: number;
 	guild_id: number;
-	charitree_take_available_at: number;
+	crucible_reclaim_available_at: number;
 };
 
 export type guild_chat_messages = {
@@ -512,7 +464,6 @@ export type guild_petitions = {
 	proposed_icon_id: string | null;
 	target_client_id: number | null;
 	target_membership_id: number | null;
-	charitree_expires_before: number | null;
 	created_at: number;
 	expires_at: number;
 	resolved_at: number | null;

@@ -96,3 +96,73 @@ test('Marketplace destinations snapshot the counterparty and survive receipt rep
 	expect(feed.entries[0].source_name).toBe('Context Seller');
 	expect(feed.entries[0].items).toEqual([{ item_id: 'melvorD:GP', qty: 18, direction: 'out' }]);
 });
+
+test('sell-listing exchanges preserve both halves, actual currencies, partial quantities and replay', async () => {
+	const { db_run } = await import('../support/persistence');
+	const pair = await make_guildmates('Exchange Buyer', 'Exchange Seller', 'Exchange Market', { first: '1.6.9', second: '1.6.9' });
+	const read = async (player: typeof pair.first, pane: string) =>
+		(await get_json_with_session<any>('/api/transfers/history?pane=' + pane, player.session_token)).json.entries;
+	for (const currency_id of ['melvorD:GP', 'melvorD:SlayerCoins', 'melvorItA:AbyssalPieces', 'melvorItA:AbyssalSlayerCoins']) {
+		await post_json('/api/market/sell', { item_id: 'melvorD:Coal_Ore', item_qty: 4, item_sell_price: 9, currency_id }, pair.second.session_token);
+		const lots = (await get_json_with_session<any>('/api/market/listings', pair.second.session_token)).json.items;
+		const lot = lots.find((row: any) => row.currency_id === currency_id);
+		const body = { id: lot.id, qty: 2, expected_currency_id: currency_id, expected_price: 9, command_id: crypto.randomUUID() };
+		const first = (await post_json<any>('/api/market/buy', body, pair.first.session_token)).json;
+		expect(first.success).toBe(true);
+		expect(first.history_exchange).toBeUndefined();
+		expect(first.history_name).toBeUndefined();
+		expect(first.receipt.effects).toEqual([currency_id === 'melvorD:GP'
+			? { storage: 'gp', qty: -18 } : { storage: 'bank', item_id: currency_id, qty: -18 }]);
+		expect((await post_json<any>('/api/market/buy', body, pair.first.session_token)).json).toEqual(first);
+		const out = (await read(pair.first, 'outbox')).find((row: any) => row.items[0]?.item_id === currency_id);
+		expect(out.exchange).toEqual({ label: 'purchased', item_id: 'melvorD:Coal_Ore', qty: 2 });
+		expect(out.items).toEqual([{ item_id: currency_id, qty: 18, direction: 'out' }]);
+		const incoming = (await read(pair.first, 'inbox')).filter((row: any) => row.exchange?.item_id === currency_id);
+		expect(incoming).toHaveLength(1);
+		expect(incoming[0].exchange).toEqual({ label: 'paid', item_id: currency_id, qty: 18 });
+		expect(incoming[0].items).toEqual([{ item_id: 'melvorD:Coal_Ore', qty: 2, direction: 'in' }]);
+		const proceeds = (await read(pair.second, 'inbox')).find((row: any) => row.items[0]?.item_id === currency_id);
+		expect(proceeds.exchange).toEqual({ label: 'sold', item_id: 'melvorD:Coal_Ore', qty: 2 });
+		expect(proceeds.items).toEqual([{ item_id: currency_id, qty: 18, direction: 'in' }]);
+		expect(proceeds.source_name).toBe('Exchange Buyer');
+		await post_json('/api/economy/receipts/acknowledge', { receipt_id: body.command_id }, pair.first.session_token);
+		await post_json('/api/market/buy', body, pair.first.session_token);
+		expect((await read(pair.first, 'inbox')).filter((row: any) => row.exchange?.item_id === currency_id)).toHaveLength(1);
+	}
+	await db_run('UPDATE clients SET display_name=? WHERE id=?', ['Renamed seller', pair.second_id]);
+	expect((await read(pair.first, 'outbox')).every((row: any) => row.source_name === 'Exchange Seller')).toBe(true);
+	expect((await read(pair.first, 'inbox')).every((row: any) => row.source_name === 'Exchange Seller')).toBe(true);
+	const claim = (await post_json<any>('/api/inbox/claim', { existing_item_ids: [], available_slots: 1 }, pair.first.session_token)).json.claim;
+	await post_json('/api/inbox/acknowledge', { claim_id: claim.claim_id }, pair.first.session_token);
+	const claimed = (await read(pair.first, 'inbox')).find((row: any) => row.event_type === 'inbox.claimed');
+	expect(claimed.exchange).toBeUndefined();
+	expect(claimed.items[0].qty).toBe(8);
+	expect(claimed.items[0].sources).toEqual([{ source_type: 'market_bought', source_name: 'Exchange Seller', qty: 8 }]);
+	expect((await read(pair.first, 'inbox')).filter((row: any) => row.event_type === 'inbox.received')).toHaveLength(4);
+});
+
+test('buy-order fulfillments snapshot actual quantities and payments for both participants after deletion', async () => {
+	const pair = await make_guildmates('Order Buyer', 'Order Seller', 'Order Exchange', { first: '1.6.9', second: '1.6.9' });
+	const read = async (player: typeof pair.first, pane: string) =>
+		(await get_json_with_session<any>('/api/transfers/history?pane=' + pane, player.session_token)).json.entries;
+	await post_json('/api/market/buy-order', { item_id: 'melvorD:Coal_Ore', item_qty: 5, item_buy_price: 7 }, pair.first.session_token);
+	const lot = (await get_json_with_session<any>('/api/market/listings', pair.first.session_token)).json.items[0];
+	for (const [requested, actual] of [[2, 2], [20, 3]]) {
+		const body = { id: lot.id, qty: requested, command_id: crypto.randomUUID() };
+		const reply = (await post_json<any>('/api/market/fulfill', body, pair.second.session_token)).json;
+		expect(reply.receipt.effects).toEqual([{ storage: 'bank', item_id: 'melvorD:Coal_Ore', qty: -actual }]);
+		await post_json('/api/market/fulfill', body, pair.second.session_token);
+		const out = (await read(pair.second, 'outbox'))[0];
+		expect(out.exchange).toEqual({ label: 'proceeds', item_id: 'melvorD:GP', qty: actual! * 7 });
+		expect(out.source_name).toBe('Order Buyer');
+		expect((await read(pair.first, 'inbox'))[0].exchange).toEqual({ label: 'paid', item_id: 'melvorD:GP', qty: actual! * 7 });
+		expect((await read(pair.first, 'inbox'))[0].items).toEqual([{ item_id: 'melvorD:Coal_Ore', qty: actual, direction: 'in' }]);
+		expect((await read(pair.second, 'inbox'))[0].exchange).toEqual({ label: 'sold', item_id: 'melvorD:Coal_Ore', qty: actual });
+	}
+	await post_json('/api/market/cancel', { id: lot.id }, pair.first.session_token);
+	expect((await read(pair.first, 'inbox')).filter((row: any) => row.exchange)).toHaveLength(2);
+	expect((await read(pair.second, 'inbox')).filter((row: any) => row.exchange)).toHaveLength(2);
+	expect((await read(pair.first, 'outbox')).find((row: any) => row.event_type === 'market-buy-order').exchange).toBeUndefined();
+	expect(await db_all('SELECT qty FROM inbox_items WHERE client_id=? AND item_id=?', [pair.first_id, 'melvorD:Coal_Ore'])).toEqual([{ qty: 5 }]);
+	expect(await db_all('SELECT qty FROM inbox_items WHERE client_id=? AND item_id=?', [pair.second_id, 'melvorD:GP'])).toEqual([{ qty: 35 }]);
+});
