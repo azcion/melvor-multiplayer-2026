@@ -403,8 +403,8 @@ export function install_transfer_actions(runtime) {
 		async show_options_modal() {
 			this.close_account_dropdown();
 			await refresh_identities();
-			const member = this.guild_members.find(entry => entry.client_id === this.guild_client_id) ?? {
-				client_id: this.guild_client_id,
+			const member = this.guild_members.find(entry => entry.client_id === this.chat_client_id) ?? {
+				client_id: this.chat_client_id,
 				display_name: this.profile_display_name,
 				icon_id: this.profile_icon,
 				equipment_visible: this.equipment_visible,
@@ -499,7 +499,7 @@ export function install_transfer_actions(runtime) {
 				: Math.max(0, Date.now() - status.account_creation_date);
 			const member = {
 				...this.selected_guild_member,
-				client_id: this.guild_client_id,
+				client_id: this.chat_client_id,
 				display_name: this.profile_display_name,
 				icon_id: this.profile_icon,
 				equipment_visible: this.equipment_visible,
@@ -560,7 +560,7 @@ export function install_transfer_actions(runtime) {
 			}
 			if (res?.success) {
 				this.equipment_visible = res.visible;
-				if (this.selected_guild_member?.client_id === this.guild_client_id)
+				if (this.selected_guild_member?.client_id === this.chat_client_id)
 					this.selected_guild_member.equipment_visible = res.visible;
 				if (res.visible) {
 					runtime.last_synced_equipment = null;
@@ -591,7 +591,7 @@ export function install_transfer_actions(runtime) {
 				this.skills_visible = res.visible;
 				if (!res.visible)
 					invalidate_status_icon_collection();
-				if (this.selected_guild_member?.client_id === this.guild_client_id)
+				if (this.selected_guild_member?.client_id === this.chat_client_id)
 					Object.assign(this.selected_guild_member, {
 						skills_visible: res.visible,
 						...(res.visible ? {} : { skills_available: false, total_skill_level: null })
@@ -621,7 +621,7 @@ export function install_transfer_actions(runtime) {
 			}
 			if (res?.success) {
 				this.activity_visible = res.visible;
-				if (this.selected_guild_member?.client_id === this.guild_client_id)
+				if (this.selected_guild_member?.client_id === this.chat_client_id)
 					Object.assign(this.selected_guild_member, {
 						activity_visible: res.visible,
 						...(res.visible ? {} : { activity_available: false, status_activity: null, status_activities: [] })
@@ -650,7 +650,7 @@ export function install_transfer_actions(runtime) {
 			}
 			if (res?.success) {
 				this.gp_visible = res.visible;
-				if (this.selected_guild_member?.client_id === this.guild_client_id) {
+				if (this.selected_guild_member?.client_id === this.chat_client_id) {
 					this.selected_guild_member.gp_visible = res.visible;
 					if (!res.visible)
 						this.selected_guild_member.gp = null;
@@ -679,7 +679,7 @@ export function install_transfer_actions(runtime) {
 			}
 			if (res?.success) {
 				this.game_mode_visible = res.visible;
-				if (this.selected_guild_member?.client_id === this.guild_client_id) {
+				if (this.selected_guild_member?.client_id === this.chat_client_id) {
 					this.selected_guild_member.game_mode_visible = res.visible;
 					this.selected_guild_member.game_mode_id = runtime.loaded_game_mode_id;
 				}
@@ -704,7 +704,7 @@ export function install_transfer_actions(runtime) {
 			}
 			if (res?.success) {
 				this.active_mods_visible = res.visible;
-				if (this.selected_guild_member?.client_id === this.guild_client_id) {
+				if (this.selected_guild_member?.client_id === this.chat_client_id) {
 					this.selected_guild_member.active_mods_visible = res.visible;
 					this.selected_guild_member.active_mods_available = res.visible && runtime.active_mod_names.length > 0;
 				}

@@ -89,6 +89,34 @@ describe('identity API', () => {
 		expect(JSON.parse(snapshots[0]?.owned_dlc ?? 'null')).toEqual(['melvorItA']);
 	});
 
+	test('recognizes renamed cheat IDs and retains same-character IDs with legacy reports', async () => {
+		const client_key = crypto.randomUUID();
+		const registered = await post_json<{ client_identifier: string; chat: { client_id: number } }>('/api/register', {
+			client_key, display_name: 'ID Runtime', client_runtime: {
+				mod_version: '1.6.10', active_mods: ['Renamed Cheat', 'Custom Mod'],
+				active_mod_details: [{ id: 2429395, name: 'Renamed Cheat' }, { id: 99, name: 'Custom Mod' }]
+			}
+		});
+		expect(registered.response.status).toBe(200);
+		const id = registered.json.chat.client_id;
+		expect(await db_all('SELECT mod_name, mod_id FROM client_cheat_mod_detections WHERE client_id=?', [id]))
+			.toEqual([{ mod_name: 'Add Items', mod_id: 2429395 }]);
+		const authenticated = await post('/api/authenticate', {
+			client_identifier: registered.json.client_identifier, client_key,
+			client_runtime: { mod_version: '1.6.10', active_mods: ['Custom Mod', 'Local'] }
+		});
+		expect(authenticated.status).toBe(200);
+		const rows = await db_all<{ active_mod_details: string }>('SELECT active_mod_details FROM client_runtime_snapshots WHERE client_id=?', [id]);
+		expect(JSON.parse(rows[0]!.active_mod_details)).toEqual([{ id: 99, name: 'Custom Mod' }, { id: null, name: 'Local' }]);
+		const local = await post('/api/authenticate', {
+			client_identifier: registered.json.client_identifier, client_key,
+			client_runtime: { mod_version: '1.6.10', active_mods: ['Custom Mod'], active_mod_details: [{ id: -1, name: 'Custom Mod' }] }
+		});
+		expect(local.status).toBe(200);
+		const local_rows = await db_all<{ active_mod_details: string }>('SELECT active_mod_details FROM client_runtime_snapshots WHERE client_id=?', [id]);
+		expect(JSON.parse(local_rows[0]!.active_mod_details)).toEqual([{ id: null, name: 'Custom Mod' }]);
+	});
+
 	test('retains the latest recognized cheat-mod report when later runtime snapshots are clean', async () => {
 		const cheat_mod_names = [
 			'Loot Chests',

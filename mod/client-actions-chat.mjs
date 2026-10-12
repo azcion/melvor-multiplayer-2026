@@ -954,6 +954,22 @@ export function install_chat_actions(runtime) {
 			}
 		},
 
+		async open_petition_discussion(petition) {
+			if (!Number.isSafeInteger(petition?.petition_id) || petition.petition_id < 1) return;
+			const conversation = { conversation_kind: 'petition-discussion', conversation_id: petition.petition_id,
+				participant: { client_id: null, display_name: getLangString('MOD_MP_COUNCIL_DISCUSSION'), icon_id: 'multiplayer' },
+				petition, unread_count: 0, contributes_unread: false, blocked: false };
+			// Select before changing pages so the page refresh opens this retained discussion.
+			this.selected_chat_conversation = conversation;
+			changePage(game.pages.getObjectByID('multiplayer:Chat'));
+		},
+
+		back_from_chat_conversation() {
+			const petition = this.selected_chat_conversation?.conversation_kind === 'petition-discussion';
+			this.close_chat_conversation();
+			if (petition) changePage(game.pages.getObjectByID('multiplayer:Guild'));
+		},
+
 		async open_poll_discussion(poll) {
 			await this.open_chat_conversation({ conversation_kind: 'poll-discussion', conversation_id: poll.poll_id,
 				participant: { client_id: null, display_name: getLangString('MOD_MP_POLLS_DISCUSSION'), icon_id: 'multiplayer' },
@@ -1062,6 +1078,9 @@ export function install_chat_actions(runtime) {
 		},
 
 		get_chat_message_content(message) {
+			if (message?.petition_event === 'proposal') return getLangString('MOD_MP_COUNCIL_DISCUSSION_PROPOSE');
+			if (message?.petition_event === 'aye' || message?.petition_event === 'nay')
+				return getLangString('MOD_MP_COUNCIL_' + message.petition_event.toUpperCase());
 			if (!message || message.sender_id === this.chat_client_id || message.sent_by_viewer === true)
 				return message?.content ?? '';
 			if (message.sender_id === null) {
@@ -1080,6 +1099,7 @@ export function install_chat_actions(runtime) {
 		},
 
 		is_chat_message_translation_pending(message) {
+			if (message?.petition_event) return false;
 			if (!message || message.sender_id === this.chat_client_id || message.sent_by_viewer === true)
 				return false;
 			const language = message.manual_translation_language ?? translation_preference(this.selected_chat_conversation);

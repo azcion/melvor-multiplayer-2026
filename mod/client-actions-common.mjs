@@ -211,7 +211,7 @@ export function install_common_actions(runtime) {
 		},
 
 		get_chat_participant_icon(conversation = this.selected_chat_conversation) {
-			if (conversation?.conversation_kind === 'global' || conversation?.conversation_kind === 'alliance')
+			if (conversation?.conversation_kind === 'global' || conversation?.conversation_kind === 'alliance' || conversation?.conversation_kind === 'petition-discussion')
 				return ctx.getResourceUrl('assets/multiplayer.svg');
 			if (conversation?.conversation_kind === 'testers')
 				return ctx.getResourceUrl('assets/expedition-nav.png');

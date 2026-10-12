@@ -1,3 +1,5 @@
+import { record_economy_operation } from './save-rollback';
+import { current_audit_context } from './audit-context';
 import { db } from './db';
 import type { Database } from 'bun:sqlite';
 import type { DeviceDiagnostics } from './diagnostics';
@@ -68,7 +70,10 @@ function request_device(actor: AuditActor): DeviceDiagnostics | null {
 }
 
 export function record_audit_event(input: AuditEventInput, database: Database = db): number {
+	const context = current_audit_context();
+	const occurred_at = input.occurred_at ?? Date.now();
 	const actor_client_id = input.actor.kind === 'client' ? input.actor.client_id : null;
+	const request_command_id = context?.actor_client_id === actor_client_id ? context?.command_id ?? null : null;
 	const actor_display_name = actor_client_id === null
 		? (input.actor.kind === 'operator' ? input.actor.name?.trim() || null : null)
 		: display_name(actor_client_id, database);
@@ -83,9 +88,9 @@ export function record_audit_event(input: AuditEventInput, database: Database = 
 		'`client_platform`, `app_distribution`, `app_channel`, `app_version`, `app_build`, `details_json`) ' +
 		'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING `id`'
 	).get(
-		input.occurred_at ?? Date.now(), input.event_type, input.actor.kind, actor_client_id,
+		occurred_at, input.event_type, input.actor.kind, actor_client_id,
 		actor_display_name, input.guild_id ?? null,
-		input.guild_id === undefined ? null : guild_name(input.guild_id, database), input.command_id ?? null,
+		input.guild_id === undefined ? null : guild_name(input.guild_id, database), input.command_id ?? request_command_id,
 		input.source_key, device?.installation_id ?? null, device?.platform ?? null,
 		device?.distribution ?? null, device?.app_channel ?? null, device?.app_version ?? null,
 		device?.app_build ?? null, JSON.stringify(input.details ?? {})
@@ -103,6 +108,11 @@ export function record_audit_event(input: AuditEventInput, database: Database = 
 		).run(inserted.id, ordinal, value.value_kind ?? (value.object_id === 'melvorD:GP' ? 'currency' : 'item'),
 			value.object_id, value.quantity, value.direction);
 	});
+	// Command protocols record one canonical operation; their semantic events stay separate.
+	if (context?.command_id == null || context.actor_client_id !== actor_client_id)
+		record_economy_operation(database, { source_key: `audit:${inserted.id}`, client_id: actor_client_id,
+			kind: input.event_type, committed_at: occurred_at, local_effect: 'server_only',
+			evidence: { audit_event_id: inserted.id, source_key: input.source_key, guild_id: input.guild_id ?? null, values: input.values ?? [], details: input.details ?? {} } });
 	return inserted.id;
 }
 

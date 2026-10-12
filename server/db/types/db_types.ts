@@ -81,6 +81,8 @@ export type multiplayer_pet_ownership = {
 };
 
 export type client_sessions = {
+	rollback_capable: number;
+	save_load_id?: number | null;
 	installation_id?: string | null;
 	device_diagnostics?: string | null;
 	session_token: string,
@@ -450,6 +452,7 @@ export type guild_chat_read_state = {
 };
 
 export type guild_petitions = {
+	show_creator: number;
 	snapshot_active_count: number | null;
 	voting_threshold: number | null;
 	rule_version: number;

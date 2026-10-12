@@ -64,22 +64,14 @@ export function alliance_ballot_activity(petition_id: number, now: number) {
 	const p = process(linked.process_id);
 	if (p && ['local','waiting','recipient','collective'].includes(p.stage) && p.expires_at > now) extend(p, now);
 }
-function same_roster(p: AllianceProcess) {
-	if (p.alliance_id === null) return false;
-	const current = alliance_guilds(p.alliance_id);
-	const snapshot = db.query<{ guild_id: number }, [number]>('SELECT guild_id FROM alliance_ballots WHERE process_id = ? ORDER BY guild_id')
-		.all(p.id).map(row => row.guild_id);
-	return current.length >= 2 && JSON.stringify(current) === JSON.stringify(snapshot);
-}
-function cancel_roster_votes(alliance_id: number, now: number) {
+function cancel_alliance_votes(alliance_id: number, now: number) {
 	for (const p of db.query<AllianceProcess, [number]>(`SELECT * FROM alliance_processes WHERE alliance_id = ? AND stage IN ${pending}`)
-		.all(alliance_id)) finish_alliance_process(p, 'cancelled', now, 'roster_changed');
+		.all(alliance_id)) finish_alliance_process(p, 'cancelled', now, 'alliance_unavailable');
 }
 export function remove_alliance_guild(guild_id: number, now = Date.now()) {
 	const alliance = alliance_for_guild(guild_id);
 	if (!alliance) return;
 	db.query('DELETE FROM alliance_memberships WHERE guild_id = ?').run(guild_id);
-	cancel_roster_votes(alliance.id, now);
 	if (alliance_guilds(alliance.id).length < 2) db.query('DELETE FROM alliances WHERE id = ?').run(alliance.id);
 	revise();
 }
@@ -90,7 +82,9 @@ function affiliate(guild_id: number, alliance_id: number, now: number, except: n
 		finish_alliance_process(other, 'cancelled', now, 'affiliated_elsewhere', db.query<{ name: string }, [number]>('SELECT name FROM guilds WHERE id=?').get(guild_id)?.name ?? null);
 }
 function resolve_collective(p: AllianceProcess, now: number) {
-	if (!same_roster(p)) return finish_alliance_process(p, 'cancelled', now, 'roster_changed');
+	if (p.alliance_id === null || alliance_guilds(p.alliance_id).length < 2)
+		return finish_alliance_process(p, 'cancelled', now, 'alliance_unavailable');
+	// The original Guild electorate and majority remain fixed across roster changes.
 	const ballots = db.query<{ choice: string | null }, [number]>('SELECT choice FROM alliance_ballots WHERE process_id = ?').all(p.id);
 	const aye = ballots.filter(b => b.choice === 'aye').length;
 	const nay = ballots.filter(b => b.choice === 'nay').length;
@@ -107,7 +101,7 @@ function resolve_collective(p: AllianceProcess, now: number) {
 		affiliate(p.initiator_guild_id, p.alliance_id!, now, p.id);
 	} else if (p.kind === 'remove') {
 		if (p.target_guild_id === null || !alliance_guilds(p.alliance_id!).includes(p.target_guild_id)) return finish_alliance_process(p, 'cancelled', now, 'target_unavailable');
-		// Resolve before the roster trigger cancels every unfinished proposal.
+		// Resolve this removal before the departure trigger checks for dissolution.
 		finish_alliance_process(p, 'accepted', now);
 		db.query('DELETE FROM alliance_memberships WHERE guild_id = ?').run(p.target_guild_id);
 		return;
@@ -115,7 +109,6 @@ function resolve_collective(p: AllianceProcess, now: number) {
 		db.query('UPDATE alliances SET shared_marketplace = ? WHERE id = ?').run(p.kind === 'market_enable' ? 1 : 0, p.alliance_id!);
 	}
 	finish_alliance_process(p, 'accepted', now);
-	if (p.kind === 'join' || p.kind === 'remove') cancel_roster_votes(p.alliance_id!, now);
 }
 function collective(p: AllianceProcess, petitioner_id: number, now: number): number | null {
 	const roster = alliance_guilds(p.alliance_id!);
@@ -197,7 +190,7 @@ export function execute_alliance_petition(petition: { id: number; petitioner_id:
 export function maintain_alliances(now = Date.now()) {
 	db.transaction(() => {
 		for (const a of db.query<{ id: number }, []>('SELECT id FROM alliances WHERE (SELECT COUNT(*) FROM alliance_memberships WHERE alliance_id = alliances.id) < 2').all()) {
-			cancel_roster_votes(a.id, now); db.query('DELETE FROM alliances WHERE id = ?').run(a.id); revise();
+			cancel_alliance_votes(a.id, now); db.query('DELETE FROM alliances WHERE id = ?').run(a.id); revise();
 		}
 		for (const p of db.query<AllianceProcess, []>(`SELECT * FROM alliance_processes WHERE stage IN ${pending}`).all()) {
 			if (!guild_exists(p.initiator_guild_id) || (p.target_guild_id !== null && !guild_exists(p.target_guild_id))) {
@@ -211,7 +204,6 @@ export function maintain_alliances(now = Date.now()) {
 			if (p.alliance_id !== null && !db.query('SELECT 1 FROM alliances WHERE id = ?').get(p.alliance_id)) {
 				finish_alliance_process(p, 'cancelled', now, 'alliance_unavailable'); continue;
 			}
-			if (p.stage === 'collective' && !same_roster(p)) { finish_alliance_process(p, 'cancelled', now, 'roster_changed'); continue; }
 			const petitions = db.query<{ guild_id: number; lifecycle: string; role: string }, [number]>(`SELECT p.guild_id,p.lifecycle,l.role FROM guild_petitions p
 				JOIN alliance_process_petitions l ON l.petition_id = p.id WHERE l.process_id = ?`).all(p.id);
 			for (const petition of petitions) {

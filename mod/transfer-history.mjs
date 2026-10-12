@@ -87,7 +87,7 @@ const event_labels = {
 	'market-claim-legacy-payouts': 'MARKET_PAYOUT', 'market-haggle': 'HAGGLE_ESCROW',
 	'market-haggle-counter': 'HAGGLE_ESCROW', 'market-haggle-accept': 'HAGGLE_ACCEPTED',
 	'market-haggle-terminate': 'HAGGLE_CANCELLED', 'market-haggle-claim': 'CLAIMED', 'market-destroy': 'MARKET_DESTROY',
-	'crucible-cast': 'CRUCIBLE_CAST', 'crucible-reclaim': 'CRUCIBLE_RECLAIM', 'crucible-clear': 'CRUCIBLE_CLEAR',
+	'crucible-wish-make': 'WISH_MADE', 'crucible-cast': 'CRUCIBLE_CAST', 'crucible-reclaim': 'CRUCIBLE_RECLAIM', 'crucible-clear': 'CRUCIBLE_CLEAR',
 	'crucible.wish_delivered': 'WISH_GRANTED', 'crucible.wish_claimed': 'WISH_GRANTED',
 	'crucible.wish_departure_delivered': 'WISH_GRANTED', 'crucible.reclaimed': 'CRUCIBLE_RECLAIM',
 	'gift-accept': 'GIFT_ACCEPTED', 'campaign-claim': 'RECEIVED', 'campaign-contribute': 'SENT'

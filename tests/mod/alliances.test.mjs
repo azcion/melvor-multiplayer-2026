@@ -42,7 +42,7 @@ test('failed reads release loader and retain the preceding Alliance state',async
 
 test('Alliance mutation buttons provide the established spinner element',()=> {
 	const source=readFileSync(new URL('../../mod/ui/templates.html',import.meta.url),'utf8');
-	const buttons=[...source.matchAll(/<button\b((?:[^>"']|"[^"]*"|'[^']*')*)>(.*?)<\/button>/gs)].filter(([,attributes])=>attributes.includes('state.alliance_action') || (attributes.includes('state.show_alliance_confirmation') && !attributes.includes('null, null, true')));
+	const buttons=[...source.matchAll(/<button\b((?:[^>"']|"[^"]*"|'[^']*')*)>(.*?)<\/button>/gs)].filter(([,attributes])=>attributes.includes('state.alliance_action') || attributes.includes('state.show_alliance_preview_confirmation') || (attributes.includes('state.show_alliance_confirmation') && !attributes.includes('null, null, true')));
 	assert.equal(buttons.length,10);
 	for(const [,,body] of buttons) assert.match(body,/role="status"/);
 });
@@ -102,7 +102,7 @@ test('Council Guild names reuse available summaries and deduplicate missing prev
 test('Alliance previews use the Guild name as their accessible button text', () => {
 	const source=readFileSync(new URL('../../mod/ui/templates.html',import.meta.url),'utf8');
 	const buttons=[...source.matchAll(/<button\b((?:[^>"']|"[^"]*"|'[^']*')*)>(.*?)<\/button>/gs)].filter(([,attributes])=>attributes.includes('state.preview_alliance_guild'));
-	assert.equal(buttons.length,7);
+	assert.equal(buttons.length,8);
 	for (const [,attributes,body] of buttons) {
 		assert.match(attributes,/type="button"/);
 		assert.ok(['{{ guild.name }}','{{ part.text }}'].includes(body));

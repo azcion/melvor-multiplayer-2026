@@ -111,7 +111,8 @@ test('cast majority waits for active turnout, excludes inactive and young member
 		db.run('DELETE FROM guild_memberships WHERE client_id=4');
 		expect(resolve_council_vote(petition, now, db)).toBe('denied');
 		db.run('DELETE FROM guild_petition_votes');
-		expect(resolve_council_vote({ ...petition, expires_at: now }, now, db)).toBe('denied');
+		expect(resolve_council_vote(petition, now, db)).toBeNull();
+		expect(resolve_council_vote({ ...petition, expires_at: now }, now, db)).toBe('granted');
 	} finally { db.close(); }
 });
 

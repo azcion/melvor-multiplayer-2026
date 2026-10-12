@@ -1,3 +1,4 @@
+import { record_economy_operation } from './save-rollback';
 import { db } from './db';
 import { EXPEDITION_CONTENT_PREVIEW, preview_task_available, parse_expedition_content } from './expedition-content';
 import type { ExpeditionChamber, ExpeditionContent } from './expedition-content';
@@ -120,9 +121,9 @@ export function debug_wipe_expedition_data(guild_id: number, expected_current_id
 		}
 		db.query('DELETE FROM expedition_charted WHERE guild_id = ?').run(guild_id);
 		for (const { client_id } of clients) {
-			const balance = db.query<{ points: number }, [number]>(
-				'SELECT COALESCE(SUM(points_micros), 0) AS points FROM expedition_ep_ledger WHERE client_id = ?'
-			).get(client_id)?.points ?? 0;
+			const balance = db.query<{ points: number }, [number,number,number]>(
+				"SELECT MAX(0,COALESCE((SELECT SUM(points_micros) FROM expedition_ep_ledger WHERE client_id=?),0)-COALESCE((SELECT SUM(c.quantity) FROM economy_corrections c JOIN economy_operations o ON o.id=c.operation_id WHERE o.client_id=? AND c.object_id='multiplayer:ExpeditionPointsMicros' AND c.disposition='held'),0)-COALESCE((SELECT SUM(points_micros) FROM wish_ep_spends WHERE client_id=?),0)) AS points"
+			).get(client_id,client_id,client_id)?.points ?? 0;
 			db.query('DELETE FROM expedition_ep_balances WHERE client_id = ?').run(client_id);
 			if (balance > 0) db.query('INSERT INTO expedition_ep_balances (client_id, points_micros) VALUES (?, ?)')
 				.run(client_id, balance);
@@ -467,6 +468,8 @@ export function register_for_expedition(guild_id: number, client_id: number, ope
 				.run(now, expedition.id);
 		db.query('INSERT INTO expedition_operations (client_id, operation_id, kind, expedition_id, created_at) ' +
 			'VALUES (?, ?, \'register\', ?, ?)').run(client_id, operation_id, expedition.id, now);
+		record_economy_operation(db,{source_key:`expedition-register:${client_id}:${operation_id}`,client_id,
+			kind:'expedition-register',local_effect:'server_only',committed_at:now,evidence:{operation_id,expedition_id:expedition.id}});
 		return expedition.id;
 	}).immediate();
 }
@@ -536,6 +539,8 @@ export function cast_expedition_vote(guild_id: number, client_id: number, expedi
 		const response = { success: true, exit_id, vote_deadline_at: deadline, ppc };
 		db.query('INSERT INTO expedition_work_operations (client_id, operation_id, request_hash, response, created_at) VALUES (?, ?, ?, ?, ?)')
 			.run(client_id, operation_id, request_hash, JSON.stringify(response), now);
+		record_economy_operation(db,{source_key:`expedition-action:${client_id}:${operation_id}`,client_id,
+			kind:'expedition-action',local_effect:'server_only',committed_at:now,evidence:{operation_id}});
 		return response;
 	}).immediate();
 }

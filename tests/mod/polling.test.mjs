@@ -150,7 +150,7 @@ test('refreshes event state after relevant navigation and successful mutations o
 test('bounds requests and releases guarded page loaders from finally blocks', () => {
 	const api = main.slice(main.indexOf('async function api_get'), main.indexOf('async function refresh_identities'));
 	assert.match(api, /coordinated_request\(server_host/);
-	assert.match(main, /return polling\.fetch_with_timeout\(fetch, endpoint/);
+	assert.match(main, /await polling\.fetch_with_timeout\(timer\?\.fetch \?\? fetch, endpoint/);
 	assert.match(api, /return \{ response: null, json: null \}/);
 
 	for (const [function_name, loading_flag] of [

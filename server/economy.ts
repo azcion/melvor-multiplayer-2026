@@ -1,3 +1,5 @@
+import { rollback_held, rollback_affected } from './rollback-policy';
+import { record_economy_operation } from './save-rollback';
 import type { HistoryExchange } from './transfer-history';
 import { db } from './db';
 import type { JsonObject } from './http';
@@ -70,6 +72,8 @@ export function replay_economy_command(client_id: number, command_id: unknown, k
 	).get(command_id);
 	if (existing === null) return undefined;
 	if (existing.client_id !== client_id || existing.kind !== kind) return null;
+	if (db.query("SELECT 1 FROM economy_operations o JOIN economy_corrections c ON c.operation_id=o.id WHERE o.source_key=? AND o.local_effect='outgoing' LIMIT 1").get(`receipt:${command_id}`))
+		return {success:false,error:'economy_command_retired',retired_command_id:command_id,receipt:null};
 	const response = JSON.parse(existing.response_json) as JsonObject;
 	return existing.acknowledged_at === null ? response : { ...response, receipt: null };
 }
@@ -91,10 +95,14 @@ export function run_economy_command(
 		if (result.success !== true)
 			return result as JsonObject;
 		const response = receipt_response(command_id, kind, result);
+		const committed_at = Date.now();
 		db.query(
 			'INSERT INTO `economy_receipts` (`id`, `client_id`, `kind`, `response_json`, `created_at`) ' +
 			'VALUES(?, ?, ?, ?, ?)'
-		).run(command_id, client_id, kind, JSON.stringify(response), Date.now());
+		).run(command_id, client_id, kind, JSON.stringify(response), committed_at);
+		record_economy_operation(db, { source_key: `receipt:${command_id}`, client_id, kind, committed_at,
+			local_effect: (result.effects ?? []).some(effect => effect.qty < 0) ? 'outgoing'
+				: (result.effects ?? []).some(effect => effect.qty > 0) ? 'incoming' : 'server_only', evidence: response });
 		if (result.history_name) db.query(
 			'UPDATE transfer_history_events SET source_name=? WHERE client_id=? AND source_key=?'
 		).run(result.history_name, client_id, `receipt:${command_id}`);
@@ -107,11 +115,14 @@ export function run_economy_command(
 	return execute.immediate();
 }
 
-export function pending_economy_receipts(client_id: number): EconomyReceipt[] {
-	return db.query<{ response_json: string }, [number]>(
-		'SELECT `response_json` FROM `economy_receipts` WHERE `client_id` = ? AND `acknowledged_at` IS NULL ' +
-		'ORDER BY `created_at`, `id` LIMIT 64'
-	).all(client_id).map(row => (JSON.parse(row.response_json) as { receipt: EconomyReceipt }).receipt);
+export function pending_economy_receipts(client_id: number, rollback_capable: boolean): EconomyReceipt[] {
+	const withhold_outgoing = rollback_held(db, client_id) || (!rollback_capable && rollback_affected(db, client_id));
+	return db.query<{ response_json: string }, [number, number]>(
+		'SELECT response_json FROM economy_receipts WHERE client_id = ? AND acknowledged_at IS NULL ' +
+		"AND NOT EXISTS(SELECT 1 FROM economy_operations o JOIN economy_corrections c ON c.operation_id=o.id WHERE o.source_key='receipt:'||economy_receipts.id AND o.local_effect='outgoing') " +
+		"AND (? = 0 OR NOT EXISTS(SELECT 1 FROM json_each(economy_receipts.response_json,'$.receipt.effects') effect WHERE json_extract(effect.value,'$.qty') < 0)) " +
+		'ORDER BY created_at, id LIMIT 64'
+	).all(client_id, Number(withhold_outgoing)).map(row => (JSON.parse(row.response_json) as { receipt: EconomyReceipt }).receipt);
 }
 
 export function acknowledge_economy_receipt(client_id: number, receipt_id: unknown, now = Date.now()): boolean | null {
@@ -125,6 +136,9 @@ export function acknowledge_economy_receipt(client_id: number, receipt_id: unkno
 			return false;
 		if (receipt.acknowledged_at === null) {
 			db.query('UPDATE `economy_receipts` SET `acknowledged_at` = ? WHERE `id` = ?').run(now, receipt_id);
+			record_economy_operation(db, { source_key: `receipt-ack:${receipt_id}`, client_id,
+				kind: 'receipt-acknowledge', local_effect: 'server_only', committed_at: now,
+				evidence: { receipt_id, acknowledged_at: now } });
 			db.query('UPDATE `clients` SET `event_revision` = `event_revision` + 1 WHERE `id` = ?').run(client_id);
 		}
 		return true;

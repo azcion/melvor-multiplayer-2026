@@ -1,3 +1,5 @@
+import { trade_items, trade_position, trade_receive_position } from '../trade-custody';
+import { listing_return_items, haggle_claim_position } from '../market-custody';
 import { record_pending_exchange, record_transfer_history } from '../transfer-history';
 import * as runtime from '../app-runtime';
 import type * as db_row from '../db/types/db_types';
@@ -41,22 +43,16 @@ function cancel_owned_exchanges(client_id: number): Omit<ModeChange, 'success' |
 	).all(client_id);
 	for (const claim of haggle_claims) {
 		if (claim.item_id !== null)
-			add_inbox_items(client_id, [{ item_id: claim.item_id, qty: claim.item_qty }], { type: 'market_haggle_cancelled' });
+			add_inbox_items(client_id, [{ item_id: claim.item_id, qty: claim.item_qty }], { type: 'market_haggle_cancelled', custody:{from:item=>haggle_claim_position(claim.haggle_id,client_id,item),protected:false} });
 		if (claim.gp > 0)
 			add_inbox_items(client_id, [{ item_id: db.query<{ currency_id: string }, [string]>(
-				'SELECT currency_id FROM market_haggles WHERE id=?').get(claim.haggle_id)!.currency_id, qty: claim.gp }], { type: 'market_haggle_cancelled' });
+				'SELECT currency_id FROM market_haggles WHERE id=?').get(claim.haggle_id)!.currency_id, qty: claim.gp }], { type: 'market_haggle_cancelled', custody:{from:item=>haggle_claim_position(claim.haggle_id,client_id,item),protected:false} });
 		db.query('UPDATE `market_haggle_claims` SET `claimed_at` = ? WHERE `haggle_id` = ? AND `client_id` = ?')
 			.run(Date.now(), claim.haggle_id, client_id);
 	}
 	const market_items = db.query('SELECT * FROM `market_items` WHERE `client_id` = ?').all(client_id) as db_row.market_items[];
 	for (const lot of market_items) {
-		if (lot.direction === 'buy') {
-			add_inbox_gp(client_id, lot.escrow_gp, { type: 'market_cancelled' });
-		} else {
-			add_inbox_items(client_id, [{ item_id: lot.item_id, qty: lot.available }], { type: 'market_cancelled' });
-			add_inbox_items(client_id, [{ item_id: lot.currency_id, qty: (lot.qty - lot.available - lot.reserved - lot.haggled) * lot.price - lot.price_adjustment - lot.payout }],
-				{ type: 'market_cancelled' });
-		}
+		for(const item of listing_return_items(lot)) add_inbox_items(client_id,[item],{type:'market_cancelled',custody:{from:()=>item.from,protected:false}});
 		remove_player_cache_entry(market_completed_cached, client_id, lot.id);
 	}
 	db.query('DELETE FROM `market_items` WHERE `client_id` = ?').run(client_id);
@@ -69,7 +65,7 @@ function cancel_owned_exchanges(client_id: number): Omit<ModeChange, 'success' |
 		const recipient = gift.sender_id === client_id ||
 			(gift.client_id === client_id && (gift.flags & GiftFlags.Returned) !== 0)
 			? client_id : gift.sender_id;
-		add_inbox_items(recipient, items, { type: 'gift_returned' });
+		add_inbox_items(recipient, items, { type: 'gift_returned', custody: { from: item_id => `gift:${gift.gift_id}:${item_id}`, protected: false } });
 		record_pending_exchange(db, 'gift', gift.gift_id, 'gift.returned', Date.now());
 		db.query('DELETE FROM `gift_items` WHERE `gift_id` = ?').run(gift.gift_id);
 		db.query('DELETE FROM `gifts` WHERE `gift_id` = ?').run(gift.gift_id);
@@ -80,9 +76,7 @@ function cancel_owned_exchanges(client_id: number): Omit<ModeChange, 'success' |
 	const trades = db.query('SELECT * FROM `trade_offers` WHERE `sender_id` = ? OR `recipient_id` = ?').all(client_id, client_id) as db_row.trade_offers[];
 	for (const trade of trades) {
 		const items = db.query('SELECT `item_id`, `qty`, `counter` FROM `trade_items` WHERE `trade_id` = ?').all(trade.trade_id) as Array<{ item_id: string; qty: number; counter: number }>;
-		add_inbox_items(trade.sender_id, items.filter(item => item.counter === 0), { type: 'trade_cancelled' });
-		if (trade.state === 1)
-			add_inbox_items(trade.recipient_id, items.filter(item => item.counter === 1), { type: 'trade_cancelled' });
+		for(const row of trade_items(db,trade.trade_id)) add_inbox_items(row.counter===0?trade.sender_id:trade.recipient_id,[row],{type:'trade_cancelled',custody:{from:()=>trade_position(row.id),protected:false}});
 		record_pending_exchange(db, 'trade', trade.trade_id, 'trade-cancel', Date.now());
 		db.query('DELETE FROM `trade_items` WHERE `trade_id` = ?').run(trade.trade_id);
 		db.query('DELETE FROM `trade_offers` WHERE `trade_id` = ?').run(trade.trade_id);
@@ -94,7 +88,7 @@ function cancel_owned_exchanges(client_id: number): Omit<ModeChange, 'success' |
 	const resolved_trades = db.query('SELECT * FROM `resolved_trade_offers` WHERE `client_id` = ?').all(client_id) as db_row.resolved_trade_offers[];
 	for (const trade of resolved_trades) {
 		const items = db.query('SELECT `item_id`, `qty` FROM `trade_items` WHERE `trade_id` = ?').all(trade.trade_id) as Array<{ item_id: string; qty: number }>;
-		add_inbox_items(client_id, items, { type: trade.declined === 1 ? 'trade_cancelled' : 'trade_completed' });
+		for(const row of trade_items(db,trade.trade_id)) add_inbox_items(client_id,[row],{type:trade.declined===1?'trade_cancelled':'trade_completed',custody:{from:item=>trade.declined===1?trade_position(row.id):trade_receive_position(trade.trade_id,client_id,item),protected:false}});
 		record_transfer_history(db, { client_id, pane: 'pending', event_type: 'trade-resolve',
 			source_key: `trade:${trade.trade_id}:claimed`, occurred_at: Date.now(),
 			source_name: get_inbox_source_name(trade.sender_id), items });

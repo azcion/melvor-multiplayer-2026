@@ -1,3 +1,7 @@
+import { rollback_policy, preview_rollback_policy, set_rollback_policy, set_rollback_hold, rollback_admission_revision, type RollbackPolicy } from './rollback-policy';
+import { decide_rollback_incident } from './rollback-admission';
+import { inspect_rollback_benefits, release_rollback_benefit } from './rollback-benefits';
+import { inspect_save_rollback } from './save-rollback';
 import { createHash } from 'node:crypto';
 import { record_audit_event } from './audit';
 import { EXPEDITION_TESTER_TAG, is_expedition_tester } from './account_tags';
@@ -33,6 +37,14 @@ const MAX_SUPPORT_MESSAGE_LENGTH = 1000;
 
 function usage(output: AdminOutput): number {
 	output.error(`Usage:
+  bun run admin.ts save-rollback inspect|benefits CLIENT_ID
+  bun run admin.ts save-rollback config
+  bun run admin.ts save-rollback preview CONFIG_JSON
+  bun run admin.ts save-rollback set|activate EXPECTED_REVISION CONFIG_JSON COMMAND_UUID REASON
+  bun run admin.ts save-rollback confirm|dismiss INCIDENT_ID EXPECTED_DECISION_ID COMMAND_UUID REASON
+  bun run admin.ts save-rollback reviewhold CLIENT_ID EXPECTED_HOLD_ID COMMAND_UUID REASON
+  bun run admin.ts save-rollback release CLIENT_ID EXPECTED_HOLD_ID EXPECTED_ADMISSION_ID COMMAND_UUID REASON
+  bun run admin.ts save-rollback benefit-release ROOT_KEY EXPECTED_QUANTITY COMMAND_UUID REASON
   bun run admin.ts status
   bun run admin.ts registrations open|close
   bun run admin.ts maintenance on|off
@@ -614,6 +626,33 @@ function run_admin_command(args: string[], output: AdminOutput = console_output)
 	const [command, action, argument] = args;
 
 	switch (command) {
+		case 'save-rollback': {
+			try {
+				let result:unknown;
+				if(action==='config' && args.length===2) result=rollback_policy(db);
+				else if(action==='preview' && args.length===3) result=preview_rollback_policy(db,JSON.parse(argument!) as RollbackPolicy);
+				else if((action==='set'||action==='activate') && args.length===6) {
+					const expected=Number(args[2]);
+					if(!Number.isSafeInteger(expected)||expected<0) return usage(output);
+					result=set_rollback_policy(db,args[4]!,expected,JSON.parse(args[3]!) as RollbackPolicy,args[5]!,action==='activate');
+				} else if((action==='confirm'||action==='dismiss')&&args.length===6) {
+					result=decide_rollback_incident(db,args[4]!,Number(args[2]),Number(args[3]),action==='confirm'?'confirmed':'dismissed',args[5]!);
+				} else if(action==='reviewhold'&&args.length===6) {
+					result=set_rollback_hold(db,args[4]!,Number(args[2]),Number(args[3]),action==='reviewhold',args[5]!);
+				} else if(action==='release'&&args.length===7) {
+					result=set_rollback_hold(db,args[5]!,Number(args[2]),Number(args[3]),false,args[6]!,Number(args[4]));
+				} else if(action==='benefit-release'&&args.length===6) {
+					result=release_rollback_benefit(db,args[4]!,args[2]!,Number(args[3]),args[5]!);
+				} else if((action==='inspect'||action==='benefits')&&args.length===3) {
+					const client=parse_positive_integer(argument);if(client===null) return usage(output);
+					result=action==='inspect'?{...inspect_save_rollback(db,client),policy:rollback_policy(db),admission_revision:rollback_admission_revision(db,client),
+						holds:db.query('SELECT * FROM economy_client_holds WHERE client_id=? ORDER BY id DESC LIMIT 100').all(client),
+						admissions:db.query('SELECT a.* FROM economy_admissions a JOIN economy_load_observations l ON l.id=a.save_load_id WHERE l.client_id=? ORDER BY a.id DESC LIMIT 100').all(client),
+						notices:db.query('SELECT n.*,a.acknowledged_at FROM economy_player_notices n LEFT JOIN economy_notice_acknowledgements a ON a.notice_id=n.notice_id WHERE n.client_id=? ORDER BY n.created_at DESC LIMIT 100').all(client)}:inspect_rollback_benefits(db,client);
+				} else return usage(output);
+				output.log(JSON.stringify(result,null,2));return 0;
+			} catch(error) {output.error(error instanceof Error?error.message:'Invalid rollback command');return 2;}
+		}
 		case 'raid': {
 			const cutover_at = parse_positive_integer(argument);
 			if (cutover_at === null || (action === 'preview' && args.length !== 3) ||

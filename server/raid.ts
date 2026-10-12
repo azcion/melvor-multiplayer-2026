@@ -1,3 +1,4 @@
+import { record_economy_operation } from './save-rollback';
 import { db } from './db';
 import { maintain_global_raids, raid_schedule_state, RAID_WEEKEND } from './raid-schedule';
 import { scale_expedition_hours } from './guild-expedition';
@@ -495,6 +496,8 @@ export function reserve_assault(client_id: number, tier: number, loaded_session_
 			'WHERE `raid_id` = ? AND `membership_id` = ? AND `manual_assaults_remaining` IS NOT NULL AND ' +
 			'`manual_assaults_remaining` > 0'
 		).run(raid.id, membership.membership_id);
+		record_economy_operation(db, { source_key:`raid-reserve:${assault_id}`,client_id,kind:'raid-reserve',
+			local_effect:'server_only',committed_at:now,evidence:{ assault_id, tier, combat_deadline } });
 		return { assault_id, settlement_key, tier, combat_deadline, fortified_resistance } as const;
 	});
 	return reserve.immediate();
@@ -599,6 +602,8 @@ export function settle_assault(
 			'UPDATE `guild_raid_assaults` SET `outcome` = ?, `occurred_at` = ?, `settled_at` = ?, ' +
 			'`credited_progress` = ? WHERE `id` = ? AND `outcome` IS NULL'
 		).run(outcome, occurred_at, now, credited_progress, assault.id);
+		record_economy_operation(db, { source_key:`raid-settle:${assault.id}`,client_id,kind:'raid-settle',
+			local_effect:'server_only',committed_at:now,evidence:{ assault_id:assault.id,outcome,credited_progress } });
 		return { success: true, outcome, credited_progress, idempotent: false };
 	});
 	return settle.immediate();

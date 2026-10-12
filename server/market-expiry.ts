@@ -1,6 +1,7 @@
+import { listing_return_items } from './market-custody';
 import * as runtime from './app-runtime';
 import type * as db_row from './db/types/db_types';
-import { add_inbox_gp, add_inbox_items } from './inbox';
+import { add_inbox_items } from './inbox';
 import { expire_market_haggles } from './routes/haggle';
 
 const { db, market_completed_cached, remove_player_cache_entry, report_error } = runtime;
@@ -31,14 +32,7 @@ export function expire_market_listings_now(now = Date.now()): number {
 		if (removed === null)
 			continue;
 		remove_player_cache_entry(market_completed_cached, lot.client_id, lot.id);
-		if (lot.direction === 'buy')
-			add_inbox_gp(lot.client_id, lot.escrow_gp, EXPIRED_MARKET_SOURCE);
-		else {
-			const sold_qty = lot.qty - lot.available - lot.reserved - lot.haggled;
-			const payout = sold_qty * lot.price - lot.price_adjustment - lot.payout;
-			add_inbox_items(lot.client_id, [{ item_id: lot.item_id, qty: lot.available }], EXPIRED_MARKET_SOURCE);
-			add_inbox_items(lot.client_id, [{ item_id: lot.currency_id, qty: payout }], EXPIRED_MARKET_SOURCE);
-		}
+		for(const item of listing_return_items(lot)) add_inbox_items(lot.client_id,[item],{...EXPIRED_MARKET_SOURCE,custody:{from:()=>item.from,protected:false}});
 		count++;
 	}
 	return count;

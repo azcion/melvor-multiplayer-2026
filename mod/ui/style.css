@@ -956,6 +956,17 @@ mp-modal-component input.form-control[type="number"],
 .mp-poll-card { margin: 0; padding: .75rem; border-radius: .5rem; background: rgba(127, 127, 127, .1); }
 .mp-poll-question { margin: .75rem 0; white-space: pre-wrap; }
 .mp-poll-discussion-question { margin: 0; padding: .75rem 1rem; border-bottom: 1px solid rgba(127, 127, 127, .2); background: rgba(127, 127, 127, .05); }
+.mp-petition-discussion-summary {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	margin: 0;
+	padding: .75rem 1rem;
+	border-bottom: 1px solid rgba(127, 127, 127, .2);
+	background: rgba(127, 127, 127, .05);
+}
+.mp-petition-discussion-card { display: flex; flex-direction: column; gap: .4rem; }
+.mp-petition-discussion-summary .mp-council-petition-description { text-align: left; }
 .mp-poll-option { width: 100%; display: flex; justify-content: space-between; gap: .75rem; margin-top: .5rem; padding: .65rem .8rem; border: 1px solid rgba(127, 127, 127, .35); border-radius: .35rem; background: transparent; color: inherit; text-align: left; }
 .mp-poll-option .badge { height: 19px; }
 .mp-poll-option-selected { border-color: #5c80d1; background: rgba(92, 128, 209, .18); }
@@ -3529,7 +3540,8 @@ mp-chat-composer { display: block; min-width: 0; }
 .mp-crucible-selection { max-width: 32rem; margin: 1rem 0; padding: .75rem; border: 1px solid #626976; border-radius: 6px; background: rgb(0 0 0 / 16%); }
 .mp-crucible-selection-title { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
 .mp-crucible-selection p { margin: .5rem 0; }
-.mp-crucible-wish-form { margin-top: 1rem; }
+.mp-crucible-capacity-summary { white-space: pre-line; }
+.mp-crucible-wish-form { margin: 1rem 0; }
 .mp-crucible-clear-total { display: flex; align-items: center; justify-content: center; margin: .3rem 0; }
 
 /* Crucible Wish picker. */
@@ -3539,6 +3551,23 @@ mp-chat-composer { display: block; min-width: 0; }
 
 .mp-crucible-wish-modal-popup .swal2-html-container {
 	overflow: visible;
+	margin: .5rem 1rem 0;
+}
+
+.mp-crucible-wish-modal-popup .swal2-image { width: 48px; height: 48px; margin: .75rem auto 0; }
+.mp-crucible-wish-modal-popup .swal2-title { padding-top: .5rem; font-size: 1.5rem; }
+.mp-crucible-wish-content { gap: 8px; margin-bottom: 12px; }
+.mp-crucible-wish-content p, .mp-crucible-wish-content label { margin: 0; }
+.mp-crucible-wish-hint { font-size: .8rem; line-height: 1.3; color: #b9c6d4; }
+.mp-crucible-wish-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.mp-crucible-wish-total { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.mp-crucible-wish-total + .mp-crucible-wish-total { border-left: 1px solid #fff5; padding-left: 12px; }
+.mp-crucible-wish-currency { display: flex; justify-content: center; align-items: center; gap: 4px; flex-wrap: wrap; }
+.mp-crucible-wish-currency img { width: 20px; height: 20px; object-fit: contain; }
+@media (max-height: 700px) {
+	.mp-crucible-wish-content { font-size: .85rem; gap: 5px; }
+	.mp-crucible-wish-modal-popup .swal2-image { width: 36px; height: 36px; margin-top: .5rem; }
+	.mp-crucible-wish-modal-popup .swal2-title { font-size: 1.25rem; }
 }
 
 .mp-crucible-wish-grid {
@@ -3546,8 +3575,10 @@ mp-chat-composer { display: block; min-width: 0; }
 	grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
 	grid-auto-flow: row;
 	gap: 8px;
-	max-height: min(420px, 30vh);
-	max-height: min(420px, 30dvh);
+	height: clamp(110px, calc(100vh - 530px), 250px);
+	height: clamp(110px, calc(100dvh - 530px), 250px);
+	flex-shrink: 0;
+	align-content: start;
 	border: 1px solid #fff5;
 	border-radius: .25rem;
 	overflow-y: scroll;
@@ -3619,11 +3650,12 @@ mp-chat-composer { display: block; min-width: 0; }
 
 .mp-crucible-wish-quantity {
 	display: grid;
-	grid-template-columns: 36px minmax(0, 1fr) 36px;
+	grid-template-columns: 32px 36px minmax(0, 1fr) 36px 32px;
 	grid-template-rows: minmax(0, 1fr);
 	gap: 5px;
 	height: 50px;
-	width: 180px;
+	width: 254px;
+	max-width: 100%;
 	box-sizing: border-box;
 	margin: 0 auto;
 	padding: 5px;
@@ -3662,6 +3694,8 @@ mp-chat-composer { display: block; min-width: 0; }
 	width: 32px;
 	height: 32px;
 }
+
+.mp-crucible-wish-quantity-jump { font-size: 1.1rem; }
 
 .mp-crucible-wish-quantity-input {
 	min-width: 0;
@@ -4034,4 +4068,37 @@ span:has([lang-id="MOD_MP_TRANSFER_HISTORY_RECONSTRUCTED"]) {
 .mp-chat-tagged-nav,
 #mp-chat-header-unread.mp-chat-tagged-nav {
 	background-color: rgb(255, 0, 227);
+}
+
+/* Wish capacity shares the Sell Listing cards and switches; the outer modal scrolls naturally. */
+.mp-crucible-capacity-popup .swal2-html-container { overflow: visible; margin: .5rem; }
+.mp-crucible-capacity-popup .swal2-image { margin: 1rem auto 0; }
+.mp-crucible-capacity-popup .swal2-title { color: #f5f7fa; padding-top: .75rem; }
+.mp-capacity-form { padding: 0 4px 4px; text-align: left; color: #f5f7fa; }
+.mp-capacity-form h3 { color: inherit; font-size: 1.1rem; font-weight: 700; margin: 0 0 8px; }
+.mp-capacity-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.mp-capacity-stats > div { display: flex; flex-direction: column; justify-content: center; gap: 3px; min-width: 0; }
+.mp-capacity-stats > div + div { border-left: 1px solid #fff3; padding-left: 12px; }
+.mp-capacity-stats strong { font-size: 1.35rem; overflow-wrap: anywhere; }
+.mp-capacity-stats span, .mp-capacity-stats small, .mp-capacity-hint, .mp-capacity-info { color: #b9c6d4; }
+.mp-capacity-stats .mp-expedition-points { margin: 0 !important; }
+.mp-capacity-selection { margin: 12px 0; }
+.mp-capacity-tiers { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.mp-capacity-tier { flex-direction: column; gap: 5px; padding: 10px 2px; font-size: .85rem; }
+.mp-capacity-tier strong { font-size: 1.25rem; }
+.mp-capacity-tier:disabled { opacity: .45; cursor: default; }
+.mp-capacity-tier:focus-visible { outline: 2px solid white; outline-offset: 2px; }
+.mp-capacity-radio { width: 18px; height: 18px; border: 2px solid #99a8b8; border-radius: 50%; }
+.mp-listing-currency-selected .mp-capacity-radio { border-color: #10c98d; background: #10c98d; box-shadow: inset 0 0 0 3px #203638; }
+.mp-capacity-hint { margin: 6px 0 0; font-size: .85rem; line-height: 1.4; }
+.mp-capacity-form .mp-listing-toggle { gap: 12px; }
+.mp-capacity-form .mp-listing-toggle:disabled { opacity: .45; cursor: default; }
+.mp-capacity-info { display: flex; align-items: flex-start; gap: 10px; font-size: .85rem; line-height: 1.4; }
+.mp-capacity-info i { margin-top: 3px; }
+.mp-capacity-info p { margin: 0; }
+.mp-capacity-form .mp-listing-actions > .btn { white-space: normal; }
+.mp-capacity-form .mp-listing-actions > .btn:first-child { flex: 2; }
+@media (max-width: 400px) {
+	.mp-capacity-tiers { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+	.mp-capacity-stats strong { font-size: 1.15rem; }
 }

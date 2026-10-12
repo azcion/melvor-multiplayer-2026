@@ -1,3 +1,4 @@
+import { stored_active_mods, matches_active_mod, known_mod_by_name } from './active-mods';
 import { save_chat_parts, same_chat_parts, type ChatPart } from './chat_parts';
 import { db } from './db';
 import type { Database } from 'bun:sqlite';
@@ -8,7 +9,7 @@ export type SupportResult<T> = { status: 'ok'; value: T } | { status: 'bad_reque
 
 type Team = {
 	id: number; system_key: string; display_name: string; inbox_label: string; icon_id: string; welcome_content: string;
-	required_active_mod_name: string | null; minimum_client_version: string | null;
+	required_active_mod_name: string | null; required_active_mod_id: number | null; minimum_client_version: string | null;
 };
 type Membership = { id: number; team_id: number; member_display_name: string };
 type Conversation = { id: number; team_id: number; player_client_id: number; created_at: number };
@@ -62,7 +63,7 @@ function membership_for(client_id: number, team_id: number): Membership | null {
 function team(team_id: number): Team | null {
 	return db.query<Team, [number]>(
 		'SELECT `id`, `system_key`, `display_name`, `inbox_label`, `icon_id`, `welcome_content`, ' +
-		'`required_active_mod_name`, `minimum_client_version` FROM `support_teams` WHERE `id` = ?'
+		'`required_active_mod_name`, `required_active_mod_id`, `minimum_client_version` FROM `support_teams` WHERE `id` = ?'
 	).get(team_id);
 }
 
@@ -79,19 +80,21 @@ function version_at_least(actual: string, minimum: string): boolean {
 }
 
 function player_is_eligible_for_team(client_id: number, support_team: Team): boolean {
-	if (support_team.required_active_mod_name === null && support_team.minimum_client_version === null)
+	if (support_team.required_active_mod_name === null && support_team.required_active_mod_id === null && support_team.minimum_client_version === null)
 		return true;
-	const runtime = db.query<{ mod_version: string; active_mods: string }, [number]>(
-		'SELECT `mod_version`, `active_mods` FROM `client_runtime_snapshots` WHERE `client_id` = ?'
+	const runtime = db.query<{ mod_version: string; active_mods: string; active_mod_details: string }, [number]>(
+		'SELECT `mod_version`, `active_mods`, `active_mod_details` FROM `client_runtime_snapshots` WHERE `client_id` = ?'
 	).get(client_id);
 	if (runtime === null)
 		return false;
 	if (support_team.minimum_client_version !== null &&
 		!version_at_least(runtime.mod_version, support_team.minimum_client_version))
 		return false;
-	if (support_team.required_active_mod_name !== null) {
-		const active_mods = JSON.parse(runtime.active_mods) as unknown;
-		if (!Array.isArray(active_mods) || !active_mods.includes(support_team.required_active_mod_name))
+	if (support_team.required_active_mod_name !== null || support_team.required_active_mod_id !== null) {
+		const name = support_team.required_active_mod_name ?? '';
+		const id = support_team.required_active_mod_id ?? known_mod_by_name(name)?.id ?? null;
+		const active_mods = stored_active_mods(runtime.active_mods, runtime.active_mod_details);
+		if (!active_mods.some(mod => matches_active_mod(mod, id, name)))
 			return false;
 	}
 	return true;

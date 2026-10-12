@@ -35,6 +35,102 @@ independent of API versioning.
 The contract tests cover the current v2 route/method boundary directly; historical release inventories remain in the
 compatibility cleanup plan rather than executable fixtures.
 
+## Loaded-save tracking
+
+Registration and authentication optionally accept `client_runtime.loaded_save`:
+`{load_id, save_timestamp, client_loaded_at, capture_source}`. `load_id` is a UUID for one game load;
+reconnecting reports the same ID and snapshot. `save_timestamp` is a positive safe-integer timestamp in milliseconds,
+or null when unavailable; `client_loaded_at` is a non-negative safe-integer client timestamp in milliseconds.
+`capture_source` is `decode` for capture immediately after save decoding or `character_loaded` for a later fallback.
+
+The server retains the first observation per Client/load ID and updates only its last server report time on reconnect.
+Current sessions reference that observation; replacing sessions does not remove load history. Clients omitting the
+report keep their existing authentication contract. Reports are player assertions, not proof of save integrity.
+The server now records observational rollback incidents for prior outgoing activity when a new load is admitted.
+Reconnects retain the original observation and never compare that load with its own later operations. Independent
+incoming rewards and server decisions do not establish restored deductions. The persisted mitigation policy defaults
+OFF. Explicit prospective opt-in activation can hold admission while classification/correction completes; ordinary
+unaffected clients retain their existing recovery. No repeat threshold, ban, debt or retention purge is configured.
+
+Tracked bootstrap responses add `rollback_clock_sample: {server_admitted_at, load_id, original_handshake}`; untracked clients receive null.
+The new client timing interface is `POST /api/v2/save-load/clock`, authenticated with the resulting session, accepting
+`{server_admitted_at, client_sent_at, client_received_at, elapsed_ms}`. All values are non-negative safe integers in
+milliseconds; `elapsed_ms` is the measured monotonic duration of the original handshake, rounded to an integer.
+Registration and the first authentication for a Client/load return `original_handshake: true`; same-load reconnects return false.
+The server admission time must match the session's original load. The first accepted sample is retained unchanged;
+retries return success. Do not submit reconnect timing against an original admission sample. This endpoint returns
+`{success: true, rollback: STATUS}` or a validation error, without incident/candidate/correction details.
+The original report and its admission processing share one immediate transaction; a retry after failure cannot leave
+confirmed partial correction. Reconnect timing must never be substituted for the original handshake.
+
+The admission event falls between the client send and receive times. Translating the decoded save timestamp through
+that interval yields lower/upper server cutoffs. Prior operations inside the uncertainty interval remain uncertain;
+operations beyond its upper bound require matching calibrated installation/clock evidence to be definite timestamp
+candidates. Missing provenance, fallback capture, missing/changed clocks or devices, future timestamps, calibration
+after 60 seconds, RTT above 30 seconds, or wall/monotonic disagreement above 50 ms remain review-only. These gates
+classify evidence quality. Automatic correction additionally requires enabled prospective Client opt-in, explicit
+protocol capability, a confirmed decision and exact custody. Uncertain/historical evidence stays review-only.
+The mod advertises `save-rollback-v1` and measures send/receive at actual scheduled fetch dispatch, before response
+body consumption. It stores the original validated sample by selected server, Client and load, retries it after a
+lost clock POST, and reuses it on reconnect. Without a retained original sample it never fabricates reconnect timing.
+Supporting servers with missing or malformed status keep unsafe client actions closed. Legacy servers retain their
+existing behavior. Admission release requires a complete events/receipt snapshot before ordinary command submission.
+Review/upgrade responses preserve the exact pending command. Exact retired command IDs clear recovery records without
+applying any Bank, GP or Transfer deduction. Immutable issued claims and terminal recovery reach the server's custody
+gates even during review; independent incoming receipts remain applicable.
+
+Older-save notices use the native informational modal queue, four-second timer and progress bar, without a confirm
+button. They contain only the generic localized title/message. A per-server/Client/notice marker is saved on actual
+modal opening, followed by owner acknowledgement with retry; stale callbacks cannot acknowledge a different session.
+Legacy Wish recovery records without an explicit Client owner remain intact and block new Wish actions with a Support
+review message. Only records with an explicit valid owner and compatible server stamp migrate to that owner's key;
+conflicts remain intact. The currently connected identity is never used to guess ownership.
+
+### Optional rollback protocol
+
+`GET /api/versions` advertises `capabilities: ["save-rollback-v1"]`. A supporting client sends
+`client_runtime.capabilities: ["save-rollback-v1"]`; release version alone is insufficient (1.6.10-B lacks support).
+Missing capability is ordinary compatibility metadata, never misconduct. Session persistence and cache reloads retain
+this promise separately from the latest Client runtime snapshot.
+
+Capable bootstrap responses add `rollback: STATUS`. Authenticated `GET /api/v2/save-rollback/status`, successful clock
+responses, and `/api/v2/events` (including unchanged snapshots) return the same private-to-owner status:
+`{protocol:"save-rollback-v1", admission:"waiting"|"review"|"ready"|"released", economy_review_pending:boolean,
+upgrade_required:boolean, notice:null|{notice_id,kind:"older_save"}, retired_command_ids:string[]}`.
+Retired IDs are bounded to the latest 64 commands; exact journal replay remains authoritative beyond that window.
+No affected items, amounts, candidate events, counts or cleanup results appear in the status or notice.
+
+On a new opted-in load, wait for the original handshake's clock report and a non-held status before recovering outgoing
+receipts or submitting new economy commands. `/api/events` withholds outgoing effects during a shared Client hold,
+but keeps valid incoming receipts. Eligibility is applied before the 64-receipt limit. Affected unsupported sessions
+also withhold unretired outgoing effects after admission release or enforcement disable; each session's retained
+capability controls this recovery, independently of the latest runtime snapshot. A new client connecting to an older backend must treat absent capability/status
+fields as the existing protocol, and must not require new endpoints there. Reconnects reuse the frozen load and
+original sample; if original timing is unavailable, do not fabricate it. Review may require operator resolution.
+
+Unsafe held economy returns HTTP 409 `{success:false,error:"economy_review_pending",message}`. Affected unsupported
+sessions receive HTTP 426 `{success:false,error:"economy_upgrade_required",required_capability:"save-rollback-v1",message}`
+only for unsafe actions. Safe reads, Chat, profile sync, acknowledgements, original incoming/acknowledged receipt
+replay, original Wish-command replay and already-issued Inbox/return claim recovery remain available. Counterparty
+Gift/Trade/Marketplace source-changing mutations and shared-account Wish/Slag mutations also respect participating
+Client holds. Wish/Slag sibling coordination is limited to the shared Guild. Terminal Haggle claims and settled Trade
+Inbox delivery preserve the other party's entitlement despite that party's source owner being held; the requesting
+actor's own uncertain unissued benefits remain gated. Friends, independent Raid/work actions, Market search/catalog,
+and non-mutating Guild applications remain available; membership/departure and Council cleanup paths stay gated.
+New claims are held; replay returns the existing issued claim snapshot. No Social Only transition implements a hold.
+
+A retired outgoing command always returns `{success:false,error:"economy_command_retired",retired_command_id,receipt:null}`
+to capable sessions, including after enforcement is disabled. Retire the matching local journal/replay marker without
+applying any Bank/Transfer Inventory effect. Unsupported affected sessions must upgrade to handle that disposition.
+Original signed receipts and correction evidence remain immutable.
+
+Queue the generic localized informational modal after the game UI is ready. Title: **Older save detected**.
+Text: **An older save seems to have been loaded. If you think this is an error, please message Multiplayer Support.**
+Use the same text for all cases. `POST /api/v2/save-rollback/notice/acknowledge` with `{notice_id}` acknowledges delivery
+only (200 success or 404 for missing/wrong owner); it never dismisses an incident or releases a hold. Persisted notice
+identity survives restored saves/reconnects; retrying acknowledgement is idempotent. Fetch the next pending notice after
+acknowledgement. Client UI/journal/timing implementation and full integration acceptance remain the next slice.
+
 ## Recovery
 
 A logical command retains its original UUID, payload, command kind, and originating API major across retries and
@@ -51,10 +147,32 @@ Independent event summaries and Gift content reads continue while an Economy Rec
 is never acknowledged or skipped, and the client does not advance its event revision past that receipt. Retrying a
 Charity confirmation reuses its saved snapshot rather than donating the current inventory again.
 
-Charitree Wish Make, Forsake, and Pick commands use UUIDs and a dedicated shared server journal on every API alias.
-They do not issue Economy Receipts: Make and Forsake move no character value, while Pick atomically places the reward
-in the server-owned Inbox, whose existing claim receipt handles later character-side delivery. Clients older than
-1.5.7 receive ordinary Charitree contents without Wish fields and cannot operate the Wish endpoints.
+Crucible Wish creation in 1.6.11+ uses the Economy Receipt journal (`crucible-wish-make`).
+Make submits `{command_id,item_id,qty,ep_micros,gp,gp_balance}`. The server validates the current integer quote,
+spends character EP, creates the Wish, and adds the upfront GP Offering atomically; its receipt deducts GP locally.
+Quantity is 1–1000. Below the active base, EP is rounded upward to 0.001; above it, each +100 increment
+costs 2 EP, then 3, 4, and so on, in addition to 1 EP; partial increments are prorated and the total rounded
+upward to 0.001 EP. For example, 101 items at base 100 costs 1.020 EP. GP is half the full funding requirement, rounded upward
+to whole GP. Funding progress starts at zero. Cancellation refunds neither charge.
+
+`/api/crucible/contents` includes `capacity`: base, expiry, renewal enabled/paused flags, exact EP balance,
+renewal price and tier purchase/full prices in micro-EP. `/api/crucible/wish/capacity` submits
+`{command_id,base,ep_micros,auto_renew}`; `/api/crucible/wish/renewal` submits
+`{command_id,ep_micros,auto_renew}`, where `ep_micros` confirms the current full renewal price.
+Both use receipt journals with no local effects. Character capacity defaults to 100; tiers 200/300/400/500 cost
+10/30/60/100 EP outright, or the difference for an active upgrade. Every purchase sets expiry to 30 days from
+purchase. Active tiers cannot be purchased again or downgraded; tier purchase prices are zero at or below
+the active base. Renewal-setting commands charge no EP and leave expiry unchanged. After expiry, a tier
+can be purchased again at full price. Automatic renewals settle at scheduled 30-day boundaries before later EP credits. Insufficient EP
+expires the buff and pauses renewal permanently until an explicit new purchase. Accepted Wish quantities survive expiry.
+
+Upfront GP uses Cast contribution custody and an account/Guild GP reclaim lock lasting four hours. The lock is
+independent of Offering generations, so merges cannot remove it. Merges reset Meld progress; even maximum Heat
+needs six hours to Meld, preventing an earlier indirect return through Wish funding or Gloop.
+
+Wish Cancel and Claim retain their dedicated server journal and server-owned outcomes. Historical committed Make
+commands replay that journal without a new charge, including from older clients. New paid mutations require 1.6.11+.
+All receipt replays precede current domain validation, including changed Guild membership, expiry or balances.
 
 Do not delete historical value queues or journal rows as part of API retirement. Marketplace legacy payouts and
 participant transfer protocol records are retained until a separate value-conservation reconciliation proves removal safe.

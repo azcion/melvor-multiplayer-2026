@@ -437,7 +437,7 @@ describe('Council API', () => {
 		)).toBe(1);
 	});
 
-	test('denies expired unvoted petitions during request-time catch-up without recording a vote', async () => {
+	test('grants expired unvoted petitions during request-time catch-up without recording a vote', async () => {
 		const member = await register_guild_client('Expiry Member', 'Expiry Guild');
 		const petition_id = (await raise_appellation(member.session_token, 'Expired Name')).json.petition_id as number;
 		await db_run('UPDATE `guild_petitions` SET `expires_at` = `created_at` WHERE `id` = ?', [petition_id]);
@@ -449,7 +449,7 @@ describe('Council API', () => {
 		const view = (await get_council(member.session_token)).petitions[0];
 		expect(vote.json.error_lang).toBe('MOD_MP_COUNCIL_PETITION_FINAL');
 		expect(view).toMatchObject({
-			lifecycle: 'denied',
+			lifecycle: 'granted',
 			tally_visible: true,
 			tally: { eligible: 1, aye: 0, nay: 0, uncast: 1 }
 		});

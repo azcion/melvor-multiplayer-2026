@@ -25,6 +25,8 @@ test('Cast and Reclaim use Crucible receipts and audited custody', async () => {
 		effects: [{ qty: -3 }] } });
 	const replay = await post_json<typeof cast.json>('/api/crucible/cast', body, newer.session_token);
 	expect(replay.json).toEqual(cast.json);
+	expect(await db_all('SELECT operation_key,quantity FROM economy_custody_sources WHERE operation_key=?',[`receipt:${command_id}`]))
+		.toEqual([{operation_key:`receipt:${command_id}`,quantity:3}]);
 	const acknowledged = await post_json<{ success: boolean }>('/api/economy/receipts/acknowledge',
 		{ receipt_id: command_id }, newer.session_token);
 	expect(acknowledged.json.success).toBe(true);
@@ -90,6 +92,12 @@ test('Reclaim bonus creates audited Gloop in the Guild Crucible', async () => {
 	expect(await db_all<{ qty: number }>(
 		'SELECT qty FROM crucible_offerings WHERE guild_id = ? AND item_id = ?',
 		[pair.guild_id, 'melvorD:Weird_Gloop'])).toEqual([{ qty: 1 }]);
+	expect(await db_all('SELECT root_key,origin_kind,amount_gp FROM economy_wish_funding WHERE wish_id IN (SELECT id FROM crucible_wishes WHERE guild_id=?)',[pair.guild_id]))
+		.toMatchObject([{root_key:expect.stringContaining('cast:'),origin_kind:'derived',amount_gp:100}]);
+	expect(await db_all('SELECT quantity,location FROM economy_custody_balances WHERE root_key IN (SELECT root_key FROM economy_custody_sources WHERE client_id=? AND object_id=?)',[pair.first_id,item_id]))
+		.toEqual([{quantity:1,location:`protected:reclaim:${pair.second_id}`}]);
+	expect(await db_all("SELECT quantity FROM economy_custody_sources WHERE client_id=? AND json_extract(snapshot_json,'$.benefit_kind')='gloop'",[pair.first_id]))
+		.toEqual([{quantity:1}]);
 	expect(await db_all<{ quantity: number; direction: string }>(
 		'SELECT value.quantity, value.direction FROM audit_event_values AS value ' +
 		'JOIN audit_events AS event ON event.id = value.event_id ' +
@@ -105,17 +113,20 @@ test('Reclaim bonus creates audited Gloop in the Guild Crucible', async () => {
 });
 
 test('Wish reset and paid Clear the Slag use independent Crucible state', async () => {
-	const client = await register_guild_client('Crucible Wish', 'Crucible Wish Guild', '1.6.0');
+	const client = await register_guild_client('Crucible Wish', 'Crucible Wish Guild', '1.6.11');
 	const account_id = await db_run('INSERT INTO melvor_accounts (cloud_username, playfab_id, created_at) VALUES (?, ?, ?)',
 		[`crucible-${crypto.randomUUID()}`, crypto.randomUUID(), Date.now()]);
 	expect(account_id).toBe(1);
 	const account = (await db_all<{ id: number }>('SELECT id FROM melvor_accounts ORDER BY id DESC LIMIT 1'))[0]!;
 	await db_run('UPDATE clients SET melvor_account_id = ? WHERE id = ?', [account.id, client.client_id]);
+	await db_run('INSERT INTO expedition_ep_balances(client_id,points_micros) VALUES(?,1000000000)', [client.client_id]);
 	const first_clear = await post_json<{ success: boolean; level: number; receipt: { effects: unknown[] } }>(
 		'/api/crucible/clear', { currency_id: 'melvorD:GP', balance: 1_001_000 }, client.session_token);
 	expect(first_clear.json).toMatchObject({ success: true, level: 1 });
+	expect(await db_all("SELECT s.operation_key,s.quantity,d.kind FROM economy_custody_sources s JOIN economy_dependency_evidence d ON d.root_key=s.root_key WHERE s.client_id=? AND d.kind='slag-clear-point'",[client.client_id]))
+		.toMatchObject([{operation_key:expect.stringContaining('receipt:'),quantity:expect.any(Number),kind:'slag-clear-point'}]);
 	const wish = await post_json<{ success: boolean; wish_id: number }>(
-		'/api/crucible/wish/make', { item_id: 'melvorAoD:Torn_Parchment', qty: 1 }, client.session_token);
+		'/api/crucible/wish/make', { item_id: 'melvorAoD:Torn_Parchment', qty: 1, ep_micros: 10000, gp: 250, gp_balance: 1000000 }, client.session_token);
 	expect(wish.json.success).toBe(true);
 	const state = await get_json_with_session<{ level: number; wishes: Array<{ phase: string }> }>(
 		'/api/crucible/contents', client.session_token);
@@ -168,19 +179,21 @@ test('Council Purging targets only the captured Offering generation', async () =
 
 test('linked characters share Wishes and Slag within each Guild and remain independent across Guilds', async () => {
 	const pair = await make_guildmates('Scope First', 'Scope Sibling', 'Scope Shared',
-		{ first: '1.6.3', second: '1.6.3' });
-	const other = await register_guild_client('Scope Other', 'Scope Other Guild', '1.6.3');
+		{ first: '1.6.11', second: '1.6.11' });
+	const other = await register_guild_client('Scope Other', 'Scope Other Guild', '1.6.11');
 	await db_run('INSERT INTO melvor_accounts (cloud_username, playfab_id, created_at) VALUES (?, ?, ?)',
 		[`scope-${crypto.randomUUID()}`, crypto.randomUUID(), Date.now()]);
 	const account = (await db_all<{ id: number }>('SELECT id FROM melvor_accounts ORDER BY id DESC LIMIT 1'))[0]!;
 	await db_run('UPDATE clients SET melvor_account_id = ? WHERE id IN (?, ?, ?)',
 		[account.id, pair.first_id, pair.second_id, other.client_id]);
+	for (const id of [pair.first_id,pair.second_id,other.client_id])
+		await db_run('INSERT INTO expedition_ep_balances(client_id,points_micros) VALUES(?,1000000000)', [id]);
 	const state = async (token: string) => (await get_json_with_session<{ level: number; active_wish: boolean }>(
 		'/api/crucible/contents', token)).json;
 	const clear = async (token: string) => (await post_json<{ success: boolean; level: number }>(
 		'/api/crucible/clear', { currency_id: 'melvorD:GP', balance: 2_000 }, token)).json;
 	const make = async (token: string) => (await post_json<{ success: boolean }>(
-		'/api/crucible/wish/make', { item_id: 'melvorAoD:Torn_Parchment', qty: 1 }, token)).json;
+		'/api/crucible/wish/make', { item_id: 'melvorAoD:Torn_Parchment', qty: 1, ep_micros: 10000, gp: 250, gp_balance: 1000000 }, token)).json;
 	expect(await clear(pair.first.session_token)).toMatchObject({ success: true, level: 1 });
 	expect(await state(pair.second.session_token)).toMatchObject({ level: 1, active_wish: false });
 	expect(await state(other.session_token)).toMatchObject({ level: 0, active_wish: false });

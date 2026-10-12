@@ -1,3 +1,6 @@
+import { inbox_custody_location } from '../economy-custody';
+import { market_position, settle_market_fifo, market_benefit, listing_return_items } from '../market-custody';
+import { create_custody_source } from '../economy-custody';
 import { supports_market_terms, legacy_market_filter, market_terms_readable, market_currency_effect, market_remaining_limit, record_market_purchase, market_price } from '../market-terms';
 import { get_transfer_currency_cap } from '../transfer-caps';
 import { market_deal_allowed, market_visibility_sql } from '../alliance-market';
@@ -81,7 +84,7 @@ function claim_legacy_market_payouts(client_id: number): number {
 				'`updated_at` = CASE WHEN `available` = 0 THEN `updated_at` ELSE ? END WHERE `id` = ?')
 				.run(payout, Date.now(), lot.id);
 		if (payout > 0) {
-			add_inbox_items(client_id, [{ item_id: lot.currency_id, qty: payout }], { type: 'market_sold' });
+			add_inbox_items(client_id, [{ item_id: lot.currency_id, qty: payout }], { type: 'market_sold', custody: { from: () => market_position(lot.id,'payout'), protected:false } });
 			total += payout;
 		}
 	}
@@ -138,6 +141,13 @@ export function register_market_routes(): void {
 				DO UPDATE SET qty=qty+excluded.qty,available=available+excluded.available,updated_at=excluded.updated_at RETURNING id`
 			).get(...values, item_qty, item_qty, updated_at, updated_at)!;
 
+			if (typeof json.command_id === 'string') create_custody_source(db,{
+				root_key:`market-stock:${json.command_id}`,operation_key:`receipt:${json.command_id}`,client_id,
+				object_id:item_id,quantity:item_qty,created_at:updated_at,
+				snapshot:{listing_id:lot.id,guild_id,direction:'sell',item_id,quantity:item_qty,currency_id,
+					price:item_sell_price,existing_quantity:existing?.qty ?? 0,coverage:'active-fifo'}
+			},market_position(lot.id,'stock'));
+
 			remove_player_cache_entry(market_completed_cached, client_id, lot.id);
 			if (existing === null)
 				record_guild_activity({ guild_id, event_type: 'market_listing_created', actor_client_id: client_id,
@@ -192,6 +202,13 @@ export function register_market_routes(): void {
 				'`qty` = `qty` + excluded.`qty`, `available` = `available` + excluded.`available`, ' +
 				'`escrow_gp` = `escrow_gp` + excluded.`escrow_gp`, `updated_at` = excluded.`updated_at` RETURNING `id`'
 			).get(guild_id, client_id, item_id, item_qty, item_buy_price, item_qty, escrow_gp, updated_at, updated_at) as { id: number };
+			create_custody_source(db,{
+				root_key:`market-escrow:${json.command_id}`,operation_key:`receipt:${json.command_id}`,client_id,
+				object_id:'melvorD:GP',quantity:escrow_gp,created_at:updated_at,
+				snapshot:{listing_id:lot.id,guild_id,direction:'buy',item_id,quantity:item_qty,price:item_buy_price,
+					existing_escrow:existing?.escrow_gp ?? 0,coverage:'active-fifo'}
+			},market_position(lot.id,'gp'));
+
 			if (existing === null)
 				record_guild_activity({ guild_id, event_type: 'market_listing_created', actor_client_id: client_id,
 					source_key: `market-listing:${lot.id}`, throttled: true, metadata: { direction: 'buy' } });
@@ -243,10 +260,24 @@ export function register_market_routes(): void {
 				).run(final_qty, final_cost, final_qty * (lot.price - price), Date.now(), lot_id, lot.available);
 			if (updated.changes === 0)
 				return { error_lang: 'MOD_MP_MARKET_BUY_ERROR_INVALID' };
+			if (typeof json.command_id === 'string') create_custody_source(db,{
+				root_key:`market-payment:${json.command_id}`,operation_key:`receipt:${json.command_id}`,client_id,
+				object_id:lot.currency_id,quantity:final_cost,created_at:Date.now(),
+				snapshot:{listing_id:lot.id,seller_id:lot.client_id,item_id:lot.item_id,quantity:final_qty,
+					price,coverage:'settled-counterparty-payment'}
+			},`protected:market-payment:${json.command_id}`);
+
 			remove_player_cache_entry(market_completed_cached, lot.client_id, lot.id);
 			const buyer_name = get_inbox_source_name(client_id);
 			const seller_name = get_inbox_source_name(lot.client_id);
+
 			const history_key = `market-exchange:${json.command_id ?? crypto.randomUUID()}`;
+			const now=Date.now();
+			settle_market_fifo(db,market_position(lot.id,'stock'),lot.available,final_qty,price,lot.currency_id,
+				inbox_custody_location(lot.client_id,'market_sold',buyer_name,lot.currency_id),history_key,now);
+			if(typeof json.command_id==='string') market_benefit(db,`market-payment:${json.command_id}`,history_key,
+				lot.item_id,final_qty,inbox_custody_location(client_id,'market_bought',seller_name,lot.item_id),now);
+
 			add_inbox_items(client_id, [{ item_id: lot.item_id, qty: final_qty }],
 				{ type: 'market_bought', name: seller_name, history_key,
 					exchange: { label: 'paid', item_id: lot.currency_id, qty: final_cost } });
@@ -299,7 +330,20 @@ export function register_market_routes(): void {
 			if (updated.changes === 0)
 				return { error_lang: 'MOD_MP_MARKET_FULFILL_ERROR_INVALID' };
 
+			create_custody_source(db,{
+				root_key:`market-fill:${json.command_id}`,operation_key:`receipt:${json.command_id}`,client_id,
+				object_id:lot.item_id,quantity:final_qty,created_at:updated_at,
+				snapshot:{listing_id:lot.id,buyer_id:lot.client_id,quantity:final_qty,price:lot.price,
+					coverage:'settled-counterparty-item'}
+			},`protected:market-fill:${json.command_id}`);
+
 			const history_key = `market-exchange:${json.command_id}`;
+			settle_market_fifo(db,market_position(lot.id,'gp'),lot.escrow_gp,final_cost,1,lot.item_id,
+				client_uses_legacy_transfer_protocol(lot.client_id)?`protected:market-legacy:${history_key}`:
+				inbox_custody_location(lot.client_id,'market_fulfilled',get_inbox_source_name(client_id),lot.item_id),history_key,updated_at,lot.price);
+			market_benefit(db,`market-fill:${json.command_id}`,history_key,'melvorD:GP',final_cost,
+				inbox_custody_location(client_id,'market_sold',get_inbox_source_name(lot.client_id),'melvorD:GP'),updated_at);
+
 			deliver_market_purchase(lot.client_id, lot.item_id, final_qty, get_inbox_source_name(client_id),
 				{ history_key, exchange: { label: 'paid', item_id: 'melvorD:GP', qty: final_cost } });
 			add_inbox_gp(client_id, final_cost,
@@ -328,8 +372,8 @@ export function register_market_routes(): void {
 		const results = await db_get_all(
 			'SELECT * FROM `market_items` WHERE `guild_id` = ? AND `client_id` = ?' +
 				(supports_market_terms(runtime.get_request_mod_version(req)) ? '' : ' AND ' + legacy_market_filter('market_items')) +
-				(can_view_completed_market_listings(req) ? '' :
-					' AND (`available` > 0 OR `reserved` > 0 OR (`direction` = \'sell\' AND (`qty` - `haggled`) * `price` > `payout`))'),
+				' AND (`available` > 0 OR `reserved` > 0 OR (`direction` = \'sell\' AND ' +
+					'(`qty` - `available` - `reserved` - `haggled`) * `price` - `price_adjustment` > `payout`))',
 			[guild_id, client_id]
 		);
 		const items = Array<JsonSerializable>(results.length);
@@ -372,7 +416,7 @@ export function register_market_routes(): void {
 			db.query('UPDATE `market_items` SET `payout` = `payout` + ?, ' +
 				'`updated_at` = CASE WHEN `available` = 0 THEN `updated_at` ELSE ? END WHERE `id` = ?')
 				.run(payout_available, Date.now(), lot.id);
-			add_inbox_items(client_id, [{ item_id: lot.currency_id, qty: payout_available }], { type: 'market_sold' });
+			add_inbox_items(client_id, [{ item_id: lot.currency_id, qty: payout_available }], { type: 'market_sold', custody: { from: () => market_position(lot.id,'payout'), protected:false } });
 			return { success: true, payout: payout_available, ended, effects: [] };
 		});
 		return result?.error_lang !== undefined ? result : result?.success === false ? 400 : result ?? 400;
@@ -411,14 +455,13 @@ export function register_market_routes(): void {
 				return { success: false };
 			remove_player_cache_entry(market_completed_cached, client_id, lot.id);
 			if (lot.direction === 'buy') {
-				add_inbox_gp(client_id, lot.escrow_gp, { type: 'market_cancelled' });
+				add_inbox_gp(client_id, lot.escrow_gp, { type: 'market_cancelled', custody: { from: item => market_position(lot.id,lot.direction==='buy'?'gp':item===lot.item_id?'stock':'payout'), protected:false } });
 				return { success: true, direction: lot.direction, item_id: lot.item_id, item_qty: lot.available,
 					payout: 0, gp_refund: lot.escrow_gp,
 					effects: [] };
 			}
 			const payout = (lot.qty - lot.available - lot.reserved - lot.haggled) * lot.price - lot.price_adjustment - lot.payout;
-			add_inbox_items(client_id, [{ item_id: lot.item_id, qty: lot.available }], { type: 'market_cancelled' });
-			add_inbox_items(client_id, [{ item_id: lot.currency_id, qty: payout }], { type: 'market_cancelled' });
+			for(const item of listing_return_items(lot)) add_inbox_items(client_id,[item],{type:'market_cancelled',custody:{from:()=>item.from,protected:false}});
 			return { success: true, item_id: lot.item_id, item_qty: lot.available, payout, effects: [] };
 		});
 		return result?.error_lang !== undefined ? result : result?.success === false ? 400 : result ?? 400;
@@ -449,8 +492,7 @@ export function register_market_routes(): void {
 				return { success: false };
 			const payout = (lot.qty - lot.available - lot.reserved - lot.haggled) * lot.price - lot.price_adjustment - lot.payout;
 			remove_player_cache_entry(market_completed_cached, client_id, lot.id);
-			add_inbox_items(client_id, [{ item_id: lot.item_id, qty: lot.available }], { type: 'market_cancelled' });
-			add_inbox_items(client_id, [{ item_id: lot.currency_id, qty: payout }], { type: 'market_cancelled' });
+			for(const item of listing_return_items(lot)) add_inbox_items(client_id,[item],{type:'market_cancelled',custody:{from:()=>item.from,protected:false}});
 			return { success: true, item_id: lot.item_id, item_qty: lot.available, payout, effects: [] };
 		});
 		return result?.error_lang !== undefined ? result : result?.success === false ? 400 : result ?? 400;

@@ -153,7 +153,7 @@ test('implements jittered foreground conversation polling and cursor-based histo
 	assert.match(main, /'&reaction_after=' \+ state\.chat_reaction_revision/);
 	assert.match(main, /Array\.isArray\(res\.reaction_updates\)[\s\S]*message\.reactions = update\.reactions/);
 	assert.match(main, /should_scroll_for_additions = quiet && additions\.length > 0 && state\.chat_messages_are_at_bottom\(\)[\s\S]*await state\.scroll_chat_messages_to_bottom\(\)/);
-	assert.match(main, /if \(additions\.length > 0\) \{\s*if \(!quiet && !prepend && cursor === ''\)\s*await state\.scroll_chat_messages_to_bottom\(\);\s*await refresh_chat_conversations\(\);\s*\}/);
+	assert.match(main, /if \(additions\.length > 0\) \{\s*if \(!quiet && !prepend && cursor === ''\)\s*await state\.scroll_chat_messages_to_bottom\(\);/);
 	assert.match(main, /'&before=' \+ this\.chat_before_cursor/);
 	assert.match(main, /poll_id !== chat_poll_id \|\| !chat_page_visible \|\| !polling\.is_foreground\(document\)/);
 	assert.match(main, /polling\.chat_poll_delay\(\)/);
@@ -875,4 +875,28 @@ test('person tag glow uses character IDs and navigation tags respect unread, acc
 	assert.match(templates, /conversation.unread_tagged \? '@' : conversation.unread_count/);
 	assert.match(main, /chat_page_visible \|\| has_muted_chats \|\| state.chat_unread > 0 \|\| state.get_chat_notification_tagged\(\)/);
 	assert.match(style, /box-shadow: 0 0 4px 2px rgb\(255, 0, 227\)/);
+});
+
+test('new private Messages refresh conversation previews while petition Messages update their own unread count', async () => {
+	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const source = main.slice(main.indexOf('async function refresh_chat_messages('), main.indexOf('\nasync function refresh_chat_page('));
+	for (const kind of ['private', 'petition-discussion']) {
+		let refreshes = 0;
+		const state = {
+			selected_chat_conversation: { conversation_kind: kind, conversation_id: 42 },
+			chat_messages: [], chat_before_cursor: null, chat_reaction_revision: 0, chat_messages_loading: false,
+			council_petitions: [{ petition_id: 42, discussion_unread_count: 2 }],
+			chat_messages_are_at_bottom: () => false, scroll_chat_messages_to_bottom: async () => {}
+		};
+		const refresh = new Function('state', 'api_get', 'chat_view_generation', 'log', 'GLOBAL_CHAT_CAPABILITY',
+			'POLLS_CAPABILITY', 'refresh_chat_conversations', `${source}; return refresh_chat_messages;`)
+			(state, async () => ({ messages: [{ message_id: 9 }], discussion_unread_count: 0 }), 1,
+				() => {}, 'global-chat-v1', 'polls-v1', async () => { refreshes++; });
+		assert.equal(await refresh('&after=8', false, true), true);
+		assert.deepEqual(state.chat_messages.map(message => message.message_id), [9]);
+		assert.equal(refreshes, kind === 'private' ? 1 : 0);
+		assert.equal(state.council_petitions[0].discussion_unread_count, kind === 'private' ? 2 : 0);
+		assert.equal(await refresh('&after=9', false, true), true);
+		assert.equal(refreshes, kind === 'private' ? 1 : 0, 'duplicate Messages do not refresh previews again');
+	}
 });

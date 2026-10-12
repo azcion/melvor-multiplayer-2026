@@ -61,5 +61,6 @@ export function resolve_council_vote(petition: Pick<guild_petitions, 'id' | 'gui
 				now - COUNCIL_MEMBERSHIP_WAIT, petition.voting_threshold, petition.id, petition.id);
 		if (uncast !== null) return null;
 	}
-	return tally.aye > tally.nay ? 'granted' : 'denied';
+	// An unvoted Petition is consent at its deadline; nonempty ties still deny.
+	return (tally.aye === 0 && tally.nay === 0) || tally.aye > tally.nay ? 'granted' : 'denied';
 }

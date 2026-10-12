@@ -1,3 +1,6 @@
+import type { Database } from 'bun:sqlite';
+import { inbox_custody_location, move_custody_fifo } from './economy-custody';
+import { record_economy_operation } from './save-rollback';
 import type { HistoryExchange } from './transfer-history';
 import { db } from './db';
 import type { JsonObject } from './http';
@@ -14,6 +17,8 @@ export type InboxSource = {
 	name?: string;
 	history_key?: string;
 	exchange?: HistoryExchange;
+	/** Exact item-level source positions; accepted counterparty value becomes terminal now. */
+	custody?: { from: (item_id: string) => string; protected: boolean };
 };
 
 export function get_inbox_source_name(client_id: number): string {
@@ -32,27 +37,30 @@ export function parse_inbox_existing_item_ids(value: unknown): string[] | null {
 	return unique.size === item_ids.length ? item_ids as string[] : null;
 }
 
-export function add_inbox_items(client_id: number, items: readonly InboxItem[], source: InboxSource = { type: 'other' }): void {
+export function add_inbox_items(client_id: number, items: readonly InboxItem[], source: InboxSource = { type: 'other' }, database:Database=db): void {
 	let added = false;
 	const created_at = Date.now();
 	const source_name = source.name?.trim() ?? '';
 	for (const item of items) {
 		if (item.qty <= 0)
 			continue;
-		db.query(
+		database.query(
 			'INSERT INTO `inbox_items` (`client_id`, `source_type`, `source_name`, `item_id`, `qty`, `created_at`, `updated_at`, `history_key`) ' +
 			'VALUES(?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (`client_id`, `source_type`, `source_name`, `item_id`) ' +
 			'DO UPDATE SET `qty` = `qty` + excluded.`qty`, ' +
 			'`created_at` = COALESCE(`inbox_items`.`created_at`, excluded.`created_at`), ' +
 			'`updated_at` = excluded.`updated_at`, `history_key` = excluded.`history_key`'
 		).run(client_id, source.type, source_name, item.item_id, item.qty, created_at, created_at, source.history_key ?? null);
+		if (source.custody) move_custody_fifo(database,source.custody.from(item.item_id),
+			source.custody.protected ? `protected:inbox:${client_id}:${source.type}:${created_at}` :
+				inbox_custody_location(client_id,source.type,source_name,item.item_id),item.qty,created_at,'inbox-issued');
 		added = true;
 	}
-	if (added && source.history_key && source.exchange) db.query(
+	if (added && source.history_key && source.exchange) database.query(
 		"UPDATE transfer_history_events SET exchange_json=? WHERE client_id=? AND pane='inbox' AND source_key=?"
 	).run(JSON.stringify(source.exchange), client_id, source.history_key);
 	if (added)
-		db.query('UPDATE `clients` SET `event_revision` = `event_revision` + 1 WHERE `id` = ?').run(client_id);
+		database.query('UPDATE `clients` SET `event_revision` = `event_revision` + 1 WHERE `id` = ?').run(client_id);
 }
 
 export function add_inbox_gp(client_id: number, qty: number, source: InboxSource = { type: 'other' }): void {
@@ -173,6 +181,8 @@ export function create_inbox_claim(
 			details: { claim_id }
 		});
 		for (const item of selected) {
+			move_custody_fifo(db,inbox_custody_location(client_id,item.source_type,item.source_name,item.item_id),
+				`protected:inbox-claim:${claim_id}`,item.qty,created_at,'claim-created');
 			db.query('INSERT INTO inbox_claim_sources(claim_id,item_id,source_type,source_name,qty) VALUES(?,?,?,?,?)')
 				.run(claim_id, item.item_id, item.source_type, item.source_name, item.qty);
 			move_audit_value_with_fallback(event_id, item.item_id, item.qty, 'inbox',
@@ -187,6 +197,8 @@ export function create_inbox_claim(
 				' INSERT INTO `inbox_claim_items` (`claim_id`, `item_id`, `qty`) VALUES(?, ?, ?)'
 			).run(claim_id, item_id, qty);
 		}
+		record_economy_operation(db, { source_key: `inbox-claim:${claim_id}`, client_id, kind:'inbox-claim',
+			local_effect:'incoming', committed_at:created_at, evidence: { claim_id, items:[...totals].map(([item_id,qty]) => ({item_id,qty})) } });
 		return claim_id;
 	});
 	return create_claim.immediate();

@@ -1,3 +1,4 @@
+import { rollback_player_status, acknowledge_rollback_notice, rollback_affected } from '../rollback-policy';
 import { read_page } from '../page-reads';
 import { is_feature_tester, pending_test_data } from '../feature-testers';
 import { has_alliance_access } from '../alliances';
@@ -17,6 +18,12 @@ import { release_campaign_refunds } from '../campaign-retirement';
 const { acknowledge_economy_receipt, db, db_execute, db_exists, display_icon_cache, display_name_cache, friend_request_cache, get_campaign_progress, get_client_gifts, get_client_resolved_trades, get_client_social_mode, get_client_social_mode_enforcement, get_client_trades, get_friend_requests, get_global_chat_unread_count, get_guild_applicants, get_guild_chat_unread_count, get_guild_member_social_modes, get_market_completed, get_minimum_supported_mod_version, get_released_mod_version, get_support_unread_count, get_trade_offer_meta, get_unread_chat_count, has_deletion_returns, has_global_chat_capability, has_guild_chat_capability, is_valid_avatar_icon_id, parse_display_name, pending_economy_receipts, session_get_route, session_post_route } = runtime;
 
 export function register_general_routes(): void {
+	session_get_route('/api/save-rollback/status',async(req,_url,client)=>{
+		const session=await runtime.get_client_session(req.headers.get('X-Session-Token'));
+		return rollback_player_status(db,client,session!.save_load_id,session!.rollback_capable);
+	});
+	session_post_route('/api/save-rollback/notice/acknowledge',async(_req,_url,client,json)=>
+		acknowledge_rollback_notice(db,client,json.notice_id)?{success:true}:404);
 	session_get_route('/api/pages/snapshot', async (req, url, client_id) => {
 		const data = await read_page(url.searchParams.get('page') ?? '', req, url, client_id);
 		return data === null ? 400 : { data };
@@ -24,6 +31,8 @@ export function register_general_routes(): void {
 	session_get_route('/api/events', async (req, url, client_id): Promise<HandlerResult> => {
 		if (is_client_version_at_least(runtime.get_request_mod_version(req), '1.6.0'))
 			release_campaign_refunds(client_id);
+		const session=await runtime.get_client_session(req.headers.get('X-Session-Token'));
+		const rollback:JsonObject=session!.rollback_capable||rollback_affected(db,client_id)?{rollback:rollback_player_status(db,client_id,session!.save_load_id,session!.rollback_capable)}:{};
 		const known_revision_value = url.searchParams.get('revision');
 		const known_revision = known_revision_value === null ? null : Number(known_revision_value);
 		if (known_revision !== null && (!Number.isSafeInteger(known_revision) || known_revision < 0))
@@ -31,7 +40,7 @@ export function register_general_routes(): void {
 		const client = db.query('SELECT `event_revision` FROM `clients` WHERE `id` = ? LIMIT 1')
 			.get(client_id) as Pick<db_row.clients, 'event_revision'>;
 		if (known_revision === client.event_revision)
-			return { revision: client.event_revision, unchanged: true, released_mod_version: get_released_mod_version(),
+			return { ...rollback, revision: client.event_revision, unchanged: true, released_mod_version: get_released_mod_version(),
 				minimum_supported_mod_version: get_minimum_supported_mod_version() };
 		const trade_ids = await get_client_trades(client_id);
 		const trade_meta = [];
@@ -49,7 +58,7 @@ export function register_general_routes(): void {
 		}
 
 		return {
-			revision: client.event_revision,
+			...rollback, revision: client.event_revision,
 			...(url.searchParams.get('pending_preview') === '1' ? { pending_preview: is_feature_tester(db, client_id, 'pending') ? pending_test_data() : null } : {}),
 			released_mod_version: get_released_mod_version(),
 			minimum_supported_mod_version: get_minimum_supported_mod_version(),
@@ -61,7 +70,7 @@ export function register_general_routes(): void {
 			trades: trade_meta,
 			resolved_trades: await get_client_resolved_trades(client_id),
 			guild_member_social_modes: get_guild_member_social_modes(client_id),
-			economy_receipts: pending_economy_receipts(client_id),
+			economy_receipts: pending_economy_receipts(client_id,session!.rollback_capable),
 			campaign: await get_campaign_progress(client_id),
 			market_completed: await get_market_completed(client_id),
 			haggle_pending: (db.query<{ count: number }, [number, number, number]>(

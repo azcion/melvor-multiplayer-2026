@@ -1,3 +1,4 @@
+import { can_view_petition_discussions, list_petition_discussion_messages, send_petition_discussion_message } from '../petition-discussions';
 import { admin_message_details, message_moderation_count, moderate_additional_chat_message, type ChatMessageKind } from '../chat_reactions';
 import { has_alliance_access } from '../alliances';
 import { get_alliance_chat_inbox, list_alliance_chat_messages, send_alliance_chat_message, moderate_alliance_chat_message, set_alliance_chat_enabled } from '../alliance_chat';
@@ -129,6 +130,7 @@ export function register_chat_routes(): void {
 
 	session_get_route('/api/chat/messages', async (req, url, client_id): Promise<HandlerResult> => {
 		const kind = url.searchParams.get('conversation_kind') ?? 'private';
+		if (kind === 'petition-discussion' && !can_view_petition_discussions(get_request_mod_version(req))) return 404;
 		const conversation_parameter = url.searchParams.get('conversation_id');
 		const conversation_id = conversation_parameter === null || conversation_parameter === ''
 			? null : Number(conversation_parameter);
@@ -140,7 +142,7 @@ export function register_chat_routes(): void {
 		const before = before_parameter === null ? null : Number(before_parameter);
 		const after = after_parameter === null ? null : Number(after_parameter);
 		const reaction_after = reaction_after_parameter === null ? null : Number(reaction_after_parameter);
-		if (kind !== 'alliance' && kind !== 'private' && kind !== 'support' && kind !== 'guild' && kind !== 'global' && kind !== 'testers' && kind !== 'poll-discussion')
+		if (kind !== 'alliance' && kind !== 'private' && kind !== 'support' && kind !== 'guild' && kind !== 'global' && kind !== 'testers' && kind !== 'poll-discussion' && kind !== 'petition-discussion')
 			return 400;
 		if (reaction_after !== null && (!Number.isSafeInteger(reaction_after) || reaction_after < 0))
 			return 400;
@@ -155,6 +157,8 @@ export function register_chat_routes(): void {
 			? conversation_id === null ? { status: 'bad_request' as const } : list_alliance_chat_messages(client_id, conversation_id, before, after)
 			: kind === 'support'
 			? list_support_messages(client_id, conversation_id, team_id, before, after)
+			: kind === 'petition-discussion'
+				? conversation_id === null ? { status: 'bad_request' as const } : list_petition_discussion_messages(client_id, conversation_id, before, after)
 			: kind === 'poll-discussion'
 				? conversation_id === null ? { status: 'bad_request' as const }
 					: list_poll_discussion_messages(client_id, get_request_mod_version(req), conversation_id, before, after)
@@ -194,9 +198,10 @@ export function register_chat_routes(): void {
 	session_get_route('/api/chat/messages/details', async (req, url, client_id) => {
 		if (!is_admin(client_id)) return 403;
 		const kind = url.searchParams.get('conversation_kind') ?? 'private';
+		if (kind === 'petition-discussion' && !can_view_petition_discussions(get_request_mod_version(req))) return 404;
 		const conversation_id = Number(url.searchParams.get('conversation_id'));
 		const message_id = Number(url.searchParams.get('message_id'));
-		if (!['private', 'alliance', 'guild', 'global', 'testers', 'support', 'poll-discussion'].includes(kind) ||
+		if (!['private', 'alliance', 'guild', 'global', 'testers', 'support', 'poll-discussion', 'petition-discussion'].includes(kind) ||
 			![conversation_id, message_id].every(id => Number.isSafeInteger(id) && id > 0)) return 400;
 		if ((kind === 'poll-discussion' && !can_view_polls(get_request_mod_version(req))) ||
 			(kind === 'alliance' && !has_alliance_access(client_id, get_request_mod_version(req))) ||
@@ -206,7 +211,8 @@ export function register_chat_routes(): void {
 
 	session_post_route('/api/chat/messages/reaction', async (req, url, client_id, json) => {
 		const kind = json.conversation_kind ?? 'private';
-		if (kind !== 'alliance' && kind !== 'private' && kind !== 'support' && kind !== 'guild' && kind !== 'global' && kind !== 'testers' && kind !== 'poll-discussion')
+		if (kind === 'petition-discussion' && !can_view_petition_discussions(get_request_mod_version(req))) return 404;
+		if (kind !== 'alliance' && kind !== 'private' && kind !== 'support' && kind !== 'guild' && kind !== 'global' && kind !== 'testers' && kind !== 'poll-discussion' && kind !== 'petition-discussion')
 			return 400;
 		if (kind === 'alliance' && !has_alliance_access(client_id, get_request_mod_version(req))) return 404;
 		if (kind === 'global' && !has_global_chat_capability(url))
@@ -228,7 +234,8 @@ export function register_chat_routes(): void {
 
 	session_post_route('/api/chat/messages/send', async (req, url, client_id, json) => {
 		const kind = json.conversation_kind ?? 'private';
-		if (kind !== 'alliance' && kind !== 'private' && kind !== 'support' && kind !== 'guild' && kind !== 'global' && kind !== 'testers' && kind !== 'poll-discussion')
+		if (kind === 'petition-discussion' && !can_view_petition_discussions(get_request_mod_version(req))) return 404;
+		if (kind !== 'alliance' && kind !== 'private' && kind !== 'support' && kind !== 'guild' && kind !== 'global' && kind !== 'testers' && kind !== 'poll-discussion' && kind !== 'petition-discussion')
 			return 400;
 		if (kind === 'alliance' && !has_alliance_access(client_id, get_request_mod_version(req))) return 404;
 		if (kind === 'global' && !has_global_chat_capability(url))
@@ -242,7 +249,7 @@ export function register_chat_routes(): void {
 			(kind === 'guild' && typeof json.conversation_id !== 'number') ||
 			(kind === 'global' && typeof json.conversation_id !== 'number') ||
 			(kind === 'testers' && typeof json.conversation_id !== 'number') ||
-			(kind === 'poll-discussion' && typeof json.conversation_id !== 'number') ||
+			(['poll-discussion', 'petition-discussion'].includes(kind) && typeof json.conversation_id !== 'number') ||
 			(kind === 'support' && typeof json.support_team_id !== 'number') ||
 			typeof json.idempotency_key !== 'string' ||
 			typeof json.content !== 'string')
@@ -255,6 +262,7 @@ export function register_chat_routes(): void {
 			!is_client_version_at_least(get_request_mod_version(req), '1.6.0')) return 400;
 		const content = parts ? parts_text(parts) : json.content;
 		const result = kind === 'alliance' ? send_alliance_chat_message(client_id, json.conversation_id as number, json.idempotency_key, content, Date.now(), parts)
+		: kind === 'petition-discussion' ? send_petition_discussion_message(client_id, json.conversation_id as number, json.idempotency_key, content, Date.now(), parts)
 		: kind === 'poll-discussion' ? send_poll_discussion_message(
 			client_id, get_request_mod_version(req), json.conversation_id as number, json.idempotency_key, content, Date.now(), parts
 		) : kind === 'support' ? send_support_message(
@@ -332,10 +340,11 @@ export function register_chat_routes(): void {
 	});
 
 	session_post_route('/api/chat/messages/delete-for-all', async (req, url, client_id, json) => {
-		if (json.conversation_kind === 'private' || json.conversation_kind === 'support' || json.conversation_kind === 'poll-discussion') {
+		if (json.conversation_kind === 'private' || json.conversation_kind === 'support' || json.conversation_kind === 'poll-discussion' || json.conversation_kind === 'petition-discussion') {
 			if (!is_admin(client_id)) return 403;
 			if (typeof json.message_id !== 'number' || typeof json.conversation_id !== 'number' ||
 				![json.message_id, json.conversation_id].every(id => Number.isSafeInteger(id) && id > 0)) return 400;
+			if (json.conversation_kind === 'petition-discussion' && !can_view_petition_discussions(get_request_mod_version(req))) return 404;
 			if (json.conversation_kind === 'poll-discussion' && !can_view_polls(get_request_mod_version(req))) return 404;
 			return moderate_additional_chat_message(client_id, json.conversation_kind, json.conversation_id, json.message_id)
 				? { success: true, deleted: true } : 404;

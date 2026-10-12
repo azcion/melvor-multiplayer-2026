@@ -1,3 +1,5 @@
+import { create_custody_source, move_location } from '../economy-custody';
+import { market_position, haggle_position, haggle_claim_position, move_market_fifo, settle_market_fifo, add_haggle_claim, terminate_haggle } from '../market-custody';
 import { market_terms_readable, supports_market_terms, market_remaining_limit, record_market_purchase, market_price, market_currency_effect, market_currency_cap } from '../market-terms';
 import { market_deal_allowed, register_market_permission_cleanup } from '../alliance-market';
 import * as runtime from '../app-runtime';
@@ -16,41 +18,19 @@ function safe_total(qty: number, price: number): number | null {
 	return Number.isSafeInteger(total) ? total : null;
 }
 
-function add_claim(haggle_id: string, client_id: number, item_id: string | null, item_qty: number, gp: number): void {
-	if (item_qty === 0 && gp === 0)
-		return;
-	db.query(
-		'INSERT INTO `market_haggle_claims` (`haggle_id`, `client_id`, `item_id`, `item_qty`, `gp`) ' +
-		'VALUES(?, ?, ?, ?, ?) ON CONFLICT (`haggle_id`, `client_id`) DO UPDATE SET ' +
-		'`item_id` = COALESCE(`market_haggle_claims`.`item_id`, excluded.`item_id`), ' +
-		'`item_qty` = `market_haggle_claims`.`item_qty` + excluded.`item_qty`, ' +
-		'`gp` = `market_haggle_claims`.`gp` + excluded.`gp`'
-	).run(haggle_id, client_id, item_id, item_qty, gp);
+const add_claim = (id:string,client:number,item:string|null,qty:number,gp:number) => add_haggle_claim(db,id,client,item,qty,gp);
+
+export function terminate_active_haggle(haggle: db_row.market_haggles, status: 'cancelled'|'rejected'|'expired',
+	_restore_listing=true,now=Date.now()):boolean {
+	const changed=terminate_haggle(db,haggle,status,now);
+	if(changed) market_completed_cached.delete(haggle.owner_id);
+	return changed;
 }
 
-export function terminate_active_haggle(haggle: db_row.market_haggles, status: 'cancelled' | 'rejected' | 'expired',
-	restore_listing = true, now = Date.now()): boolean {
-	const changed = db.query(
-		'UPDATE `market_haggles` SET `status` = ?, `turn_client_id` = NULL, `expires_at` = NULL, ' +
-		'`terminal_at` = ?, `updated_at` = ? WHERE `id` = ? AND `status` = \'active\' AND `revision` = ?'
-	).run(status, now, now, haggle.id, haggle.revision);
-	if (changed.changes === 0)
-		return false;
-	if (restore_listing && haggle.listing_id !== null) {
-		db.query(
-			'UPDATE `market_items` SET `available` = `available` + ?, `reserved` = `reserved` - ?, ' +
-			'`escrow_gp` = `escrow_gp` + ?, `updated_at` = ? WHERE `id` = ?'
-		).run(haggle.item_qty, haggle.item_qty, haggle.listing_reserved_gp, now, haggle.listing_id);
-	}
-	market_completed_cached.delete(haggle.owner_id);
-	if (haggle.direction === 'sell')
-		add_claim(haggle.id, haggle.initiator_id, null, 0, haggle.payer_escrow_gp);
-	else {
-		add_claim(haggle.id, haggle.initiator_id, haggle.item_id, haggle.item_qty, 0);
-		add_claim(haggle.id, haggle.owner_id, null, 0,
-			Math.max(haggle.payer_escrow_gp - haggle.listing_reserved_gp, 0));
-	}
-	return true;
+function topup_source(h:db_row.market_haggles,command:unknown,client:number,qty:number,now:number):void {
+	if(qty===0 || typeof command!=='string') return;
+	create_custody_source(db,{root_key:`haggle:${h.id}:${client}:${h.revision+1}:${command}`,operation_key:`receipt:${command}`,
+		client_id:client,object_id:h.currency_id,quantity:qty,created_at:now,snapshot:{haggle_id:h.id,revision:h.revision+1,party:client,listing_id:h.listing_ref}},haggle_position(h.id,'gp'));
 }
 
 export function cancel_disallowed_haggles(now = Date.now()): number {
@@ -192,6 +172,13 @@ export function register_haggle_routes(): void {
 			db.query('UPDATE `market_items` SET `available` = `available` - ?, `reserved` = `reserved` + ?, ' +
 				'`escrow_gp` = `escrow_gp` - ?, `updated_at` = ? WHERE `id` = ?')
 				.run(capped_item_qty, capped_item_qty, listing_reserved_gp, now, lot.id);
+			move_market_fifo(db,market_position(lot.id,lot.direction==='sell'?'stock':'gp'),
+				haggle_position(id,lot.direction==='sell'?'stock':'reserve'),lot.direction==='sell'?capped_item_qty:listing_reserved_gp,
+				lot.direction==='sell'?lot.available:lot.escrow_gp,now);
+			if(typeof json.command_id==='string') create_custody_source(db,{
+				root_key:`haggle:${id}:${client_id}:1:${json.command_id}`,operation_key:`receipt:${json.command_id}`,client_id,
+				object_id:lot.direction==='sell'?lot.currency_id:lot.item_id,quantity:lot.direction==='sell'?capped_offered_total:capped_item_qty,
+				created_at:now,snapshot:{haggle_id:id,revision:1,party:client_id,listing_id:lot.id}},haggle_position(id,lot.direction==='sell'?'gp':'stock'));
 			market_completed_cached.delete(lot.client_id);
 			return { success: true, history_name: get_inbox_source_name(lot.client_id), haggle_id: id, effects: lot.direction === 'sell'
 				? [market_currency_effect(lot.currency_id, -capped_offered_total)]
@@ -229,6 +216,7 @@ export function register_haggle_routes(): void {
 			const payer_id = haggle.direction === 'sell' ? haggle.initiator_id : haggle.owner_id;
 			const top_up = client_id === payer_id ? Math.max(total - haggle.payer_escrow_gp, 0) : 0;
 			const now = Date.now();
+			topup_source(haggle,json.command_id,client_id,top_up,now);
 			db.query(
 				'UPDATE `market_haggles` SET `offer_price` = ?, `payer_escrow_gp` = `payer_escrow_gp` + ?, ' +
 				'`turn_client_id` = ?, `revision` = `revision` + 1, `updated_at` = ?, `expires_at` = ? ' +
@@ -271,6 +259,24 @@ export function register_haggle_routes(): void {
 			).run(top_up, now, now, haggle.id, haggle.revision);
 			if (changed.changes === 0)
 				return { success: false, error_lang: 'MOD_MP_MARKET_HAGGLE_STALE' };
+			topup_source(haggle,json.command_id,client_id,top_up,now);
+			const buyer = haggle.direction==='sell'?haggle.initiator_id:haggle.owner_id;
+			const seller = haggle.direction==='sell'?haggle.owner_id:haggle.initiator_id;
+			settle_market_fifo(db,haggle_position(haggle.id,'stock'),haggle.item_qty,haggle.item_qty,haggle.offer_price,
+				haggle.currency_id,haggle_claim_position(haggle.id,seller,haggle.currency_id),`haggle:${haggle.id}:stock`,now);
+			let payment=agreed;
+			if(haggle.direction==='buy') {
+				const reserved=Math.min(payment,haggle.listing_reserved_gp);
+				settle_market_fifo(db,haggle_position(haggle.id,'reserve'),haggle.listing_reserved_gp,reserved,1,
+					haggle.item_id,haggle_claim_position(haggle.id,buyer,haggle.item_id),`haggle:${haggle.id}:reserve`,now,haggle.offer_price);
+				payment-=reserved;
+				const excess=haggle.listing_reserved_gp-reserved;
+				if(excess>0) move_market_fifo(db,haggle_position(haggle.id,'reserve'),haggle_claim_position(haggle.id,buyer,haggle.currency_id),excess,excess,now);
+			}
+			const gp_live=haggle.payer_escrow_gp+top_up-haggle.listing_reserved_gp;
+			if(payment>0) settle_market_fifo(db,haggle_position(haggle.id,'gp'),gp_live,payment,1,haggle.item_id,
+				haggle_claim_position(haggle.id,buyer,haggle.item_id),`haggle:${haggle.id}:gp`,now,haggle.offer_price,agreed-payment);
+			move_location(db,haggle_position(haggle.id,'gp'),haggle_claim_position(haggle.id,buyer,haggle.currency_id),now,'haggle-surplus-return');
 			if (haggle.listing_id !== null) {
 				if (haggle.direction === 'sell') {
 					const lot = db.query<db_row.market_items, [number]>('SELECT * FROM market_items WHERE id=?').get(haggle.listing_id);
@@ -333,9 +339,9 @@ export function register_haggle_routes(): void {
 					: { type: 'market_sold', name: get_inbox_source_name(buyer_id) }
 				: { type: 'market_haggle_cancelled' };
 			if (claim.item_id !== null && claim.item_qty > 0)
-				add_inbox_items(client_id, [{ item_id: claim.item_id, qty: claim.item_qty }], source);
+				add_inbox_items(client_id, [{ item_id: claim.item_id, qty: claim.item_qty }], { ...source, custody:{from:item=>haggle_claim_position(haggle.id,client_id,item),protected:false} });
 			if (claim.gp > 0)
-				add_inbox_items(client_id, [{ item_id: haggle.currency_id, qty: claim.gp }], source);
+				add_inbox_items(client_id, [{ item_id: haggle.currency_id, qty: claim.gp }], { ...source, custody:{from:item=>haggle_claim_position(haggle.id,client_id,item),protected:false} });
 			db.query('UPDATE `market_haggle_claims` SET `claimed_at` = ? WHERE `haggle_id` = ? AND `client_id` = ?')
 				.run(Date.now(), claim.haggle_id, client_id);
 			db.query('UPDATE transfer_history_events SET source_name=? WHERE client_id=? AND pane=\'pending\' AND source_key=?')

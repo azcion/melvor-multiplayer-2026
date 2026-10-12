@@ -1,3 +1,6 @@
+import { wish_capacity_state, wish_price_micros, spend_ep } from './wish-capacity';
+import { create_gloop_custody, type FundingOrigin, create_custody_source, custody_at, move_custody, move_location, allocate_wish_funding, wish_funding, retire_wish_funding, record_dependency } from './economy-custody';
+import { record_economy_operation } from './save-rollback';
 import { readFileSync } from 'node:fs';
 import { db } from './db';
 import { create_audit_lot, move_audit_value_with_fallback, record_audit_event } from './audit';
@@ -76,6 +79,14 @@ export function add_crucible_offering(guild_id: number, item: CastItem, now: num
 			'(offering_id, client_id, qty, contributed_at, source_kind, source_id, locked_until) ' +
 			'VALUES (?, ?, ?, ?, ?, ?, ?)')
 			.run(id, client_id, item.qty, now, source_kind, source_id, locked_until);
+	if (client_id !== null && (source_kind === 'cast' || source_kind === 'clear')) {
+		const command_id = source_id.split(':')[0]!;
+		const effective = db.query<db_row.crucible_offerings,[number]>('SELECT * FROM crucible_offerings WHERE id=?').get(id)!;
+		const lot = db.query<{id:number},[string,string]>('SELECT id FROM crucible_contribution_lots WHERE source_kind=? AND source_id=?').get(source_kind,source_id);
+		create_custody_source(db,{root_key: `${source_kind}:${client_id}:${source_id}`,operation_key:`receipt:${command_id}`,
+			client_id,object_id:item.id,quantity:item.qty,created_at:now,snapshot:{...item,guild_id,offering_id:id,lot_id:lot?.id ?? null,source_kind,source_id,effective_valuation:{value_currency_id:effective.value_currency_id,value_per_item:effective.value_per_item,valuation_source:effective.valuation_source}}},
+			lot ? `crucible-lot:${lot.id}` : `crucible-offering:${id}`);
+	}
 	return id;
 }
 
@@ -102,11 +113,16 @@ export function transfer_expedition_stash_to_crucible(guild_id: number, expediti
 		if (lots.reduce((sum, lot) => safe_crucible_add(sum, lot.qty), 0) !== supply.qty)
 			throw new Error('Expedition stash provenance does not match held quantity');
 		if (outcome === 'crucible')
-			for (const lot of lots)
+			for (const lot of lots) {
 				add_crucible_offering(guild_id, { id: supply.item_id, qty: lot.qty,
 					value_currency_id: supply.value_currency_id, value_per_item: supply.value_per_item }, now,
 					'expedition', `expedition:${expedition_id}:lot:${lot.id}`, lot.client_id,
 					now + 24 * 60 * 60_000);
+				const destination = db.query<{id:number},[string]>("SELECT id FROM crucible_contribution_lots WHERE source_kind='expedition' AND source_id=?")
+					.get(`expedition:${expedition_id}:lot:${lot.id}`)!;
+				move_location(db,`expedition-lot:${lot.id}`,`crucible-lot:${destination.id}`,now,'expedition-transfer');
+			}
+		else for (const lot of lots) move_location(db,`expedition-lot:${lot.id}`,'consumed:expedition-disposal',now,'sealed-crucible');
 	}
 	const transfer_event = record_audit_event({ event_type: outcome === 'crucible'
 		? 'crucible.expedition_transferred' : 'crucible.expedition_destroyed',
@@ -143,26 +159,36 @@ export function cast_crucible_items(actor: CrucibleActor, items: CastItem[], sou
 	return { success: true, ...(pet_granted ? { pet_id: CRUCIBLE_PET_ID } : {}) };
 }
 
-function consume_lots(offering: db_row.crucible_offerings, qty: number): Array<{ client_id: number; qty: number }> {
+function consume_lots(offering: db_row.crucible_offerings, qty: number, recipient: number, now: number): Array<{ client_id: number; qty: number; root_key: string | null }> {
 	const lots = db.query<db_row.crucible_contribution_lots, [number]>(
 		'SELECT * FROM crucible_contribution_lots WHERE offering_id = ? ORDER BY contributed_at, id'
 	).all(offering.id);
 	const attributed = lots.reduce((sum, lot) => safe_crucible_add(sum, lot.qty), 0);
 	let remaining = Math.max(0, qty - Math.max(0, offering.qty - attributed));
-	const consumed: Array<{ client_id: number; qty: number }> = [];
+	const consumed: Array<{ client_id: number; qty: number; root_key: string | null }> = [];
 	for (const lot of lots) {
 		if (remaining === 0) break;
 		const amount = Math.min(remaining, lot.qty);
+		const roots = custody_at(db,`crucible-lot:${lot.id}`);
+		let known = 0;
+		for (const root of roots) {
+			const moved = Math.min(amount-known,root.quantity);
+			if (moved === 0) break;
+			move_custody(db,root.root_key,`crucible-lot:${lot.id}`,`protected:reclaim:${recipient}`,moved,now,'reclaim-inbox-entitlement');
+			consumed.push({client_id:lot.client_id,qty:moved,root_key:root.root_key});
+			known += moved;
+		}
+		if (known < amount) consumed.push({ client_id: lot.client_id, qty: amount-known, root_key:null });
 		if (amount === lot.qty) db.query('DELETE FROM crucible_contribution_lots WHERE id = ?').run(lot.id);
 		else db.query('UPDATE crucible_contribution_lots SET qty = qty - ? WHERE id = ?').run(amount, lot.id);
-		consumed.push({ client_id: lot.client_id, qty: amount });
 		remaining -= amount;
 	}
 	return consumed;
 }
 
 function bonus_from_reclaim(actor: CrucibleActor, offering: db_row.crucible_offerings,
-	consumed: Array<{ client_id: number; qty: number }>, now: number): number {
+	consumed: Array<{ client_id: number; qty: number; root_key: string | null }>, now: number,
+	gloop_origins: Array<{origins:FundingOrigin[];key:string}>): number {
 	const unit = crucible_stack_value(1, offering);
 	let gloop_qty = 0;
 	for (const lot of consumed) {
@@ -177,24 +203,30 @@ function bonus_from_reclaim(actor: CrucibleActor, offering: db_row.crucible_offe
 		const raw = BigInt(lot.qty) * BigInt(unit) * 10n;
 		const missing = BigInt(wish.required_gp - wish.progress_gp);
 		const directed = raw < missing ? raw : missing;
-		if (directed > 0n)
+		if (raw > BigInt(Number.MAX_SAFE_INTEGER)) throw new RangeError('Reclaim bonus exceeds safe integer range');
+		record_dependency(db,lot.root_key,'reclaim-bonus-valuation',Number(raw),{offering_id:offering.id,generation:offering.generation,guild_id:offering.guild_id,source_qty:lot.qty,unit_value:unit,multiplier:10,now});
+		const origins:FundingOrigin[] = [{root_key:lot.root_key,amount_gp:Number(raw),origin_kind:'derived'}];
+		if (directed > 0n) {
+			allocate_wish_funding(db,wish.id,Number(directed),origins,now,'reclaim-bonus');
 			db.query('UPDATE crucible_wishes SET progress_gp = progress_gp + ? WHERE id = ?')
 				.run(Number(directed), wish.id);
+		}
 		const overflow = raw - directed;
 		if (overflow > 0n) {
 			if (overflow > BigInt(Number.MAX_SAFE_INTEGER))
 				throw new RangeError('Reclaim bonus exceeds safe integer range');
 			const residual = distribute_crucible_value(actor.guild_id, Number(overflow), now,
-				new Set([lot.client_id]));
+				new Set([lot.client_id]),db,origins);
 			if (residual > 0)
 				gloop_qty = safe_crucible_add(gloop_qty, Math.ceil(residual / 1_000));
+			if(residual>0) gloop_origins.push({origins,key:`reclaim:${lot.root_key ?? 'unknown'}:${gloop_origins.length}`});
 		}
 	}
 	return gloop_qty;
 }
 
-function add_crucible_gloop(guild_id: number, qty: number, now: number): void {
-	if (qty <= 0) return;
+function add_crucible_gloop(guild_id: number, qty: number, now: number): number | null {
+	if (qty <= 0) return null;
 	const prior = db.query<db_row.crucible_offerings, [number, string]>(
 		'SELECT * FROM crucible_offerings WHERE guild_id = ? AND item_id = ?'
 	).get(guild_id, CRUCIBLE_GLOOP_ID);
@@ -204,6 +236,7 @@ function add_crucible_gloop(guild_id: number, qty: number, now: number): void {
 		db.query('INSERT INTO crucible_offerings (guild_id, item_id, qty, created_at, refreshed_at, ' +
 			'is_untimed, valuation_source) VALUES (?, ?, ?, ?, ?, 1, ?)')
 			.run(guild_id, CRUCIBLE_GLOOP_ID, qty, now, now, 'server');
+	return db.query<{id:number},[number,string]>('SELECT id FROM crucible_offerings WHERE guild_id=? AND item_id=?').get(guild_id,CRUCIBLE_GLOOP_ID)!.id;
 }
 
 export function reclaim_crucible_offering(actor: CrucibleActor, item_id: string, qty: number,
@@ -237,8 +270,17 @@ export function reclaim_crucible_offering(actor: CrucibleActor, item_id: string,
 		actor.account_id ?? 0, actor.account_id ?? 0, now);
 	if (expedition_lock !== null)
 		return { success: false, error: 'Expedition supply lock is active.', available_at: expedition_lock.locked_until };
-	const consumed = consume_lots(offering, qty);
-	const bonus_gloop = bonus_from_reclaim(actor, offering, consumed, now);
+	const consumed = consume_lots(offering, qty, actor.client_id, now);
+	const direct_roots=custody_at(db,`crucible-offering:${offering.id}`);
+	let direct_remaining = Math.max(0,qty-Math.max(0,offering.qty-direct_roots.reduce((sum,r)=>safe_crucible_add(sum,r.quantity),0)));
+	for (const root of direct_roots) {
+		const amount = Math.min(direct_remaining,root.quantity);
+		if (amount === 0) break;
+		direct_remaining -= amount;
+		move_custody(db,root.root_key,`crucible-offering:${offering.id}`,`protected:reclaim:${actor.client_id}`,amount,now,'reclaim-inbox-entitlement');
+	}
+	const gloop_origins:Array<{origins:FundingOrigin[];key:string}>=[];
+	const bonus_gloop = bonus_from_reclaim(actor, offering, consumed, now,gloop_origins);
 	if (qty === offering.qty)
 		db.query('DELETE FROM crucible_offerings WHERE id = ?').run(offering.id);
 	else
@@ -262,7 +304,8 @@ export function reclaim_crucible_offering(actor: CrucibleActor, item_id: string,
 		'inbox', `${actor.client_id}:crucible:`);
 	if (bonus_gloop > 0) {
 		create_audit_lot(reclaim_event, CRUCIBLE_GLOOP_ID, bonus_gloop, 'crucible', String(actor.guild_id));
-		add_crucible_gloop(actor.guild_id, bonus_gloop, now);
+		const id=add_crucible_gloop(actor.guild_id, bonus_gloop, now)!;
+		for(const [index,output] of gloop_origins.entries()) create_gloop_custody(db,id,output.origins,`${source_id}:${index}`,actor.guild_id,now);
 	}
 	return { success: true, item_qty: qty, remaining_qty: offering.qty - qty,
 		next_reclaim_at: now + RECLAIM_COOLDOWN_MS };
@@ -299,8 +342,12 @@ export function clear_crucible_slag(actor: CrucibleActor, offers: Array<{ curren
 		add_crucible_offering(actor.guild_id, { id: offer.currency_id, qty: offer.qty,
 			value_currency_id: offer.currency_id, value_per_item: 1 }, now,
 			'clear', `${source_id}:${index}`, actor.client_id);
-		db.query('INSERT INTO crucible_clear_events (guild_id, owner_key, cleared_at, expires_at) VALUES (?, ?, ?, ?)')
-			.run(actor.guild_id, actor.owner_key, now, now + CLEAR_WINDOW_MS);
+		const point=db.query<{id:number},[number,string,number,number]>('INSERT INTO crucible_clear_events (guild_id, owner_key, cleared_at, expires_at) VALUES (?, ?, ?, ?) RETURNING id')
+			.get(actor.guild_id, actor.owner_key, now, now + CLEAR_WINDOW_MS)!;
+		record_dependency(db,`clear:${actor.client_id}:${source_id}:${index}`,'slag-clear-point',1,
+			{event_id:point.id,guild_id:actor.guild_id,owner_key:actor.owner_key,cleared_at:now,expires_at:now+CLEAR_WINDOW_MS});
+		record_dependency(db,`clear:${actor.client_id}:${source_id}:${index}`,'slag-currency-lock',1,
+			{guild_id:actor.guild_id,owner_key:actor.owner_key,currency_id:offer.currency_id,locked_until:now+CLEAR_LOCK_MS});
 		db.query('INSERT INTO crucible_currency_locks (guild_id, owner_key, currency_id, locked_until) ' +
 			'VALUES (?, ?, ?, ?) ON CONFLICT (guild_id, owner_key, currency_id) DO UPDATE ' +
 			'SET locked_until = excluded.locked_until')
@@ -334,15 +381,20 @@ export function run_crucible_wish_command(client_id: number, command_id: unknown
 		).get(command_id, client_id);
 		if (prior !== null) return prior.kind === kind ? JSON.parse(prior.response_json) as JsonObject : null;
 		const response = operation();
-		if (response.success === true)
+		if (response.success === true) {
+			const committed_at = Date.now();
+			record_economy_operation(db, { source_key: `wish:${client_id}:${command_id}`, client_id, kind: `wish-${kind}`, committed_at,
+				local_effect: 'server_only', evidence: response });
 			db.query('INSERT INTO crucible_commands (id, client_id, kind, response_json, created_at) ' +
-				'VALUES (?, ?, ?, ?, ?)').run(command_id, client_id, kind, JSON.stringify(response), Date.now());
+				'VALUES (?, ?, ?, ?, ?)').run(command_id, client_id, kind, JSON.stringify(response), committed_at);
+		}
 		return response;
 	});
 	return transact.immediate();
 }
 
 export function make_crucible_wish(actor: CrucibleActor, item_id: string, qty: number,
+	payment: { command_id: string; ep_micros: number; gp: number; gp_balance: number } | null,
 	now = Date.now()): JsonObject {
 	if (!crucible_available(actor, now)) return { success: false, error: 'Crucible is catching up.' };
 	if (!is_open(actor.guild_id)) return { success: false, error: 'Crucible is sealed.' };
@@ -352,8 +404,38 @@ export function make_crucible_wish(actor: CrucibleActor, item_id: string, qty: n
 		return { success: false, error: 'An active Wish already exists.' };
 	const max_value = wish_catalog.get(item_id);
 	if (max_value === undefined) return { success: false, error: 'Wish item is unavailable.' };
+	if (!Number.isSafeInteger(qty) || qty < 1 || qty > (payment === null ? 100 : 1000)) return { success: false, error: 'invalid_wish_quantity' };
 	const required = max_value * qty * 5;
 	if (!Number.isSafeInteger(required)) return { success: false, error: 'Wish value is too large.' };
+	let paid_ep_micros = 0;
+	let paid_gp = 0;
+	let base = 100;
+	if (payment !== null) {
+		const capacity = wish_capacity_state(db, actor.client_id, now);
+		const ep_micros = wish_price_micros(qty, capacity.base);
+		const gp = Number((BigInt(required) + 1n) / 2n);
+		if (payment.ep_micros !== ep_micros || payment.gp !== gp)
+			return { success: false, error: 'wish_quote_changed' };
+		if (!Number.isSafeInteger(payment.gp_balance) || payment.gp_balance < gp)
+			return { success: false, error: 'insufficient_gp' };
+		if (!spend_ep(db, actor.client_id, ep_micros, 'wish', payment.command_id, now))
+			return { success: false, error: 'insufficient_ep' };
+		// Reuse Cast custody and the account currency lock, independent of Offering generations.
+		add_crucible_offering(actor.guild_id, { id: 'melvorD:GP', qty: gp,
+			value_currency_id: 'melvorD:GP', value_per_item: 1 }, now, 'cast',
+			`${payment.command_id}:wish-gp`, actor.client_id);
+		const root_key = `cast:${actor.client_id}:${payment.command_id}:wish-gp`;
+		record_dependency(db, root_key, 'slag-currency-lock', 1, { guild_id: actor.guild_id,
+			owner_key: actor.owner_key, currency_id: 'melvorD:GP', locked_until: now + CLEAR_LOCK_MS });
+		db.query('INSERT INTO crucible_currency_locks(guild_id,owner_key,currency_id,locked_until) VALUES(?,?,?,?) ' +
+			'ON CONFLICT(guild_id,owner_key,currency_id) DO UPDATE SET locked_until=MAX(locked_until,excluded.locked_until)')
+			.run(actor.guild_id, actor.owner_key, 'melvorD:GP', now + CLEAR_LOCK_MS);
+		crucible_heat_value(db.query<db_row.crucible_offerings, [number]>(
+			'SELECT * FROM crucible_offerings WHERE guild_id=?').all(actor.guild_id));
+		paid_ep_micros = ep_micros;
+		paid_gp = gp;
+		base = capacity.base;
+	}
 	db.query('DELETE FROM crucible_clear_events WHERE guild_id = ? AND owner_key = ?').run(actor.guild_id, actor.owner_key);
 	db.query('INSERT INTO crucible_visibility_resets (guild_id, owner_key, reset_at) VALUES (?, ?, ?) ' +
 		'ON CONFLICT (guild_id, owner_key) DO UPDATE SET reset_at = excluded.reset_at').run(actor.guild_id, actor.owner_key, now);
@@ -361,10 +443,16 @@ export function make_crucible_wish(actor: CrucibleActor, item_id: string, qty: n
 		'INSERT INTO crucible_wishes (guild_id, owner_client_id, melvor_account_id, item_id, qty, ' +
 		'required_gp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id'
 	).get(actor.guild_id, actor.client_id, actor.account_id, item_id, qty, required, now)!;
-	record_audit_event({ event_type: 'crucible.wish_made', source_key: `crucible-wish-make:${wish.id}`,
+	const payment_event = record_audit_event({ event_type: 'crucible.wish_made', source_key: `crucible-wish-make:${wish.id}`,
 		actor: { kind: 'client', client_id: actor.client_id }, guild_id: actor.guild_id, occurred_at: now,
-		details: { wish_id: wish.id, item_id, qty, required_gp: required } });
-	return { success: true, wish_id: wish.id };
+		values: payment === null ? [] : [{ object_id: 'melvorD:GP', quantity: paid_gp, direction: 'move' }],
+		details: payment === null ? { wish_id: wish.id, item_id, qty, required_gp: required } :
+			{ wish_id: wish.id, item_id, qty, required_gp: required, paid_gp, paid_ep_micros, base } });
+	if (payment !== null)
+		move_audit_value_with_fallback(payment_event, 'melvorD:GP', paid_gp, 'client', String(actor.client_id),
+			'crucible', String(actor.guild_id));
+	return payment === null ? { success: true, wish_id: wish.id } :
+		{ success: true, wish_id: wish.id, paid_gp, paid_ep_micros };
 }
 
 export function cancel_crucible_wish(actor: CrucibleActor, now = Date.now()): JsonObject {
@@ -374,9 +462,11 @@ export function cancel_crucible_wish(actor: CrucibleActor, now = Date.now()): Js
 	if (wish === null) return { success: false, error: 'Wish is missing.' };
 	if (wish.formation_points >= CRUCIBLE_PROGRESS_MAX)
 		return { success: false, error: 'Formed Wish cannot be canceled.' };
+	const origins = wish_funding(db,wish.id,wish.progress_gp);
+	retire_wish_funding(db,wish.id,origins,now,'cancel-redistribution');
 	db.query('DELETE FROM crucible_wishes WHERE id = ?').run(wish.id);
 	const residual = distribute_crucible_value(wish.guild_id, wish.progress_gp, now,
-		new Set([wish.owner_client_id]));
+		new Set([wish.owner_client_id]),db,origins);
 	const gloop_qty = residual > 0 ? Math.ceil(residual / 1_000) : 0;
 	const event = record_audit_event({ event_type: 'crucible.wish_cancelled',
 		source_key: `crucible-wish-cancel:${wish.id}`,
@@ -386,7 +476,8 @@ export function cancel_crucible_wish(actor: CrucibleActor, now = Date.now()): Js
 		details: { wish_id: wish.id, progress_gp: wish.progress_gp, formation_points: wish.formation_points } });
 	if (gloop_qty > 0) {
 		create_audit_lot(event, CRUCIBLE_GLOOP_ID, gloop_qty, 'crucible', String(wish.guild_id));
-		add_crucible_gloop(wish.guild_id, gloop_qty, now);
+		const id=add_crucible_gloop(wish.guild_id, gloop_qty, now)!;
+		create_gloop_custody(db,id,origins,`cancel:${wish.id}`,wish.guild_id,now);
 	}
 	return { success: true };
 }
@@ -402,6 +493,7 @@ export function claim_crucible_wish(actor: CrucibleActor, now = Date.now()): Jso
 		'VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (client_id, source_type, source_name, item_id) ' +
 		'DO UPDATE SET qty = qty + excluded.qty, updated_at = excluded.updated_at')
 		.run(actor.client_id, 'crucible', 'Wish Granted', wish.item_id, wish.qty, now, now);
+	record_dependency(db,null,'wish-delivered',wish.qty,{wish_id:wish.id,client_id:actor.client_id});
 	db.query('DELETE FROM crucible_wishes WHERE id = ?').run(wish.id);
 	const wish_event = record_audit_event({ event_type: 'crucible.wish_claimed',
 		source_key: `crucible-wish-claim:${wish.id}`, actor: { kind: 'client', client_id: actor.client_id },
@@ -435,6 +527,7 @@ export function get_crucible_state(actor: CrucibleActor, now = Date.now()) {
 		).get(actor.client_id)?.crucible_reclaim_available_at ?? 0;
 		return { enabled: true, ...contents, ...crucible_clear_state(actor, now), server_now: now,
 			join_lock_until: join_lock, currency_locks, expedition_locks,
+			capacity: wish_capacity_state(db, actor.client_id, now),
 			offerings: contents.offerings.map(row => ({ ...row,
 				blocked_until: Math.max(join_lock, ...currency_locks.filter(lock => lock.currency_id === row.item_id)
 					.map(lock => lock.locked_until), ...expedition_locks.filter(lock => lock.item_id === row.item_id)

@@ -1,3 +1,13 @@
+import { wish_capacity_migration } from './migrations/wish-capacity';
+import { petition_discussions_migration } from './migrations/petition-discussions';
+import { rollback_admission_migration } from './migrations/rollback-admission';
+import { rollback_protocol_migration } from './migrations/rollback-protocol';
+import { trade_custody_migration } from './migrations/trade-custody';
+import { market_custody_migration } from './migrations/market-custody';
+import { market_custody_evidence_migration } from './migrations/market-custody-evidence';
+import { exchange_custody_migration } from './migrations/exchange-custody';
+import { economy_custody_migration } from './migrations/economy-custody';
+import { save_rollback_migration } from './migrations/save-rollback';
 import { charitree_retirement_migration } from './migrations/charitree-retirement';
 import { market_exchange_history_migration } from './migrations/market-exchange-history';
 import { market_listing_terms_migration } from './migrations/market-listing-terms';
@@ -160,4 +170,82 @@ export const migrations: Migration[] = [
 	` },
 	market_exchange_history_migration,
 	charitree_retirement_migration,
+	{ version: 172, sql: `
+		CREATE TABLE character_save_loads (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+			load_id TEXT NOT NULL,
+			save_timestamp INTEGER CHECK(save_timestamp IS NULL OR save_timestamp BETWEEN 1 AND 9007199254740991),
+			client_loaded_at INTEGER NOT NULL CHECK(client_loaded_at BETWEEN 0 AND 9007199254740991),
+			capture_source TEXT NOT NULL CHECK(capture_source IN ('decode', 'character_loaded')),
+			first_reported_at INTEGER NOT NULL CHECK(first_reported_at BETWEEN 0 AND 9007199254740991),
+			last_reported_at INTEGER NOT NULL CHECK(last_reported_at BETWEEN first_reported_at AND 9007199254740991),
+			UNIQUE(client_id, load_id)
+		);
+		CREATE INDEX character_save_load_history ON character_save_loads(client_id, first_reported_at, id);
+		ALTER TABLE client_sessions ADD COLUMN save_load_id INTEGER REFERENCES character_save_loads(id) ON DELETE SET NULL;
+	` },
+	save_rollback_migration,
+	economy_custody_migration,
+	exchange_custody_migration,
+	market_custody_evidence_migration,
+	market_custody_migration,
+	trade_custody_migration,
+	rollback_protocol_migration,
+	rollback_admission_migration,
+	{ version: 181, sql: `
+		DROP TRIGGER alliance_roster_departure;
+		CREATE TRIGGER alliance_roster_departure AFTER DELETE ON alliance_memberships BEGIN
+			-- Roster changes preserve pending proposals and their original electorate.
+			-- Only dissolution makes the Alliance itself unavailable.
+			UPDATE alliance_processes SET stage='cancelled', resolution_reason='alliance_unavailable',
+				resolved_at=MAX(created_at,CAST((julianday('now')-2440587.5)*86400000 AS INTEGER))
+			WHERE alliance_id=OLD.alliance_id AND stage IN ('local','waiting','recipient','collective')
+				AND (SELECT COUNT(*) FROM alliance_memberships WHERE alliance_id=OLD.alliance_id)<2;
+			UPDATE guild_petitions SET lifecycle='withdrawn',subject_locked=0,
+				resolved_at=MAX(created_at,CAST((julianday('now')-2440587.5)*86400000 AS INTEGER))
+			WHERE lifecycle='active' AND id IN (SELECT l.petition_id FROM alliance_process_petitions l
+				JOIN alliance_processes p ON p.id=l.process_id WHERE p.alliance_id=OLD.alliance_id AND p.stage='cancelled');
+			DELETE FROM alliance_pending_slots WHERE process_id IN (
+				SELECT id FROM alliance_processes WHERE alliance_id=OLD.alliance_id AND stage='cancelled');
+			DELETE FROM alliances WHERE id=OLD.alliance_id AND (SELECT COUNT(*) FROM alliance_memberships WHERE alliance_id=OLD.alliance_id)<2;
+			UPDATE clients SET event_revision=event_revision+1;
+		END;
+	` },
+	{ version: 182, sql: `
+		-- Preserve any earlier inactivity deadline; cap all active Free Fellowship Petitions.
+		UPDATE guild_petitions SET expires_at=MIN(expires_at,created_at+129600000)
+		WHERE lifecycle='active' AND guild_id IN (SELECT id FROM guilds WHERE type='free_fellowship');
+	` },
+	{ version: 183, sql: `
+		ALTER TABLE client_runtime_snapshots ADD COLUMN active_mod_details TEXT NOT NULL DEFAULT '[]'
+			CHECK(length(active_mod_details)<=65536);
+		ALTER TABLE client_cheat_mod_detections ADD COLUMN mod_id INTEGER
+			CHECK(mod_id IS NULL OR mod_id BETWEEN 1 AND 9007199254740991);
+		ALTER TABLE support_teams ADD COLUMN required_active_mod_id INTEGER
+			CHECK(required_active_mod_id IS NULL OR required_active_mod_id BETWEEN 1 AND 9007199254740991);
+		-- Frozen public mod.io title/ID mappings verified on 2026-10-11. No guessed aliases.
+		CREATE TEMP TABLE mod_id_backfill (id INTEGER NOT NULL, name TEXT PRIMARY KEY);
+		INSERT INTO mod_id_backfill(id,name) VALUES
+			(2429395,'Add Items'),
+			(5562948,'God Mode'),
+			(2253095,'dev.Console'),
+			(5377900,'[Creative Mode] God mode w/ Loot + XP Multipliers'),
+			(5964319,'Melvor Cheat Suite'),
+			(6379230,'Cheat Chest'),
+			(6419494,'Universal Item Spawner'),
+			(2479713,'Loot Chests'),
+			(5043199,'SUPER AWESOME EXPANSION'),
+			(5043199,'Super Awesome Expansion!');
+		UPDATE client_runtime_snapshots SET active_mod_details=(
+			SELECT json_group_array(json_object('id',known.id,'name',loaded.value))
+			FROM json_each(client_runtime_snapshots.active_mods) loaded
+			LEFT JOIN mod_id_backfill known ON known.name=loaded.value
+		);
+		UPDATE client_cheat_mod_detections SET mod_id=(SELECT id FROM mod_id_backfill WHERE name=mod_name);
+		UPDATE support_teams SET required_active_mod_id=(SELECT id FROM mod_id_backfill WHERE name=required_active_mod_name);
+		DROP TABLE mod_id_backfill;
+	` },
+	petition_discussions_migration,
+	wish_capacity_migration,
 ];

@@ -1,3 +1,4 @@
+import { move_location, create_gloop_custody, wish_funding, retire_wish_funding, record_dependency } from './economy-custody';
 import type { Database } from 'bun:sqlite';
 import { db } from './db';
 import { create_audit_lot, move_audit_value_with_fallback, record_audit_event } from './audit';
@@ -55,6 +56,11 @@ function apply_crucible_petition_transaction(petition: db_row.guild_petitions,
 			'JOIN guild_petition_crucible_wishes AS target ON target.wish_id = wish.id ' +
 			'WHERE wish.guild_id = ? AND target.petition_id = ?'
 		).all(petition.guild_id, petition.id);
+	for(const target of targets) {
+		const lots=database.query<{id:number},[number]>('SELECT id FROM crucible_contribution_lots WHERE offering_id=?').all(target.id);
+		for(const lot of lots) move_location(database,`crucible-lot:${lot.id}`,'consumed:council-disposal',now,'council-disposal');
+		move_location(database,`crucible-offering:${target.id}`,'consumed:council-disposal',now,'council-disposal');
+	}
 	if (petition.type === 'crucible_sealing') {
 		const updated = database.query('UPDATE crucible_guilds SET is_open = 0 WHERE guild_id = ? AND is_open = 1')
 			.run(petition.guild_id);
@@ -104,6 +110,7 @@ export function settle_departing_crucible_wish(client_id: number, guild_id: numb
 	if (wish === null) return;
 	database.query('DELETE FROM crucible_wishes WHERE id = ?').run(wish.id);
 	if (wish.formation_points >= 10_080 && wish.progress_gp >= wish.required_gp) {
+		record_dependency(database,null,'wish-delivered',wish.qty,{wish_id:wish.id,client_id});
 		const event = record_audit_event({ event_type: 'crucible.wish_departure_delivered',
 			source_key: `crucible-wish-departure:${wish.id}`, actor: { kind: 'system' },
 			guild_id, occurred_at: now, participants: [{ role: 'owner', client_id }],
@@ -117,8 +124,11 @@ export function settle_departing_crucible_wish(client_id: number, guild_id: numb
 			.run(client_id, 'crucible', 'Wish Granted', wish.item_id, wish.qty, now, now);
 		return;
 	}
+	const origins = wish_funding(database,wish.id,wish.progress_gp);
+	retire_wish_funding(database,wish.id,origins,now,'departure-redistribution');
 	const residual = distribute_crucible_value(guild_id, wish.progress_gp, now,
-		new Set([client_id]), database);
+		new Set([client_id]), database,origins);
+
 	const event = record_audit_event({ event_type: 'crucible.wish_departure_cancelled',
 		source_key: `crucible-wish-departure:${wish.id}`, actor: { kind: 'system' },
 		guild_id, occurred_at: now, participants: [{ role: 'owner', client_id }],
@@ -137,4 +147,6 @@ export function settle_departing_crucible_wish(client_id: number, guild_id: numb
 			.run(guild_id, CRUCIBLE_GLOOP_ID, quantity, now, now, 'server');
 	else database.query('UPDATE crucible_offerings SET qty = ? WHERE id = ?')
 		.run(safe_crucible_add(prior.qty, quantity), prior.id);
+	const gloop=database.query<{id:number},[number,string]>('SELECT id FROM crucible_offerings WHERE guild_id=? AND item_id=?').get(guild_id,CRUCIBLE_GLOOP_ID)!;
+	create_gloop_custody(database,gloop.id,origins,`departure:${wish.id}`,guild_id,now);
 }

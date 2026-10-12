@@ -133,3 +133,34 @@ test('coalesces best-effort active-set snapshots and ignores quantities', async 
 		/quantity|qty/
 	);
 });
+
+
+test('distinguishes remote chat profiles from self settings without Guild membership', async () => {
+	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
+	const modal = templates.slice(templates.indexOf('<template id="template-mp-member-actions-modal">'));
+	const expression = modal.match(/<template v-if="([^"]+)"/)[1];
+	const self_settings = new Function('state', `return ${expression};`);
+	for (const guild_client_id of [null, 12]) {
+		const state = { guild_client_id, chat_client_id: 12, member_actions_preview: false,
+			selected_guild_member: { client_id: 179 } };
+		assert.equal(self_settings(state), false, 'Briar must open as a remote profile');
+		state.selected_guild_member.client_id = 12;
+		assert.equal(self_settings(state), true, 'Sin must retain self settings');
+		state.member_actions_preview = true;
+		assert.equal(self_settings(state), false, 'self preview must use the read-only profile');
+	}
+	assert.equal(self_settings({ chat_client_id: null, member_actions_preview: false,
+		selected_guild_member: { client_id: null } }), false);
+});
+
+test('Options retains the authenticated identity while guildless', async () => {
+	const { install_transfer_actions } = await import('../../mod/client-actions-transfer.mjs');
+	const actions = install_transfer_actions({ refresh_identities: async () => {} });
+	let selected = null;
+	const state = { guild_client_id: null, chat_client_id: 12, guild_members: [],
+		profile_display_name: 'Sin', profile_icon: 'melvorD:Chicken',
+		close_account_dropdown() {}, show_member_actions(member) { selected = member; } };
+	await actions.show_options_modal.call(state);
+	assert.equal(selected.client_id, 12);
+	assert.equal(selected.display_name, 'Sin');
+});

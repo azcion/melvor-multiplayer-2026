@@ -1,3 +1,4 @@
+import { petition_discussion_visibility } from './petition-discussion-visibility';
 import { db } from './db';
 import { shadowed_cutoff } from './shadowed';
 import { chat_shadow_visibility } from './chat_shadowban';
@@ -187,6 +188,7 @@ export function chat_people(viewer_id: number, kind?: string, conversation_id?: 
 			global: ['global_chat_messages', 'channel', 'global_chat_message_moderation'],
 			testers: ['global_chat_messages', 'channel', 'global_chat_message_moderation'],
 			'poll-discussion': ['poll_discussion_messages', 'poll_id', 'poll_discussion_message_moderation'],
+			'petition-discussion': ['petition_discussion_messages', 'petition_id', 'petition_discussion_message_moderation'],
 			support: ['support_messages', 'conversation_id', 'support_message_moderation']
 		};
 		const domain = domains[kind];
@@ -200,6 +202,7 @@ export function chat_people(viewer_id: number, kind?: string, conversation_id?: 
 					' AND NOT EXISTS(SELECT 1 FROM chat_message_deletions WHERE message_id = message.id AND client_id = ?)';
 				values.push(conversation_id, viewer_id, viewer_id);
 			} else visibility += ` AND NOT EXISTS(SELECT 1 FROM ${moderation} WHERE message_id = message.id)`;
+			if (kind === 'petition-discussion') visibility += ' AND ' + petition_discussion_visibility(viewer_id);
 			if (kind !== 'support') {
 				visibility += ' AND ' + chat_shadow_visibility();
 				values.push(viewer_id, viewer_id);

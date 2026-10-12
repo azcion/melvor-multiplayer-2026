@@ -449,3 +449,42 @@ test('feature tester assignments are validated, idempotent and scoped to a chara
 		expect(database.query('SELECT * FROM character_feature_testers').all()).toEqual([]);
 	} finally { database.close(); }
 });
+
+test('save rollback inspection is bounded, read-only, and excludes identity credentials', async () => {
+	const database_path = fixture_database();
+	const before = new Database(database_path, { readonly: true });
+	const revision = before.query('SELECT event_revision FROM clients WHERE id=1').get();
+	before.close();
+	const result = await run_admin(database_path, 'save-rollback', 'inspect', '1');
+	expect(result.exit_code).toBe(0);
+	const inspection = JSON.parse(result.stdout);
+	expect(inspection.mode).toBe('observational');
+	expect(inspection.incidents).toEqual([]);
+	for (const forbidden of ['secret-session','session_token','client_key','client_identifier'])
+		expect(result.stdout).not.toContain(forbidden);
+	const after = new Database(database_path, { readonly: true });
+	expect(after.query('SELECT event_revision FROM clients WHERE id=1').get()).toEqual(revision);
+	after.close();
+	expect((await run_admin(database_path,'save-rollback','confirm','1')).exit_code).toBe(2);
+});
+
+test('rollback host controls require explicit activation, guarded revisions and idempotent command IDs',async()=>{
+ const filename=fixture_database();
+ const config={enabled:false,first_operation_id:1,policy_version:1,client_ids:[1]};
+ expect(JSON.parse((await run_admin(filename,'save-rollback','config')).stdout).config.enabled).toBe(false);
+ const id=crypto.randomUUID();const args=['save-rollback','set','0',JSON.stringify(config),id,'Isolated operator setup'];
+ const initial=await run_admin(filename,...args);expect(initial.exit_code).toBe(0);
+ expect((await run_admin(filename,...args)).stdout).toBe(initial.stdout);
+ expect((await run_admin(filename,'save-rollback','set','0',JSON.stringify(config),crypto.randomUUID(),'Stale')).exit_code).toBe(2);
+ expect((await run_admin(filename,'save-rollback','set','1',JSON.stringify({...config,enabled:true}),crypto.randomUUID(),'Implicit')).exit_code).toBe(2);
+ expect((await run_admin(filename,'save-rollback','activate','1',JSON.stringify({...config,enabled:true}),crypto.randomUUID(),'Unsupported')).exit_code).toBe(2);
+ const hold=await run_admin(filename,'save-rollback','reviewhold','1','0',crypto.randomUUID(),'Manual economy review');expect(hold.exit_code).toBe(0);
+ const revision=JSON.parse(hold.stdout).revision;
+ expect((await run_admin(filename,'save-rollback','release','1','0','0',crypto.randomUUID(),'Stale release')).exit_code).toBe(2);
+ expect((await run_admin(filename,'save-rollback','release','1',String(revision),'0',crypto.randomUUID(),'Reviewed release')).exit_code).toBe(0);
+ expect((await run_admin(filename,'save-rollback','release','1',String(revision),crypto.randomUUID(),'Missing admission guard')).exit_code).toBe(2);
+ const inspected=JSON.parse((await run_admin(filename,'save-rollback','inspect','1')).stdout);
+ expect(inspected.admission_revision).toBe(0);
+ expect(inspected.holds).toHaveLength(2);expect(inspected.policy.config.enabled).toBe(false);
+ expect((await run_admin(filename,'save-rollback','benefit-release','missing','1',crypto.randomUUID(),'Review')).exit_code).toBe(2);
+});

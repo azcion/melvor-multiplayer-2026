@@ -65,6 +65,7 @@ services:
     volumes:
       - database-data:/app/data
       - test-state:/test-state
+      - ./mod:/app/mod:ro
     command: ["bun", "run", "test"]
 
 volumes:

@@ -1,3 +1,5 @@
+import { capture_trade_item, trade_items, trade_position, trade_receive_position, settle_trade, move_trade_item } from '../trade-custody';
+import { move_location } from '../economy-custody';
 import { record_pending_exchange, record_transfer_history } from '../transfer-history';
 import * as runtime from '../app-runtime';
 import type { ActiveTrade } from '../app-runtime';
@@ -37,6 +39,8 @@ export function register_trade_routes(): void {
 				record_transfer_history(db, { client_id, pane: 'pending', event_type: 'trade-resolve',
 					source_key: `trade:${trade_id}:claimed`, occurred_at: Date.now(),
 					source_name: get_inbox_source_name(trade.sender_id), items });
+				for(const row of trade_items(db,trade_id)) move_trade_item(db,row,`protected:trade-resolve:${trade_id}`,Date.now());
+				for(const row of items) move_location(db,trade_receive_position(trade_id,client_id,row.item_id),`protected:trade-resolve:${trade_id}`,Date.now(),'trade-claim-issued');
 				db.query('DELETE FROM `resolved_trade_offers` WHERE `trade_id` = ?').run(trade_id);
 				db.query('DELETE FROM `trade_items` WHERE `trade_id` = ?').run(trade_id);
 				remove_player_cache_entry(resolved_trade_cache, client_id, trade_id);
@@ -56,8 +60,8 @@ export function register_trade_routes(): void {
 			const items = db.query(
 				'SELECT `item_id`, `qty` FROM `trade_items` WHERE `trade_id` = ?'
 			).all(trade_id) as Array<{ item_id: string; qty: number }>;
-			add_inbox_items(client_id, items,
-				{ type: trade.declined === 1 ? 'trade_cancelled' : 'trade_completed', name: get_inbox_source_name(trade.sender_id) });
+			for(const row of trade_items(db,trade_id)) add_inbox_items(client_id,[row],
+				{type:trade.declined===1?'trade_cancelled':'trade_completed',name:get_inbox_source_name(trade.sender_id),custody:{from:item=>trade.declined===1?trade_position(row.id):trade_receive_position(trade_id,client_id,item),protected:false}});
 			record_transfer_history(db, { client_id, pane: 'pending', event_type: 'trade-resolve',
 				source_key: `trade:${trade_id}:claimed`, occurred_at: Date.now(),
 				source_name: get_inbox_source_name(trade.sender_id), items });
@@ -89,10 +93,13 @@ export function register_trade_routes(): void {
 			if (!trade || trade.recipient_id !== client_id)
 				return { success: false };
 			const updated_at = Date.now();
-			for (const item of items)
+			for (const item of items) {
 				db.query(
 					'INSERT INTO `trade_items` (trade_id, item_id, qty, counter) VALUES(?, ?, ?, 1)'
 				).run(trade_id, item.id, item.qty);
+				const row = db.query<{id:number},[]>('SELECT last_insert_rowid() id').get()!;
+				capture_trade_item(db,trade,{id:row.id,item_id:item.id,qty:item.qty,counter:1},json.command_id,updated_at);
+			}
 			db.query('UPDATE `trade_offers` SET `state` = 1, `attending_id` = ?, `updated_at` = ? WHERE `trade_id` = ?').run(
 				trade.sender_id,
 				updated_at,
@@ -132,6 +139,7 @@ export function register_trade_routes(): void {
 					'SELECT `item_id`, `qty` FROM `trade_items` WHERE `trade_id` = ? AND `counter` = 1'
 				).all(trade_id) as Array<{ item_id: string; qty: number }>;
 				const created_at = Date.now();
+				settle_trade(db,trade,created_at,true);
 				record_pending_exchange(db, 'trade', trade_id, 'trade-accept');
 				db.query('DELETE FROM `trade_items` WHERE `trade_id` = ? AND `counter` = 1').run(trade_id);
 				db.query('DELETE FROM `trade_offers` WHERE `trade_id` = ?').run(trade_id);
@@ -161,10 +169,11 @@ export function register_trade_routes(): void {
 			const incoming = db.query(
 				'SELECT `item_id`, `qty` FROM `trade_items` WHERE `trade_id` = ? AND `counter` = 0'
 			).all(trade_id) as Array<{ item_id: string; qty: number }>;
+			settle_trade(db,trade,Date.now(),false);
 			add_inbox_items(client_id, items,
-				{ type: 'trade_completed', name: get_inbox_source_name(trade.recipient_id) });
+				{ type: 'trade_completed', name: get_inbox_source_name(trade.recipient_id),custody:{from:item=>trade_receive_position(trade_id,client_id,item),protected:false} });
 			add_inbox_items(trade.recipient_id, incoming,
-				{ type: 'trade_completed', name: get_inbox_source_name(client_id) });
+				{ type: 'trade_completed', name: get_inbox_source_name(client_id),custody:{from:item=>trade_receive_position(trade_id,trade.recipient_id,item),protected:false} });
 			record_pending_exchange(db, 'trade', trade_id, 'trade-accept');
 			db.query('DELETE FROM `trade_items` WHERE `trade_id` = ?').run(trade_id);
 			db.query('DELETE FROM `trade_offers` WHERE `trade_id` = ?').run(trade_id);
@@ -197,8 +206,10 @@ export function register_trade_routes(): void {
 					(trade.state === 1 && trade.recipient_id !== client_id))
 					return null;
 				record_pending_exchange(db, 'trade', trade_id, 'trade-cancel');
-				if (trade.state === 1)
+				if (trade.state === 1) {
+					for(const row of trade_items(db,trade_id).filter(r=>r.counter===1)) add_inbox_items(trade.recipient_id,[row],{type:'trade_cancelled',name:get_inbox_source_name(trade.sender_id),custody:{from:()=>trade_position(row.id),protected:false}});
 					db.query('DELETE FROM `trade_items` WHERE `trade_id` = ? AND `counter` = 1').run(trade_id);
+				}
 				const created_at = Date.now();
 				db.query(
 					'INSERT INTO `resolved_trade_offers` (`trade_id`, `client_id`, `sender_id`, `declined`, `created_at`) ' +
@@ -228,14 +239,8 @@ export function register_trade_routes(): void {
 			if (!trade || (trade.state === 0 && trade.sender_id !== client_id) ||
 				(trade.state === 1 && trade.recipient_id !== client_id))
 				return { success: false };
-			const items = db.query(
-				'SELECT `item_id`, `qty`, `counter` FROM `trade_items` WHERE `trade_id` = ?'
-			).all(trade_id) as Array<{ item_id: string; qty: number; counter: number }>;
-			add_inbox_items(trade.sender_id, items.filter(item => item.counter === 0),
-				{ type: 'trade_cancelled', name: get_inbox_source_name(trade.recipient_id) });
-			if (trade.state === 1)
-				add_inbox_items(trade.recipient_id, items.filter(item => item.counter === 1),
-					{ type: 'trade_cancelled', name: get_inbox_source_name(trade.sender_id) });
+			for(const row of trade_items(db,trade_id)) add_inbox_items(row.counter===0?trade.sender_id:trade.recipient_id,[row],
+				{type:'trade_cancelled',name:get_inbox_source_name(row.counter===0?trade.recipient_id:trade.sender_id),custody:{from:()=>trade_position(row.id),protected:false}});
 			record_pending_exchange(db, 'trade', trade_id, 'trade-cancel');
 			db.query('DELETE FROM `trade_items` WHERE `trade_id` = ?').run(trade_id);
 			db.query('DELETE FROM `trade_offers` WHERE `trade_id` = ?').run(trade_id);
@@ -271,11 +276,7 @@ export function register_trade_routes(): void {
 				if (!trade || trade.attending_id !== client_id)
 					return null;
 				if (trade.state === 1) {
-					const counter_items = db.query(
-						'SELECT `item_id`, `qty` FROM `trade_items` WHERE `trade_id` = ? AND `counter` = 1'
-					).all(trade_id) as Array<{ item_id: string; qty: number }>;
-					add_inbox_items(trade.recipient_id, counter_items,
-						{ type: 'trade_cancelled', name: get_inbox_source_name(trade.sender_id) });
+					for(const row of trade_items(db,trade_id).filter(r=>r.counter===1)) add_inbox_items(trade.recipient_id,[row],{type:'trade_cancelled',name:get_inbox_source_name(trade.sender_id),custody:{from:()=>trade_position(row.id),protected:false}});
 					db.query('DELETE FROM `trade_items` WHERE `trade_id` = ? AND `counter` = 1').run(trade_id);
 				}
 				const created_at = Date.now();
@@ -307,14 +308,8 @@ export function register_trade_routes(): void {
 			) as db_row.trade_offers;
 			if (!trade || trade.attending_id !== client_id)
 				return { success: false };
-			const items = db.query(
-				'SELECT `item_id`, `qty`, `counter` FROM `trade_items` WHERE `trade_id` = ?'
-			).all(trade_id) as Array<{ item_id: string; qty: number; counter: number }>;
-			add_inbox_items(trade.sender_id, items.filter(item => item.counter === 0),
-				{ type: 'trade_cancelled', name: get_inbox_source_name(trade.recipient_id) });
-			if (trade.state === 1)
-				add_inbox_items(trade.recipient_id, items.filter(item => item.counter === 1),
-					{ type: 'trade_cancelled', name: get_inbox_source_name(trade.sender_id) });
+			for(const row of trade_items(db,trade_id)) add_inbox_items(row.counter===0?trade.sender_id:trade.recipient_id,[row],
+				{type:'trade_cancelled',name:get_inbox_source_name(row.counter===0?trade.recipient_id:trade.sender_id),custody:{from:()=>trade_position(row.id),protected:false}});
 			record_pending_exchange(db, 'trade', trade_id, 'trade-decline');
 			db.query('DELETE FROM `trade_items` WHERE `trade_id` = ?').run(trade_id);
 			db.query('DELETE FROM `trade_offers` WHERE `trade_id` = ?').run(trade_id);
@@ -357,10 +352,13 @@ export function register_trade_routes(): void {
 			const inserted = db.query(
 				'INSERT INTO `trade_offers` (sender_id, recipient_id, attending_id, created_at, updated_at) VALUES(?, ?, ?, ?, ?) RETURNING `trade_id`'
 			).get(client_id, recipient_id, recipient_id, created_at, created_at) as { trade_id: number };
-			for (const item of items)
+			for (const item of items) {
 				db.query(
 					'INSERT INTO `trade_items` (trade_id, item_id, qty, counter) VALUES(?, ?, ?, 0)'
 				).run(inserted.trade_id, item.id, item.qty);
+				const row = db.query<{id:number},[]>('SELECT last_insert_rowid() id').get()!;
+				capture_trade_item(db,{...inserted,sender_id:client_id,recipient_id,attending_id:recipient_id,state:0,created_at,updated_at:created_at},{id:row.id,item_id:item.id,qty:item.qty,counter:0},json.command_id,created_at);
+			}
 			record_pending_exchange(db, 'trade', inserted.trade_id, 'trade-offer', created_at, json.command_id);
 			const trade_entry: ActiveTrade = { trade_id: inserted.trade_id, state: 0, attending_id: recipient_id };
 			trade_cache.set(inserted.trade_id, trade_entry);

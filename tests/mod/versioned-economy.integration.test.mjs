@@ -63,9 +63,10 @@ test('real API and mod recovery expose Gifts during a blocked receipt and never 
 		items: [{ id: 'melvorD:Integration_Fish', qty: 2 }], command_id: crypto.randomUUID() }, sender.session_token);
 	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
 	const source = main.slice(main.indexOf('async function get_client_events_request('), main.indexOf('\nfunction start_client_event_polling('));
-	const state = { refresh_crucible: async () => {}, chat_notification_preferences: {}, events: {}, gifts: [], trades: [], resolved_trades: [], inbox_items: [] };
-	let contents;
+	const state = { refresh_crucible: async () => {}, chat_notification_preferences: {}, events: {}, gifts: [], trades: [], resolved_trades: [], inbox_items: [], get_chat_notification_tagged: () => false };
+	let contents, chat_refreshes = 0;
 	const context = {
+		rollback_client: null,
 		state, client_events_hydrated: false, session_generation: 1, client_event_revision: 0, CHAT_CAPABILITIES: '', chat_page_visible: false,
 		legacy_market_payout_migration_started: false, MOD_VERSION: '1.6.9', get_instance_storage_item: () => undefined,
 		polling: { has_pending_events: () => true }, event_snapshots, economy_command_journal: journal,
@@ -73,6 +74,11 @@ test('real API and mod recovery expose Gifts during a blocked receipt and never 
 		enter_unsupported_multiplayer: () => false, check_released_mod_version() {}, maybe_auto_check_in_expedition() {},
 		read_cache: { invalidate() {} }, prepare_page_snapshot: async () => {},
 		api_get: async endpoint => (await request(endpoint, undefined, recipient.session_token)).json,
+		refresh_chat_conversations: async () => {
+			const result = await request('/api/chat/conversations', undefined, recipient.session_token);
+			assert.ok(Array.isArray(result.json.conversations));
+			chat_refreshes++;
+		},
 		reconcile_economy_receipts: reconcile, invalidate_guild_state() {}, update_chat_nav() {},
 		reconcile_guild_member_social_modes() {}, update_transfer_inventory_nav() {}, update_multiplayer_nav() {}, update_guild_nav() {},
 		set_instance_storage_item() {}, leave_social_only_disabled_page() {},
@@ -83,6 +89,7 @@ test('real API and mod recovery expose Gifts during a blocked receipt and never 
 		remove_instance_storage_item() {}, show_pending_banishment_notice() {}
 	};
 	await runInNewContext(source + '\nget_client_events_request(true, 1)', context);
+	assert.ok(chat_refreshes > 0, 'Unread Guild Chat refresh completes before Gift reconciliation');
 	assert.equal(state.gifts.length, 1);
 	assert.ok((await contents).json.gifts[state.gifts[0].id]);
 	assert.deepEqual(acknowledged, []);

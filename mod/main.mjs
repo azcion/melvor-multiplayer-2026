@@ -139,6 +139,7 @@ let transfer_inventory = null;
 let item_visibility = null;
 let crucible_rules = null;
 let client_runtime = null;
+let loaded_save_tracker = null;
 let connection_diagnostics = null;
 let installation_store = null;
 let transport_diagnostics = null;
@@ -217,12 +218,15 @@ let has_done_first_market_search = false;
 
 const multiplayer_pet_flare = new Map();
 let active_mod_names = [];
+let active_mod_details = [];
 let loaded_game_mode_id = null;
 let owned_dlc_namespaces = [];
 // #endregion
 
-function capture_active_mod_names() {
-	active_mod_names = client_runtime.normalize_active_mod_names(mod.manager.getLoadedModList());
+async function capture_active_mod_names() {
+	const loaded = mod.manager.getLoadedModList();
+	active_mod_names = client_runtime.normalize_active_mod_names(loaded);
+	active_mod_details = await client_runtime.capture_active_mod_details(loaded, mod.manager.activeProfile?.mods);
 }
 
 function get_device_diagnostics() {
@@ -240,9 +244,12 @@ function get_connection_report() {
 function get_client_runtime_report() {
 	const melvor_cloud_manager = typeof cloudManager === 'undefined' ? globalThis.cloudManager : cloudManager;
 	owned_dlc_namespaces = client_runtime.get_owned_dlc(melvor_cloud_manager);
-	return client_runtime.make_client_runtime_report(MOD_VERSION, active_mod_names, loaded_game_mode_id,
+	const report = client_runtime.make_client_runtime_report(MOD_VERSION, active_mod_names, loaded_game_mode_id,
 		client_runtime.get_language_code(typeof setLang === 'string' ? setLang : null), get_device_diagnostics(),
-		owned_dlc_namespaces);
+		owned_dlc_namespaces, active_mod_details);
+	const loaded_save = loaded_save_tracker?.report();
+	if (loaded_save) report.loaded_save = loaded_save;
+	return report;
 }
 
 function get_member_owned_dlc(member) {
@@ -319,6 +326,7 @@ const state = ui.createStore({
 	alliance_confirmation: null,
 	alliance_preview: null,
 	alliance_preview_restore_picker: false,
+	alliance_preview_from_member_guilds: false,
 	alliance_chat_state: { affiliated: false, enabled: true },
 	alliance_chat_enabled: true,
 	alliance_chat_participation_pending: false,
@@ -389,6 +397,8 @@ const state = ui.createStore({
 	crucible_error: '',
 	crucible_wish_item_id: '',
 	crucible_wish_qty: 1,
+	crucible_capacity_base: 200,
+	crucible_capacity_auto_renew: false,
 	crucible_wish_search: '',
 	crucible_panels_open: { heat: false, wishes: true, clearing: true, offerings: true },
 	crucible_clear_offers: [],
@@ -1099,7 +1109,43 @@ const state = ui.createStore({
 	get crucible_wish_requirement() {
 		const entry = this.crucible?.wish_catalog?.find(item => item.id === this.crucible_wish_item_id);
 		const qty = Number(this.crucible_wish_qty);
-		return entry && Number.isSafeInteger(qty) && qty >= 1 && qty <= 100 ? entry.max_item_value * qty * 5 : 0;
+		return entry && Number.isSafeInteger(qty) && qty >= 1 && qty <= 1000 && Number.isSafeInteger(entry.max_item_value * qty * 5) ? entry.max_item_value * qty * 5 : 0;
+	},
+
+	get crucible_capacity() {
+		const capacity = this.crucible?.capacity;
+		return capacity && (capacity.expires_at === null || capacity.expires_at > this.crucible_clock_time)
+			? capacity : { ...capacity, base: 100, expires_at: null, auto_renew: false, renewal_micros: 0 };
+	},
+	get crucible_capacity_quote() {
+		const base = this.crucible_capacity_base;
+		const current = this.crucible_capacity.base ?? 100;
+		if (![200,300,400,500].includes(base) || base <= current) return 0;
+		const price = tier => (tier / 100 - 1) * (tier / 100) / 2 * 10_000_000;
+		return price(base) - price(current);
+	},
+	get crucible_capacity_renewal_changed() {
+		return this.crucible_capacity.base > 100 && this.crucible_capacity_base === this.crucible_capacity.base &&
+			this.crucible_capacity_auto_renew !== this.crucible_capacity.auto_renew;
+	},
+	get crucible_capacity_confirm_label() {
+		if (this.crucible_capacity_quote > 0) return 'MOD_MP_WISH_BUY_CAPACITY';
+		if (this.crucible_capacity_renewal_changed)
+			return this.crucible_capacity_auto_renew ? 'MOD_MP_WISH_AUTO_RENEW' : 'MOD_MP_WISH_DISABLE_RENEWAL';
+		return 'MOD_MP_WISH_CONFIRM';
+	},
+	get crucible_capacity_can_confirm() {
+		return !this.crucible_busy && (this.crucible_capacity_renewal_changed ||
+			this.crucible_capacity_quote > 0 && this.crucible_capacity_quote <= (this.crucible?.capacity?.points_micros ?? 0));
+	},
+	get crucible_wish_ep_micros() {
+		return crucible_rules?.wish_price_micros(Number(this.crucible_wish_qty), this.crucible_capacity.base ?? 100) ?? 0;
+	},
+	get crucible_wish_gp_cost() { return crucible_rules?.wish_gp_cost(this.crucible_wish_requirement) ?? 0; },
+	get crucible_wish_affordable() {
+		return this.crucible_wish_ep_micros > 0 && this.crucible_wish_gp_cost > 0 &&
+			(this.crucible?.capacity?.points_micros ?? 0) >= this.crucible_wish_ep_micros &&
+			game.gp.amount >= this.crucible_wish_gp_cost;
 	},
 
 	get market_buy_price_formatted() {
@@ -1209,6 +1255,7 @@ function create_action_runtime() {
 		api_get,
 		api_post,
 		run_pending_economy_action,
+		recover_paid_wish_actions,
 		run_pending_crucible_wish_action,
 		filter_local_available_items,
 		add_currency_to_transfer,
@@ -2724,7 +2771,9 @@ function get_character_storage_item(key) {
 
 			if (legacy_storage_key !== undefined) {
 				localStorage.setItem(storage_key, stored_value);
-				localStorage.removeItem(legacy_storage_key);
+				if (localStorage.getItem(storage_key) === stored_value &&
+					localStorage.getItem(legacy_storage_key) === stored_value)
+					localStorage.removeItem(legacy_storage_key);
 			}
 
 			return value;
@@ -2790,30 +2839,58 @@ function remove_instance_storage_item(key) {
 	remove_character_storage_item(server_instance_storage_prefix + key);
 }
 
+function get_instance_storage_keys() {
+	const keys = new Set(IS_DEV_MODE ? Object.keys(DEV_CHARACTER_STORAGE) : ctx.characterStorage.keys);
+	if (!IS_DEV_MODE && is_creator_toolkit_local_mod()) {
+		for (const prefix of [get_local_character_storage_key(''), get_local_character_storage_key('', LEGACY_LOCAL_MOD_CHARACTER_STORAGE_PREFIX)])
+			for (const key of Object.keys(localStorage))
+				if (key.startsWith(prefix)) keys.add(key.slice(prefix.length));
+	}
+	return [...keys].filter(key => key.startsWith(server_instance_storage_prefix))
+		.map(key => key.slice(server_instance_storage_prefix.length));
+}
+
+function finish_pending_crucible_wish_action(key, pending, result) {
+	if (rollback_module.transient_rollback_failure(result)) return;
+	const retired_id = rollback_module.retired_rollback_command(result);
+	if (result?.error === 'economy_command_retired' && retired_id !== pending.payload.command_id) return;
+	if (retired_id || result?.success === true || result?.success === false || typeof result?.error_lang === 'string') {
+		if (get_instance_storage_item(key)?.payload?.command_id === pending.payload.command_id)
+			remove_instance_storage_item(key);
+	}
+}
+
 async function run_pending_crucible_wish_action(kind, endpoint, payload = {}) {
-	const storage_key = `pending_crucible_wish:${kind}`;
+	if (rollback_client && !rollback_client.admitted()) return null;
+	const generation = session_generation, origin = server_host;
+	if (rollback_module.retain_legacy_wish_commands({read:get_instance_storage_item,write:set_instance_storage_item,remove:remove_instance_storage_item,origin:server_host}))
+		return {success:false,error:'legacy_wish_recovery_review',error_lang:'MOD_MP_WISH_RECOVERY_REVIEW'};
+	const storage_key = `pending_crucible_wish:${state.chat_client_id}:${kind}`;
 	let pending = get_instance_storage_item(storage_key);
 	if (pending === undefined) {
-		pending = { endpoint, payload: { ...payload, command_id: crypto.randomUUID() } };
+		pending = { client_id:state.chat_client_id, origin:server_host, endpoint, payload: { ...payload, command_id: crypto.randomUUID() } };
 		set_instance_storage_item(storage_key, pending);
 		if (JSON.stringify(get_instance_storage_item(storage_key)) !== JSON.stringify(pending)) return null;
 	}
 	if (pending?.endpoint !== endpoint || typeof pending?.payload?.command_id !== 'string') return null;
 	const result = await api_post_without_economy_journal(pending.endpoint, pending.payload);
-	if (result?.success === true || result?.success === false || typeof result?.error_lang === 'string')
-		remove_instance_storage_item(storage_key);
+	if (generation !== session_generation || origin !== server_host) return null;
+	finish_pending_crucible_wish_action(storage_key, pending, result);
 	return result;
 }
 
 async function recover_pending_crucible_wish_actions() {
+	if (rollback_module.retain_legacy_wish_commands({read:get_instance_storage_item,write:set_instance_storage_item,remove:remove_instance_storage_item,origin:server_host})) return;
+	if (rollback_client && !rollback_client.admitted()) return;
+	const generation = session_generation, origin = server_host;
 	for (const kind of ['make', 'cancel', 'claim']) {
-		const key = `pending_crucible_wish:${kind}`;
+		const key = `pending_crucible_wish:${state.chat_client_id}:${kind}`;
 		const pending = get_instance_storage_item(key);
 		if (pending?.endpoint !== `/api/crucible/wish/${kind}` || typeof pending?.payload?.command_id !== 'string')
 			continue;
 		const result = await api_post_without_economy_journal(pending.endpoint, pending.payload);
-		if (result?.success === true || result?.success === false || typeof result?.error_lang === 'string')
-			remove_instance_storage_item(key);
+		if (generation !== session_generation || origin !== server_host) return;
+		finish_pending_crucible_wish_action(key, pending, result);
 	}
 }
 
@@ -3869,16 +3946,36 @@ function run_pending_economy_action(key, endpoint, payload) {
 	return pending_economy_actions.run(`${state.chat_client_id}:${key}`, endpoint, payload);
 }
 
+// Recover persisted Wish purchases before refreshing quotes, even when the accepted
+// purchase has exhausted EP or created an active Wish and its confirmation is closed.
+async function recover_paid_wish_actions() {
+	const generation = session_generation, origin = server_host;
+	for (const kind of ['make', 'capacity', 'renewal']) {
+		const key = `crucible_wish_${kind}`;
+		const pending = get_instance_storage_item(`pending_economy_action:${state.chat_client_id}:${key}`);
+		if (pending?.endpoint !== `/api/crucible/wish/${kind}` || typeof pending?.payload?.command_id !== 'string') continue;
+		await run_pending_economy_action(key, pending.endpoint, pending.payload);
+		if (generation !== session_generation || origin !== server_host) return;
+	}
+}
+
 function reconcile_economy_receipts(receipts) {
 	if (!Array.isArray(receipts))
 		return Promise.resolve(false);
+	const generation = session_generation, origin = server_host;
 	receipts = receipts.filter(receipt => receipt !== null && receipt !== undefined);
 	if (receipts.length === 0)
 		return Promise.resolve(true);
 	const reconcile = async () => {
+		if (generation !== session_generation || origin !== server_host) return false;
+		let deferred = false;
+		const reconciled_receipts = [];
 		const stored_ids = get_instance_storage_item('processed_economy_receipt_ids');
 		let processed_ids = Array.isArray(stored_ids) ? stored_ids : [];
 		for (const receipt of receipts) {
+			if (generation !== session_generation || origin !== server_host) return false;
+			if (rollback_client?.is_retired(receipt?.id)) { economy_command_journal?.retire(receipt.id); continue; }
+			if (rollback_client && !rollback_client.allows_receipt(receipt)) { deferred = true; continue; }
 			if (typeof receipt?.id === 'string' && acknowledged_economy_receipt_ids.includes(receipt.id)) {
 				economy_command_journal?.acknowledge(receipt.id);
 				continue;
@@ -3918,8 +4015,10 @@ function reconcile_economy_receipts(receipts) {
 				return false;
 			}
 			const acknowledged = await api_post('/api/economy/receipts/acknowledge', { receipt_id: receipt.id });
+			if (generation !== session_generation || origin !== server_host) return false;
 			if (!acknowledged?.success)
 				return false;
+			reconciled_receipts.push(receipt);
 			economy_command_journal?.acknowledge(receipt.id);
 			processed_ids = economy_receipts.forget_processed_economy_receipt(processed_ids, receipt.id);
 			if (processed_ids.length === 0)
@@ -3931,8 +4030,8 @@ function reconcile_economy_receipts(receipts) {
 				receipt.id
 			);
 		}
-		queue_market_fulfillment_notice(receipts);
-		return true;
+		queue_market_fulfillment_notice(reconciled_receipts);
+		return !deferred;
 	};
 	const pending = economy_receipt_reconciliation.then(reconcile, reconcile);
 	economy_receipt_reconciliation = pending.catch(() => false);
@@ -4015,6 +4114,9 @@ function handle_session_response(response, request_generation) {
 let api_contract;
 let economy_command_module;
 let economy_command_journal;
+let rollback_module;
+let rollback_client = null;
+let rollback_server_supported = false;
 let economy_commands_ready = false;
 let client_events_hydrated = false;
 let selected_api_major = null;
@@ -4070,6 +4172,7 @@ async function discover_api_contract() {
 	const origin = server_host;
 	const generation = session_generation;
 	selected_api_major = null;
+	rollback_server_supported = false;
 	let minimum_supported_mod_version = null;
 	const major = await polling.fetch_with_timeout(fetch, origin + '/api/versions', { method: 'GET' }, {
 		observe: entry => transport_diagnostics?.record(entry),
@@ -4077,6 +4180,7 @@ async function discover_api_contract() {
 			const body = response.status === 200 ? await response.json() : null;
 			minimum_supported_mod_version = body?.minimum_supported_mod_version ?? null;
 			page_snapshots_supported = body?.page_snapshots === true;
+			rollback_server_supported = Array.isArray(body?.capabilities) && body.capabilities.includes('save-rollback-v1');
 			return api_contract.select_api_major(response.status, body);
 		}
 	});
@@ -4114,10 +4218,17 @@ async function coordinated_request(endpoint, options, request) {
 	return request_scheduler.run(priority, async () => {
 		if (generation !== session_generation || origin !== server_host) throw new DOMException('Stale request', 'AbortError');
 		const consume = request.consume;
-		return polling.fetch_with_timeout(fetch, endpoint, options, { ...request, consume: response => {
+		const handshake = /\/api\/v\d+\/(?:authenticate|register)(?:\?|$)/.test(endpoint);
+		const timer = handshake && rollback_module ? rollback_module.create_handshake_timer(fetch) : null;
+		const result = await polling.fetch_with_timeout(timer?.fetch ?? fetch, endpoint, options, { ...request, consume: response => {
 			request_scheduler.observe(response);
 			return consume(response);
 		} });
+		if (timer && result?.json) {
+			const payload = JSON.parse(options.body);
+			return { ...result, timing: { ...timer.snapshot(), origin, generation, load_id: payload.client_runtime?.loaded_save?.load_id } };
+		}
+		return result;
 	}, () => generation === session_generation && origin === server_host &&
 		(priority > 0 || request.is_current?.() !== false));
 }
@@ -4173,6 +4284,8 @@ async function api_post_response(endpoint, payload, request_session_token = sess
 async function api_post_response_raw(endpoint, payload, request_session_token = session_token, major = selected_api_major) {
 	if (state.multiplayer_unsupported)
 		return { response: null, json: null };
+	if (rollback_client && !rollback_client.admitted() && rollback_module.unsafe_rollback_client_request(endpoint))
+		return { response: null, json: { success:false,error:'economy_review_pending' } };
 	const request_generation = session_generation;
 	try {
 		return await coordinated_request(server_host + resolve_api_endpoint(endpoint, major), {
@@ -4192,6 +4305,9 @@ async function api_post_response_raw(endpoint, payload, request_session_token = 
 				if (res.status === 426)
 					enter_unsupported_multiplayer(json?.minimum_supported_mod_version);
 				if (request_generation !== session_generation) return { response: null, json: null };
+				if (rollback_module?.transient_rollback_failure(json)) { rollback_client?.block(); economy_commands_ready = false; }
+				const retired_id = rollback_module?.retired_rollback_command(json);
+				if (retired_id) rollback_client?.retire(retired_id);
 				if (res.ok && json?.success !== false && !json?.error_lang &&
 					(is_event_affecting_mutation(endpoint) || /^\/api\/(?:inbox\/|market\/haggle(?:\/|$)|client\/(?:set_display_name|set_icon)$)/.test(endpoint))) {
 					if (endpoint !== '/api/economy/receipts/acknowledge') {
@@ -4273,6 +4389,8 @@ const EVENT_AFFECTING_MUTATIONS = new Set([
 	'/api/crucible/reclaim',
 	'/api/crucible/clear',
 	'/api/crucible/wish/make',
+	'/api/crucible/wish/capacity',
+	'/api/crucible/wish/renewal',
 	'/api/crucible/wish/cancel',
 	'/api/crucible/wish/claim',
 	'/api/chat/block',
@@ -4588,10 +4706,23 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 			prepend = false;
 			moderation_changed = true;
 		}
+		if (kind === 'petition-discussion' && typeof res?.petition_votes_visible === 'boolean' &&
+			typeof conversation.petition_votes_visible === 'boolean' &&
+			res.petition_votes_visible !== conversation.petition_votes_visible && cursor !== '') {
+			// Revealed ballots can have IDs older than the current polling cursor.
+			res = await api_get('/api/chat/messages?conversation_kind=' + kind + conversation_parameter);
+			cursor = '';
+			prepend = false;
+			moderation_changed = true;
+		}
 		if (view_generation !== chat_view_generation ||
 			state.selected_chat_conversation?.conversation_id !== conversation_id ||
 			state.selected_chat_conversation?.support_team_id !== conversation.support_team_id)
 			return false;
+		if (kind === 'petition-discussion' && res?.error_lang === 'MOD_MP_CHAT_CONVERSATION_MISSING') {
+			state.close_chat_conversation();
+			return false;
+		}
 		if (Array.isArray(res?.messages)) {
 			if (moderation_changed) {
 				state.chat_messages = [];
@@ -4599,6 +4730,11 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 				state.chat_reaction_revision = null;
 			}
 			if (Number.isSafeInteger(res.moderation_count)) conversation.message_moderation_count = res.moderation_count;
+			if (kind === 'petition-discussion') conversation.petition_votes_visible = res.petition_votes_visible;
+			if (kind === 'petition-discussion' && !prepend) {
+				for (const petition of state.council_petitions)
+					if (petition.petition_id === conversation_id) petition.discussion_unread_count = res.discussion_unread_count ?? 0;
+			}
 			if (kind === 'poll-discussion' && res.messages.length > 0) {
 				const poll = state.polls.find(poll => poll.poll_id === conversation_id);
 				if (poll) poll.discussion_unread_count = 0;
@@ -4639,7 +4775,8 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 			if (additions.length > 0) {
 				if (!quiet && !prepend && cursor === '')
 					await state.scroll_chat_messages_to_bottom();
-				await refresh_chat_conversations();
+				if (kind !== 'petition-discussion')
+					await refresh_chat_conversations();
 			}
 			if (should_scroll_for_additions)
 				await state.scroll_chat_messages_to_bottom();
@@ -4660,10 +4797,13 @@ async function refresh_chat_page() {
 	if (!state.is_connected)
 		return;
 	const view_generation = ++chat_view_generation;
+	const petition_discussion = state.selected_chat_conversation?.conversation_kind === 'petition-discussion';
 	state.chat_loading = true;
 	try {
-		await Promise.all([refresh_chat_state(), refresh_chat_conversations()]);
-		if (state.selected_chat_conversation)
+		await Promise.all(petition_discussion
+			? [refresh_chat_state(), refresh_chat_messages('', false, false, view_generation)]
+			: [refresh_chat_state(), refresh_chat_conversations()]);
+		if (state.selected_chat_conversation && !petition_discussion)
 			await refresh_chat_messages('', false, false, view_generation);
 		if (state.selected_chat_conversation && view_generation === chat_view_generation)
 			await state.scroll_chat_messages_to_bottom();
@@ -5131,7 +5271,7 @@ async function get_client_events(reconcile_gifts = true) {
 }
 
 async function get_client_events_request(reconcile_gifts, request_generation) {
-	const endpoint = client_events_hydrated
+	const endpoint = client_events_hydrated && !rollback_client?.needs_full()
 		? '/api/events?revision=' + client_event_revision + '&capabilities=' + CHAT_CAPABILITIES + '&pending_preview=1'
 		: '/api/events?capabilities=' + CHAT_CAPABILITIES + '&pending_preview=1';
 	const res = await api_get(endpoint);
@@ -5147,6 +5287,12 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 			Date.now() - last_expedition_state_refresh_at >= EXPEDITION_STATE_REFRESH_INTERVAL)
 			void refresh_expedition_state();
 		check_released_mod_version(res.released_mod_version);
+		rollback_client?.consume(res.rollback);
+		void rollback_client?.calibrate();
+		if (rollback_client?.needs_full() && res.unchanged === true) {
+			client_events_hydrated = false; client_event_trailing = true;
+			return res;
+		}
 		if (res.unchanged === true) {
 			void economy_command_journal?.recover();
 			return res;
@@ -5202,8 +5348,8 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 		if (request_generation !== session_generation)
 			return null;
 		if (economy_receipts.is_complete_economy_receipt_page(pending_economy_receipts, ECONOMY_RECEIPT_PAGE_SIZE)) {
-			remove_instance_storage_item('processed_economy_receipt_ids');
-			economy_commands_ready = true;
+			if (!rollback_client || rollback_client.admitted()) remove_instance_storage_item('processed_economy_receipt_ids');
+			economy_commands_ready = rollback_client ? rollback_client.complete_snapshot(true) : true;
 		}
 		if (Number.isSafeInteger(res.revision))
 			client_event_revision = res.revision;
@@ -5302,6 +5448,9 @@ function handle_runtime_visibility_change() {
 
 // #region SETUP FUNCTIONS
 export async function setup(ctx) {
+	const loaded_save_module = await ctx.loadModule('loaded-save.mjs');
+	loaded_save_tracker = loaded_save_module.create_loaded_save_tracker({ uuid: () => crypto.randomUUID(), now: () => Date.now() });
+	loaded_save_module.install_loaded_save_capture(ctx, typeof Game === 'undefined' ? null : Game, loaded_save_tracker);
 	const { create_asset_url_resolver } = await ctx.loadModule('asset-urls.mjs');
 	get_mod_asset_url = create_asset_url_resolver(await ctx.loadData('asset-urls.json'), media => ctx.getResourceUrl(media));
 	const { ModalQueueGuard, ModalComponentRegistry } = await ctx.loadModule('modal-queue.mjs');
@@ -5319,6 +5468,7 @@ export async function setup(ctx) {
 	trade_returns = await ctx.loadModule('trade-returns.mjs');
 	transfer_inventory = await ctx.loadModule('transfer-inventory.mjs');
 	transfer_currency_support = await ctx.loadModule('transfer-currencies.mjs');
+	rollback_module = await ctx.loadModule('save-rollback.mjs');
 	economy_receipts = await ctx.loadModule('economy-receipts.mjs');
 	const pending_actions = await ctx.loadModule('pending-economy-actions.mjs');
 	pending_economy_actions = pending_actions.create_pending_economy_actions({
@@ -5329,6 +5479,8 @@ export async function setup(ctx) {
 		reconcile: reconcile_economy_receipts,
 		uuid: () => crypto.randomUUID(),
 		scope: () => `${server_host}:${state.chat_client_id}:${session_generation}`,
+		is_retired: id => rollback_client?.is_retired(id) === true,
+		can_recover: pending => rollback_client?.admitted() !== false || rollback_module.protected_rollback_recovery_route(pending.endpoint),
 		can_start: () => economy_commands_ready && !economy_command_journal?.has_pending()
 	});
 	const server_config = await ctx.loadModule('server-config.mjs');
@@ -5585,8 +5737,10 @@ export async function setup(ctx) {
 	localization.localize_raid_content({ game, getLangString });
 
 	ctx.onCharacterLoaded(() => {
+		client_runtime.queue_mod_conflict_notice(mod.manager.getLoadedModList(), getLangString, addModalToQueue, document, ctx.name);
 		raid_combat.clear_loaded_combat();
 		raid_loaded_session_id = crypto.randomUUID();
+		loaded_save_tracker.character_loaded(game);
 		loaded_game_mode_id = client_runtime.get_game_mode_id(game.currentGamemode);
 		legacy_market_payout_migration_started = false;
 		state.load_chat_translation_preferences();
@@ -5602,6 +5756,7 @@ export async function setup(ctx) {
 	});
 	ctx.onCharacterSelectionLoaded(() => {
 		set_crucible_page_visible(false);
+		loaded_save_tracker.clear();
 		set_expedition_page_visible(false);
 		raid_combat?.abandon();
 	});
@@ -5616,6 +5771,7 @@ export async function setup(ctx) {
 	
 	ctx.onInterfaceReady(() => {
 		interface_ready = true;
+		void rollback_client?.pump_notice();
 		if (!customElements.get('mp-crucible-heat-lava')) customElements.define('mp-crucible-heat-lava',
 			image_particles.create_image_particle_element({ create_renderer: () => crucible_heat.create_heat_renderer({
 				get_tier: () => state.crucible?.heat?.tier ?? 0
@@ -5778,6 +5934,16 @@ function apply_server_configuration() {
 		);
 		error('invalid saved custom server setting; using default server (%s)', e);
 	}
+	if (!IS_DEV_MODE && is_creator_toolkit_local_mod() &&
+		typeof currentCharacter === 'number' && Number.isInteger(currentCharacter) && currentCharacter >= 0) {
+		try {
+			instance_storage.prune_legacy_local_character_storage(
+				localStorage,
+				get_local_character_storage_key(server_instance_storage_prefix, LEGACY_LOCAL_MOD_CHARACTER_STORAGE_PREFIX),
+				get_local_character_storage_key(server_instance_storage_prefix)
+			);
+		} catch { /* Browser storage availability must not block server selection. */ }
+	}
 	if (previous_server_host !== server_host) {
 		selected_api_major = null;
 		session_generation++;
@@ -5787,6 +5953,7 @@ function apply_server_configuration() {
 		state.is_connected = false;
 		state.pending_preview = null;
 		economy_command_journal = null;
+		rollback_client = null; economy_commands_ready = false; rollback_server_supported = false;
 		if (interface_ready) void refresh_updates(true);
 	}
 }
@@ -6119,6 +6286,7 @@ async function start_multiplayer_session() {
 	state.transfer_history = transfer_history_module.create_transfer_history_state();
 	economy_commands_ready = false;
 	economy_command_journal = null;
+	rollback_client = null;
 	try {
 		const melvor_cloud_manager = typeof cloudManager === 'undefined' ? globalThis.cloudManager : cloudManager;
 		await discover_api_contract();
@@ -6162,7 +6330,7 @@ async function start_multiplayer_session() {
 				return;
 			if (account !== null)
 				store_account_identity_binding(account, { ...credentials, friend_code: auth.json.friend_code });
-			activate_multiplayer_identity(auth.json);
+			activate_multiplayer_identity(auth.json, auth.timing);
 			void enroll_current_installation(auth.json, credentials.client_identifier);
 			if (auth.json.deletion_cancelled)
 				queue_identity_notice('deletion_cancelled', auth.json.deletion_cancelled);
@@ -6228,7 +6396,7 @@ async function register_multiplayer_identity(account, account_changed) {
 	} else {
 		store_account_identity_binding(account, credentials);
 	}
-	activate_multiplayer_identity(registration.json);
+	activate_multiplayer_identity(registration.json, registration.timing);
 	void enroll_current_installation(registration.json, credentials.client_identifier);
 	if (account_changed)
 		queue_identity_notice('account_changed');
@@ -6243,24 +6411,48 @@ async function enroll_current_installation(response, client_identifier) {
 	} catch { /* Enrollment failure leaves the already authenticated legacy session usable. */ }
 }
 
-function activate_multiplayer_identity(response) {
+function activate_multiplayer_identity(response, timing) {
 	if (enter_unsupported_multiplayer(response.minimum_supported_mod_version))
 		return;
+	const handshake_generation = session_generation;
 	connected_backend_version = Number.isSafeInteger(response.backend_version) ? response.backend_version : null;
 	set_session_token(response.session_token);
 	economy_commands_ready = false;
 	const generation = session_generation;
+	const origin = server_host;
 	const storage_key = `pending_economy_command:${response.chat.client_id}`;
+	rollback_client = rollback_module.create_rollback_client({
+		supported: rollback_server_supported || response.rollback?.protocol === 'save-rollback-v1',
+		origin, client_id: response.chat.client_id, load_id: loaded_save_tracker?.report()?.load_id,
+		handshake_generation, current: () => generation === session_generation && origin === server_host && state.is_connected,
+		read: get_instance_storage_item, write: set_instance_storage_item,
+		keys: get_instance_storage_keys, remove: remove_instance_storage_item,
+		post: async (endpoint, payload) => endpoint === null ? api_get_request('/api/save-rollback/status') : api_post_response_raw(endpoint, payload, response.session_token),
+		retire(id) {
+			economy_command_journal?.retire(id);
+			const stored = get_instance_storage_item('processed_economy_receipt_ids');
+			if (Array.isArray(stored) && stored.includes(id)) set_instance_storage_item('processed_economy_receipt_ids', stored.filter(value => value !== id));
+		},
+		changed() { economy_commands_ready = false; },
+		ui_ready: () => interface_ready, queue: options => addModalToQueue(options), close: () => Swal.close(), text: getLangString
+	});
 	economy_command_journal = economy_command_module.create_economy_command_journal({
 		read: () => get_instance_storage_item(storage_key),
 		write: value => set_instance_storage_item(storage_key, value),
 		remove: () => remove_instance_storage_item(storage_key),
 		send: (endpoint, payload, major) => api_post_response_raw(endpoint, payload, response.session_token, major),
 		reconcile: reconcile_economy_receipts,
-		current: () => generation === session_generation,
-		can_submit: () => economy_commands_ready
+		current: () => generation === session_generation && origin === server_host && state.is_connected,
+		can_submit: pending => (economy_commands_ready && rollback_client.admitted()) || rollback_module.protected_rollback_recovery_route(pending.endpoint),
+		can_recover: pending => rollback_client.admitted() || rollback_module.protected_rollback_recovery_route(pending.endpoint),
+		is_retired: id => rollback_client.is_retired(id)
 	});
-	void economy_command_journal.recover();
+	void rollback_client.bootstrap(response, timing).then(() => {
+		if (generation !== session_generation || origin !== server_host || !state.is_connected) return;
+		client_events_hydrated = false; events_refreshed_at = 0;
+		if (client_event_request !== null) client_event_trailing = true;
+		else void get_client_events();
+	}).catch(() => { if (generation === session_generation) economy_commands_ready = false; });
 	guild_state_refresh_id++;
 	state.guild_state = { affiliation: 'none' };
 	state.guild_state_loaded = false;

@@ -1167,12 +1167,12 @@ describe('Support Chat API', () => {
 
 	test('gates data-owned Support Teams by client version and exact active mod while retaining history', async () => {
 		const player = await register_client('SAE Eligibility Player');
-		const set_runtime = (version: string, active_mods: string[]) => db_run(
-			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `reported_at`) ' +
-			'VALUES(?, ?, ?, ?) ON CONFLICT (`client_id`) DO UPDATE SET ' +
+		const set_runtime = (version: string, active_mods: string[], details: Array<{ name: string; id: number | null }> = []) => db_run(
+			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `reported_at`, `active_mod_details`) ' +
+			'VALUES(?, ?, ?, ?, ?) ON CONFLICT (`client_id`) DO UPDATE SET ' +
 			'`mod_version` = excluded.`mod_version`, `active_mods` = excluded.`active_mods`, ' +
-			'`reported_at` = excluded.`reported_at`',
-			[player.client_id, version, JSON.stringify(active_mods), Date.now()]
+			'`reported_at` = excluded.`reported_at`, `active_mod_details` = excluded.`active_mod_details`',
+			[player.client_id, version, JSON.stringify(active_mods), Date.now(), JSON.stringify(details)]
 		);
 		const support_entries = async () => (await conversations(player.session_token)).json.conversations.filter(entry =>
 			entry.conversation_kind === 'support'
@@ -1220,6 +1220,14 @@ describe('Support Chat API', () => {
 		const restored = (await support_entries()).find(entry => entry.participant.display_name === 'SAE Support Team');
 		expect(restored?.conversation_id).toBe(sent.json.message.conversation_id);
 		expect(restored?.latest_message?.content).toBe('SAE question');
+
+		await set_runtime('1.6.10', ['Renamed SAE'], [{ name: 'Renamed SAE', id: 5043199 }]);
+		expect((await support_entries()).find(entry => entry.participant.display_name === 'SAE Support Team')?.conversation_id)
+			.toBe(sent.json.message.conversation_id);
+		await set_runtime('1.6.10', ['SUPER AWESOME EXPANSION'], [{ name: 'SUPER AWESOME EXPANSION', id: 999 }]);
+		expect((await support_entries()).some(entry => entry.participant.display_name === 'SAE Support Team')).toBe(false);
+		await set_runtime('1.6.10', ['SUPER AWESOME EXPANSION'], [{ name: 'SUPER AWESOME EXPANSION', id: null }]);
+		expect((await support_entries()).some(entry => entry.participant.display_name === 'SAE Support Team')).toBe(true);
 	});
 
 	test('grants team history only to the operator-selected Client while bypassing private Chat controls', async () => {

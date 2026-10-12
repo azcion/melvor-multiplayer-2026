@@ -1,7 +1,12 @@
+import { admit_rollback_load } from '../rollback-admission';
+import { rollback_player_status } from '../rollback-policy';
+import { record_load_clock } from '../save-rollback';
 import { has_alliance_access } from '../alliances';
 import { API_VERSIONS } from '../api-contract';
 import { get_account_tags, get_dev_tag_visibility } from '../account_tags';
 import { is_client_version_at_least } from '../client-version-policy';
+import { record_character_save_load } from '../character-save-loads';
+import { db } from '../db';
 import { authenticate_installation, enroll_installation } from '../installations';
 import { is_installation_id, parse_device_diagnostics } from '../diagnostics';
 import { mark_rejection } from '../diagnostics';
@@ -17,7 +22,7 @@ const { AUTH_RESPONSE_DELAY_MS, BACKEND_VERSION, DEFAULT_USER_ICON_ID, allow_bro
 
 export function register_auth_routes(): void {
 	server.route('/api/versions', allow_browser_access(require_source_capacity(require_service_available(() => ({
-		page_snapshots: true, api_versions: API_VERSIONS, preferred_api_version: API_VERSIONS[API_VERSIONS.length - 1],
+		page_snapshots: true, capabilities:['save-rollback-v1'], api_versions: API_VERSIONS, preferred_api_version: API_VERSIONS[API_VERSIONS.length - 1],
 		minimum_supported_mod_version: get_minimum_supported_mod_version()
 	})))), ['GET', 'OPTIONS']);
 	server.route('/health', require_source_capacity(() => ({ status: 'ok', backend_version: BACKEND_VERSION })));
@@ -86,12 +91,21 @@ export function register_auth_routes(): void {
 		persist_client_runtime(client_row.id, client_runtime);
 
 		identify_request(req, client_row.id, client_runtime?.mod_version, session_device);
-		const session_token = await generate_session_token(client_row.id, client_runtime?.mod_version ?? null, session_device, installation_auth ? String(json.installation_id).toLowerCase() : null);
+		let original_handshake=false;
+		const save_load_id = db.transaction(()=>{
+			original_handshake=client_runtime?.loaded_save!==undefined && !db.query('SELECT 1 FROM character_save_loads WHERE client_id=? AND load_id=?').get(client_row.id,client_runtime.loaded_save.load_id);
+			const load=record_character_save_load(db, client_row.id, client_runtime?.loaded_save, Date.now(), session_device?.installation_id ?? null);
+			admit_rollback_load(db,client_row.id,load,client_runtime?.capabilities.includes('save-rollback-v1')??false);
+			return load;
+		}).immediate();
+		const session_token = await generate_session_token(client_row.id, client_runtime?.mod_version ?? null, session_device, installation_auth ? String(json.installation_id).toLowerCase() : null, save_load_id, client_runtime?.capabilities);
 		if (is_client_version_at_least(client_runtime?.mod_version, '1.6.0'))
 			release_campaign_refunds(client_row.id);
 		log('client', 'authorized client session for identity {%d}', client_row.id);
 
-		return { session_token, friend_code: client_row.friend_code, display_name: client_row.display_name,
+		return { ...(client_runtime?.capabilities.includes('save-rollback-v1')?{rollback:rollback_player_status(db,client_row.id,save_load_id,true)}:{}), rollback_clock_sample: save_load_id === null ? null : {...db.query<{server_admitted_at:number;load_id:string},[number]>(
+			'SELECT admitted_at AS server_admitted_at, load_id FROM economy_load_observations WHERE id=?').get(save_load_id),original_handshake},
+			session_token, friend_code: client_row.friend_code, display_name: client_row.display_name,
 			icon_id: client_row.icon_id, equipment_visible: client_row.equipment_visible === 1,
 			social_mode: get_client_social_mode(client_row.id),
 			social_mode_enforcement: get_client_social_mode_enforcement(client_row.id),
@@ -151,8 +165,15 @@ export function register_auth_routes(): void {
 		identify_request(req, client_id, client_runtime?.mod_version, client_runtime?.device);
 		log('client', 'registered new identity {%d}', client_id);
 
-		const session_token = await generate_session_token(client_id, client_runtime?.mod_version ?? null, client_runtime?.device);
-		return { session_token, client_identifier, friend_code, display_name, icon_id: DEFAULT_USER_ICON_ID,
+		const save_load_id = db.transaction(()=>{
+			const load=record_character_save_load(db, client_id, client_runtime?.loaded_save, Date.now(), client_runtime?.device?.installation_id ?? null);
+			admit_rollback_load(db,client_id,load,client_runtime?.capabilities.includes('save-rollback-v1')??false);
+			return load;
+		}).immediate();
+		const session_token = await generate_session_token(client_id, client_runtime?.mod_version ?? null, client_runtime?.device, null, save_load_id, client_runtime?.capabilities);
+		return { ...(client_runtime?.capabilities.includes('save-rollback-v1')?{rollback:rollback_player_status(db,client_id,save_load_id,true)}:{}), rollback_clock_sample: save_load_id === null ? null : {...db.query<{server_admitted_at:number;load_id:string},[number]>(
+			'SELECT admitted_at AS server_admitted_at, load_id FROM economy_load_observations WHERE id=?').get(save_load_id),original_handshake:true},
+			session_token, client_identifier, friend_code, display_name, icon_id: DEFAULT_USER_ICON_ID,
 			social_mode: get_client_social_mode(client_id),
 			social_mode_enforcement: get_client_social_mode_enforcement(client_id),
 			equipment_visible: true, skills_visible: true, activity_visible: true, gp_visible: true, game_mode_visible: true,
@@ -170,6 +191,20 @@ export function register_auth_routes(): void {
 			released_mod_version: get_released_mod_version(),
 			minimum_supported_mod_version: get_minimum_supported_mod_version() };
 	}))))), ['POST', 'OPTIONS']);
+	runtime.session_post_route('/api/save-load/clock', async (req,_url,client_id,json) => {
+		const session = await runtime.get_client_session(req.headers.get('X-Session-Token'));
+		if (session?.save_load_id == null) return 400;
+		let corrected_keys:string[]=[];
+		const recorded=db.transaction(()=>{
+			if(!record_load_clock(db,client_id,session.save_load_id!,json)) return false;
+			corrected_keys=runtime.evaluate_session_rollback(client_id,session.save_load_id!,session.rollback_capable);
+			return true;
+		}).immediate();
+		// This second callback is after the outer transaction committed; it clears derived caches.
+		if(recorded) runtime.invalidate_rollback_caches(corrected_keys);
+		return recorded ? { success: true, rollback:rollback_player_status(db,client_id,session.save_load_id,session.rollback_capable) } : 400;
+	});
+
 	runtime.session_post_route('/api/installations/enroll', async (req, _url, client_id, json) => {
 		const session = await runtime.get_client_session(req.headers.get('X-Session-Token'));
 		if (session?.device_diagnostics?.installation_id !== json.installation_id) return 400;

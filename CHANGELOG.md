@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.6.11
+
+- Set the minimum supported client version to 1.6.11.
+- Fixed chat profiles showing your own settings when viewing another player while guildless; shared Skills & Equipment are accessible across Guilds.
+- Older-save review findings no longer block new multiplayer economy actions after correction; original evidence and reversed-command protections remain intact.
+- Bound older-save clock recovery storage to the current load, cleaning up obsolete samples without removing pending economy commands.
+- Clean up matching legacy Creator Toolkit identity-storage copies after verifying the current copy, preserving conflicts, recovery data, and other characters and servers.
+- Wishes now cost EP based on quantity and current base capacity, with progressively priced +100 increments above that base, partial increments prorated, prices rounded up to 0.001 EP, and a 1000-item maximum. Successful creation also costs half the full funding requirement in GP (rounded up to whole GP), contributed to Crucible Offerings without advancing the Wish. The payer’s account cannot reclaim GP from that Guild for four hours. Cancellation refunds neither payment.
+- Added character-specific 30-day Wish capacity upgrades from 100 to 500 items, incremental upgrade pricing, no-charge renewal setting changes, and optional auto-renewal that pauses if EP is insufficient. Active tiers cannot be re-bought or downgraded before expiry. Confirmation shows exact payments, active capacity, expiry and renewal cost; interrupted purchases recover without duplicate charges.
+- Cleaned up Make a Wish: only the item list scrolls, capacity explains excess-item pricing, and creation costs appear separately from the value needed to meld, with GP icons. Wishes explain how many items 1 EP buys at your capacity; creation requires sufficient GP and EP.
+
+## 1.6.10
+
+- Added Guild petition discussions with petition details in the header, localized proposal and named Aye/Nay Messages hidden under the same voting rule as the tally, normal Chat replies and reactions, and separate unread counters. Active petitions receive existing votes; discussions remain available after voting closes. Hosts can suppress petition creator attribution. Free Fellowship Petitions also expire no later than 36 hours after creation, even when votes refresh their activity.
+- Added a localized Mod Conflict warning on every character load while Melvor Multiplayer or [Galy] Melvor Multiplayer Fixes is loaded, listing the conflicting mods to disable.
+- Track loaded mods by stable mod.io ID where available while displaying their names. Retain name fallback for local imports and older clients, with best-effort backfill for existing reports, cheat recognition, and partner Support Chat eligibility.
+- Added older-save protection with original-load clock evidence, guarded economy recovery, and a general informational notice. Opted-in servers can mark attributable remaining value while preserving settled transfers, issued claims, and original history. Supports staged rollout alongside existing clients and older servers.
+- Completed owned Marketplace listings are now hidden once no quantity remains available or reserved and any seller payout has been collected.
+- Alliance proposals retain their original voting Guilds and majority when membership changes. Eligible leave and removal proposals are available from Guild previews opened through the Member Guilds pane.
+
 ## 1.6.9
 
 - Expanded $Feature Chat tags with Alt. Magic using Magic’s icon, plus lowercase alliance, alliance member guild, guild member, petition, policy, buy order, sell listing, trade, gift, wish, haggle, and chamber tags without icons. Tag labels are localized in all supported languages.

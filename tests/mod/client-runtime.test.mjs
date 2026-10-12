@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { read_client_source } from './source.mjs';
 import {
+	queue_mod_conflict_notice,
 	get_language_code,
 	get_language_lang_id,
 	get_game_mode_id,
@@ -49,12 +50,14 @@ test('copies runtime reports so the once-per-load snapshot is stable', () => {
 		mod_version: '1.3.0',
 		active_mods: ['Multiplayer'],
 		owned_dlc: ['melvorTotH'],
+		capabilities: ['save-rollback-v1'],
 		game_mode_id: 'melvorF:Adventure'
 	});
 	assert.deepEqual(make_client_runtime_report('1.3.0', [], null), {
 		mod_version: '1.3.0',
 		active_mods: [],
-		owned_dlc: []
+		owned_dlc: [],
+		capabilities: ['save-rollback-v1']
 	});
 });
 
@@ -86,6 +89,7 @@ test('captures raw language values while exposing only known display labels', ()
 		mod_version: '1.4.0',
 		active_mods: [],
 		owned_dlc: [],
+		capabilities: ['save-rollback-v1'],
 		language: 'x-debug-locale'
 	});
 });
@@ -149,4 +153,62 @@ test('defers character-scoped Chat preference loading until a character is loade
 
 	assert.doesNotMatch(setup_before_character_load, /get_instance_storage_item\('chat_translation_preferences'\)/);
 	assert.match(character_loaded, /state\.load_chat_translation_preferences\(\);/);
+});
+
+const conflict_document = { createElement(tag) {
+	return { tag, style: {}, children: [], append(...children) { this.children.push(...children); } };
+} };
+
+test('conflict warning lists only exact loaded conflicts, with singular/plural text and spacing', () => {
+	const original = 'Melvor Multiplayer', fixes = '[Galy] Melvor Multiplayer Fixes';
+	for (const loaded of [[original], [fixes], [fixes, original, original]]) {
+		const queued = [];
+		assert.equal(queue_mod_conflict_notice(loaded, key => key, options => queued.push(options), conflict_document), true);
+		const [options] = queued;
+		assert.equal(queued.length, 1);
+		assert.equal(options.icon, 'warning');
+		assert.equal(options.titleText, 'MOD_MP_MOD_CONFLICT_TITLE');
+		assert.equal(options.confirmButtonText, 'MOD_MP_MOD_CONFLICT_OKAY');
+		assert.equal(options.showConfirmButton, true);
+		assert.equal(options.timer, undefined);
+		assert.equal(options.preConfirm, undefined);
+		assert.equal(options.html.style.marginBottom, '1rem');
+		const expected = [original, fixes].filter(name => loaded.includes(name));
+		assert.equal(options.html.children[0].textContent, expected.length === 1 ? 'MOD_MP_MOD_CONFLICT_SINGLE' : 'MOD_MP_MOD_CONFLICT_MULTIPLE');
+		assert.deepEqual(options.html.children[1].children.map(item => item.textContent), expected);
+	}
+});
+
+test('conflict checks repeat each load, ignore unrelated mods, and scan beyond the reporting cap', () => {
+	const queued = [];
+	const check = loaded => queue_mod_conflict_notice(loaded, key => key, options => queued.push(options), conflict_document);
+	assert.equal(check(['Melvor Multiplayer Remastered', 'Melvor Multiplayer Extra', null]), false);
+	assert.equal(check(undefined), false);
+	const loaded = [...Array(150).fill('Unrelated'), ' Melvor Multiplayer '];
+	assert.equal(check(loaded), true);
+	assert.equal(check(loaded), true);
+	assert.equal(check([]), false);
+	assert.equal(queued.length, 2);
+});
+
+test('character-load conflict warning precedes Multiplayer session and interface notices', async () => {
+	const source = await read_client_source();
+	const start = source.indexOf('ctx.onCharacterLoaded(() => {');
+	const warning = source.indexOf('client_runtime.queue_mod_conflict_notice(', start);
+	assert.ok(warning > start);
+	assert.ok(warning < source.indexOf('start_multiplayer_session();', start));
+	assert.ok(warning < source.indexOf('ctx.onInterfaceReady(() => {', start));
+});
+
+test('excludes exactly this client even when the original mod shares its published name', () => {
+	const own = 'Melvor Multiplayer';
+	const queued = [];
+	const check = (loaded, own_name = own) => queue_mod_conflict_notice(loaded, key => key, options => queued.push(options), conflict_document, own_name);
+	assert.equal(check([own]), false);
+	assert.equal(check([own, own]), true);
+	assert.deepEqual(queued[0].html.children[1].children.map(item => item.textContent), [own]);
+	assert.equal(check(['Toolkit Candidate']), false);
+	assert.equal(check(['Toolkit Candidate', own], 'Toolkit Candidate'), true);
+	assert.equal(check([own, '[Galy] Melvor Multiplayer Fixes']), true);
+	assert.deepEqual(queued.at(-1).html.children[1].children.map(item => item.textContent), ['[Galy] Melvor Multiplayer Fixes']);
 });

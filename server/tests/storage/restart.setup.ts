@@ -1,3 +1,4 @@
+import {setup_rollback_restart} from '../support/rollback-restart';
 import { enter_transition_raid, seed_transition_raid } from '../support/raid';
 import { expect, test } from 'bun:test';
 import { allow_alliance_preview, get_events, make_guildmates, register_guild_client } from '../support/fixtures';
@@ -262,6 +263,7 @@ test('creates representative state before a server restart', async () => {
 		petition_expires_at: (await db_all<{ expires_at: number }>('SELECT expires_at FROM guild_petitions WHERE id=?', [alliance_policy.json.petition_id]))[0].expires_at };
 
 	const state: RestartState = {
+		rollback: await setup_rollback_restart(),
 		alliance,
 		expedition_work,
 		installation: { ...installed.json, installation_id, installation_key },

@@ -595,12 +595,11 @@ describe('Guild Expedition registration', () => {
 		await post_json('/api/crucible/cast', { source: 'transfer', items: [{ id: 'melvorD:Shrimp', qty: 9 }],
 			command_id: crypto.randomUUID() }, guild.first.session_token);
 		await db_run('UPDATE crucible_guilds SET is_open=? WHERE guild_id=?', [is_open ? 1 : 0, guild.guild_id]);
-		await db_run('INSERT INTO expedition_supplies ' +
-			'(expedition_id, item_id, qty, value_currency_id, value_per_item) VALUES (?, ?, ?, ?, ?)',
-			[started.json.expedition_id, 'melvorD:Shrimp', 3, 'melvorD:GP', 1]);
-		await db_run('INSERT INTO expedition_supply_lots ' +
-			'(expedition_id, item_id, client_id, owner_key, qty, contributed_at) VALUES (?, ?, ?, ?, ?, ?)',
-			[started.json.expedition_id, 'melvorD:Shrimp', guild.first_id, `client:${guild.first_id}`, 3, now]);
+		const supply_command=crypto.randomUUID();
+		const supplied=await post_json<{success:boolean}>('/api/expedition/supply/donate',{
+			command_id:supply_command,expedition_id:started.json.expedition_id,item_id:'melvorD:Shrimp',qty:3,
+			source:'bank',value_currency_id:'melvorD:GP',value_per_item:2},guild.first.session_token);
+		expect(supplied.json.success).toBe(true);
 		await db_run('UPDATE expeditions SET last_qualifying_activity_at=? WHERE id=?',
 			[now - RECENTLY_ACTIVE_AFTER - 1, started.json.expedition_id]);
 		for (let retry = 0; retry < 2; retry++) {
@@ -612,6 +611,12 @@ describe('Guild Expedition registration', () => {
 		expect(await db_all('SELECT outcome FROM expedition_crucible_outcomes WHERE expedition_id=?',
 			[started.json.expedition_id])).toEqual([{ outcome: is_open ? 'crucible' : 'destroyed' }]);
 		expect(await db_all('SELECT qty FROM expedition_supplies WHERE expedition_id=?', [started.json.expedition_id])).toEqual([]);
+		const custody=await db_all<{location:string;quantity:number}>('SELECT b.location,b.quantity FROM economy_custody_balances b JOIN economy_custody_sources s ON s.root_key=b.root_key WHERE s.operation_key=?',[`receipt:${supply_command}`]);
+		expect(custody).toHaveLength(1);expect(custody[0]!.quantity).toBe(3);
+		expect(custody[0]!.location).toMatch(is_open?/^crucible-lot:/:/^consumed:expedition-disposal$/);
+		expect(await db_all("SELECT phase FROM economy_terminal_snapshots WHERE table_name=? AND json_extract(snapshot_json,'$.expedition_id')=? ORDER BY id",['expedition_supply_lots',started.json.expedition_id]))
+			.toEqual([{phase:'source'},{phase:'terminal'}]);
+
 		const lots = await db_all<{ qty: number; locked_until: number }>(
 			"SELECT lot.qty, lot.locked_until FROM crucible_contribution_lots lot JOIN crucible_offerings offering ON offering.id=lot.offering_id WHERE offering.guild_id=? AND lot.source_kind='expedition'",
 			[guild.guild_id]);

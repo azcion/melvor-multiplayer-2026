@@ -7,7 +7,7 @@ import type { GuildSummary, GuildType } from '../app-runtime';
 import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
-import { is_free_fellowship_petition, type PetitionType } from '../council';
+import { is_free_fellowship_petition, petition_expiry, type PetitionType } from '../council';
 import { get_guild_activity, parse_guild_activity_cursor } from '../guild-activity';
 import { record_guild_activity } from '../guild-activity';
 import { cancel_client_haggles } from './haggle';
@@ -59,7 +59,8 @@ export function register_guilds_routes(): void {
 
 		const version = runtime.get_request_mod_version(req);
 		const result = await get_council_petitions(membership.guild_id, client_id, resolved_page,
-			version === 'development' || is_client_version_at_least(version, '1.6.0'), has_alliance_access(client_id, version), alliance_capable(version));
+			version === 'development' || is_client_version_at_least(version, '1.6.0'), has_alliance_access(client_id, version), alliance_capable(version),
+			version === 'development' || is_client_version_at_least(version, '1.6.10'));
 		if (!council_preview_enabled(req, client_id)) return { ...result, server_time: Date.now() };
 		const fixtures = council_test_data();
 		return { ...result, server_time: Date.now(), petitions: [...result.petitions, ...fixtures.active,
@@ -282,7 +283,7 @@ export function register_guilds_routes(): void {
 				'INSERT INTO `guild_petition_votes` (`petition_id`, `client_id`, `choice`, `submitted_at`) ' +
 				'VALUES(?, ?, ?, ?)'
 			).run(petition_id, client_id, choice, now);
-			petition.expires_at = now + PETITION_LIFETIME;
+			petition.expires_at = petition_expiry(guild?.type, petition.created_at, now);
 			db.query('UPDATE guild_petitions SET expires_at = ? WHERE id = ?').run(petition.expires_at, petition_id);
 			alliance_ballot_activity(petition_id, now);
 			const lifecycle = resolve_council_vote(petition, now);

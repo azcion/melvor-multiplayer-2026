@@ -1,3 +1,4 @@
+import {verify_rollback_restart} from '../support/rollback-restart';
 import { expect, test } from 'bun:test';
 import { get_events } from '../support/fixtures';
 import { get_json_with_session, post_json } from '../support/http';
@@ -6,6 +7,7 @@ import { db_all } from '../support/persistence';
 
 test('rebuilds caches and preserves API state after a server restart', async () => {
 	const state = await read_restart_state();
+	await verify_rollback_restart(state.rollback);
 	const alliance = await get_json_with_session<any>('/api/alliances', state.alliance.client.session_token);
 	expect(alliance.json.alliance.id).toBe(state.alliance.alliance_id);
 	expect(alliance.json.alliance.shared_marketplace).toBe(0);

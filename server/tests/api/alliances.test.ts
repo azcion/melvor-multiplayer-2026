@@ -186,7 +186,7 @@ test('shared Marketplace conserves Haggle escrow on policy loss and rejects lega
 	expect((await post_json<any>('/api/market/buy',{id:listing.id,qty:1,item_discovered:true},b.session_token)).json.success).toBeUndefined();
 });
 
-test('four Guilds need three Ayes; target retains removal ballot; roster changes cancel voting',async()=> {
+test('four Guilds need three Ayes; target retains removal ballot; departure preserves voting',async()=> {
 	const members=[];for(let i=0;i<4;i++) members.push(await register_guild_client(`Four ${i}`,`Four Guild ${i}`));
 	const [a,b,c,d]=members;const alliance=await found(a,b);
 	for(const applicant of [c,d]) {
@@ -202,8 +202,10 @@ test('four Guilds need three Ayes; target retains removal ballot; roster changes
 	expect((await view(d)).alliance).not.toBeNull();await vote(c,await next_ballot(c,removal.process_id));expect((await view(d)).alliance).toBeNull();
 	const disable=await propose(a,{kind:'market_disable'});await vote(a,disable.petition_id);
 	const leave=await propose(c,{kind:'leave'});await vote(c,leave.petition_id);
-	expect((await view(a)).processes.find((p:any)=>p.process_id===disable.process_id).stage).toBe('cancelled');
+	expect((await view(a)).processes.find((p:any)=>p.process_id===disable.process_id)).toMatchObject({stage:'collective',tally:{eligible:3,required_aye:2,aye:1}});
 	expect((await view(a)).alliance.shared_marketplace).toBe(1);
+	await vote(c,await next_ballot(c,disable.process_id));
+	expect((await view(a)).alliance.shared_marketplace).toBe(0);
 });
 test('submitted consent needs a Council withdrawal, and late activity cannot revive an expired process',async()=> {
 	const a=await register_guild_client('Withdraw A','Withdraw Guild A'),b=await register_guild_client('Withdraw B','Withdraw Guild B');
@@ -405,15 +407,65 @@ test('parallel admission waits for applicant consent even after the Alliance maj
 	expect((await view(d)).processes.find((p:any)=>p.process_id===rejected.process_id).stage).toBe('denied');
 });
 
-test('roster changes cancel parallel decisions with a durable reason while keeping current policy',async()=> {
-	const a=await register_guild_client('Roster A','Roster Guild A'),b=await register_guild_client('Roster B','Roster Guild B'),c=await register_guild_client('Roster C','Roster Guild C');
+test('four parallel admissions and a policy retain their original electorate through successive joins',async()=> {
+	const members=[];for(let i=0;i<6;i++) members.push(await register_guild_client(`Stable ${i}`,`Stable Guild ${i}`));
+	const [a,b,...applicants]=members;
 	const alliance=await found(a,b);
 	const policy=await propose(a,{kind:'market_enable'});
-	const join=await propose(c,{kind:'join',target_id:alliance.id});
-	await vote(c,join.petition_id); await vote(a,await next_ballot(a,join.process_id)); await vote(b,await next_ballot(b,join.process_id));
-	expect((await view(a)).processes.find((p:any)=>p.process_id===policy.process_id)).toMatchObject({stage:'cancelled',resolution_reason:'roster_changed'});
-	expect((await view(a)).alliance.shared_marketplace).toBe(0);
-	expect((await vote(a,policy.petition_id)).success).toBeUndefined();
+	await vote(a,policy.petition_id);
+	const joins: Awaited<ReturnType<typeof propose>>[]=[];
+	for(const applicant of applicants) {
+		const join=await propose(applicant,{kind:'join',target_id:alliance.id});
+		await vote(applicant,join.petition_id);
+		await vote(a,await next_ballot(a,join.process_id));
+		joins.push(join);
+	}
+	for(let i=0;i<joins.length;i++) {
+		await vote(b,await next_ballot(b,joins[i].process_id));
+		const state=await view(a);
+		expect(state.alliance.member_guilds).toHaveLength(3+i);
+		for(let j=i+1;j<joins.length;j++) {
+			expect(state.processes.find((p:any)=>p.process_id===joins[j].process_id)).toMatchObject({stage:'collective',tally:{eligible:2,required_aye:2,aye:1}});
+		}
+		expect(await db_all('SELECT guild_id FROM alliance_ballots WHERE process_id=? ORDER BY guild_id',[joins[i].process_id]))
+			.toEqual([{guild_id:a.guild_id},{guild_id:b.guild_id}].sort((x,y)=>x.guild_id-y.guild_id));
+	}
+	expect((await view(a)).processes.find((p:any)=>p.process_id===policy.process_id)).toMatchObject({stage:'collective',resolution_reason:null,tally:{eligible:2,required_aye:2,aye:1}});
+	await vote(b,await next_ballot(b,policy.process_id));
+	expect((await view(a)).alliance.shared_marketplace).toBe(1);
+	const later=await propose(b,{kind:'market_disable'});
+	expect((await view(b)).processes.find((p:any)=>p.process_id===later.process_id).tally).toMatchObject({eligible:6,required_aye:4});
+});
+
+test('removal preserves pending admissions and fixed ballots, including the removed Guild vote',async()=> {
+	const members=[];for(let i=0;i<4;i++) members.push(await register_guild_client(`Removal Stable ${i}`,`Removal Stable ${i}`));
+	const [a,b,c,d]=members;
+	const alliance=await found(a,b);
+	const first=await propose(c,{kind:'join',target_id:alliance.id});
+	await vote(c,first.petition_id); await vote(a,await next_ballot(a,first.process_id)); await vote(b,await next_ballot(b,first.process_id));
+	const admission=await propose(d,{kind:'join',target_id:alliance.id});
+	await vote(d,admission.petition_id); await vote(a,await next_ballot(a,admission.process_id));
+	const removal=await propose(a,{kind:'remove',target_id:c.guild_id});
+	await vote(a,removal.petition_id); await vote(b,await next_ballot(b,removal.process_id));
+	expect((await view(c)).alliance).toBeNull();
+	expect((await view(d)).processes.find((p:any)=>p.process_id===admission.process_id)).toMatchObject({stage:'collective',tally:{eligible:3,required_aye:2,aye:1}});
+	await vote(c,await next_ballot(c,admission.process_id));
+	expect((await view(d)).alliance.id).toBe(alliance.id);
+});
+
+test('Alliance dissolution still cancels unfinished proposals and releases applicant slots',async()=> {
+	const a=await register_guild_client('Dissolve A','Dissolve A'),b=await register_guild_client('Dissolve B','Dissolve B'),c=await register_guild_client('Dissolve C','Dissolve C');
+	const alliance=await found(a,b);
+	const policy=await propose(a,{kind:'market_enable'});
+	const admission=await propose(c,{kind:'join',target_id:alliance.id});
+	const leave=await propose(b,{kind:'leave'}); await vote(b,leave.petition_id);
+	for(const proposal of [policy,admission]) {
+		expect((await db_all('SELECT stage,resolution_reason FROM alliance_processes WHERE id=?',[proposal.process_id]))[0])
+			.toEqual({stage:'cancelled',resolution_reason:'alliance_unavailable'});
+		expect(await db_all("SELECT id FROM guild_petitions WHERE lifecycle='active' AND id IN (SELECT petition_id FROM alliance_process_petitions WHERE process_id=?)",[proposal.process_id])).toEqual([]);
+	}
+	expect((await view(c)).affiliation_pending).toBe(false);
+	expect((await view(a)).alliance).toBeNull();
 });
 
 test('existing sequential founding retains its approval gate after the parallel cutover',async()=> {

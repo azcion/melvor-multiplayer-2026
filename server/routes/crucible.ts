@@ -1,3 +1,5 @@
+import { db } from '../db';
+import { purchase_wish_capacity, set_wish_capacity_renewal, wish_capacity_state } from '../wish-capacity';
 import * as runtime from '../app-runtime';
 import type { HandlerResult, JsonObject } from '../http';
 import { is_client_version_at_least } from '../client-version-policy';
@@ -133,13 +135,56 @@ export function register_crucible_routes(): void {
 	});
 
 	session_post_route('/api/crucible/wish/make', async (req, url, client_id, json): Promise<HandlerResult> => {
+		// Historical server-only Make commands remain recoverable without imposing new payments.
+		const legacy = db.query<{ response_json: string }, [number, string]>(
+			"SELECT response_json FROM crucible_commands WHERE client_id=? AND id=? AND kind='make'")
+			.get(client_id, String(json.command_id));
+		if (legacy) return JSON.parse(legacy.response_json) as JsonObject;
 		const result = actor_for(req, client_id);
 		if ('error' in result) return result.error;
+		const version = runtime.get_request_mod_version(req);
+		if (version !== 'development' && !is_client_version_at_least(version, '1.6.11')) {
+			// Released clients use the server-only journal and cannot apply upfront payment receipts.
+			if (!is_valid_item_id(json.item_id) || !Number.isSafeInteger(json.qty) ||
+				(json.qty as number) < 1 || (json.qty as number) > 100 ||
+				json.ep_micros !== undefined || json.gp !== undefined || json.gp_balance !== undefined) return 400;
+			return run_crucible_wish_command(client_id, json.command_id, 'make', () =>
+				make_crucible_wish(result.actor!, json.item_id as string, json.qty as number, null)) ?? 400;
+		}
 		if (!is_valid_item_id(json.item_id) || !Number.isSafeInteger(json.qty) ||
-			(json.qty as number) < 1 || (json.qty as number) > 100) return 400;
-		return run_crucible_wish_command(client_id, json.command_id, 'make', () =>
-			make_crucible_wish(result.actor!, json.item_id as string, json.qty as number)) ?? 400;
+			(json.qty as number) < 1 || (json.qty as number) > 1000 ||
+			!Number.isSafeInteger(json.ep_micros) || !Number.isSafeInteger(json.gp) ||
+			!Number.isSafeInteger(json.gp_balance)) return 400;
+		try {
+			return run_economy_command(client_id, json.command_id, 'crucible-wish-make', () => {
+				const response = make_crucible_wish(result.actor!, json.item_id as string, json.qty as number,
+					{ command_id: String(json.command_id), ep_micros: json.ep_micros as number,
+						gp: json.gp as number, gp_balance: json.gp_balance as number });
+				return response.success === true ? { ...response,
+					effects: economy_item_effects([{ id: 'melvorD:GP', qty: response.paid_gp as number }], 'bank', -1) } : response;
+			}) ?? 400;
+		} catch (error) { return error instanceof RangeError ? 400 : 500; }
 	});
+	for (const kind of ['capacity', 'renewal'] as const) {
+		session_post_route(`/api/crucible/wish/${kind}`, async (req, url, client_id, json): Promise<HandlerResult> => {
+			const result = actor_for(req, client_id);
+			if ('error' in result) return result.error;
+			const version = runtime.get_request_mod_version(req);
+			if (version !== 'development' && !is_client_version_at_least(version, '1.6.11'))
+				return { success: false, error_lang: 'MOD_MP_UNSUPPORTED_VERSION_MESSAGE' };
+			if (typeof json.auto_renew !== 'boolean' || !Number.isSafeInteger(json.ep_micros) ||
+				(kind === 'capacity' && !Number.isSafeInteger(json.base))) return 400;
+			if (result.actor!.account_id === null) return { success: false, error: 'Melvor account is required.' };
+			return run_economy_command(client_id, json.command_id, `crucible-wish-${kind}`, () => {
+				if (kind === 'capacity') return purchase_wish_capacity(db, client_id, json.base as number,
+					json.auto_renew as boolean, json.ep_micros as number, String(json.command_id));
+				if (wish_capacity_state(db, client_id).renewal_micros !== json.ep_micros)
+					return { success: false, error: 'wish_quote_changed' };
+				return set_wish_capacity_renewal(db, client_id, json.auto_renew as boolean);
+			}) ?? 400;
+		});
+	}
+
 	for (const [path, kind, operation] of [
 		['/api/crucible/wish/cancel', 'cancel', cancel_crucible_wish],
 		['/api/crucible/wish/claim', 'claim', claim_crucible_wish]

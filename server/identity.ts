@@ -1,3 +1,5 @@
+import { move_custody_fifo } from './economy-custody';
+import { record_economy_operation } from './save-rollback';
 import { db, get_or_create_melvor_account, type MelvorAccountInput } from './db';
 import type * as db_row from './db/types/db_types';
 import { execute_client_deletion, type DeletionExecution } from './identity_deletion';
@@ -246,7 +248,9 @@ export function create_deletion_return_claim(
 				'INSERT INTO `client_deletion_return_claims` (`id`, `return_id`, `client_id`, `gp`, `created_at`) ' +
 				'VALUES(?, ?, ?, ?, ?)'
 			).run(claim_id, returned.id, client_id, claimed_gp, Date.now());
+			if(claimed_gp>0) move_custody_fifo(db,`deletion-return:${returned.id}:melvorD:GP`,`protected:deletion-claim:${claim_id}`,claimed_gp,Date.now(),'deletion-claim-created');
 			for (const item of selected) {
+				move_custody_fifo(db,`deletion-return:${returned.id}:${item.item_id}`,`protected:deletion-claim:${claim_id}`,item.qty,Date.now(),'deletion-claim-created');
 				db.query(
 					'INSERT INTO `client_deletion_return_claim_items` (`claim_id`, `item_id`, `qty`) VALUES(?, ?, ?)'
 				).run(claim_id, item.item_id, item.qty);
@@ -255,6 +259,9 @@ export function create_deletion_return_claim(
 			}
 			db.query('UPDATE `client_deletion_returns` SET `gp` = `gp` - ? WHERE `id` = ?')
 				.run(claimed_gp, returned.id);
+			record_economy_operation(db, { source_key: `deletion-claim:${claim_id}`, client_id,
+				kind: 'deletion-return-claim', local_effect: 'incoming',
+				evidence: { claim_id, return_id: returned.id, gp: claimed_gp, items: selected.map(item => ({ item_id:item.item_id,qty:item.qty })) } });
 			return claim_id;
 		}
 		return null;

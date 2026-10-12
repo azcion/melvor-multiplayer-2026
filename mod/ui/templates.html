@@ -363,7 +363,7 @@
 </template>
 <template id="template-mp-member-actions-modal">
 	<div class="mp-member-actions" v-if="state.selected_guild_member">
-		<template v-if="!state.member_actions_preview && (state.selected_guild_member.client_id === state.guild_client_id || state.guild_client_id === null)">
+		<template v-if="!state.member_actions_preview && (Number.isSafeInteger(state.chat_client_id) && state.chat_client_id > 0 && state.selected_guild_member.client_id === state.chat_client_id)">
 			<button type="button" class="btn btn-primary" @click="state.open_multiplayer_settings_from_options()"><lang-string lang-id="MOD_MP_MULTIPLAYER_SETTINGS"></lang-string></button>
 			<button type="button" class="btn btn-primary" @click="state.open_display_name_from_options()">
 				<lang-string lang-id="MOD_MP_MENU_CHANGE_DISPLAY_NAME"></lang-string>
@@ -595,9 +595,9 @@
 			<div class="mp-chat-conversation-view" v-else>
 				<div class="block-header block-header-default mp-chat-header">
 					<div class="mp-chat-buttons">
-						<button type="button" class="btn btn-sm btn-secondary" @click="state.close_chat_conversation()"><i class="fa fa-chevron-left mr-1"></i><lang-string lang-id="MOD_MP_CHAT_BACK"></lang-string></button>
+						<button type="button" class="btn btn-sm btn-secondary" @click="state.back_from_chat_conversation()"><i class="fa fa-chevron-left mr-1"></i><lang-string lang-id="MOD_MP_CHAT_BACK"></lang-string></button>
 						<button type="button" aria-haspopup="dialog" :aria-label="getLangString('MOD_MP_CHAT_TRANSLATION_TITLE')" class="btn btn-sm btn-primary mp-translation-button" :aria-pressed="state.is_chat_translation_enabled()" @click="state.show_chat_translation_modal()"><i class="fa fa-language"></i></button>
-						<button type="button" class="btn btn-sm btn-secondary mp-notifications-button" v-if="state.selected_chat_conversation?.conversation_kind !== 'polls' && state.selected_chat_conversation?.conversation_kind !== 'poll-discussion'" :aria-label="getLangString(state.is_chat_notifications_enabled() ? 'MOD_MP_CHAT_NOTIFICATIONS_ENABLED' : 'MOD_MP_CHAT_NOTIFICATIONS_DISABLED')" :aria-pressed="state.is_chat_notifications_enabled()" :disabled="state.chat_notifications_busy" @click="state.toggle_chat_notifications()"><i class="fa" :class="state.is_chat_notifications_enabled() ? 'fa-bell' : 'fa-bell-slash'" aria-hidden="true"></i></button>
+						<button type="button" class="btn btn-sm btn-secondary mp-notifications-button" v-if="state.selected_chat_conversation?.conversation_kind !== 'polls' && state.selected_chat_conversation?.conversation_kind !== 'poll-discussion' && state.selected_chat_conversation?.conversation_kind !== 'petition-discussion'" :aria-label="getLangString(state.is_chat_notifications_enabled() ? 'MOD_MP_CHAT_NOTIFICATIONS_ENABLED' : 'MOD_MP_CHAT_NOTIFICATIONS_DISABLED')" :aria-pressed="state.is_chat_notifications_enabled()" :disabled="state.chat_notifications_busy" @click="state.toggle_chat_notifications()"><i class="fa" :class="state.is_chat_notifications_enabled() ? 'fa-bell' : 'fa-bell-slash'" aria-hidden="true"></i></button>
 					</div>
 					<button type="button" class="mp-chat-participant" v-if="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private'" @click="state.show_chat_actions_modal()" aria-haspopup="dialog">
 						<img class="skill-icon-xs" :src="state.get_chat_participant_icon()">
@@ -606,6 +606,18 @@
 					<div class="mp-chat-participant" v-else>
 						<img class="skill-icon-xs" :src="state.get_chat_participant_icon()">
 						<span class="font-w600">{{ state.get_chat_participant_name() }}</span>
+					</div>
+				</div>
+				<div class="mp-petition-discussion-summary" v-if="state.selected_chat_conversation?.conversation_kind === 'petition-discussion'">
+					<div class="mp-petition-discussion-card" v-for="petition in (state.selected_chat_conversation?.petition ? [state.selected_chat_conversation.petition] : [])" :key="petition.petition_id">
+						<div class="mp-council-card-header"><span class="font-w600">{{ petition.type.startsWith('alliance_') ? state.alliance_proposal_heading(state.alliance_petition_kind(petition)) : state.get_council_type_lang(petition.type) }}</span></div>
+						<div class="mp-council-petition-description" v-if="!petition.type.startsWith('alliance_')"><em><lang-string :lang-id="state.get_council_description_lang_id(petition.type)"></lang-string></em></div>
+						<div class="mp-council-proposal" v-if="petition.type === 'appellation'"><strong>{{ petition.proposal.name }}</strong></div>
+						<div class="mp-council-proposal" v-else-if="petition.type === 'heraldry'"><img class="skill-icon-xs" :src="state.get_guild_icon(petition.proposal.icon_id)"></div>
+						<div class="mp-council-proposal mp-guild-person" v-else-if="petition.type === 'banishment'"><img class="skill-icon-xs" :src="state.get_avatar_icon(petition.proposal.target.icon_id)"><strong>{{ petition.proposal.target.display_name }}</strong></div>
+						<div class="mp-council-proposal" v-else-if="petition.type === 'winnowing'"><mp-lang-string-f lang-id="MOD_MP_COUNCIL_WINNOWING_TARGETS" :lang-arg-1="petition.proposal.target_count"></mp-lang-string-f></div>
+						<div class="mp-council-proposal" v-else-if="petition.type.startsWith('alliance_')"><div><span v-for="(part, index) in state.alliance_proposal_parts(petition.proposal, state.alliance_petition_kind(petition))" :key="index"><button type="button" class="mp-alliance-guild-name" v-if="part.guild_id" @click="state.preview_alliance_guild(part.guild_id)">{{ part.text }}</button><strong v-else-if="part.bold">{{ part.text }}</strong><span v-else>{{ part.text }}</span></span></div><div class="font-size-sm text-muted" v-if="state.alliance_petition_collective(petition)"><lang-string lang-id="MOD_MP_ALLIANCE_COLLECTIVE_HINT"></lang-string></div></div>
+						<div class="mp-council-proposal" v-else>{{ state.get_council_action_proposal(petition.type) }}</div>
 					</div>
 				</div>
 				<div class="font-w600 mp-poll-question mp-poll-discussion-question" v-if="state.selected_chat_conversation?.conversation_kind === 'poll-discussion' && state.selected_chat_conversation?.poll" v-text="state.get_chat_message_content(state.selected_chat_conversation?.poll)"></div>
@@ -627,7 +639,8 @@
 					<div class="mp-chat-message" :class="{ 'mp-chat-message-own': message.sent_by_viewer === true || (message.sent_by_viewer === undefined && message.sender_id === state.chat_client_id) }" v-for="message in state.chat_messages" :key="message.message_id">
 						<div class="mp-chat-message-meta"><button type="button" class="mp-chat-message-author" @click="state.show_chat_message_member(message)" :disabled="!message.sender_id"><img class="mp-chat-message-avatar" :src="state.get_chat_message_icon(message)" alt=""><span class="font-w600">{{ message.sender.display_name }}</span></button><button type="button" class="mp-chat-message-timestamp" @click="state.show_chat_message_actions(message)"><time :datetime="state.format_chat_datetime(message.created_at)">{{ state.format_chat_time(message.created_at) }}</time></button></div>
 						<div class="mp-chat-message-bubble">
-							<div class="mp-chat-message-content" :class="{ 'mp-chat-tagged': state.is_chat_message_tagged(message), 'mp-chat-message-translating': state.get_chat_message_content(message) === getLangString('MOD_MP_CHAT_TRANSLATING') }"><mp-chat-message-body :parts="state.get_chat_message_document(message)"></mp-chat-message-body></div>
+							<div class="mp-chat-message-content" v-if="message.petition_event === 'aye' || message.petition_event === 'nay'"><span class="badge" :class="message.petition_event === 'aye' ? 'badge-success' : 'badge-danger'"><lang-string :lang-id="message.petition_event === 'aye' ? 'MOD_MP_COUNCIL_AYE' : 'MOD_MP_COUNCIL_NAY'"></lang-string></span></div>
+							<div class="mp-chat-message-content" :class="{ 'mp-chat-tagged': state.is_chat_message_tagged(message), 'mp-chat-message-translating': state.get_chat_message_content(message) === getLangString('MOD_MP_CHAT_TRANSLATING') }" v-else><mp-chat-message-body :parts="state.get_chat_message_document(message)"></mp-chat-message-body></div>
 							<div class="mp-chat-reactions" :class="{ 'mp-chat-reactions-empty': !message.reactions?.length }">
 								<button type="button" class="mp-chat-reaction-summary" :class="{ 'mp-chat-reaction-reacted': summary.reacted }" :disabled="state.selected_chat_conversation?.conversation_kind === 'testers' && state.selected_chat_conversation?.can_send !== true" v-for="summary in message.reactions" :key="summary.reaction" @click="state.toggle_chat_reaction(message, summary.reaction)"><span>{{ summary.reaction }}</span><span>{{ summary.count }}</span></button>
 								<button type="button" class="mp-chat-reaction-add" v-if="message.message_id > 0 && (state.selected_chat_conversation?.conversation_kind !== 'testers' || state.selected_chat_conversation?.can_send)" :aria-label="state.get_chat_reaction_add_label()" :aria-expanded="state.chat_reaction_picker_message_id === message.message_id" @click="state.toggle_chat_reaction_picker(message, $event)">☻<span aria-hidden="true">+</span></button>
@@ -1209,6 +1222,7 @@
 									<span class="mp-council-card-badges" v-if="petition.current_vote || petition.lifecycle !== 'active'"><span class="badge" :class="petition.current_vote === 'aye' ? 'badge-success' : 'badge-danger'" v-if="petition.current_vote">{{ state.get_council_choice_lang(petition.current_vote) }}</span><span class="badge" v-if="petition.lifecycle !== 'active'" :class="petition.lifecycle === 'granted' ? 'badge-success' : 'badge-secondary'">{{ state.get_council_outcome_lang(petition.lifecycle) }}</span></span>
 									<div class="mp-council-actions" v-if="petition.can_vote"><button type="button" class="btn btn-sm btn-success" @click="state.vote_council_petition($event, petition, 'aye')"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_AYE"></lang-string></button><button type="button" class="btn btn-sm btn-danger" @click="state.vote_council_petition($event, petition, 'nay')"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_NAY"></lang-string></button></div>
 									<button type="button" class="btn btn-sm btn-outline-danger mt-2" v-if="petition.can_withdraw" @click="state.withdraw_council_petition($event, petition)"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_WITHDRAW"></lang-string></button>
+									<div class="mt-2" v-if="petition.petition_id > 0"><button type="button" class="btn btn-sm btn-primary" @click="state.open_petition_discussion(petition)"><lang-string lang-id="MOD_MP_POLLS_GO_DISCUSSION"></lang-string><span class="badge badge-primary ml-1" v-if="petition.discussion_unread_count > 0">{{ petition.discussion_unread_count }}</span></button></div>
 								</div>
 							</div>
 						</div>
@@ -1253,6 +1267,7 @@
 										<span class="mp-council-card-badges" v-if="petition.current_vote || petition.lifecycle !== 'active'"><span class="badge" :class="petition.current_vote === 'aye' ? 'badge-success' : 'badge-danger'" v-if="petition.current_vote">{{ state.get_council_choice_lang(petition.current_vote) }}</span><span class="badge" v-if="petition.lifecycle !== 'active'" :class="petition.lifecycle === 'granted' ? 'badge-success' : 'badge-secondary'">{{ state.get_council_outcome_lang(petition.lifecycle) }}</span></span>
 										<div class="mp-council-actions" v-if="petition.can_vote"><button type="button" class="btn btn-sm btn-success" @click="state.vote_council_petition($event, petition, 'aye')"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_AYE"></lang-string></button><button type="button" class="btn btn-sm btn-danger" @click="state.vote_council_petition($event, petition, 'nay')"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_NAY"></lang-string></button></div>
 										<button type="button" class="btn btn-sm btn-outline-danger mt-2" v-if="petition.can_withdraw" @click="state.withdraw_council_petition($event, petition)"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_WITHDRAW"></lang-string></button>
+										<div class="mt-2" v-if="petition.petition_id > 0"><button type="button" class="btn btn-sm btn-primary" @click="state.open_petition_discussion(petition)"><lang-string lang-id="MOD_MP_POLLS_GO_DISCUSSION"></lang-string><span class="badge badge-primary ml-1" v-if="petition.discussion_unread_count > 0">{{ petition.discussion_unread_count }}</span></button></div>
 									</div>
 								</div>
 								<div class="block-content text-center" v-show="state.council_has_more"><button type="button" class="btn btn-sm btn-secondary" :disabled="state.council_loading" @click="state.load_more_council_petitions($event)"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_LOAD_MORE"></lang-string></button></div>
@@ -1306,11 +1321,9 @@
 								<div class="mp-guild-result" v-for="guild in state.alliance_member_guilds" :key="guild.guild_id">
 									<img class="mp-guild-result-icon" :src="state.get_guild_icon(guild.icon_id)">
 									<div class="mp-guild-result-content">
-										<button type="button" class="mp-alliance-roster-name" @click="state.preview_alliance_guild(guild.guild_id)">{{ guild.name }}</button>
+										<button type="button" class="mp-alliance-roster-name" @click="state.preview_alliance_guild(guild.guild_id, false, true)">{{ guild.name }}</button>
 										<div><mp-lang-string-f :lang-id="guild.member_count === 1 ? 'MOD_MP_GUILD_MEMBER_COUNT_ONE' : 'MOD_MP_GUILD_MEMBER_COUNT'" :lang-arg-1="guild.member_count"></mp-lang-string-f></div>
 									</div>
-									<button type="button" class="btn btn-sm btn-outline-danger mb-2" v-if="guild.guild_id === state.guild_state.guild.guild_id" @click="state.show_alliance_confirmation('leave')"><lang-string lang-id="MOD_MP_ALLIANCE_LEAVE"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
-									<button type="button" class="btn btn-sm btn-outline-danger" v-if="state.alliance_member_guilds.length >= 3 && guild.guild_id !== state.guild_state.guild.guild_id" @click="state.show_alliance_confirmation('remove', guild.guild_id)"><lang-string lang-id="MOD_MP_ALLIANCE_REMOVE"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
 								</div>
 							</div>
 						</div>
@@ -2139,7 +2152,9 @@
 				<section class="mp-crucible-panel" aria-labelledby="mp-crucible-wishes-title">
 					<h3 id="mp-crucible-wishes-title" class="mp-crucible-panel-heading"><button type="button" class="mp-crucible-panel-toggle" :aria-expanded="state.crucible_panels_open.wishes" aria-controls="mp-crucible-wishes-body" @click="state.crucible_panels_open.wishes = !state.crucible_panels_open.wishes"><i class="fa fa-star" aria-hidden="true"></i><span><lang-string lang-id="MOD_MP_CRUCIBLE_WISHES"></lang-string></span><small>{{ state.crucible?.wishes?.length ?? 0 }}</small><i class="fa" :class="state.crucible_panels_open.wishes ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></button></h3>
 					<div id="mp-crucible-wishes-body" class="mp-crucible-panel-body" v-show="state.crucible_panels_open.wishes">
-						<p><lang-string lang-id="MOD_MP_CRUCIBLE_WISHES_INFO"></lang-string></p>
+						<p><lang-string lang-id="MOD_MP_CRUCIBLE_WISHES_INFO"></lang-string> <lang-string lang-id="MOD_MP_WISH_CAPACITY_DESCRIPTION"></lang-string></p>
+						<p class="mp-crucible-capacity-summary">{{ state.crucible_capacity_summary() }}</p>
+						<div class="mp-crucible-wish-form"><button type="button" class="btn btn-success mr-2" v-show="state.crucible?.is_open && !state.crucible?.active_wish" :disabled="state.crucible_busy" @click="state.show_crucible_wish_modal()"><lang-string lang-id="MOD_MP_CRUCIBLE_MAKE_WISH"></lang-string></button><button type="button" class="btn btn-secondary" :disabled="state.crucible_busy" @click="state.show_crucible_capacity_modal()"><lang-string lang-id="MOD_MP_WISH_MANAGE_CAPACITY"></lang-string></button></div>
 						<div class="mp-crucible-grid" v-show="state.crucible?.wishes?.length">
 							<button type="button" class="mp-crucible-slot mp-crucible-wish-slot" v-for="wish of (state.crucible?.wishes ?? [])" :key="wish.id" :class="{ 'mp-crucible-slot-selected': state.crucible_selected_wish_id === wish.id, 'mp-crucible-wish-ready': wish.phase === 'melded', 'mp-crucible-wish-mine': wish.owned, 'mp-crucible-wish-forming': wish.phase === 'forming' }" :aria-pressed="state.crucible_selected_wish_id === wish.id" :aria-label="state.get_item_name(wish.item_id) + ' ×' + formatNumber(wish.qty)" @click="state.crucible_select_wish(wish)">
 								<mp-item-icon :data-item-id="wish.item_id"><img :src="state.get_item_icon(wish.item_id)" alt="" draggable="false"></mp-item-icon>
@@ -2155,7 +2170,6 @@
 							<button type="button" class="btn btn-sm btn-danger" v-show="wish.owned && wish.phase === 'forming'" :disabled="state.crucible_busy" @click="state.crucible_cancel_wish()"><lang-string lang-id="MOD_MP_CRUCIBLE_CANCEL"></lang-string></button>
 							<button type="button" class="btn btn-sm btn-success" v-show="wish.owned && wish.phase === 'melded'" :disabled="state.crucible_busy" @click="state.crucible_claim_wish()"><lang-string lang-id="MOD_MP_CRUCIBLE_CLAIM"></lang-string></button>
 						</div>
-						<div class="mp-crucible-wish-form" v-show="state.crucible?.is_open && !state.crucible?.active_wish"><button type="button" class="btn btn-success" :disabled="state.crucible_busy" @click="state.show_crucible_wish_modal()"><lang-string lang-id="MOD_MP_CRUCIBLE_MAKE_WISH"></lang-string></button></div>
 					</div>
 				</section>
 				<section class="mp-crucible-panel mp-crucible-clearing" aria-labelledby="mp-crucible-clearing-title"><h3 id="mp-crucible-clearing-title" class="mp-crucible-panel-heading"><button type="button" class="mp-crucible-panel-toggle" :aria-expanded="state.crucible_panels_open.clearing" aria-controls="mp-crucible-clearing-body" @click="state.crucible_panels_open.clearing = !state.crucible_panels_open.clearing"><i class="fa fa-broom" aria-hidden="true"></i><span><lang-string lang-id="MOD_MP_CRUCIBLE_CLEARING_TITLE"></lang-string></span><i class="fa" :class="state.crucible_panels_open.clearing ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></button></h3><div id="mp-crucible-clearing-body" class="mp-crucible-panel-body" v-show="state.crucible_panels_open.clearing"><strong><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR_LEVEL" class="mp-crucible-inline-label"></lang-string>{{ state.crucible?.level ?? 0 }} / {{ state.crucible?.active_wish ? 10 : 20 }}</strong><p><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR_INFO"></lang-string></p><button type="button" class="btn btn-success mr-2" :disabled="state.crucible_busy || !state.crucible?.is_open || state.crucible?.level >= (state.crucible?.active_wish ? 10 : 20)" @click="state.crucible_clear(false)"><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR"></lang-string></button><button type="button" class="btn btn-secondary" :disabled="state.crucible_busy || !state.crucible?.is_open || state.crucible?.level >= (state.crucible?.active_wish ? 10 : 20)" @click="state.crucible_clear(true)"><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR_MAX"></lang-string></button></div></section>
@@ -2802,10 +2816,10 @@
 	</div>
 </template>
 <template id="template-mp-crucible-wish-modal">
-	<div class="mp-modal-text">
+	<div class="mp-modal-text mp-crucible-wish-content">
 		<p class="mp-crucible-wish-intro"><lang-string lang-id="MOD_MP_CRUCIBLE_WISH_INTRO"></lang-string></p>
-		<input id="mp-crucible-wish-search" class="form-control mb-3" type="search" :placeholder="getLangString('MOD_MP_CRUCIBLE_WISH_SEARCH')" autocomplete="off" v-model="state.crucible_wish_search">
-		<div id="mp-crucible-wish-item" class="mp-crucible-wish-grid mb-3" role="listbox" :aria-label="getLangString('MOD_MP_CRUCIBLE_WISH_ELIGIBLE_ITEMS')" @touchmove="state.stop_icon_scroll_propagation($event)">
+		<input id="mp-crucible-wish-search" class="form-control" type="search" :placeholder="getLangString('MOD_MP_CRUCIBLE_WISH_SEARCH')" autocomplete="off" v-model="state.crucible_wish_search">
+		<div id="mp-crucible-wish-item" class="mp-crucible-wish-grid" role="listbox" :aria-label="getLangString('MOD_MP_CRUCIBLE_WISH_ELIGIBLE_ITEMS')" @touchmove="state.stop_icon_scroll_propagation($event)">
 			<mp-item-icon v-for="item in state.filtered_crucible_wish_items" :key="item.id" class="mp-crucible-wish-tile" :class="{ 'mp-crucible-wish-tile-selected': state.crucible_wish_item_id === item.id }" :data-item-id="item.id" role="option" :aria-selected="state.crucible_wish_item_id === item.id" tabindex="0" @click="state.select_crucible_wish_item(item)" @keydown.enter="state.select_crucible_wish_item(item)" @keydown.space.prevent="state.select_crucible_wish_item(item)">
 				<img :src="state.get_item_icon(item.id)" :alt="item.name" draggable="false">
 				<span class="mp-crucible-wish-tile-name">{{ item.name }}</span>
@@ -2813,16 +2827,55 @@
 		</div>
 		<div class="mp-crucible-wish-selected-item-name">{{ state.crucible_wish_item_name }}</div>
 		<label id="mp-crucible-wish-qty-label" for="mp-crucible-wish-qty"><lang-string lang-id="MOD_MP_CRUCIBLE_WISH_QTY"></lang-string></label>
-		<div class="mp-crucible-wish-quantity" role="group" aria-labelledby="mp-crucible-wish-qty-label">
+		<div class="mp-crucible-wish-quantity" role="group" aria-labelledby="mp-crucible-wish-qty-label" @click.stop @dblclick.stop.prevent>
+			<button type="button" class="mp-crucible-wish-quantity-button mp-crucible-wish-quantity-jump" :aria-label="getLangString('MOD_MP_WISH_QUANTITY_MIN')" :title="getLangString('MOD_MP_WISH_QUANTITY_MIN')" @click="state.crucible_wish_qty = 1"><i class="fas fa-angle-double-left" aria-hidden="true"></i></button>
 			<button type="button" class="mp-crucible-wish-quantity-button" :aria-label="getLangString('MOD_MP_CRUCIBLE_WISH_DECREASE')" @click="state.adjust_crucible_wish_qty(-1)">−</button>
-			<input id="mp-crucible-wish-qty" class="mp-crucible-wish-quantity-input" type="number" min="1" max="100" step="1" inputmode="numeric" v-model="state.crucible_wish_qty">
+			<input id="mp-crucible-wish-qty" class="mp-crucible-wish-quantity-input" type="number" min="1" max="1000" step="1" inputmode="numeric" v-model="state.crucible_wish_qty">
 			<button type="button" class="mp-crucible-wish-quantity-button" :aria-label="getLangString('MOD_MP_CRUCIBLE_WISH_INCREASE')" @click="state.adjust_crucible_wish_qty(1)">+</button>
+			<button type="button" class="mp-crucible-wish-quantity-button mp-crucible-wish-quantity-jump" :aria-label="getLangString('MOD_MP_WISH_QUANTITY_FILL')" :title="getLangString('MOD_MP_WISH_QUANTITY_FILL')" @click="state.fill_crucible_wish_qty()"><i class="fas fa-angle-double-right" aria-hidden="true"></i></button>
 		</div>
-		<p class="mp-crucible-wish-requirement"><lang-string lang-id="MOD_MP_CRUCIBLE_WISH_REQUIREMENT"></lang-string> <strong>{{ formatNumber(state.crucible_wish_requirement) }} {{ state.market_currency_shorthand(null) }}</strong></p>
+		<div><p><lang-string lang-id="MOD_MP_WISH_CURRENT_CAPACITY"></lang-string>: {{ numberWithCommas(state.crucible_capacity.base ?? 100) }}</p><p class="mp-crucible-wish-hint"><lang-string lang-id="MOD_MP_WISH_OVER_CAPACITY_INFO"></lang-string></p></div>
+		<div class="mp-crucible-wish-totals">
+			<div class="mp-crucible-wish-total"><span><lang-string lang-id="MOD_MP_WISH_COST_LABEL"></lang-string></span><strong>{{ state.crucible_ep(state.crucible_wish_ep_micros) }} EP</strong><strong class="mp-crucible-wish-currency"><img :src="state.market_currency_icon(null)" alt="">{{ state.crucible_exact(state.crucible_wish_gp_cost) }} {{ state.market_currency_shorthand(null) }}</strong></div>
+			<div class="mp-crucible-wish-total"><span><lang-string lang-id="MOD_MP_CRUCIBLE_WISH_REQUIREMENT"></lang-string></span><strong class="mp-crucible-wish-currency"><img :src="state.market_currency_icon(null)" alt="">{{ state.crucible_exact(state.crucible_wish_requirement) }} {{ state.market_currency_shorthand(null) }}</strong></div>
+		</div>
 	</div>
 	<div class="mp-button-tray">
-		<button type="button" class="btn btn-success" :disabled="state.crucible_busy" @click="state.crucible_make_wish($event)"><div class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_CRUCIBLE_MAKE_WISH"></lang-string></button>
+		<button type="button" class="btn btn-success" :disabled="state.crucible_busy || !state.crucible_wish_affordable" @click="state.crucible_make_wish($event)"><div class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_CRUCIBLE_MAKE_WISH"></lang-string></button>
 		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
+	</div>
+</template>
+<template id="template-mp-crucible-capacity-modal">
+	<div class="mp-capacity-form">
+		<section class="mp-listing-card mp-capacity-stats">
+			<div><p class="mp-expedition-points"><lang-string lang-id="MOD_MP_WISH_CURRENT_CAPACITY"></lang-string><strong>{{ numberWithCommas(state.crucible_capacity.base ?? 100) }}</strong></p></div>
+			<div><p class="mp-expedition-points"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOUR_EP"></lang-string><strong>{{ state.expedition_points(state.crucible?.capacity?.points_micros) }}</strong></p></div>
+		</section>
+		<section class="mp-capacity-selection">
+			<h3 id="mp-capacity-selection-label"><lang-string lang-id="MOD_MP_WISH_SELECT_CAPACITY"></lang-string></h3>
+			<div class="mp-capacity-tiers" role="group" aria-labelledby="mp-capacity-selection-label">
+				<button type="button" v-for="tier in [100,200,300,400,500]" :key="tier" class="mp-listing-currency mp-capacity-tier" :class="{ 'mp-listing-currency-selected': state.crucible_capacity_base === tier }" :aria-pressed="state.crucible_capacity_base === tier" :disabled="state.crucible_busy || tier < (state.crucible_capacity.base ?? 100)" @click="state.crucible_capacity_base = tier">
+					<span class="mp-capacity-radio" aria-hidden="true"></span><strong>{{ tier }}</strong><span>{{ state.crucible_capacity_tier_cost(tier) }}</span>
+				</button>
+			</div>
+		</section>
+		<section class="mp-listing-card">
+			<h3><lang-string lang-id="MOD_MP_WISH_PAYMENT_SUMMARY"></lang-string></h3>
+			<div class="mp-capacity-stats">
+				<div><span><lang-string lang-id="MOD_MP_WISH_CREATION_COST"></lang-string></span><strong>{{ state.crucible_capacity_quote > 0 ? state.crucible_capacity_ep(state.crucible_capacity_quote) + ' EP' : '—' }}</strong></div>
+				<div><span><lang-string lang-id="MOD_MP_WISH_RECURRING_PRICE"></lang-string></span><strong>{{ state.crucible_capacity_ep(state.crucible_capacity_price(state.crucible_capacity_base)) }} EP</strong></div>
+			</div>
+		</section>
+		<section class="mp-listing-card">
+			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" :aria-checked="state.crucible_capacity_auto_renew" :disabled="state.crucible_busy || state.crucible_capacity_base === 100" @click.stop="state.crucible_capacity_auto_renew = !state.crucible_capacity_auto_renew"><span><lang-string lang-id="MOD_MP_WISH_AUTO_RENEW"></lang-string></span><span aria-hidden="true"></span></button>
+			<p class="mp-capacity-hint"><lang-string lang-id="MOD_MP_WISH_RENEWAL_QUOTE"></lang-string></p>
+			<p class="text-warning mp-capacity-hint" v-show="state.crucible?.capacity?.renewal_paused"><lang-string lang-id="MOD_MP_WISH_RENEWAL_PAUSED"></lang-string></p>
+		</section>
+		<section class="mp-listing-card mp-capacity-info"><i class="fas fa-info-circle" aria-hidden="true"></i><p><lang-string lang-id="MOD_MP_WISH_CAPACITY_INFO"></lang-string></p></section>
+		<div class="mp-listing-actions">
+			<button type="button" class="btn btn-success" :disabled="!state.crucible_capacity_can_confirm" @click="state.crucible_confirm_capacity()"><lang-string :lang-id="state.crucible_capacity_confirm_label"></lang-string></button>
+			<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
+		</div>
 	</div>
 </template>
 <template id="template-mp-crucible-clear-modal">
@@ -2883,7 +2936,11 @@
 			<div><dt><lang-string lang-id="MOD_MP_GUILD_MARKET_DISCOVERY_POLICY"></lang-string></dt><dd><lang-string :lang-id="state.alliance_preview.market_discovery_restriction_enabled ? 'MOD_MP_GUILD_POLICY_DISCOVERED' : 'MOD_MP_GUILD_POLICY_UNRESTRICTED'"></lang-string></dd></div>
 		</dl>
 	</div>
-	<div class="mp-button-tray mt-3"><button class="btn btn-secondary" @click="state.close_alliance_preview()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button></div>
+	<div class="mp-button-tray mt-3">
+		<button type="button" class="btn btn-outline-danger" v-if="state.alliance_preview_can_leave()" @click="state.show_alliance_preview_confirmation('leave')"><lang-string lang-id="MOD_MP_ALLIANCE_LEAVE"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+		<button type="button" class="btn btn-outline-danger" v-if="state.alliance_preview_can_remove()" @click="state.show_alliance_preview_confirmation('remove')"><lang-string lang-id="MOD_MP_ALLIANCE_REMOVE"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+		<button class="btn btn-secondary" @click="state.close_alliance_preview()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
+	</div>
 </template>
 
 

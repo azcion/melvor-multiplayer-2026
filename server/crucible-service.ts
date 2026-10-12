@@ -1,10 +1,12 @@
+import { maintain_wish_capacities } from './wish-capacity';
+import { create_gloop_custody, custody_at, move_location, allocate_wish_funding, record_dependency, type FundingOrigin } from './economy-custody';
 import type { Database } from 'bun:sqlite';
 import { db } from './db';
 import { create_audit_lot, move_audit_value_with_fallback, record_audit_event } from './audit';
 import type * as db_row from './db/types/db_types';
 import { CRUCIBLE_GLOOP_ID, CRUCIBLE_PROGRESS_MAX, crucible_estimated_completion_at,
 	crucible_gloop_quantity, crucible_heat, crucible_heat_value, crucible_stack_value,
-	safe_crucible_add } from './crucible-values';
+	safe_crucible_add, crucible_unit_value } from './crucible-values';
 
 const MINUTE_MS = 60_000;
 const WISH_DELIVERY_MS = 20 * 60 * MINUTE_MS;
@@ -28,8 +30,8 @@ function heat_for_offerings(rows: Offering[]): { value: number; tier: number; po
 	return { value, ...crucible_heat(value) };
 }
 
-function add_gloop(guild_id: number, quantity: number, now: number, database: Database): void {
-	if (quantity <= 0) return;
+function add_gloop(guild_id: number, quantity: number, now: number, database: Database): number | null {
+	if (quantity <= 0) return null;
 	const prior = database.query<Offering, [number, string]>(
 		'SELECT * FROM crucible_offerings WHERE guild_id = ? AND item_id = ?'
 	).get(guild_id, CRUCIBLE_GLOOP_ID);
@@ -40,6 +42,7 @@ function add_gloop(guild_id: number, quantity: number, now: number, database: Da
 		database.query('INSERT INTO crucible_offerings (guild_id, item_id, qty, ' +
 			'created_at, refreshed_at, is_untimed, valuation_source) VALUES (?, ?, ?, ?, ?, 1, ?)')
 			.run(guild_id, CRUCIBLE_GLOOP_ID, quantity, now, now, 'server');
+	return database.query<{id:number},[number,string]>('SELECT id FROM crucible_offerings WHERE guild_id=? AND item_id=?').get(guild_id,CRUCIBLE_GLOOP_ID)!.id;
 }
 
 function mark_melded_wishes(guild_id: number, now: number, database: Database): void {
@@ -49,7 +52,7 @@ function mark_melded_wishes(guild_id: number, now: number, database: Database): 
 }
 
 function distribute_once(guild_id: number, value: bigint, now: number, database: Database,
-	filter: (wish: Wish) => boolean): bigint {
+	filter: (wish: Wish) => boolean, origins: FundingOrigin[]): bigint {
 	let remaining = value;
 	while (remaining > 0n) {
 		const candidates = active_wishes(guild_id, database).filter(wish =>
@@ -64,6 +67,7 @@ function distribute_once(guild_id: number, value: bigint, now: number, database:
 			const amount = share < available ? share : available;
 			const capped = amount < budget ? amount : budget;
 			if (capped === 0n) continue;
+			allocate_wish_funding(database,wish.id,Number(capped),origins,now,'distribution');
 			database.query('UPDATE crucible_wishes SET progress_gp = progress_gp + ? WHERE id = ?')
 				.run(Number(capped), wish.id);
 			granted += capped;
@@ -76,13 +80,16 @@ function distribute_once(guild_id: number, value: bigint, now: number, database:
 }
 
 export function distribute_crucible_value(guild_id: number, value: number, now: number,
-	preferred_client_ids: ReadonlySet<number> = new Set(), database: Database = db): number {
+	preferred_client_ids: ReadonlySet<number> = new Set(), database: Database = db,
+	origins: FundingOrigin[] = [{root_key:null,amount_gp:value}]): number {
+	if (!Number.isSafeInteger(value) || value < 0 || origins.reduce((sum,o)=>sum+BigInt(o.amount_gp),0n)!==BigInt(value))
+		throw new RangeError('Invalid funding origin total');
 	let remaining = BigInt(value);
 	if (preferred_client_ids.size > 0)
 		remaining = distribute_once(guild_id, remaining, now, database,
-			wish => preferred_client_ids.has(wish.owner_client_id));
+			wish => preferred_client_ids.has(wish.owner_client_id),origins);
 	remaining = distribute_once(guild_id, remaining, now, database,
-		wish => !preferred_client_ids.has(wish.owner_client_id));
+		wish => !preferred_client_ids.has(wish.owner_client_id),origins);
 	return Number(remaining);
 }
 
@@ -91,7 +98,21 @@ function meld_offering(row: Offering, now: number, database: Database): void {
 		'SELECT DISTINCT client_id FROM crucible_contribution_lots WHERE offering_id = ?'
 	).all(row.id).map(lot => lot.client_id));
 	const value = crucible_stack_value(row.qty, row);
-	const residual = distribute_crucible_value(row.guild_id, value, now, contributor_ids, database);
+	const lots = database.query<{id:number},[number]>('SELECT id FROM crucible_contribution_lots WHERE offering_id=? ORDER BY contributed_at,id').all(row.id);
+	const origins: FundingOrigin[] = [];
+	for (const lot of lots) for (const root of custody_at(database,`crucible-lot:${lot.id}`)) {
+		const amount_gp=Number(BigInt(root.quantity)*BigInt(crucible_unit_value(row)));
+		origins.push({root_key:root.root_key,amount_gp});
+		record_dependency(database,root.root_key,'meld-valuation',amount_gp,{offering_id:row.id,generation:row.generation,guild_id:row.guild_id,
+			source_qty:root.quantity,unit_value:crucible_unit_value(row),value_currency_id:row.value_currency_id,value_per_item:row.value_per_item,valuation_source:row.valuation_source,now});
+	}
+
+	const known = origins.reduce((sum,o)=>sum+BigInt(o.amount_gp),0n);
+	if (known > BigInt(value)) throw new Error('Meld origins exceed offering value');
+	if (known < BigInt(value)) origins.unshift({root_key:null,amount_gp:Number(BigInt(value)-known)});
+	const residual = distribute_crucible_value(row.guild_id, value, now, contributor_ids, database,origins);
+	for (const lot of lots) move_location(database,`crucible-lot:${lot.id}`,'consumed:meld',now,'meld');
+
 	const gloop_qty = crucible_gloop_quantity(residual);
 	const event_id = record_audit_event({ event_type: 'crucible.offering_melded',
 		source_key: `crucible-meld:${row.id}:${row.generation}`, actor: { kind: 'system' },
@@ -107,12 +128,13 @@ function meld_offering(row: Offering, now: number, database: Database): void {
 	if (gloop_qty > 0)
 		create_audit_lot(event_id, CRUCIBLE_GLOOP_ID, gloop_qty, 'crucible', String(row.guild_id), database);
 	database.query('DELETE FROM crucible_offerings WHERE id = ?').run(row.id);
-	add_gloop(row.guild_id, gloop_qty, now, database);
+	const gloop_id=add_gloop(row.guild_id, gloop_qty, now, database);
+	if(gloop_id!==null) create_gloop_custody(database,gloop_id,origins,`meld:${row.id}:${row.generation}`,row.guild_id,now);
 }
 
 function deliver_due_wishes(guild_id: number, now: number, database: Database): void {
 	const due = database.query<Wish, [number, number]>(
-		'SELECT * FROM crucible_wishes WHERE guild_id = ? AND auto_deliver_at <= ? ORDER BY id'
+		'SELECT * FROM crucible_wishes WHERE guild_id = ? AND auto_deliver_at <= ? AND formation_points >= 10080 AND progress_gp >= required_gp ORDER BY id'
 	).all(guild_id, now);
 	for (const wish of due) {
 		const event_id = record_audit_event({ event_type: 'crucible.wish_delivered',
@@ -128,6 +150,7 @@ function deliver_due_wishes(guild_id: number, now: number, database: Database): 
 			'VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (client_id, source_type, source_name, item_id) ' +
 			'DO UPDATE SET qty = qty + excluded.qty, updated_at = excluded.updated_at')
 			.run(wish.owner_client_id, 'crucible', 'Wish Granted', wish.item_id, wish.qty, now, now);
+		record_dependency(database,null,'wish-delivered',wish.qty,{wish_id:wish.id,client_id:wish.owner_client_id});
 		database.query('DELETE FROM crucible_wishes WHERE id = ?').run(wish.id);
 	}
 }
@@ -182,6 +205,7 @@ export function reconcile_crucible(guild_id: number, now = Date.now(), database:
 
 /** Advances a bounded set of lagging Guilds; repeated runs drain long recovery backlogs. */
 export function maintain_crucibles(now = Date.now(), limit = 100, database: Database = db): number {
+	maintain_wish_capacities(database, now);
 	const target = Math.floor(now / MINUTE_MS);
 	const guilds = database.query<{ guild_id: number }, [number, number]>(
 		'SELECT guild_id FROM crucible_guilds WHERE processed_minute < ? ' +

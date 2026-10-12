@@ -2,13 +2,25 @@ import { describe, expect, test } from 'bun:test';
 import { Database } from 'bun:sqlite';
 import {
 	get_petition_conflict_subject,
+	petition_expiry,
 	get_petition_resolution,
 	is_petition_choice,
 	is_petition_type
 } from '../../council';
 import { migrations } from '../../db/schema';
+import { create_test_database } from '../support/database';
 
 describe('Council petition rules', () => {
+	test('Free Fellowship keeps the inactivity deadline within 36 hours of creation', () => {
+		const hour = 3600000, created = 1000000000;
+		expect(petition_expiry('free_fellowship', created, created)).toBe(created + 24 * hour);
+		expect(petition_expiry('free_fellowship', created, created + 5 * hour)).toBe(created + 29 * hour);
+		expect(petition_expiry('free_fellowship', created, created + 12 * hour)).toBe(created + 36 * hour);
+		expect(petition_expiry('free_fellowship', created, created + 35 * hour)).toBe(created + 36 * hour);
+		for (const type of ['public', 'private', undefined])
+			expect(petition_expiry(type, created, created + 35 * hour)).toBe(created + 59 * hour);
+	});
+
 	test('grants at exactly half of an even electorate', () => {
 		expect(get_petition_resolution(4, 1, 0)).toBeNull();
 		expect(get_petition_resolution(4, 2, 0)).toBe('granted');
@@ -362,4 +374,26 @@ describe('Council petition rules', () => {
 		expect(database.query('PRAGMA foreign_key_check').all()).toEqual([]);
 		database.close();
 	});
+});
+
+
+test('Free Fellowship deadline migration clamps only active Fellowship petitions', () => {
+	const database = create_test_database();
+	try {
+		const fellowship = database.query<{ id: number }, []>("SELECT id FROM guilds WHERE type='free_fellowship'").get()!.id;
+		const other = Number(database.query("INSERT INTO guilds(name,icon_id,created_at) VALUES('Deadline Guild','melvorD:Plant',100)").run().lastInsertRowid);
+		const client = Number(database.query("INSERT INTO clients(client_identifier,client_key,friend_code,display_name,icon_id) VALUES('deadline','key','deadline-friend','Voter','melvorD:Plant')").run().lastInsertRowid);
+		const hour = 3600000, created = 1000000000;
+		for (const [index, guild, lifecycle, hours] of [[1,fellowship,'active',50],[2,fellowship,'active',24],[3,fellowship,'granted',50],[4,other,'active',50]] as const) {
+			database.query(`INSERT INTO guild_petitions(id,guild_id,guild_name,type,conflict_subject,petitioner_id,created_at,expires_at,lifecycle,subject_locked)
+				VALUES(?,?,'Deadline','interdict',?,?,?, ?,?,0)`)
+				.run(index,guild,`deadline:${index}`,client,created,created+hours*hour,lifecycle);
+		}
+		database.run(migrations.find(m=>m.version===182)!.sql);
+		expect(database.query('SELECT id,expires_at FROM guild_petitions ORDER BY id').all()).toEqual([
+			{id:1,expires_at:created+36*hour}, {id:2,expires_at:created+24*hour},
+			{id:3,expires_at:created+50*hour}, {id:4,expires_at:created+50*hour}
+		]);
+		expect(database.query('PRAGMA foreign_key_check').all()).toEqual([]);
+	} finally { database.close(); }
 });

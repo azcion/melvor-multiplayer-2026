@@ -49,3 +49,17 @@ export function get_crucible_reclaim_quantity(offering, options) {
 	}
 	return low;
 }
+
+// Integer milli-EP quotes; the server validates the exact quote before any payment.
+export function wish_price_micros(qty, base = 100) {
+	if (!Number.isSafeInteger(qty) || qty < 1 || qty > 1000 || ![100,200,300,400,500].includes(base)) return 0;
+	if (qty <= base) return Math.ceil(qty * 1000 / base) * 1000;
+	const steps = Math.floor((qty - base) / 100);
+	const remainder = (qty - base) % 100;
+	// Each remaining item costs 1/100 of the next increment. Integer micros
+	// are already exact multiples of 0.001 EP for these +100 price bands.
+	return (1 + steps * (steps + 3) / 2) * 1_000_000 + remainder * (steps + 2) * 10_000;
+}
+export function wish_gp_cost(required) {
+	return Number.isSafeInteger(required) && required > 0 ? Number((BigInt(required) + 1n) / 2n) : 0;
+}

@@ -79,7 +79,7 @@ test('keeps identity and Chat modal branches safe while their previous view tear
 test('uses informational alerts after automatic creation, cancellation, and recovery', async () => {
 	const { main, templates, language } = await sources();
 
-	assert.match(main, /activate_multiplayer_identity\(registration\.json\);[\s\S]*queue_identity_notice\('account_changed'\)/);
+	assert.match(main, /activate_multiplayer_identity\(registration\.json, registration\.timing\);[\s\S]*queue_identity_notice\('account_changed'\)/);
 	assert.match(main, /auth\.json\.deletion_cancelled[\s\S]*queue_identity_notice\('deletion_cancelled'/);
 	assert.match(main, /auth\.json\.identity_recovered[\s\S]*queue_identity_notice\('recovered'\)/);
 	assert.match(templates, /template-mp-identity-account-changed-modal/);

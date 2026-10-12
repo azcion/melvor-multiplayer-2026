@@ -1,4 +1,12 @@
 export const PETITION_LIFETIME = 1000 * 60 * 60 * 24;
+export const FREE_FELLOWSHIP_PETITION_MAX_LIFETIME = 1000 * 60 * 60 * 36;
+
+export function petition_expiry(guild_type: string | undefined, created_at: number, last_activity_at: number): number {
+	const inactivity_deadline = last_activity_at + PETITION_LIFETIME;
+	return guild_type === 'free_fellowship'
+		? Math.min(inactivity_deadline, created_at + FREE_FELLOWSHIP_PETITION_MAX_LIFETIME)
+		: inactivity_deadline;
+}
 export const COUNCIL_HISTORY_PAGE_SIZE = 20;
 export const COUNCIL_MAINTENANCE_INTERVAL = 1000 * 30;
 export const PETITION_RUNNING_STALE_AFTER = 1000 * 60 * 5;

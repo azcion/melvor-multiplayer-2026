@@ -1,4 +1,19 @@
+import { petition_discussion_unread_count } from './petition-discussions';
+import { resolve_active_mods, stored_active_mods, matches_active_mod, KNOWN_MODS, type ActiveMod } from './active-mods';
+import { get_inbox_claim_view } from './inbox';
+import { guard_rollback_write, related_rollback_gate, rollback_request_clients, unsafe_rollback_request, RollbackGateError } from './rollback-gate';
+import { install_database_write_guard } from './audit-context';
+import { evaluate_rollback_admission } from './rollback-admission';
+import { rollback_player_status } from './rollback-policy';
+import { market_correction_cache_clients } from './market-custody';
+import { trade_correction_cache_clients } from './trade-custody';
+import { parse_protocol_capabilities, SAVE_ROLLBACK_CAPABILITY } from './rollback-protocol';
+import { move_trade_item } from './trade-custody';
+import { cancel_market_client, listing_return_items, haggle_claim_position } from './market-custody';
+import { move_custody_fifo } from './economy-custody';
+import { record_economy_operation } from './save-rollback';
 import { CHEAT_MOD_NAMES } from './mod_names';
+import { parse_loaded_save, type LoadedSaveReport } from './character-save-loads';
 import { can_cast_council_vote, council_voter_count, resolve_council_vote } from './council-voting';
 import { register_page_read } from './page-reads';
 import { record_pending_exchange } from './transfer-history';
@@ -190,19 +205,31 @@ export {
 } from './pets';
 
 
+install_database_write_guard(guard_rollback_write);
+
 // #region TYPES
 export type SessionRequestHandler = (req: Request, url: URL, client_id: number, json: JsonObject) => HandlerReturnType;
 export type SessionBinaryRequestHandler = (req: Request, url: URL, client_id: number) => HandlerReturnType;
-export type CachedSession = { client_id: number, mod_version: string | null, device_diagnostics?: DeviceDiagnostics | null, last_access: number };
+export type CachedSession = {
+	rollback_capable: boolean;
+	save_load_id: number | null;
+	client_id: number;
+	mod_version: string | null;
+	device_diagnostics?: DeviceDiagnostics | null;
+	last_access: number;
+};
 
 export const OWNED_DLC_NAMESPACES = ['melvorTotH', 'melvorAoD', 'melvorItA'] as const;
 export type OwnedDlcNamespace = typeof OWNED_DLC_NAMESPACES[number];
 const OWNED_DLC_NAMESPACE_SET = new Set<string>(OWNED_DLC_NAMESPACES);
 
 export type ClientRuntime = {
+	capabilities: string[];
+	loaded_save?: LoadedSaveReport;
 	device: DeviceDiagnostics | null;
 	mod_version: string;
 	active_mods: string[];
+	active_mod_details?: ActiveMod[];
 	game_mode_id: string | null;
 	language: string | null;
 	owned_dlc: OwnedDlcNamespace[];
@@ -704,6 +731,10 @@ export function parse_client_runtime(value: unknown): ClientRuntime | null | und
 		return null;
 
 	const runtime = value as Record<string, unknown>;
+	const capabilities = parse_protocol_capabilities(runtime.capabilities);
+	if (capabilities === null) return null;
+	const loaded_save = parse_loaded_save(runtime.loaded_save);
+	if (loaded_save === null) return null;
 	const mod_version = runtime.mod_version;
 	if (typeof mod_version !== 'string' || mod_version.length === 0 ||
 		mod_version.length > MAX_MOD_VERSION_LENGTH || !/^[0-9A-Za-z](?:[0-9A-Za-z.-]*[0-9A-Za-z])?$/.test(mod_version))
@@ -749,27 +780,33 @@ export function parse_client_runtime(value: unknown): ClientRuntime | null | und
 			owned_dlc.push(namespace as OwnedDlcNamespace);
 	}
 
-	return { device: parse_device_diagnostics(runtime.device), mod_version, active_mods, game_mode_id: game_mode_id ?? null, language: language ?? null, owned_dlc };
+	return { capabilities, device: parse_device_diagnostics(runtime.device), mod_version, active_mods, active_mod_details: runtime.active_mod_details === undefined ? undefined : resolve_active_mods(active_mods, runtime.active_mod_details), game_mode_id: game_mode_id ?? null, language: language ?? null, owned_dlc,
+		...(loaded_save === undefined ? {} : { loaded_save }) };
 }
 
 export function persist_client_runtime(client_id: number, runtime: ClientRuntime | undefined, now = Date.now()): void {
 	if (runtime === undefined)
 		return;
+	const prior = db.query<{ active_mods: string; active_mod_details: string }, [number]>(
+		'SELECT active_mods, active_mod_details FROM client_runtime_snapshots WHERE client_id=?'
+	).get(client_id);
+	const mods = resolve_active_mods(runtime.active_mods, runtime.active_mod_details,
+		prior ? stored_active_mods(prior.active_mods, prior.active_mod_details) : []);
 	db.query(
-		'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `game_mode_id`, `language`, `owned_dlc`, `reported_at`) ' +
-		'VALUES(?, ?, ?, ?, ?, ?, ?) ON CONFLICT (`client_id`) DO UPDATE SET ' +
+		'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `game_mode_id`, `language`, `owned_dlc`, `reported_at`, `capabilities`, `active_mod_details`) ' +
+		'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (`client_id`) DO UPDATE SET ' +
 		'`mod_version` = excluded.`mod_version`, `active_mods` = excluded.`active_mods`, ' +
 		'`game_mode_id` = excluded.`game_mode_id`, `language` = excluded.`language`, ' +
-		'`owned_dlc` = excluded.`owned_dlc`, `reported_at` = excluded.`reported_at`'
+		'`owned_dlc` = excluded.`owned_dlc`, `reported_at` = excluded.`reported_at`, `capabilities` = excluded.`capabilities`, `active_mod_details` = excluded.`active_mod_details`'
 	).run(client_id, runtime.mod_version, JSON.stringify(runtime.active_mods), runtime.game_mode_id, runtime.language,
-		JSON.stringify(runtime.owned_dlc), now);
-	const cheat_mods = runtime.active_mods.filter(mod_name => CHEAT_MOD_NAMES.has(mod_name));
+		JSON.stringify(runtime.owned_dlc), now, JSON.stringify(runtime.capabilities), JSON.stringify(mods));
+	const cheat_mods = KNOWN_MODS.filter(known => known.cheat && mods.some(mod => matches_active_mod(mod, known.id, known.name)));
 	if (cheat_mods.length > 0) {
 		db.transaction(() => {
 			db.query('UPDATE `clients` SET `cheats_detected_at` = ? WHERE `id` = ?').run(now, client_id);
-			const save = db.query('INSERT INTO client_cheat_mod_detections (client_id, mod_name, detected_at) ' +
-				'VALUES (?, ?, ?) ON CONFLICT(client_id, mod_name) DO UPDATE SET detected_at = excluded.detected_at');
-			for (const mod_name of cheat_mods) save.run(client_id, mod_name, now);
+			const save = db.query('INSERT INTO client_cheat_mod_detections (client_id, mod_name, detected_at, mod_id) ' +
+				'VALUES (?, ?, ?, ?) ON CONFLICT(client_id, mod_name) DO UPDATE SET detected_at = excluded.detected_at, mod_id = excluded.mod_id');
+			for (const mod of cheat_mods) save.run(client_id, mod.name, now, mod.id);
 		})();
 	}
 	cleanup_market_permissions();
@@ -1128,61 +1165,28 @@ export function apply_banishment_target(
 			return { effect: 'already_absent' as const, dissolved: false, trade_ids: [] as number[] };
 
 		const target_return_id = ensure_banishment_return(petition, target_client_id, true, now);
-		const active_haggles = db.query<db_row.market_haggles, [number, number]>(
-			'SELECT * FROM `market_haggles` WHERE `status` = \'active\' AND (`initiator_id` = ? OR `owner_id` = ?)'
-		).all(target_client_id, target_client_id);
-		for (const haggle of active_haggles) {
-			db.query(
-				'UPDATE `market_haggles` SET `status` = \'cancelled\', `turn_client_id` = NULL, `expires_at` = NULL, ' +
-				'`terminal_at` = ?, `updated_at` = ? WHERE `id` = ? AND `status` = \'active\''
-			).run(now, now, haggle.id);
-			if (haggle.listing_id !== null)
-				db.query(
-					'UPDATE `market_items` SET `available` = `available` + ?, `reserved` = `reserved` - ?, ' +
-					'`escrow_gp` = `escrow_gp` + ?, `updated_at` = ? WHERE `id` = ?'
-				).run(haggle.item_qty, haggle.item_qty, haggle.listing_reserved_gp, now, haggle.listing_id);
-			if (haggle.direction === 'sell')
-				db.query('INSERT OR IGNORE INTO `market_haggle_claims` (`haggle_id`, `client_id`, `gp`) VALUES(?, ?, ?)')
-					.run(haggle.id, haggle.initiator_id, haggle.payer_escrow_gp);
-			else {
-				db.query(
-					'INSERT OR IGNORE INTO `market_haggle_claims` (`haggle_id`, `client_id`, `item_id`, `item_qty`) VALUES(?, ?, ?, ?)'
-				).run(haggle.id, haggle.initiator_id, haggle.item_id, haggle.item_qty);
-				const extra_gp = Math.max(haggle.payer_escrow_gp - haggle.listing_reserved_gp, 0);
-				if (extra_gp > 0)
-					db.query('INSERT OR IGNORE INTO `market_haggle_claims` (`haggle_id`, `client_id`, `gp`) VALUES(?, ?, ?)')
-						.run(haggle.id, haggle.owner_id, extra_gp);
-			}
-		}
+		cancel_market_client(db,target_client_id,now);
 		const target_haggle_claims = db.query<db_row.market_haggle_claims, [number]>(
 			'SELECT * FROM `market_haggle_claims` WHERE `client_id` = ? AND `claimed_at` IS NULL'
 		).all(target_client_id);
-		for (const claim of target_haggle_claims) {
-			if (claim.item_id !== null)
-				add_banishment_return_item(target_return_id, claim.item_id, claim.item_qty);
-			if (claim.gp > 0) {
-				const currency_id = db.query<{ currency_id: string }, [string]>('SELECT currency_id FROM market_haggles WHERE id=?').get(claim.haggle_id)!.currency_id;
-				if (currency_id === 'melvorD:GP')
-					db.query('UPDATE `banishment_returns` SET `gp` = `gp` + ? WHERE `id` = ?').run(claim.gp, target_return_id);
-				else add_banishment_return_item(target_return_id, currency_id, claim.gp);
-			}
-			db.query('UPDATE `market_haggle_claims` SET `claimed_at` = ? WHERE `haggle_id` = ? AND `client_id` = ?')
-				.run(now, claim.haggle_id, target_client_id);
+		const add_market_return=(item:string,qty:number,from:string)=>{
+			if(qty<=0) return;
+			if(item==='melvorD:GP') {
+				const gp=db.query<{gp:number},[number]>('SELECT gp FROM banishment_returns WHERE id=?').get(target_return_id)!.gp;
+				if(BigInt(gp)+BigInt(qty)>BigInt(Number.MAX_SAFE_INTEGER)) throw new RangeError('Banishment return exceeds safe integer');
+				db.query('UPDATE banishment_returns SET gp=gp+? WHERE id=?').run(qty,target_return_id);
+			} else add_banishment_return_item(target_return_id,item,qty);
+			move_custody_fifo(db,from,`banishment-return:${target_return_id}:${item}`,qty,now,'market-banishment-return');
+		};
+		for(const claim of target_haggle_claims) {
+			if(claim.item_id!==null) add_market_return(claim.item_id,claim.item_qty,haggle_claim_position(claim.haggle_id,target_client_id,claim.item_id));
+			const currency=db.query<{currency_id:string},[string]>('SELECT currency_id FROM market_haggles WHERE id=?').get(claim.haggle_id)!.currency_id;
+			add_market_return(currency,claim.gp,haggle_claim_position(claim.haggle_id,target_client_id,currency));
+			db.query('UPDATE market_haggle_claims SET claimed_at=? WHERE haggle_id=? AND client_id=?').run(now,claim.haggle_id,target_client_id);
 		}
-		const market_items = db.query(
-			'SELECT * FROM `market_items` WHERE `client_id` = ? AND `guild_id` = ?'
-		).all(target_client_id, petition.guild_id) as db_row.market_items[];
-		let gp = 0;
-		for (const item of market_items) {
-			if (item.direction === 'buy')
-				gp += item.escrow_gp;
-			else {
-				add_banishment_return_item(target_return_id, item.item_id, item.available);
-				gp += Math.max((item.qty - item.available - item.reserved - item.haggled) * item.price - item.price_adjustment - item.payout, 0);
-			}
-		}
-		if (gp > 0)
-			db.query('UPDATE `banishment_returns` SET `gp` = `gp` + ? WHERE `id` = ?').run(gp, target_return_id);
+		const market_items=db.query<db_row.market_items,[number,number]>('SELECT * FROM market_items WHERE client_id=? AND guild_id=?').all(target_client_id,petition.guild_id);
+		for(const lot of market_items) for(const item of listing_return_items(lot)) add_market_return(item.item_id,item.qty,item.from);
+
 		db.query('DELETE FROM `market_items` WHERE `client_id` = ? AND `guild_id` = ?').run(
 			target_client_id,
 			petition.guild_id
@@ -1204,6 +1208,7 @@ export function apply_banishment_target(
 					now
 				);
 				add_banishment_return_item(return_id, item.item_id, item.qty);
+				move_trade_item(db,item,`banishment-return:${return_id}:${item.item_id}`,now);
 			}
 			record_pending_exchange(db, 'trade', trade.trade_id, 'trade-cancel', now);
 			db.query('DELETE FROM `trade_items` WHERE `trade_id` = ?').run(trade.trade_id);
@@ -2303,6 +2308,7 @@ export function petition_to_player_view(row: CouncilPetitionRow, client_id: numb
 
 	return {
 		petition_id: row.id,
+		discussion_unread_count: petition_discussion_unread_count(client_id, row.id),
 		type: row.type,
 		proposal,
 		created_at: row.created_at,
@@ -2330,7 +2336,7 @@ export function petition_to_player_view(row: CouncilPetitionRow, client_id: numb
 }
 
 export async function get_council_petitions(guild_id: number, client_id: number, resolved_page: number,
-	crucible_client = false, alliance_client = false, free_fellowship_council = alliance_client) {
+	crucible_client = false, alliance_client = false, free_fellowship_council = alliance_client, petition_discussions = false) {
 	if (!free_fellowship_council && await get_guild_type(guild_id) === FREE_FELLOWSHIP_TYPE)
 		return { petitions: [], available_petition_types: [], market_discovery_restriction_enabled: false,
 			resolved_page, has_more: false };
@@ -2351,7 +2357,7 @@ export async function get_council_petitions(guild_id: number, client_id: number,
 		[client_id, client_id, guild_id]
 	) as CouncilPetitionRow[];
 	const resolved = await db_get_all(
-		select + "WHERE p.`guild_id` = ? AND p.`lifecycle` IN ('granted', 'denied', 'lapsed')" + excluded + ' ' +
+		select + "WHERE p.`guild_id` = ? AND p.`lifecycle` IN ('granted', 'denied', 'lapsed'" + (petition_discussions ? ", 'withdrawn'" : "") + ")" + excluded + ' ' +
 		'ORDER BY p.`resolved_at` DESC, p.`id` DESC LIMIT ? OFFSET ?',
 		[
 			client_id,
@@ -2485,7 +2491,9 @@ export function create_banishment_claim(
 				returned.notice_pending,
 				Date.now()
 			);
+			if(claimed_gp>0) move_custody_fifo(db,`banishment-return:${returned.id}:melvorD:GP`,`protected:banishment-claim:${claim_id}`,claimed_gp,Date.now(),'banishment-claim-created');
 			for (const item of selected_items) {
+				move_custody_fifo(db,`banishment-return:${returned.id}:${item.item_id}`,`protected:banishment-claim:${claim_id}`,item.qty,Date.now(),'banishment-claim-created');
 				db.query(
 					'INSERT INTO `banishment_return_claim_items` (`claim_id`, `item_id`, `qty`) VALUES(?, ?, ?)'
 				).run(claim_id, item.item_id, item.qty);
@@ -2496,6 +2504,9 @@ export function create_banishment_claim(
 			db.query(
 				'UPDATE `banishment_returns` SET `gp` = `gp` - ?, `notice_pending` = 0 WHERE `id` = ?'
 			).run(claimed_gp, returned.id);
+			record_economy_operation(db, { source_key: `banishment-claim:${claim_id}`, client_id,
+				kind: 'banishment-return-claim', local_effect: 'incoming',
+				evidence: { claim_id, return_id: returned.id, gp: claimed_gp, items: selected_items.map(item => ({ item_id:item.item_id,qty:item.qty })) } });
 			return claim_id;
 		}
 		return null;
@@ -2736,7 +2747,8 @@ export function bind_installation_session(client_id: number, installation_id: st
 	}).immediate();
 }
 
-export async function generate_session_token(client_id: number, mod_version: string | null, device: DeviceDiagnostics | null = null, installation_id: string | null = null): Promise<string> {
+export async function generate_session_token(client_id: number, mod_version: string | null, device: DeviceDiagnostics | null = null, installation_id: string | null = null, save_load_id: number | null = null, capabilities: string[] = []): Promise<string> {
+	const rollback_capable = capabilities.includes(SAVE_ROLLBACK_CAPABILITY);
 	return db.transaction(() => {
 		remember_replaced_sessions(client_id, installation_id);
 		db.query('DELETE FROM `client_sessions` WHERE `client_id` = ? AND installation_id IS ?').run(client_id, installation_id);
@@ -2746,9 +2758,9 @@ export async function generate_session_token(client_id: number, mod_version: str
 
 		const session_token = crypto.randomUUID();
 		db.query(
-			'INSERT INTO `client_sessions` (`session_token`, `client_id`, `mod_version`, `device_diagnostics`, `installation_id`) VALUES(?, ?, ?, ?, ?)'
-		).run(session_token, client_id, mod_version, device ? JSON.stringify(device) : null, installation_id);
-		client_session_cache.set(session_token, { client_id, mod_version, device_diagnostics: device, last_access: Date.now() });
+			'INSERT INTO `client_sessions` (`session_token`, `client_id`, `mod_version`, `device_diagnostics`, `installation_id`, `save_load_id`, `rollback_capable`) VALUES(?, ?, ?, ?, ?, ?, ?)'
+		).run(session_token, client_id, mod_version, device ? JSON.stringify(device) : null, installation_id, save_load_id, Number(rollback_capable));
+		client_session_cache.set(session_token, { client_id, save_load_id, mod_version, rollback_capable, device_diagnostics: device, last_access: Date.now() });
 		if (device) {
 			// Diagnostic churn must never prevent a player from authenticating or grow storage without bound.
 			db.query(`INSERT INTO client_installations
@@ -2786,7 +2798,7 @@ export async function get_client_session(session_token: unknown): Promise<Cached
 	}
 
 	const session_row = await db_get_single(
-		'SELECT session.`client_id`, session.`mod_version`, session.`device_diagnostics` FROM `client_sessions` AS session ' +
+		'SELECT session.`rollback_capable`, session.`client_id`, session.`save_load_id`, session.`mod_version`, session.`device_diagnostics` FROM `client_sessions` AS session ' +
 		'JOIN `clients` AS client ON client.`id` = session.`client_id` ' +
 		'WHERE session.`session_token` = ? AND client.`disabled` = 0 AND client.`deleted_at` IS NULL',
 		[session_token]
@@ -2796,6 +2808,8 @@ export async function get_client_session(session_token: unknown): Promise<Cached
 	if (client_id > -1) {
 		const session = {
 			client_id,
+			rollback_capable: session_row.rollback_capable === 1,
+			save_load_id: session_row?.save_load_id ?? null,
 			mod_version: session_row?.mod_version ?? null,
 			device_diagnostics: session_row?.device_diagnostics ? parse_device_diagnostics(JSON.parse(session_row.device_diagnostics)) : null,
 			last_access: Date.now()
@@ -2849,11 +2863,13 @@ export function validate_session_request(handler: SessionRequestHandler, json_bo
 		const command_id = typeof json === 'object' && json !== null && typeof json.command_id === 'string'
 			? json.command_id : null;
 		const device = session.device_diagnostics;
+		const rollback_clients=rollback_request_clients(db,path,json,client_id);
 		return run_with_audit_context(make_audit_context({
 			event_type: `api.${path.slice('/api/'.length).replaceAll('/', '.')}`,
 			source_key: command_id === null ? undefined : `mutation:${client_id}:${path}:${command_id}`,
 			actor_kind: 'client',
 			actor_client_id: client_id,
+			save_load_id: session.save_load_id,
 			actor_display_name: actor?.display_name ?? `#${client_id}`,
 			command_id,
 			installation_id: device?.installation_id ?? null,
@@ -2862,7 +2878,7 @@ export function validate_session_request(handler: SessionRequestHandler, json_bo
 			app_channel: device?.app_channel ?? null,
 			app_version: device?.app_version ?? null,
 			app_build: device?.app_build ?? null,
-			details: { path }
+			details: { path, method:req.method, rollback_capable:session.rollback_capable, rollback_clients:JSON.stringify(rollback_clients) }
 		}), async () => {
 			if (!validate_api_command(req, json)) return 400;
 			const limited = request_limits.limit_identity(client_id);
@@ -2871,6 +2887,26 @@ export function validate_session_request(handler: SessionRequestHandler, json_bo
 				return limited;
 			}
 
+			synchronize_rollback_caches();
+			const unsafe=unsafe_rollback_request(path,req.method);
+			const gate=unsafe?related_rollback_gate(db,rollback_clients,client_id,session.rollback_capable):null;
+			const command_kind = ECONOMY_COMMAND_KINDS[url.pathname];
+			if (req.method === 'POST' && command_kind && json?.command_id !== undefined) {
+				const replay = replay_economy_command(client_id, json.command_id, command_kind);
+				if (replay !== undefined) {
+					if(replay===null) return 400;
+					const receipt=replay.receipt as {effects?:Array<{qty:number}>}|null|undefined;
+					if(replay.error!=='economy_command_retired' && !receipt?.effects?.some(e=>e.qty<0)) return replay;
+					if(gate?.upgrade) return gate.response();
+					if(!gate || replay.error==='economy_command_retired') return replay;
+					return gate.response();
+				}
+			}
+			if(gate) {
+				const recovered=rollback_issued_recovery(path,client_id,session.mod_version,json);
+				if(recovered!==null) return recovered;
+				return gate.response();
+			}
 			const now = Date.now();
 			catch_up_expedition_before_activity(client_id, now);
 			if (now - (client_activity_writes.get(client_id) ?? 0) >= CLIENT_ACTIVITY_WRITE_INTERVAL) {
@@ -2878,12 +2914,13 @@ export function validate_session_request(handler: SessionRequestHandler, json_bo
 					.run(now, client_id);
 				client_activity_writes.set(client_id, now);
 			}
-			const command_kind = ECONOMY_COMMAND_KINDS[url.pathname];
-			if (req.method === 'POST' && command_kind && json?.command_id !== undefined) {
-				const replay = replay_economy_command(client_id, json.command_id, command_kind);
-				if (replay !== undefined) return replay ?? 400;
-			}
-			return handler(req, url, client_id, json as JsonObject);
+			try {
+				const result=await handler(req, url, client_id, json as JsonObject);
+				// Some legacy route wrappers turn domain exceptions into numeric errors.
+				// Recheck after awaited work so a racing hold still has an actionable response.
+				const late_gate=unsafe?related_rollback_gate(db,rollback_clients,client_id,session.rollback_capable):null;
+				return late_gate ? late_gate.response() : result;
+			} catch(error) {if(error instanceof RollbackGateError) return error.response();throw error;}
 		});
 	};
 }
@@ -2913,3 +2950,39 @@ export function session_binary_post_route(route: string, handler: SessionBinaryR
 	);
 }
 // #endregion
+
+let rollback_cache_epoch=0;
+export function invalidate_rollback_caches(operation_keys:string[]):void {
+	for(const key of operation_keys) {
+		for(const client of market_correction_cache_clients(db,key)) market_completed_cached.delete(client);
+		for(const client of trade_correction_cache_clients(db,key)) {trade_player_cache.delete(client);resolved_trade_cache.delete(client);}
+	}
+	// Gift rows may have disappeared. Clear lists conservatively for all parties.
+	gift_cache.clear();trade_cache.clear();
+	// Crucible/account/Guild state is read directly from SQLite; there is no derived runtime cache.
+}
+function synchronize_rollback_caches():void {
+	const epoch=db.query<{id:number},[]>('SELECT COALESCE(MAX(id),0) id FROM economy_corrections').get()!.id;
+	if(epoch!==rollback_cache_epoch) {clear_data_caches();rollback_cache_epoch=epoch;}
+}
+export function evaluate_session_rollback(client:number,load:number,capable:boolean):string[] {
+	return evaluate_rollback_admission(db,client,load,capable);
+}
+function rollback_issued_recovery(path:string,client:number,version:string|null,json:JsonObject|null):HandlerResult|null {
+	const wish_kind=path.startsWith('/api/crucible/wish/')?path.split('/').at(-1):null;
+	if(wish_kind&&typeof json?.command_id==='string') {
+		const command=db.query<{response_json:string},[number,string,string]>('SELECT response_json FROM crucible_commands WHERE client_id=? AND id=? AND kind=?').get(client,json.command_id,wish_kind);
+		if(command) return JSON.parse(command.response_json) as JsonObject;
+	}
+	if(path==='/api/inbox/claim') {
+		const claim=db.query<{id:string},[number]>('SELECT id FROM inbox_claims WHERE client_id=? AND acknowledged_at IS NULL ORDER BY created_at LIMIT 1').get(client);
+		if(claim) return {claim:get_inbox_claim_view(claim.id,client,version)};
+	}
+	if(path==='/api/banishment/returns/claim') {
+		const claim=db.query<{id:string},[number]>('SELECT id FROM banishment_return_claims WHERE client_id=? AND acknowledged_at IS NULL LIMIT 1').get(client);
+		if(claim) return {claim:get_banishment_claim_view(claim.id,client)};
+		const deleted=db.query<{id:string},[number]>('SELECT id FROM client_deletion_return_claims WHERE client_id=? AND acknowledged_at IS NULL LIMIT 1').get(client);
+		if(deleted) return {claim:get_deletion_claim_view(deleted.id,client)};
+	}
+	return null;
+}

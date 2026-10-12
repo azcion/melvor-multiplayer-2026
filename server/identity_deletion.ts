@@ -1,3 +1,6 @@
+import { move_trade_item } from './trade-custody';
+import { cancel_market_client, listing_return_items, haggle_claim_position } from './market-custody';
+import { move_custody_fifo } from './economy-custody';
 import { record_pending_exchange } from './transfer-history';
 import type { Database } from 'bun:sqlite';
 import type * as db_row from './db/types/db_types';
@@ -31,35 +34,6 @@ function add_deletion_return_item(database: Database, return_id: number, item_id
 		'INSERT INTO `client_deletion_return_items` (`return_id`, `item_id`, `qty`) VALUES(?, ?, ?) ' +
 		'ON CONFLICT (`return_id`, `item_id`) DO UPDATE SET `qty` = `qty` + excluded.`qty`'
 	).run(return_id, item_id, qty);
-}
-
-function cancel_deleted_client_haggles(database: Database, client_id: number, now: number): void {
-	const haggles = database.query<db_row.market_haggles, [number, number]>(
-		'SELECT * FROM `market_haggles` WHERE `status` = \'active\' AND (`initiator_id` = ? OR `owner_id` = ?)'
-	).all(client_id, client_id);
-	for (const haggle of haggles) {
-		database.query(
-			'UPDATE `market_haggles` SET `status` = \'cancelled\', `turn_client_id` = NULL, `expires_at` = NULL, ' +
-			'`terminal_at` = ?, `updated_at` = ? WHERE `id` = ? AND `status` = \'active\''
-		).run(now, now, haggle.id);
-		if (haggle.listing_id !== null)
-			database.query(
-				'UPDATE `market_items` SET `available` = `available` + ?, `reserved` = `reserved` - ?, ' +
-				'`escrow_gp` = `escrow_gp` + ?, `updated_at` = ? WHERE `id` = ?'
-			).run(haggle.item_qty, haggle.item_qty, haggle.listing_reserved_gp, now, haggle.listing_id);
-		if (haggle.direction === 'sell')
-			database.query('INSERT OR IGNORE INTO `market_haggle_claims` (`haggle_id`, `client_id`, `gp`) VALUES(?, ?, ?)')
-				.run(haggle.id, haggle.initiator_id, haggle.payer_escrow_gp);
-		else {
-			database.query(
-				'INSERT OR IGNORE INTO `market_haggle_claims` (`haggle_id`, `client_id`, `item_id`, `item_qty`) VALUES(?, ?, ?, ?)'
-			).run(haggle.id, haggle.initiator_id, haggle.item_id, haggle.item_qty);
-			const extra_gp = Math.max(haggle.payer_escrow_gp - haggle.listing_reserved_gp, 0);
-			if (extra_gp > 0)
-				database.query('INSERT OR IGNORE INTO `market_haggle_claims` (`haggle_id`, `client_id`, `gp`) VALUES(?, ?, ?)')
-					.run(haggle.id, haggle.owner_id, extra_gp);
-		}
-	}
 }
 
 function hide_client_chat(database: Database, client_id: number) {
@@ -102,39 +76,29 @@ export function execute_client_deletion(
 		target.display_name,
 		now
 	);
-	cancel_deleted_client_haggles(database, request.target_client_id, now);
+	cancel_market_client(database, request.target_client_id, now);
 	const haggle_claims = database.query<db_row.market_haggle_claims, [number]>(
 		'SELECT * FROM `market_haggle_claims` WHERE `client_id` = ? AND `claimed_at` IS NULL'
 	).all(request.target_client_id);
-	let haggle_gp = 0;
+	const add_market_return=(item:string,qty:number,from:string)=>{
+		if(qty<=0) return;
+		const id=target_return_id();
+		if(item==='melvorD:GP') {
+			const gp=database.query<{gp:number},[number]>('SELECT gp FROM client_deletion_returns WHERE id=?').get(id)!.gp;
+			if(BigInt(gp)+BigInt(qty)>BigInt(Number.MAX_SAFE_INTEGER)) throw new RangeError('Deletion return exceeds safe integer');
+			database.query('UPDATE client_deletion_returns SET gp=gp+? WHERE id=?').run(qty,id);
+		} else add_deletion_return_item(database,id,item,qty);
+		move_custody_fifo(database,from,`deletion-return:${id}:${item}`,qty,now,'market-deletion-return');
+	};
 	for (const claim of haggle_claims) {
-		if (claim.item_id !== null)
-			add_deletion_return_item(database, target_return_id(), claim.item_id, claim.item_qty);
-		const currency_id = database.query<{ currency_id: string }, [string]>('SELECT currency_id FROM market_haggles WHERE id=?').get(claim.haggle_id)!.currency_id;
-		if (currency_id === 'melvorD:GP') haggle_gp += claim.gp;
-		else if (claim.gp > 0) add_deletion_return_item(database, target_return_id(), currency_id, claim.gp);
-		database.query('UPDATE `market_haggle_claims` SET `claimed_at` = ? WHERE `haggle_id` = ? AND `client_id` = ?')
-			.run(now, claim.haggle_id, request.target_client_id);
+		if(claim.item_id!==null) add_market_return(claim.item_id,claim.item_qty,haggle_claim_position(claim.haggle_id,request.target_client_id,claim.item_id));
+		const currency=database.query<{currency_id:string},[string]>('SELECT currency_id FROM market_haggles WHERE id=?').get(claim.haggle_id)!.currency_id;
+		add_market_return(currency,claim.gp,haggle_claim_position(claim.haggle_id,request.target_client_id,currency));
+		database.query('UPDATE market_haggle_claims SET claimed_at=? WHERE haggle_id=? AND client_id=?').run(now,claim.haggle_id,request.target_client_id);
 	}
-	if (haggle_gp > 0)
-		database.query('UPDATE `client_deletion_returns` SET `gp` = `gp` + ? WHERE `id` = ?')
-			.run(haggle_gp, target_return_id());
+	const market_items=database.query<db_row.market_items,[number]>('SELECT * FROM market_items WHERE client_id=?').all(request.target_client_id);
+	for(const lot of market_items) for(const item of listing_return_items(lot)) add_market_return(item.item_id,item.qty,item.from);
 
-	const market_items = database.query<db_row.market_items, [number]>(
-		'SELECT * FROM `market_items` WHERE `client_id` = ?'
-	).all(request.target_client_id);
-	let market_gp = 0;
-	for (const item of market_items) {
-		if (item.direction === 'buy')
-			market_gp += item.escrow_gp;
-		else {
-			add_deletion_return_item(database, target_return_id(), item.item_id, item.available);
-			market_gp += Math.max((item.qty - item.available - item.reserved - item.haggled) * item.price - item.price_adjustment - item.payout, 0);
-		}
-	}
-	if (market_gp > 0)
-		database.query('UPDATE `client_deletion_returns` SET `gp` = `gp` + ? WHERE `id` = ?')
-			.run(market_gp, target_return_id());
 	database.query('DELETE FROM `market_items` WHERE `client_id` = ?').run(request.target_client_id);
 
 	const trades = database.query<db_row.trade_offers, [number, number]>(
@@ -148,6 +112,7 @@ export function execute_client_deletion(
 			const owner_id = item.counter === 0 ? trade.sender_id : trade.recipient_id;
 			const return_id = ensure_deletion_return(database, request.id, owner_id, target.display_name, now);
 			add_deletion_return_item(database, return_id, item.item_id, item.qty);
+				move_trade_item(database,item,`deletion-return:${return_id}:${item.item_id}`,now);
 		}
 		record_pending_exchange(database, 'trade', trade.trade_id, 'trade-cancel', now);
 		database.query('DELETE FROM `trade_items` WHERE `trade_id` = ?').run(trade.trade_id);
@@ -163,8 +128,10 @@ export function execute_client_deletion(
 		const items = database.query<db_row.gift_items, [number]>(
 			'SELECT * FROM `gift_items` WHERE `gift_id` = ?'
 		).all(gift.gift_id);
-		for (const item of items)
+		for (const item of items) {
 			add_deletion_return_item(database, return_id, item.item_id, item.qty);
+			move_custody_fifo(database,`gift:${gift.gift_id}:${item.item_id}`,`deletion-return:${return_id}:${item.item_id}`,item.qty,now,'gift-deletion-return');
+		}
 		record_pending_exchange(database, 'gift', gift.gift_id, 'gift.returned', now);
 		database.query('DELETE FROM `gift_items` WHERE `gift_id` = ?').run(gift.gift_id);
 		database.query('DELETE FROM `gifts` WHERE `gift_id` = ?').run(gift.gift_id);

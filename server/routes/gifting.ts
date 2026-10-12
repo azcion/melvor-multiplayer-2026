@@ -1,3 +1,4 @@
+import { create_custody_source, move_location } from '../economy-custody';
 import { record_pending_exchange } from '../transfer-history';
 import * as runtime from '../app-runtime';
 import type { SQLQueryBindings } from 'bun:sqlite';
@@ -52,7 +53,8 @@ export function register_gifting_routes(): void {
 					audit_position_key('inbox', client_id, 'gift_received', get_inbox_source_name(gift.sender_id)));
 			}
 			add_inbox_items(client_id, items,
-				{ type: 'gift_received', name: get_inbox_source_name(gift.sender_id) });
+				{ type: 'gift_received', name: get_inbox_source_name(gift.sender_id),
+					custody: { from: item_id => `gift:${gift_id}:${item_id}`, protected: (gift.flags & GiftFlags.Returned) === 0 } });
 			db.query('DELETE FROM `gifts` WHERE `gift_id` = ?').run(gift_id);
 			db.query('DELETE FROM `gift_items` WHERE `gift_id` = ?').run(gift_id);
 			remove_player_cache_entry(gift_cache, client_id, gift_id);
@@ -110,7 +112,8 @@ export function register_gifting_routes(): void {
 			).all(gift_id) as Array<{ item_id: string; qty: number }>;
 			record_pending_exchange(db, 'gift', gift_id, 'gift.returned');
 			add_inbox_items(current.sender_id, items,
-				{ type: 'gift_returned', name: get_inbox_source_name(client_id) });
+				{ type: 'gift_returned', name: get_inbox_source_name(client_id),
+					custody: { from: item_id => `gift:${gift_id}:${item_id}`, protected: false } });
 			db.query('DELETE FROM `gifts` WHERE `gift_id` = ?').run(gift_id);
 			db.query('DELETE FROM `gift_items` WHERE `gift_id` = ?').run(gift_id);
 			remove_player_cache_entry(gift_cache, client_id, gift_id);
@@ -135,6 +138,8 @@ export function register_gifting_routes(): void {
 			if (gift === null)
 				return { success: false };
 
+			for (const item of db.query<{item_id:string},[number]>('SELECT item_id FROM gift_items WHERE gift_id=?').all(gift_id))
+				move_location(db,`gift:${gift_id}:${item.item_id}`,`consumed:gift-discard:${gift_id}`,Date.now(),'gift-discarded');
 			record_pending_exchange(db, 'gift', gift_id, 'gift.discarded');
 			db.query('DELETE FROM `gifts` WHERE `gift_id` = ?').run(gift_id);
 			remove_player_cache_entry(gift_cache, client_id, gift_id);
@@ -154,6 +159,9 @@ export function register_gifting_routes(): void {
 		if (parsed_items === null)
 			return 400; // Bad Request
 		const items = cap_transfer_items(parsed_items);
+		const totals = new Map<string,bigint>();
+		for (const item of items) totals.set(item.id,(totals.get(item.id) ?? 0n)+BigInt(item.qty));
+		if ([...totals.values()].some(qty => qty>BigInt(Number.MAX_SAFE_INTEGER))) return 400;
 
 		if (!(await guild_membership_exists(client_id, recipient_id)))
 			return { error_lang: 'MOD_MP_GUILD_MEMBERSHIP_MISSING' };
@@ -170,10 +178,19 @@ export function register_gifting_routes(): void {
 			const inserted = db.query(
 				'INSERT INTO `gifts` (`client_id`, `sender_id`, `created_at`, `updated_at`) VALUES(?, ?, ?, ?) RETURNING `gift_id`'
 			).get(recipient_id, client_id, created_at, created_at) as { gift_id: number };
-			for (const item of items)
+			for (const item of items) {
 				db.query(
 					'INSERT INTO `gift_items` (`gift_id`, `item_id`, `qty`) VALUES(?, ?, ?)'
 				).run(inserted.gift_id, item.id, item.qty);
+			}
+			for (const item of db.query<{item_id:string;qty:number},[number]>(
+				'SELECT item_id,SUM(qty) qty FROM gift_items WHERE gift_id=? GROUP BY item_id').all(inserted.gift_id)) {
+				if (typeof json.command_id === 'string') create_custody_source(db,{
+					root_key:`gift:${inserted.gift_id}:${item.item_id}`,operation_key:`receipt:${json.command_id}`,
+					client_id,object_id:item.item_id,quantity:item.qty,created_at,
+					snapshot:{gift_id:inserted.gift_id,sender_id:client_id,recipient_id,item_id:item.item_id,qty:item.qty}
+				},`gift:${inserted.gift_id}:${item.item_id}`);
+			}
 			record_pending_exchange(db, 'gift', inserted.gift_id, 'gift.sent', created_at, json.command_id);
 			const event_id = record_audit_event({
 				event_type: 'gift.sent',

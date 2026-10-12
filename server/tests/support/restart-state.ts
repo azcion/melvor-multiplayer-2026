@@ -1,8 +1,10 @@
+import type {RollbackRestartState} from './rollback-restart';
 import type { RegisteredClient } from './http';
 
 export const restart_state_path = '/test-state/restart.json';
 
 export type RestartState = {
+	rollback: RollbackRestartState;
 	alliance: { client: RegisteredClient; guild_id: number; alliance_id: number; message_id: number; process_id: number; petition_id: number; expires_at: number; petition_expires_at: number };
 	expedition_work: {
 		session_token: string; session_id: number; offset_ms: number;

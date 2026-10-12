@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { make_guild_group } from '../support/fixtures';
-import { post_json, get_json_with_session } from '../support/http';
+import { make_guild_group, attach_to_free_fellowship } from '../support/fixtures';
+import { post_json, get_json_with_session, register_client } from '../support/http';
 import { db_all, db_run } from '../support/persistence';
 
 for (const choice of ['aye', 'nay']) test(`another player's ${choice} locks withdrawal and extends inactivity`, async () => {
@@ -59,4 +59,31 @@ test('raising a Petition invalidates member event snapshots but rejected raises 
 	expect(duplicate.json.error_lang).toBe('MOD_MP_COUNCIL_CONFLICT');
 	expect((await get_json_with_session<{ unchanged: boolean }>(
 		`/api/events?revision=${before_rejection.json.revision}`, members[1].session_token)).json.unchanged).toBe(true);
+});
+
+
+test('Free Fellowship votes extend inactivity only up to 36 hours and cannot reopen a capped petition', async () => {
+	const members = [];
+	for (let i=0;i<4;i++) members.push(await attach_to_free_fellowship(await register_client(`Deadline ${i}`,undefined,'1.6.9')));
+	await db_run('UPDATE clients SET last_multiplayer_active_at=? WHERE id IN (?,?,?,?)',[Date.now(),...members.map(m=>m.client_id)]);
+	const raised = await post_json<{success:boolean;petition_id:number}>('/api/guilds/petitions/raise', {type:'temperance'}, members[0].session_token);
+	expect(raised.json.success).toBe(true);
+	const id = raised.json.petition_id, hour = 3600000;
+	for (const [index, age] of [2,20,35].entries()) {
+		const created = Date.now()-age*hour;
+		await db_run('UPDATE guild_petitions SET created_at=?,expires_at=? WHERE id=?',[created,Date.now()+hour,id]);
+		const voted = await post_json<{success:boolean}>('/api/guilds/petitions/vote',{petition_id:id,choice:'aye'},members[index].session_token);
+		expect(voted.json.success).toBe(true);
+		const row = (await db_all<{expires_at:number}>('SELECT expires_at FROM guild_petitions WHERE id=?',[id]))[0];
+		if (age<12) {
+			expect(row.expires_at).toBeGreaterThan(Date.now()+24*hour-10000);
+			expect(row.expires_at).toBeLessThanOrEqual(Date.now()+24*hour);
+		} else expect(row.expires_at).toBe(created+36*hour);
+	}
+	const created = Date.now()-37*hour;
+	await db_run('UPDATE guild_petitions SET created_at=?,expires_at=? WHERE id=?',[created,created+36*hour,id]);
+	const late = await post_json<{success?:boolean}>('/api/guilds/petitions/vote',{petition_id:id,choice:'nay'},members[3].session_token);
+	expect(late.json.success).not.toBe(true);
+	expect((await db_all('SELECT COUNT(*) AS n FROM guild_petition_votes WHERE petition_id=?',[id]))[0].n).toBe(3);
+	expect((await db_all('SELECT lifecycle FROM guild_petitions WHERE id=?',[id]))[0].lifecycle).toBe('granted');
 });

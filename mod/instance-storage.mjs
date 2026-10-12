@@ -1,3 +1,23 @@
+// Only redundant identity metadata is eligible. Recovery and unknown records stay intact.
+export function prune_legacy_local_character_storage(storage, legacy_prefix, current_prefix) {
+	let removed = 0;
+	for (const key of ['client_identifier', 'client_key', 'friend_code', 'identity_bindings']) {
+		try {
+			const legacy_key = legacy_prefix + key;
+			const current_key = current_prefix + key;
+			if (legacy_key === current_key) continue;
+			const value = storage?.getItem(legacy_key);
+			if (value === null || value === undefined || value !== storage.getItem(current_key)) continue;
+			if (JSON.parse(value) === null) continue;
+			// Recheck both copies immediately before deleting the redundant source.
+			if (storage.getItem(legacy_key) !== value || storage.getItem(current_key) !== value) continue;
+			storage.removeItem(legacy_key);
+			removed++;
+		} catch { /* Denied storage or malformed data must never block character loading. */ }
+	}
+	return removed;
+}
+
 export function read_instance_storage_item(
 	get_item,
 	set_item,

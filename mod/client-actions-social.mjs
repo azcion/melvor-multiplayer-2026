@@ -150,8 +150,9 @@ export function install_social_actions(runtime) {
 			this.alliance_modal = 'alliance-picker-modal';
 			queue_modal(mode === 'found' ? 'MOD_MP_ALLIANCE_FOUND' : 'MOD_MP_ALLIANCE_APPLY', 'alliance-picker-modal', 'assets/multiplayer.svg', { customClass: { popup: 'mp-alliance-modal-popup' }, showConfirmButton: false, didClose: () => { if (this.alliance_modal === 'alliance-picker-modal') this.alliance_modal = null; } });
 		},
-		async preview_alliance_guild(guild_id, restore_picker = false) {
+		async preview_alliance_guild(guild_id, restore_picker = false, from_member_guilds = false) {
 			if (!this.alliance_access) return;
+			this.alliance_preview_from_member_guilds = false;
 			const view = this.alliance_view;
 			const fixture = [...(this.alliance_picker_entries ?? []).flatMap(entry => entry.member_guilds ?? [entry]), ...(view?.alliance?.member_guilds ?? []), ...(view?.processes ?? []).flatMap(p =>
 				[...(p.founding_guilds ?? []), p.applicant, p.target_guild]).filter(Boolean)].find(g => g.guild_id === guild_id);
@@ -163,6 +164,7 @@ export function install_social_actions(runtime) {
 			if (previous_modal) await close_modal_and_wait(previous_modal);
 			this.alliance_preview = res.guild;
 			this.alliance_preview_restore_picker = restore_picker;
+			this.alliance_preview_from_member_guilds = from_member_guilds === true;
 			this.alliance_modal = 'alliance-preview-modal';
 			queue_modal(res.guild.name, 'alliance-preview-modal', this.get_guild_icon(res.guild.icon_id), {
 				customClass: { popup: 'mp-alliance-modal-popup' },
@@ -170,15 +172,38 @@ export function install_social_actions(runtime) {
 				didClose: () => {
 					if (this.alliance_modal !== 'alliance-preview-modal') return;
 					this.alliance_modal = null;
+					this.alliance_preview_from_member_guilds = false;
 					if (this.alliance_preview_restore_picker) void this.show_alliance_picker(this.alliance_picker_mode, this.alliance_picker_page);
 				}
 			}, false, false);
+		},
+		alliance_preview_can_leave() {
+			const guild_id = this.alliance_preview?.guild_id;
+			return this.alliance_preview_from_member_guilds && this.alliance_access && this.is_guild_member
+				&& guild_id === this.guild_state?.guild?.guild_id
+				&& (this.alliance_member_guilds ?? []).some(guild => guild.guild_id === guild_id);
+		},
+		alliance_preview_can_remove() {
+			const guild_id = this.alliance_preview?.guild_id;
+			return this.alliance_preview_from_member_guilds && this.alliance_access && this.is_guild_member
+				&& (this.alliance_member_guilds ?? []).length >= 3
+				&& guild_id !== this.guild_state?.guild?.guild_id
+				&& (this.alliance_member_guilds ?? []).some(guild => guild.guild_id === guild_id);
+		},
+		async show_alliance_preview_confirmation(kind) {
+			if (kind === 'leave' ? !this.alliance_preview_can_leave() : kind === 'remove' ? !this.alliance_preview_can_remove() : true) return;
+			const target_id = kind === 'remove' ? this.alliance_preview.guild_id : null;
+			this.alliance_preview_from_member_guilds = false;
+			this.alliance_modal = null;
+			await close_modal_and_wait('alliance-preview-modal');
+			await this.show_alliance_confirmation(kind, target_id);
 		},
 		close_alliance_picker() { this.alliance_modal = null; close_modal(); },
 		async close_alliance_preview() {
 			const restore = this.alliance_preview_restore_picker;
 			const previous_modal = this.alliance_modal;
 			this.alliance_modal = null;
+			this.alliance_preview_from_member_guilds = false;
 			if (previous_modal) await close_modal_and_wait(previous_modal);
 			if (restore) await this.show_alliance_picker(this.alliance_picker_mode, this.alliance_picker_page);
 		},

@@ -1,3 +1,5 @@
+import { settle_wish_capacity } from './wish-capacity';
+import { create_custody_source, record_dependency } from './economy-custody';
 import { readFileSync } from 'node:fs';
 import { db } from './db';
 import { economy_item_effects, run_economy_command } from './economy';
@@ -66,10 +68,17 @@ export function donate_expedition_supply(client_id: number, command_id: unknown,
 			'INSERT INTO expedition_supply_lots (expedition_id, item_id, client_id, owner_key, qty, contributed_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING id'
 		).get(expedition_id as number, item_id, client_id, get_supply_owner_key(client_id), qty as number, now);
 		if (!lot) throw new Error('Expedition supply lot was not created');
+		const root_key = `expedition-supply:${client_id}:${command_id}`;
+		create_custody_source(db,{root_key,operation_key:`receipt:${command_id}`,client_id,object_id:item_id,
+			quantity:qty as number,created_at:now,snapshot:{expedition_id,item_id,qty,lot_id:lot.id,value_each,added_value,
+				old_value:old_score.value_gp_equiv,new_value,old_score:old_score.score_micros,new_score:score_micros,delta_micros}},`expedition-lot:${lot.id}`);
+		record_dependency(db,root_key,'expedition-supply-score',delta_micros,{client_id,expedition_id,lot_id:lot.id,
+			value_each,added_value,old_value:old_score.value_gp_equiv,new_value,old_score:old_score.score_micros,new_score:score_micros});
 		db.query('INSERT INTO expedition_supply_scores (client_id, expedition_id, value_gp_equiv, score_micros) VALUES (?, ?, ?, ?) ' +
 			'ON CONFLICT (client_id, expedition_id) DO UPDATE SET value_gp_equiv = excluded.value_gp_equiv, score_micros = excluded.score_micros')
 			.run(client_id, expedition_id as number, new_value, score_micros);
 		if (delta_micros > 0) {
+			settle_wish_capacity(db, client_id, now);
 			db.query("INSERT INTO expedition_ep_ledger (client_id, source_kind, source_id, expedition_id, points_micros, created_at) VALUES (?, 'supply', ?, ?, ?, ?)")
 				.run(client_id, lot.id, expedition_id as number, delta_micros, now);
 			db.query('INSERT INTO expedition_ep_balances (client_id, points_micros) VALUES (?, ?) ' +

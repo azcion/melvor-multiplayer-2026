@@ -23,7 +23,8 @@ describe('Expedition Entrance supplies', () => {
 		expect(replay.json).toEqual(first.json);
 		expect((await db_all<{ qty: number }>('SELECT qty FROM expedition_supplies WHERE expedition_id = ?',
 			[registered.json.expedition_id]))[0].qty).toBe(1000);
-		expect((await db_all('SELECT id FROM expedition_ep_ledger WHERE source_kind = ?', ['supply'])).length).toBe(1);
+		expect((await db_all('SELECT id FROM expedition_ep_ledger WHERE source_kind = ? AND client_id = ? AND expedition_id = ?',
+			['supply', guild.first_id, registered.json.expedition_id])).length).toBe(1);
 		const pending = (await get_json_with_session<any>('/api/events', guild.first.session_token)).json;
 		expect(pending.economy_receipts).toContainEqual(first.json.receipt);
 		const foreign_ack = await post('/api/economy/receipts/acknowledge',
@@ -36,7 +37,8 @@ describe('Expedition Entrance supplies', () => {
 			.not.toContainEqual(first.json.receipt);
 		const after_ack = await post_json<any>('/api/expedition/supply/donate', payload, guild.first.session_token);
 		expect(after_ack.json.receipt).toBeNull();
-		expect((await db_all('SELECT id FROM expedition_ep_ledger WHERE source_kind = ?', ['supply'])).length).toBe(1);
+		expect((await db_all('SELECT id FROM expedition_ep_ledger WHERE source_kind = ? AND client_id = ? AND expedition_id = ?',
+			['supply', guild.first_id, registered.json.expedition_id])).length).toBe(1);
 		const state = (await get_json_with_session<any>('/api/expedition/state', guild.first.session_token)).json;
 		expect(state.supply_score.value_gp_equiv).toBe(2000);
 		expect(state.points_display).toBe(4);

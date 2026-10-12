@@ -56,7 +56,6 @@ assert.equal(db.query<{ value: string }, [string]>('SELECT value FROM service_se
 
 assert.equal(release_campaign_refunds(1), 1);
 assert.equal(release_campaign_refunds(1), 0);
-process.exit(0);
 assert.deepEqual(get_inbox(1, '1.5.16').items, [{ item_id: 'melvorD:GP', qty: 300 }]);
 assert.deepEqual(get_inbox(1, '1.6.0').items, [
 	{ item_id: 'melvorD:GP', qty: 300 }, { item_id: 'melvorD:Rune_Essence', qty: 7 }
@@ -77,3 +76,5 @@ assert.equal(release_campaign_refunds(1), 1);
 assert.deepEqual(get_inbox(1, '1.5.16').items, []);
 assert.deepEqual(get_inbox(1, '1.6.0').items, [{ item_id: 'melvorD:Rune_Essence', qty: 5 }]);
 assert.equal(release_campaign_refunds(1), 0);
+
+process.exit(0);
