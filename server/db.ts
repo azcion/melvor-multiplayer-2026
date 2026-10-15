@@ -1,3 +1,4 @@
+import { reconcile_cheat_catalog } from './cheat-catalog';
 import { Database, type SQLQueryBindings } from 'bun:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -68,6 +69,7 @@ function initialize_schema(): void {
 }
 
 initialize_schema();
+reconcile_cheat_catalog(db);
 db = instrument_audited_database(raw_db);
 
 export async function db_run(sql: string, values: SQLQueryBindings[] = []): Promise<DatabaseRunResult> {

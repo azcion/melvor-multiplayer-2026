@@ -1,3 +1,5 @@
+import { cheat_categories_migration } from './migrations/cheat-categories';
+import { shared_petition_discussions_migration } from './migrations/shared-petition-discussions';
 import { wish_capacity_migration } from './migrations/wish-capacity';
 import { petition_discussions_migration } from './migrations/petition-discussions';
 import { rollback_admission_migration } from './migrations/rollback-admission';
@@ -248,4 +250,6 @@ export const migrations: Migration[] = [
 	` },
 	petition_discussions_migration,
 	wish_capacity_migration,
+	shared_petition_discussions_migration,
+	cheat_categories_migration,
 ];

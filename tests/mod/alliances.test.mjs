@@ -102,7 +102,7 @@ test('Council Guild names reuse available summaries and deduplicate missing prev
 test('Alliance previews use the Guild name as their accessible button text', () => {
 	const source=readFileSync(new URL('../../mod/ui/templates.html',import.meta.url),'utf8');
 	const buttons=[...source.matchAll(/<button\b((?:[^>"']|"[^"]*"|'[^']*')*)>(.*?)<\/button>/gs)].filter(([,attributes])=>attributes.includes('state.preview_alliance_guild'));
-	assert.equal(buttons.length,8);
+	assert.equal(buttons.length,9);
 	for (const [,attributes,body] of buttons) {
 		assert.match(attributes,/type="button"/);
 		assert.ok(['{{ guild.name }}','{{ part.text }}'].includes(body));
@@ -202,7 +202,7 @@ test('applicant inspection omits New Member, activity, and last seen while prese
 	assert.match(applicants, /state.show_member_actions\(application\)/);
 	assert.match(applicants, /application.gp_visible && application.gp != null/);
 	assert.match(applicants, /MOD_MP_RAID_MEMBER_DEFEATS/);
-	assert.match(applicants, /MOD_MP_GUILD_USING_CHEATS/);
+	assert.match(applicants, /state.member_cheat_categories\(application\)/);
 	assert.doesNotMatch(applicants, /MOD_MP_GUILD_NEW_MEMBER|last-seen|status_activities/);
 	const alliance = source.slice(source.indexOf('id="mp-guild-alliance-column"'), source.indexOf("state.guild_page_view === 'applicant'"));
 	assert.doesNotMatch(alliance, /new Date|proposal.expires_at/);
@@ -240,7 +240,11 @@ test('Alliance confirmation cancels without writes and tears down before confirm
 	calls.length = 0;
 	await state.show_alliance_confirmation('remove', 2);
 	await state.confirm_alliance_proposal({currentTarget: {}});
-	assert.deepEqual(calls.find(call => call[0] === 'post'), ['post', '/api/alliances/propose', {kind: 'remove', target_id: 2}]);
+	assert.equal(calls.filter(call => call[0] === 'post').length, 0);
+	assert.equal(state.alliance_modal, 'alliance-reason-modal');
+	state.alliance_reason_confirmation.reason = '  A clear removal reason  ';
+	await state.confirm_alliance_reason({currentTarget: {}});
+	assert.deepEqual(calls.find(call => call[0] === 'post'), ['post', '/api/alliances/propose', {kind: 'remove', target_id: 2, reason: 'A clear removal reason'}]);
 	assert.ok(calls.findIndex(call => call[0] === 'close') < calls.findIndex(call => call[0] === 'post'));
 });
 
@@ -279,7 +283,7 @@ test('confirmation captures the button before the browser clears currentTarget',
 	runtime.close_modal_and_wait = async () => { event.currentTarget = null; };
 	runtime.is_button_spinning = target => { assert.equal(target, button); return false; };
 	Object.assign(state, install_social_actions(runtime));
-	await state.show_alliance_confirmation('leave');
+	await state.show_alliance_confirmation('market_enable');
 	await state.confirm_alliance_proposal(event);
 	assert.equal(calls.filter(call => call[0] === 'post').length, 1);
 });
@@ -309,11 +313,11 @@ test('confirmation state changes only after modal teardown and repeated clicks c
 	const {state, calls, runtime} = setup();
 	let release;
 	runtime.close_modal_and_wait = async () => {
-		assert.equal(state.alliance_confirmation.kind, 'leave');
+		assert.equal(state.alliance_confirmation.kind, 'market_enable');
 		await new Promise(resolve => { release = resolve; });
 	};
 	Object.assign(state, install_social_actions(runtime));
-	await state.show_alliance_confirmation('leave');
+	await state.show_alliance_confirmation('market_enable');
 	const confirmation = state.alliance_confirmation;
 	const first = state.confirm_alliance_proposal({currentTarget: {}});
 	await state.confirm_alliance_proposal({currentTarget: {}});
@@ -474,4 +478,82 @@ test('Council bars use cast totals and a fixed midpoint with a live hour/minute 
 	const template=readFileSync(new URL('../../mod/ui/templates.html',import.meta.url),'utf8');
 	assert.doesNotMatch(template,/get_council_tally_width\(petition, 'uncast'\)/);
 	assert.match(template,/get_council_tally_width\(proposal, 'uncast', true\)/);
+});
+
+test('unavailable historical Guilds retain fallback text and missing preview clicks preserve the picker', async () => {
+	const { state, runtime, calls } = setup();
+	const english = JSON.parse(readFileSync(new URL('../../mod/data/lang/en.json', import.meta.url), 'utf8'));
+	const errors = [];
+	runtime.api_get = async () => ({ guild: null });
+	runtime.getLangString = key => english[key];
+	runtime.notify_error = key => errors.push(key);
+	Object.assign(state, install_social_actions(runtime));
+	const petitions = [{ type: 'alliance_ballot', proposal: { kind: 'join', name: 'Alliance', guild_ids: [111] } }];
+	await state.resolve_alliance_petition_guilds(petitions);
+	assert.deepEqual(petitions[0].proposal.guilds, []);
+	assert.match(state.alliance_proposal_description(petitions[0].proposal), /unavailable Guild/);
+	assert.deepEqual(errors, []);
+	state.alliance_modal = 'alliance-picker-modal';
+	await state.preview_alliance_guild(111, true);
+	assert.deepEqual(errors, ['MOD_MP_GUILD_NOT_FOUND']);
+	assert.equal(state.alliance_modal, 'alliance-picker-modal');
+	assert.equal(calls.length, 0);
+});
+
+for (const kind of ['leave', 'remove', 'market_disable']) test(`${kind} requires a reason after acknowledgement and Cancel sends nothing`, async () => {
+	const {state, calls} = setup();
+	await state.show_alliance_confirmation(kind, kind === 'remove' ? 2 : null);
+	await state.confirm_alliance_proposal({currentTarget: {}});
+	assert.equal(state.alliance_modal, 'alliance-reason-modal');
+	for (const reason of ['', '         ', '123456789', '😀'.repeat(9)]) {
+		state.alliance_reason_confirmation.reason = reason;
+		assert.equal(state.alliance_reason_valid(), false);
+		await state.confirm_alliance_reason({currentTarget: {}});
+	}
+	state.alliance_reason_confirmation.reason = '这是一个足够长的理由';
+	assert.equal(state.alliance_reason_valid(), true);
+	state.alliance_reason_confirmation.reason = '😀'.repeat(10);
+	assert.equal(state.alliance_reason_valid(), true);
+	state.alliance_reason_confirmation.reason = 'a'.repeat(1001);
+	assert.equal(state.alliance_reason_valid(), false);
+	await state.close_alliance_reason();
+	assert.equal(state.alliance_reason_confirmation, null);
+	assert.equal(calls.filter(call => call[0] === 'post').length, 0);
+});
+
+test('reason retries retain input and ignore double clicks while pending', async () => {
+	const {state, calls, runtime} = setup();
+	let release;
+	runtime.api_post = async (route, payload) => {
+		calls.push(['post', route, payload]);
+		return await new Promise(resolve => { release = resolve; });
+	};
+	Object.assign(state, install_social_actions(runtime));
+	await state.show_alliance_confirmation('leave');
+	await state.confirm_alliance_proposal({currentTarget: {}});
+	state.alliance_reason_confirmation.reason = 'A reason to leave';
+	const first = state.confirm_alliance_reason({currentTarget: {}});
+	await state.confirm_alliance_reason({currentTarget: {}});
+	await state.close_alliance_reason();
+	assert.equal(calls.filter(call => call[0] === 'post').length, 1);
+	release({error: 'Try again'});
+	await first;
+	assert.equal(state.alliance_reason_confirmation.reason, 'A reason to leave');
+	assert.equal(state.alliance_reason_confirmation.pending, false);
+	assert.equal(state.alliance_error, 'Try again');
+	const retry = state.confirm_alliance_reason({currentTarget: {}});
+	release({success: true});
+	await retry;
+	assert.equal(calls.filter(call => call[0] === 'post').length, 2);
+});
+
+test('synthetic destructive confirmations collect a reason without submitting', async () => {
+	const {state, calls} = setup();
+	state.alliance_view = {synthetic: true};
+	await state.show_alliance_confirmation('leave');
+	await state.confirm_alliance_proposal({currentTarget: {}});
+	state.alliance_reason_confirmation.reason = 'A synthetic reason';
+	await state.confirm_alliance_reason({currentTarget: {}});
+	assert.equal(state.alliance_reason_confirmation, null);
+	assert.equal(calls.filter(call => call[0] === 'post').length, 0);
 });

@@ -1,3 +1,4 @@
+import { can_view_petition_discussions, petition_discussion_notifications } from '../petition-discussions';
 import { rollback_player_status, acknowledge_rollback_notice, rollback_affected } from '../rollback-policy';
 import { read_page } from '../page-reads';
 import { is_feature_tester, pending_test_data } from '../feature-testers';
@@ -66,6 +67,7 @@ export function register_general_routes(): void {
 			social_mode_enforcement: get_client_social_mode_enforcement(client_id),
 			friend_requests: await get_friend_requests(client_id),
 			guild_applicants: await get_guild_applicants(client_id),
+			...(can_view_petition_discussions(runtime.get_request_mod_version(req)) ? { petition_discussions: petition_discussion_notifications(client_id) } : {}),
 			gifts: await get_client_gifts(client_id),
 			trades: trade_meta,
 			resolved_trades: await get_client_resolved_trades(client_id),

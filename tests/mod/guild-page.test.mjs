@@ -340,8 +340,8 @@ test('renders each loaded member activity as a right-aligned icon', async () => 
 	assert.match(member_list, /member\.client_id !== state\.guild_client_id && state\.is_new_guild_member\(member\.joined_at\)/);
 	assert.match(member_list, /MOD_MP_GUILD_NEW_MEMBER/);
 	assert.match(member_list, /member\.social_mode === 'social'[\s\S]*MOD_MP_SOCIAL_MODE_SOCIAL/);
-	assert.match(member_list, /member\.using_cheats[\s\S]*MOD_MP_GUILD_USING_CHEATS/);
-	assert.match(member_list, /MOD_MP_SOCIAL_MODE_SOCIAL[\s\S]*MOD_MP_GUILD_USING_CHEATS/);
+	assert.match(member_list, /state\.member_cheat_categories\(member\)[\s\S]*state\.cheat_category_label\(category.id\)/);
+	assert.match(member_list, /MOD_MP_SOCIAL_MODE_SOCIAL[\s\S]*state\.cheat_category_label\(category.id\)/);
 	assert.doesNotMatch(member_list, /MOD_MP_SOCIAL_MODE_FULL/);
 	assert.match(main, /Math\.max\(0, Date\.now\(\) - timestamp\) <= 48 \* 60 \* 60 \* 1000/);
 	assert.match(style, /\.mp-guild-new-member-badge \{[\s\S]*background-color: #269e70;/);
@@ -467,8 +467,8 @@ test('Guild mobile badges track applicants and eligible uncast Council and Allia
 	assert.equal(state.alliance_needs_vote, false);
 	const html = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
 	const tabs = html.slice(html.indexOf('<div class="mp-guild-tabs"'), html.indexOf('</div>', html.indexOf('<div class="mp-guild-tabs"')));
-	assert.match(tabs, /v-if="state.council_needs_vote"/);
-	assert.match(tabs, /v-if="state.alliance_needs_vote"/);
+	assert.match(tabs, /v-else-if="state.council_needs_vote"/);
+	assert.match(tabs, /v-else-if="state.alliance_needs_vote"/);
 	assert.equal(tabs.match(/MOD_MP_VOTE_BADGE/g)?.length, 2);
 	const count_binding = tabs.match(/v-show="([^"]*guild_applicants.length[^"]*)"/)[1];
 	for (const count of [0, 1, 12]) {

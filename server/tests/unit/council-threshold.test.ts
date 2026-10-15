@@ -133,3 +133,24 @@ test('deadline migration converts unfinished petitions from last ballot and pres
 		expect(db.query('PRAGMA foreign_key_check').all()).toEqual([]);
 	} finally { db.close(); }
 });
+
+for (const kind of ['leave', 'remove', 'market_disable', 'market_enable', 'join']) test(`${kind} zero-vote deadline follows destructive consent policy`, async () => {
+	const { resolve_council_vote } = await import('../../council-voting');
+	const db = fixture();
+	try {
+		db.run("INSERT INTO alliance_processes(id,kind,initiator_guild_id,subject,stage,created_at,expires_at) VALUES(1,?,2,'policy','collective',1000,999999999)", [kind]);
+		db.run("UPDATE guild_petitions SET type='alliance_ballot',proposed_name=NULL WHERE id=1");
+		db.run("INSERT INTO alliance_process_petitions VALUES(1,1,'ballot')");
+		const petition = { id: 1, guild_id: 2, voting_threshold: 1, expires_at: 2000 };
+		const expected = ['leave', 'remove', 'market_disable'].includes(kind) ? 'denied' : 'granted';
+		expect(resolve_council_vote(petition, 1999, db)).toBeNull();
+		expect(resolve_council_vote(petition, 2000, db)).toBe(expected);
+		// Direct local Petition types use the same policy without an Alliance ballot link.
+		db.run('DELETE FROM alliance_process_petitions');
+		db.run('UPDATE guild_petitions SET type=? WHERE id=1', [`alliance_${kind}`]);
+		expect(resolve_council_vote(petition, 2000, db)).toBe(expected);
+		db.run('INSERT INTO guild_petition_voters VALUES(1,1)');
+		db.run("INSERT INTO guild_petition_votes VALUES(1,1,'aye',1500)");
+		expect(resolve_council_vote(petition, 2000, db)).toBe('granted');
+	} finally { db.close(); }
+});

@@ -44,6 +44,21 @@ export function resolve_threshold_vote(threshold: number, aye: number, nay: numb
 }
 
 // Ballots remain durable; only current, active, eligible members hold voting open.
+export function resolve_closed_council_vote(petition_id: number, database: Database = db): 'granted' | 'denied' {
+	const tally = database.query<{ aye: number; nay: number }, [number]>(`SELECT
+		COALESCE(SUM(choice='aye'), 0) AS aye, COALESCE(SUM(choice='nay'), 0) AS nay
+		FROM guild_petition_votes WHERE petition_id=?`).get(petition_id)!;
+	if (tally.aye + tally.nay > 0) return tally.aye > tally.nay ? 'granted' : 'denied';
+	// Collective ballots use the linked proposal kind, rather than their generic Petition type.
+	const destructive = database.query(`SELECT 1 FROM guild_petitions g
+		LEFT JOIN alliance_process_petitions l ON l.petition_id=g.id
+		LEFT JOIN alliance_processes p ON p.id=l.process_id
+		WHERE g.id=? AND (g.type IN ('alliance_leave','alliance_remove','alliance_market_disable')
+			OR (l.role='ballot' AND p.kind IN ('leave','remove','market_disable')))`)
+		.get(petition_id) !== null;
+	return destructive ? 'denied' : 'granted';
+}
+
 export function resolve_council_vote(petition: Pick<guild_petitions, 'id' | 'guild_id' | 'voting_threshold' | 'expires_at'>,
 	now: number, database: Database = db): 'granted' | 'denied' | null {
 	const tally = database.query<{ aye: number; nay: number }, [number]>(`SELECT
@@ -61,6 +76,5 @@ export function resolve_council_vote(petition: Pick<guild_petitions, 'id' | 'gui
 				now - COUNCIL_MEMBERSHIP_WAIT, petition.voting_threshold, petition.id, petition.id);
 		if (uncast !== null) return null;
 	}
-	// An unvoted Petition is consent at its deadline; nonempty ties still deny.
-	return (tally.aye === 0 && tally.nay === 0) || tally.aye > tally.nay ? 'granted' : 'denied';
+	return resolve_closed_council_vote(petition.id, database);
 }

@@ -821,7 +821,7 @@ export function install_chat_actions(runtime) {
 		},
 
 		async show_admin_details(kind) {
-			if (!this.chat_is_admin) return;
+			if (kind !== 'reactions' && kind !== 'seen' && !this.chat_is_admin) return;
 			const conversation = this.selected_chat_conversation;
 			const message = this.selected_chat_message;
 			const poll = this.selected_poll;
@@ -857,10 +857,12 @@ export function install_chat_actions(runtime) {
 			}
 			this.admin_details_kind = kind;
 			this.admin_detail_groups = groups;
-			const title = kind === 'seen' ? 'MOD_MP_CHAT_SHOW_SEEN' :
-				kind === 'responses' ? 'MOD_MP_POLLS_SHOW_RESPONSES' : 'MOD_MP_CHAT_SHOW_REACTIONS';
+			const title = kind === 'seen' ? 'MOD_MP_CHAT_SEEN_TITLE' :
+				kind === 'responses' ? 'MOD_MP_POLLS_SHOW_RESPONSES' : 'MOD_MP_CHAT_REACTIONS_TITLE';
 			queue_modal(title, 'admin-details-modal', this.get_chat_participant_icon(), {
 				showConfirmButton: false,
+				showCloseButton: true,
+				closeButtonAriaLabel: getLangString('MOD_MP_BUTTON_CLOSE'),
 				didClose: () => { state.admin_detail_groups = []; state.admin_details_kind = null; }
 			}, true, false);
 		},
@@ -954,12 +956,45 @@ export function install_chat_actions(runtime) {
 			}
 		},
 
+		get_petition_badge(petition) {
+			const id = petition.discussion_id ?? petition.petition_id;
+			const entry = this.events?.petition_discussions?.find(row => row.discussion_id === id) ?? petition;
+			const count = entry.discussion_unread_count ?? 0;
+			const tagged = count > 0 && entry.discussion_has_unread_tag === true;
+			return { count, tagged, text: tagged ? '@' : String(count) };
+		},
+
+		get_petition_nav_badge(scope = 'all') {
+			const entries = this.events?.petition_discussions ?? [
+				...(this.council_petitions ?? []).map(p => ({ ...p, council: true, alliance: p.type?.startsWith('alliance_') })),
+				...(this.alliance_state?.processes ?? []).filter(p => p.discussion_id).map(p => ({ ...p, alliance: true }))
+			];
+			const unique = new Map();
+			for (const entry of entries) {
+				if (scope === 'council' && !entry.council || scope === 'alliance' && !entry.alliance) continue;
+				const id = entry.discussion_id ?? entry.petition_id;
+				if (id > 0) unique.set(id, entry);
+			}
+			const count = [...unique.values()].reduce((sum, entry) => sum + (entry.discussion_unread_count ?? 0), 0);
+			const tagged = [...unique.values()].some(entry => entry.discussion_unread_count > 0 && entry.discussion_has_unread_tag);
+			return { count, tagged, text: tagged ? '@' : String(count) };
+		},
+
+		async open_alliance_discussion(proposal) {
+			if (!(proposal?.discussion_id > 0)) return;
+			return this.open_petition_discussion({ petition_id: proposal.discussion_id, discussion_id: proposal.discussion_id,
+				type: 'alliance_' + proposal.kind, alliance_proposal: proposal });
+		},
+
 		async open_petition_discussion(petition) {
 			if (!Number.isSafeInteger(petition?.petition_id) || petition.petition_id < 1) return;
-			const conversation = { conversation_kind: 'petition-discussion', conversation_id: petition.petition_id,
+			const proposal = petition.discussion_id && this.alliance_state?.processes?.find(p => p.discussion_id === petition.discussion_id);
+			if (proposal) petition = { ...petition, alliance_proposal: proposal };
+			const conversation = { conversation_kind: 'petition-discussion', conversation_id: petition.discussion_id ?? petition.petition_id,
 				participant: { client_id: null, display_name: getLangString('MOD_MP_COUNCIL_DISCUSSION'), icon_id: 'multiplayer' },
 				petition, unread_count: 0, contributes_unread: false, blocked: false };
 			// Select before changing pages so the page refresh opens this retained discussion.
+			this.close_chat_conversation();
 			this.selected_chat_conversation = conversation;
 			changePage(game.pages.getObjectByID('multiplayer:Chat'));
 		},

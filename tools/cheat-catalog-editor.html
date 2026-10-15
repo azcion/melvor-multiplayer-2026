@@ -1,0 +1,1003 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Melvor · Cheat catalog editor</title><link rel="icon" href="data:,"><style>
+:root{color-scheme:light;--ink:#20392f;--muted:#66776f;--line:#dce4dc;--accent:#295d44;--paper:#f7f8f2}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 system-ui,sans-serif}button,input,select,textarea{font:inherit}button{cursor:pointer;border:1px solid var(--line);background:white;border-radius:8px;padding:9px 14px;color:var(--ink)}button:hover{background:#edf3eb}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid #8ebcab;outline-offset:2px}button.primary{background:var(--accent);color:white;border-color:var(--accent)}header{padding:26px max(24px,calc((100vw - 1300px)/2));background:white;border-bottom:1px solid var(--line)}.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:2px;color:var(--accent)}h1{font-size:29px;font-weight:650;letter-spacing:-.8px;margin:8px 0}h2{font-size:20px;margin:0}h3{font-size:17px;margin:0}p{margin:8px 0;color:var(--muted)}.top{display:flex;justify-content:space-between;align-items:center;gap:24px}.actions{display:flex;gap:8px;flex-wrap:wrap}.shell{max-width:1348px;margin:auto;padding:24px;display:grid;grid-template-columns:230px minmax(0,1fr);gap:26px}aside{align-self:start;position:sticky;top:24px}nav{display:grid;gap:7px}nav button{text-align:left;border:0;background:transparent}nav button.active{background:#e3eddf;font-weight:650}.note{font-size:13px;margin-top:22px}.status{font-size:13px;margin:12px 0 0;color:var(--accent)}.toolbar{display:flex;gap:10px;align-items:center;margin:20px 0;flex-wrap:wrap}input[type=search]{flex:1;min-width:180px}input[type=text],input[type=search],textarea,select{border:1px solid #cdd8ce;background:white;color:var(--ink);border-radius:7px;padding:9px 11px;width:100%}select{width:auto;max-width:100%}textarea{resize:vertical;min-height:78px;line-height:1.5}label.field{display:block;font-size:13px;font-weight:600;margin:12px 0 4px}article,.category-card,.preview{background:white;border:1px solid var(--line);border-radius:12px;padding:21px;margin:14px 0}article.changed,.category-card.changed{border-left:4px solid #ba853b}.cardtop{display:flex;align-items:center;justify-content:space-between;gap:14px}.meta{font-size:12px;color:var(--muted)}.badges{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}.choice{border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:13px;cursor:pointer;display:flex;gap:6px;align-items:center}.choice:has(:checked){background:#e7efdf;border-color:#afc6a6}input[type=checkbox]{accent-color:var(--accent)}.description{padding:10px 0;border-top:1px solid #edf0e9}.description .meta{float:right}.warning{background:#fff4dd;border:1px solid #e6d0a6;padding:10px 12px;border-radius:8px;font-size:13px;color:#77541c;margin:10px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.preview ol{padding-left:23px}.preview li{margin:20px 0}.count{border-radius:20px;background:#e7ecdf;font-size:12px;padding:3px 8px}.empty{padding:40px;text-align:center}.change{border-top:1px solid var(--line);padding:14px 0}del{color:#8a5550;white-space:pre-wrap}ins{color:#295d44;text-decoration:none;white-space:pre-wrap}footer{font-size:12px;color:var(--muted);margin:25px 0}.hidden{display:none!important}@media(max-width:760px){.top{display:block}.actions{margin-top:18px}.shell{display:block;padding:16px}aside{position:static}nav{display:flex;flex-wrap:wrap}.note{margin:10px 0 20px}.grid{grid-template-columns:1fr}header{padding:22px 18px}h1{font-size:25px}.cardtop{align-items:start}.description .meta{float:none;display:block}}
+</style></head><body><header><div class="top"><div><div class="eyebrow">Melvor Multiplayer · English content</div><h1>Cheat catalog editor</h1><p>Refine the wording. Adjust the assignments. Export when you’re ready.</p></div><div class="actions"><button id="import">Import draft</button><button id="export" class="primary">Export for review ↓</button></div></div><p class="status" id="status" role="status">Ready</p></header><div class="shell"><aside><nav aria-label="Editor sections"><button class="active" data-view="mods">Mod assignments <span class="count">55</span></button><button data-view="categories">Category titles</button><button data-view="preview">Modal preview</button><button data-view="review">Review changes <span id="change-count" class="count">0</span></button></nav><p class="note">English only. Changes are saved in this browser. Export a JSON file and attach it in our chat for review, application and later localization.</p><button id="reset">Reset all edits</button><p class="note">This is a baked-in repository snapshot. Assignment changes are proposals; review-only classifications remain marked.</p></aside><main id="main"></main></div><input id="import-file" type="file" accept=".json,application/json" hidden><script id="baseline" type="application/json">{
+  "schema_version": 1,
+  "language": "en",
+  "source": {
+    "catalog": "server/cheat-mod-catalog.json",
+    "language": "mod/data/lang/en.json",
+    "fingerprint": "61f8b592b79548e21c85d6661af44d110cdd8aa351e17e8c4270331ebcb62eb8"
+  },
+  "categories": [
+    {
+      "id": "time",
+      "title": "Time Cheats",
+      "description": ""
+    },
+    {
+      "id": "items",
+      "title": "Item Cheats",
+      "description": ""
+    },
+    {
+      "id": "resources",
+      "title": "Resource Cheats",
+      "description": ""
+    },
+    {
+      "id": "multitasking",
+      "title": "Multitasking",
+      "description": ""
+    },
+    {
+      "id": "shops",
+      "title": "Shop Cheats",
+      "description": ""
+    },
+    {
+      "id": "loot_rng",
+      "title": "Loot Cheats",
+      "description": ""
+    }
+  ],
+  "presence_notice": "These mods were reported loaded on this character within the last 7 days. Loaded-mod presence does not establish which features were enabled or used.",
+  "mods": [
+    {
+      "id": 2253095,
+      "name": "dev.Console",
+      "legacy_interdict_member": true,
+      "classifications": [
+        {
+          "category_id": "items",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Historical eight-mod Interdict policy membership; loaded presence does not establish use.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/devconsole",
+          "public_explanation": "Not inherently a cheat, but it makes it highly likely that shenanigans are afoot."
+        }
+      ]
+    },
+    {
+      "id": 2404399,
+      "name": "Gotta Go Fast",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "time",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Changes game tick multiplier.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/gotta-go-fast",
+          "public_explanation": "Changes game tick multiplier."
+        }
+      ]
+    },
+    {
+      "id": 2429395,
+      "name": "Add Items",
+      "legacy_interdict_member": true,
+      "classifications": [
+        {
+          "category_id": "items",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Historical eight-mod Interdict policy membership; loaded presence does not establish use.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/additem",
+          "public_explanation": "Lets you add any item to the bank."
+        }
+      ]
+    },
+    {
+      "id": 2476421,
+      "name": "Melvor Clicker",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "time",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Clicks subtract active non-combat action ticks.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/melvor-clicker",
+          "public_explanation": "Clicks subtract active non-combat action ticks."
+        }
+      ]
+    },
+    {
+      "id": 2478248,
+      "name": "A Bit Cheating",
+      "legacy_interdict_member": false,
+      "classifications": []
+    },
+    {
+      "id": 2479713,
+      "name": "Loot Chests",
+      "legacy_interdict_member": true,
+      "classifications": [
+        {
+          "category_id": "items",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Historical eight-mod Interdict policy membership; loaded presence does not establish use.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/shoptest",
+          "public_explanation": ""
+        },
+        {
+          "category_id": "shops",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Sells custom loot chests for GP. No evidence of rerolling or editing odds, so no Loot/RNG category. Existing Interdict member despite its shop-based mechanism.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/shoptest",
+          "public_explanation": "Sells custom loot chests for GP."
+        },
+        {
+          "category_id": "loot_rng",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Maintainer-reviewed category assignment (2026-10-14).",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/shoptest",
+          "public_explanation": "Sells custom loot chests for GP."
+        }
+      ]
+    },
+    {
+      "id": 2492054,
+      "name": "I hate RNG",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "loot_rng",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Converts containers into selected drops at a configurable exchange rate. Deterministic conversion is explicit even at default expected-value pricing.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/i-hate-rng",
+          "public_explanation": "Converts containers into selected drops at a configurable exchange rate."
+        }
+      ]
+    },
+    {
+      "id": 2550564,
+      "name": "Time Skip",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "time",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Simulates additional elapsed gameplay; not merely faster offline-screen processing.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/time-skip",
+          "public_explanation": "Simulates additional elapsed gameplay."
+        }
+      ]
+    },
+    {
+      "id": 2592412,
+      "name": "Buyable Dungeon Chests",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "shops",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Purchasable dungeon chests/scrolls after explicit completion gates; not itself a reroll mod.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/buyable-dungeon-chests",
+          "public_explanation": "Purchasable dungeon chests/scrolls after explicit completion gates."
+        }
+      ]
+    },
+    {
+      "id": 2647058,
+      "name": "X  Auto Manger",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "items",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Maintainer-reviewed category assignment (2026-10-14).",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/x-auto-manger",
+          "public_explanation": "Lets you add any item to your bank."
+        },
+        {
+          "category_id": "resources",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Explicit item/currency/prayer-point adders, XP and Mastery XP additions, XP multiplier and automatic Slayer tasks. XP speed is not game-time acceleration.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/x-auto-manger",
+          "public_explanation": "It lets you add any items, currency and prayer points."
+        }
+      ]
+    },
+    {
+      "id": 2674875,
+      "name": "Slayer Coin Multiplier",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "resources",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Multiplies Slayer Coin gains; listing default is 10x.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/slayer-coin-multiplier",
+          "public_explanation": "Multiplies Slayer Coin gains."
+        }
+      ]
+    },
+    {
+      "id": 2732321,
+      "name": "Mastery Token Shop",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "shops",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Adds all Mastery Tokens to the shop; listing explicitly retains level-99 skill requirement. Do not claim requirement removal.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/mastery-token-shop",
+          "public_explanation": "Adds all Mastery Tokens to the shop."
+        }
+      ]
+    },
+    {
+      "id": 2920542,
+      "name": "Rune Shop for TotH",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "shops",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Sells TotH runes and a rune chest; level requirement retained. Random chest alone does not establish RNG manipulation.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/rune-shop-for-toth",
+          "public_explanation": "Sells TotH runes and a rune chest."
+        }
+      ]
+    },
+    {
+      "id": 2975623,
+      "name": "LuckyReroll",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "loot_rng",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Inventory identifies chest rerolls; publisher describes reverting time to change luck. Classify by reroll effect, not as additional elapsed-time production.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/lucky-reroll",
+          "public_explanation": "Allows chest rewards to be rerolled."
+        }
+      ]
+    },
+    {
+      "id": 2985491,
+      "name": "Free Farming",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "resources",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Both distinct Free Farming listings remove action-button costs; identity is ambiguous between two mod.io IDs. Do not claim seeds are free without inspecting code. Classify both IDs independently once matched.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/free-farming | https://mod.io/g/melvoridle/m/free-farming1",
+          "public_explanation": "Removes costs in farming."
+        }
+      ]
+    },
+    {
+      "id": 3153827,
+      "name": "Multitasking",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "multitasking",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Explicitly trains multiple active skills simultaneously.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/multitasking",
+          "public_explanation": "Explicitly trains multiple active skills simultaneously."
+        }
+      ]
+    },
+    {
+      "id": 3244425,
+      "name": "Speedup",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "time",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Configurable game speed online and offline.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/speedup1",
+          "public_explanation": "Configurable game speed online and offline."
+        }
+      ]
+    },
+    {
+      "id": 3384052,
+      "name": "Runeshop Unlimited",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "shops",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Rune-shop fork. Inventory says level requirement removed; public description alone does not substantiate that subfeature.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/runeshop-unlimited",
+          "public_explanation": "Adds a rune shop."
+        }
+      ]
+    },
+    {
+      "id": 3416038,
+      "name": "Octane's Treasure Island",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "resources",
+          "confidence": "high",
+          "publication_state": "pending",
+          "rationale": "Adds a combat-content route to Bank Slot Tokens; capability is clear, but marking custom-content rewards as cheating needs explicit policy approval.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/octanes-treasure-island",
+          "public_explanation": ""
+        }
+      ]
+    },
+    {
+      "id": 3736954,
+      "name": "Quicksave and Quickload (Reroll offline progress)",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "time",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Maintainer-reviewed category assignment (2026-10-14).",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/quicksave-quickload",
+          "public_explanation": "Restoring saves rerolls simulated offline rewards."
+        },
+        {
+          "category_id": "loot_rng",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Restoring saves rerolls simulated offline rewards. Does not establish extra elapsed-time creation; separate from rollback-economy incident detection.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/quicksave-quickload",
+          "public_explanation": "Restoring saves rerolls simulated offline rewards."
+        }
+      ]
+    },
+    {
+      "id": 4075906,
+      "name": "Buyable Dungon Chest Updated",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "shops",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Adds further DLC chest shops to original purchasable-dungeon-chest model.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/buyable-dungon-chest-updated",
+          "public_explanation": "Adds further DLC chest shops to original purchasable-dungeon-chest model."
+        }
+      ]
+    },
+    {
+      "id": 4210503,
+      "name": "Remove Consumptions",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "resources",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "100-percent preservation of selected ammo, runes, food, prayer/soul points, tablets, consumables and potion charges. Potion selection still consumes one potion.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/remove-consumptions",
+          "public_explanation": "100% preservation of selected ammo, runes, food, prayer/soul points, tablets, consumables and potion charges."
+        }
+      ]
+    },
+    {
+      "id": 4230134,
+      "name": "Gashapon",
+      "legacy_interdict_member": false,
+      "classifications": []
+    },
+    {
+      "id": 4327492,
+      "name": "[Myth] Mordecai",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "resources",
+          "confidence": "high",
+          "publication_state": "pending",
+          "rationale": "Disenchanting pays essence for random vanilla items and custom legendary gear. Additional item source is explicit; treating this balanced-content economy as cheating needs a policy decision. Random output alone does not establish RNG manipulation.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/myth-mordecai",
+          "public_explanation": ""
+        }
+      ]
+    },
+    {
+      "id": 4510205,
+      "name": "timeIsMoney",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "time",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Publisher and inventory explicitly describe speeding up the game.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/timeismoney",
+          "public_explanation": "Lets you speed up the game."
+        }
+      ]
+    },
+    {
+      "id": 4528592,
+      "name": "Speed & Auto Eat",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "time",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Explicit speed control plus configurable healing thresholds and at-least-100-percent food efficiency. Combat is an unpolled supplemental category.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/speed-and-auto-eat",
+          "public_explanation": "Explicit speed control."
+        }
+      ]
+    },
+    {
+      "id": 4610188,
+      "name": "more time skip",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "time",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Additional time-skip options; supported by inventory and publisher summary.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/more-time-skip",
+          "public_explanation": "Additional time-skip options."
+        }
+      ]
+    },
+    {
+      "id": 4791576,
+      "name": "Free Farming",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "resources",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Both distinct Free Farming listings remove action-button costs; identity is ambiguous between two mod.io IDs. Do not claim seeds are free without inspecting code. Classify both IDs independently once matched.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/free-farming | https://mod.io/g/melvoridle/m/free-farming1",
+          "public_explanation": "Removes costs in farming."
+        }
+      ]
+    },
+    {
+      "id": 4854748,
+      "name": "Progressive offline speedup",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "time",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Multiplies simulated offline elapsed time.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/progressive-offline-speedup2",
+          "public_explanation": "Multiplies simulated offline elapsed time."
+        }
+      ]
+    },
+    {
+      "id": 4857224,
+      "name": "MANGO - Food Shop",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "shops",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Adds purchasable foods including Whales.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/mango-food-shop",
+          "public_explanation": "Adds purchasable foods."
+        }
+      ]
+    },
+    {
+      "id": 4857342,
+      "name": "MANGO - Armor Shop",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "shops",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Adds purchasable Mithril-to-Dragon equipment.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/mango-armor-shop",
+          "public_explanation": "Adds purchasable equipment."
+        }
+      ]
+    },
+    {
+      "id": 4857386,
+      "name": "MANGO - Crystal Shop",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "shops",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Adds purchasable combat amulets and gemstones.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/mango-crystal-shop",
+          "public_explanation": "Adds purchasable combat amulets and gemstones."
+        }
+      ]
+    },
+    {
+      "id": 4857419,
+      "name": "MANGO - Weapon Shop",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "shops",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Adds purchasable weapons.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/mango-weapon-shop",
+          "public_explanation": "Adds purchasable weapons."
+        }
+      ]
+    },
+    {
+      "id": 4857489,
+      "name": "MANGO - Herblore Shop",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "shops",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Adds purchasable herbs and potion materials.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/mango-herblore-shop",
+          "public_explanation": "Adds purchasable herbs and potion materials."
+        }
+      ]
+    },
+    {
+      "id": 4925330,
+      "name": "Speedup++",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "time",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Configurable tick acceleration online and offline.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/speedup2",
+          "public_explanation": "Configurable tick acceleration online and offline."
+        }
+      ]
+    },
+    {
+      "id": 5291505,
+      "name": "Linear Progressive Offline Speedup",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "time",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Counts offline time with an increasing multiplier.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/linear-progressive-offline-speedup",
+          "public_explanation": "Counts offline time with an increasing multiplier."
+        }
+      ]
+    },
+    {
+      "id": 5377900,
+      "name": "[Creative Mode] God mode w/ Loot + XP Multipliers",
+      "legacy_interdict_member": true,
+      "classifications": [
+        {
+          "category_id": "items",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Historical eight-mod Interdict policy membership; loaded presence does not establish use.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/drop-multiplier",
+          "public_explanation": ""
+        },
+        {
+          "category_id": "resources",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Explicit attack-speed control, but no demonstrated global time multiplier (Time is pending); free requirement-free shop purchases; resource/currency multipliers; extra rare/pet/relic rolls; HP and XP changes. Progression and Combat are supplemental axes. Existing Interdict member.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/drop-multiplier",
+          "public_explanation": "Offers resource and currency multipliers."
+        },
+        {
+          "category_id": "shops",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Explicit attack-speed control, but no demonstrated global time multiplier (Time is pending); free requirement-free shop purchases; resource/currency multipliers; extra rare/pet/relic rolls; HP and XP changes. Progression and Combat are supplemental axes. Existing Interdict member.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/drop-multiplier",
+          "public_explanation": "Offers shop purchases without their usual costs or requirements."
+        },
+        {
+          "category_id": "loot_rng",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Explicit attack-speed control, but no demonstrated global time multiplier (Time is pending); free requirement-free shop purchases; resource/currency multipliers; extra rare/pet/relic rolls; HP and XP changes. Progression and Combat are supplemental axes. Existing Interdict member.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/drop-multiplier",
+          "public_explanation": "Offers extra rare, pet and relic rolls."
+        }
+      ]
+    },
+    {
+      "id": 5539074,
+      "name": "Zeltho Quality of Life Improvements",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "time",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Explicit game-speed multiplier. Unlimited offline cap is a distinct feature; do not equate the cap alone with acceleration.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/zeltho-quality-of-life-improvements",
+          "public_explanation": "Explicit game-speed multiplier."
+        }
+      ]
+    },
+    {
+      "id": 5562257,
+      "name": "Mau Mod",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "resources",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Explicit Township resources, consumable preservation and God Mode. Multipliers unspecified, so XP-specific Progression is only medium confidence. No supported Time classification.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/mau-mod",
+          "public_explanation": "Offers Township resources and consumable preservation."
+        }
+      ]
+    },
+    {
+      "id": 5562948,
+      "name": "God Mode",
+      "legacy_interdict_member": true,
+      "classifications": [
+        {
+          "category_id": "resources",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Maintainer-reviewed category assignment (2026-10-14).",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/god-mode",
+          "public_explanation": ""
+        },
+        {
+          "category_id": "loot_rng",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Maintainer-reviewed category assignment (2026-10-14).",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/god-mode",
+          "public_explanation": ""
+        }
+      ]
+    },
+    {
+      "id": 5964319,
+      "name": "Melvor Cheat Suite",
+      "legacy_interdict_member": true,
+      "classifications": [
+        {
+          "category_id": "time",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Maintainer-reviewed category assignment (2026-10-14).",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/melvor-cheat-suite",
+          "public_explanation": ""
+        },
+        {
+          "category_id": "items",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Historical eight-mod Interdict policy membership; loaded presence does not establish use.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/melvor-cheat-suite",
+          "public_explanation": ""
+        },
+        {
+          "category_id": "resources",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Maintainer-reviewed category assignment (2026-10-14).",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/melvor-cheat-suite",
+          "public_explanation": ""
+        },
+        {
+          "category_id": "loot_rng",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Maintainer-reviewed category assignment (2026-10-14).",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/melvor-cheat-suite",
+          "public_explanation": ""
+        }
+      ]
+    },
+    {
+      "id": 6155084,
+      "name": "2nd skill online",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "multitasking",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Additional online skill; description says no saved progress. Confirm practical compatibility before release, but category intent is explicit.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/2nd-skill-online",
+          "public_explanation": "Adds a second online skill."
+        }
+      ]
+    },
+    {
+      "id": 6160627,
+      "name": "Rune Shop for ItA",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "shops",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Adds purchasable Into the Abyss runes.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/rune-shop-for-ita",
+          "public_explanation": "Adds purchasable ItA runes."
+        }
+      ]
+    },
+    {
+      "id": 6199976,
+      "name": "Workers",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "multitasking",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Three non-combat workers can run alongside player combat.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/workers",
+          "public_explanation": "Three non-combat workers can run alongside player combat."
+        }
+      ]
+    },
+    {
+      "id": 6209430,
+      "name": "Requirement Filler",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "items",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Maintainer-reviewed category assignment (2026-10-14).",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/shop-add-items",
+          "public_explanation": "Fills item and currency costs and offers an item and currency adder."
+        },
+        {
+          "category_id": "resources",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Fills item/currency costs and includes a full item/currency adder. It does not add a shop merely because its buttons appear in shops. Not an existing Interdict member.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/shop-add-items",
+          "public_explanation": "Fills item and currency costs and offers an item and currency adder."
+        }
+      ]
+    },
+    {
+      "id": 6226897,
+      "name": "Lucky Reroll (animations removed)",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "loot_rng",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Chest-reroll fork with animations removed.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/lucky-reroll-animations-removed",
+          "public_explanation": "Allows chest rewards to be rerolled."
+        }
+      ]
+    },
+    {
+      "id": 6233922,
+      "name": "Multipliers",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "resources",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Explicit gathering-reward, XP and Mastery XP multipliers. Progression is an unpolled supplemental category; Time requires actual tick/time acceleration, not XP gain.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/multipliers",
+          "public_explanation": "Offers gathering-reward multipliers."
+        }
+      ]
+    },
+    {
+      "id": 6289236,
+      "name": "Super Awesome Bank Slot Tokens!",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "resources",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Adds Bank Slot Tokens and a custom five-slot token to skill drops. Extra random drops belong to Resources; random drops alone are not Loot/RNG manipulation.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/bank-slot-tokens-everywhere",
+          "public_explanation": "Adds Bank Slot Tokens and a custom five-slot token to skill drops."
+        }
+      ]
+    },
+    {
+      "id": 6328604,
+      "name": "宠物加强版",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "loot_rng",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Chinese description explicitly offers pet acquisition probability multipliers and rare-drop probability/quantity boosts. Stacked pet bonuses can affect combat/progression; inspect exact bonuses before those mappings become public.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/na256951",
+          "public_explanation": "Offers rare-drop probability boosts."
+        },
+        {
+          "category_id": "resources",
+          "confidence": "medium",
+          "publication_state": "pending",
+          "rationale": "Chinese description explicitly offers pet acquisition probability multipliers and rare-drop probability/quantity boosts. Stacked pet bonuses can affect combat/progression; inspect exact bonuses before those mappings become public.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/na256951",
+          "public_explanation": ""
+        }
+      ]
+    },
+    {
+      "id": 6359594,
+      "name": "RandomBankSlots",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "resources",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Adds real vanilla Bank Slot Tokens as random skill drops with adjustable frequency.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/randombankslots",
+          "public_explanation": "Adds Bank Slot Tokens as random skill drops with adjustable frequency."
+        }
+      ]
+    },
+    {
+      "id": 6379230,
+      "name": "Cheat Chest",
+      "legacy_interdict_member": true,
+      "classifications": [
+        {
+          "category_id": "items",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Historical eight-mod Interdict policy membership; loaded presence does not establish use.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/cheat-chest",
+          "public_explanation": ""
+        },
+        {
+          "category_id": "loot_rng",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Equalizes weights, limits outcomes to chosen items and forces maximum normal quantity. Existing Interdict member.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/cheat-chest",
+          "public_explanation": "Changes chest outcome weights and allows chosen items."
+        },
+        {
+          "category_id": "resources",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Equalizes weights, limits outcomes to chosen items and forces maximum normal quantity. Existing Interdict member.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/cheat-chest",
+          "public_explanation": "Can force the maximum normal chest quantity."
+        }
+      ]
+    },
+    {
+      "id": 6399063,
+      "name": "kunkun的神秘商店",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "shops",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Chinese description: shop buys back previously sold items, with shortcut purchasing from some icons. Prices/exploitability not established.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/buybuck",
+          "public_explanation": "Adds a shop for repurchasing previously sold items."
+        }
+      ]
+    },
+    {
+      "id": 6404219,
+      "name": "ingot shop",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "shops",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Chinese description: ingots sold at their sell price.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/bars-shop",
+          "public_explanation": "Lets you buy ingots in the shop."
+        }
+      ]
+    },
+    {
+      "id": 6404239,
+      "name": "wood shop",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "shops",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Chinese description: all wood sold at its sell price.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/wood-shop",
+          "public_explanation": "Lets you buy wood."
+        }
+      ]
+    },
+    {
+      "id": 6419494,
+      "name": "Universal Item Spawner",
+      "legacy_interdict_member": true,
+      "classifications": [
+        {
+          "category_id": "items",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Historical eight-mod Interdict policy membership; loaded presence does not establish use.",
+          "evidence_reference": "legacy server registry",
+          "public_explanation": ""
+        }
+      ]
+    }
+  ]
+}</script><script>
+'use strict';
+const baseline=JSON.parse(document.getElementById('baseline').textContent), copy=x=>JSON.parse(JSON.stringify(x));
+const storageKey='melvor-cheat-editor:'+baseline.source.fingerprint;
+let draft=copy(baseline),view='mods',search='',filter='all',onlyChanged=false,storageAvailable=true;
+const $=id=>document.getElementById(id);
+function el(tag,props={},...children){const n=document.createElement(tag);for(const[k,v]of Object.entries(props)){if(k.startsWith('on'))n.addEventListener(k.slice(2),v);else if(k==='class')n.className=v;else if(k==='text')n.textContent=v;else n.setAttribute(k,v)}for(const c of children.flat())if(c!=null)n.append(typeof c==='string'?document.createTextNode(c):c);return n}
+function originalMod(id){return baseline.mods.find(m=>m.id===id)}
+function changes(){const rows=[];for(const c of draft.categories){const o=baseline.categories.find(x=>x.id===c.id);for(const key of ['title','description'])if(c[key]!==o[key])rows.push({type:'category',id:c.id,field:key,before:o[key],after:c[key]})}for(const m of draft.mods){const o=originalMod(m.id);for(const c of baseline.categories){const before=o.classifications.find(x=>x.category_id===c.id),after=m.classifications.find(x=>x.category_id===c.id);if(!!before!==!!after)rows.push({type:'assignment',mod_id:m.id,mod_name:m.name,category_id:c.id,before:!!before,after:!!after});if(after&&after.public_explanation!==(before?.public_explanation??''))rows.push({type:'mod_description',mod_id:m.id,mod_name:m.name,category_id:c.id,before:before?.public_explanation??'',after:after.public_explanation})}}return rows}
+function itemAssigned(m){return m.classifications.some(c=>c.category_id==='items')}
+function policyChanges(){return draft.mods.filter(m=>itemAssigned(m)!==itemAssigned(originalMod(m.id))).map(m=>({mod_id:m.id,mod_name:m.name,reason:'Changes Item Cheats and Interdict membership; requires policy review before application.'}))}
+function modified(m){const old=originalMod(m.id).classifications;return m.classifications.length!==old.length||m.classifications.some(c=>!old.some(o=>o.category_id===c.category_id&&o.public_explanation===c.public_explanation))}
+function title(id){return draft.categories.find(c=>c.id===id).title||id}
+function save(){try{localStorage.setItem(storageKey,JSON.stringify(draft))}catch{storageAvailable=false}$('status').textContent=(storageAvailable?'Saved in this browser':'Browser storage unavailable — export to keep your edits')+' · '+changes().length+' changes';$('change-count').textContent=changes().length}
+// Rebuild identity and review metadata from the baked-in source; imports only supply editable fields.
+function validate(value){if(!value||value.source?.fingerprint!==baseline.source.fingerprint||value.language!=='en'||!Array.isArray(value.categories)||!Array.isArray(value.mods)||value.categories.length!==baseline.categories.length||value.mods.length!==baseline.mods.length)throw Error('This draft does not match this editor’s source snapshot.');const next=copy(baseline);const seen=new Set();for(const c of value.categories){const target=next.categories.find(x=>x.id===c.id);if(!target||seen.has(c.id)||typeof c.title!=='string'||typeof c.description!=='string')throw Error('Invalid category content.');seen.add(c.id);target.title=c.title;target.description=''}seen.clear();for(const m of value.mods){const target=next.mods.find(x=>x.id===m.id);if(!target||seen.has(m.id)||!Array.isArray(m.classifications))throw Error('Invalid mod content.');seen.add(m.id);const ids=new Set();target.classifications=m.classifications.map(c=>{if(!baseline.categories.some(x=>x.id===c.category_id)||ids.has(c.category_id)||typeof c.public_explanation!=='string')throw Error('Invalid category assignment.');ids.add(c.category_id);return {...mapping(target.id,c.category_id),public_explanation:c.public_explanation}})}return next}
+function mapping(id,category_id){const old=originalMod(id).classifications.find(c=>c.category_id===category_id);return old?copy(old):{category_id,confidence:'high',publication_state:'pending',rationale:'Proposed in the English content editor; requires review.',evidence_reference:'',public_explanation:''}}
+try{const saved=localStorage.getItem(storageKey);if(saved)draft=validate(JSON.parse(saved))}catch{storageAvailable=false;$('status').textContent='Could not restore browser storage; starting with the source snapshot.'}
+function field(label,value,oninput,multiline=false){const input=el(multiline?'textarea':'input',{...(multiline?{rows:3}:{type:'text'}),oninput:e=>oninput(e.target.value)});input.value=value;return el('label',{class:'field'},label,input)}
+function render(){const main=$('main');main.replaceChildren();document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));if(view==='mods')renderMods(main);if(view==='categories')renderCategories(main);if(view==='preview')renderPreview(main);if(view==='review')renderReview(main)}
+function renderMods(main){main.append(el('h2',{},'Mod assignments & descriptions'),el('p',{},'Select one or more categories for each mod. Descriptions are optional. Leave one blank to show the mod name without an explanation.'));const query=el('input',{type:'search',placeholder:'Search mods or descriptions', 'aria-label':'Search mods',oninput:e=>{search=e.target.value;renderModList()}});query.value=search;const select=el('select',{'aria-label':'Filter by category',onchange:e=>{filter=e.target.value;renderModList()}},el('option',{value:'all'},'All categories'),el('option',{value:'unassigned'},'Unassigned'),...draft.categories.map(c=>el('option',{value:c.id},c.title)));select.value=filter;const check=el('input',{type:'checkbox',onchange:e=>{onlyChanged=e.target.checked;renderModList()}});check.checked=onlyChanged;main.append(el('div',{class:'toolbar'},query,select,el('label',{class:'choice'},check,'Changed only')),el('div',{id:'list-meta',class:'meta'}),el('div',{id:'mod-list'}));renderModList()}
+function renderModList(){const list=$('mod-list');list.replaceChildren();const mods=draft.mods.filter(m=>(filter==='all'||filter==='unassigned'&&!m.classifications.length||m.classifications.some(c=>c.category_id===filter))&&(!onlyChanged||modified(m))&&(m.name+' '+m.classifications.map(c=>c.public_explanation).join(' ')).toLowerCase().includes(search.toLowerCase())).sort((a,b)=>a.name.localeCompare(b.name,'en'));$('list-meta').textContent=mods.length+' of '+draft.mods.length+' mods';if(!mods.length)list.append(el('p',{class:'empty'},'No mods match these filters.'));for(const m of mods){const card=el('article',{class:modified(m)?'changed':''});card.append(el('div',{class:'cardtop'},el('div',{},el('h3',{},m.name),el('span',{class:'meta'},'mod.io ID '+m.id+(m.legacy_interdict_member?' · Historical Interdict member':''))),el('button',{onclick:()=>{m.classifications=copy(originalMod(m.id).classifications);save();renderModList()}},'Revert')));const badges=el('div',{class:'badges'});for(const c of draft.categories){const check=el('input',{type:'checkbox',onchange:e=>{if(e.target.checked)m.classifications.push(mapping(m.id,c.id));else m.classifications=m.classifications.filter(x=>x.category_id!==c.id);m.classifications.sort((a,b)=>baseline.categories.findIndex(x=>x.id===a.category_id)-baseline.categories.findIndex(x=>x.id===b.category_id));save();renderModList()}});check.checked=m.classifications.some(x=>x.category_id===c.id);badges.append(el('label',{class:'choice'},check,c.title||c.id))}card.append(badges);if(itemAssigned(m)!==itemAssigned(originalMod(m.id)))card.append(el('div',{class:'warning'},'Policy review required: this changes the current Item Cheats set.'));if(!m.classifications.length)card.append(el('p',{},'No category assigned.'));for(const c of m.classifications){const block=el('div',{class:'description'},el('span',{class:'meta'},c.publication_state==='approved'?'Approved · '+c.confidence+' confidence':'Review only · '+c.confidence+' confidence'),field(title(c.category_id)+' — mod description (optional)',c.public_explanation,v=>{c.public_explanation=v;card.classList.toggle('changed',modified(m));save()},true));if(c.evidence_reference.startsWith('https://'))block.append(el('a',{href:c.evidence_reference,target:'_blank',rel:'noopener noreferrer',class:'meta'},'Source listing ↗'));card.append(block)}list.append(card)}}
+function renderCategories(main){main.append(el('h2',{},'Category titles'),el('p',{},'Titles appear on badges and at the top of the modal.'));for(const c of draft.categories){const o=baseline.categories.find(x=>x.id===c.id);const card=el('section',{class:'category-card'+(JSON.stringify(c)!==JSON.stringify(o)?' changed':'')},el('div',{class:'cardtop'},el('h3',{},o.title),el('span',{class:'meta'},'Stable ID: '+c.id)));function edit(k,v){c[k]=v;card.classList.toggle('changed',JSON.stringify(c)!==JSON.stringify(o));save()}card.append(field('Category title',c.title,v=>edit('title',v)));main.append(card)}}
+function renderPreview(main){main.append(el('h2',{},'Modal preview'),el('p',{},'Preview of your proposed English content. All proposed assignments are included here; unpublished entries are identified.'));const select=el('select',{'aria-label':'Preview category',onchange:()=>draw()},...draft.categories.map(c=>el('option',{value:c.id},c.title)));const container=el('div');main.append(el('div',{class:'toolbar'},select),container);function draw(){const c=draft.categories.find(c=>c.id===select.value);const mods=draft.mods.filter(m=>m.classifications.some(x=>x.category_id===c.id));container.replaceChildren(el('div',{class:'preview'},el('h2',{},c.title),el('p',{},baseline.presence_notice),el('ol',{},...mods.map(m=>{const assignment=m.classifications.find(x=>x.category_id===c.id);return el('li',{},el('strong',{},m.name),assignment.public_explanation.trim()?el('p',{},assignment.public_explanation):null,assignment.publication_state!=='approved'?el('span',{class:'meta'},'Unpublished / review only'):null)})),!mods.length?el('p',{},'No mods assigned to this category.'):null))}draw()}
+function renderReview(main){const rows=changes();main.append(el('h2',{},'Review changes'),el('p',{},rows.length+' changes across category wording, assignments and mod descriptions.'));for(const flag of policyChanges())main.append(el('div',{class:'warning'},flag.mod_name+': '+flag.reason));if(!rows.length)main.append(el('p',{class:'empty'},'Nothing changed yet.'));for(const row of rows){const label=row.type==='category'?title(row.id)+' · '+row.field:row.mod_name+' · '+title(row.category_id)+' · '+(row.type==='assignment'?'assignment':'description');main.append(el('div',{class:'change'},el('strong',{},label),el('div',{},el('del',{},typeof row.before==='boolean'?(row.before?'Assigned':'Not assigned'):row.before||'(empty)')),el('div',{},el('ins',{},typeof row.after==='boolean'?(row.after?'Assigned':'Not assigned'):row.after||'(empty)'))))}}
+function exportData(){return {format:'melvor-cheat-editor',schema_version:1,language:'en',exported_at:new Date().toISOString(),source:copy(baseline.source),original:copy(baseline),edited:copy(draft),changes:changes(),policy_review:policyChanges()}}
+$('export').onclick=()=>{const missing=draft.categories.some(c=>!c.title.trim());if(missing&&!confirm('Some category titles are blank. Export this unfinished draft for review?'))return;const blob=new Blob([JSON.stringify(exportData(),null,2)+'\n'],{type:'application/json'});const url=URL.createObjectURL(blob);const link=el('a',{href:url,download:'melvor-cheat-edits-'+new Date().toISOString().slice(0,10)+'.json'});document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);$('status').textContent='Exported '+changes().length+' changes. Attach the JSON file in our chat.'};
+$('import').onclick=()=>$('import-file').click();$('import-file').onchange=async e=>{try{const file=e.target.files[0];if(!file)return;const data=JSON.parse(await file.text());if(data.format!=='melvor-cheat-editor'||data.schema_version!==1)throw Error('Choose a JSON export from this editor.');const next=validate(data.edited);if(changes().length&&!confirm('Replace your current edits with the imported draft?'))return;draft=next;save();render()}catch(err){alert(err.message)}finally{e.target.value=''}};
+$('reset').onclick=()=>{if(!confirm('Reset all edits to the original English snapshot?'))return;draft=copy(baseline);save();render()};document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{view=b.dataset.view;render()});save();render();
+</script></body></html>

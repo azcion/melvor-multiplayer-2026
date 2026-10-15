@@ -113,6 +113,8 @@ let polling = null;
 let open_transfer_page = null;
 let request_scheduler = null;
 let read_cache = null;
+let unavailable_guild_previews = new Set();
+let guild_preview_scope = null;
 let page_snapshots_supported = false;
 let transfer_history_refresh_timer = null;
 let events_refreshed_at = 0;
@@ -324,6 +326,7 @@ const state = ui.createStore({
 	alliance_name_input: '',
 	alliance_modal: null,
 	alliance_confirmation: null,
+	alliance_reason_confirmation: null,
 	alliance_preview: null,
 	alliance_preview_restore_picker: false,
 	alliance_preview_from_member_guilds: false,
@@ -338,6 +341,10 @@ const state = ui.createStore({
 	viewed_status: null,
 	viewed_active_mods: [],
 	viewed_cheat_mods: [],
+	viewed_category_mods: [],
+	viewed_cheat_category: 'items',
+	viewed_cheats_unavailable: false,
+	viewed_cheats_remaining: '',
 	viewed_cheats_elapsed: '',
 	profile_active_tab: 'skills',
 	member_actions_preview: false,
@@ -807,6 +814,9 @@ const state = ui.createStore({
 		if (this.guild_mobile_tab === 'council' && this.guild_state.guild?.capabilities?.council) return 'council';
 		return 'guild';
 	},
+
+	get council_discussion_badge() { return this.get_petition_nav_badge('council'); },
+	get alliance_discussion_badge() { return this.get_petition_nav_badge('alliance'); },
 
 	get council_needs_vote() {
 		return this.council_petitions.some(petition => petition.lifecycle === 'active' && petition.can_vote && !petition.current_vote);
@@ -3413,9 +3423,12 @@ function update_guild_nav() {
 	set_nav_ready(aside, ready);
 	const applicants = state.is_guild_member && !state.is_free_fellowship && !state.guild_state.guild?.is_public ? state.visible_guild_applicants.length : 0;
 	const needs_vote = state.is_guild_member && (state.council_needs_vote || state.alliance_needs_vote);
+	const discussion = state.is_guild_member ? state.get_petition_nav_badge?.() : null;
+	aside.classList?.toggle('mp-petition-unread', ready && discussion?.count > 0);
+	aside.classList?.toggle('mp-chat-tagged-nav', ready && discussion?.tagged === true);
 	aside.textContent = !ready ? '' : !state.is_guild_member ? getLangString('MOD_MP_SIDEBAR_GUILD_START') :
-		applicants > 0 ? String(applicants) : needs_vote ? getLangString('MOD_MP_VOTE_BADGE') : '';
-	aside.hidden = !ready || (state.is_guild_member && applicants === 0 && !needs_vote);
+		discussion?.count > 0 ? discussion.text : applicants > 0 ? String(applicants) : needs_vote ? getLangString('MOD_MP_VOTE_BADGE') : '';
+	aside.hidden = !ready || (state.is_guild_member && applicants === 0 && !needs_vote && !(discussion?.count > 0));
 }
 
 function update_multiplayer_nav() {
@@ -4236,7 +4249,19 @@ async function coordinated_request(endpoint, options, request) {
 async function api_get(endpoint) {
 	if (state.multiplayer_unsupported)
 		return null;
-	return read_cache.read(endpoint, valid => api_get_request(endpoint, valid), CACHED_READS.has(endpoint) || endpoint.startsWith('/api/alliances/guild-preview?'));
+	const preview = endpoint.startsWith('/api/alliances/guild-preview?');
+	const scope = server_host + ':' + session_generation;
+	if (guild_preview_scope !== scope) {
+		guild_preview_scope = scope;
+		unavailable_guild_previews.clear();
+	}
+	if (preview && unavailable_guild_previews.has(endpoint)) return { guild: null };
+	const result = await read_cache.read(endpoint, valid => api_get_request(endpoint, valid), CACHED_READS.has(endpoint) || preview);
+	// Historical petitions can outlive their Guild. Remember only definitive misses,
+	// independently of routine Council cache invalidation, within this server/session.
+	if (preview && result?.guild === null && scope === server_host + ':' + session_generation)
+		unavailable_guild_previews.add(endpoint);
+	return result;
 }
 
 async function api_get_request(endpoint, is_current = () => true, retry_throttled = true) {
@@ -4260,6 +4285,8 @@ async function api_get_request(endpoint, is_current = () => true, retry_throttle
 				const json = res.headers.get('Content-Type')?.includes('application/json') ? await res.json() : null;
 				if (res.status === 426)
 					enter_unsupported_multiplayer(json?.minimum_supported_mod_version);
+				if (res.status === 404 && endpoint.startsWith('/api/alliances/guild-preview?') &&
+					request_generation === session_generation && is_current()) return { guild: null };
 				return res.status === 200 && request_generation === session_generation ? json : null;
 			}
 		});
@@ -4586,7 +4613,7 @@ async function refresh_chat_conversations() {
 			unread_count: 0, blocked: false });
 	}
 	state.chat_conversations = conversations;
-	if (selected?.conversation_kind === 'poll-discussion' &&
+	if (state.selected_chat_conversation === selected && selected?.conversation_kind === 'poll-discussion' &&
 		!state.polls.some(poll => poll.poll_id === selected.conversation_id))
 		state.close_chat_conversation();
 	state.global_chat_enabled = res.global_chat?.enabled !== false;
@@ -4596,7 +4623,8 @@ async function refresh_chat_conversations() {
 	state.guild_chat_enabled = state.guild_chat_state.enabled !== false;
 	state.chat_unread = state.get_chat_notification_unread(res.conversations);
 	update_chat_nav();
-	if (selected) {
+	// An inbox request must not restore a conversation the player has since left.
+	if (selected && state.selected_chat_conversation === selected) {
 		const current = res.conversations.find(conversation =>
 			(conversation.conversation_kind ?? 'private') ===
 				(selected.conversation_kind ?? 'private') &&
@@ -4716,6 +4744,7 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 			moderation_changed = true;
 		}
 		if (view_generation !== chat_view_generation ||
+			(state.selected_chat_conversation?.conversation_kind ?? 'private') !== kind ||
 			state.selected_chat_conversation?.conversation_id !== conversation_id ||
 			state.selected_chat_conversation?.support_team_id !== conversation.support_team_id)
 			return false;
@@ -4732,8 +4761,13 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 			if (Number.isSafeInteger(res.moderation_count)) conversation.message_moderation_count = res.moderation_count;
 			if (kind === 'petition-discussion') conversation.petition_votes_visible = res.petition_votes_visible;
 			if (kind === 'petition-discussion' && !prepend) {
-				for (const petition of state.council_petitions)
-					if (petition.petition_id === conversation_id) petition.discussion_unread_count = res.discussion_unread_count ?? 0;
+				const id = res.discussion_id ?? conversation_id;
+				for (const entry of [...(state.council_petitions ?? []), ...(state.alliance_state?.processes ?? []), ...(state.events?.petition_discussions ?? [])])
+					if ((entry.discussion_id ?? entry.petition_id) === id) {
+						entry.discussion_unread_count = res.discussion_unread_count ?? 0;
+						entry.discussion_has_unread_tag = res.discussion_has_unread_tag === true;
+					}
+				update_guild_nav();
 			}
 			if (kind === 'poll-discussion' && res.messages.length > 0) {
 				const poll = state.polls.find(poll => poll.poll_id === conversation_id);
@@ -5310,6 +5344,7 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 		if (typeof res.alliance_access === 'boolean') state.alliance_access = res.alliance_access;
 		if (Array.isArray(res.account_tags)) state.account_tags = res.account_tags;
 		state.events.guild_applicants = res.guild_applicants ?? [];
+		state.events.petition_discussions = res.petition_discussions;
 		state.market_completed = res.market_completed;
 		state.market_haggle_pending = res.haggle_pending ?? 0;
 		if (state.is_transfer_page_visible)

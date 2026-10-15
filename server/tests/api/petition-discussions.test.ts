@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { make_guild_group } from '../support/fixtures';
 import { get_json_with_session, post_json, register_client, request } from '../support/http';
-import { db_run } from '../support/persistence';
+import { db_all, db_run } from '../support/persistence';
 
 type Message = { message_id: number; sender_id: number; petition_event?: string; content: string; parts?: unknown[] };
 const messages = (session: string, id: number, cursor = '') => get_json_with_session<{ messages: Message[]; has_more: boolean; petition_votes_visible: boolean; discussion_unread_count: number; error_lang?: string }>(
@@ -9,6 +9,30 @@ const messages = (session: string, id: number, cursor = '') => get_json_with_ses
 const send = (session: string, id: number, key: string, content = 'A normal reply') => post_json<{ message: Message; error_lang?: string }>(
 	'/api/chat/messages/send', { conversation_kind: 'petition-discussion', conversation_id: id, idempotency_key: key, content }, session);
 const council = (session: string) => get_json_with_session<{ petitions: { petition_id: number; discussion_unread_count: number }[] }>('/api/guilds/council', session);
+
+test('closed petitions suppress unread alerts without marking retained messages read', async () => {
+	const members = await make_guild_group(['Closed Author', 'Closed Reader'], 'Closed Alerts', '1.6.12');
+	for (const lifecycle of ['granted', 'denied', 'lapsed', 'withdrawn']) {
+		const id = (await post_json<{ petition_id: number }>('/api/guilds/petitions/raise',
+			{ type: 'appellation', name: 'Closed ' + lifecycle }, members[0].session_token)).json.petition_id;
+		const event = async () => (await get_json_with_session<{ petition_discussions: {
+			discussion_id: number; discussion_unread_count: number; discussion_has_unread_tag: boolean;
+		}[] }>('/api/events', members[1].session_token)).json.petition_discussions.find(d => d.discussion_id === id);
+		expect((await event())?.discussion_unread_count).toBe(1);
+		const read_state = await db_all('SELECT * FROM petition_discussion_read_state WHERE petition_id=? AND client_id=?',
+			[id, members[1].client_id]);
+		await db_run('UPDATE guild_petitions SET lifecycle=?,resolved_at=created_at,subject_locked=0 WHERE id=?', [lifecycle, id]);
+		expect(await event()).toMatchObject({ discussion_unread_count: 0, discussion_has_unread_tag: false });
+		expect((await council(members[1].session_token)).json.petitions.find(p => p.petition_id === id)?.discussion_unread_count).toBe(0);
+		await send(members[0].session_token, id, 'closed-' + lifecycle);
+		expect(await event()).toMatchObject({ discussion_unread_count: 0, discussion_has_unread_tag: false });
+		expect(await db_all('SELECT * FROM petition_discussion_read_state WHERE petition_id=? AND client_id=?',
+			[id, members[1].client_id])).toEqual(read_state);
+		const history = await messages(members[1].session_token, id);
+		expect(history.json.messages).toHaveLength(2);
+		expect(history.json.discussion_unread_count).toBe(0);
+	}
+});
 
 test('petition discussion records proposal and immutable votes, supports chat and retains history after resolution', async () => {
 	const members = await make_guild_group(['Petition Bob', 'Petition Alice', 'Petition Eve'], 'Petition Discussion', '1.6.10');
@@ -29,6 +53,7 @@ test('petition discussion records proposal and immutable votes, supports chat an
 	expect((await send(members[1].session_token, id, 'ordinary-reply')).json.message.message_id).toBe(reply.json.message.message_id);
 	expect(reply.json.message.petition_event).toBeUndefined();
 	expect((await request('/api/chat/messages/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-Token': members[1].session_token }, body: JSON.stringify({ conversation_kind: 'petition-discussion', conversation_id: id, idempotency_key: 'proposal:forged', content: 'Fake' }) })).status).toBe(400);
+	expect((await request('/api/chat/messages/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-Token': members[1].session_token }, body: JSON.stringify({ conversation_kind: 'petition-discussion', conversation_id: id, idempotency_key: 'alliance-reason:forged', content: 'Fake' }) })).status).toBe(400);
 	await post_json('/api/guilds/petitions/vote', { petition_id: id, choice: 'aye' }, members[1].session_token);
 	await db_run("UPDATE guild_petitions SET lifecycle='denied',resolved_at=created_at,subject_locked=0 WHERE id=?", [id]);
 	expect((await messages(members[2].session_token, id)).json.messages).toHaveLength(4);

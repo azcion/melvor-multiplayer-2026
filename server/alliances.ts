@@ -1,5 +1,6 @@
 import { PETITION_LIFETIME } from './council';
-import { snapshot_council_threshold } from './council-voting';
+import { snapshot_council_threshold, resolve_closed_council_vote } from './council-voting';
+import { record_guild_activity } from './guild-activity';
 import type { JsonObject } from './http';
 import { db, get_service_setting } from './db';
 import type { PetitionType } from './council';
@@ -36,6 +37,24 @@ function revise() {
 	db.query('UPDATE clients SET event_revision = event_revision + 1').run();
 }
 export function finish_alliance_process(p: AllianceProcess, stage: string, now = Date.now(), reason: string | null = null, guild_name: string | null = null) {
+	// A decisive Alliance result closes unfinished Member Guild ballots at their current tally.
+	// Cancellation, expiry and explicit withdrawal retain their distinct closure semantics.
+	if (stage === 'accepted' || stage === 'denied') {
+		for (const petition of db.query<{ id: number; guild_id: number; type: string }, [number]>(`SELECT g.id,g.guild_id,g.type
+			FROM guild_petitions g JOIN alliance_process_petitions l ON l.petition_id=g.id
+			WHERE l.process_id=? AND l.role='ballot' AND g.lifecycle='active'`).all(p.id)) {
+			const lifecycle = resolve_closed_council_vote(petition.id);
+			db.query(`UPDATE guild_petitions SET lifecycle=?,resolved_at=?,subject_locked=0,
+				execution_state=?,execution_effect=? WHERE id=? AND lifecycle='active'`)
+				.run(lifecycle, now, lifecycle === 'granted' ? 'succeeded' : 'not_applicable',
+					lifecycle === 'granted' ? 'ballot_recorded' : null, petition.id);
+			db.query('UPDATE alliance_ballots SET choice=?,submitted_at=? WHERE process_id=? AND guild_id=? AND choice IS NULL')
+				.run(lifecycle === 'granted' ? 'aye' : 'nay', now, p.id, petition.guild_id);
+			if (guild_exists(petition.guild_id)) record_guild_activity({ guild_id: petition.guild_id,
+				event_type: lifecycle === 'granted' ? 'petition_carried' : 'petition_defeated',
+				source_key: `petition:${petition.id}:${lifecycle}`, metadata: { petition_type: petition.type }, created_at: now });
+		}
+	}
 	db.query('UPDATE alliance_processes SET stage = ?, resolved_at = ?, resolution_reason = ?, resolution_guild_name = ? WHERE id = ?')
 		.run(stage, now, reason, guild_name, p.id);
 	db.query('DELETE FROM alliance_pending_slots WHERE process_id = ?').run(p.id);
@@ -239,8 +258,8 @@ export function raise_alliance_process(guild_id: number, client_id: number, kind
 		: kind === 'remove' ? `alliance:${alliance_id}:member:${target}` : `alliance:${alliance_id}:market`;
 	if (db.query(`SELECT 1 FROM alliance_processes WHERE subject = ? AND stage IN ${pending}`).get(subject)) return { error: 'A proposal on this subject is already pending.' };
 	const proposal_name = name ?? (kind === 'join' ? db.query<{name:string},[number]>('SELECT name FROM alliances WHERE id=?').get(target!)?.name : alliance?.name) ?? null;
-	const id = Number(db.query(`INSERT INTO alliance_processes(kind,initiator_guild_id,target_guild_id,alliance_id,name,subject,created_at,expires_at,governance_version)
-		VALUES(?,?,?,?,?,?,?,?,2)`).run(kind, guild_id, kind === 'found' || kind === 'remove' ? target : null, alliance_id, proposal_name, subject, now, now + PROPOSAL_LIFETIME).lastInsertRowid);
+	const id = Number(db.query(`INSERT INTO alliance_processes(kind,initiator_guild_id,target_guild_id,alliance_id,name,subject,created_at,expires_at,governance_version,shared_discussion)
+		VALUES(?,?,?,?,?,?,?,?,2,1)`).run(kind, guild_id, kind === 'found' || kind === 'remove' ? target : null, alliance_id, proposal_name, subject, now, now + PROPOSAL_LIFETIME).lastInsertRowid);
 	if (kind === 'found' || kind === 'join') db.query('INSERT INTO alliance_pending_slots VALUES(?,?)').run(guild_id, id);
 	const p = process(id)!;
 	let petition_id: number;

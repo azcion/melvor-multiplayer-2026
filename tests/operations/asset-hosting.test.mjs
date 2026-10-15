@@ -4,6 +4,7 @@ import { mkdtemp, cp, readFile, writeFile, rm, mkdir, symlink } from 'node:fs/pr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import {
 	validate_config,
 	load_config,
@@ -21,6 +22,20 @@ const remote = {
 	base_url: 'https://cdn.example.com',
 	r2: { account_id: 'a'.repeat(32), bucket: 'melvor', jurisdiction: 'eu' }
 };
+
+test('prepare reports configuration and remote verification before an asset failure', async t => {
+	const dir = await fixture(t);
+	const config_file = join(dir, 'remote.json');
+	await writeFile(config_file, JSON.stringify({ ...remote, assets: ['assets/missing.png'] }));
+	const result = spawnSync(process.execPath, [
+		new URL('../../scripts/asset-hosting.mjs', import.meta.url).pathname, 'prepare', dir, config_file
+	], { encoding: 'utf8', env: { ...process.env, MELVOR_ASSET_CONFIG: config_file } });
+	assert.equal(result.status, 1);
+	assert.ok(result.stdout.includes(config_file));
+	assert.match(result.stdout, /mode: remote/);
+	assert.match(result.stdout, /requires network verification/);
+	assert.match(result.stderr, /ENOENT/);
+});
 
 async function fixture(t) {
 	const dir = await mkdtemp(join(tmpdir(), 'melvor-assets-'));

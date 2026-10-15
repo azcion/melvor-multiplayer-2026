@@ -1,16 +1,16 @@
+import catalog from './cheat-mod-catalog.json';
+
 export type ActiveMod = { id: number | null; name: string };
 
-// Verified against public mod.io game 2869 metadata on 2026-10-11.
-// These policy aliases are curated, never learned from player assertions.
+// Frozen historical membership for migration evidence; current Item Cheats policy is reviewed in the catalog.
+export const LEGACY_INTERDICT_MOD_IDS = [2253095, 2429395, 2479713, 5377900, 5562948, 5964319, 6379230, 6419494];
+export const is_item_cheat = (mod: typeof catalog[number]) => mod.classifications.some(c =>
+	c.category_id === 'items' && c.confidence === 'high' && c.publication_state === 'approved');
+// These aliases are curated, never learned from player assertions.
 export const KNOWN_MODS = [
-	{ id: 2429395, name: 'Add Items', cheat: true },
-	{ id: 5562948, name: 'God Mode', cheat: true },
-	{ id: 2253095, name: 'dev.Console', cheat: true },
-	{ id: 5377900, name: '[Creative Mode] God mode w/ Loot + XP Multipliers', cheat: true },
-	{ id: 5964319, name: 'Melvor Cheat Suite', cheat: true },
-	{ id: 6379230, name: 'Cheat Chest', cheat: true },
-	{ id: 6419494, name: 'Universal Item Spawner', cheat: true },
-	{ id: 2479713, name: 'Loot Chests', cheat: true },
+	...catalog.filter(mod => mod.legacy_interdict_member || is_item_cheat(mod)).map(mod => ({
+		id: mod.mod_io_id, name: mod.canonical_name, aliases: mod.aliases, cheat: is_item_cheat(mod)
+	})),
 	{ id: 5043199, name: 'SUPER AWESOME EXPANSION', aliases: ['Super Awesome Expansion!'], cheat: false }
 ];
 

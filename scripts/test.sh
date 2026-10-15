@@ -76,6 +76,14 @@ append_node_test_path() {
 		node_test_count=$((node_test_count + discovered_count))
 		return
 	fi
+	case "$test_path" in
+		*.test.mjs) ;;
+		*)
+			printf 'Focused Node tests require a .test.mjs file: %s\nBun operation tests require the isolated rehearsal documented in agents/workflows/deploy-pi.md.\n' "$normalized_argument" >&2
+			rm -f -- "$server_args_file" "$node_args_file"
+			exit 2
+			;;
+	esac
 	printf '%s\n' "$normalized_argument" >> "$node_args_file"
 	node_test_count=$((node_test_count + 1))
 }

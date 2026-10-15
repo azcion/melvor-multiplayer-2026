@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.6.12
+
+- Restored Guild names in player modals opened from the Guild roster or Chat for members of your Guild.
+- Everyone can use View Reactions and Show Seen on any Chat Message they can access to see who gave each reaction and who acknowledged it as read. Reactions pairs each emoji and count with its avatar/name list; Seen by lists readers. Both modals expand with their content and have top-right and bottom close controls. Poll response details and moderation remain admin-only.
+- Guild members and applicants now show six ordered cheat-category badges for recently reported loaded mods: Time Cheats, Item Cheats, Resource Cheats, Multitasking, Shop Cheats and Loot Cheats. Opening a badge shows supporting mods, optional per-mod descriptions, report age and expiry. Item Cheats now uses the reviewed nine-mod Interdict set, adding X Auto Manger and Requirement Filler and removing God Mode. Existing reports are re-evaluated without refreshing their timestamps; the other categories remain informational. Interdict, Heresy and related policy labels explicitly name Item Cheats and explain the category-specific restriction. General category descriptions have been removed.
+- New Alliance proposals share one discussion among participating Guild members, adding newcomers during deliberation and retaining the participating Guilds at closure. Your own vote reveals everyone’s named votes; proposal resolution reveals them to all participants. Existing proposals retain their Guild-only discussions, including retained history from dissolved Guilds. All petition discussions now notify with red unread counts or pink mentions in their buttons, mobile tabs, and Guild navigation; automated Aye/Nay messages never count as unread.
+- Closing the shared Marketplace, proposing another Guild’s removal, and proposing your Guild’s departure now require an additional confirmation with a reason of at least 10 characters, posted beneath the proposal in its discussion.
+- Fixed petition Go to Discussion sometimes reopening the previous Chat conversation; switching now clears the old Messages and ignores stale conversation selection updates.
+- Council history gracefully handles unavailable Guilds without repeating failed preview requests on every refresh. Missing Guild previews return a normal empty result without browser 404 noise; opening one explains that the Guild no longer exists.
+- Shared Marketplace policy now opens its disable confirmation from the existing Enabled badge instead of a separate proposal button. The enable button remains available while Disabled.
+
 ## 1.6.11
 
 - Set the minimum supported client version to 1.6.11.

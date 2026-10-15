@@ -5,6 +5,38 @@ import { read_client_source } from './source.mjs';
 
 const root = new URL('../../', import.meta.url);
 
+test('member modals retain Guild affiliation across roster and Chat entry points', async () => {
+	const { install_transfer_actions } = await import('../../mod/client-actions-transfer.mjs');
+	const actions = install_transfer_actions({ queue_modal() {} });
+	const state = {
+		guild_state: { guild: { name: 'Current Guild' } },
+		guild_members: [{ client_id: 12 }],
+		shadowed_members: [{ client_id: 13 }],
+		get_avatar_icon() { return ''; }
+	};
+	for (const client_id of [12, 13]) {
+		const member = { client_id, display_name: 'Roster Member' };
+		actions.show_member_actions.call(state, member);
+		assert.equal(state.selected_guild_member.guild_name, 'Current Guild');
+		assert.equal(member.guild_name, undefined);
+	}
+	actions.show_member_actions.call(state, { client_id: 14, guild_name: 'Other Guild', profile_source: 'chat' });
+	assert.equal(state.selected_guild_member.guild_name, 'Other Guild');
+	actions.show_member_actions.call(state, { client_id: 15, guild_name: null, profile_source: 'chat' });
+	assert.equal(state.selected_guild_member.guild_name, null);
+	// Applicants are outside the roster and must not inherit the viewer's Guild.
+	actions.show_member_actions.call(state, { client_id: 16, profile_source: 'chat' });
+	assert.equal(state.selected_guild_member.guild_name, null);
+	state.guild_state = { affiliation: 'none' };
+	state.guild_members = [];
+	state.shadowed_members = [];
+	actions.show_member_actions.call(state, { client_id: 14, guild_name: 'Other Guild', profile_source: 'chat' });
+	assert.equal(state.selected_guild_member.guild_name, 'Other Guild');
+	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
+	assert.match(templates, /v-if="state\.selected_guild_member\.guild_name"/);
+	assert.doesNotMatch(templates, /profile_source === 'chat' && state\.selected_guild_member\.guild_name/);
+});
+
 test('routes profile controls through one Options member-actions modal', async () => {
 	const [templates, main, language_text] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),

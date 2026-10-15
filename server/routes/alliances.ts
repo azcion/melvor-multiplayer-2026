@@ -1,3 +1,6 @@
+import { can_access_petition_discussion, petition_discussion_summary } from '../petition-discussions';
+import { is_client_version_at_least } from '../client-version-policy';
+import { is_chat_shadowbanned } from '../chat_shadowban';
 import type { HandlerResult } from '../http';
 import * as runtime from '../app-runtime';
 import { has_alliance_access, alliance_for_guild, maintain_alliances, raise_alliance_process, consider_alliance_process, type AllianceProcess } from '../alliances';
@@ -20,17 +23,18 @@ export function register_alliance_routes() {
 		if (guild_id === null) return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
 		const a = alliance_for_guild(guild_id);
 		// Incoming proposals must never displace the process holding this Guild's affiliation slot.
-		const rows = runtime.db.query<AllianceProcess, [number,number,number,number]>(`SELECT * FROM alliance_processes WHERE
-			initiator_guild_id=? OR target_guild_id=? OR alliance_id=?
+		const rows = runtime.db.query<AllianceProcess, [number,number,number,number,number]>(`SELECT * FROM alliance_processes WHERE
+			initiator_guild_id=? OR target_guild_id=? OR alliance_id=? OR EXISTS(SELECT 1 FROM petition_discussions d JOIN petition_discussion_guilds g ON g.discussion_id=d.id WHERE d.process_id=alliance_processes.id AND g.guild_id=?)
 			ORDER BY id IN (SELECT process_id FROM alliance_pending_slots WHERE guild_id=?) DESC,
-				stage IN ('local','waiting','recipient','collective') DESC, id DESC LIMIT 60`).all(guild_id,guild_id,a?.id??-1,guild_id);
+				stage IN ('local','waiting','recipient','collective') DESC, id DESC LIMIT 60`).all(guild_id,guild_id,a?.id??-1,guild_id,guild_id);
 		const affiliation_pending = runtime.db.query('SELECT 1 FROM alliance_pending_slots WHERE guild_id=?').get(guild_id) !== null;
 		const market_proposal_pending = a !== null && runtime.db.query(`SELECT 1 FROM alliance_processes WHERE alliance_id=?
 			AND kind IN ('market_enable','market_disable') AND stage IN ('local','waiting','recipient','collective') LIMIT 1`).get(a.id) !== null;
 		return { market_proposal_pending, guild: public_guild(guild_id), affiliation_pending, alliance: a ? public_alliance(a.id) : null, processes: rows.map(p=> {
 			const own_council = runtime.db.query<{ lifecycle: string }, [number,number]>(`SELECT g.lifecycle FROM alliance_process_petitions l JOIN guild_petitions g ON g.id=l.petition_id WHERE l.process_id=? AND g.guild_id=? AND l.role!='withdraw' ORDER BY g.id DESC LIMIT 1`).get(p.id,guild_id)?.lifecycle ?? null;
 			const ballots = runtime.db.query<{ choice: string | null; guild_id: number },[number]>('SELECT guild_id,choice FROM alliance_ballots WHERE process_id=?').all(p.id);
-			return { process_id:p.id,kind:p.kind,display_kind:p.kind==='join' && p.initiator_guild_id===guild_id ? 'apply' : p.kind,name:p.name,stage:p.stage,governance_version:p.governance_version,own_council,
+			const discussion_id = runtime.db.query<{id:number},[number]>('SELECT id FROM petition_discussions WHERE process_id=?').get(p.id)?.id;
+			return { ...(discussion_id && can_access_petition_discussion(client_id,discussion_id) ? petition_discussion_summary(client_id,discussion_id) : {}), process_id:p.id,kind:p.kind,display_kind:p.kind==='join' && p.initiator_guild_id===guild_id ? 'apply' : p.kind,name:p.name,stage:p.stage,governance_version:p.governance_version,own_council,
 				applicant_consent:p.kind==='join' ? runtime.db.query<{ lifecycle: string },[number]>(`SELECT g.lifecycle FROM alliance_process_petitions l JOIN guild_petitions g ON g.id=l.petition_id WHERE l.process_id=? AND l.role='local'`).get(p.id)?.lifecycle ?? null : null,
 				resolution_reason:p.resolution_reason,resolution_guild_name:p.resolution_guild_name,expires_at:p.expires_at,resolved_at:p.resolved_at,
 				...(p.kind === 'found' ? { founding_guilds: [public_guild(p.initiator_guild_id), public_guild(p.target_guild_id!)] } : {}),
@@ -61,19 +65,37 @@ export function register_alliance_routes() {
 		const id=Number(url.searchParams.get('guild_id'));
 		if(!Number.isSafeInteger(id)||id<1) return 400;
 		const guild=public_guild(id);
-		return guild ? {guild} : 404;
+		// Historical petitions retain Guild IDs after dissolution. Absence is a normal read result.
+		return {guild: guild ?? null};
 	});
 	runtime.session_post_route('/api/alliances/propose',async(req,url,client_id,json): Promise<HandlerResult> => {
 		if(!has_alliance_access(client_id, runtime.get_request_mod_version(req))) return 404;
 		if(typeof json.kind!=='string'||!['found','join','leave','remove','market_enable','market_disable'].includes(json.kind)) return 400;
 		const kind=json.kind;
+		const destructive = ['leave','remove','market_disable'].includes(kind);
+		const version = runtime.get_request_mod_version(req);
+		const requires_reason = destructive && (version === 'development' || is_client_version_at_least(version, '1.6.12'));
+		const reason = typeof json.reason === 'string' ? json.reason.trim() : null;
+		if ((requires_reason || json.reason !== undefined) && (reason === null || [...reason].length < 10 || reason.length > 1000))
+			return { error_lang: 'MOD_MP_ALLIANCE_REASON_REQUIRED' };
 		const target=json.target_id===undefined?null:json.target_id;
 		if(target!==null&&(typeof target!=='number'||!Number.isSafeInteger(target)||target<1)) return 400;
 		const name=kind==='found'?runtime.parse_guild_name(json.name):null;
 		if(kind==='found'&&name===null) return {error_lang:'MOD_MP_ALLIANCE_NAME_REQUIRED'};
 		return runtime.db.transaction(()=> {
 			const guild=runtime.db.query<{guild_id:number},[number]>('SELECT guild_id FROM guild_memberships WHERE client_id=?').get(client_id);
-			return guild ? raise_alliance_process(guild.guild_id,client_id,kind,target,name) : {error_lang:'MOD_MP_GUILD_REQUIRED'};
+			if (!guild) return {error_lang:'MOD_MP_GUILD_REQUIRED'};
+			const result = raise_alliance_process(guild.guild_id,client_id,kind,target,name);
+			if (result.success && destructive && reason !== null) {
+				// Insert in the proposal transaction, immediately after each Council's proposal bubble.
+				runtime.db.query(`INSERT INTO petition_discussion_messages
+					(petition_id,sender_id,idempotency_key,content,created_at,shadow_hidden)
+					SELECT DISTINCT l.discussion_id,?,'alliance-reason:'||l.discussion_id,?,p.created_at,?
+					FROM alliance_process_petitions ap JOIN guild_petitions p ON p.id=ap.petition_id JOIN petition_discussion_links l ON l.petition_id=p.id
+					WHERE ap.process_id=? AND p.show_creator=1 ORDER BY p.id`)
+					.run(client_id, reason, is_chat_shadowbanned(client_id) ? 1 : 0, result.process_id as number);
+			}
+			return result;
 		}).immediate();
 	});
 	for(const action of ['consider','withdraw']) runtime.session_post_route(`/api/alliances/${action}`,async(req,url,client_id,json): Promise<HandlerResult> => {

@@ -1,10 +1,11 @@
-import { can_access_petition_discussion } from './petition-discussions';
+import { can_access_petition_discussion, petition_discussion_id } from './petition-discussions';
 import { petition_discussion_visibility } from './petition-discussion-visibility';
 import { is_admin } from './admin_identity';
 import { db } from './db';
 import { chat_shadow_visibility } from './chat_shadowban';
 import { can_access_support_conversation } from './support_chat';
 import { has_expedition_access } from './account_tags';
+import type { JsonObject } from './http';
 
 export type ChatMessageKind = 'private' | 'alliance' | 'guild' | 'global' | 'testers' | 'support' | 'poll-discussion' | 'petition-discussion';
 
@@ -59,6 +60,7 @@ const conversation_columns: Record<Exclude<ChatMessageKind, 'global' | 'testers'
 };
 
 export function message_is_visible(client_id: number, kind: ChatMessageKind, conversation_id: number, message_id: number, include_moderated = false): boolean {
+	if (kind === 'petition-discussion') conversation_id = petition_discussion_id(conversation_id) ?? conversation_id;
 	if (kind === 'private') {
 		return db.query<{ visible: number }, [number, number, number, number, number, number]>(
 			'SELECT EXISTS(SELECT 1 FROM `chat_messages` AS message ' +
@@ -162,6 +164,7 @@ type ReactionUpdateRow = {
 
 export function reaction_updates(kind: ChatMessageKind, client_id: number, conversation_id: number,
 	after_revision: number | null) {
+	if (kind === 'petition-discussion') conversation_id = petition_discussion_id(conversation_id) ?? conversation_id;
 	if (!Number.isSafeInteger(conversation_id) || conversation_id < 1 ||
 		(after_revision !== null && (!Number.isSafeInteger(after_revision) || after_revision < 0)))
 		return { status: 'bad_request' as const };
@@ -200,6 +203,7 @@ export function reaction_updates(kind: ChatMessageKind, client_id: number, conve
 
 export function set_message_reaction(client_id: number, kind: ChatMessageKind, conversation_id: number,
 	message_id: number, reaction: string, reacted: boolean, now = Date.now(), mod_version?: unknown) {
+	if (kind === 'petition-discussion') conversation_id = petition_discussion_id(conversation_id) ?? conversation_id;
 	if (!Number.isSafeInteger(conversation_id) || conversation_id < 1 ||
 		!Number.isSafeInteger(message_id) || message_id < 1 || typeof reaction !== 'string' || typeof reacted !== 'boolean')
 		return { status: 'bad_request' as const };
@@ -239,9 +243,9 @@ export function set_message_reaction(client_id: number, kind: ChatMessageKind, c
 	}).immediate();
 }
 
-// Admin reads share the reaction visibility boundary: no cross-conversation discovery.
-export function admin_message_details(viewer_id: number, kind: ChatMessageKind, conversation_id: number, message_id: number) {
-	if (!is_admin(viewer_id)) return null;
+// Detail reads share the reaction visibility boundary: no cross-conversation discovery.
+export function message_details(viewer_id: number, kind: ChatMessageKind, conversation_id: number, message_id: number): JsonObject | null {
+	if (kind === 'petition-discussion') conversation_id = petition_discussion_id(conversation_id) ?? conversation_id;
 	if (!message_is_visible(viewer_id, kind, conversation_id, message_id)) return null;
 	const reactions = db.query<{ reaction: string; client_id: number; display_name: string; icon_id: string }, [number]>(
 		`SELECT reaction.reaction, client.id AS client_id, client.display_name, client.icon_id
@@ -273,6 +277,7 @@ export function admin_message_details(viewer_id: number, kind: ChatMessageKind, 
 
 export function moderate_additional_chat_message(viewer_id: number, kind: 'private' | 'support' | 'poll-discussion' | 'petition-discussion',
 	conversation_id: number, message_id: number, now = Date.now()): boolean {
+	if (kind === 'petition-discussion') conversation_id = petition_discussion_id(conversation_id) ?? conversation_id;
 	if (!is_admin(viewer_id) || !message_is_visible(viewer_id, kind, conversation_id, message_id, true)) return false;
 	return db.transaction(() => {
 		if (kind === 'private') {
@@ -289,6 +294,7 @@ export function moderate_additional_chat_message(viewer_id: number, kind: 'priva
 }
 
 export function message_moderation_count(kind: ChatMessageKind, viewer_id: number, conversation_id: number): number | undefined {
+	if (kind === 'petition-discussion') conversation_id = petition_discussion_id(conversation_id) ?? conversation_id;
 	if (kind === 'private') return db.query<{ count: number }, [number, number]>(
 		`SELECT COUNT(*) AS count FROM chat_message_deletions deletion JOIN chat_messages message ON message.id = deletion.message_id
 		WHERE message.conversation_id = ? AND deletion.client_id = ?`).get(conversation_id, viewer_id)?.count ?? 0;

@@ -185,6 +185,12 @@ async function main() {
 	const [command, ...args] = process.argv.slice(2);
 	if (command === 'prepare' && args.length >= 1 && args.length <= 2) {
 		const config = await load_config(args[1]);
+		const default_file = resolve(args[1] ?? resolve(repo_root, 'asset-hosting.json'));
+		const override_file = process.env.MELVOR_ASSET_CONFIG
+			? resolve(repo_root, process.env.MELVOR_ASSET_CONFIG)
+			: resolve(repo_root, 'asset-hosting.local.json');
+		console.log(`Asset configuration: ${default_file}; override: ${existsSync(override_file) ? override_file : 'none'}; mode: ${config.mode}.`);
+		if (config.mode === 'remote') console.log('Remote asset preparation requires network verification of every managed PNG.');
 		const inventory = await prepare_assets(resolve(args[0]), config);
 		console.log(
 			`Assets: ${config.mode}; ${inventory.length} managed PNGs (${inventory.reduce((n, entry) => n + entry.size, 0)} bytes).`

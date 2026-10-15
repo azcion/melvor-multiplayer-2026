@@ -105,6 +105,7 @@ test('twenty repeated page visits share one Transfers and one Guild snapshot', a
 	const calls = [];
 	const context = {
 		state: { multiplayer_unsupported: false }, read_cache: create_read_cache({ scope: () => 'a' }),
+		unavailable_guild_previews: new Set(), guild_preview_scope: null,
 		page_snapshots_supported: true, session_generation: 1, selected_api_major: 2, server_host: 'https://example.test',
 		session_token: 'test-session', CACHED_READS: new Set([...transfers, ...guild]), transport_diagnostics: null,
 		cache_bust_api_endpoint: endpoint => endpoint, resolve_api_endpoint: endpoint => endpoint,
@@ -220,4 +221,42 @@ test('expected read cancellation is quiet while a genuine transport timeout stay
 	assert.equal(errors.length, 0);
 	assert.equal(await context.api_get_request('/api/guilds/state', () => true), null);
 	assert.equal(errors.length, 1);
+});
+
+test('missing Guild previews survive Council refreshes but reset across servers and sessions', async () => {
+	const { readFile } = await import('node:fs/promises');
+	const { runInNewContext } = await import('node:vm');
+	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const source = main.slice(main.indexOf('async function api_get(endpoint)'), main.indexOf('async function api_post_response('));
+	let status = 404, calls = 0;
+	const context = { state: {}, session_generation: 1, selected_api_major: 2, server_host: 'https://one.test',
+		session_token: 'fixture', transport_diagnostics: null, resolve_api_endpoint: route => route,
+		cache_bust_api_endpoint: route => route, handle_session_response: () => {}, error: () => {},
+		unavailable_guild_previews: new Set(), guild_preview_scope: null, CACHED_READS: new Set(),
+	};
+	// Numeric HTTP errors have no JSON body in the actual server.
+	context.coordinated_request = async (_url, _options, request) => {
+		calls++;
+		return request.consume(new Response(status === 200 ? '{"guild":{"guild_id":111}}' : '',
+			{ status, headers: status === 200 ? { 'Content-Type': 'application/json' } : {} }));
+	};
+	context.read_cache = create_read_cache({ scope: () => context.server_host + ':' + context.session_generation });
+	runInNewContext(source, context);
+	const endpoint = '/api/alliances/guild-preview?guild_id=111';
+	assert.equal((await context.api_get(endpoint)).guild, null);
+	context.read_cache.invalidate();
+	assert.equal((await context.api_get(endpoint)).guild, null);
+	assert.equal(calls, 1);
+	context.session_generation++;
+	await context.api_get(endpoint);
+	assert.equal(calls, 2);
+	context.server_host = 'https://two.test';
+	status = 503;
+	assert.equal(await context.api_get(endpoint), null);
+	status = 200;
+	assert.equal((await context.api_get(endpoint)).guild.guild_id, 111);
+	assert.equal(calls, 4);
+	status = 404;
+	assert.equal(await context.api_get('/api/guilds/state'), null);
+	assert.equal(await context.api_get_request(endpoint, () => false), null);
 });

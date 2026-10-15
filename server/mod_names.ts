@@ -1,4 +1,4 @@
-import { KNOWN_MODS } from './active-mods';
+import { KNOWN_MODS, LEGACY_INTERDICT_MOD_IDS } from './active-mods';
 
-// Shared exact title registry for translation; detection also recognizes stable IDs.
-export const CHEAT_MOD_NAMES = new Set(KNOWN_MODS.filter(mod => mod.cheat).map(mod => mod.name));
+// Translation preserves current and historical cheat-mod titles, independently of current enforcement.
+export const CHEAT_MOD_NAMES = new Set(KNOWN_MODS.filter(mod => mod.cheat || LEGACY_INTERDICT_MOD_IDS.includes(mod.id)).map(mod => mod.name));

@@ -124,8 +124,53 @@ export function install_social_actions(runtime) {
 			const button = event.currentTarget;
 			if (!proposal || proposal.closing) return;
 			await this.close_alliance_confirmation();
-			if (proposal.picker) await this.show_alliance_picker(proposal.kind);
+			if (['market_disable', 'remove', 'leave'].includes(proposal.kind)) await this.show_alliance_reason(proposal);
+			else if (proposal.picker) await this.show_alliance_picker(proposal.kind);
 			else if (!proposal.synthetic) await this.alliance_action({ currentTarget: button }, proposal.kind, proposal.target_id, proposal.process_id);
+		},
+		async show_alliance_reason(proposal) {
+			if (this.alliance_reason_confirmation) return;
+			const confirmation = { ...proposal, closing: false, reason: '', pending: false };
+			this.alliance_reason_confirmation = confirmation;
+			this.alliance_error = '';
+			this.alliance_modal = 'alliance-reason-modal';
+			const queued = queue_modal(this.alliance_reason_label(), 'alliance-reason-modal', 'assets/multiplayer.svg', {
+				customClass: { popup: 'mp-alliance-modal-popup' }, showConfirmButton: false,
+				allowOutsideClick: () => !confirmation.pending, allowEscapeKey: () => !confirmation.pending,
+				didClose: () => {
+					if (this.alliance_reason_confirmation !== confirmation || this.alliance_modal !== 'alliance-reason-modal') return;
+					this.alliance_modal = null;
+					this.alliance_reason_confirmation = null;
+				}
+			}, false);
+			if (queued === false) { this.alliance_modal = null; this.alliance_reason_confirmation = null; }
+		},
+		alliance_reason_label() {
+			return getLangString('MOD_MP_ALLIANCE_REASON_' + (this.alliance_reason_confirmation?.kind ?? 'leave').toUpperCase());
+		},
+		alliance_reason_valid() {
+			const reason = this.alliance_reason_confirmation?.reason?.trim() ?? '';
+			return [...reason].length >= 10 && reason.length <= 1000;
+		},
+		async close_alliance_reason() {
+			const confirmation = this.alliance_reason_confirmation;
+			if (!confirmation || confirmation.pending || confirmation.closing) return;
+			confirmation.closing = true;
+			this.alliance_modal = null;
+			await close_modal_and_wait('alliance-reason-modal');
+			if (this.alliance_reason_confirmation === confirmation) this.alliance_reason_confirmation = null;
+		},
+		async confirm_alliance_reason(event) {
+			const proposal = this.alliance_reason_confirmation;
+			if (!proposal || proposal.pending || proposal.closing || !this.alliance_reason_valid()) return;
+			if (proposal.synthetic) {
+				await this.close_alliance_reason();
+				return notify('MOD_MP_ALLIANCE_PREVIEW_CONFIRM_HINT', 'info');
+			}
+			proposal.pending = true;
+			try {
+				await this.alliance_action(event, proposal.kind, proposal.target_id, proposal.process_id, proposal.reason.trim());
+			} finally { proposal.pending = false; }
 		},
 		async show_alliance_picker(mode, page = 0) {
 			if (!this.alliance_access) return;
@@ -158,7 +203,7 @@ export function install_social_actions(runtime) {
 				[...(p.founding_guilds ?? []), p.applicant, p.target_guild]).filter(Boolean)].find(g => g.guild_id === guild_id);
 			if (guild_id < 0 && !fixture?.synthetic) return;
 			const res = fixture?.synthetic ? { guild: fixture } : await api_get('/api/alliances/guild-preview?guild_id=' + guild_id);
-			if (!res?.guild) return notify_error('MOD_MP_GENERIC_ERR');
+			if (!res?.guild) return notify_error(res?.guild === null ? 'MOD_MP_GUILD_NOT_FOUND' : 'MOD_MP_GENERIC_ERR');
 			const previous_modal = this.alliance_modal;
 			this.alliance_modal = null;
 			if (previous_modal) await close_modal_and_wait(previous_modal);
@@ -207,7 +252,7 @@ export function install_social_actions(runtime) {
 			if (previous_modal) await close_modal_and_wait(previous_modal);
 			if (restore) await this.show_alliance_picker(this.alliance_picker_mode, this.alliance_picker_page);
 		},
-		async alliance_action(event, kind, target_id = null, process_id = null) {
+		async alliance_action(event, kind, target_id = null, process_id = null, reason = null) {
 			if (!this.alliance_access) return;
 			const alliance_name = this.alliance_name_input.trim();
 			if (process_id === null && kind === 'found' && (alliance_name.length === 0 || alliance_name.length > 20)) {
@@ -228,7 +273,7 @@ export function install_social_actions(runtime) {
 			this.alliance_error = '';
 			try {
 				const res = await api_post('/api/alliances/' + (process_id === null ? 'propose' : kind),
-					process_id === null ? { kind, ...(target_id === null ? {} : {target_id}), ...(kind === 'found' ? {name:alliance_name} : {}) } : {process_id});
+					process_id === null ? { kind, ...(target_id === null ? {} : {target_id}), ...(kind === 'found' ? {name:alliance_name} : {}), ...(reason === null ? {} : {reason}) } : {process_id});
 				if (!res?.success) { this.alliance_error = res?.error ?? getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR'); return; }
 				if (this.alliance_modal) await close_modal_and_wait(this.alliance_modal);
 				this.alliance_modal = null;

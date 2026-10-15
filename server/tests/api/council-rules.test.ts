@@ -1,7 +1,40 @@
 import { expect, test } from 'bun:test';
-import { make_guild_group, attach_to_free_fellowship } from '../support/fixtures';
+import { make_guild_group, attach_to_free_fellowship, allow_alliance_preview } from '../support/fixtures';
 import { post_json, get_json_with_session, register_client } from '../support/http';
 import { db_all, db_run } from '../support/persistence';
+
+test('dissolved Guild petitions lapse without blocking Council and Alliance reads', async () => {
+	const viewers = await make_guild_group(['Surviving A', 'Surviving B'], 'Surviving Council', '1.6.12');
+	await allow_alliance_preview(viewers[0].client_id);
+	for (const overdue of [false, true]) {
+		const members = await make_guild_group(['Dissolving A', 'Dissolving B', 'Dissolving C'], 'Dissolving Council');
+		const raised = await post_json<{ success: boolean; petition_id: number }>('/api/guilds/petitions/raise',
+			{ type: 'fellowship' }, members[0].session_token);
+		expect(raised.json.success).toBe(true);
+		const id = raised.json.petition_id;
+		await post_json('/api/guilds/petitions/vote', { petition_id: id, choice: 'aye' }, members[0].session_token);
+		for (const member of members)
+			expect((await post_json<{ success: boolean }>('/api/guilds/leave', {}, member.session_token)).json.success).toBe(true);
+		expect(await db_all('SELECT id FROM guilds WHERE id=?', [members[0].guild_id])).toEqual([]);
+		const now = Date.now();
+		await db_run('UPDATE guild_petitions SET created_at=?,expires_at=? WHERE id=?',
+			[now - 60000, now + (overdue ? -1000 : 60000), id]);
+		for (const path of ['/api/alliances', '/api/guilds/council', '/api/pages/snapshot?page=decisions'])
+			expect((await get_json_with_session(path, viewers[0].session_token)).response.status).toBe(200);
+		expect(await db_all('SELECT lifecycle,execution_state,subject_locked FROM guild_petitions WHERE id=?', [id]))
+			.toEqual([{ lifecycle: 'lapsed', execution_state: 'not_applicable', subject_locked: 0 }]);
+		expect(await db_all('SELECT choice FROM guild_petition_votes WHERE petition_id=?', [id])).toEqual([{ choice: 'aye' }]);
+		expect(await db_all('SELECT id FROM guild_activity_events WHERE guild_id=?', [members[0].guild_id])).toEqual([]);
+	}
+	const healthy = await post_json<{ petition_id: number }>('/api/guilds/petitions/raise',
+		{ type: 'fellowship' }, viewers[0].session_token);
+	const now = Date.now();
+	await db_run('UPDATE guild_petitions SET created_at=?,expires_at=? WHERE id=?',
+		[now - 60000, now - 1000, healthy.json.petition_id]);
+	expect((await get_json_with_session('/api/guilds/council', viewers[0].session_token)).response.status).toBe(200);
+	expect(await db_all('SELECT lifecycle,execution_state FROM guild_petitions WHERE id=?', [healthy.json.petition_id]))
+		.toEqual([{ lifecycle: 'granted', execution_state: 'succeeded' }]);
+});
 
 for (const choice of ['aye', 'nay']) test(`another player's ${choice} locks withdrawal and extends inactivity`, async () => {
 	const members = await make_guild_group(['Rules A', 'Rules B', 'Rules C', 'Rules D'], 'Rules Guild');

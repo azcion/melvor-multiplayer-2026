@@ -5,7 +5,7 @@ import { db_all, db_run } from '../support/persistence';
 
 test('admin details respect conversation access, include readers and reactors, and moderate own Private messages', async () => {
 	const admin = await register_client('Chat Details Admin', undefined, '1.6.8');
-	const reader = await register_client('Chat Details Reader', undefined, '1.6.8');
+	const reader = await register_client('Chat Details Reader', undefined, '1.6.12');
 	const outsider = await register_client('Chat Details Outsider', undefined, '1.6.8');
 	await db_run('UPDATE clients SET client_identifier = ? WHERE id = ?', ['TEST-ADMIN-CHAT-DETAILS', admin.client_id]);
 	const started = await post_json<any>('/api/chat/conversations/start', { client_id: reader.client_id }, admin.session_token);
@@ -23,6 +23,8 @@ test('admin details respect conversation access, include readers and reactors, a
 	const details = await get_json_with_session<any>(endpoint, admin.session_token);
 	expect(details.json.reactions).toEqual([expect.objectContaining({ reaction: '👍', client_id: reader.client_id, display_name: reader.display_name })]);
 	expect(details.json.seen).toEqual([expect.objectContaining({ client_id: reader.client_id })]);
+	const public_details = await get_json_with_session<any>(endpoint, reader.session_token);
+	expect(public_details.json).toEqual(details.json);
 	expect((await get_with_session(endpoint, outsider.session_token)).status).toBe(403);
 	expect((await post('/api/chat/messages/delete-for-all', body, reader.session_token)).status).toBe(403);
 	const other = await post_json<any>('/api/chat/conversations/start', { client_id: reader.client_id }, outsider.session_token);
@@ -45,7 +47,7 @@ test('admin details respect conversation access, include readers and reactors, a
 
 test('admin Poll responses retain character ballot attribution and moderate Poll Discussion', async () => {
 	const admin = await register_client('Poll Details Admin', undefined, '1.6.8');
-	const voter = await register_client('Poll Details Voter', undefined, '1.6.8');
+	const voter = await register_client('Poll Details Voter', undefined, '1.6.12');
 	await db_run('UPDATE clients SET client_identifier = ? WHERE id = ?', ['TEST-ADMIN-POLL-DETAILS', admin.client_id]);
 	const created = await post_json<any>('/api/polls/create?capabilities=polls-v1', {
 		idempotency_key: crypto.randomUUID(), content: 'Admin details?', options: ['Yes', 'No'], choice_mode: 'multi'
@@ -64,6 +66,7 @@ test('admin Poll responses retain character ballot attribution and moderate Poll
 	await get_json_with_session(`/api/chat/messages?capabilities=polls-v1&conversation_kind=poll-discussion&conversation_id=${poll_id}`, voter.session_token);
 	const details = await get_json_with_session<any>(`/api/chat/messages/details?conversation_kind=poll-discussion&conversation_id=${poll_id}&message_id=${message_id}`, admin.session_token);
 	expect(details.json.seen).toContainEqual(expect.objectContaining({ client_id: voter.client_id }));
+	expect((await get_json_with_session<any>(`/api/chat/messages/details?conversation_kind=poll-discussion&conversation_id=${poll_id}&message_id=${message_id}`, voter.session_token)).json).toEqual(details.json);
 	for (let attempt = 0; attempt < 2; attempt++) expect((await post_json<any>('/api/chat/messages/delete-for-all', {
 		conversation_kind: 'poll-discussion', conversation_id: poll_id, message_id
 	}, admin.session_token)).json.success).toBe(true);
@@ -75,7 +78,7 @@ test('admin Poll responses retain character ballot attribution and moderate Poll
 
 test('Support admin details resolve member readers and delete every author kind without removing send keys', async () => {
 	const admin = await register_client('Support Details Admin', undefined, '1.6.8');
-	const player = await register_client('Support Details Player', undefined, '1.6.8');
+	const player = await register_client('Support Details Player', undefined, '1.6.12');
 	await db_run('UPDATE clients SET client_identifier = ? WHERE id = ?', ['TEST-ADMIN-SUPPORT-DETAILS', admin.client_id]);
 	const inbox = await get_json_with_session<any>('/api/chat/conversations', player.session_token);
 	const support = inbox.json.conversations.find((conversation: any) => conversation.conversation_kind === 'support');
@@ -88,6 +91,7 @@ test('Support admin details resolve member readers and delete every author kind 
 	await get_json_with_session(page, admin.session_token);
 	const details = await get_json_with_session<any>(`/api/chat/messages/details?conversation_kind=support&conversation_id=${conversation_id}&message_id=${sent.json.message.message_id}`, admin.session_token);
 	expect(details.json.seen).toContainEqual(expect.objectContaining({ client_id: admin.client_id }));
+	expect((await get_json_with_session<any>(`/api/chat/messages/details?conversation_kind=support&conversation_id=${conversation_id}&message_id=${sent.json.message.message_id}`, player.session_token)).json).toEqual(details.json);
 	const own = await post_json<any>('/api/chat/messages/send', { conversation_kind: 'support', conversation_id, support_team_id: support.support_team_id,
 		idempotency_key: crypto.randomUUID(), content: 'Admin reply' }, admin.session_token);
 	const messages = (await get_json_with_session<any>(page, player.session_token)).json.messages;
@@ -102,7 +106,7 @@ test('Support admin details resolve member readers and delete every author kind 
 
 
 test('shared Chat admin details resolve Global, Expedition, and Guild read watermarks', async () => {
-	const pair = await make_guildmates('Shared Details Admin', 'Shared Details Reader', 'Shared Details Guild', { first: '1.6.8', second: '1.6.8' });
+	const pair = await make_guildmates('Shared Details Admin', 'Shared Details Reader', 'Shared Details Guild', { first: '1.6.8', second: '1.6.12' });
 	await db_run('UPDATE clients SET client_identifier = ? WHERE id = ?', ['TEST-ADMIN-SHARED-DETAILS', pair.first_id]);
 	for (const kind of ['global', 'testers', 'guild']) {
 		const conversation_id = kind === 'guild' ? pair.guild_id : 1;
@@ -120,5 +124,35 @@ test('shared Chat admin details resolve Global, Expedition, and Guild read water
 		const details = await get_json_with_session<any>(`/api/chat/messages/details?conversation_kind=${kind}&conversation_id=${conversation_id}&message_id=${message_id}`, pair.first.session_token);
 		expect(details.json.seen).toContainEqual(expect.objectContaining({ client_id: pair.second_id }));
 		expect(details.json.reactions).toEqual([]);
+		expect((await get_json_with_session<any>(`/api/chat/messages/details?conversation_kind=${kind}&conversation_id=${conversation_id}&message_id=${message_id}`, pair.second.session_token)).json).toEqual(details.json);
+	}
+});
+
+
+test('public reaction and read attribution starts at 1.6.12 and cannot reveal inaccessible or deleted Messages', async () => {
+	const sender = await register_client('Public Reactions Sender', undefined, '1.6.12');
+	const reader = await register_client('Public Reactions Reader', undefined, '1.6.12');
+	const outsider = await register_client('Public Reactions Outsider', undefined, '1.6.12');
+	const older = await register_client('Public Reactions Older', undefined, '1.6.11');
+	for (const recipient of [reader, older]) {
+		const started = await post_json<any>('/api/chat/conversations/start', { client_id: recipient.client_id }, sender.session_token);
+		const sent = await post_json<any>('/api/chat/messages/send', { conversation_id: started.json.conversation.conversation_id,
+			client_id: recipient.client_id, idempotency_key: crypto.randomUUID(), content: 'Reaction and read attribution' }, sender.session_token);
+		const { conversation_id, message_id } = sent.json.message;
+		const body = { conversation_kind: 'private', conversation_id, message_id };
+		const endpoint = `/api/chat/messages/details?conversation_kind=private&conversation_id=${conversation_id}&message_id=${message_id}`;
+		await get_json_with_session(`/api/chat/messages?conversation_id=${conversation_id}`, recipient.session_token);
+		await post_json('/api/chat/messages/reaction', { ...body, reaction: '👍', reacted: true }, sender.session_token);
+		const own = await get_json_with_session<any>(endpoint, sender.session_token);
+		expect(own.json).toEqual({ reactions: [expect.objectContaining({ reaction: '👍', client_id: sender.client_id, display_name: sender.display_name })],
+			seen: [expect.objectContaining({ client_id: recipient.client_id, display_name: recipient.display_name })] });
+		expect((await get_with_session(endpoint, outsider.session_token)).status).toBe(404);
+		if (recipient === older) {
+			expect((await get_with_session(endpoint, older.session_token)).status).toBe(403);
+		} else {
+			expect((await get_json_with_session<any>(endpoint, reader.session_token)).json).toEqual(own.json);
+			await db_run('INSERT INTO chat_message_deletions(message_id, client_id, deleted_at) VALUES(?, ?, ?)', [message_id, reader.client_id, Date.now()]);
+			expect((await get_with_session(endpoint, reader.session_token)).status).toBe(404);
+		}
 	}
 });

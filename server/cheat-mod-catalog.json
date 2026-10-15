@@ -1,0 +1,1146 @@
+[
+	{
+		"id": 2253095,
+		"mod_io_id": 2253095,
+		"canonical_name": "dev.Console",
+		"legacy_interdict_member": 1,
+		"aliases": [
+			"dev.Console"
+		],
+		"classifications": [
+			{
+				"category_id": "items",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Historical eight-mod Interdict policy membership; loaded presence does not establish use.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/devconsole",
+				"public_explanation": "Not inherently a cheat, but it makes it highly likely that shenanigans are afoot."
+			}
+		]
+	},
+	{
+		"id": 2404399,
+		"mod_io_id": 2404399,
+		"canonical_name": "Gotta Go Fast",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Gotta Go Fast"
+		],
+		"classifications": [
+			{
+				"category_id": "time",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Changes game tick multiplier.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/gotta-go-fast",
+				"public_explanation": "Changes game tick multiplier."
+			}
+		]
+	},
+	{
+		"id": 2429395,
+		"mod_io_id": 2429395,
+		"canonical_name": "Add Items",
+		"legacy_interdict_member": 1,
+		"aliases": [
+			"Add Items"
+		],
+		"classifications": [
+			{
+				"category_id": "items",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Historical eight-mod Interdict policy membership; loaded presence does not establish use.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/additem",
+				"public_explanation": "Lets you add any item to the bank."
+			}
+		]
+	},
+	{
+		"id": 2476421,
+		"mod_io_id": 2476421,
+		"canonical_name": "Melvor Clicker",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Melvor Clicker"
+		],
+		"classifications": [
+			{
+				"category_id": "time",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Clicks subtract active non-combat action ticks.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/melvor-clicker",
+				"public_explanation": "Clicks subtract active non-combat action ticks."
+			}
+		]
+	},
+	{
+		"id": 2478248,
+		"mod_io_id": 2478248,
+		"canonical_name": "A Bit Cheating",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"A Bit Cheating"
+		],
+		"classifications": []
+	},
+	{
+		"id": 2479713,
+		"mod_io_id": 2479713,
+		"canonical_name": "Loot Chests",
+		"legacy_interdict_member": 1,
+		"aliases": [
+			"Loot Chests"
+		],
+		"classifications": [
+			{
+				"category_id": "items",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Historical eight-mod Interdict policy membership; loaded presence does not establish use.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/shoptest",
+				"public_explanation": ""
+			},
+			{
+				"category_id": "shops",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Sells custom loot chests for GP. No evidence of rerolling or editing odds, so no Loot/RNG category. Existing Interdict member despite its shop-based mechanism.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/shoptest",
+				"public_explanation": "Sells custom loot chests for GP."
+			},
+			{
+				"category_id": "loot_rng",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Maintainer-reviewed category assignment (2026-10-14).",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/shoptest",
+				"public_explanation": "Sells custom loot chests for GP."
+			}
+		]
+	},
+	{
+		"id": 2492054,
+		"mod_io_id": 2492054,
+		"canonical_name": "I hate RNG",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"I hate RNG"
+		],
+		"classifications": [
+			{
+				"category_id": "loot_rng",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Converts containers into selected drops at a configurable exchange rate. Deterministic conversion is explicit even at default expected-value pricing.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/i-hate-rng",
+				"public_explanation": "Converts containers into selected drops at a configurable exchange rate."
+			}
+		]
+	},
+	{
+		"id": 2550564,
+		"mod_io_id": 2550564,
+		"canonical_name": "Time Skip",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Time Skip"
+		],
+		"classifications": [
+			{
+				"category_id": "time",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Simulates additional elapsed gameplay; not merely faster offline-screen processing.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/time-skip",
+				"public_explanation": "Simulates additional elapsed gameplay."
+			}
+		]
+	},
+	{
+		"id": 2592412,
+		"mod_io_id": 2592412,
+		"canonical_name": "Buyable Dungeon Chests",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Buyable Dungeon Chests"
+		],
+		"classifications": [
+			{
+				"category_id": "shops",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Purchasable dungeon chests/scrolls after explicit completion gates; not itself a reroll mod.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/buyable-dungeon-chests",
+				"public_explanation": "Purchasable dungeon chests/scrolls after explicit completion gates."
+			}
+		]
+	},
+	{
+		"id": 2647058,
+		"mod_io_id": 2647058,
+		"canonical_name": "X  Auto Manger",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"X  Auto Manger"
+		],
+		"classifications": [
+			{
+				"category_id": "items",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Maintainer-reviewed category assignment (2026-10-14).",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/x-auto-manger",
+				"public_explanation": "Lets you add any item to your bank."
+			},
+			{
+				"category_id": "resources",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Explicit item/currency/prayer-point adders, XP and Mastery XP additions, XP multiplier and automatic Slayer tasks. XP speed is not game-time acceleration.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/x-auto-manger",
+				"public_explanation": "It lets you add any items, currency and prayer points."
+			}
+		]
+	},
+	{
+		"id": 2674875,
+		"mod_io_id": 2674875,
+		"canonical_name": "Slayer Coin Multiplier",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Slayer Coin Multiplier"
+		],
+		"classifications": [
+			{
+				"category_id": "resources",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Multiplies Slayer Coin gains; listing default is 10x.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/slayer-coin-multiplier",
+				"public_explanation": "Multiplies Slayer Coin gains."
+			}
+		]
+	},
+	{
+		"id": 2732321,
+		"mod_io_id": 2732321,
+		"canonical_name": "Mastery Token Shop",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Mastery Token Shop"
+		],
+		"classifications": [
+			{
+				"category_id": "shops",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Adds all Mastery Tokens to the shop; listing explicitly retains level-99 skill requirement. Do not claim requirement removal.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/mastery-token-shop",
+				"public_explanation": "Adds all Mastery Tokens to the shop."
+			}
+		]
+	},
+	{
+		"id": 2920542,
+		"mod_io_id": 2920542,
+		"canonical_name": "Rune Shop for TotH",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Rune Shop for TotH"
+		],
+		"classifications": [
+			{
+				"category_id": "shops",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Sells TotH runes and a rune chest; level requirement retained. Random chest alone does not establish RNG manipulation.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/rune-shop-for-toth",
+				"public_explanation": "Sells TotH runes and a rune chest."
+			}
+		]
+	},
+	{
+		"id": 2975623,
+		"mod_io_id": 2975623,
+		"canonical_name": "LuckyReroll",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"LuckyReroll"
+		],
+		"classifications": [
+			{
+				"category_id": "loot_rng",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Inventory identifies chest rerolls; publisher describes reverting time to change luck. Classify by reroll effect, not as additional elapsed-time production.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/lucky-reroll",
+				"public_explanation": "Allows chest rewards to be rerolled."
+			}
+		]
+	},
+	{
+		"id": 2985491,
+		"mod_io_id": 2985491,
+		"canonical_name": "Free Farming",
+		"legacy_interdict_member": 0,
+		"aliases": [],
+		"classifications": [
+			{
+				"category_id": "resources",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Both distinct Free Farming listings remove action-button costs; identity is ambiguous between two mod.io IDs. Do not claim seeds are free without inspecting code. Classify both IDs independently once matched.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/free-farming | https://mod.io/g/melvoridle/m/free-farming1",
+				"public_explanation": "Removes costs in farming."
+			}
+		]
+	},
+	{
+		"id": 3153827,
+		"mod_io_id": 3153827,
+		"canonical_name": "Multitasking",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Multitasking"
+		],
+		"classifications": [
+			{
+				"category_id": "multitasking",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Explicitly trains multiple active skills simultaneously.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/multitasking",
+				"public_explanation": "Explicitly trains multiple active skills simultaneously."
+			}
+		]
+	},
+	{
+		"id": 3244425,
+		"mod_io_id": 3244425,
+		"canonical_name": "Speedup",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Speedup"
+		],
+		"classifications": [
+			{
+				"category_id": "time",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Configurable game speed online and offline.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/speedup1",
+				"public_explanation": "Configurable game speed online and offline."
+			}
+		]
+	},
+	{
+		"id": 3384052,
+		"mod_io_id": 3384052,
+		"canonical_name": "Runeshop Unlimited",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Runeshop Unlimited"
+		],
+		"classifications": [
+			{
+				"category_id": "shops",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Rune-shop fork. Inventory says level requirement removed; public description alone does not substantiate that subfeature.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/runeshop-unlimited",
+				"public_explanation": "Adds a rune shop."
+			}
+		]
+	},
+	{
+		"id": 3416038,
+		"mod_io_id": 3416038,
+		"canonical_name": "Octane's Treasure Island",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Octane's Treasure Island"
+		],
+		"classifications": [
+			{
+				"category_id": "resources",
+				"confidence": "high",
+				"publication_state": "pending",
+				"rationale": "Adds a combat-content route to Bank Slot Tokens; capability is clear, but marking custom-content rewards as cheating needs explicit policy approval.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/octanes-treasure-island",
+				"public_explanation": ""
+			}
+		]
+	},
+	{
+		"id": 3736954,
+		"mod_io_id": 3736954,
+		"canonical_name": "Quicksave and Quickload (Reroll offline progress)",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Quicksave and Quickload (Reroll offline progress)"
+		],
+		"classifications": [
+			{
+				"category_id": "time",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Maintainer-reviewed category assignment (2026-10-14).",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/quicksave-quickload",
+				"public_explanation": "Restoring saves rerolls simulated offline rewards."
+			},
+			{
+				"category_id": "loot_rng",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Restoring saves rerolls simulated offline rewards. Does not establish extra elapsed-time creation; separate from rollback-economy incident detection.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/quicksave-quickload",
+				"public_explanation": "Restoring saves rerolls simulated offline rewards."
+			}
+		]
+	},
+	{
+		"id": 4075906,
+		"mod_io_id": 4075906,
+		"canonical_name": "Buyable Dungon Chest Updated",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Buyable Dungon Chest Updated"
+		],
+		"classifications": [
+			{
+				"category_id": "shops",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Adds further DLC chest shops to original purchasable-dungeon-chest model.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/buyable-dungon-chest-updated",
+				"public_explanation": "Adds further DLC chest shops to original purchasable-dungeon-chest model."
+			}
+		]
+	},
+	{
+		"id": 4210503,
+		"mod_io_id": 4210503,
+		"canonical_name": "Remove Consumptions",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Remove Consumptions"
+		],
+		"classifications": [
+			{
+				"category_id": "resources",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "100-percent preservation of selected ammo, runes, food, prayer/soul points, tablets, consumables and potion charges. Potion selection still consumes one potion.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/remove-consumptions",
+				"public_explanation": "100% preservation of selected ammo, runes, food, prayer/soul points, tablets, consumables and potion charges."
+			}
+		]
+	},
+	{
+		"id": 4230134,
+		"mod_io_id": 4230134,
+		"canonical_name": "Gashapon",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Gashapon"
+		],
+		"classifications": []
+	},
+	{
+		"id": 4327492,
+		"mod_io_id": 4327492,
+		"canonical_name": "[Myth] Mordecai",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"[Myth] Mordecai"
+		],
+		"classifications": [
+			{
+				"category_id": "resources",
+				"confidence": "high",
+				"publication_state": "pending",
+				"rationale": "Disenchanting pays essence for random vanilla items and custom legendary gear. Additional item source is explicit; treating this balanced-content economy as cheating needs a policy decision. Random output alone does not establish RNG manipulation.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/myth-mordecai",
+				"public_explanation": ""
+			}
+		]
+	},
+	{
+		"id": 4510205,
+		"mod_io_id": 4510205,
+		"canonical_name": "timeIsMoney",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"timeIsMoney"
+		],
+		"classifications": [
+			{
+				"category_id": "time",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Publisher and inventory explicitly describe speeding up the game.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/timeismoney",
+				"public_explanation": "Lets you speed up the game."
+			}
+		]
+	},
+	{
+		"id": 4528592,
+		"mod_io_id": 4528592,
+		"canonical_name": "Speed & Auto Eat",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Speed & Auto Eat",
+			"Speed &amp; Auto Eat"
+		],
+		"classifications": [
+			{
+				"category_id": "time",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Explicit speed control plus configurable healing thresholds and at-least-100-percent food efficiency. Combat is an unpolled supplemental category.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/speed-and-auto-eat",
+				"public_explanation": "Explicit speed control."
+			}
+		]
+	},
+	{
+		"id": 4610188,
+		"mod_io_id": 4610188,
+		"canonical_name": "more time skip",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"more time skip"
+		],
+		"classifications": [
+			{
+				"category_id": "time",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Additional time-skip options; supported by inventory and publisher summary.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/more-time-skip",
+				"public_explanation": "Additional time-skip options."
+			}
+		]
+	},
+	{
+		"id": 4791576,
+		"mod_io_id": 4791576,
+		"canonical_name": "Free Farming",
+		"legacy_interdict_member": 0,
+		"aliases": [],
+		"classifications": [
+			{
+				"category_id": "resources",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Both distinct Free Farming listings remove action-button costs; identity is ambiguous between two mod.io IDs. Do not claim seeds are free without inspecting code. Classify both IDs independently once matched.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/free-farming | https://mod.io/g/melvoridle/m/free-farming1",
+				"public_explanation": "Removes costs in farming."
+			}
+		]
+	},
+	{
+		"id": 4854748,
+		"mod_io_id": 4854748,
+		"canonical_name": "Progressive offline speedup",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Progressive offline speedup"
+		],
+		"classifications": [
+			{
+				"category_id": "time",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Multiplies simulated offline elapsed time.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/progressive-offline-speedup2",
+				"public_explanation": "Multiplies simulated offline elapsed time."
+			}
+		]
+	},
+	{
+		"id": 4857224,
+		"mod_io_id": 4857224,
+		"canonical_name": "MANGO - Food Shop",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"MANGO - Food Shop"
+		],
+		"classifications": [
+			{
+				"category_id": "shops",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Adds purchasable foods including Whales.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/mango-food-shop",
+				"public_explanation": "Adds purchasable foods."
+			}
+		]
+	},
+	{
+		"id": 4857342,
+		"mod_io_id": 4857342,
+		"canonical_name": "MANGO - Armor Shop",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"MANGO - Armor Shop"
+		],
+		"classifications": [
+			{
+				"category_id": "shops",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Adds purchasable Mithril-to-Dragon equipment.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/mango-armor-shop",
+				"public_explanation": "Adds purchasable equipment."
+			}
+		]
+	},
+	{
+		"id": 4857386,
+		"mod_io_id": 4857386,
+		"canonical_name": "MANGO - Crystal Shop",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"MANGO - Crystal Shop"
+		],
+		"classifications": [
+			{
+				"category_id": "shops",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Adds purchasable combat amulets and gemstones.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/mango-crystal-shop",
+				"public_explanation": "Adds purchasable combat amulets and gemstones."
+			}
+		]
+	},
+	{
+		"id": 4857419,
+		"mod_io_id": 4857419,
+		"canonical_name": "MANGO - Weapon Shop",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"MANGO - Weapon Shop"
+		],
+		"classifications": [
+			{
+				"category_id": "shops",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Adds purchasable weapons.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/mango-weapon-shop",
+				"public_explanation": "Adds purchasable weapons."
+			}
+		]
+	},
+	{
+		"id": 4857489,
+		"mod_io_id": 4857489,
+		"canonical_name": "MANGO - Herblore Shop",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"MANGO - Herblore Shop"
+		],
+		"classifications": [
+			{
+				"category_id": "shops",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Adds purchasable herbs and potion materials.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/mango-herblore-shop",
+				"public_explanation": "Adds purchasable herbs and potion materials."
+			}
+		]
+	},
+	{
+		"id": 4925330,
+		"mod_io_id": 4925330,
+		"canonical_name": "Speedup++",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Speedup++"
+		],
+		"classifications": [
+			{
+				"category_id": "time",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Configurable tick acceleration online and offline.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/speedup2",
+				"public_explanation": "Configurable tick acceleration online and offline."
+			}
+		]
+	},
+	{
+		"id": 5291505,
+		"mod_io_id": 5291505,
+		"canonical_name": "Linear Progressive Offline Speedup",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Linear Progressive Offline Speedup"
+		],
+		"classifications": [
+			{
+				"category_id": "time",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Counts offline time with an increasing multiplier.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/linear-progressive-offline-speedup",
+				"public_explanation": "Counts offline time with an increasing multiplier."
+			}
+		]
+	},
+	{
+		"id": 5377900,
+		"mod_io_id": 5377900,
+		"canonical_name": "[Creative Mode] God mode w/ Loot + XP Multipliers",
+		"legacy_interdict_member": 1,
+		"aliases": [
+			"[Creative Mode] God mode w/ Loot + XP Multipliers"
+		],
+		"classifications": [
+			{
+				"category_id": "items",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Historical eight-mod Interdict policy membership; loaded presence does not establish use.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/drop-multiplier",
+				"public_explanation": ""
+			},
+			{
+				"category_id": "resources",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Explicit attack-speed control, but no demonstrated global time multiplier (Time is pending); free requirement-free shop purchases; resource/currency multipliers; extra rare/pet/relic rolls; HP and XP changes. Progression and Combat are supplemental axes. Existing Interdict member.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/drop-multiplier",
+				"public_explanation": "Offers resource and currency multipliers."
+			},
+			{
+				"category_id": "shops",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Explicit attack-speed control, but no demonstrated global time multiplier (Time is pending); free requirement-free shop purchases; resource/currency multipliers; extra rare/pet/relic rolls; HP and XP changes. Progression and Combat are supplemental axes. Existing Interdict member.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/drop-multiplier",
+				"public_explanation": "Offers shop purchases without their usual costs or requirements."
+			},
+			{
+				"category_id": "loot_rng",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Explicit attack-speed control, but no demonstrated global time multiplier (Time is pending); free requirement-free shop purchases; resource/currency multipliers; extra rare/pet/relic rolls; HP and XP changes. Progression and Combat are supplemental axes. Existing Interdict member.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/drop-multiplier",
+				"public_explanation": "Offers extra rare, pet and relic rolls."
+			}
+		]
+	},
+	{
+		"id": 5539074,
+		"mod_io_id": 5539074,
+		"canonical_name": "Zeltho Quality of Life Improvements",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Zeltho Quality of Life Improvements"
+		],
+		"classifications": [
+			{
+				"category_id": "time",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Explicit game-speed multiplier. Unlimited offline cap is a distinct feature; do not equate the cap alone with acceleration.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/zeltho-quality-of-life-improvements",
+				"public_explanation": "Explicit game-speed multiplier."
+			}
+		]
+	},
+	{
+		"id": 5562257,
+		"mod_io_id": 5562257,
+		"canonical_name": "Mau Mod",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Mau Mod"
+		],
+		"classifications": [
+			{
+				"category_id": "resources",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Explicit Township resources, consumable preservation and God Mode. Multipliers unspecified, so XP-specific Progression is only medium confidence. No supported Time classification.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/mau-mod",
+				"public_explanation": "Offers Township resources and consumable preservation."
+			}
+		]
+	},
+	{
+		"id": 5562948,
+		"mod_io_id": 5562948,
+		"canonical_name": "God Mode",
+		"legacy_interdict_member": 1,
+		"aliases": [
+			"God Mode"
+		],
+		"classifications": [
+			{
+				"category_id": "resources",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Maintainer-reviewed category assignment (2026-10-14).",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/god-mode",
+				"public_explanation": ""
+			},
+			{
+				"category_id": "loot_rng",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Maintainer-reviewed category assignment (2026-10-14).",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/god-mode",
+				"public_explanation": ""
+			}
+		]
+	},
+	{
+		"id": 5964319,
+		"mod_io_id": 5964319,
+		"canonical_name": "Melvor Cheat Suite",
+		"legacy_interdict_member": 1,
+		"aliases": [
+			"Melvor Cheat Suite"
+		],
+		"classifications": [
+			{
+				"category_id": "time",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Maintainer-reviewed category assignment (2026-10-14).",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/melvor-cheat-suite",
+				"public_explanation": ""
+			},
+			{
+				"category_id": "items",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Historical eight-mod Interdict policy membership; loaded presence does not establish use.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/melvor-cheat-suite",
+				"public_explanation": ""
+			},
+			{
+				"category_id": "resources",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Maintainer-reviewed category assignment (2026-10-14).",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/melvor-cheat-suite",
+				"public_explanation": ""
+			},
+			{
+				"category_id": "loot_rng",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Maintainer-reviewed category assignment (2026-10-14).",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/melvor-cheat-suite",
+				"public_explanation": ""
+			}
+		]
+	},
+	{
+		"id": 6155084,
+		"mod_io_id": 6155084,
+		"canonical_name": "2nd skill online",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"2nd skill online"
+		],
+		"classifications": [
+			{
+				"category_id": "multitasking",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Additional online skill; description says no saved progress. Confirm practical compatibility before release, but category intent is explicit.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/2nd-skill-online",
+				"public_explanation": "Adds a second online skill."
+			}
+		]
+	},
+	{
+		"id": 6160627,
+		"mod_io_id": 6160627,
+		"canonical_name": "Rune Shop for ItA",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Rune Shop for ItA"
+		],
+		"classifications": [
+			{
+				"category_id": "shops",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Adds purchasable Into the Abyss runes.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/rune-shop-for-ita",
+				"public_explanation": "Adds purchasable ItA runes."
+			}
+		]
+	},
+	{
+		"id": 6199976,
+		"mod_io_id": 6199976,
+		"canonical_name": "Workers",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Workers"
+		],
+		"classifications": [
+			{
+				"category_id": "multitasking",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Three non-combat workers can run alongside player combat.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/workers",
+				"public_explanation": "Three non-combat workers can run alongside player combat."
+			}
+		]
+	},
+	{
+		"id": 6209430,
+		"mod_io_id": 6209430,
+		"canonical_name": "Requirement Filler",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Requirement Filler"
+		],
+		"classifications": [
+			{
+				"category_id": "items",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Maintainer-reviewed category assignment (2026-10-14).",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/shop-add-items",
+				"public_explanation": "Fills item and currency costs and offers an item and currency adder."
+			},
+			{
+				"category_id": "resources",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Fills item/currency costs and includes a full item/currency adder. It does not add a shop merely because its buttons appear in shops. Not an existing Interdict member.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/shop-add-items",
+				"public_explanation": "Fills item and currency costs and offers an item and currency adder."
+			}
+		]
+	},
+	{
+		"id": 6226897,
+		"mod_io_id": 6226897,
+		"canonical_name": "Lucky Reroll (animations removed)",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Lucky Reroll (animations removed)"
+		],
+		"classifications": [
+			{
+				"category_id": "loot_rng",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Chest-reroll fork with animations removed.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/lucky-reroll-animations-removed",
+				"public_explanation": "Allows chest rewards to be rerolled."
+			}
+		]
+	},
+	{
+		"id": 6233922,
+		"mod_io_id": 6233922,
+		"canonical_name": "Multipliers",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Multipliers"
+		],
+		"classifications": [
+			{
+				"category_id": "resources",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Explicit gathering-reward, XP and Mastery XP multipliers. Progression is an unpolled supplemental category; Time requires actual tick/time acceleration, not XP gain.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/multipliers",
+				"public_explanation": "Offers gathering-reward multipliers."
+			}
+		]
+	},
+	{
+		"id": 6289236,
+		"mod_io_id": 6289236,
+		"canonical_name": "Super Awesome Bank Slot Tokens!",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Super Awesome Bank Slot Tokens!"
+		],
+		"classifications": [
+			{
+				"category_id": "resources",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Adds Bank Slot Tokens and a custom five-slot token to skill drops. Extra random drops belong to Resources; random drops alone are not Loot/RNG manipulation.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/bank-slot-tokens-everywhere",
+				"public_explanation": "Adds Bank Slot Tokens and a custom five-slot token to skill drops."
+			}
+		]
+	},
+	{
+		"id": 6328604,
+		"mod_io_id": 6328604,
+		"canonical_name": "宠物加强版",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"宠物加强版"
+		],
+		"classifications": [
+			{
+				"category_id": "loot_rng",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Chinese description explicitly offers pet acquisition probability multipliers and rare-drop probability/quantity boosts. Stacked pet bonuses can affect combat/progression; inspect exact bonuses before those mappings become public.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/na256951",
+				"public_explanation": "Offers rare-drop probability boosts."
+			},
+			{
+				"category_id": "resources",
+				"confidence": "medium",
+				"publication_state": "pending",
+				"rationale": "Chinese description explicitly offers pet acquisition probability multipliers and rare-drop probability/quantity boosts. Stacked pet bonuses can affect combat/progression; inspect exact bonuses before those mappings become public.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/na256951",
+				"public_explanation": ""
+			}
+		]
+	},
+	{
+		"id": 6359594,
+		"mod_io_id": 6359594,
+		"canonical_name": "RandomBankSlots",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"RandomBankSlots"
+		],
+		"classifications": [
+			{
+				"category_id": "resources",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Adds real vanilla Bank Slot Tokens as random skill drops with adjustable frequency.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/randombankslots",
+				"public_explanation": "Adds Bank Slot Tokens as random skill drops with adjustable frequency."
+			}
+		]
+	},
+	{
+		"id": 6379230,
+		"mod_io_id": 6379230,
+		"canonical_name": "Cheat Chest",
+		"legacy_interdict_member": 1,
+		"aliases": [
+			"Cheat Chest"
+		],
+		"classifications": [
+			{
+				"category_id": "items",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Historical eight-mod Interdict policy membership; loaded presence does not establish use.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/cheat-chest",
+				"public_explanation": ""
+			},
+			{
+				"category_id": "loot_rng",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Equalizes weights, limits outcomes to chosen items and forces maximum normal quantity. Existing Interdict member.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/cheat-chest",
+				"public_explanation": "Changes chest outcome weights and allows chosen items."
+			},
+			{
+				"category_id": "resources",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Equalizes weights, limits outcomes to chosen items and forces maximum normal quantity. Existing Interdict member.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/cheat-chest",
+				"public_explanation": "Can force the maximum normal chest quantity."
+			}
+		]
+	},
+	{
+		"id": 6399063,
+		"mod_io_id": 6399063,
+		"canonical_name": "kunkun的神秘商店",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"kunkun的神秘商店"
+		],
+		"classifications": [
+			{
+				"category_id": "shops",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Chinese description: shop buys back previously sold items, with shortcut purchasing from some icons. Prices/exploitability not established.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/buybuck",
+				"public_explanation": "Adds a shop for repurchasing previously sold items."
+			}
+		]
+	},
+	{
+		"id": 6404219,
+		"mod_io_id": 6404219,
+		"canonical_name": "ingot shop",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"ingot shop"
+		],
+		"classifications": [
+			{
+				"category_id": "shops",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Chinese description: ingots sold at their sell price.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/bars-shop",
+				"public_explanation": "Lets you buy ingots in the shop."
+			}
+		]
+	},
+	{
+		"id": 6404239,
+		"mod_io_id": 6404239,
+		"canonical_name": "wood shop",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"wood shop"
+		],
+		"classifications": [
+			{
+				"category_id": "shops",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Chinese description: all wood sold at its sell price.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/wood-shop",
+				"public_explanation": "Lets you buy wood."
+			}
+		]
+	},
+	{
+		"id": 6419494,
+		"mod_io_id": 6419494,
+		"canonical_name": "Universal Item Spawner",
+		"legacy_interdict_member": 1,
+		"aliases": [
+			"Universal Item Spawner"
+		],
+		"classifications": [
+			{
+				"category_id": "items",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Historical eight-mod Interdict policy membership; loaded presence does not establish use.",
+				"evidence_reference": "legacy server registry",
+				"public_explanation": ""
+			}
+		]
+	}
+]

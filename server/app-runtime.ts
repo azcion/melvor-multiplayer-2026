@@ -1,4 +1,5 @@
-import { petition_discussion_unread_count } from './petition-discussions';
+import { legacy_interdict_applies, observe_category_mods, read_cheat_markings, type CheatMarking } from './cheat-categories';
+import { petition_discussion_summary } from './petition-discussions';
 import { resolve_active_mods, stored_active_mods, matches_active_mod, KNOWN_MODS, type ActiveMod } from './active-mods';
 import { get_inbox_claim_view } from './inbox';
 import { guard_rollback_write, related_rollback_gate, rollback_request_clients, unsafe_rollback_request, RollbackGateError } from './rollback-gate';
@@ -319,8 +320,7 @@ export const CHEAT_USE_WINDOW = 7 * 24 * 60 * 60 * 1000;
 export { CHEAT_MOD_NAMES } from './mod_names';
 
 export function is_using_cheats(cheats_detected_at: number | null, now = Date.now()): boolean {
-	return cheats_detected_at !== null && Number.isSafeInteger(cheats_detected_at) &&
-		cheats_detected_at >= 0 && cheats_detected_at <= now && now - cheats_detected_at <= CHEAT_USE_WINDOW;
+	return legacy_interdict_applies(cheats_detected_at, now);
 }
 
 export function get_client_social_mode(client_id: number): SocialMode {
@@ -809,6 +809,7 @@ export function persist_client_runtime(client_id: number, runtime: ClientRuntime
 			for (const mod of cheat_mods) save.run(client_id, mod.name, now, mod.id);
 		})();
 	}
+	observe_category_mods(db, client_id, runtime.active_mods, runtime.active_mod_details, now, mods);
 	cleanup_market_permissions();
 }
 
@@ -1055,6 +1056,15 @@ export function expire_petitions(now = Date.now()): number {
 		let resolved = 0;
 		for (const petition of db.query<db_row.guild_petitions, []>(
 			"SELECT * FROM guild_petitions WHERE lifecycle='active'").all()) {
+			// Petition history survives Guild dissolution; its Activity destination does not.
+			if (db.query('SELECT 1 FROM guilds WHERE id=?').get(petition.guild_id) === null) {
+				db.query(`UPDATE guild_petitions SET lifecycle='lapsed', resolved_at=?,
+					execution_state='not_applicable', subject_locked=0 WHERE id=? AND lifecycle='active'`)
+					.run(Math.max(petition.created_at, Math.min(now, petition.expires_at)), petition.id);
+				unlock_winnowing_targets(petition.id);
+				resolved++;
+				continue;
+			}
 			const lifecycle = resolve_council_vote(petition, now);
 			if (lifecycle === null) continue;
 			const resolved_at = Math.min(now, petition.expires_at);
@@ -2034,7 +2044,8 @@ export function get_guild_member_owned_dlc(member: Pick<GuildMemberRow, 'owned_d
 	return [];
 }
 
-export function guild_member_from_row(member: GuildMemberRow, now = Date.now(), admin_view = false) {
+export function guild_member_from_row(member: GuildMemberRow, now = Date.now(), admin_view = false, marking?: CheatMarking) {
+	marking ??= read_cheat_markings(db, [member], now).get(member.client_id)!;
 	const status_activity = get_guild_member_status_activity(member);
 	const account_age = member.account_creation_date !== null &&
 		Number.isSafeInteger(member.account_creation_date) && member.account_creation_date > 0
@@ -2069,12 +2080,8 @@ export function guild_member_from_row(member: GuildMemberRow, now = Date.now(), 
 		active_mods_available: (member.active_mods_visible === 1 || admin_view) && member.active_mods_available === 1,
 		using_cheats: is_using_cheats(member.cheats_detected_at, now),
 		cheats_detected_at: is_using_cheats(member.cheats_detected_at, now) ? member.cheats_detected_at : null,
-		cheat_mods: is_using_cheats(member.cheats_detected_at, now)
-			? db.query<{ mod_name: string }, [number, number, number]>(
-				'SELECT mod_name FROM client_cheat_mod_detections WHERE client_id = ? AND detected_at BETWEEN ? AND ? ' +
-				'ORDER BY detected_at DESC, mod_name COLLATE NOCASE'
-			).all(member.client_id, now - CHEAT_USE_WINDOW, now).map(row => row.mod_name)
-			: [],
+		cheat_mods: marking.cheat_mods,
+		cheat_categories: marking.cheat_categories,
 		language: member.language,
 		owned_dlc: get_guild_member_owned_dlc(member),
 		last_seen_at: member.last_multiplayer_active_at > 0 ? member.last_multiplayer_active_at : null,
@@ -2120,7 +2127,8 @@ export async function get_guild_members(guild_id: number, viewer_id: number, sha
 		[now - CHEAT_USE_WINDOW, now, guild_id, cutoff]
 	) as GuildMemberRow[];
 	const admin_view = is_admin(viewer_id);
-	return members.map(member => guild_member_from_row(member, now, admin_view));
+	const markings = read_cheat_markings(db, members, now);
+	return members.map(member => guild_member_from_row(member, now, admin_view, markings.get(member.client_id)));
 }
 
 export async function get_guild_member_directory(
@@ -2179,8 +2187,9 @@ export async function get_guild_member_directory(
 	]);
 
 	const admin_view = is_admin(viewer_id);
+	const markings = read_cheat_markings(db, members as GuildMemberRow[], now);
 	return {
-		members: (members as GuildMemberRow[]).map(member => guild_member_from_row(member, now, admin_view)),
+		members: (members as GuildMemberRow[]).map(member => guild_member_from_row(member, now, admin_view, markings.get(member.client_id))),
 		page,
 		page_size: GUILD_MEMBER_PAGE_SIZE,
 		search,
@@ -2249,7 +2258,8 @@ export async function get_guild_applicants(client_id: number) {
 		'WHERE m.`guild_id` = ? ORDER BY m.`id`',
 		[now - CHEAT_USE_WINDOW, now, guild_id]
 	) as (GuildMemberRow & { application_id: number })[];
-	return applicants.map(row => ({ ...guild_member_from_row(row, now, is_admin(client_id)),
+	const markings = read_cheat_markings(db, applicants, now);
+	return applicants.map(row => ({ ...guild_member_from_row(row, now, is_admin(client_id), markings.get(row.client_id)),
 		application_id: row.application_id, profile_source: 'chat',
 		activity_visible: false, activity_available: false, status_activity: null, status_activities: [],
 		last_seen_at: null, joined_at: null }));
@@ -2308,7 +2318,7 @@ export function petition_to_player_view(row: CouncilPetitionRow, client_id: numb
 
 	return {
 		petition_id: row.id,
-		discussion_unread_count: petition_discussion_unread_count(client_id, row.id),
+		...petition_discussion_summary(client_id, row.id),
 		type: row.type,
 		proposal,
 		created_at: row.created_at,

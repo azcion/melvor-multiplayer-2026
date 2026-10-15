@@ -1,3 +1,4 @@
+import { petition_discussion_id } from './petition-discussions';
 import { petition_discussion_visibility } from './petition-discussion-visibility';
 import { db } from './db';
 import { shadowed_cutoff } from './shadowed';
@@ -179,6 +180,7 @@ export function translated_parts(html: string, source: ChatPart[], markers = tra
 
 // Called only after the ordinary conversation read has authorized the viewer.
 export function chat_people(viewer_id: number, kind?: string, conversation_id?: number | null) {
+	if (kind === 'petition-discussion' && conversation_id != null) conversation_id = petition_discussion_id(conversation_id) ?? conversation_id;
 	let recent: Array<{ client_id: number; latest: number }> = [];
 	if (kind && conversation_id != null) {
 		const domains: Record<string, [string, string, string]> = {

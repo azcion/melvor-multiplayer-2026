@@ -63,6 +63,9 @@ test('creates representative state before a server restart', async () => {
 		history: Array<{ id: number; campaign_id: string }>;
 	}>('/api/campaign/info', campaign_history_client.session_token);
 	const campaign_completion_id = completed_campaign.json.history[0].id;
+	// Fix the persisted claim input; active Campaigns are cached in the server process.
+	await db_run('UPDATE campaign_completions SET item_id = ? WHERE source_campaign_state_id = ? AND client_id = ?',
+		['melvorD:Coal_Ore', campaign_completion_id, campaign_history_client.client_id]);
 	await post_json('/api/campaign/claim', {
 		campaign_id: campaign_completion_id,
 		command_id: crypto.randomUUID()

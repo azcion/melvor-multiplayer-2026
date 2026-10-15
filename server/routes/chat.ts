@@ -1,5 +1,5 @@
 import { can_view_petition_discussions, list_petition_discussion_messages, send_petition_discussion_message } from '../petition-discussions';
-import { admin_message_details, message_moderation_count, moderate_additional_chat_message, type ChatMessageKind } from '../chat_reactions';
+import { message_details, message_moderation_count, moderate_additional_chat_message, type ChatMessageKind } from '../chat_reactions';
 import { has_alliance_access } from '../alliances';
 import { get_alliance_chat_inbox, list_alliance_chat_messages, send_alliance_chat_message, moderate_alliance_chat_message, set_alliance_chat_enabled } from '../alliance_chat';
 import { normalize_chat_parts, parts_text, attach_chat_parts, compatible_chat_parts, chat_people, has_unread_person_tag } from '../chat_parts';
@@ -196,7 +196,7 @@ export function register_chat_routes(): void {
 	});
 
 	session_get_route('/api/chat/messages/details', async (req, url, client_id) => {
-		if (!is_admin(client_id)) return 403;
+		if (!is_admin(client_id) && !is_client_version_at_least(get_request_mod_version(req), '1.6.12')) return 403;
 		const kind = url.searchParams.get('conversation_kind') ?? 'private';
 		if (kind === 'petition-discussion' && !can_view_petition_discussions(get_request_mod_version(req))) return 404;
 		const conversation_id = Number(url.searchParams.get('conversation_id'));
@@ -206,7 +206,7 @@ export function register_chat_routes(): void {
 		if ((kind === 'poll-discussion' && !can_view_polls(get_request_mod_version(req))) ||
 			(kind === 'alliance' && !has_alliance_access(client_id, get_request_mod_version(req))) ||
 			(kind === 'testers' && !is_client_version_at_least(get_request_mod_version(req), '1.6.0'))) return 404;
-		return admin_message_details(client_id, kind as ChatMessageKind, conversation_id, message_id) ?? 404;
+		return message_details(client_id, kind as ChatMessageKind, conversation_id, message_id) ?? 404;
 	});
 
 	session_post_route('/api/chat/messages/reaction', async (req, url, client_id, json) => {

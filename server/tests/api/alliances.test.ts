@@ -327,6 +327,19 @@ test('Guild previews add Shadowed-aware active counts without changing member to
 	expect(response.json.guild).toMatchObject({guild_id: pair.guild_id, member_count: 2, active_member_count: 1});
 });
 
+test('missing Guild previews return a normal nullable result while validation and access gates remain enforced', async () => {
+	const client = await register_guild_client('Missing Preview', 'Missing Guild');
+	const route = '/api/alliances/guild-preview?guild_id=';
+	const missing = await get_json_with_session<{guild: null}>(route + Number.MAX_SAFE_INTEGER, client.session_token);
+	expect(missing.response.status).toBe(200);
+	expect(missing.json).toEqual({guild: null});
+	for (const id of ['0', '-1', 'invalid', '1.5'])
+		expect((await request(route + id, {headers: {'X-Session-Token': client.session_token}})).status).toBe(400);
+	expect((await request(route + Number.MAX_SAFE_INTEGER)).status).toBe(401);
+	const old = await register_guild_client('Old Missing Preview', 'Old Missing Guild', '1.6.1');
+	expect((await request(route + Number.MAX_SAFE_INTEGER, {headers: {'X-Session-Token': old.session_token}})).status).toBe(404);
+});
+
 test('founding Councils vote concurrently; recipient approval alone cannot create an Alliance', async()=> {
 	const a=await register_guild_client('Parallel A','Parallel Guild A'),b=await register_guild_client('Parallel B','Parallel Guild B');
 	const p=await propose(a,{kind:'found',name:'Parallel Pair',target_id:b.guild_id});
@@ -512,4 +525,81 @@ test('legacy policy processes still carry initiating approval after local delibe
 	expect((await view(b)).processes.find((row:any)=>row.process_id===p.id)).toMatchObject({stage:'collective',tally:{eligible:2,aye:1}});
 	await vote(b,await next_ballot(b,p.id));
 	expect((await view(a)).alliance.shared_marketplace).toBe(1);
+});
+
+for (const kind of ['leave', 'remove', 'market_disable']) test(`${kind} validates modern reasons and atomically posts them in every Council`, async () => {
+	const a=await register_guild_client(`R ${kind} A`,`R ${kind} A`,'1.6.12');
+	const b=await register_guild_client(`R ${kind} B`,`R ${kind} B`,'1.6.12');
+	const c=await register_guild_client(`R ${kind} C`,`R ${kind} C`,'1.6.12');
+	const alliance=await found(a,b);
+	const admission=await propose(c,{kind:'join',target_id:alliance.id});
+	await vote(c,admission.petition_id); await vote(a,await next_ballot(a,admission.process_id)); await vote(b,await next_ballot(b,admission.process_id));
+	await db_run('UPDATE alliances SET shared_marketplace=1 WHERE id=?',[alliance.id]);
+	const body={kind,...(kind==='remove'?{target_id:c.guild_id}:{})};
+	const before=await db_all('SELECT id FROM alliance_processes WHERE initiator_guild_id=?',[a.guild_id]);
+	for(const reason of [undefined,null,23,'         ','123456789','😀'.repeat(9),'a'.repeat(1001)]) {
+		const rejected=await post_json<any>('/api/alliances/propose',{...body,...(reason===undefined?{}:{reason})},a.session_token);
+		expect(rejected.json.error_lang).toBe('MOD_MP_ALLIANCE_REASON_REQUIRED');
+	}
+	expect(await db_all('SELECT id FROM alliance_processes WHERE initiator_guild_id=?',[a.guild_id])).toEqual(before);
+	const reason='这是一个足够长的理由';
+	const result=await propose(a,{...body,reason:'  '+reason+'  '});
+	expect(result.success).toBe(true);
+	const petitions=await db_all<{id:number;guild_id:number}>(`SELECT p.id,p.guild_id FROM guild_petitions p
+		JOIN alliance_process_petitions l ON l.petition_id=p.id WHERE l.process_id=?`,[result.process_id]);
+	expect(petitions.length).toBe(kind==='leave'?1:3);
+	for(const petition of petitions) {
+		const viewer=[a,b,c].find(client=>client.guild_id===petition.guild_id)!;
+		const chat=await get_json_with_session<any>(`/api/chat/messages?conversation_kind=petition-discussion&conversation_id=${petition.id}`,viewer.session_token);
+		expect(chat.json.messages.map((m:any)=>[m.sender_id,m.content,m.petition_event??null])).toEqual([
+			[a.client_id,'I propose this petition.','proposal'],[a.client_id,reason,null]
+		]);
+		expect(await db_all(`SELECT message_id FROM chat_translation_jobs WHERE source_kind='petition-discussion' AND message_id=?`,[chat.json.messages[1].message_id])).toHaveLength(1);
+	}
+	await db_run('UPDATE guild_petitions SET show_creator=0 WHERE id=?',[petitions[0].id]);
+	for(const petition of petitions) {
+		const viewer=[a,b,c].find(client=>client.guild_id===petition.guild_id)!;
+		const hidden=await get_json_with_session<any>(`/api/chat/messages?conversation_kind=petition-discussion&conversation_id=${petition.id}`,viewer.session_token);
+		expect(hidden.json.messages).toEqual([]);
+	}
+	const failed=await propose(a,{...body,reason});
+	expect(failed.success).not.toBe(true);
+	expect(await db_all(`SELECT id FROM petition_discussion_messages WHERE sender_id=? AND idempotency_key LIKE 'alliance-reason:%'`,[a.client_id])).toHaveLength(1);
+});
+
+for (const outcome of ['accepted', 'denied']) for (const tally of ['aye', 'nay', 'tie', 'empty'])
+test(`decisive Alliance ${outcome} resolves unfinished ${tally} Guild tally without withdrawal`, async () => {
+	const a=await register_guild_client('Closure A','Closure Guild A');
+	const b=await register_guild_client('Closure B','Closure Guild B');
+	const c=await register_guild_client('Closure C','Closure Guild C');
+	const d=await register_guild_client('Closure D','Closure Guild D');
+	const alliance=await found(a,b);
+	for (const member of [c,d]) await db_run('INSERT INTO alliance_memberships(guild_id,alliance_id,joined_at) VALUES(?,?,?)',[member.guild_id,alliance.id,Date.now()]);
+	// Keep A's Council open even when it has recorded votes.
+	const mates=await make_guildmates('Closure Mate 1','Closure Mate 2','Closure Mates',{first:'1.6.2',second:'1.6.2'});
+	await db_run('UPDATE guild_memberships SET guild_id=? WHERE client_id IN (?,?)',[a.guild_id,mates.first.client_id,mates.second.client_id]);
+	await db_run('UPDATE alliances SET shared_marketplace=1 WHERE id=?',[alliance.id]);
+	const policy=await propose(b,{kind:'market_disable'});
+	const own=await next_ballot(a,policy.process_id);
+	if (tally !== 'empty') expect((await vote(a,own,tally === 'nay' ? 'nay' : 'aye')).success).toBe(true);
+	if (tally === 'tie') expect((await vote(mates.first,own,'nay')).success).toBe(true);
+	expect((await view(a)).processes.find((p:any)=>p.process_id===policy.process_id).own_council).toBe('active');
+	const choice=outcome === 'accepted' ? 'aye' : 'nay';
+	await vote(b,policy.petition_id,choice);
+	await vote(c,await next_ballot(c,policy.process_id),choice);
+	if (outcome === 'accepted') await vote(d,await next_ballot(d,policy.process_id),choice);
+	const state=await view(a), result=state.processes.find((p:any)=>p.process_id===policy.process_id);
+	const lifecycle=tally === 'aye' ? 'granted' : 'denied';
+	expect(result).toMatchObject({stage:outcome,own_council:lifecycle,own_ballot:lifecycle === 'granted' ? 'aye' : 'nay'});
+	expect(state.alliance.shared_marketplace).toBe(outcome === 'accepted' ? 0 : 1);
+	const [petition]=await db_all<any>('SELECT lifecycle,resolved_at,expires_at,subject_locked,execution_state FROM guild_petitions WHERE id=?',[own]);
+	expect(petition.resolved_at).toBe(result.resolved_at);
+	expect(petition.resolved_at).toBeLessThan(petition.expires_at);
+	expect(petition.subject_locked).toBe(0);
+	expect(petition.execution_state).toBe(lifecycle === 'granted' ? 'succeeded' : 'not_applicable');
+	expect(await db_all('SELECT event_type FROM guild_activity_events WHERE source_key=?',[`petition:${own}:${lifecycle}`]))
+		.toEqual([{event_type:lifecycle === 'granted' ? 'petition_carried' : 'petition_defeated'}]);
+	const before=await db_all('SELECT lifecycle,resolved_at FROM guild_petitions WHERE id=?',[own]);
+	await view(a);
+	expect(await db_all('SELECT lifecycle,resolved_at FROM guild_petitions WHERE id=?',[own])).toEqual(before);
 });

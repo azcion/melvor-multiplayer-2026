@@ -35,18 +35,38 @@ test('groups reaction characters vertically and clears details on close, includi
 		{ label: '👍', characters: [{ reaction: '👍', client_id: 1 }, { reaction: '👍', client_id: 3 }] },
 		{ label: '❤️', characters: [{ reaction: '❤️', client_id: 2 }] }
 	]);
+	assert.equal(modals[0][0], 'MOD_MP_CHAT_REACTIONS_TITLE');
 	assert.equal(modals[0][1], 'admin-details-modal');
+	assert.equal(modals[0][3].showCloseButton, true);
+	assert.equal(modals[0][3].closeButtonAriaLabel, 'MOD_MP_BUTTON_CLOSE');
 	modals[0][3].didClose();
 	assert.deepEqual(state.admin_detail_groups, []);
 });
 
-test('blocks non-admin detail reads and drops responses from a changed chat view', async () => {
+test('non-admins can inspect reactions and readers while Poll responses remain admin-only', async () => {
+	const reader = { client_id: 2, display_name: 'Reader', icon_id: 'avatar' };
+	const h = harness({ reactions: [{ reaction: '👍', ...reader }], seen: [reader] });
+	h.state.chat_is_admin = false;
+	await h.state.show_admin_details('reactions');
+	assert.equal(h.requests.length, 1);
+	assert.deepEqual(h.state.admin_detail_groups[0].characters, [{ reaction: '👍', ...reader }]);
+	await h.state.show_admin_details('seen');
+	assert.equal(h.requests.length, 2);
+	assert.deepEqual(h.state.admin_detail_groups, [{ label: '', characters: [reader] }]);
+	assert.equal(h.state.admin_details_kind, 'seen');
+	assert.equal(h.modals[1][0], 'MOD_MP_CHAT_SEEN_TITLE');
+	h.modals[1][3].didClose();
+	assert.deepEqual(h.state.admin_detail_groups, []);
+	assert.equal(h.state.admin_details_kind, null);
+	await h.state.show_admin_details('responses');
+	assert.equal(h.requests.length, 2);
+});
+
+test('public seen reads drop responses from a changed chat view', async () => {
 	const h = harness(() => { h.runtime.chat_view_generation++; return { seen: [] }; });
 	h.state.chat_is_admin = false;
 	await h.state.show_admin_details('seen');
-	assert.equal(h.requests.length, 0);
-	h.state.chat_is_admin = true;
-	await h.state.show_admin_details('seen');
+	assert.equal(h.requests.length, 1);
 	assert.equal(h.modals.length, 0);
 });
 
@@ -68,11 +88,20 @@ test('detail modals delegate scrolling to the modal and expose localized admin a
 	assert.doesNotMatch(details, /overflow|max-height|touchmove|modal-scroll/);
 	assert.match(details, /v-for="group in state.admin_detail_groups"/);
 	assert.match(details, /v-text="character.display_name"/);
+	assert.match(details, /v-text="group.characters.length"/);
+	assert.match(details, /mp-chat-detail-reaction-group/);
+	assert.match(details, /state.close_modal\(\)/);
+	const css = await readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8');
+	const reaction_css = css.slice(css.indexOf('.mp-chat-detail-group'), css.indexOf('.mp-chat-message-author:hover'));
+	assert.match(reaction_css, /grid-template-columns: 5rem minmax\(0, 1fr\)/);
+	assert.doesNotMatch(reaction_css, /overflow-y|max-height/);
+	assert.match(templates, /v-if="state.selected_chat_message\?\.message_id > 0" @click="state.show_admin_details\('reactions'\)"/);
+	assert.match(templates, /v-if="state.selected_chat_message\?\.message_id > 0" @click="state.show_admin_details\('seen'\)"/);
 	assert.match(templates, /state\.show_poll_actions\(poll\)/);
 	assert.match(templates, /state\.selected_guild_member\.last_active_at/);
 	for (const locale of ['en', 'zh-CN', 'zh-TW', 'de', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'pt-br', 'ru', 'tr']) {
 		const language = JSON.parse(await readFile(new URL(`../../mod/data/lang/${locale}.json`, import.meta.url), 'utf8'));
-		for (const key of ['MOD_MP_CHAT_SHOW_REACTIONS', 'MOD_MP_CHAT_SHOW_SEEN', 'MOD_MP_POLLS_SHOW_RESPONSES', 'MOD_MP_LAST_ACTIVE', 'MOD_MP_ADMIN_DETAILS_EMPTY', 'MOD_MP_CHAT_SEEN_INFO']) assert.ok(language[key]);
+		for (const key of ['MOD_MP_CHAT_SHOW_REACTIONS', 'MOD_MP_CHAT_SHOW_SEEN', 'MOD_MP_CHAT_REACTIONS_TITLE', 'MOD_MP_CHAT_SEEN_TITLE', 'MOD_MP_POLLS_SHOW_RESPONSES', 'MOD_MP_LAST_ACTIVE', 'MOD_MP_ADMIN_DETAILS_EMPTY', 'MOD_MP_CHAT_SEEN_INFO']) assert.ok(language[key]);
 	}
 });
 

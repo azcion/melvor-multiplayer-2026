@@ -891,6 +891,58 @@ mp-modal-component input.form-control[type="number"],
 	height: 20px;
 }
 
+.mp-chat-detail-group + .mp-chat-detail-group {
+	margin-top: 1rem;
+}
+
+.mp-chat-detail-reaction-group {
+	display: grid;
+	grid-template-columns: 5rem minmax(0, 1fr);
+	column-gap: .75rem;
+	align-items: start;
+}
+
+.mp-chat-detail-label {
+	margin-bottom: .5rem;
+	overflow-wrap: anywhere;
+}
+
+.mp-chat-detail-reaction-group .mp-chat-detail-label {
+	display: flex;
+	align-items: center;
+	gap: .5rem;
+	min-height: 2rem;
+	margin-bottom: 0;
+	font-size: 1.35rem;
+}
+
+.mp-chat-detail-count {
+	font-size: 1rem;
+}
+
+.mp-chat-detail-reaction-group .mp-chat-detail-characters {
+	border-left: 1px solid rgba(255, 255, 255, .12);
+	padding-left: .75rem;
+}
+
+.mp-chat-detail-character {
+	display: flex;
+	align-items: center;
+	gap: .5rem;
+	min-height: 2rem;
+	overflow-wrap: anywhere;
+}
+
+.mp-chat-detail-character + .mp-chat-detail-character {
+	margin-top: .25rem;
+}
+
+.mp-chat-detail-character .mp-chat-message-avatar {
+	width: 28px;
+	height: 28px;
+	margin: 0;
+}
+
 .mp-chat-message-author:hover,
 .mp-chat-message-author:focus-visible {
 	color: #fff;
@@ -1335,6 +1387,7 @@ mp-modal-component input.form-control[type="number"],
 }
 
 .mp-guild-member-tags {
+	flex-wrap: wrap;
 	justify-content: flex-end;
 	width: 100%;
 }
@@ -1377,6 +1430,8 @@ mp-modal-component input.form-control[type="number"],
 }
 
 .mp-guild-cheats-badge {
+	white-space: nowrap;
+	flex-shrink: 0;
 	cursor: pointer;
 	background-color: #8f3030;
 }
@@ -4102,3 +4157,11 @@ span:has([lang-id="MOD_MP_TRANSFER_HISTORY_RECONSTRUCTED"]) {
 	.mp-capacity-tiers { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 	.mp-capacity-stats strong { font-size: 1.15rem; }
 }
+
+.mp-petition-unread { background-color: #ff4545; color: white; }
+.mp-petition-unread.mp-chat-tagged-nav { background-color: rgb(255, 0, 227); }
+
+.mp-cheat-details {
+	overflow-wrap: anywhere;
+}
+.mp-cheat-details li { margin-bottom: 1rem; }

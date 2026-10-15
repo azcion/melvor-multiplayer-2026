@@ -484,7 +484,12 @@ export function install_transfer_actions(runtime) {
 		},
 
 		show_member_actions(member, preview = false) {
-			this.selected_guild_member = member;
+			const in_current_guild = [...(this.guild_members ?? []), ...(this.shadowed_members ?? [])]
+				.some(entry => entry.client_id === member.client_id);
+			this.selected_guild_member = {
+				...member,
+				guild_name: member.guild_name ?? (in_current_guild ? this.guild_state?.guild?.name ?? null : null)
+			};
 			this.member_actions_preview = preview;
 			this.member_actions_error = '';
 			queue_modal(member.display_name, 'member-actions-modal', this.get_avatar_icon(member.icon_id), {
@@ -736,15 +741,37 @@ export function install_transfer_actions(runtime) {
 			this.dev_tag_visibility_pending = false;
 		},
 
-		view_member_cheat_mods(member, event) {
+		member_cheat_categories(member) {
+			const order = ['time', 'items', 'resources', 'multitasking', 'shops', 'loot_rng'];
+			const now = Date.now();
+			const categories = Array.isArray(member?.cheat_categories) ? member.cheat_categories
+				: member?.using_cheats ? [{ id: 'items', detected_at: member.cheats_detected_at,
+					expires_at: member.cheats_detected_at + 7 * 86400000, details_unavailable: true, mods: [] }] : [];
+			return order.flatMap(id => categories.filter(c => c.id === id &&
+				(!Number.isFinite(c.expires_at) || c.expires_at >= now)));
+		},
+
+		cheat_category_label(id) { return 'MOD_MP_CHEAT_CATEGORY_' + id.toUpperCase(); },
+
+		view_member_cheat_mods(member, event, category_id = 'items') {
 			event.stopPropagation();
-			if (!member?.using_cheats) return;
-			this.viewed_cheat_mods = [...(member.cheat_mods ?? [])];
-			this.viewed_cheats_elapsed = this.format_member_account_age(
-				Math.max(0, Date.now() - member.cheats_detected_at), 'hour');
-			queue_modal('MOD_MP_GUILD_USING_CHEATS', 'cheat-mods-modal', null, {
+			const category = this.member_cheat_categories(member).find(c => c.id === category_id);
+			if (!category) return;
+			const now = Date.now();
+			const age = at => Number.isFinite(at) ? this.format_member_account_age(Math.max(0, now - at), 'hour') : '';
+			const remaining = at => Number.isFinite(at) ? this.format_member_account_age(Math.max(0, at - now), 'hour') : '';
+			this.viewed_cheat_mods = Array.isArray(member.cheat_categories) ? [] : [...(member.cheat_mods ?? [])];
+			this.viewed_category_mods = (category.mods ?? []).filter(mod => mod.expires_at >= now).map(mod => ({
+				...mod, age: age(mod.detected_at), remaining: remaining(mod.expires_at)
+			}));
+			this.viewed_cheat_category = category.id;
+			this.viewed_cheats_unavailable = this.viewed_cheat_mods.length === 0 &&
+				(category.details_unavailable || this.viewed_category_mods.length === 0);
+			this.viewed_cheats_elapsed = age(category.detected_at);
+			this.viewed_cheats_remaining = remaining(category.expires_at);
+			queue_modal(this.cheat_category_label(category.id), 'cheat-mods-modal', null, {
 				icon: 'info', showConfirmButton: false,
-				didClose: () => { this.viewed_cheat_mods = []; this.viewed_cheats_elapsed = ''; }
+				didClose: () => { this.viewed_cheat_mods = []; this.viewed_category_mods = []; this.viewed_cheats_elapsed = ''; }
 			}, true, false);
 		},
 

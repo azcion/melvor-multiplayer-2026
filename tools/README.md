@@ -32,3 +32,23 @@ Run the focused behavior checks from the repository root:
 ```sh
 node --test tests/operations/expedition-viewer.test.mjs
 ```
+
+## English cheat catalog editor
+
+Open [cheat-catalog-editor.html](cheat-catalog-editor.html) in a browser. This standalone editor includes a baked-in
+English snapshot of `server/cheat-mod-catalog.json` and the six category titles in
+`mod/data/lang/en.json`; it needs no server, dependencies, or build step.
+
+Edit category assignments, category titles, and the public description for each mod/category
+assignment. Descriptions are optional: a blank or whitespace-only mod description leaves the assigned mod visible
+without a description paragraph. Modal preview includes proposed assignments and labels unpublished mappings.
+Search, category filtering, and the changes view help review the draft.
+
+Edits save in browser storage when available. Use **Export for review** to keep a portable JSON copy containing the
+original snapshot, edited values, changes and policy-review flags. Attach it in the maintainer chat for review and
+application, followed by localization. **Import draft** resumes exports from the same snapshot; it rejects mismatched
+snapshots and keeps source identity and review metadata. Assignment edits do not automatically approve unpublished
+classifications. Changes to the current Item Cheats set are flagged for policy review because they affect Interdict enforcement.
+General category descriptions are omitted; only per-mod explanations are editable.
+
+Run focused editor checks with `node --test tests/operations/cheat-catalog-editor.test.mjs`.

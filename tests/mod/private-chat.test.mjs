@@ -889,9 +889,9 @@ test('new private Messages refresh conversation previews while petition Messages
 			chat_messages_are_at_bottom: () => false, scroll_chat_messages_to_bottom: async () => {}
 		};
 		const refresh = new Function('state', 'api_get', 'chat_view_generation', 'log', 'GLOBAL_CHAT_CAPABILITY',
-			'POLLS_CAPABILITY', 'refresh_chat_conversations', `${source}; return refresh_chat_messages;`)
+			'POLLS_CAPABILITY', 'refresh_chat_conversations', 'update_guild_nav', `${source}; return refresh_chat_messages;`)
 			(state, async () => ({ messages: [{ message_id: 9 }], discussion_unread_count: 0 }), 1,
-				() => {}, 'global-chat-v1', 'polls-v1', async () => { refreshes++; });
+				() => {}, 'global-chat-v1', 'polls-v1', async () => { refreshes++; }, () => {});
 		assert.equal(await refresh('&after=8', false, true), true);
 		assert.deepEqual(state.chat_messages.map(message => message.message_id), [9]);
 		assert.equal(refreshes, kind === 'private' ? 1 : 0);

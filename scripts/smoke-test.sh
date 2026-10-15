@@ -3,8 +3,7 @@
 set -eu
 
 project_name="melvor-mp-smoke"
-server_port="${MELVOR_SERVER_PORT:-3000}"
-base_url="http://127.0.0.1:${server_port}"
+server_port="${MELVOR_SERVER_PORT:-0}"
 client_key="00000000-0000-4000-8000-000000000001"
 
 export MELVOR_SERVER_PORT="$server_port"
@@ -24,6 +23,12 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 docker compose --project-name "$project_name" up --build --detach --wait
+
+published_address="$(docker compose --project-name "$project_name" port server 3000)"
+case "$published_address" in
+	127.0.0.1:*) base_url="http://${published_address}" ;;
+	*) printf 'Unexpected smoke server address: %s\n' "$published_address" >&2; exit 1 ;;
+esac
 
 preflight_headers="$(
 	curl \

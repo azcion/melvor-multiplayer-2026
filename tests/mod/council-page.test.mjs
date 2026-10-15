@@ -72,8 +72,8 @@ test('wires Council petition controls, resolved-history toggle, and action descr
 	assert.equal(language.MOD_MP_COUNCIL_TYPE_INDULGENCE, 'Petition of Indulgence');
 	assert.match(language.MOD_MP_COUNCIL_TEMPERANCE_CONFIRM, /items they have discovered/);
 	assert.match(language.MOD_MP_COUNCIL_INDULGENCE_CONFIRM, /before discovering that item/);
-	assert.equal(language.MOD_MP_COUNCIL_INTERDICT_DESCRIPTION, "Restrict members marked Using Cheats to Social Only while their badge is active and they remain in this Guild.");
-	assert.equal(language.MOD_MP_COUNCIL_HERESY_DESCRIPTION, "Remove the Guild’s Social Only restriction on members marked Using Cheats. Other Social Only restrictions still apply.");
+	assert.equal(language.MOD_MP_COUNCIL_INTERDICT_DESCRIPTION, "Apply the Guild's Social Only restriction to members using Item Cheats.");
+	assert.equal(language.MOD_MP_COUNCIL_HERESY_DESCRIPTION, "Remove the Guild's Social Only restriction from members using Item Cheats.");
 	assert.match(templates, /\['crucible_unsealing', 'fellowship', 'heresy', 'indulgence'\]/);
 	assert.equal(language.MOD_MP_COUNCIL_FELLOWSHIP_CONFIRM, 'If granted, the Guild gates will open. Guildless adventurers may Join without needing to Apply.');
 	assert.match(language.MOD_MP_COUNCIL_ENCLOSURE_DESCRIPTION, /apply and be accepted/);

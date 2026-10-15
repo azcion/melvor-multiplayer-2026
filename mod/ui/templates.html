@@ -445,7 +445,7 @@
 				<div class="font-size-sm text-muted" v-if="state.format_member_total_skill_level(state.selected_guild_member.total_skill_level)">
 					<span class="mp-member-shared-stat-label"><lang-string lang-id="STATISTICS_TOTAL_SKILL_LEVEL"></lang-string>:</span> {{ state.format_member_total_skill_level(state.selected_guild_member.total_skill_level) }}
 				</div>
-				<div class="font-size-sm text-muted" v-if="state.selected_guild_member.profile_source === 'chat' && state.selected_guild_member.guild_name">
+				<div class="font-size-sm text-muted" v-if="state.selected_guild_member.guild_name">
 					<span class="mp-member-shared-stat-label"><lang-string lang-id="MOD_MP_PAGE_GUILD"></lang-string>:</span> {{ state.selected_guild_member.guild_name }}
 				</div>
 			</div>
@@ -455,12 +455,23 @@
 </template>
 <template id="template-mp-cheat-mods-modal">
 	<div class="mp-active-mods-modal">
-		<p class="text-left"><lang-string lang-id="MOD_MP_GUILD_CHEATS_DESCRIPTION"></lang-string></p>
-		<ol class="mp-active-mods-list">
-			<li v-for="mod_name in state.viewed_cheat_mods" :key="mod_name">{{ mod_name }}</li>
-		</ol>
-		<p class="text-left" v-if="state.viewed_cheat_mods.length === 0"><lang-string lang-id="MOD_MP_GUILD_CHEATS_UNAVAILABLE"></lang-string></p>
-		<p class="mt-4 text-left"><mp-lang-string-f lang-id="MOD_MP_GUILD_CHEATS_LAST_DETECTED" :lang-arg-1="state.viewed_cheats_elapsed"></mp-lang-string-f></p>
+		<div class="mp-cheat-details">
+			<p class="text-left"><lang-string lang-id="MOD_MP_CHEAT_PRESENCE_NOTICE"></lang-string></p>
+			<ol class="mp-active-mods-list">
+				<li v-for="mod in state.viewed_category_mods" :key="mod.id">
+					<strong>{{ mod.name }}</strong>
+					<p v-if="mod.explanation && mod.explanation.trim()">{{ mod.explanation }}</p>
+					<div><mp-lang-string-f lang-id="MOD_MP_GUILD_CHEATS_LAST_DETECTED" :lang-arg-1="mod.age"></mp-lang-string-f></div>
+					<div><mp-lang-string-f lang-id="MOD_MP_CHEAT_EXPIRES" :lang-arg-1="mod.remaining"></mp-lang-string-f></div>
+				</li>
+			</ol>
+			<ol class="mp-active-mods-list" v-if="state.viewed_cheat_mods.length">
+				<li v-for="mod_name in state.viewed_cheat_mods" :key="mod_name"><strong>{{ mod_name }}</strong></li>
+			</ol>
+			<p class="text-left" v-if="state.viewed_cheats_unavailable"><lang-string lang-id="MOD_MP_GUILD_CHEATS_UNAVAILABLE"></lang-string></p>
+			<p class="text-left" v-if="state.viewed_cheats_unavailable || state.viewed_cheat_mods.length"><mp-lang-string-f lang-id="MOD_MP_GUILD_CHEATS_LAST_DETECTED" :lang-arg-1="state.viewed_cheats_elapsed"></mp-lang-string-f></p>
+			<p class="text-left" v-if="state.viewed_cheats_unavailable || state.viewed_cheat_mods.length"><mp-lang-string-f lang-id="MOD_MP_CHEAT_EXPIRES" :lang-arg-1="state.viewed_cheats_remaining"></mp-lang-string-f></p>
+		</div>
 		<button type="button" class="btn btn-secondary mt-3" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
 	</div>
 </template>
@@ -609,7 +620,11 @@
 					</div>
 				</div>
 				<div class="mp-petition-discussion-summary" v-if="state.selected_chat_conversation?.conversation_kind === 'petition-discussion'">
-					<div class="mp-petition-discussion-card" v-for="petition in (state.selected_chat_conversation?.petition ? [state.selected_chat_conversation.petition] : [])" :key="petition.petition_id">
+					<div class="mp-petition-discussion-card" v-for="proposal in (state.selected_chat_conversation?.petition?.alliance_proposal ? [state.selected_chat_conversation.petition.alliance_proposal] : [])" :key="proposal.process_id">
+						<div class="mp-council-card-header"><span class="font-w600">{{ state.alliance_proposal_heading(proposal.display_kind ?? proposal.kind) }}</span></div>
+						<div><span v-for="(part, index) in state.alliance_proposal_parts(proposal)" :key="index"><button type="button" class="mp-alliance-guild-name" v-if="part.guild_id" @click="state.preview_alliance_guild(part.guild_id)">{{ part.text }}</button><strong v-else-if="part.bold">{{ part.text }}</strong><span v-else>{{ part.text }}</span></span></div>
+					</div>
+					<div class="mp-petition-discussion-card" v-for="petition in (state.selected_chat_conversation?.petition && !state.selected_chat_conversation.petition.alliance_proposal ? [state.selected_chat_conversation.petition] : [])" :key="petition.petition_id">
 						<div class="mp-council-card-header"><span class="font-w600">{{ petition.type.startsWith('alliance_') ? state.alliance_proposal_heading(state.alliance_petition_kind(petition)) : state.get_council_type_lang(petition.type) }}</span></div>
 						<div class="mp-council-petition-description" v-if="!petition.type.startsWith('alliance_')"><em><lang-string :lang-id="state.get_council_description_lang_id(petition.type)"></lang-string></em></div>
 						<div class="mp-council-proposal" v-if="petition.type === 'appellation'"><strong>{{ petition.proposal.name }}</strong></div>
@@ -757,8 +772,8 @@
 		<button type="button" class="btn btn-primary" v-if="state.has_chat_message_translations(state.selected_chat_message) && state.selected_chat_message?.sender_id !== state.chat_client_id && state.selected_chat_message?.sent_by_viewer !== true" @click="state.translate_selected_chat_message()"><lang-string lang-id="MOD_MP_CHAT_TRANSLATE"></lang-string></button>
 		<button type="button" class="btn btn-primary" @click="state.copy_chat_message()"><lang-string lang-id="MOD_MP_CHAT_COPY"></lang-string></button>
 		<button type="button" class="btn btn-outline-danger" v-if="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private'" @click="state.show_chat_message_delete_confirmation()"><lang-string lang-id="MOD_MP_CHAT_DELETE_MESSAGE"></lang-string></button>
-		<button type="button" class="btn btn-primary" v-if="state.chat_is_admin && state.selected_chat_message?.message_id > 0" @click="state.show_admin_details('reactions')"><lang-string lang-id="MOD_MP_CHAT_SHOW_REACTIONS"></lang-string></button>
-		<button type="button" class="btn btn-primary" v-if="state.chat_is_admin && state.selected_chat_message?.message_id > 0" @click="state.show_admin_details('seen')"><lang-string lang-id="MOD_MP_CHAT_SHOW_SEEN"></lang-string></button>
+		<button type="button" class="btn btn-primary" v-if="state.selected_chat_message?.message_id > 0" @click="state.show_admin_details('reactions')"><lang-string lang-id="MOD_MP_CHAT_SHOW_REACTIONS"></lang-string></button>
+		<button type="button" class="btn btn-primary" v-if="state.selected_chat_message?.message_id > 0" @click="state.show_admin_details('seen')"><lang-string lang-id="MOD_MP_CHAT_SHOW_SEEN"></lang-string></button>
 		<button type="button" class="btn btn-danger" v-if="state.can_moderate_chat_messages()" @click="state.show_chat_message_delete_for_all_confirmation()"><lang-string lang-id="MOD_MP_CHAT_DELETE_MESSAGE_FOR_ALL"></lang-string></button>
 	</div>
 	<div id="mp-modal-error" class="d-none text-danger mt-2"></div>
@@ -776,13 +791,18 @@
 <template id="template-mp-admin-details-modal">
 	<div class="text-left">
 		<p class="text-muted font-size-sm" v-if="state.admin_details_kind === 'seen'"><lang-string lang-id="MOD_MP_CHAT_SEEN_INFO"></lang-string></p>
-		<div class="mb-3" v-for="group in state.admin_detail_groups">
-			<div class="font-w600 mb-2" v-if="group.label" v-text="group.label"></div>
-			<div class="d-flex align-items-center mb-2" v-for="character in group.characters">
-				<img class="mp-chat-message-avatar mr-2" :src="state.get_avatar_icon(character.icon_id)" alt="">
-				<span v-text="character.display_name"></span>
+		<div class="mp-chat-detail-group" :class="{ 'mp-chat-detail-reaction-group': state.admin_details_kind === 'reactions' }" v-for="group in state.admin_detail_groups">
+			<div class="mp-chat-detail-label font-w600" v-if="group.label">
+				<span v-text="group.label"></span>
+				<span class="mp-chat-detail-count" v-if="state.admin_details_kind === 'reactions'" v-text="group.characters.length"></span>
 			</div>
-			<div class="text-muted" v-if="group.characters.length === 0"><lang-string lang-id="MOD_MP_ADMIN_DETAILS_EMPTY"></lang-string></div>
+			<div class="mp-chat-detail-characters">
+				<div class="mp-chat-detail-character" v-for="character in group.characters">
+					<img class="mp-chat-message-avatar" :src="state.get_avatar_icon(character.icon_id)" alt="">
+					<span v-text="character.display_name"></span>
+				</div>
+				<div class="text-muted" v-if="group.characters.length === 0"><lang-string lang-id="MOD_MP_ADMIN_DETAILS_EMPTY"></lang-string></div>
+			</div>
 		</div>
 		<div class="text-muted" v-if="state.admin_detail_groups.length === 0"><lang-string lang-id="MOD_MP_ADMIN_DETAILS_EMPTY"></lang-string></div>
 	</div>
@@ -1040,8 +1060,8 @@
 			<div v-show="state.guild_page_view === 'member'">
 				<div class="mp-guild-tabs" role="tablist">
 					<button type="button" class="btn" role="tab" :aria-selected="state.guild_visible_tab === 'guild'" aria-controls="mp-guild-guild-column" @click="state.guild_mobile_tab = 'guild'"><lang-string lang-id="MOD_MP_PAGE_GUILD"></lang-string><span class="badge mp-guild-tab-badge" v-show="state.visible_guild_applicants.length > 0">{{ state.visible_guild_applicants.length }}</span></button>
-					<button type="button" class="btn" role="tab" :aria-selected="state.guild_visible_tab === 'council'" aria-controls="mp-guild-council-column" @click="state.guild_mobile_tab = 'council'" v-show="state.guild_state.guild?.capabilities?.council"><lang-string lang-id="MOD_MP_COUNCIL"></lang-string><span class="badge mp-guild-tab-badge" v-if="state.council_needs_vote"><lang-string lang-id="MOD_MP_VOTE_BADGE"></lang-string></span></button>
-					<button type="button" class="btn" role="tab" :aria-selected="state.guild_visible_tab === 'alliance'" aria-controls="mp-guild-alliance-column" @click="state.guild_mobile_tab = 'alliance'" v-show="state.alliance_access"><lang-string lang-id="MOD_MP_ALLIANCE_TITLE"></lang-string><span class="badge mp-guild-tab-badge" v-if="state.alliance_needs_vote"><lang-string lang-id="MOD_MP_VOTE_BADGE"></lang-string></span></button>
+					<button type="button" class="btn" role="tab" :aria-selected="state.guild_visible_tab === 'council'" aria-controls="mp-guild-council-column" @click="state.guild_mobile_tab = 'council'" v-show="state.guild_state.guild?.capabilities?.council"><lang-string lang-id="MOD_MP_COUNCIL"></lang-string><span class="badge mp-guild-tab-badge mp-petition-unread" :class="{ 'mp-chat-tagged-nav': state.council_discussion_badge.tagged }" v-if="state.council_discussion_badge.count > 0">{{ state.council_discussion_badge.text }}</span><span class="badge mp-guild-tab-badge" v-else-if="state.council_needs_vote"><lang-string lang-id="MOD_MP_VOTE_BADGE"></lang-string></span></button>
+					<button type="button" class="btn" role="tab" :aria-selected="state.guild_visible_tab === 'alliance'" aria-controls="mp-guild-alliance-column" @click="state.guild_mobile_tab = 'alliance'" v-show="state.alliance_access"><lang-string lang-id="MOD_MP_ALLIANCE_TITLE"></lang-string><span class="badge mp-guild-tab-badge mp-petition-unread" :class="{ 'mp-chat-tagged-nav': state.alliance_discussion_badge.tagged }" v-if="state.alliance_discussion_badge.count > 0">{{ state.alliance_discussion_badge.text }}</span><span class="badge mp-guild-tab-badge" v-else-if="state.alliance_needs_vote"><lang-string lang-id="MOD_MP_VOTE_BADGE"></lang-string></span></button>
 				</div>
 				<div class="mp-guild-columns" :class="{ 'mp-guild-columns-with-alliance': state.alliance_access }">
 					<div id="mp-guild-guild-column" class="mp-guild-column" :class="{ 'mp-guild-mobile-hidden': state.guild_visible_tab !== 'guild' }">
@@ -1091,11 +1111,11 @@
 											<span class="badge badge-info" v-if="application.social_mode === 'social'">
 												<lang-string lang-id="MOD_MP_SOCIAL_MODE_SOCIAL"></lang-string>
 											</span>
-											<span class="badge mp-guild-cheats-badge" v-if="application.using_cheats" role="button" tabindex="0"
-												@click="state.view_member_cheat_mods(application, $event)"
-												@keydown.enter.stop.prevent="state.view_member_cheat_mods(application, $event)"
-												@keydown.space.stop.prevent="state.view_member_cheat_mods(application, $event)">
-												<lang-string lang-id="MOD_MP_GUILD_USING_CHEATS"></lang-string>
+											<span class="badge mp-guild-cheats-badge" v-for="category in state.member_cheat_categories(application)" :key="category.id" role="button" tabindex="0"
+												@click="state.view_member_cheat_mods(application, $event, category.id)"
+												@keydown.enter.stop.prevent="state.view_member_cheat_mods(application, $event, category.id)"
+												@keydown.space.stop.prevent="state.view_member_cheat_mods(application, $event, category.id)">
+												<lang-string :lang-id="state.cheat_category_label(category.id)"></lang-string>
 											</span>
 										</div>
 									</div>
@@ -1173,11 +1193,11 @@
 											<span class="badge badge-info" v-if="member.social_mode === 'social'">
 												<lang-string lang-id="MOD_MP_SOCIAL_MODE_SOCIAL"></lang-string>
 											</span>
-											<span class="badge mp-guild-cheats-badge" v-if="member.using_cheats" role="button" tabindex="0"
-												@click="state.view_member_cheat_mods(member, $event)"
-												@keydown.enter.stop.prevent="state.view_member_cheat_mods(member, $event)"
-												@keydown.space.stop.prevent="state.view_member_cheat_mods(member, $event)">
-												<lang-string lang-id="MOD_MP_GUILD_USING_CHEATS"></lang-string>
+											<span class="badge mp-guild-cheats-badge" v-for="category in state.member_cheat_categories(member)" :key="category.id" role="button" tabindex="0"
+												@click="state.view_member_cheat_mods(member, $event, category.id)"
+												@keydown.enter.stop.prevent="state.view_member_cheat_mods(member, $event, category.id)"
+												@keydown.space.stop.prevent="state.view_member_cheat_mods(member, $event, category.id)">
+												<lang-string :lang-id="state.cheat_category_label(category.id)"></lang-string>
 											</span>
 										</div>
 									</div>
@@ -1222,7 +1242,7 @@
 									<span class="mp-council-card-badges" v-if="petition.current_vote || petition.lifecycle !== 'active'"><span class="badge" :class="petition.current_vote === 'aye' ? 'badge-success' : 'badge-danger'" v-if="petition.current_vote">{{ state.get_council_choice_lang(petition.current_vote) }}</span><span class="badge" v-if="petition.lifecycle !== 'active'" :class="petition.lifecycle === 'granted' ? 'badge-success' : 'badge-secondary'">{{ state.get_council_outcome_lang(petition.lifecycle) }}</span></span>
 									<div class="mp-council-actions" v-if="petition.can_vote"><button type="button" class="btn btn-sm btn-success" @click="state.vote_council_petition($event, petition, 'aye')"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_AYE"></lang-string></button><button type="button" class="btn btn-sm btn-danger" @click="state.vote_council_petition($event, petition, 'nay')"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_NAY"></lang-string></button></div>
 									<button type="button" class="btn btn-sm btn-outline-danger mt-2" v-if="petition.can_withdraw" @click="state.withdraw_council_petition($event, petition)"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_WITHDRAW"></lang-string></button>
-									<div class="mt-2" v-if="petition.petition_id > 0"><button type="button" class="btn btn-sm btn-primary" @click="state.open_petition_discussion(petition)"><lang-string lang-id="MOD_MP_POLLS_GO_DISCUSSION"></lang-string><span class="badge badge-primary ml-1" v-if="petition.discussion_unread_count > 0">{{ petition.discussion_unread_count }}</span></button></div>
+									<div class="mt-2" v-if="petition.petition_id > 0"><button type="button" class="btn btn-sm btn-primary" @click="state.open_petition_discussion(petition)"><lang-string lang-id="MOD_MP_POLLS_GO_DISCUSSION"></lang-string><span class="badge mp-chat-unread-badge ml-1" :class="{ 'mp-chat-tagged-nav': state.get_petition_badge(petition).tagged }" v-if="state.get_petition_badge(petition).count > 0">{{ state.get_petition_badge(petition).text }}</span></button></div>
 								</div>
 							</div>
 						</div>
@@ -1267,7 +1287,7 @@
 										<span class="mp-council-card-badges" v-if="petition.current_vote || petition.lifecycle !== 'active'"><span class="badge" :class="petition.current_vote === 'aye' ? 'badge-success' : 'badge-danger'" v-if="petition.current_vote">{{ state.get_council_choice_lang(petition.current_vote) }}</span><span class="badge" v-if="petition.lifecycle !== 'active'" :class="petition.lifecycle === 'granted' ? 'badge-success' : 'badge-secondary'">{{ state.get_council_outcome_lang(petition.lifecycle) }}</span></span>
 										<div class="mp-council-actions" v-if="petition.can_vote"><button type="button" class="btn btn-sm btn-success" @click="state.vote_council_petition($event, petition, 'aye')"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_AYE"></lang-string></button><button type="button" class="btn btn-sm btn-danger" @click="state.vote_council_petition($event, petition, 'nay')"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_NAY"></lang-string></button></div>
 										<button type="button" class="btn btn-sm btn-outline-danger mt-2" v-if="petition.can_withdraw" @click="state.withdraw_council_petition($event, petition)"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_WITHDRAW"></lang-string></button>
-										<div class="mt-2" v-if="petition.petition_id > 0"><button type="button" class="btn btn-sm btn-primary" @click="state.open_petition_discussion(petition)"><lang-string lang-id="MOD_MP_POLLS_GO_DISCUSSION"></lang-string><span class="badge badge-primary ml-1" v-if="petition.discussion_unread_count > 0">{{ petition.discussion_unread_count }}</span></button></div>
+										<div class="mt-2" v-if="petition.petition_id > 0"><button type="button" class="btn btn-sm btn-primary" @click="state.open_petition_discussion(petition)"><lang-string lang-id="MOD_MP_POLLS_GO_DISCUSSION"></lang-string><span class="badge mp-chat-unread-badge ml-1" :class="{ 'mp-chat-tagged-nav': state.get_petition_badge(petition).tagged }" v-if="state.get_petition_badge(petition).count > 0">{{ state.get_petition_badge(petition).text }}</span></button></div>
 									</div>
 								</div>
 								<div class="block-content text-center" v-show="state.council_has_more"><button type="button" class="btn btn-sm btn-secondary" :disabled="state.council_loading" @click="state.load_more_council_petitions($event)"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_LOAD_MORE"></lang-string></button></div>
@@ -1312,6 +1332,7 @@
 									<div class="mt-2" v-if="proposal.stage === 'cancelled'"><span v-for="(part, index) in state.alliance_cancellation_parts(proposal)" :key="index"><strong v-if="part.bold">{{ part.text }}</strong><span v-else>{{ part.text }}</span></span></div>
 									<button class="btn btn-sm btn-primary" v-if="proposal.can_consider" :disabled="!!proposal.consider_blocked_reason || (!state.alliance_view.synthetic && state.alliance_state.affiliation_pending)" @click="state.show_alliance_confirmation('consider', null, proposal.process_id)"><lang-string lang-id="MOD_MP_ALLIANCE_CONSIDER"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
 									<button class="btn btn-sm btn-outline-danger" v-if="proposal.can_withdraw" @click="state.show_alliance_confirmation('withdraw', null, proposal.process_id)"><lang-string lang-id="MOD_MP_ALLIANCE_WITHDRAW"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+									<div class="mt-2" v-if="proposal.discussion_id > 0"><button type="button" class="btn btn-sm btn-primary" @click="state.open_alliance_discussion(proposal)"><lang-string lang-id="MOD_MP_POLLS_GO_DISCUSSION"></lang-string><span class="badge mp-chat-unread-badge ml-1" :class="{ 'mp-chat-tagged-nav': state.get_petition_badge(proposal).tagged }" v-if="state.get_petition_badge(proposal).count > 0">{{ state.get_petition_badge(proposal).text }}</span></button></div>
 								</div>
 							</div>
 						</div>
@@ -1343,6 +1364,7 @@
 									<div class="mt-2" v-if="proposal.stage === 'cancelled'"><span v-for="(part, index) in state.alliance_cancellation_parts(proposal)" :key="index"><strong v-if="part.bold">{{ part.text }}</strong><span v-else>{{ part.text }}</span></span></div>
 									<button class="btn btn-sm btn-primary" v-if="proposal.can_consider" :disabled="!!proposal.consider_blocked_reason || (!state.alliance_view.synthetic && state.alliance_state.affiliation_pending)" @click="state.show_alliance_confirmation('consider', null, proposal.process_id)"><lang-string lang-id="MOD_MP_ALLIANCE_CONSIDER"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
 									<button class="btn btn-sm btn-outline-danger" v-if="proposal.can_withdraw" @click="state.show_alliance_confirmation('withdraw', null, proposal.process_id)"><lang-string lang-id="MOD_MP_ALLIANCE_WITHDRAW"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+									<div class="mt-2" v-if="proposal.discussion_id > 0"><button type="button" class="btn btn-sm btn-primary" @click="state.open_alliance_discussion(proposal)"><lang-string lang-id="MOD_MP_POLLS_GO_DISCUSSION"></lang-string><span class="badge mp-chat-unread-badge ml-1" :class="{ 'mp-chat-tagged-nav': state.get_petition_badge(proposal).tagged }" v-if="state.get_petition_badge(proposal).count > 0">{{ state.get_petition_badge(proposal).text }}</span></button></div>
 								</div>
 							</div>
 						</div>
@@ -1350,10 +1372,17 @@
 							<div class="block-header block-header-default"><h3 class="mp-guild-card-title"><lang-string lang-id="MOD_MP_ALLIANCE_POLICIES"></lang-string></h3></div>
 							<div class="block-content">
 									<div class="mp-policy-card">
-									<div class="mp-policy-card-header"><strong><lang-string lang-id="MOD_MP_ALLIANCE_SHARED_MARKETPLACE"></lang-string></strong><span class="badge" :class="state.alliance_view.alliance?.shared_marketplace ? 'badge-success' : 'badge-secondary'">{{ getLangString(state.alliance_view.alliance?.shared_marketplace ? 'MOD_MP_ALLIANCE_ENABLED' : 'MOD_MP_ALLIANCE_DISABLED') }}</span></div>
+									<div class="mp-policy-card-header"><strong><lang-string lang-id="MOD_MP_ALLIANCE_SHARED_MARKETPLACE"></lang-string></strong><span class="badge" :class="state.alliance_view.alliance?.shared_marketplace ? 'badge-success' : 'badge-secondary'"
+										:role="state.alliance_view.alliance?.shared_marketplace ? 'button' : null"
+										:tabindex="state.alliance_view.alliance?.shared_marketplace && !state.alliance_market_pending() ? 0 : null"
+										:aria-label="state.alliance_view.alliance?.shared_marketplace ? state.alliance_label('market_disable') : null"
+										:aria-disabled="state.alliance_view.alliance?.shared_marketplace ? state.alliance_market_pending() : null"
+										@click="state.alliance_view.alliance?.shared_marketplace && !state.alliance_market_pending() && state.show_alliance_confirmation('market_disable')"
+										@keydown.enter.stop.prevent="state.alliance_view.alliance?.shared_marketplace && !state.alliance_market_pending() && state.show_alliance_confirmation('market_disable')"
+										@keydown.space.stop.prevent="state.alliance_view.alliance?.shared_marketplace && !state.alliance_market_pending() && state.show_alliance_confirmation('market_disable')">{{ getLangString(state.alliance_view.alliance?.shared_marketplace ? 'MOD_MP_ALLIANCE_ENABLED' : 'MOD_MP_ALLIANCE_DISABLED') }}</span></div>
 									<p>{{ getLangString(state.alliance_view.alliance?.shared_marketplace ? 'MOD_MP_ALLIANCE_MARKET_SHARED_EXPLANATION' : 'MOD_MP_ALLIANCE_MARKET_LOCAL_EXPLANATION') }}</p>
 									<p v-if="state.alliance_market_pending()"><span class="badge badge-warning"><lang-string lang-id="MOD_MP_ALLIANCE_POLICY_PENDING"></lang-string></span> <lang-string lang-id="MOD_MP_ALLIANCE_POLICY_UNCHANGED"></lang-string></p>
-									<button type="button" class="btn btn-sm btn-primary" :disabled="state.alliance_market_pending()" @click="state.show_alliance_confirmation(state.alliance_view.alliance?.shared_marketplace ? 'market_disable' : 'market_enable')">{{ state.alliance_label(state.alliance_view.alliance?.shared_marketplace ? 'market_disable' : 'market_enable') }}<span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+									<button type="button" class="btn btn-sm btn-primary" v-if="!state.alliance_view.alliance?.shared_marketplace" :disabled="state.alliance_market_pending()" @click="state.show_alliance_confirmation('market_enable')">{{ state.alliance_label('market_enable') }}<span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
 								</div>
 							</div>
 						</div>
@@ -1373,6 +1402,7 @@
 									<div class="mt-2" v-if="proposal.stage === 'cancelled'"><span v-for="(part, index) in state.alliance_cancellation_parts(proposal)" :key="index"><strong v-if="part.bold">{{ part.text }}</strong><span v-else>{{ part.text }}</span></span></div>
 									<button class="btn btn-sm btn-primary" v-if="proposal.can_consider" :disabled="!!proposal.consider_blocked_reason || (!state.alliance_view.synthetic && state.alliance_state.affiliation_pending)" @click="state.show_alliance_confirmation('consider', null, proposal.process_id)"><lang-string lang-id="MOD_MP_ALLIANCE_CONSIDER"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
 									<button class="btn btn-sm btn-outline-danger" v-if="proposal.can_withdraw" @click="state.show_alliance_confirmation('withdraw', null, proposal.process_id)"><lang-string lang-id="MOD_MP_ALLIANCE_WITHDRAW"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+									<div class="mt-2" v-if="proposal.discussion_id > 0"><button type="button" class="btn btn-sm btn-primary" @click="state.open_alliance_discussion(proposal)"><lang-string lang-id="MOD_MP_POLLS_GO_DISCUSSION"></lang-string><span class="badge mp-chat-unread-badge ml-1" :class="{ 'mp-chat-tagged-nav': state.get_petition_badge(proposal).tagged }" v-if="state.get_petition_badge(proposal).count > 0">{{ state.get_petition_badge(proposal).text }}</span></button></div>
 								</div>
 							</div>
 						</section>
@@ -2994,6 +3024,19 @@
 	<div class="mp-button-tray mt-3">
 		<button type="button" class="btn btn-primary" @click="state.confirm_alliance_proposal($event)"><lang-string lang-id="MOD_MP_RAID_I_UNDERSTAND"></lang-string><span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
 		<button type="button" class="btn btn-secondary" @click="state.close_alliance_confirmation()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
+	</div>
+</template>
+
+<template id="template-mp-alliance-reason-modal">
+	<div class="mp-alliance-modal-scroll" @touchmove="state.stop_icon_scroll_propagation($event)">
+		<p class="mp-modal-text"><lang-string lang-id="MOD_MP_ALLIANCE_REASON_HINT"></lang-string></p>
+		<label for="mp-alliance-reason"><lang-string lang-id="MOD_MP_ALLIANCE_REASON_LABEL"></lang-string></label>
+		<input id="mp-alliance-reason" type="text" class="form-control" maxlength="1000" v-model="state.alliance_reason_confirmation.reason" :disabled="state.alliance_reason_confirmation.pending" :placeholder="getLangString('MOD_MP_ALLIANCE_REASON_LABEL')">
+		<p class="text-danger mt-2" v-show="state.alliance_error">{{ state.alliance_error }}</p>
+	</div>
+	<div class="mp-button-tray mt-3">
+		<button type="button" class="btn btn-danger" :disabled="!state.alliance_reason_valid() || state.alliance_reason_confirmation.pending" @click="state.confirm_alliance_reason($event)">{{ state.alliance_reason_label() }}<span class="spinner-border spinner-border-sm ml-2 d-none" role="status"></span></button>
+		<button type="button" class="btn btn-secondary" :disabled="state.alliance_reason_confirmation.pending" @click="state.close_alliance_reason()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
 	</div>
 </template>
 

@@ -35,6 +35,18 @@ independent of API versioning.
 The contract tests cover the current v2 route/method boundary directly; historical release inventories remain in the
 compatibility cleanup plan rather than executable fixtures.
 
+## Guild mod-category markings
+
+Authorized Guild roster, directory and applicant rows retain `using_cheats`, `cheats_detected_at` and `cheat_mods`
+with their original eight-mod Interdict meaning. They also include `cheat_categories`, ordered by the stable IDs
+`time`, `items`, `resources`, `multitasking`, `shops`, `loot_rng`. Each entry contains `id`, `detected_at`, `expires_at`,
+`details_unavailable` and `mods`. Supporting mod entries contain a catalog `id`, `name`, capability `explanation`,
+`detected_at` and `expires_at`. Timestamps are milliseconds since the epoch; the inclusive seven-day window excludes
+future reports. A timestamp-only historical Interdict marking appears as Item Cheats with empty `mods` and unavailable
+details. New categories are informational and do not alter Social Only enforcement. Flagged-mod details follow the
+existing roster/applicant audience and remain visible when ordinary active-mod sharing is disabled; complete runtime
+mod lists retain their separate visibility gate.
+
 ## Loaded-save tracking
 
 Registration and authentication optionally accept `client_runtime.loaded_save`:
@@ -213,12 +225,17 @@ Council features remain available to every 1.6.2+ client.
 - `GET /api/alliances` returns current Guild summary, membership, affiliation-pending state, and bounded process history
   prioritizing unfinished processes. Collective tallies contain eligible/Aye/Nay totals and the viewer's own Guild ballot.
 - `GET /api/alliances/discover?mode=found|join&page=0` returns 20 candidates and `has_more`.
-- `GET /api/alliances/guild-preview?guild_id=ID` returns basic Guild identity, member count, establishment and policy Tags.
+- `GET /api/alliances/guild-preview?guild_id=ID` returns basic Guild identity, member count, establishment and policy Tags. An absent Guild returns HTTP 200 with `{ "guild": null }`, allowing historical references without browser 404 errors. Invalid IDs and access failures retain their error statuses.
 - `POST /api/alliances/propose` accepts `{kind, target_id?, name?}`; kinds are `found`, `join`, `leave`, `remove`,
   `market_enable`, and `market_disable`. Successful creation returns `process_id` and the local `petition_id`.
 - `POST /api/alliances/consider` and `/withdraw` accept `{process_id}` and return a Council `petition_id`.
 - Existing Council vote routes handle linked Alliance Petitions. New individual ballots reset a common 24-hour
   inactivity deadline; frozen electorates and resolved Guild ballots remain unchanged.
+- Destructive Alliance decisions (`leave`, `remove`, `market_disable`) require Aye to outnumber Nay;
+  a zero-vote deadline denies them. Other zero-vote deadline consent remains unchanged.
+- When an Alliance majority accepts or defeats a proposal, unfinished Member Guild ballots resolve immediately
+  from their current tallies and record their Alliance votes. They are not marked withdrawn. Completed history
+  remains unchanged; cancellation, expiry, and explicit withdrawal retain their existing behavior.
 - Existing Chat routes accept `conversation_kind: "alliance"` and the Alliance ID. Participation is independent through
   `POST /api/chat/alliance-participation` with `{enabled}`. Membership authorizes every operation.
 

@@ -282,6 +282,9 @@ describe('campaign API', () => {
 		expect(switched.history).toEqual(completed.history);
 		expect(switched.rankings).toEqual(completed.rankings);
 
+		// The ownership contract needs a positive reward independent of random Campaign selection.
+		await db_run('UPDATE campaign_completions SET item_id = ? WHERE source_campaign_state_id = ? AND client_id = ?',
+			['melvorD:Coal_Ore', completion_id, contributor.client_id]);
 		const current_claim = await post_json<{ success: boolean; reward_value: number; receipt: unknown }>('/api/campaign/claim', {
 			campaign_id: completion_id,
 			command_id: crypto.randomUUID()
@@ -350,6 +353,24 @@ describe('campaign API', () => {
 		expect((await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
 			'/api/inbox', contributor.session_token
 		)).json.items).toEqual([{ item_id: 'melvorD:GP', qty: first.json.reward_value }]);
+	});
+
+	test('rejects zero-value Campaign rewards without recording a claim', async () => {
+		const contributor = await register_guild_client('Zero Campaign', 'Zero Campaign Guild', '1.5.3');
+		const state = (await db_all<{ id: number }>(
+			'SELECT id FROM campaign_state WHERE guild_id = ? ORDER BY id DESC LIMIT 1', [contributor.guild_id]
+		))[0];
+		if (!state) throw new Error('Campaign state fixture is missing');
+		await db_run('INSERT INTO campaign_completions ' +
+			'(source_campaign_state_id, source_guild_id, client_id, campaign_id, item_id, item_amount, taken, created_at) ' +
+			"VALUES (?, ?, ?, 'campaign_jungle', 'melvorD:Rune_Essence', 4, 0, ?)",
+			[state.id, contributor.guild_id, contributor.client_id, Date.now()]);
+		const claim = await post('/api/campaign/claim', {
+			campaign_id: state.id, command_id: crypto.randomUUID()
+		}, contributor.session_token);
+		expect(claim.status).toBe(400);
+		expect(await db_all('SELECT taken FROM campaign_completions WHERE source_campaign_state_id = ? AND client_id = ?',
+			[state.id, contributor.client_id])).toEqual([{ taken: 0 }]);
 	});
 
 	test('calculates server-owned campaign claims from fixed item values and pet ownership', async () => {

@@ -1,6 +1,7 @@
 import { Database } from 'bun:sqlite';
 import { writeFileSync } from 'node:fs';
 import { migrations } from '../../db/schema';
+import { reconcile_cheat_catalog } from '../../cheat-catalog';
 
 let schema_snapshot: Uint8Array | undefined;
 
@@ -32,6 +33,7 @@ function current_schema(): Uint8Array {
 					database.run('PRAGMA foreign_keys = ON');
 			}
 		}
+		reconcile_cheat_catalog(database);
 		schema_snapshot = database.serialize();
 		return schema_snapshot;
 	} finally {

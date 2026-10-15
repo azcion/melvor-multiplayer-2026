@@ -133,7 +133,9 @@ test('refreshes the Crucible only while its page is visible', async () => {
  assert.match(clock, /polling\.is_foreground\(document\)/);
  const setup = main.slice(main.indexOf('ctx.onInterfaceReady'), main.indexOf('function setup_account_menu'));
  assert.match(setup, /on_page_toggle\('mp-crucible-page'/);
- assert.match(main, /ctx\.onCharacterSelectionLoaded\(\(\) => \{\s*set_crucible_page_visible\(false\)/);
+ const selection_callback = main.match(/ctx\.onCharacterSelectionLoaded\(\(\) => \{([\s\S]*?)\n\t\}\)/);
+ assert.ok(selection_callback, 'character-selection lifecycle callback exists');
+ assert.match(selection_callback[1], /set_crucible_page_visible\(false\)/);
 });
 
 test('keeps reactive Guild state scoped to its page', async () => {
