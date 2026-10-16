@@ -81,7 +81,7 @@ test('invalid or stale handshakes cannot prune original clock recovery records',
 
 test('main scheduler measures actual fetch dispatch/response, excluding queue and response consumption',async()=>{
  const main=await readFile(new URL('../../mod/main.mjs',import.meta.url),'utf8');
- const source=main.slice(main.indexOf('async function coordinated_request'),main.indexOf('async function api_get(endpoint)'));
+ const source=main.slice(main.indexOf('async function coordinated_request'),main.indexOf('async function api_get(endpoint,'));
  let wall=0,mono=0,dispatch,calls=0;
  const context={session_generation:1,server_host:'https://one.test',DOMException,
   fetch:async()=>{calls++;wall+=7;mono+=7;return Response.json({success:true});},
@@ -127,14 +127,15 @@ test('unchanged status release requires a full event snapshot, including no-cand
  const main=await readFile(new URL('../../mod/main.mjs',import.meta.url),'utf8');
  const source=main.slice(main.indexOf('async function get_client_events_request('),main.indexOf('\nfunction start_client_event_polling('));
  let event={unchanged:true,revision:7,rollback:status()},recoveries=0;
- const context={rollback_client:h.client,session_generation:1,client_events_hydrated:true,client_event_trailing:false,client_event_revision:7,CHAT_CAPABILITIES:'',
-  state:{refresh_crucible:async()=>{},chat_notification_preferences:{},events:{},inbox_items:[],get_chat_notification_tagged:()=>false},
+ const context={crucible_page_hydrating:false,server_host:'https://one.test',guild_revision_scope:null,last_guild_revision:null,rollback_client:h.client,session_generation:1,client_events_hydrated:true,client_event_trailing:false,client_event_revision:7,CHAT_CAPABILITIES:'',
+  state:{listing_filters:[],refresh_crucible:async()=>{},chat_notification_preferences:{},events:{},inbox_items:[],get_chat_notification_tagged:()=>false},
   api_get:async endpoint=>{assert.ok(!endpoint.includes('revision='));return event;},
-  enter_unsupported_multiplayer:()=>false,check_released_mod_version(){},maybe_auto_check_in_expedition(){},
+  enter_unsupported_multiplayer:()=>false,check_released_mod_version(){},apply_dev_badge_labels(){},maybe_auto_check_in_expedition(){},
   economy_command_journal:{recover(){recoveries++;}},read_cache:{invalidate(){}},invalidate_guild_state(){},chat_page_visible:false,
   polling:{has_pending_events:()=>false},event_snapshots:{reconcile_event_transfers(){}},social_mode:{SOCIAL_MODE_FULL:'full',SOCIAL_MODE_SOCIAL:'social'},
   update_chat_nav(){},reconcile_guild_member_social_modes(){},update_transfer_inventory_nav(){},update_multiplayer_nav(){},leave_social_only_disabled_page(){},
   reconcile_economy_receipts:async()=>true,economy_receipts:receipts,ECONOMY_RECEIPT_PAGE_SIZE:64,remove_instance_storage_item(){},
+  guild_page_visible:false,prepare_page_snapshot:async()=>{},refresh_guild_state:async()=>{},
   legacy_market_payout_migration_started:true,show_pending_banishment_notice(){},update_guild_nav(){}};
  runInNewContext(source,context);await context.get_client_events_request(false,1);
  assert.equal(context.client_event_trailing,true);assert.equal(context.client_events_hydrated,false);assert.equal(recoveries,0);
@@ -190,7 +191,7 @@ test('main receipt reconciliation preserves incoming during review and ignores r
  const main=await readFile(new URL('../../mod/main.mjs',import.meta.url),'utf8');
  const source=main.slice(main.indexOf('function reconcile_economy_receipts('),main.indexOf('\nfunction show_pending_banishment_notice'));
  let bank=10;const storage=new Map(),acks=[];
- const context={rollback_client:h.client,session_generation:1,server_host:'https://one.test',economy_receipts:receipts,
+ const context={server_host:'https://one.test',guild_revision_scope:null,last_guild_revision:null,rollback_client:h.client,session_generation:1,server_host:'https://one.test',economy_receipts:receipts,
   economy_receipt_reconciliation:Promise.resolve(),get_instance_storage_item:key=>storage.get(key),set_instance_storage_item:(key,value)=>storage.set(key,value),remove_instance_storage_item:key=>storage.delete(key),
   acknowledged_economy_receipt_ids:[],economy_command_journal:{retire(){},acknowledge(){}},TRANSFER_INVENTORY_MAX_LIMIT:6,
   transfer_currency_support:null,game:{items:{getObjectByID:()=>({})},bank:{getQty:()=>bank,removeItemQuantity:(_item,qty)=>{bank-=qty;}},gp:{amount:0,add(){throw Error('GP mutation');},remove(){throw Error('GP mutation');}}},
@@ -240,9 +241,9 @@ test('actual activation wires scoped admission into existing journal recovery an
   get_instance_storage_item:key=>storage.get(key),set_instance_storage_item:(key,value)=>storage.set(key,value),remove_instance_storage_item:key=>storage.delete(key),get_instance_storage_keys:()=>[...storage.keys()],
   api_get_request:async()=>status('review'),api_post_response_raw:async()=>{sends++;return {response:{status:409},json:{error:'economy_review_pending'}};},reconcile_economy_receipts:async()=>true,
   interface_ready:false,addModalToQueue(){},Swal:{close(){}},getLangString:key=>key,client_event_request:null,get_client_events:async()=>{events++;},
-  guild_state_refresh_id:0,social_mode:{normalize_social_mode:()=> 'full'},invalidate_status_icon_collection(){},check_released_mod_version(){},queue_identity_notice(){},queue_default_avatar_notice(){},
+  guild_state_refresh_id:0,social_mode:{normalize_social_mode:()=> 'full'},invalidate_status_icon_collection(){},check_released_mod_version(){},apply_dev_badge_labels(){},queue_identity_notice(){},queue_default_avatar_notice(){},
   update_multiplayer_nav(){},start_gp_sampling(){},start_status_observer(){},start_client_event_polling(){},chat_page_visible:false,
-  refresh_guild_state:async()=>{},raid_combat:null,refresh_raid_state:async()=>{},refresh_identities:async()=>{},schedule_equipment_sync(){},schedule_status_sync(){}};
+  refresh_initial_guild_state:async()=>{},raid_combat:null,refresh_raid_state:async()=>{},refresh_identities:async()=>{},schedule_equipment_sync(){},schedule_status_sync(){}};
  runInNewContext(source,context);
  context.activate_multiplayer_identity({...bootstrap(status('review'),false),session_token:'fixture',chat:{client_id:1}},timing);
  await settle();assert.equal(events,1);assert.equal(context.economy_commands_ready,false);
@@ -311,7 +312,7 @@ test('actual receipt wiring notifies only reconciled fulfillment value, excludin
  const main=await readFile(new URL('../../mod/main.mjs',import.meta.url),'utf8');
  const source=main.slice(main.indexOf('function reconcile_economy_receipts('),main.indexOf('\nfunction show_pending_banishment_notice'));
  let bank=10,gp=0;const storage=new Map(),notices=[],acks=[];
- const context={rollback_client:h.client,session_generation:1,server_host:'https://one.test',economy_receipts:receipts,
+ const context={server_host:'https://one.test',guild_revision_scope:null,last_guild_revision:null,rollback_client:h.client,session_generation:1,server_host:'https://one.test',economy_receipts:receipts,
   economy_receipt_reconciliation:Promise.resolve(),get_instance_storage_item:key=>storage.get(key),set_instance_storage_item:(key,value)=>storage.set(key,value),remove_instance_storage_item:key=>storage.delete(key),
   acknowledged_economy_receipt_ids:[],economy_command_journal:{retire(){},acknowledge(){}},TRANSFER_INVENTORY_MAX_LIMIT:6,transfer_currency_support:null,
   game:{items:{getObjectByID:()=>({})},bank:{getQty:()=>bank,removeItemQuantity:(_item,qty)=>{bank-=qty;}},gp:{get amount(){return gp;},add(qty){gp+=qty;},remove(){throw Error('GP debit');}}},

@@ -191,3 +191,33 @@ test('removing every assignment opts out a mod after its existing report was re-
 	expect(db.query('SELECT last_observed_at FROM client_mod_observations WHERE client_id=3').get()).toEqual({last_observed_at:100});
 	db.close();
 });
+
+test('listing filter SQL agrees with current badge evidence, expiry, and legacy Item Cheats', async () => {
+	const { filtered_contributor_sql, parse_listing_filters } = await import('../../listing-filters');
+	const db = fixture();
+	const now = week + 1000;
+	const matches = (category: any, at = now) => {
+		const filter = filtered_contributor_sql('1', [category], at);
+		return (db.query(`SELECT ${filter.sql} AS matched`).get(...filter.values) as { matched: number }).matched === 1;
+	};
+	db.run('UPDATE clients SET cheats_detected_at=NULL');
+	for (const id of ['time', 'items', 'resources', 'multitasking', 'shops', 'loot_rng']) {
+		db.run('DELETE FROM client_mod_observations');
+		const mod = db.query("SELECT mod_catalog_id AS id FROM mod_category_classifications WHERE category_id=? AND superseded_at IS NULL AND publication_state='approved' AND confidence='high' LIMIT 1").get(id) as { id: number };
+		db.query("INSERT INTO client_mod_observations VALUES (1,?,?, 'test',NULL,'curated_name','runtime')").run(mod.id, now);
+		expect(matches(id)).toBe(true);
+		expect(matches(id, now - 1)).toBe(false);
+		expect(matches(id, now + week)).toBe(true);
+		expect(matches(id, now + week + 1)).toBe(false);
+	}
+	db.run('DELETE FROM client_mod_observations');
+	db.query('UPDATE clients SET cheats_detected_at=? WHERE id=1').run(now);
+	expect(matches('items')).toBe(true);
+	expect(matches('time')).toBe(false);
+	expect(matches('items', now + week + 1)).toBe(false);
+	expect(parse_listing_filters(undefined)).toEqual([]);
+	expect(parse_listing_filters(['time', 'time'])).toEqual(['time']);
+	expect(parse_listing_filters(['unknown'])).toBeNull();
+	expect(parse_listing_filters('items')).toBeNull();
+	db.close();
+});

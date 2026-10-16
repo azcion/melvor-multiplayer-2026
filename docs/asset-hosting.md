@@ -6,7 +6,7 @@ All original images remain in `mod/assets/` and in source control.
 ## Configuration
 
 `asset-hosting.json` supplies the bundled default and exact managed PNG paths. The initial list covers four Raid
-bosses, seven Expedition Chambers, and four passage gateways. Crucible, navigation icons, and placeholders stay bundled.
+bosses, seven Expedition Chambers, and four passage gateways. Crucible, navigation icons, gamemode icons, and placeholders stay bundled.
 
 Create an ignored `asset-hosting.local.json` to override settings for your builds:
 
@@ -84,3 +84,20 @@ Remote ZIP preparation performs the same public byte verification regardless of 
 
 To roll back hosting, build in bundled mode and reinstall. This does not require deleting R2 objects or changing
 the backend. Node.js 22+ and the usual ZIP tools are needed for packaging; Wrangler is required only for R2 uploads.
+
+## Gamemode compatibility icons
+
+The bundled `gamemode_*.png` icons use the supplied HCCO, MCCO, HRCO, RMCO, Randomized Adventure, and Phoenix artwork.
+They are limited to 192×192 for the roster's 96px display (2× density), stripped of metadata, and PNG-compressed.
+Phoenix uses a 256-color palette with transparency (22,425 bytes, reduced from 477,812 bytes).
+`gamemode_taskman.svg` is the small static icon from Taskman's published 0.6.2.0 archive.
+
+Names and IDs were checked against the published mod files:
+
+- [HCCO](https://mod.io/g/melvoridle/m/hcco), 4.2.5, file 7068582: `hcco`, `mcco`, `rehcco`, `remcco` in namespace `hcco`.
+- [Randomized Adventure](https://mod.io/g/melvoridle/m/randomized-adventure-mode), 1.1.4, file 5286038: `RandomAdventure:RandomAdventure`.
+- [Taskman](https://mod.io/g/melvoridle/m/taskman-mode), 0.6.2.0, file 8290130: `taskman:Taskman`. Task variants share this ID.
+- [Gamemodes by Phoenix](https://mod.io/g/melvoridle/m/gamemodes-by-phoenix), 1.0.0, file 5724975: `gamemodesbyphoenix:adventurenoxpcap`.
+- [Phoenix Gamemode Manager](https://mod.io/g/melvoridle/m/phoenix-gamemode-manager), 1.2.0, file 5724870: `phoenixgamemodemanager:BirthdayMode`. The archive calls it `???`; Multiplayer uses the descriptive label **Phoenix Birthday Mode**. Both Phoenix modes share the supplied icon.
+
+These are exact display mappings; they do not infer Taskman settings or change multiplayer economy policy.

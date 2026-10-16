@@ -57,6 +57,9 @@ describe('Guild Expedition registration', () => {
 			await db_run('UPDATE expedition_tasks SET player_ms = target_ms, completed_at = ? WHERE visit_id = ? AND task_id = ?',
 				[Date.now(), visit_id, 'arrival_chart']);
 			const opened = (await get_json_with_session<any>('/api/expedition/state', guild.first.session_token)).json;
+			const tracking_view = (await get_json_with_session<any>('/api/expedition/state?view=tracking', guild.first.session_token)).json;
+			expect(tracking_view.expedition.chamber.tasks.map((task: any) => [task.task_id, task.completed_at, task.requirement, task.evidence]))
+				.toEqual(opened.expedition.chamber.tasks.map((task: any) => [task.task_id, task.completed_at, task.requirement, task.evidence]));
 			if (chamber.exits.length > 1) {
 				expect(opened.expedition.chamber.vote.opened_at).toBeNumber();
 				const wrong = chamber.exits.find((edge: any) => edge.id !== chamber.preview_exit_id);
@@ -101,6 +104,11 @@ describe('Guild Expedition registration', () => {
 		const completed = (await get_json_with_session<any>('/api/expedition/state', guild.first.session_token)).json;
 		expect(completed.expedition.status).toBe('completed');
 		expect(completed.expedition.history.map((entry: any) => entry.chamber_id)).toEqual(route);
+		const compact = (await get_json_with_session<any>('/api/expedition/state?view=tracking', guild.first.session_token)).json;
+		expect(compact.expedition.history).toEqual([]);
+		expect(compact.expedition.status).toBe(completed.expedition.status);
+		expect(compact.tracking).toEqual(completed.tracking);
+		expect(compact.expedition.chamber).toEqual(completed.expedition.chamber);
 	});
 	test('chooses a sole exit after arrival work without a ballot', async () => {
 		const guild = await make_guildmates('Sole Exit A', 'Sole Exit B', 'Sole Exit Guild');

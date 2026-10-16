@@ -403,6 +403,7 @@
 	"MOD_MP_GUILD_NEW_MEMBER": "새 길드원",
 	"MOD_MP_GUILD_DEV": "Dev",
 	"MOD_MP_GUILD_DEV_SAE": "SAE Dev",
+	"MOD_MP_GUILD_DEV_OSRS_OVERHAUL": "OSRS Overhaul Dev",
 	"MOD_MP_DEV_TAG_VISIBILITY": "Let others see your Dev tag",
 	"MOD_MP_GUILD_USING_CHEATS": "치트 사용",
 	"MOD_MP_GUILD_APPLICANTS": "가입 신청자",
@@ -450,6 +451,7 @@
 	"MOD_MP_STATUS_ACTIVITY_COMBAT": "전투 중",
 	"MOD_MP_CHAT_PRIVACY_ENABLE": "개인 채팅 메시지 허용",
 	"MOD_MP_GLOBAL_CHAT_ENABLE": "전체 채팅 참여",
+	"MOD_MP_ALLIANCE_CHAT_ENABLE": "동맹 채팅 참여",
 	"MOD_MP_GUILD_CHAT_ENABLE": "길드 채팅 참여",
 	"MOD_MP_CHAT_START": "채팅 시작",
 	"MOD_MP_CHAT_CATEGORY_PRIVATE": "비공개",
@@ -531,7 +533,7 @@
 	"MOD_MP_MODAL_NO_GUILD_MATCHES": "검색과 일치하는 길드가 없습니다.",
 	"MOD_MP_FREE_FELLOWSHIP_CONFIRM_TITLE": "자유 연맹 가입",
 	"MOD_MP_FREE_FELLOWSHIP_CONFIRM_PUBLIC": "소속은 이 서버 전체에 공개되며 가입 신청이 필요하지 않습니다.",
-	"MOD_MP_FREE_FELLOWSHIP_SEARCH": "표시 이름으로 길드원 검색",
+	"MOD_MP_FREE_FELLOWSHIP_SEARCH": "검색",
 	"MOD_MP_FREE_FELLOWSHIP_JOINED": "자유 연맹에 가입했습니다.",
 	"MOD_MP_GUILD_JOINED": "열린 문을 통해 길드에 가입했습니다.",
 	"MOD_MP_GUILD_LEAVE_WARNING": "완료한 멀티플레이어 진행 상황과 미수령 보상은 이 신원에 남지만, 미완료 기여는 이 길드에 남습니다. 먼저 시장 등록, 선물, 교환을 모두 처리해야 합니다. 마지막 길드원이 떠나면 길드가 영구적으로 해체되고 공유 기록이 삭제됩니다.",
@@ -850,7 +852,6 @@
 	"MOD_MP_ALLIANCE_JOIN_EMPTY": "아직 가입할 수 있는 활동 중인 동맹이 없습니다.",
 	"MOD_MP_ALLIANCE_PREVIOUS": "이전",
 	"MOD_MP_ALLIANCE_NEXT": "다음",
-	"MOD_MP_ALLIANCE_CHAT_ENABLE": "동맹 채팅 참여",
 	"MOD_MP_ALLIANCE_FREE_FELLOWSHIP": "자유 공동체",
 	"MOD_MP_ALLIANCE_STAGE_LOCAL": "내 평의회 승인 대기",
 	"MOD_MP_ALLIANCE_STAGE_WAITING": "상대 길드 대기",
@@ -1284,5 +1285,9 @@
 	"MOD_MP_CHEAT_CATEGORY_SHOPS": "상점 치트",
 	"MOD_MP_CHEAT_CATEGORY_LOOT_RNG": "전리품 치트",
 	"MOD_MP_CHEAT_PRESENCE_NOTICE": "지난 7일 동안 이 캐릭터에서 이 모드들이 로드되었다고 보고되었습니다. 로드 여부만으로 어떤 기능이 활성화되거나 사용되었는지는 알 수 없습니다.",
-	"MOD_MP_CHEAT_EXPIRES": "만료까지: %s"
+	"MOD_MP_CHEAT_EXPIRES": "만료까지: %s",
+	"MOD_MP_LOADING_REPORT_TITLE": "로딩 보고서",
+	"MOD_MP_LOADING_REPORT_REFRESH": "로딩 보고서 생성",
+	"MOD_MP_LISTING_FILTERS": "판매 등록 필터",
+	"MOD_MP_LISTING_FILTERS_DESCRIPTION": "이 배지가 있는 플레이어의 판매 등록과 도가니 공물을 숨깁니다."
 }

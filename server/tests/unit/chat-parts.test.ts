@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { compatible_chat_parts, normalize_chat_parts, parts_text, translation_html, translation_document, translated_parts, type ChatPart } from '../../chat_parts';
+import { CHAT_BADGE_FEATURES, compatible_chat_parts, normalize_chat_parts, parts_text, translation_html, translation_document, translated_parts, type ChatPart } from '../../chat_parts';
 
 const source: ChatPart[] = [{ type: 'text', text: 'Compare <this> & "that" ' },
 	{ type: 'item', item_id: 'melvorD:Bronze_Sword' }, { type: 'text', text: ' with ' },
@@ -272,4 +272,25 @@ test('person occurrences survive translation and fall back for older clients', (
 	expect(parts_text(parts)).toBe('Hi @Lucy@Lucy');
 	expect(compatible_chat_parts({ parts, translation_parts: { en: parts } }, true).parts).toBeUndefined();
 	expect(compatible_chat_parts({ parts, translation_parts: { en: parts } }, true, true).parts).toEqual(parts);
+});
+
+
+test('badges preserve stable translation markers and downgrade only badge parts for old clients', () => {
+	for (const [feature_id, label] of CHAT_BADGE_FEATURES) {
+		const badge: ChatPart = { type: 'feature', feature_id };
+		const parts: ChatPart[] = [{ type: 'text', text: 'Discuss ' }, badge,
+			{ type: 'feature', feature_id: 'multiplayer:Guild_Raid' }];
+		expect(normalize_chat_parts(parts)).toEqual(parts);
+		expect(parts_text(parts)).toBe(`Discuss [${label}]$Raid`);
+		expect(translated_parts(translation_html(parts), parts)).toEqual(parts);
+		const old = compatible_chat_parts({ parts, translation_parts: { en: parts } }, true, true);
+		expect(old.parts).toEqual([parts[0]!, { type: 'text', text: `[${label}]` }, parts[2]!]);
+		expect(old.translation_parts!.en).toEqual(old.parts!);
+		const current = compatible_chat_parts({ parts, translation_parts: { en: parts } }, true, true, true);
+		expect(current.parts).toEqual(parts);
+		expect(current.translation_parts!.en).toEqual(parts);
+		expect(parts[1]).toEqual(badge);
+		expect(normalize_chat_parts(Array(21).fill(badge))).toBeNull();
+	}
+	expect(normalize_chat_parts([{ type: 'feature', feature_id: 'multiplayer:Badge_Fake' }])).toBeNull();
 });

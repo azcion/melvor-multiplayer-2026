@@ -938,10 +938,11 @@
 		<input class="mp-input-text w-100" type="search" v-model="state.shadowed_member_search" :placeholder="state.get_shadowed_member_search_placeholder()" @change="state.search_shadowed_members()">
 	</div>
 	<div class="mp-council-target-list mt-3" v-if="state.shadowed_members.length > 0" @touchmove="state.stop_icon_scroll_propagation($event)">
-		<button type="button" class="btn btn-outline-secondary mp-guild-person" v-for="member in state.shadowed_members" @click="state.open_shadowed_member_actions(member)">
+		<button type="button" class="btn btn-outline-secondary mp-guild-person mp-search-member" v-for="member in state.shadowed_members" @click="state.open_shadowed_member_actions(member)">
 			<img class="skill-icon-xs" :src="state.get_avatar_icon(member.icon_id)">
 			<span class="font-w600">{{ member.display_name }}</span>
 			<span class="badge badge-secondary"><lang-string lang-id="MOD_MP_GUILD_SHADOWED"></lang-string></span>
+			<span class="badge badge-info mp-member-search-tag" v-for="label in state.get_member_search_tags(member)" :key="label"><i class="fa fa-search mr-1" aria-hidden="true"></i>{{ label }}</span>
 		</button>
 	</div>
 	<div class="text-muted mt-3" v-else-if="!state.shadowed_member_directory_loading"><lang-string lang-id="MOD_MP_GUILD_NO_SHADOWED_MEMBERS"></lang-string></div>
@@ -1102,11 +1103,15 @@
 										</div>
 										<div class="mp-guild-member-tags">
 											<span class="badge mp-guild-raid-defeats" v-if="(application.raid_defeats ?? 0) > 0"><mp-lang-string-f lang-id="MOD_MP_RAID_MEMBER_DEFEATS" :lang-arg-1="application.raid_defeats"></mp-lang-string-f><img src="https://cdn2-main.melvor.net/assets/media/bank/skull.png" alt=""></span>
-											<span class="badge mp-guild-new-member-badge mp-guild-dev-badge" v-if="application.dev_badge">
+											<span class="badge mp-guild-new-member-badge mp-guild-dev-badge" v-if="application.dev_badge_label">{{ application.dev_badge_label }}</span>
+											<span class="badge mp-guild-new-member-badge mp-guild-dev-badge" v-if="application.dev_badge_label === undefined && application.dev_badge">
 												<lang-string lang-id="MOD_MP_GUILD_DEV"></lang-string>
 											</span>
-											<span class="badge mp-guild-new-member-badge mp-guild-dev-badge" v-if="application.sae_dev_badge">
+											<span class="badge mp-guild-new-member-badge mp-guild-dev-badge" v-if="application.dev_badge_label === undefined && application.sae_dev_badge">
 												<lang-string lang-id="MOD_MP_GUILD_DEV_SAE"></lang-string>
+											</span>
+											<span class="badge mp-guild-new-member-badge mp-guild-dev-badge" v-if="application.dev_badge_label === undefined && application.osrs_overhaul_dev_badge">
+												<lang-string lang-id="MOD_MP_GUILD_DEV_OSRS_OVERHAUL"></lang-string>
 											</span>
 											<span class="badge badge-info" v-if="application.social_mode === 'social'">
 												<lang-string lang-id="MOD_MP_SOCIAL_MODE_SOCIAL"></lang-string>
@@ -1177,6 +1182,7 @@
 											</span>
 										</div>
 										<div class="mp-guild-member-tags">
+											<span class="badge badge-info mp-member-search-tag" v-for="label in state.get_member_search_tags(member)" :key="label"><i class="fa fa-search mr-1" aria-hidden="true"></i>{{ label }}</span>
 											<span class="badge mp-guild-raid-defeats" v-if="(member.raid_defeats ?? 0) > 0"><mp-lang-string-f lang-id="MOD_MP_RAID_MEMBER_DEFEATS" :lang-arg-1="member.raid_defeats"></mp-lang-string-f><img src="https://cdn2-main.melvor.net/assets/media/bank/skull.png" alt=""></span>
 											<span class="badge badge-info" v-if="member.client_id === state.guild_client_id">
 												<lang-string lang-id="MOD_MP_GUILD_YOU"></lang-string>
@@ -1184,11 +1190,15 @@
 											<span class="badge mp-guild-new-member-badge" v-if="member.client_id !== state.guild_client_id && state.is_new_guild_member(member.joined_at)">
 												<lang-string lang-id="MOD_MP_GUILD_NEW_MEMBER"></lang-string>
 											</span>
-											<span class="badge mp-guild-new-member-badge mp-guild-dev-badge" v-if="member.dev_badge">
+											<span class="badge mp-guild-new-member-badge mp-guild-dev-badge" v-if="member.dev_badge_label">{{ member.dev_badge_label }}</span>
+											<span class="badge mp-guild-new-member-badge mp-guild-dev-badge" v-if="member.dev_badge_label === undefined && member.dev_badge">
 												<lang-string lang-id="MOD_MP_GUILD_DEV"></lang-string>
 											</span>
-											<span class="badge mp-guild-new-member-badge mp-guild-dev-badge" v-if="member.sae_dev_badge">
+											<span class="badge mp-guild-new-member-badge mp-guild-dev-badge" v-if="member.dev_badge_label === undefined && member.sae_dev_badge">
 												<lang-string lang-id="MOD_MP_GUILD_DEV_SAE"></lang-string>
+											</span>
+											<span class="badge mp-guild-new-member-badge mp-guild-dev-badge" v-if="member.dev_badge_label === undefined && member.osrs_overhaul_dev_badge">
+												<lang-string lang-id="MOD_MP_GUILD_DEV_OSRS_OVERHAUL"></lang-string>
 											</span>
 											<span class="badge badge-info" v-if="member.social_mode === 'social'">
 												<lang-string lang-id="MOD_MP_SOCIAL_MODE_SOCIAL"></lang-string>
@@ -2280,7 +2290,7 @@
 					</section>
 					<section class="mp-transfers-panel mp-transfer-history" aria-labelledby="mp-transfer-history-inbox-title">
 						<h3 id="mp-transfer-history-inbox-title" class="mp-transfer-panel-heading">
-							<button type="button" class="mp-transfer-panel-header" :aria-expanded="state.transfers_history_open.inbox" aria-controls="mp-transfer-history-inbox-body" @click="state.transfers_history_open.inbox = !state.transfers_history_open.inbox">
+							<button type="button" class="mp-transfer-panel-header" :aria-expanded="state.transfers_history_open.inbox" aria-controls="mp-transfer-history-inbox-body" @click="state.toggle_transfer_history('inbox')">
 								<i class="fa fa-history" aria-hidden="true"></i><span><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_TITLE"></lang-string></span>
 								<i class="fa" :class="state.transfers_history_open.inbox ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
 							</button>
@@ -2370,7 +2380,7 @@
 					</section>
 					<section class="mp-transfers-panel mp-transfer-history" aria-labelledby="mp-transfer-history-outbox-title">
 						<h3 id="mp-transfer-history-outbox-title" class="mp-transfer-panel-heading">
-							<button type="button" class="mp-transfer-panel-header" :aria-expanded="state.transfers_history_open.outbox" aria-controls="mp-transfer-history-outbox-body" @click="state.transfers_history_open.outbox = !state.transfers_history_open.outbox">
+							<button type="button" class="mp-transfer-panel-header" :aria-expanded="state.transfers_history_open.outbox" aria-controls="mp-transfer-history-outbox-body" @click="state.toggle_transfer_history('outbox')">
 								<i class="fa fa-history" aria-hidden="true"></i><span><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_TITLE"></lang-string></span>
 								<i class="fa" :class="state.transfers_history_open.outbox ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
 							</button>
@@ -2666,7 +2676,7 @@
 					</section>
 					<section class="mp-transfers-panel mp-transfer-history" aria-labelledby="mp-transfer-history-pending-title">
 						<h3 id="mp-transfer-history-pending-title" class="mp-transfer-panel-heading">
-							<button type="button" class="mp-transfer-panel-header" :aria-expanded="state.transfers_history_open.pending" aria-controls="mp-transfer-history-pending-body" @click="state.transfers_history_open.pending = !state.transfers_history_open.pending">
+							<button type="button" class="mp-transfer-panel-header" :aria-expanded="state.transfers_history_open.pending" aria-controls="mp-transfer-history-pending-body" @click="state.toggle_transfer_history('pending')">
 								<i class="fa fa-history" aria-hidden="true"></i><span><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_TITLE"></lang-string></span>
 								<i class="fa" :class="state.transfers_history_open.pending ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
 							</button>
@@ -2749,9 +2759,14 @@
 <template id="template-mp-gift-friend-modal">
 	<input class="mp-input-text w-100 mb-3" v-show="state.is_free_fellowship" type="search" v-model="state.guild_member_search" :placeholder="state.get_free_fellowship_search_placeholder()" @change="state.search_guild_members()">
 	<div class="mp-friends" v-if="state.guild_recipients.length > 0">
-		<div v-for="recipient in state.guild_recipients" class="mp-friend">
+		<div v-for="recipient in state.guild_recipients" class="mp-friend mp-search-recipient">
 			<img class="skill-icon-xs" :src="state.get_avatar_icon(recipient.icon_id)"/>
-			<span>{{ recipient.display_name }}</span>
+			<span class="mp-recipient-name">
+				{{ recipient.display_name }}
+				<span class="mp-recipient-search-tags">
+					<span class="badge badge-info mp-member-search-tag" v-for="label in state.get_member_search_tags(recipient)" :key="label"><i class="fa fa-search mr-1" aria-hidden="true"></i>{{ label }}</span>
+				</span>
+			</span>
 			<button type="button" class="btn btn-success" @click="state.select_gift_recipient(recipient)">
 				<lang-string lang-id="MOD_MP_BUTTON_SELECT"></lang-string>
 			</button>
@@ -2768,9 +2783,14 @@
 <template id="template-mp-create-trade-modal">
 	<input class="mp-input-text w-100 mb-3" v-show="state.is_free_fellowship" type="search" v-model="state.guild_member_search" :placeholder="state.get_free_fellowship_search_placeholder()" @change="state.search_guild_members()">
 	<div class="mp-friends" v-if="state.guild_recipients.length > 0">
-		<div v-for="recipient in state.guild_recipients" class="mp-friend">
+		<div v-for="recipient in state.guild_recipients" class="mp-friend mp-search-recipient">
 			<img class="skill-icon-xs" :src="state.get_avatar_icon(recipient.icon_id)"/>
-			<span>{{ recipient.display_name }}</span>
+			<span class="mp-recipient-name">
+				{{ recipient.display_name }}
+				<span class="mp-recipient-search-tags">
+					<span class="badge badge-info mp-member-search-tag" v-for="label in state.get_member_search_tags(recipient)" :key="label"><i class="fa fa-search mr-1" aria-hidden="true"></i>{{ label }}</span>
+				</span>
+			</span>
 			<button type="button" class="btn btn-success" @click="state.select_trade_recipient($event, recipient)">
 				<div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div>
 				<lang-string lang-id="MOD_MP_BUTTON_SELECT"></lang-string>
@@ -3042,7 +3062,7 @@
 
 <template id="template-mp-multiplayer-settings-modal">
 	<div class="mp-multiplayer-settings" @click.stop @dblclick.stop.prevent>
-		<section><h3><lang-string lang-id="MOD_MP_MULTIPLAYER_SETTINGS_PRIVACY"></lang-string></h3>
+		<section v-show="state.multiplayer_settings_section !== 'listing_filters'"><h3><lang-string lang-id="MOD_MP_MULTIPLAYER_SETTINGS_PRIVACY"></lang-string></h3>
 			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" :aria-checked="state.equipment_visible" :disabled="state.equipment_visibility_pending" @click.stop="state.set_equipment_visibility($event)"><span><lang-string lang-id="MOD_MP_EQUIPMENT_VISIBILITY"></lang-string><span class="spinner-border spinner-border-sm text-primary ml-2" role="status" v-if="state.equipment_visibility_pending"></span></span><span aria-hidden="true"></span></button>
 			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" :aria-checked="state.skills_visible" :disabled="state.skills_visibility_pending" @click.stop="state.set_skills_visibility($event)"><span><lang-string lang-id="MOD_MP_SKILLS_VISIBILITY"></lang-string><span class="spinner-border spinner-border-sm text-primary ml-2" role="status" v-if="state.skills_visibility_pending"></span></span><span aria-hidden="true"></span></button>
 			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" :aria-checked="state.activity_visible" :disabled="state.activity_visibility_pending" @click.stop="state.set_activity_visibility($event)"><span><lang-string lang-id="MOD_MP_ACTIVITY_VISIBILITY"></lang-string><span class="spinner-border spinner-border-sm text-primary ml-2" role="status" v-if="state.activity_visibility_pending"></span></span><span aria-hidden="true"></span></button>
@@ -3051,11 +3071,15 @@
 			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" :aria-checked="state.active_mods_visible" :disabled="state.active_mods_visibility_pending" @click.stop="state.set_active_mods_visibility($event)"><span><lang-string lang-id="MOD_MP_ACTIVE_MODS_VISIBILITY"></lang-string><span class="spinner-border spinner-border-sm text-primary ml-2" role="status" v-if="state.active_mods_visibility_pending"></span></span><span aria-hidden="true"></span></button>
 			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" v-if="state.dev_tag_eligible" :aria-checked="state.dev_tag_visible" :disabled="state.dev_tag_visibility_pending" @click.stop="state.set_dev_tag_visibility($event)"><span><lang-string lang-id="MOD_MP_DEV_TAG_VISIBILITY"></lang-string><span class="spinner-border spinner-border-sm text-primary ml-2" role="status" v-if="state.dev_tag_visibility_pending"></span></span><span aria-hidden="true"></span></button>
 		</section>
-		<section><h3><lang-string lang-id="MOD_MP_MULTIPLAYER_SETTINGS_CHAT"></lang-string></h3>
+		<section v-show="state.multiplayer_settings_section !== 'listing_filters'"><h3><lang-string lang-id="MOD_MP_MULTIPLAYER_SETTINGS_CHAT"></lang-string></h3>
 			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" :aria-checked="state.messaging_enabled" :disabled="state.chat_privacy_pending" @click.stop="state.set_messaging_enabled($event)"><span><lang-string lang-id="MOD_MP_CHAT_PRIVACY_ENABLE"></lang-string><span class="spinner-border spinner-border-sm text-primary ml-2" role="status" v-if="state.chat_privacy_pending"></span></span><span aria-hidden="true"></span></button>
 			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" :aria-checked="state.global_chat_enabled" :disabled="state.global_chat_participation_pending" @click.stop="state.set_global_chat_enabled($event)"><span><lang-string lang-id="MOD_MP_GLOBAL_CHAT_ENABLE"></lang-string><span class="spinner-border spinner-border-sm text-primary ml-2" role="status" v-if="state.global_chat_participation_pending"></span></span><span aria-hidden="true"></span></button>
 			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" v-if="state.alliance_access" :aria-checked="state.alliance_chat_enabled" :disabled="state.alliance_chat_participation_pending" @click.stop="state.set_alliance_chat_enabled($event)"><span><lang-string lang-id="MOD_MP_ALLIANCE_CHAT_ENABLE"></lang-string><span class="spinner-border spinner-border-sm text-primary ml-2" role="status" v-if="state.alliance_chat_participation_pending"></span></span><span aria-hidden="true"></span></button>
 			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" :aria-checked="state.guild_chat_enabled" :disabled="state.guild_chat_participation_pending" @click.stop="state.set_guild_chat_enabled($event)"><span><lang-string lang-id="MOD_MP_GUILD_CHAT_ENABLE"></lang-string><span class="spinner-border spinner-border-sm text-primary ml-2" role="status" v-if="state.guild_chat_participation_pending"></span></span><span aria-hidden="true"></span></button>
+		</section>
+		<section class="mp-listing-filters"><h3 v-show="state.multiplayer_settings_section !== 'listing_filters'"><lang-string lang-id="MOD_MP_LISTING_FILTERS"></lang-string></h3>
+			<p><lang-string lang-id="MOD_MP_LISTING_FILTERS_DESCRIPTION"></lang-string></p>
+			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" v-for="id in state.listing_filter_categories" :key="id" :aria-checked="state.listing_filters.includes(id)" @click.stop="state.toggle_listing_filter(id)"><span><span class="badge mp-guild-cheats-badge"><lang-string :lang-id="state.cheat_category_label(id)"></lang-string></span></span><span aria-hidden="true"></span></button>
 		</section>
 		<div class="text-danger" role="alert" v-show="state.member_actions_error">{{ state.member_actions_error }}</div>
 		<button type="button" class="btn btn-primary mp-settings-close" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>

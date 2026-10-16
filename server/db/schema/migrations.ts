@@ -252,4 +252,125 @@ export const migrations: Migration[] = [
 	wish_capacity_migration,
 	shared_petition_discussions_migration,
 	cheat_categories_migration,
+	{ version: 188, sql: `
+		CREATE TABLE page_revisions (section TEXT PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 0);
+		INSERT INTO page_revisions(section) VALUES ('guild');
+		CREATE TRIGGER page_revision_client_profile AFTER UPDATE OF display_name, icon_id ON clients BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_guilds_insert AFTER INSERT ON guilds BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_guilds_update AFTER UPDATE ON guilds BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_guilds_delete AFTER DELETE ON guilds BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_guild_memberships_insert AFTER INSERT ON guild_memberships BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_guild_memberships_update AFTER UPDATE ON guild_memberships BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_guild_memberships_delete AFTER DELETE ON guild_memberships BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_guild_applications_insert AFTER INSERT ON guild_applications BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_guild_applications_update AFTER UPDATE ON guild_applications BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_guild_applications_delete AFTER DELETE ON guild_applications BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_guild_petitions_insert AFTER INSERT ON guild_petitions BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_guild_petitions_update AFTER UPDATE ON guild_petitions BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_guild_petitions_delete AFTER DELETE ON guild_petitions BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_guild_petition_votes_insert AFTER INSERT ON guild_petition_votes BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_guild_petition_votes_update AFTER UPDATE ON guild_petition_votes BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_guild_petition_votes_delete AFTER DELETE ON guild_petition_votes BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_guild_activity_events_insert AFTER INSERT ON guild_activity_events BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_guild_activity_events_update AFTER UPDATE ON guild_activity_events BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_guild_activity_events_delete AFTER DELETE ON guild_activity_events BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_alliances_insert AFTER INSERT ON alliances BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_alliances_update AFTER UPDATE ON alliances BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_alliances_delete AFTER DELETE ON alliances BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_alliance_memberships_insert AFTER INSERT ON alliance_memberships BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_alliance_memberships_update AFTER UPDATE ON alliance_memberships BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_alliance_memberships_delete AFTER DELETE ON alliance_memberships BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_alliance_processes_insert AFTER INSERT ON alliance_processes BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_alliance_processes_update AFTER UPDATE ON alliance_processes BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_alliance_processes_delete AFTER DELETE ON alliance_processes BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_alliance_process_petitions_insert AFTER INSERT ON alliance_process_petitions BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_alliance_process_petitions_update AFTER UPDATE ON alliance_process_petitions BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_alliance_process_petitions_delete AFTER DELETE ON alliance_process_petitions BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_alliance_ballots_insert AFTER INSERT ON alliance_ballots BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_alliance_ballots_update AFTER UPDATE ON alliance_ballots BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_alliance_ballots_delete AFTER DELETE ON alliance_ballots BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_alliance_pending_slots_insert AFTER INSERT ON alliance_pending_slots BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_alliance_pending_slots_update AFTER UPDATE ON alliance_pending_slots BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+		CREATE TRIGGER page_revision_alliance_pending_slots_delete AFTER DELETE ON alliance_pending_slots BEGIN
+			UPDATE page_revisions SET revision=revision+1 WHERE section='guild';
+		END;
+	` },
+	{ version: 189, sql: `
+		CREATE TABLE listing_filter_prompt_views (
+			client_id INTEGER PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
+			viewed_at INTEGER NOT NULL CHECK(viewed_at BETWEEN 0 AND 9007199254740991)
+		);
+	` },
 ];

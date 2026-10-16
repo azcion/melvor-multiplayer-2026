@@ -47,7 +47,7 @@ test('an inbox refresh cannot restore the previous conversation after opening a 
 	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
 	const source = main.slice(main.indexOf('async function refresh_chat_conversations('), main.indexOf('\nfunction update_chat_nav('));
 	for (const kind of ['global', 'guild', 'private', 'poll-discussion']) {
-		for (const delayed_endpoint of ['conversations', 'polls']) {
+		for (const delayed_endpoint of ['conversations']) {
 			const h = harness();
 			h.state.selected_chat_conversation = { conversation_kind: kind, conversation_id: 1 };
 			h.state.polls = [];
@@ -55,6 +55,7 @@ test('an inbox refresh cannot restore the previous conversation after opening a 
 			const pending = new Promise(resolve => { release = resolve; });
 			const requested = new Promise(resolve => { started = resolve; });
 			const api_get = async endpoint => {
+				assert.ok(!endpoint.startsWith('/api/polls'), 'Inbox does not wait for the full Poll feed');
 				if (endpoint.startsWith('/api/' + (delayed_endpoint === 'polls' ? 'polls' : 'chat/conversations'))) {
 					started();
 					await pending;

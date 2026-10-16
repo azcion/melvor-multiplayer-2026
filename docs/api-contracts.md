@@ -8,6 +8,13 @@ Authentication may include `social_mode_enforcement` as `identity`, `account`, o
 gate remains authoritative for both API majors. Older clients safely receive the effective mode without needing the
 new field; 1.5.8 uses it to explain the operator restriction and hide the unavailable Full Experience choice.
 
+Developer badges (1.6.13+) use server-owned plain-text labels. Registration, authentication, Chat state, and Events
+(including unchanged Events) include `dev_badge_labels`, a map from stable Chat feature IDs to display labels.
+Guild roster and applicant entries include nullable `dev_badge_label`, already filtered by the character's visibility
+preference. Clients render the label using the existing pink developer badge style; `null` means no badge. An absent
+field permits legacy boolean/translation fallbacks. Stable feature IDs preserve saved Chat tags when labels change.
+Older clients retain their bundled roster labels and receive readable Chat fallback text for unsupported badge tags.
+
 ## Selection
 
 `GET /api/versions` returns `api_versions: [2]` and `preferred_api_version: 2`. Clients select before authentication,

@@ -1,10 +1,11 @@
+import { poll_inbox_summary } from '../polls';
 import { can_view_petition_discussions, list_petition_discussion_messages, send_petition_discussion_message } from '../petition-discussions';
 import { message_details, message_moderation_count, moderate_additional_chat_message, type ChatMessageKind } from '../chat_reactions';
 import { has_alliance_access } from '../alliances';
 import { get_alliance_chat_inbox, list_alliance_chat_messages, send_alliance_chat_message, moderate_alliance_chat_message, set_alliance_chat_enabled } from '../alliance_chat';
 import { normalize_chat_parts, parts_text, attach_chat_parts, compatible_chat_parts, chat_people, has_unread_person_tag } from '../chat_parts';
 import { is_client_version_at_least } from '../client-version-policy';
-import { get_account_tags } from '../account_tags';
+import { get_dev_badge_labels, get_account_tags } from '../account_tags';
 import { get_tester_chat_inbox, list_tester_chat_messages, moderate_tester_chat_message, send_tester_chat_message } from '../tester_chat';
 import { is_admin } from '../admin_identity';
 import * as runtime from '../app-runtime';
@@ -29,6 +30,7 @@ export function register_chat_routes(): void {
 	}
 
 	session_get_route('/api/chat/state', async (req, url, client_id) => ({
+		dev_badge_labels: get_dev_badge_labels(),
 		is_admin: is_admin(client_id),
 		...get_chat_state(client_id),
 		...(is_client_version_at_least(get_request_mod_version(req), '1.6.0')
@@ -109,11 +111,13 @@ export function register_chat_routes(): void {
 					const parts = by_id.get(conversation.latest_message.message_id)?.parts;
 					if (parts) Object.assign(conversation.latest_message, { parts });
 					compatible_chat_parts(conversation.latest_message, supports_features,
-						is_client_version_at_least(get_request_mod_version(req), '1.6.9'));
+						is_client_version_at_least(get_request_mod_version(req), '1.6.9'),
+						is_client_version_at_least(get_request_mod_version(req), '1.6.13'));
 				}
 		}
 		return {
 			conversations,
+			polls_summary: poll_inbox_summary(client_id, get_request_mod_version(req)),
 			...(global_chat === null ? {} : { global_chat: global_chat.state }),
 			...(guild_chat === null ? {} : { guild_chat: guild_chat.state }),
 			...(alliance_chat === null ? {} : { alliance_chat: alliance_chat.state })
@@ -191,7 +195,8 @@ export function register_chat_routes(): void {
 				attach_reactions(kind, client_id, result.value.messages))
 				.map(message => compatible_chat_parts(message,
 					is_client_version_at_least(get_request_mod_version(req), '1.6.0'),
-					is_client_version_at_least(get_request_mod_version(req), '1.6.9')))
+					is_client_version_at_least(get_request_mod_version(req), '1.6.9'),
+					is_client_version_at_least(get_request_mod_version(req), '1.6.13')))
 		};
 	});
 
@@ -306,7 +311,8 @@ export function register_chat_routes(): void {
 		response.message = compatible_chat_parts(
 			attach_chat_parts(kind === 'testers' ? 'global' : kind, [result.value.message])[0]!,
 			is_client_version_at_least(get_request_mod_version(req), '1.6.0'),
-			is_client_version_at_least(get_request_mod_version(req), '1.6.9')) as JsonObject;
+			is_client_version_at_least(get_request_mod_version(req), '1.6.9'),
+			is_client_version_at_least(get_request_mod_version(req), '1.6.13')) as JsonObject;
 		if (kind === 'support')
 			response.budget = get_chat_state(client_id).budget;
 		return response;

@@ -62,6 +62,7 @@ describe('friends API', () => {
 			unchanged?: boolean;
 			released_mod_version: string | null;
 			minimum_supported_mod_version: string | null;
+			dev_badge_labels: Record<string, string>;
 		}>(
 			`/api/events?revision=${initial.json.revision}`, recipient.session_token
 		);
@@ -76,7 +77,12 @@ describe('friends API', () => {
 			revision: initial.json.revision,
 			unchanged: true,
 			released_mod_version: null,
-			minimum_supported_mod_version: null
+			minimum_supported_mod_version: null,
+			dev_badge_labels: {
+				'multiplayer:Badge_Dev': 'Dev',
+				'multiplayer:Badge_SAE_Dev': 'SAE Dev',
+				'multiplayer:Badge_OSRS_Overhaul_Dev': 'OSRS Overhaul Dev'
+			}
 		});
 		expect(changed.json.revision).toBeGreaterThan(initial.json.revision);
 		expect(changed.json.unchanged).not.toBe(true);
@@ -94,13 +100,19 @@ describe('friends API', () => {
 				unchanged: boolean;
 				released_mod_version: string | null;
 				minimum_supported_mod_version: string | null;
+			dev_badge_labels: Record<string, string>;
 			}>(`/api/events?revision=${initial.json.revision}`, client.session_token);
 
 			expect(polled.json).toEqual({
 				revision: initial.json.revision,
 				unchanged: true,
 				released_mod_version: '1.5.10',
-				minimum_supported_mod_version: null
+				minimum_supported_mod_version: null,
+				dev_badge_labels: {
+					'multiplayer:Badge_Dev': 'Dev',
+					'multiplayer:Badge_SAE_Dev': 'SAE Dev',
+					'multiplayer:Badge_OSRS_Overhaul_Dev': 'OSRS Overhaul Dev'
+				}
 			});
 		} finally {
 			await db_run("UPDATE `service_settings` SET `value` = '' WHERE `key` = 'released_mod_version'");

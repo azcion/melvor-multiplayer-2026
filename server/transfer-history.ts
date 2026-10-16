@@ -74,7 +74,7 @@ export function get_transfer_history(database: Database, client_id: number, pane
 	).all(...page.map(row => row.id));
 	const sources = database.query<{ event_id: number; item_id: string; source_type: string; source_name: string; qty: number }, number[]>(
 		'SELECT h.id AS event_id,s.item_id,s.source_type,s.source_name,s.qty FROM transfer_history_events h ' +
-		'JOIN inbox_claims c ON h.source_key=\'claim:\' || c.id AND h.client_id=c.client_id ' +
+		'JOIN inbox_claims c ON c.id=SUBSTR(h.source_key,7) AND h.source_key=\'claim:\' || c.id AND h.client_id=c.client_id ' +
 		'JOIN inbox_claim_sources s ON s.claim_id=c.id WHERE h.id IN ' +
 		`(${page.map(() => '?').join(',') || 'NULL'}) ORDER BY s.source_type,s.source_name`
 	).all(...page.map(row => row.id));

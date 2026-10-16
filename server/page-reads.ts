@@ -12,11 +12,12 @@ const readers = new Map<string, SessionRequestHandler>();
 export function register_page_read(route: string, handler: SessionRequestHandler): void {
 	if (paths.has(route)) readers.set(route, handler);
 }
-export async function read_page(page: string, req: Request, url: URL, client_id: number): Promise<JsonObject | null> {
+export async function read_page(page: string, req: Request, url: URL, client_id: number, timings: Record<string, number> = {}): Promise<JsonObject | null> {
 	if (!Object.hasOwn(PAGE_READS, page)) return null;
 	const data: JsonObject = {};
 	// Keep maintenance/permission checks in the existing domain readers and execute in order.
 	for (const route of PAGE_READS[page]!) {
+		if (page === 'transfers' && url.searchParams.get('view') === 'active' && route.startsWith('/api/transfers/history')) continue;
 		const state = data['/api/guilds/state'];
 		const member = typeof state === 'object' && state !== null && 'affiliation' in state && state.affiliation === 'member';
 		if (page !== 'transfers' && route !== '/api/guilds/state') {
@@ -24,7 +25,9 @@ export async function read_page(page: string, req: Request, url: URL, client_id:
 		}
 		const read = readers.get(route.split('?')[0]!);
 		if (!read) throw new Error('Missing page reader');
+		const started = performance.now();
 		const result = await read(req, new URL(route, url), client_id, {});
+		timings[route] = Math.round((performance.now() - started) * 100) / 100;
 		data[route] = result instanceof Response ? { status: result.status } : typeof result === 'number' ? { status: result } : result;
 	}
 	return data;

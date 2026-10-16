@@ -526,6 +526,7 @@
 	"MOD_MP_GUILD_NEW_MEMBER": "新成员",
 	"MOD_MP_GUILD_DEV": "Dev",
 	"MOD_MP_GUILD_DEV_SAE": "SAE Dev",
+	"MOD_MP_GUILD_DEV_OSRS_OVERHAUL": "OSRS Overhaul Dev",
 	"MOD_MP_DEV_TAG_VISIBILITY": "允许其他人查看你的开发者标签",
 	"MOD_MP_GUILD_USING_CHEATS": "使用作弊",
 	"MOD_MP_GUILD_APPLICANTS": "申请者",
@@ -573,6 +574,7 @@
 	"MOD_MP_STATUS_ACTIVITY_COMBAT": "战斗中",
 	"MOD_MP_CHAT_PRIVACY_ENABLE": "允许私人聊天消息",
 	"MOD_MP_GLOBAL_CHAT_ENABLE": "加入全局聊天",
+	"MOD_MP_ALLIANCE_CHAT_ENABLE": "加入联盟聊天",
 	"MOD_MP_GUILD_CHAT_ENABLE": "加入公会聊天",
 	"MOD_MP_CHAT_START": "开始聊天",
 	"MOD_MP_CHAT_CATEGORY_PRIVATE": "私人",
@@ -654,7 +656,7 @@
 	"MOD_MP_MODAL_NO_GUILD_MATCHES": "没有符合搜索条件的公会。",
 	"MOD_MP_FREE_FELLOWSHIP_CONFIRM_TITLE": "加入自由同盟",
 	"MOD_MP_FREE_FELLOWSHIP_CONFIRM_PUBLIC": "该成员资格对服务器上的所有人公开，无需申请即可加入。",
-	"MOD_MP_FREE_FELLOWSHIP_SEARCH": "按显示名称搜索成员",
+	"MOD_MP_FREE_FELLOWSHIP_SEARCH": "搜索",
 	"MOD_MP_FREE_FELLOWSHIP_JOINED": "你已加入自由同盟。",
 	"MOD_MP_GUILD_JOINED": "你通过公会开放的大门进入了公会。",
 	"MOD_MP_GUILD_LEAVE_WARNING": "你已完成的多人游戏进度和未领取的奖励将保留在此身份上，但未完成的贡献将留在该公会。你必须先处理所有市场挂单、礼物和交易。如果你是最后一名成员，离开将永久解散公会并删除其共享记录。",
@@ -1075,7 +1077,6 @@
 	"MOD_MP_ALLIANCE_JOIN_EMPTY": "暂无可申请加入的活跃联盟。",
 	"MOD_MP_ALLIANCE_PREVIOUS": "上一页",
 	"MOD_MP_ALLIANCE_NEXT": "下一页",
-	"MOD_MP_ALLIANCE_CHAT_ENABLE": "参与联盟聊天",
 	"MOD_MP_ALLIANCE_FREE_FELLOWSHIP": "自由联谊会",
 	"MOD_MP_ALLIANCE_STAGE_LOCAL": "等待本公会理事会批准",
 	"MOD_MP_ALLIANCE_STAGE_WAITING": "等待对方公会",
@@ -1284,5 +1285,9 @@
 	"MOD_MP_CHEAT_CATEGORY_SHOPS": "商店作弊",
 	"MOD_MP_CHEAT_CATEGORY_LOOT_RNG": "掉落作弊",
 	"MOD_MP_CHEAT_PRESENCE_NOTICE": "这些模组在过去7天内被报告为已在此角色上加载。模组已加载并不能证明启用或使用了哪些功能。",
-	"MOD_MP_CHEAT_EXPIRES": "距到期：%s"
+	"MOD_MP_CHEAT_EXPIRES": "距到期：%s",
+	"MOD_MP_LOADING_REPORT_TITLE": "加载报告",
+	"MOD_MP_LOADING_REPORT_REFRESH": "生成加载报告",
+	"MOD_MP_LISTING_FILTERS": "挂单筛选",
+	"MOD_MP_LISTING_FILTERS_DESCRIPTION": "隐藏带有这些徽章的玩家发布的出售挂单和熔炉供品。"
 }

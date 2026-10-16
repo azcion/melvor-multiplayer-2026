@@ -460,6 +460,7 @@ test('saved work banner stays quiet for fast success and appears for slow or fai
 			clearTimeout: id => { assert.equal(id, 1); cleared = true; },
 			api_post: () => new Promise((resolve, reject) => { resolve_post = resolve; reject_post = reject; }),
 			api_get: async () => ({ contract_version: 1 }),
+			read_expedition_state: async () => ({ contract_version: 1 }),
 			remove_instance_storage_item: () => {}, EXPEDITION_PENDING_KEY: 'saved-report',
 			getLangString: key => key, expedition_notify: text => notices.push(text),
 			notify_expedition_tracking_ended() {}, update_expedition_nav() {}
@@ -500,5 +501,63 @@ test('saved work banner stays quiet for fast success and appears for slow or fai
 			assert.equal(state.expedition_pending_report, null);
 			assert.deepEqual(notices, ['MOD_MP_EXPEDITION_TRACKING_ACCEPTED']);
 		}
+	}
+});
+
+test('Expedition report recovery uses compact hidden state and expands if opened during the read', async () => {
+	const main = await read_client_source(root);
+	const source = main.slice(main.indexOf('async function read_expedition_state'), main.indexOf('async function refresh_expedition_state'));
+	for (const mode of ['hidden', 'visible', 'open-during-read', 'session-change']) {
+		const calls = [], phases = [];
+		const context = { session_generation: 1, expedition_page_visible: mode === 'visible', state: {},
+			last_expedition_state_refresh_at: 0,
+			expedition_view: { sync_phase_state: (_state, chamber) => phases.push(chamber) },
+			api_get: async route => {
+				calls.push(route);
+				if (mode === 'open-during-read') context.expedition_page_visible = true;
+				if (mode === 'session-change') context.session_generation++;
+				return { contract_version: 1, expedition: { chamber: { visit_id: 7 } }, tracking: { pending_boundary_at: 123 } };
+			} };
+		runInNewContext(source, context);
+		await context.read_expedition_state();
+		assert.equal(calls[0], '/api/expedition/state' + (mode === 'visible' ? '' : '?view=tracking'));
+		assert.equal(calls.length, mode === 'open-during-read' ? 2 : 1);
+		if (mode === 'session-change') assert.equal(context.state.expedition_state, undefined);
+		else {
+			assert.equal(context.state.expedition_state.tracking.pending_boundary_at, 123);
+			assert.equal(phases.length, 1);
+			assert.ok(context.last_expedition_state_refresh_at > 0);
+		}
+	}
+});
+
+test('saved Expedition reports replay exact payloads, preserve pending boundaries and use compact success refresh', async () => {
+	const main = await read_client_source(root);
+	const source = main.slice(main.indexOf('async function retry_expedition_report'), main.indexOf('async function maybe_auto_check_in_expedition'));
+	for (const outcome of ['success', 'pending', 'lost', 'fallback-session-change']) {
+		const payload = { operation_id: 'saved-operation', captured_at: Date.now(), statistics: { ticks: 17 } };
+		const pending = { endpoint: '/api/expedition/task/check-in', payload };
+		const tracking = { session_id: 9, pending_boundary_at: outcome === 'pending' ? 123 : null };
+		const sent = [], reads = [];
+		let removed = 0;
+		const context = { session_generation: 1, EXPEDITION_PENDING_KEY: 'pending', last_expedition_check_in_at: 0,
+			state: { expedition_pending_report: pending, expedition_state: { tracking } },
+			setTimeout: () => 1, clearTimeout() {}, getLangString: key => key,
+			expedition_text: key => key, expedition_hours: value => value, expedition_status: value => value,
+			expedition_notify() {}, notify_expedition_tracking_ended() {}, update_expedition_nav() {},
+			remove_instance_storage_item: () => { removed++; },
+			api_post: async (endpoint, body) => { sent.push({ endpoint, body }); return outcome === 'lost' ? null :
+				outcome === 'pending' ? { pending: true, tracking } : { success: true, tracking, settlement: { credited_ms: 100 } }; },
+			read_expedition_state: async () => { reads.push('state'); return outcome === 'fallback-session-change' ? null : { contract_version: 1 }; },
+			api_get: async route => { reads.push(route); if (outcome === 'fallback-session-change') context.session_generation++; return { contract_version: 1, tracking }; } };
+		runInNewContext(source, context);
+		await context.retry_expedition_report(true, true);
+		assert.ok(sent.every(call => call.body === payload && call.endpoint === pending.endpoint));
+		assert.equal(sent.length, outcome === 'lost' ? 2 : 1);
+		assert.equal(removed, outcome === 'lost' ? 0 : 1);
+		if (outcome === 'pending') assert.deepEqual(reads, ['/api/expedition/personal']);
+		if (outcome === 'success') assert.deepEqual(reads, ['state']);
+		if (outcome === 'lost') assert.equal(context.state.expedition_pending_report, pending);
+		if (outcome === 'fallback-session-change') assert.equal(context.state.expedition_personal, undefined);
 	}
 });

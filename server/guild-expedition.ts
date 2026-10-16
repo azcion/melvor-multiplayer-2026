@@ -560,7 +560,7 @@ export function get_personal_expedition_history(client_id: number) {
 	).all(client_id);
 }
 
-export function get_expedition_state(guild_id: number, client_id: number, now = Date.now()) {
+export function get_expedition_state(guild_id: number, client_id: number, now = Date.now(), tracking_only = false) {
 	return db.transaction(() => {
 		advance_registration(guild_id, now);
 		const expedition = current_expedition(guild_id) ?? db.query<ExpeditionRow, [number]>(
@@ -576,7 +576,7 @@ export function get_expedition_state(guild_id: number, client_id: number, now = 
 		).get(expedition.id)?.count ?? 0;
 		const content = parse_expedition_content(expedition.content_snapshot);
 		const chamber_names = new Map(content.chambers.map(entry => [entry.id, entry.label]));
-		const history = db.query<{
+		const history = tracking_only ? [] : db.query<{
 			chamber_id: string; entered_at: number; departed_at: number | null; chosen_exit_id: string | null;
 		}, [number]>(
 			'SELECT chamber_id, entered_at, departed_at, chosen_exit_id FROM expedition_visits ' +
@@ -602,11 +602,11 @@ export function get_expedition_state(guild_id: number, client_id: number, now = 
 				'SELECT task_id, target_ms, player_ms, system_ms, unlocked_at, completed_at, promoted_at FROM expedition_tasks WHERE visit_id = ?'
 			).all(visit.id);
 			const task_progress = new Map(tasks.map(task => [task.task_id, task]));
-			const personal = new Map(db.query<{ task_id: string; credited_ms: number }, [number, number]>(
+			const personal = new Map(tracking_only ? [] : db.query<{ task_id: string; credited_ms: number }, [number, number]>(
 				'SELECT task_id, COALESCE(SUM(credited_ms), 0) AS credited_ms FROM expedition_work_sessions WHERE visit_id = ? AND client_id = ? GROUP BY task_id'
 			).all(visit.id, client_id).map(row => [row.task_id, row.credited_ms]));
 			const trackers = new Map<string, { client_id: number; display_name: string; icon_id: string }[]>();
-			for (const row of db.query<{ task_id: string; client_id: number; display_name: string; icon_id: string }, [number]>(
+			for (const row of tracking_only ? [] : db.query<{ task_id: string; client_id: number; display_name: string; icon_id: string }, [number]>(
 				'SELECT session.task_id, session.client_id, client.display_name, client.icon_id FROM expedition_work_sessions AS session JOIN clients AS client ON client.id = session.client_id WHERE session.visit_id = ? AND session.ended_at IS NULL'
 			).all(visit.id)) {
 				const list = trackers.get(row.task_id) ?? [];

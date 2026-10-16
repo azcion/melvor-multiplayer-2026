@@ -403,6 +403,7 @@
 	"MOD_MP_GUILD_NEW_MEMBER": "Yeni üye",
 	"MOD_MP_GUILD_DEV": "Dev",
 	"MOD_MP_GUILD_DEV_SAE": "SAE Dev",
+	"MOD_MP_GUILD_DEV_OSRS_OVERHAUL": "OSRS Overhaul Dev",
 	"MOD_MP_DEV_TAG_VISIBILITY": "Let others see your Dev tag",
 	"MOD_MP_GUILD_USING_CHEATS": "Hile kullanıyor",
 	"MOD_MP_GUILD_APPLICANTS": "Başvuranlar",
@@ -450,6 +451,7 @@
 	"MOD_MP_STATUS_ACTIVITY_COMBAT": "Savaşta",
 	"MOD_MP_CHAT_PRIVACY_ENABLE": "Özel sohbet mesajlarına izin ver",
 	"MOD_MP_GLOBAL_CHAT_ENABLE": "Genel sohbete katıl",
+	"MOD_MP_ALLIANCE_CHAT_ENABLE": "İttifak sohbetine katıl",
 	"MOD_MP_GUILD_CHAT_ENABLE": "Lonca sohbetine katıl",
 	"MOD_MP_CHAT_START": "Sohbet başlat",
 	"MOD_MP_CHAT_CATEGORY_PRIVATE": "Özel",
@@ -531,7 +533,7 @@
 	"MOD_MP_MODAL_NO_GUILD_MATCHES": "Aramanızla eşleşen lonca yok.",
 	"MOD_MP_FREE_FELLOWSHIP_CONFIRM_TITLE": "Özgür Kardeşlik'e katıl",
 	"MOD_MP_FREE_FELLOWSHIP_CONFIRM_PUBLIC": "Üyelik bu sunucuda herkese açıktır ve başvuru gerektirmez.",
-	"MOD_MP_FREE_FELLOWSHIP_SEARCH": "Üyeleri görünen ada göre ara",
+	"MOD_MP_FREE_FELLOWSHIP_SEARCH": "Ara",
 	"MOD_MP_FREE_FELLOWSHIP_JOINED": "Özgür Kardeşlik'e katıldınız.",
 	"MOD_MP_GUILD_JOINED": "Loncanın açık kapılarından içeri girdiniz.",
 	"MOD_MP_GUILD_LEAVE_WARNING": "Tamamlanan çok oyunculu ilerlemeniz ve alınmamış ödülleriniz bu kimlikte kalır; bitmemiş katkılar bu loncada kalır. Önce tüm pazar ilanlarını, hediyeleri ve takasları sonuçlandırmalısınız. Son üyeyseniz ayrılmanız loncayı kalıcı olarak dağıtır ve ortak kayıtlarını siler.",
@@ -850,7 +852,6 @@
 	"MOD_MP_ALLIANCE_JOIN_EMPTY": "Henüz katılabileceğiniz aktif İttifak yok.",
 	"MOD_MP_ALLIANCE_PREVIOUS": "Önceki",
 	"MOD_MP_ALLIANCE_NEXT": "Sonraki",
-	"MOD_MP_ALLIANCE_CHAT_ENABLE": "İttifak sohbetine katıl",
 	"MOD_MP_ALLIANCE_FREE_FELLOWSHIP": "Özgür Topluluk",
 	"MOD_MP_ALLIANCE_STAGE_LOCAL": "Yerel Konsey onayı bekleniyor",
 	"MOD_MP_ALLIANCE_STAGE_WAITING": "Diğer lonca bekleniyor",
@@ -1284,5 +1285,9 @@
 	"MOD_MP_CHEAT_CATEGORY_SHOPS": "Mağaza Hileleri",
 	"MOD_MP_CHEAT_CATEGORY_LOOT_RNG": "Ganimet Hileleri",
 	"MOD_MP_CHEAT_PRESENCE_NOTICE": "Bu modların son 7 gün içinde bu karakterde yüklendiği bildirildi. Yüklü olmaları hangi özelliklerin etkinleştirildiğini veya kullanıldığını kanıtlamaz.",
-	"MOD_MP_CHEAT_EXPIRES": "Sona ermesine: %s"
+	"MOD_MP_CHEAT_EXPIRES": "Sona ermesine: %s",
+	"MOD_MP_LOADING_REPORT_TITLE": "Yükleme raporu",
+	"MOD_MP_LOADING_REPORT_REFRESH": "Yükleme raporu oluştur",
+	"MOD_MP_LISTING_FILTERS": "İlan Filtreleri",
+	"MOD_MP_LISTING_FILTERS_DESCRIPTION": "Bu rozetlere sahip oyuncuların satış ilanlarını ve Pota adaklarını gizle."
 }

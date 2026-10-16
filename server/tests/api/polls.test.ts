@@ -75,6 +75,9 @@ describe('Polls Chat', () => {
 		expect(retracted.json.poll.options[0].selected).toBe(false);
 		const voter_view = await get_json_with_session<{ polls: any[] }>('/api/polls?' + capability, voter.session_token);
 		expect(voter_view.json.polls[0].interacted).toBe(true);
+		const inbox = (await get_json_with_session<{ polls_summary: { open_uninteracted: number } }>(
+			'/api/chat/conversations?' + capability, voter.session_token)).json;
+		expect(inbox.polls_summary.open_uninteracted).toBe(voter_view.json.polls.filter((poll: any) => poll.open && !poll.interacted).length);
 		await db_run('UPDATE `polls` SET `creator_id` = ? WHERE `id` = ?', [voter.client_id, poll_id]);
 		const appended = await post_json<{ success: boolean; poll: any }>('/api/polls/options?' + capability,
 			{ poll_id, options: ['Three'] }, creator.session_token);

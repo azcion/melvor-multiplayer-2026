@@ -22,7 +22,7 @@ export function register_guild_expedition_routes(): void {
 		const guild_id = await get_client_guild_id(client_id);
 		if (guild_id === null) return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
 		reconcile_expedition_visit(guild_id);
-		const state = get_expedition_state(guild_id, client_id);
+		const state = get_expedition_state(guild_id, client_id, Date.now(), url.searchParams.get('view') === 'tracking');
 		return { ...state, debug_enabled: can_debug_expedition(client_id), ...get_expedition_work(client_id),
 			supply_score: get_expedition_supply_score(client_id, state.expedition?.id ?? null) };
 	});

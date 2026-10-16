@@ -1,14 +1,28 @@
 # Changelog
 
+## 1.6.14
+
+- Added localized Listing Filters in Multiplayer Settings to hide Sell Listings and Crucible offerings by cheat-category badge, with Item Cheats selected initially. Every account receives a one-time prompt after startup dialogs to review these filters. Mixed Crucible stacks show and reclaim only unfiltered contributions; Buy Orders, Wishes and direct trades remain available.
+- Reduced loading delays and request traffic across Chat, Guild, Transfers, Crucible and Expedition. Visible pages take priority, Transfers history loads when expanded, and optional startup reads are deferred.
+- Added a local Loading report in Mod Settings with queue, cache, request and page timings.
+- Backend changes remain compatible with version 1.6.13.
+
+## 1.6.13
+
+- Expanded member search to shared gamemodes, mods and developer badges, with SAE and OSRS shortcuts and tags showing why each result matched.
+- Added a pink OSRS Overhaul Dev badge to Guild rosters, applicants and Chat feature tags, with per-character visibility controls. Developer badge labels can now be renamed by the server host.
+- Added New Member, developer, cheat-category, Social Only, Aye and Nay badges to the $Feature Chat picker, with localized, copyable labels and readable text for older clients.
+- Added player-detail and roster icons for Hardcore and Mediumcore Combat Only (including Rebalance variants), Randomized Adventure, Taskman, Phoenix Adventure and Phoenix Birthday, even without those mods installed. Other installed custom gamemodes can use their registered icons in player details.
+
 ## 1.6.12
 
 - Restored Guild names in player modals opened from the Guild roster or Chat for members of your Guild.
-- Everyone can use View Reactions and Show Seen on any Chat Message they can access to see who gave each reaction and who acknowledged it as read. Reactions pairs each emoji and count with its avatar/name list; Seen by lists readers. Both modals expand with their content and have top-right and bottom close controls. Poll response details and moderation remain admin-only.
-- Guild members and applicants now show six ordered cheat-category badges for recently reported loaded mods: Time Cheats, Item Cheats, Resource Cheats, Multitasking, Shop Cheats and Loot Cheats. Opening a badge shows supporting mods, optional per-mod descriptions, report age and expiry. Item Cheats now uses the reviewed nine-mod Interdict set, adding X Auto Manger and Requirement Filler and removing God Mode. Existing reports are re-evaluated without refreshing their timestamps; the other categories remain informational. Interdict, Heresy and related policy labels explicitly name Item Cheats and explain the category-specific restriction. General category descriptions have been removed.
-- New Alliance proposals share one discussion among participating Guild members, adding newcomers during deliberation and retaining the participating Guilds at closure. Your own vote reveals everyone’s named votes; proposal resolution reveals them to all participants. Existing proposals retain their Guild-only discussions, including retained history from dissolved Guilds. All petition discussions now notify with red unread counts or pink mentions in their buttons, mobile tabs, and Guild navigation; automated Aye/Nay messages never count as unread.
+- Opened View Reactions and Show Seen to everyone for Messages they can access, showing who reacted or acknowledged reading. Poll response details and moderation remain admin-only.
+- Added six mod-detection badges to Guild members and applicants: Time Cheats, Item Cheats, Resource Cheats, Multitasking, Shop Cheats and Loot Cheats. Each shows supporting mods, report age and expiry. Interdict and Heresy apply only to Item Cheats, using a reviewed nine-mod set that adds X Auto Manger and Requirement Filler and excludes God Mode. Existing reports are re-evaluated without extending expiry; other categories are informational.
+- Added shared discussions for new Alliance proposals, open to participating Guild members, including newcomers during deliberation. Named votes appear after voting or resolution; participating Guilds retain access after closure. Existing proposals keep their Guild-only history. Petition discussions show unread and mention badges, excluding automated Aye/Nay Messages.
 - Closing the shared Marketplace, proposing another Guild’s removal, and proposing your Guild’s departure now require an additional confirmation with a reason of at least 10 characters, posted beneath the proposal in its discussion.
-- Fixed petition Go to Discussion sometimes reopening the previous Chat conversation; switching now clears the old Messages and ignores stale conversation selection updates.
-- Council history gracefully handles unavailable Guilds without repeating failed preview requests on every refresh. Missing Guild previews return a normal empty result without browser 404 noise; opening one explains that the Guild no longer exists.
+- Fixed Go to Discussion opening the previous Chat conversation.
+- Fixed Council history repeatedly requesting dissolved Guilds; opening an unavailable Guild now explains that it no longer exists.
 - Shared Marketplace policy now opens its disable confirmation from the existing Enabled badge instead of a separate proposal button. The enable button remains available while Disabled.
 
 ## 1.6.11
@@ -16,33 +30,33 @@
 - Set the minimum supported client version to 1.6.11.
 - Fixed chat profiles showing your own settings when viewing another player while guildless; shared Skills & Equipment are accessible across Guilds.
 - Older-save review findings no longer block new multiplayer economy actions after correction; original evidence and reversed-command protections remain intact.
-- Bound older-save clock recovery storage to the current load, cleaning up obsolete samples without removing pending economy commands.
-- Clean up matching legacy Creator Toolkit identity-storage copies after verifying the current copy, preserving conflicts, recovery data, and other characters and servers.
-- Wishes now cost EP based on quantity and current base capacity, with progressively priced +100 increments above that base, partial increments prorated, prices rounded up to 0.001 EP, and a 1000-item maximum. Successful creation also costs half the full funding requirement in GP (rounded up to whole GP), contributed to Crucible Offerings without advancing the Wish. The payer’s account cannot reclaim GP from that Guild for four hours. Cancellation refunds neither payment.
-- Added character-specific 30-day Wish capacity upgrades from 100 to 500 items, incremental upgrade pricing, no-charge renewal setting changes, and optional auto-renewal that pauses if EP is insufficient. Active tiers cannot be re-bought or downgraded before expiry. Confirmation shows exact payments, active capacity, expiry and renewal cost; interrupted purchases recover without duplicate charges.
-- Cleaned up Make a Wish: only the item list scrolls, capacity explains excess-item pricing, and creation costs appear separately from the value needed to meld, with GP icons. Wishes explain how many items 1 EP buys at your capacity; creation requires sufficient GP and EP.
+- Limited older-save clock recovery storage to the current load while preserving pending economy commands.
+- Removed verified duplicate legacy Creator Toolkit identity data while preserving conflicts and recovery data.
+- Changed Wish creation to cost EP based on quantity and base capacity, with progressively priced +100-item increments, prorated partial increments, rounding up to 0.001 EP, and a 1000-item limit. Creation also contributes half the full funding requirement in GP, rounded up, to Crucible Offerings without advancing the Wish. The payer’s account cannot reclaim GP from that Guild for four hours. Neither cost is refunded on cancellation. Make a Wish now separates creation costs from Meld funding and explains excess-item pricing.
+- Added character-specific 30-day Wish capacity upgrades from 100 to 500 items, with incremental pricing and optional auto-renewal that pauses when EP is insufficient. Active tiers cannot be re-bought or downgraded before expiry; renewal settings can be changed without charge. Confirmation shows costs, capacity and expiry.
 
 ## 1.6.10
 
-- Added Guild petition discussions with petition details in the header, localized proposal and named Aye/Nay Messages hidden under the same voting rule as the tally, normal Chat replies and reactions, and separate unread counters. Active petitions receive existing votes; discussions remain available after voting closes. Hosts can suppress petition creator attribution. Free Fellowship Petitions also expire no later than 36 hours after creation, even when votes refresh their activity.
-- Added a localized Mod Conflict warning on every character load while Melvor Multiplayer or [Galy] Melvor Multiplayer Fixes is loaded, listing the conflicting mods to disable.
-- Track loaded mods by stable mod.io ID where available while displaying their names. Retain name fallback for local imports and older clients, with best-effort backfill for existing reports, cheat recognition, and partner Support Chat eligibility.
-- Added older-save protection with original-load clock evidence, guarded economy recovery, and a general informational notice. Opted-in servers can mark attributable remaining value while preserving settled transfers, issued claims, and original history. Supports staged rollout alongside existing clients and older servers.
+- Added Guild petition discussions with proposal details, replies, reactions and separate unread counts. Named Aye/Nay Messages follow tally visibility rules; discussions remain available after closure. Hosts can hide creator attribution.
+- Limited Free Fellowship Petitions to 36 hours, even when votes refresh their activity.
+- Added a Mod Conflict warning on each character load when Melvor Multiplayer or [Galy] Melvor Multiplayer Fixes is loaded, listing the mods to disable.
+- Identified loaded mods by mod.io ID where available, with name fallback for local imports and older clients, improving cheat recognition and partner Support Chat eligibility.
+- Added older-save detection and economy recovery safeguards, with an informational notice. Opted-in servers can mark attributable remaining value while preserving settled transfers, issued claims and original history.
 - Completed owned Marketplace listings are now hidden once no quantity remains available or reserved and any seller payout has been collected.
 - Alliance proposals retain their original voting Guilds and majority when membership changes. Eligible leave and removal proposals are available from Guild previews opened through the Member Guilds pane.
 
 ## 1.6.9
 
 - Expanded $Feature Chat tags with Alt. Magic using Magic’s icon, plus lowercase alliance, alliance member guild, guild member, petition, policy, buy order, sell listing, trade, gift, wish, haggle, and chamber tags without icons. Tag labels are localized in all supported languages.
-- Restyled Chat’s page shell and separate Global, Guild, Private, and Support cards with the Expedition/Crucible appearance, preserving the translucent conversation backdrop, content, and controls, removing the Private section’s explanatory subtitle, and keeping conversation controls visible beneath Melvor’s header while the page scrolls. Updates uses matching cards and a 1:2 desktop layout, giving the changelog more room while retaining mobile tabs.
-- Removed the retired Charitree client and backend, obsolete assets, and legacy cutover tooling. Crucible uses its own helpers and styles throughout. Existing pets remain available.
+- Restyled Chat and Updates to match Expedition and Crucible. Chat controls stay visible while scrolling, and the changelog has more room on desktop.
+- Removed retired Charitree code and assets. Existing pets remain available.
 - Expedition work reports now show the retry banner only after five seconds or a failed submission, keeping normal check-ins quiet apart from their existing notification.
 - Added Manual, Prompt, and Automatic Expedition work tracking modes. Automatic tracking prioritizes Required tasks, then the most remaining earnable EP, with the usual in-game tracking notification.
 - Fixed Expedition Magic requirements and tracking to match the active Magic skill, including existing runs and 1.6.8 clients through backend compatibility.
 - Transfers history now shows both sides of Marketplace purchases and Buy Order fulfillments together: exchanged items beside outgoing payments and incoming proceeds, and the amount paid beside incoming items. Outgoing exchange entries show the player directly.
 - Fixed Crucible Offering locks to show whenever no quantity can be reclaimed, including insufficient currency balance, reclaim cooldowns, and a sealed Crucible.
 - Improved Chinese localization: Simplified Chinese Chat uses scoped terminology for plain-text Bank Slot Tokens and explicit Guild/group members, and Chinese Multiplayer currency displays use 金币/金幣 without a GP abbreviation. Typed Chat links, mod titles, and amounts remain preserved.
-- Added @Person Chat tags with avatars and clickable profiles. The searchable picker puts recent speakers first, then active Guild members by recent activity, then everyone else alphabetically, including players outside the chat. Shadowed players are excluded and at most 100 search results render at once. Tagged readers see a magenta message glow; unread tags show a magenta @ in Chat navigation and previews, taking precedence over the normal red unread count. Supports @ and fullwidth ＠; self-tagging is disabled.
+- Added @Person Chat tags with avatars, clickable profiles and a searchable picker that prioritizes recent speakers and active Guild members. Mentions highlight Messages and show a magenta @ in navigation and previews. Supports @ and ＠; excludes Shadowed players and self-tagging.
 
 ## 1.6.8
 
@@ -56,14 +70,14 @@
 ## 1.6.7
 
 - Crucible Offering tiles show per-player reclaim locks in the bottom-right corner, clear of contributor avatars.
-- Raids now run for every Guild on a shared weekend schedule, Friday 12:00 UTC–Monday 12:00 UTC, with Assault grants at noon UTC on Friday, Saturday, and Sunday. The entry screen shows “It’s dormant.” between Raids and “It’s time.” when entry is available, with local schedule times and start/end countdowns. Each character enters once per Raid cycle; entering does not change its deadline. Progress and results remain visible during the active Raid, then the page returns to the simple entry screen with the next start time. Existing Raids finish normally before the global schedule begins. Interrupted Assaults recover after rejoining, expired reservations no longer block new attempts, and lost responses can recover the last reserved Assault.
+- Moved all Guild Raids to a shared weekend schedule: Friday 12:00 UTC–Monday 12:00 UTC, with Assault grants at noon UTC on Friday, Saturday and Sunday. Each character enters once per cycle; entry does not extend the deadline. The page shows local times, countdowns and active results, then the next start time. Existing Raids finish normally; interrupted Assaults and lost responses can recover without expired reservations blocking new attempts.
 
 ## 1.6.6
 
-- Redesigned Sell on Market with quantity steppers, All but 1 and All shortcuts, GP/SC/AP/ASC pricing, optional Alliance prices, per-player purchase limits, Haggle controls, and live listing totals. Unlimited purchases and Haggles start enabled. Purchases, negotiated payments, and refunds retain the chosen currency; existing listings and 1.6.5 clients remain compatible.
+- Redesigned Sell on Market with quantity shortcuts, GP/SC/AP/ASC pricing, optional Alliance prices, per-player limits, Haggle controls and live totals. Unlimited purchases and Haggles start enabled; payments and refunds use the listing currency. Existing listings and 1.6.5 clients remain compatible.
 - New Council votes lock an equal Aye/Nay requirement from the four-day active-member count. Any current Guild member can vote after 20 hours in the Guild, including returning players and later joiners. The first side to reach the requirement decides the vote; tallies remain hidden until voting.
 - Extended Council Petition expiry to 48 hours after the last ballot and Alliance proposal expiry to 96 hours after the last ballot.
-- Redesigned the Heat card with a collapsible level guide, an animated gear-and-coin heap melting into lava, progressively hotter colors and glow, and level notches labeled 0, 3, 6, and 9. The meter and Meld speed remain visible when collapsed; the guide highlights the current level.
+- Redesigned the Heat card with an animated melting heap, hotter colors and glow, and a collapsible level guide highlighting the current level. Heat and Meld speed remain visible when collapsed.
 - Reduced API traffic when navigating Transfers and Guild, coalesced repeated refreshes, and prioritized commands and delivery acknowledgements over optional reads. Clients now pace requests and respect server throttling cooldowns.
 - Fixed transient Crucible refresh failures freezing Chat and other Multiplayer pages until a reload. Startup and page reads now recover from overlapping refresh invalidation.
 
@@ -82,19 +96,19 @@
 - Scoped active Crucible Wishes and Slag-clearing bonuses per account, per Guild. Accounts with a positive existing Slag bonus receive a fresh 48-hour maximum in each Guild containing an active character.
 - Restored Crucible sidebar badges: wish for your claimable Wish, otherwise reclaim when an offering can be reclaimed, with no Make Wish reminder.
 - Moved Expedition passage choices and voting to the top of Journey on mobile, with a vote badge when an eligible player has an open vote they have not cast.
-- Added host-managed per-character feature previews, with synthetic Pending exchanges and Council Petitions covering every type, voting variants, tallies, and Petition History outcomes; preview actions leave real exchanges and Guild decisions unchanged.
+- Added host-controlled feature previews for Pending exchanges and Council Petitions without changing real exchanges or Guild decisions.
 - Clarified in all supported languages that a Crucible Wish resets the Slag-clearing bonus to -10 and caps it at 10.
-- Added personal Transfers history for the last 14 days, newest first, with stored item and event snapshots, localized source/destination details, claimed stack source quantities, and best-effort reconstruction from retained records. Older history remains stored. History shows five entries at a time with Load More, compact currency totals, and refreshes when opened or after relevant actions. Charitree actions and Bank/Outbox movements are excluded.
-- Restyled Guild with Guild, Council, and Alliance columns, mobile section navigation with applicant counts and pending-vote badges, matching Guild sidebar badges, consistent card headings, bounded Activity, and collapsed Petition History. Petition cards include left-aligned descriptions and omit the Voting Open badge; Fellowship explains joining without an application. Restored Alliance preview access for azcn’s linked characters only.
-- Restyled Transfers to match Expedition and Crucible, with dark cards, collapsible Inbox/Outbox/Pending panes, compact item grids, clearer exchange details including Haggle stack value, original listing totals, offered totals, and left-aligned status, and keyboard-accessible Outbox selection.
+- Added personal Transfers history for the last 14 days, with item and currency amounts, source/destination details, and five entries per page. Older history remains stored; Charitree actions and Bank/Outbox movements are excluded.
+- Restyled Guild into Guild, Council and Alliance columns, with mobile tabs, applicant and vote badges, a bounded Activity list and collapsed Petition History.
+- Restyled Transfers to match Expedition and Crucible, with collapsible Inbox/Outbox/Pending panes, compact item grids, clearer exchange totals and keyboard-accessible Outbox selection.
 - Changed the button on fully fulfilled My Buy Orders from Cancel to an info-colored Remove button.
 
 ## 1.6.2
 
 - Added admin-only Account Name as the first entry in Guild and Chat member details, using the stored PlayFab account name.
-- Opened the Expedition preview to all Guild members, including Social Only players. Version 1.6.2+ also opens Expedition Chat sending and reactions to everyone, with normal unread badges. Version 1.6.1 retains tester-only participation. Expeditions continue to follow the fixed preview route.
+- Opened the Expedition preview, Chat and reactions to all Guild members, including Social Only players. Version 1.6.1 retains tester-only participation; the preview route remains fixed.
 - Reduced the mod download size by hosting Raid boss and Expedition artwork separately. Self-hosted builds retain bundled artwork by default and can configure their own asset host. Resized and compressed the Crucible navigation image.
-- Changed new Council Petitions to use a four-day activity electorate and a 24-hour inactivity deadline that resets with each new ballot. A petitioner may withdraw only before another member votes; existing Petitions retain their original rules. Free Fellowship now has a limited Council for Interdict/Heresy, Temperance/Indulgence, and Winnowing of Shadowed members on 1.6.2+ clients; 1.6.1 clients retain no petitions.
+- Changed new Council Petitions to use members active within four days and expire 24 hours after the last ballot. Petitioners can withdraw only before another member votes; existing Petitions retain their rules. Opened a limited Free Fellowship Council for Interdict/Heresy, Temperance/Indulgence and Winnowing on 1.6.2+ clients.
 - Set the minimum supported client version to 1.6.1; 1.6.1 retains existing Guild features.
 - Added drifting crystal motes and softly shimmering crystal facets to Prismatic Descent in the Expedition preview, with reduced-motion support.
 - Changed Expedition work credit to award verified activity time up to the work remaining when tracking starts, even if another player finishes the task before Check In. Check Ins carry the unused allowance forward, and Chamber departure and membership boundaries still apply.
@@ -103,19 +117,18 @@
 ## 1.6.1
 
 - Added a brief Expedition modal when task tracking stops, including activity changes, task switches, and completed tasks, and active tracked skill icons beside Expedition in the sidebar.
-- Fixed Guild Raid boss damage-reduction scaling: bosses now start at 95%, lose one percentage point for every six tier defeats by current non-Shadowed Guild members, and reach the 75% floor at 120 defeats. The vulnerable phase remains at 33%. Fortification and Vulnerability now use the Raid icon. Raid modals, countdowns, boss names, attacks, and effect names are now localized in every supported language.
+- Fixed Raid bosses to start at 95% damage reduction, falling one percentage point per six tier defeats by current non-Shadowed Guild members, to a 75% floor at 120 defeats. Vulnerable phases remain at 33%. Localized Raid text and standardized combat-effect icons.
 - Added Raid boss info and Drops popups showing encounter stats, special attacks with consistent effect icons in previews and combat, damage-reduction phases, and reward quantities and odds, with items delivered to the Inbox.
 - Changed the button on fully sold-out My Sell Listings from Cancel to an info-colored Remove button.
 
 ## 1.6.0
 
-- Added an Expedition preview for tagged Guild testers, with shared Chamber work, supply donations, passage votes, Journey history, and a fixed route from The Rift through Prismatic Descent, Glassroot Terraces, Buried Observatory, Prismatic Orrery, and Voidwatch Threshold to The Hollow Star; added a readable Expedition Chat conversation for all 1.6.0 players, with sending and reactions reserved for testers.
-- Added the Crucible as the 1.6.0 successor to Charitree, with merged Offerings, Guild-wide Heat that speeds Melds, Wishes funded by Melded value, Weird Gloop, Reclaim and Slag clearing, Council petitions, and translations in every supported language.
+- Added a tester Expedition preview with shared Chamber work, supply donations, passage votes and Journey history along a fixed route from The Rift to The Hollow Star. All 1.6.0 players can read Expedition Chat; sending and reactions are reserved for testers.
+- Replaced Charitree with the Crucible: merged Offerings, Guild-wide Heat that speeds Melds, Wishes funded by Melded value, Weird Gloop, Reclaim, Slag clearing and Council petitions, localized in every supported language.
 - Removed the Campaign page and client actions while preserving Campaign pets and icon options; retained Campaign state and legacy API access for supported 1.5.16 clients.
-- Kept partially filled and sold-out Marketplace listings visible with remaining and original quantities, a Show Available filter, and disabled actions at zero availability; sold-out listings expire after 20 hours unless held by an active Haggle, while 1.5.16 clients retain their existing view.
+- Kept partially filled and sold-out Marketplace listings visible with remaining/original quantities and a Show Available filter. Sold-out listings expire after 20 hours unless held by an active Haggle; 1.5.16 clients retain their existing view.
 - Fixed repeated errors when opening Transfers with an active Marketplace Haggle that has no claim yet.
-- Expanded Guild Raids with uncapped personal contribution, a countdown to the next Assault grant, per-character boss tier unlocks, immediate tier rewards in the Inbox, and an Assault confirmation showing the full-HP requirement.
-- Added lifetime Raid defeat totals to Guild members and tier cards, with current non-Shadowed members' tier wins reducing the boss's initial Normal resistance from 99% toward a 75% floor.
+- Expanded Guild Raids with uncapped personal contribution, Assault countdowns, per-character tier unlocks, immediate Inbox rewards and full-HP entry confirmation. Lifetime defeat totals appear on members and tier cards; current non-Shadowed members’ tier wins reduce initial boss resistance from 99% toward 75%.
 - Added unread Message counts to Poll Discussions without adding them to Chat navigation totals.
 - Added clickable Chat feature tags through $ or ＄, with icons for Multiplayer pages, Melvor skills, Combat, Bank, and Shop; the picker follows sidebar order, and older clients see readable feature names.
 - Added account-wide Dev and SAE Dev Guild roster badges with character-level visibility controls.
@@ -136,10 +149,9 @@
 
 ## 1.5.14
 
-- Added Single Choice and Multi-Choice Polls, persistent Open or Closed indicators, and moderator controls that stop voting without closing the Poll Discussion.
+- Added Single Choice and Multi-Choice Polls with Open/Closed indicators and moderator voting controls. Reactions remain in Poll Discussions; removed card reactions and notification bells.
 - Fixed Chat opening briefly showing the oldest loaded Messages before moving to the latest Messages.
 - Added automatic translation of Poll questions and options in the selected Chat translation language, including backfill for existing Polls and refresh after translation completes.
-- Simplified Poll presentation by removing card reactions and notification bells while keeping reactions in Poll Discussions.
 
 ## 1.5.13
 
@@ -153,14 +165,13 @@
 - Added inline Chat item tags with an Insert Item picker and # shortcut for base-game and official DLC items. Item names appear in each reader’s game language and stay intact during whole-message translation.
 - Added per-chat notification bell toggles, enabled by default, to exclude muted chats from navigation unread badges while keeping their inline unread counts.
 - Fixed automatic Chat translation updates remaining hidden in an open conversation after the initial translation wait elapsed.
-- Prevented the Chat localization modal from automatically opening its native language picker on mobile.
-- Clarified the active Chat translation language and added an explicit Apply action for changing it.
+- Improved Chat translation controls with an explicit Apply action and prevented the language picker opening automatically on mobile.
 
 ## 1.5.11
 
-- Localized the Multiplayer Mod Team and SAE Support Team automated welcomes for every supported game language while retaining the canonical English message in shared Support history.
+- Localized Support Chat welcomes in every supported language while retaining English in shared history.
 - Added optional per-conversation automatic Chat translation between English and Simplified Chinese, plus a Translate action for individual incoming Messages.
-- Added complete localization for every game language, reviewed and corrected Simplified Chinese, and removed unused translation entries.
+- Added localization for every game language and corrected Simplified Chinese.
 - Reworked Guild icon and player avatar pickers with consistent Multiplayer-owned layouts, including larger, centered Guild emblem tiles.
 - Kept Shadowed members available as targets in the Petition for Banishment picker.
 - Restructured Guild discovery to match the Guildmates list, with compact emblems, Open or Private tags, clearer localized member counts, and distinct Apply styling for private Guilds.
@@ -170,34 +181,29 @@
 - Added a persistent Using Cheats Guild-roster badge when a character reported a recognized cheat mod within the last seven days.
 - Added Petition of Interdict and Petition of Heresy, allowing Guild Councils to confine members marked Using Cheats to Social Only or restore their full access.
 - Added an in-game update notice for already-running sessions, prompting players to refresh or restart after a newer Multiplayer version becomes available.
-- Added mandatory server-wide Polls below Global Chat, with authorized poll creation, one-or-more options, multi-select aggregate voting, append-only options, reactions, automatic updates, and a permanent discussion for each poll.
-- Made profiles opened from Chat honor the sender's normal Private Chat, equipment, Skills, game mode, active-mod, language, Account Age, and Total Skill Level sharing across Guilds while keeping current activity private, and added the sender's Guild name at the bottom.
+- Added server-wide Polls below Global Chat, with authorized creation, multi-select voting, append-only options, reactions and a permanent discussion for each Poll.
+- Made Chat profiles honor cross-Guild sharing settings for Private Chat, equipment, Skills, gamemode, mods, language, Account Age and Total Skill Level. Current activity remains private; profiles also show the sender’s Guild.
 
 ## 1.5.9
 
-- Added Chat reactions with a curated 18-emoji picker, clickable aggregate counts, highlighted personal reactions, multiple reactions per player, and reactions on your own Messages.
+- Added Chat reactions with an 18-emoji picker, counts and highlighted personal selections. Players can add multiple reactions, including to their own Messages.
 - Unified Campaign and Raid participation scaling around 40% of Guild members active within four days, with one expected contributor for solo Guilds, a two-player minimum otherwise, and no upper ceiling.
 - Reduced Campaign goals from twelve to four hours of estimated production per expected contributor and replaced aggressive upward rounding with nearest-increment rounding.
 - Hid avatar and Guild icon choices whose registered media is the native question-mark placeholder while preserving existing saved choices.
-- Replaced the Guild summary label with the number of days since the Guild was established.
-- Added durable Guild creation timestamps for new Guilds; existing Guild timestamps can be backfilled from retained historical evidence.
+- Replaced the Guild summary label with days since establishment, using creation timestamps for new Guilds and historical evidence where available for existing Guilds.
 - Allowed quantity controls to be cleared while entering a value instead of forcing the minimum back into the field.
 
 ## 1.5.8
 
-- Added a Max action to Shuffle Leaves that previews one total per requested currency and fills the remaining Shuffle Bonus to 20 / 20 with one replay-safe request and aggregate deduction.
-- Kept Shuffle Leaves confirmations open with a width-stable loader for at least two seconds to prevent rapid repeated submissions.
+- Added a Max action to Shuffle Leaves, showing currency totals and filling the remaining Shuffle Bonus to 20 / 20 with one payment. Confirmations stay open with a loader for at least two seconds to prevent repeated submissions.
 - Fixed Chat sender profiles from other Guilds showing a Private Chat start action that could not succeed.
 - Added clear client messaging when a server operator requires Social Only mode for an identity or its Melvor account, and hid the unavailable Full Experience choice while that restriction is active.
 - Fixed Shuffle Leaves becoming unresponsive when its modal could not be queued during a modal lifecycle transition.
 
 ## 1.5.7
 
-- Added Charitree Wishes: request 1–100 discovered eligible items at no cost, wait four days, then ripen the Wish with value from decaying GP offerings before its owner picks the reward from the tree into the Inbox.
-- Added Guild-visible Wish progress, owner-only forsaking and picking, account-group-wide Wish limits and Shuffle Bonus penalties, plus Wish settlement for departures and destructive Charitree Petitions.
-- Fixed official base-game and DLC pet icons disappearing from the avatar picker and existing pet avatars rendering as question marks after Multiplayer pets moved out of Melvor's native pet system.
-- Restored Multiplayer pet icons to the avatar picker while keeping their server-owned pet mechanics separate from Melvor's native Pets and Completion systems.
-- Placed pet icons first in the avatar picker for quicker access.
+- Added Charitree Wishes for 1–100 discovered eligible items at no cost. After four days, decaying GP offerings ripen the Wish for its owner to pick into the Inbox. Progress is Guild-visible; forsaking and picking are owner-only. Wish limits and Shuffle Bonus penalties apply across linked characters, with settlement on departure or destructive Charitree Petitions.
+- Restored official and Multiplayer pet icons in the avatar picker and existing avatars, and placed pets first in the picker.
 - Capped per-request GP transfers and donations at 1 billion GP and other supported currencies at 1 million, including Charitree donations, Shuffle Leaves, Gifts, Trades, and Marketplace haggles; excess currency remains available in Transfer inventory.
 - Fixed Max quantity selections being reset to one when a selected bank stack updates before a Transfer or Campaign contribution is submitted.
 
@@ -206,7 +212,7 @@
 - Added Charitree decay recovery: expired offerings with GP value become Weird Gloop, which appears first and can be claimed or donated like any other offering without a timer or leaf cover.
 - Added a one-time prompt after Multiplayer experience selection for players still using the default avatar, with the existing avatar picker ready for choosing a new icon.
 - Replaced the inline bank Transfer and Marketplace panels with a single Multiplayer Actions entry for Transfer, Marketplace, and Charitree quantity actions.
-- Buffed Charitree leaf visibility after shuffling: each shuffle lowers every offering's coverage chance by five percentage points for seven days, including 100% and undiscovered offerings, shared across every character belonging to the same user and capped at zero coverage.
+- Made each Shuffle Leaves use reduce offering coverage by five percentage points for seven days, down to zero, across all linked characters, including undiscovered offerings.
 - Grouped Inbox deliveries under source titles, aggregating repeated Marketplace counterparties and other matching events while retaining one Claim action for everything.
 - Moved Marketplace sell proceeds into the Inbox automatically as purchases complete and removed manual payout claiming from Sell Listings.
 - Marketplace listings now expire after 14 days without activity, returning remaining items or GP to the Inbox under “Expired Marketplace listing”.
@@ -214,7 +220,7 @@
 
 ## 1.5.5
 
-- Added Shuffle Leaves to the Charitree: offer the requested currency to stir its leaves for your characters. The offering joins the tree, and your characters cannot claim that currency from it for four hours. Background updates preserve the page position, and confirming an offering safely closes the modal before applying its payment.
+- Added Shuffle Leaves: offer the requested currency to stir Charitree leaves for your characters. The currency joins the tree and cannot be reclaimed by your characters for four hours.
 - Moved updated clients to versioned multiplayer APIs while keeping existing 1.5.1–1.5.4 clients supported.
 - Made pending item and GP transactions recover after lost responses and reloads without submitting the same transaction twice.
 - Preserved automatic returns of unavailable Gift items across connection failures and reloads.
@@ -226,12 +232,8 @@
 
 - Increased Chat history pages from five to 20 messages while preserving older-history pagination.
 - Made the Chat sidebar entry always open the Chat home list instead of reopening the last conversation.
-- Added an independent server-wide Global Chat for every multiplayer identity, including Guildless players, with unread counts, retained history, and a separate default-on opt-out in Multiplayer Options.
-- Reordered Chat into Global, Guild, Private, and Support categories.
-- Added host-controlled server-wide and per-player Global Chat message limits that can be changed without a client update; delayed sends preserve the draft and quietly keep Send unavailable until the server-provided delay expires.
-- Added Global Chat message moderation and persistent throttle controls to the host-local Service Console and administration CLI.
-- Added avatars beside every sent and received Chat message, including messages in Global Chat.
-- Made Chat message avatars and usernames open the sender's member-info modal.
+- Added Global Chat for all multiplayer identities, including Guildless players, with history, unread counts and a default-on participation setting. Reordered Chat into Global, Guild, Private and Support. Hosts can moderate Global Chat and set server-wide or per-player message limits; delayed sends preserve drafts.
+- Added clickable avatars and usernames to Chat Messages, opening the sender’s profile.
 - Fixed Chat opening and sending to scroll to the newest messages, while loading older messages preserves the current viewport position.
 
 ## 1.5.3
@@ -240,13 +242,10 @@
 - Recalculated Campaign pet ownership from four completed Campaigns and moved Campaign rewards to server-side 10x or 15x calculations.
 - Reset Charitree pet ownership, moved future Charitree rolls server-side without a current bonus, and disabled the second daily take flow for updated clients.
 - Combined GP, supported currency, and eligible zero-GP donation values client-side before sending Charitree donations.
-- Fixed supported non-GP currencies, including Slayer Coins, being treated as new Charitree items and limited to a single claimed currency.
-- Simplified Charitree value limits to automatically claim up to half the player's current balance, with the selected quantity shown before claiming and new items limited to one.
-- Clarified that Charitree claims no longer mark items as discovered; items remain limited to one until discovered through a normal in-game source.
-- Applied Charitree value limits to supported non-GP currencies using the player's balance of the donated currency.
-- Added age-based mystery to Charitree offerings: leaves always conceal undiscovered items and can deterministically conceal discovered non-currency items, become less likely and change color as expiry approaches, and refresh the countdown only every 30 seconds.
+- Applied Charitree claim limits to supported non-GP currencies using the donated currency’s balance, without treating currencies as undiscovered items.
+- Changed Charitree claims to allow up to half the player’s current balance, with quantities shown before claiming. Undiscovered items remain limited to one, and claims do not count as discovery.
+- Added leaf cover to Charitree offerings: undiscovered items are always hidden, and discovered non-currency items may be hidden. Cover becomes less likely and leaves change color as expiry approaches.
 - Reduced the Charitree taking cooldown from 24 hours to 20 hours and the direct-join newcomer lock from 24 hours to 4 hours.
-- Clarified that leaves may conceal any item while it is far from expiring.
 
 ## 1.5.2
 
@@ -260,43 +259,39 @@
 
 ## 1.5.1
 
-- Fixed Inbox items failing to claim despite available Bank space. Items held in the Inbox can be claimed after updating.
-- Added a warning when remaining Inbox items cannot be claimed, instead of silently refreshing the Inbox.
+- Fixed Inbox claims failing despite available Bank space, and added a warning when remaining items cannot be claimed.
 
 ## 1.5.0
 
-- Added Social Only mode with localized first-connection selection and settings; retained social features and Raid combat while disabling Charitree, Marketplace, Trading, Gifting, Campaigns, and Raid item rewards, returning pending exchanges to the Transfers Inbox.
+- Added Social Only mode with per-character selection and settings. Social features and Raid combat remain available; Charitree, Marketplace, Trading, Gifting, Campaigns and Raid item rewards are disabled, with pending exchanges returned to the Inbox.
 - Added a per-save new-version badge to Updates, clearing when Updates is viewed on desktop or Changelog is selected on mobile.
 - Added Outbox currency transfers for Gold Pieces, Slayer Coins, Abyssal Pieces, and Abyssal Slayer Coins through a balance-aware Add Currency picker and quantity slider; non-GP currencies remain excluded from Transfer GP values.
-- Fixed Social Only cleanup to preserve returned Gift ownership and move legacy resolved Trade items into the Transfers Inbox.
-- Expanded the server-owned Inbox to accepted and declined Gifts, completed or returned Trades, Marketplace purchases, proceeds and escrow returns, Charitree takes, Campaign GP rewards, and Raid Victory Caches; incoming items and GP aggregate until whole stacks can be claimed into the Bank. Transfers now presents Inbox, Outbox, and Pending side by side on desktop and as three switchable tabs on mobile.
+- Expanded the server-owned Inbox to Gift and Trade settlements, Marketplace purchases, proceeds and returns, Charitree takes, Campaign GP rewards and Raid Victory Caches, with aggregated Bank claims and recovery for existing transfers. Redesigned Transfers with Inbox, Outbox and Pending panels on desktop and tabs on mobile.
 - Added confirmation popups before donating to the Charitree, sending counteroffers, or canceling or declining Gifts and Trade offers.
-- Preserved 1.4.5 Economy Receipts, returned Gifts, resolved Trades, and Raid Victory Cache acknowledgements, including mixed-version Trade participants and recorded cross-player Marketplace recipients.
 - Fixed nested-picker touch scrolling in iOS Safari for avatar, Guild creation, and Guild heraldry grids.
-- Throttled foreground idle event and GP polling from about 20 seconds to at most three minutes; retained fast polling for pending exchanges, requests, applications, market completions, Chat unread state, and returns; suspended periodic event, GP, and Player Status work while backgrounded.
-- Reduced Player Status writes by decoupling GP sampling, ignoring undisplayed action churn, flushing trailing activity, retrying with bounded backoff, and discarding stale-session responses.
+- Reduced idle event and GP polling from about 20 seconds to at most three minutes, while retaining fast updates for pending actions and Chat. Suspended periodic polling in the background and reduced redundant Player Status updates.
 - Renamed the sidebar labels to Charitree and Raid (preview); removed the inactive Raid preview badge while retaining the active badge.
 - Updated Guildless sidebar state: hide Marketplace, Charitree, Campaign, and Raid; show a Guild onboarding badge; expose Trade and Gift only for unresolved exchanges or returned transfer inventory; recompute state after membership and exchange changes.
-- Refined Guild roster presentation with larger game-mode artwork, compact activity icons, subdued language labels, current-player pinning, and relative recent-activity labels.
-- Improved Guild member row spacing and hid the empty Trade / Gift inventory count.
+- Refined Guild rosters with larger gamemode artwork, compact activity icons, subdued language labels, current-player pinning, relative activity times and improved spacing.
+- Hid the empty Trade / Gift inventory count.
 - Added a red Trade / Gift sidebar count for gifts, trades, and returns that require player action.
 - Added base-game, DLC, and Multiplayer pets to the avatar picker.
 - Fixed Gift rejection blocking Guild departure while the returned Gift remained unclaimed.
 - Fixed failed Trade offers closing without displaying the server error.
 - Fixed overlapping Trade and Gift responses reapplying an acknowledged Economy Receipt and blocking the transfer.
 - Reduced Transfer Inventory capacity to six slots; existing larger inventories remain visible but cannot accept new entries until space is freed.
-- Redesigned Transfers with Inbox, Outbox, and Pending panels on desktop and three switchable tabs on mobile; hid the unused potions menu on Multiplayer pages.
+- Hid the unused potions menu on Multiplayer pages.
 
 ## 1.4.5
 
 - Moved the Multiplayer sidebar section after Bank and before Into the Abyss.
-- Added private Marketplace activity for completed purchases and buy-order fulfillments; personalized entries include item names and quantities, are lock-marked, and retain item IDs.
+- Added private Marketplace activity for purchases and buy-order fulfillments, showing item names and quantities.
 - Added the Updates page with server-fetched developer notices, current work, and future plans alongside the mod.io changelog.
 - Renamed Player Profile's Status control to Skills.
 - Added background-collected Guild member Account Age and Total Skill Level with localized formatting.
 - Fixed mobile Guild Activity pagination controls rendering outside the activity list.
 - Added independently revocable installation credentials with per-installation session replacement and legacy enrollment compatibility.
-- Added bounded connection diagnostics and copyable reports with request outcomes, runtime labels, and optional app build metadata; excluded IPs, raw user agents, device names, credentials, and request bodies.
+- Added copyable connection reports with request outcomes and runtime details, excluding credentials, request bodies and personal device/network details.
 - Relaxed server CORS to accept browser/native-app origins and runtime-added request headers while retaining authentication and Guild authorization.
 
 ## 1.4.4
@@ -315,20 +310,17 @@
 - Added first-message Support Chat intent choices that prefill the composer without overwriting a saved draft.
 - Added Recent Marketplace sorting by publish date while retaining direction-specific Price sorting.
 - Added Max-quantity controls to Marketplace purchase, Marketplace fulfillment, and Campaign contribution modals.
-- Improved Marketplace buy-order fulfillment modal layout with a two-line title, bank quantity indicator, and bank-aware limit.
-- Added Marketplace fulfillment notices listing items and quantities added to the bank.
+- Improved Marketplace fulfillment dialogs with clearer titles, Bank quantities and Bank-aware limits, plus notices listing delivered items.
 - Fixed Marketplace pagination controls appearing when all results fit on one page.
 
 ## 1.4.1
 
-- Added prepaid Guild Marketplace buy orders with partial or full fulfillment at a fixed unit price.
-- Added separate Marketplace buying and selling views, buy-order creation, direct Bank fulfillment, and escrow/refund controls.
-- Fixed buy-order escrow and requested quantities during identity deletion; returned prepaid GP without creating items.
+- Added prepaid Guild Marketplace Buy Orders with fixed unit prices, partial or full fulfillment from the Bank, separate buying/selling views, and escrow/refund controls, including GP returns on identity deletion.
 
 ## 1.4.0
 
 - Bundled Archaeology, Music, Occultism, Construction, and Sailing icons for cross-profile activity and skill rendering.
-- Ordered Guild discovery as Free Fellowship, joinable Guilds, and applyable Guilds by recent member activity; hid Shadowed Guilds.
+- Ordered Guild discovery as Free Fellowship, open Guilds and Guilds accepting applications, sorted by recent member activity; hid Shadowed Guilds.
 - Added a 48-hour New Member roster badge.
 - Added sidebar status indicators for Charitree picks and active Guild Raids.
 - Restricted Guild Raid participant lists to members with an Assault, including in-progress Tier 0 Assaults.
@@ -336,7 +328,7 @@
 - Added concurrent Player Status activity sharing: rosters show up to three activities plus an overflow count, while profiles show the full set.
 - Expanded avatars to monsters and pickpocketing targets from the base game and official DLCs, using display-name search.
 - Expanded Guild icons to official combat locations from the base game and official DLCs.
-- Added bounded collection of custom skill icons from Player Status; excluded official, action, and combat icons.
+- Added custom skill icons to shared Player Status.
 - Added latest reported player-language collection; hide unknown and unavailable values.
 - Fixed Guild rosters remaining stale after the current player's display name or avatar changed.
 - Contained long Guild member and activity lists and tightened desktop/mobile spacing.
@@ -363,21 +355,18 @@
 ## 1.3.0
 
 - Moved completed Campaign history, medals, pet progress, and unclaimed rewards with the multiplayer identity; kept unfinished contributions with their original Guild and withheld historical rewards from new members.
-- Added per-load compatibility diagnostics for Multiplayer version, character game-mode ID, and loaded mod names; retained only the latest identity snapshot and excluded disabled mods, other-mod metadata, profile names, and history.
-- Added opt-out game-mode sharing with base-mode icons, custom-mode fallback labels, and snapshot retention after opt-out.
-- Added opt-out active-mod sharing with reported-order preservation and empty-list suppression.
+- Added compatibility reports for client version, gamemode and loaded mods, retaining only the latest snapshot.
+- Added opt-out gamemode and active-mod sharing, with base-mode icons and custom-mode fallback labels.
 - Reworked Guildmate details with activity in the first modal, an uncapped mobile-scrolling Skills and Equipment grid, and compact game-mode roster icons.
 - Added privacy-aware profile self-preview and consolidated Guild departure and identity deletion controls.
 - Added a non-blocking notice when the server reports a newer released mod version.
 
 ## 1.2.0
 
-- Fixed duplicate Trade returns after cancelling a new Trade.
+- Fixed duplicate Trade, Transfer Inventory and Banishment returns after cancellation, reload or retries with a full inventory.
 - Restricted linked-identity and Support Team access; identity deletion must originate from the loaded save and team access requires operator-selected authenticated identities.
 - Escaped multiplayer display names in HTML contexts and limited new names to letters, numbers, spaces, and simple punctuation.
 - Added retry-safe item/GP mutation handling for Marketplace, Campaign, Charitree, Gift, and Trade operations, preventing loss, duplication, and stale overwrites.
-- Fixed duplicate Transfer Inventory returns after reload.
-- Fixed repeated application of Banishment returns after full Transfer Inventory retries.
 - Fixed stalled requests stopping event, Chat, and page refreshes until reload.
 - Fixed stale Support Chat messages and read state.
 - Fixed reciprocal Friend Requests creating duplicate Friends entries.
@@ -440,7 +429,7 @@
 
 - Added opt-out GP sharing and coarse last-seen activity to Guild rosters with viewer-local number formatting.
 - Added combat-icon fallback for shared activities from unavailable mods.
-- Fixed modal reliability by mounting content after custom-element attachment.
+- Fixed modals failing to initialize their contents.
 
 ## 0.1.0-public-test.19
 
@@ -463,7 +452,7 @@
 
 ## 0.1.0-public-test.15
 
-- Added Guild Raids for Private Guilds and Free Fellowship with 72-hour encounters, four tiers, bounded Assaults, native material loot, standings, Victory Caches, full-HP entry, Tier 1 Toxic Dread, and reload-safe recovery.
+- Added Guild Raids for Private Guilds and Free Fellowship, with 72-hour encounters, four tiers, Assaults, standings, material loot and Victory Caches. Entry requires full HP; progress recovers after reload.
 - Added sidebar indicators for unread Chat and Raid readiness/activity.
 - Added Cartography map recognition to Player Status.
 - Fixed invalid Campaign Small and Medium Urn references and migrated affected state.

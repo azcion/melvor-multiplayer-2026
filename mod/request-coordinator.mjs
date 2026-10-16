@@ -1,6 +1,6 @@
 // One budget for page reads, polling, commands and durable acknowledgements.
 export function create_request_scheduler({ now = () => Date.now(), capacity = 16,
-	refill_per_second = 0.9, read_reserve = 3, concurrency = 2 } = {}) {
+	refill_per_second = 0.9, read_reserve = 3, concurrency = 2, observe = () => {} } = {}) {
 	let tokens = capacity, updated_at = now(), cooldown_until = 0, active = 0, timer = null;
 	const queue = [];
 	function pump() {
@@ -11,25 +11,28 @@ export function create_request_scheduler({ now = () => Date.now(), capacity = 16
 		updated_at = time;
 		for (let i = queue.length - 1; i >= 0; i--)
 			if (!queue[i].valid()) queue.splice(i, 1)[0].reject(new DOMException('Stale request', 'AbortError'));
-		queue.sort((a, b) => b.priority - a.priority || a.order - b.order);
+		// Age ordinary work into the foreground lane; acknowledgements always win.
+		const rank = entry => entry.priority >= 2 ? entry.priority : Math.min(1, entry.priority + (time - entry.queued_at) / 15000);
+		queue.sort((a, b) => rank(b) - rank(a) || a.order - b.order);
 		while (queue.length && active < concurrency && time >= cooldown_until) {
-			const next = queue[0];
-			if (tokens < (next.priority > 0 ? 1 : read_reserve + 1)) break;
-			queue.shift();
+			const index = queue.findIndex(entry => tokens >= (entry.reserve ? read_reserve + 1 : 1));
+			if (index < 0) break;
+			const [next] = queue.splice(index, 1);
+			observe({ kind: 'dispatch', queue_wait_ms: time - next.queued_at, depth: queue.length });
 			tokens--;
 			active++;
 			Promise.resolve().then(next.run).then(next.resolve, next.reject).finally(() => { active--; pump(); });
 		}
 		if (queue.length && active < concurrency) {
-			const required = queue[0].priority > 0 ? 1 : read_reserve + 1;
+			const required = queue[0].reserve ? read_reserve + 1 : 1;
 			const delay = Math.max(1, cooldown_until - time, (required - tokens) * 1000 / refill_per_second);
 			timer = setTimeout(pump, Math.ceil(delay));
 		}
 	}
 	let sequence = 0;
 	return {
-		run(priority, run, valid = () => true) {
-			return new Promise((resolve, reject) => { queue.push({ priority, run, valid, resolve, reject, order: sequence++ }); pump(); });
+		run(priority, run, valid = () => true, reserve = priority === 0) {
+			return new Promise((resolve, reject) => { queue.push({ priority, run, valid, reserve, resolve, reject, queued_at: now(), order: sequence++ }); pump(); });
 		},
 		observe(response) {
 			if (response.status !== 429) return;
@@ -44,7 +47,7 @@ export function create_request_scheduler({ now = () => Date.now(), capacity = 16
 	};
 }
 
-export function create_read_cache({ scope, now = () => Date.now(), ttl = 15_000 }) {
+export function create_read_cache({ scope, now = () => Date.now(), ttl = 15_000, observe = () => {} }) {
 	const values = new Map(), pending = new Map();
 	let current_scope = scope();
 	function check_scope() {
@@ -58,6 +61,7 @@ export function create_read_cache({ scope, now = () => Date.now(), ttl = 15_000 
 		read,
 		prime(key, value) { check_scope(); values.set(key, { value: copy(value), at: now() }); },
 		invalidate(predicate = () => true) {
+			observe({ kind: 'invalidation' });
 			check_scope();
 			for (const key of values.keys()) if (predicate(key)) values.delete(key);
 			for (const [key, entry] of pending) if (predicate(key)) {
@@ -68,9 +72,10 @@ export function create_read_cache({ scope, now = () => Date.now(), ttl = 15_000 
 	async function read(key, load, cache = true, retries = 2) {
 		check_scope();
 		const cached = values.get(key);
-		if (cache && cached && now() - cached.at < ttl) return copy(cached.value);
+		if (cache && cached && now() - cached.at < ttl) { observe({ kind: 'cache_hit' }); return copy(cached.value); }
 		const request_scope = current_scope;
 		if (pending.has(key)) {
+			observe({ kind: 'coalesced' });
 			const entry = pending.get(key);
 			const value = await entry.promise;
 			return entry.invalidated && scope() === request_scope && retries > 0

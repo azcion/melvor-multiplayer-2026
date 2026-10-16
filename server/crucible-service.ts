@@ -1,6 +1,8 @@
+import { filtered_contributor_sql, filtered_crucible_quantities } from './listing-filters';
+import type { CheatCategoryId } from './cheat-categories';
 import { maintain_wish_capacities } from './wish-capacity';
 import { create_gloop_custody, custody_at, move_location, allocate_wish_funding, record_dependency, type FundingOrigin } from './economy-custody';
-import type { Database } from 'bun:sqlite';
+import type { Database, SQLQueryBindings } from 'bun:sqlite';
 import { db } from './db';
 import { create_audit_lot, move_audit_value_with_fallback, record_audit_event } from './audit';
 import type * as db_row from './db/types/db_types';
@@ -216,19 +218,21 @@ export function maintain_crucibles(now = Date.now(), limit = 100, database: Data
 	return guilds.length;
 }
 
-export function crucible_contents(guild_id: number, now = Date.now(), database: Database = db) {
+export function crucible_contents(guild_id: number, now = Date.now(), database: Database = db, listing_filters: CheatCategoryId[] = []) {
 	const guild = database.query<db_row.crucible_guilds, [number]>(
 		'SELECT * FROM crucible_guilds WHERE guild_id = ?').get(guild_id);
 	if (guild === null) return null;
 	const rows = offerings(guild_id, database);
 	const heat = heat_for_offerings(rows);
-	const contribution_rows = database.query<{ offering_id: number; client_id: number; icon_id: string }, [number]>(
+	const hidden = filtered_crucible_quantities(database, guild_id, listing_filters, now);
+	const contributor_filter = filtered_contributor_sql('lot.client_id', listing_filters, now);
+	const contribution_rows = database.query<{ offering_id: number; client_id: number; icon_id: string }, SQLQueryBindings[]>(
 		'SELECT lot.offering_id, lot.client_id, client.icon_id FROM crucible_contribution_lots AS lot ' +
 		'JOIN crucible_offerings AS offering ON offering.id = lot.offering_id ' +
 		'JOIN clients AS client ON client.id = lot.client_id WHERE offering.guild_id = ? ' +
-		'GROUP BY lot.offering_id, lot.client_id, client.icon_id ' +
+		'AND NOT ' + contributor_filter.sql + ' GROUP BY lot.offering_id, lot.client_id, client.icon_id ' +
 		'ORDER BY lot.offering_id, SUM(lot.qty) DESC, MIN(lot.contributed_at), MIN(lot.id), lot.client_id'
-	).all(guild_id);
+	).all(guild_id, ...contributor_filter.values);
 	const contributors = new Map<number, Array<{ client_id: number; icon_id: string }>>();
 	for (const row of contribution_rows) {
 		const stack_contributors = contributors.get(row.offering_id) ?? [];
@@ -242,7 +246,8 @@ export function crucible_contents(guild_id: number, now = Date.now(), database: 
 	).all(guild_id);
 	return {
 		is_open: guild.is_open === 1, heat, processed_minute: guild.processed_minute,
-		offerings: rows.map(row => ({ id: row.id, item_id: row.item_id, qty: row.qty,
+		offerings: rows.map(row => ({ ...row, qty: Math.max(0, row.qty - (hidden.get(row.id) ?? 0)) }))
+			.filter(row => row.qty > 0).map(row => ({ id: row.id, item_id: row.item_id, qty: row.qty,
 			meld_points: row.meld_points, meld_percent: Math.floor(row.meld_points * 100 / CRUCIBLE_PROGRESS_MAX),
 			estimated_meld_at: row.is_untimed ? null : crucible_estimated_completion_at(row.meld_points,
 				heat.points_per_minute, now), generation: row.generation, is_untimed: row.is_untimed === 1,

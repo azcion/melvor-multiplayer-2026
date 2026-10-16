@@ -403,6 +403,7 @@
 	"MOD_MP_GUILD_NEW_MEMBER": "新規メンバー",
 	"MOD_MP_GUILD_DEV": "Dev",
 	"MOD_MP_GUILD_DEV_SAE": "SAE Dev",
+	"MOD_MP_GUILD_DEV_OSRS_OVERHAUL": "OSRS Overhaul Dev",
 	"MOD_MP_DEV_TAG_VISIBILITY": "Let others see your Dev tag",
 	"MOD_MP_GUILD_USING_CHEATS": "チート使用",
 	"MOD_MP_GUILD_APPLICANTS": "加入申請者",
@@ -450,6 +451,7 @@
 	"MOD_MP_STATUS_ACTIVITY_COMBAT": "戦闘中",
 	"MOD_MP_CHAT_PRIVACY_ENABLE": "個人チャットのメッセージを許可",
 	"MOD_MP_GLOBAL_CHAT_ENABLE": "全体チャットに参加",
+	"MOD_MP_ALLIANCE_CHAT_ENABLE": "同盟チャットに参加",
 	"MOD_MP_GUILD_CHAT_ENABLE": "ギルドチャットに参加",
 	"MOD_MP_CHAT_START": "チャット開始",
 	"MOD_MP_CHAT_CATEGORY_PRIVATE": "非公開",
@@ -531,7 +533,7 @@
 	"MOD_MP_MODAL_NO_GUILD_MATCHES": "検索に一致するギルドがありません。",
 	"MOD_MP_FREE_FELLOWSHIP_CONFIRM_TITLE": "自由の同盟に加入",
 	"MOD_MP_FREE_FELLOWSHIP_CONFIRM_PUBLIC": "所属はこのサーバー全体に公開され、加入申請は不要です。",
-	"MOD_MP_FREE_FELLOWSHIP_SEARCH": "表示名でメンバーを検索",
+	"MOD_MP_FREE_FELLOWSHIP_SEARCH": "検索",
 	"MOD_MP_FREE_FELLOWSHIP_JOINED": "自由の同盟に加入しました。",
 	"MOD_MP_GUILD_JOINED": "開かれた門からギルドに加入しました。",
 	"MOD_MP_GUILD_LEAVE_WARNING": "完了したマルチプレイヤーの進行状況と未受取報酬はこのIDに残りますが、未完了の貢献はギルドに残ります。先にマーケット出品、ギフト、交換をすべて処理する必要があります。最後のメンバーが脱退すると、ギルドは永久に解散し、共有記録が削除されます。",
@@ -850,7 +852,6 @@
 	"MOD_MP_ALLIANCE_JOIN_EMPTY": "参加できる活動中の同盟はまだありません。",
 	"MOD_MP_ALLIANCE_PREVIOUS": "前へ",
 	"MOD_MP_ALLIANCE_NEXT": "次へ",
-	"MOD_MP_ALLIANCE_CHAT_ENABLE": "同盟チャットに参加",
 	"MOD_MP_ALLIANCE_FREE_FELLOWSHIP": "自由共同体",
 	"MOD_MP_ALLIANCE_STAGE_LOCAL": "自ギルド評議会の承認待ち",
 	"MOD_MP_ALLIANCE_STAGE_WAITING": "相手ギルドの対応待ち",
@@ -1284,5 +1285,9 @@
 	"MOD_MP_CHEAT_CATEGORY_SHOPS": "ショップチート",
 	"MOD_MP_CHEAT_CATEGORY_LOOT_RNG": "戦利品チート",
 	"MOD_MP_CHEAT_PRESENCE_NOTICE": "過去7日以内に、このキャラクターでこれらのModが読み込まれたと報告されています。読み込みは、どの機能が有効化または使用されたかを証明するものではありません。",
-	"MOD_MP_CHEAT_EXPIRES": "期限まで：%s"
+	"MOD_MP_CHEAT_EXPIRES": "期限まで：%s",
+	"MOD_MP_LOADING_REPORT_TITLE": "読み込みレポート",
+	"MOD_MP_LOADING_REPORT_REFRESH": "読み込みレポートを生成",
+	"MOD_MP_LISTING_FILTERS": "出品フィルター",
+	"MOD_MP_LISTING_FILTERS_DESCRIPTION": "これらのバッジを持つプレイヤーの売り出品とるつぼへの供物を非表示にします。"
 }

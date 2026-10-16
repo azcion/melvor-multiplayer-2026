@@ -1,9 +1,10 @@
+import { listing_filter_prompt_pending } from '../listing-filters';
 import { admit_rollback_load } from '../rollback-admission';
 import { rollback_player_status } from '../rollback-policy';
 import { record_load_clock } from '../save-rollback';
 import { has_alliance_access } from '../alliances';
 import { API_VERSIONS } from '../api-contract';
-import { get_account_tags, get_dev_tag_visibility } from '../account_tags';
+import { get_dev_badge_labels, get_account_tags, get_dev_tag_visibility } from '../account_tags';
 import { is_client_version_at_least } from '../client-version-policy';
 import { record_character_save_load } from '../character-save-loads';
 import { db } from '../db';
@@ -113,9 +114,11 @@ export function register_auth_routes(): void {
 			gp_visible: client_row.gp_visible === 1,
 			game_mode_visible: client_row.game_mode_visible === 1,
 			active_mods_visible: client_row.active_mods_visible === 1,
+			dev_badge_labels: get_dev_badge_labels(),
 			dev_tag: get_dev_tag_visibility(client_row.id),
 			alliance_access: has_alliance_access(client_row.id, client_runtime?.mod_version),
 			chat: get_chat_state(client_row.id),
+			listing_filter_prompt_pending: listing_filter_prompt_pending(db, client_row.id),
 			...(is_client_version_at_least(client_runtime?.mod_version, '1.6.0')
 				? { account_tags: get_account_tags(client_row.id) } : {}),
 			installation_auth_supported: true, backend_version: BACKEND_VERSION,
@@ -178,9 +181,11 @@ export function register_auth_routes(): void {
 			social_mode_enforcement: get_client_social_mode_enforcement(client_id),
 			equipment_visible: true, skills_visible: true, activity_visible: true, gp_visible: true, game_mode_visible: true,
 			active_mods_visible: true,
+			dev_badge_labels: get_dev_badge_labels(),
 			dev_tag: get_dev_tag_visibility(client_id),
 			alliance_access: has_alliance_access(client_id, client_runtime?.mod_version),
 			chat: get_chat_state(client_id),
+			listing_filter_prompt_pending: listing_filter_prompt_pending(db, client_id),
 			...(is_client_version_at_least(client_runtime?.mod_version, '1.6.0')
 				? { account_tags: get_account_tags(client_id) } : {}),
 			installation_auth_supported: true, backend_version: BACKEND_VERSION,

@@ -44,18 +44,23 @@ export function install_crucible_actions(runtime, rules) {
 		if (!state.is_guild_member || state.is_social_only || !state.is_connected) return;
 		if (!force && Date.now() - last_check < 10_000) return;
 		if (request) return request;
+		const requested_filters = (state.listing_filters ?? []).join(',');
 		state.crucible_loading = true;
 		request = (async () => {
 			try {
 				await runtime.recover_paid_wish_actions?.();
-				const data = await api_get('/api/crucible/contents');
+				const filters = (state.listing_filters ?? []).join(',');
+				const data = await api_get('/api/crucible/contents' + (filters ? '?listing_filters=' + encodeURIComponent(filters) : ''));
+				if (filters !== (state.listing_filters ?? []).join(',')) return;
 				if (data?.enabled === false) {
 					state.crucible = null;
+					state.crucible_summary = null;
 					state.crucible_error = '';
 					last_check = Date.now();
 					return;
 				}
 				if (!data || data.enabled !== true) throw new Error('Invalid Crucible response');
+				state.crucible_summary = null;
 				state.crucible = { ...data,
 					offerings: filter_local_available_items(data.offerings ?? [], row => row.item_id)
 						.sort(rules.compare_crucible_offerings)
@@ -75,6 +80,7 @@ export function install_crucible_actions(runtime, rules) {
 				state.crucible_loading = false;
 				request = null;
 				runtime.update_crucible_nav();
+				if (requested_filters !== (state.listing_filters ?? []).join(',')) void refresh(true);
 			}
 		})();
 		return request;
@@ -169,7 +175,7 @@ export function install_crucible_actions(runtime, rules) {
 			state.crucible_busy = true;
 			try {
 				const result = await run_pending_economy_action(`crucible_reclaim:${offering.id}`,
-					'/api/crucible/reclaim', { item_id: offering.id, qty });
+					'/api/crucible/reclaim', { item_id: offering.id, qty, listing_filters: [...(state.listing_filters ?? [])] });
 				if (result?.success) { notify('MOD_MP_CRUCIBLE_ACTION_DONE'); await refresh(true); }
 				else notify_error(result?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 			} catch {

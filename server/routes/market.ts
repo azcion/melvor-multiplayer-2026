@@ -1,3 +1,4 @@
+import { filtered_contributor_sql, parse_listing_filters } from '../listing-filters';
 import { inbox_custody_location } from '../economy-custody';
 import { market_position, settle_market_fifo, market_benefit, listing_return_items } from '../market-custody';
 import { create_custody_source } from '../economy-custody';
@@ -505,6 +506,9 @@ export function register_market_routes(): void {
 		if (guild_id === null)
 			return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
 		expire_market_listings();
+		const filters = parse_listing_filters(json.listing_filters);
+		if (filters === null) return 400;
+		const filter = filtered_contributor_sql('m.client_id', filters, Date.now());
 		const direction = parse_market_direction(json.direction);
 		if (direction === null)
 			return 400; // Bad Request
@@ -523,8 +527,8 @@ export function register_market_routes(): void {
 			(can_view_completed_market_listings(req) ? '' : 'AND `available` > 0 ') +
 			(supports_market_terms(runtime.get_request_mod_version(req)) ? '' : 'AND ' + legacy_market_filter('m') + ' ') +
 			'AND (' + namespace_parameters.map(() => '`item_id` LIKE ? ESCAPE \'\\\'').join(' OR ') +
-			')' + currencies.sql + ' ORDER BY `item_id` LIMIT 5000',
-			[...visibility.values, client_id, direction, ...namespace_parameters, ...currencies.values]
+			')' + currencies.sql + (direction === 'sell' ? ' AND NOT ' + filter.sql : '') + ' ORDER BY `item_id` LIMIT 5000',
+			[...visibility.values, client_id, direction, ...namespace_parameters, ...currencies.values, ...(direction === 'sell' ? filter.values : [])]
 		);
 		return { success: true, item_ids: item_ids.map(row => row.item_id),
 			market_discovery_restriction_enabled: is_market_discovery_restricted(guild_id) };
@@ -538,6 +542,9 @@ export function register_market_routes(): void {
 			return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
 		expire_market_listings();
 
+		const filters = parse_listing_filters(json.listing_filters);
+		if (filters === null) return 400;
+		const filter = filtered_contributor_sql('m.client_id', filters, Date.now());
 		const direction = parse_market_direction(json.direction);
 		if (direction === null)
 			return 400; // Bad Request
@@ -581,6 +588,11 @@ export function register_market_routes(): void {
 		if (!currencies) return 400;
 		item_filter += currencies.sql;
 		query_parameters.push(...currencies.values);
+
+		if (direction === 'sell') {
+			item_filter += ' AND NOT ' + filter.sql;
+			query_parameters.push(...filter.values);
+		}
 
 		const recent = json.sort === 'recent';
 		const price_sort = typeof json.sort === 'number'

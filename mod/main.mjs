@@ -110,6 +110,7 @@ let custom_server_max_length = null;
 let modal_queue_guard = null;
 let modal_component_registry = null;
 let polling = null;
+let chat_items = null;
 let open_transfer_page = null;
 let request_scheduler = null;
 let read_cache = null;
@@ -119,6 +120,8 @@ let page_snapshots_supported = false;
 let transfer_history_refresh_timer = null;
 let events_refreshed_at = 0;
 let last_events_result = null;
+let guild_revision_scope = null;
+let last_guild_revision = null;
 const CACHED_READS = new Set(['/api/inbox', '/api/market/haggles', '/api/guilds/state', '/api/alliances',
 	'/api/guilds/council?page=0', '/api/guilds/members/shadowed?page=0&search=', '/api/guilds/activity', '/api/guilds/list',
 	...['inbox', 'outbox', 'pending'].map(pane => `/api/transfers/history?pane=${pane}`)]);
@@ -200,6 +203,8 @@ let chat_poll_failures = 0;
 let chat_view_generation = 0;
 let chat_page_visible = false;
 let interface_ready = false;
+let listing_filter_prompt_module = null;
+let listing_filter_prompt = null;
 let release_notice_shown = false;
 let raid_combat = null;
 let raid_loaded_session_id = null;
@@ -214,6 +219,8 @@ let raid_refresh_generation = 0;
 let guild_raid_badge_timer = null;
 let last_expedition_state_refresh_at = 0;
 let crucible_page_visible = false;
+let crucible_page_entry = 0;
+let crucible_page_hydrating = false;
 
 let has_sorted_market_filter_items = false;
 let has_done_first_market_search = false;
@@ -309,6 +316,7 @@ const state = ui.createStore({
 	chat_privacy_pending: false,
 	global_chat_enabled: true,
 	account_tags: [],
+	dev_badge_labels: {},
 	pending_preview: null,
 	global_chat_participation_pending: false,
 	global_chat_cooling_down: false,
@@ -372,7 +380,7 @@ const state = ui.createStore({
 	updates_new: false,
 	transfers_mobile_tab: 'inbox',
 	transfers_panels_open: { inbox: true, outbox: true, pending: true },
-	transfers_history_open: { inbox: true, outbox: true, pending: true },
+	transfers_history_open: { inbox: false, outbox: false, pending: false },
 	transfer_history: {},
 	transfer_history_clock: performance.now(),
 
@@ -399,6 +407,7 @@ const state = ui.createStore({
 	server_owned_pets: false,
 	owned_pet_ids: [],
 	crucible: null,
+	crucible_summary: null,
 	crucible_loading: false,
 	crucible_busy: false,
 	crucible_error: '',
@@ -417,6 +426,9 @@ const state = ui.createStore({
 
 	market_active_tab: 'search',
 	market_direction: 'sell',
+	listing_filter_categories: ['items', 'time', 'resources', 'multitasking', 'shops', 'loot_rng'],
+	listing_filters: ['items'],
+	multiplayer_settings_section: 'all',
 	market_results: [],
 	market_listings: [],
 	market_haggles: [],
@@ -541,6 +553,7 @@ const state = ui.createStore({
 	chat_notifications_busy: false,
 	chat_translation_language_input: 'en',
 	polls: [],
+	polls_summary: null,
 	poll_revision: null,
 	poll_can_create: false,
 	poll_creator_content: '',
@@ -963,7 +976,7 @@ const state = ui.createStore({
 	},
 
 	get num_uninteracted_open_polls() {
-		return this.polls.filter(poll => poll.open === true && poll.interacted !== true).length;
+		return this.polls_summary?.open_uninteracted ?? this.polls.filter(poll => poll.open === true && poll.interacted !== true).length;
 	},
 
 	get chat_latest_message_id() {
@@ -1735,7 +1748,9 @@ function expedition_time_since(timestamp) {
 	return days > 0 ? `${days}d ${hours}h` : hours > 0 ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
 }
 
+let expedition_page_visible = false;
 function set_expedition_page_visible(is_visible) {
+	expedition_page_visible = is_visible;
 	clearInterval(expedition_clock_timer);
 	expedition_clock_timer = null;
 	if (!is_visible) return;
@@ -1934,23 +1949,39 @@ function toggle_expedition_phase(phase) {
 	};
 }
 
+async function read_expedition_state(expand_on_open = true) {
+	const generation = session_generation;
+	const tracking_only = !expedition_page_visible;
+	let result = await api_get('/api/expedition/state' + (tracking_only ? '?view=tracking' : ''));
+	if (generation !== session_generation) return null;
+	// Opening the page while a recovery read is in flight needs the full model too.
+	if (expand_on_open && tracking_only && expedition_page_visible) {
+		result = await api_get('/api/expedition/state');
+		if (generation !== session_generation) return null;
+	}
+	if (result?.contract_version === 1) {
+		last_expedition_state_refresh_at = Date.now();
+		expedition_view.sync_phase_state(state, result.expedition?.chamber);
+		state.expedition_state = result;
+	}
+	return result;
+}
+
 async function refresh_expedition_state(reconnect = false) {
 	if (!state.is_connected || state.expedition_loading) return;
+	const tracking_only = !expedition_page_visible;
+	const phase_started = performance.now();
 	const generation = session_generation;
 	state.expedition_loading = true;
 	try {
-		if (state.expedition_catalog === null) {
+		if (!tracking_only && state.expedition_catalog === null) {
 			const catalog = await api_get('/api/expedition/supply/catalog');
 			if (generation !== session_generation) return;
 			if (catalog?.version === 1) state.expedition_catalog = catalog.items;
 		}
-		const result = await api_get('/api/expedition/state');
+		const result = await read_expedition_state(false);
 		if (generation !== session_generation) return;
-		if (result?.contract_version === 1) {
-			last_expedition_state_refresh_at = Date.now();
-			expedition_view.sync_phase_state(state, result.expedition?.chamber);
-			state.expedition_state = result;
-		} else if (result?.error_lang) {
+		if (result?.error_lang) {
 			state.expedition_state = null;
 			expedition_notify(getLangString(result.error_lang), 'danger');
 			const personal = await api_get('/api/expedition/personal');
@@ -1972,7 +2003,9 @@ async function refresh_expedition_state(reconnect = false) {
 	} finally {
 		if (generation === session_generation) {
 			state.expedition_loading = false;
+			transport_diagnostics?.phase('expedition', performance.now() - phase_started);
 			update_expedition_nav();
+			if (tracking_only && expedition_page_visible) void refresh_expedition_state();
 		}
 	}
 }
@@ -2117,10 +2150,13 @@ async function retry_expedition_report(automatic = false, quiet = false) {
 				notice += getLangString('MOD_MP_EXPEDITION_FRESH_SNAPSHOT');
 			if (!quiet || !result.tracking || credited === 0 || result.warning) expedition_notify(notice);
 			notify_expedition_tracking_ended(previous_tracking, result.tracking, notice);
-			const refreshed = await api_get('/api/expedition/state');
+			const refreshed = await read_expedition_state();
 			if (report_generation !== session_generation) return;
-			if (refreshed?.contract_version === 1) state.expedition_state = refreshed;
-			else state.expedition_personal = await api_get('/api/expedition/personal');
+			if (refreshed?.contract_version !== 1) {
+				const personal = await api_get('/api/expedition/personal');
+				if (report_generation !== session_generation) return;
+				state.expedition_personal = personal;
+			}
 		} else {
 			const terminal = new Set(['task_unavailable', 'activity_required', 'expedition_unavailable', 'work_source_unavailable',
 				'invalid_capture_time', 'boundary_capture_mismatch', 'tracking_identity_mismatch', 'no_active_tracking', 'operation_conflict',
@@ -2945,7 +2981,7 @@ async function request_social_mode(next) {
 		state.market_listings = [];
 		state.market_completed = [];
 		state.market_results = [];
-		state.crucible = null;
+		state.crucible = null; state.crucible_summary = null;
 		state.inbox_items = [];
 		state.inbox_groups = [];
 		state.inbox_pending_claim = false;
@@ -3194,7 +3230,8 @@ async function update_market_search() {
 			const catalog = await api_post('/api/market/catalog', {
 				item_namespaces,
 				currency_ids: state.market_currencies.map(row => row.id),
-				direction
+				direction,
+				listing_filters: [...state.listing_filters]
 			});
 			if (generation !== market_search_generation)
 				return;
@@ -3216,7 +3253,8 @@ async function update_market_search() {
 			...(item_id === null ? {} : { item_id }),
 			item_namespaces,
 			currency_ids: state.market_currencies.map(row => row.id),
-			unresolved_item_ids
+			unresolved_item_ids,
+			listing_filters: [...state.listing_filters]
 		});
 		if (generation !== market_search_generation)
 			return;
@@ -3403,12 +3441,15 @@ function update_crucible_nav() {
 	const aside = document.querySelector('.mp-crucible-nav');
 	if (!aside)
 		return;
+	const summary = state.crucible_summary;
 	const ready = state.guild_state_loaded && state.is_connected && state.is_guild_member &&
-		!state.is_social_only && state.crucible?.is_open === true;
+		!state.is_social_only && (summary ?? state.crucible)?.is_open === true;
 	state.crucible_clock_time = Date.now();
-	const wish_ready = ready && (state.crucible?.wishes ?? []).some(wish => wish.phase === 'melded' && wish.owned);
-	const reclaim_available = ready && (state.crucible?.offerings ?? []).some(offering =>
-		state.crucible_reclaim_block(offering) === null);
+	const wish_ready = ready && (summary ? summary.wishes.some(wish => is_local_item_available(wish.item_id))
+		: (state.crucible?.wishes ?? []).some(wish => wish.phase === 'melded' && wish.owned));
+	const reclaim_available = ready && (summary ? summary.offerings.some(offering => is_local_item_available(offering.id) &&
+		state.crucible_reclaim_quantity(offering) > 0) : (state.crucible?.offerings ?? []).some(offering =>
+		state.crucible_reclaim_block(offering) === null));
 	aside.classList.toggle('mp-crucible-wish', wish_ready);
 	set_nav_ready(aside, ready);
 	aside.textContent = wish_ready ? getLangString('MOD_MP_SIDEBAR_CRUCIBLE_WISH')
@@ -3466,15 +3507,17 @@ async function load_pets(ctx) {
 
 function set_crucible_page_visible(is_visible) {
 	crucible_page_visible = is_visible;
+	crucible_page_entry++;
+	// Entry owns the full read after Events, current eligibility and pending recovery.
+	crucible_page_hydrating = is_visible;
 	clearInterval(crucible_clock_timer);
 	crucible_clock_timer = null;
 	if (!crucible_page_visible)
 		return;
-	void state.refresh_crucible(true);
 	crucible_clock_timer = setInterval(() => {
 		state.crucible_clock_time = Date.now();
 		update_crucible_nav();
-		if (state.is_connected && polling.is_foreground(document))
+		if (!crucible_page_hydrating && state.is_connected && polling.is_foreground(document))
 			void state.refresh_crucible(true);
 	}, CRUCIBLE_CLOCK_INTERVAL);
 }
@@ -3662,7 +3705,7 @@ async function refresh_transfer_history() {
 			transfer_history_refresh_pending = false;
 			state.transfer_history_clock = performance.now();
 			await prepare_page_snapshot('transfers');
-			await Promise.all(transfer_history_module.HISTORY_PANES.map(pane => load_transfer_history(pane)));
+			await Promise.all(transfer_history_module.HISTORY_PANES.filter(pane => state.transfers_history_open[pane]).map(pane => load_transfer_history(pane)));
 		} while (transfer_history_refresh_pending && state.is_connected && state.is_transfer_page_visible);
 	} finally {
 		transfer_history_refresh_running = false;
@@ -4209,15 +4252,24 @@ function resolve_api_endpoint(endpoint, major = selected_api_major) {
 
 function cache_bust_api_endpoint(endpoint) {
 	const separator = endpoint.includes('?') ? '&' : '?';
-	return `${endpoint}${separator}_mp_cache=${API_GET_CACHE_NONCE}-${++api_get_request_sequence}`;
+	// Stable browser URLs let CORS preflights be reused. Native/unknown runtimes retain the cache workaround.
+	const platform = get_device_diagnostics()?.platform;
+	const nonce = platform === 'browser' ? `session-${session_generation}` : ++api_get_request_sequence;
+	return `${endpoint}${separator}_mp_cache=${API_GET_CACHE_NONCE}-${nonce}`;
 }
 
 async function prepare_page_snapshot(page) {
 	if (!page_snapshots_supported) return;
-	const endpoint = '/api/pages/snapshot?page=' + page;
+	const endpoint = '/api/pages/snapshot?page=' + page + (page === 'transfers' ? '&view=active' : '');
 	const generation = session_generation;
 	const snapshot = await read_cache.read(endpoint, valid => api_get_request(endpoint, valid));
 	if (generation !== session_generation || !snapshot?.data) return;
+	const measured_routes = { '/api/inbox': 'snapshot-inbox', '/api/market/haggles': 'snapshot-haggles',
+		'/api/transfers/history?pane=inbox': 'snapshot-history-inbox',
+		'/api/transfers/history?pane=outbox': 'snapshot-history-outbox',
+		'/api/transfers/history?pane=pending': 'snapshot-history-pending' };
+	for (const [route, duration] of Object.entries(snapshot.timings ?? {}))
+		if (measured_routes[route] && Number.isFinite(duration)) transport_diagnostics?.phase(measured_routes[route], duration);
 	for (const [route, value] of Object.entries(snapshot.data))
 		if (value && typeof value === 'object' && !value.error_lang && !value.status) read_cache.prime(route, value);
 }
@@ -4227,13 +4279,22 @@ async function coordinated_request(endpoint, options, request) {
 	const origin = server_host;
 	const read_only_post = /\/api\/v\d+\/(?:market\/(?:search|catalog)|transfers\/get_contents)(?:\?|$)/.test(endpoint);
 	const acknowledgement = /\/api\/v\d+\/(?:inbox|economy\/receipts|banishment\/returns|raids\/cache)\/acknowledge(?:\?|$)/.test(endpoint);
-	const priority = acknowledgement ? 2 : options.method === 'POST' && !read_only_post ? 1 : 0;
+	const read = options.method !== 'POST' || read_only_post;
+	const background_sync = /\/client\/(?:status|equipment)\/sync(?:\?|$)/.test(endpoint);
+	const foreground = read && ((chat_page_visible && /\/(?:chat|polls)(?:\/|\?|$)/.test(endpoint)) ||
+		(guild_page_visible && /\/(?:guilds|alliances|pages)(?:\/|\?|$)/.test(endpoint)) ||
+		(state.is_transfer_page_visible && /\/(?:inbox|transfers|market|pages)(?:\/|\?|$)/.test(endpoint)) ||
+		(crucible_page_visible && endpoint.includes('/crucible/')) ||
+		(expedition_page_visible && endpoint.includes('/expedition/')));
+	const priority = acknowledgement ? 2 : foreground || (!read && !background_sync) ? 1 : 0;
+	const queued_at = Date.now();
 	return request_scheduler.run(priority, async () => {
 		if (generation !== session_generation || origin !== server_host) throw new DOMException('Stale request', 'AbortError');
 		const consume = request.consume;
+		const queue_wait_ms = Date.now() - queued_at;
 		const handshake = /\/api\/v\d+\/(?:authenticate|register)(?:\?|$)/.test(endpoint);
 		const timer = handshake && rollback_module ? rollback_module.create_handshake_timer(fetch) : null;
-		const result = await polling.fetch_with_timeout(timer?.fetch ?? fetch, endpoint, options, { ...request, consume: response => {
+		const result = await polling.fetch_with_timeout(timer?.fetch ?? fetch, endpoint, options, { ...request, observe: entry => request.observe?.({ ...entry, queue_wait_ms }), consume: response => {
 			request_scheduler.observe(response);
 			return consume(response);
 		} });
@@ -4243,12 +4304,13 @@ async function coordinated_request(endpoint, options, request) {
 		}
 		return result;
 	}, () => generation === session_generation && origin === server_host &&
-		(priority > 0 || request.is_current?.() !== false));
+		(!read || request.is_current?.() !== false), read);
 }
 
-async function api_get(endpoint) {
+async function api_get(endpoint, is_current = null) {
 	if (state.multiplayer_unsupported)
 		return null;
+	if (is_current) return api_get_request(endpoint, is_current);
 	const preview = endpoint.startsWith('/api/alliances/guild-preview?');
 	const scope = server_host + ':' + session_generation;
 	if (guild_preview_scope !== scope) {
@@ -4543,6 +4605,9 @@ function set_session_token(token) {
 	events_refreshed_at = 0;
 	last_events_result = null;
 	state.is_connected = true;
+	const saved_listing_filters = get_instance_storage_item('listing_filters');
+	state.listing_filters = Array.isArray(saved_listing_filters)
+		? state.listing_filter_categories.filter(id => saved_listing_filters.includes(id)) : ['items'];
 	state.expedition_state = null;
 	state.expedition_loading = false;
 	state.expedition_work_tracking_mode = expedition_tasks.work_tracking_mode(
@@ -4578,10 +4643,23 @@ function set_session_token(token) {
 	void refresh_expedition_state(true);
 }
 
+function apply_dev_badge_labels(labels) {
+	if (!labels || typeof labels !== 'object' || Array.isArray(labels)) return;
+	const next = Object.fromEntries(Object.entries(labels).filter(([id, label]) =>
+		chat_items.badge_feature(id) && chat_items.valid_dev_badge_label(label)));
+	if (JSON.stringify(next) === JSON.stringify(state.dev_badge_labels)) return;
+	state.dev_badge_labels = next;
+	for (const chip of document.querySelectorAll('.mp-chat-badge[data-feature-id]')) {
+		const label = chat_items.feature_name(game, getLangString, chip.dataset.featureId, next);
+		if (chip.firstChild?.nodeType === 3) chip.firstChild.nodeValue = label;
+	}
+}
+
 async function refresh_chat_state() {
 	const res = await api_get('/api/chat/state');
 	if (res === null)
 		return;
+	apply_dev_badge_labels(res.dev_badge_labels);
 	state.messaging_enabled = res.messaging_enabled !== false;
 	state.global_chat_enabled = res.global_chat_enabled !== false;
 	if (Array.isArray(res.account_tags)) state.account_tags = res.account_tags;
@@ -4599,23 +4677,12 @@ async function refresh_chat_conversations() {
 	if (!Array.isArray(res?.conversations))
 		return;
 	const conversations = [...res.conversations];
-	const polls = await api_get('/api/polls?capabilities=' + POLLS_CAPABILITY);
-	if (Array.isArray(polls?.polls)) {
-		state.polls = polls.polls;
-		if (polls.discussion_unread_counts)
-			for (const poll of state.polls)
-				poll.discussion_unread_count = polls.discussion_unread_counts[poll.poll_id] ?? 0;
-		state.poll_revision = polls.revision;
-		state.poll_can_create = polls.can_create === true;
-		conversations.push({ conversation_kind: 'polls', conversation_id: 1,
-			participant: { client_id: null, display_name: getLangString('MOD_MP_POLLS_TITLE'), icon_id: 'multiplayer' },
-			created_at: state.polls.at(-1)?.created_at ?? 0, latest_message: state.polls.at(-1) ?? null,
-			unread_count: 0, blocked: false });
-	}
+	state.polls_summary = res.polls_summary ?? null;
+	if (res.polls_summary) state.poll_can_create = res.polls_summary.can_create === true;
+	conversations.push({ conversation_kind: 'polls', conversation_id: 1,
+		participant: { client_id: null, display_name: getLangString('MOD_MP_POLLS_TITLE'), icon_id: 'multiplayer' },
+		created_at: 0, latest_message: null, unread_count: 0, blocked: false });
 	state.chat_conversations = conversations;
-	if (state.selected_chat_conversation === selected && selected?.conversation_kind === 'poll-discussion' &&
-		!state.polls.some(poll => poll.poll_id === selected.conversation_id))
-		state.close_chat_conversation();
 	state.global_chat_enabled = res.global_chat?.enabled !== false;
 	state.alliance_chat_state = res.alliance_chat ?? { affiliated: false, enabled: true };
 	state.alliance_chat_enabled = state.alliance_chat_state.enabled !== false;
@@ -4684,9 +4751,14 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 	if (!conversation || (state.chat_messages_loading && !quiet))
 		return false;
 	const kind = conversation.conversation_kind ?? 'private';
+	const is_current = () => view_generation === chat_view_generation &&
+		(state.selected_chat_conversation?.conversation_kind ?? 'private') === kind &&
+		state.selected_chat_conversation?.conversation_id === conversation.conversation_id &&
+		state.selected_chat_conversation?.support_team_id === conversation.support_team_id;
 	if (kind === 'polls') {
 		const after = quiet && Number.isSafeInteger(state.poll_revision) ? '&after=' + state.poll_revision : '';
-		const res = await api_get('/api/polls?capabilities=' + POLLS_CAPABILITY + after);
+		const res = await api_get('/api/polls?capabilities=' + POLLS_CAPABILITY + after, is_current);
+		if (!is_current()) return false;
 		if (!Array.isArray(res?.polls)) return false;
 		if (Array.isArray(res.deleted_poll_ids) && res.deleted_poll_ids.length > 0) {
 			const deleted = new Set(res.deleted_poll_ids);
@@ -4695,6 +4767,7 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 				deleted.has(state.selected_chat_conversation.conversation_id))
 				state.close_chat_conversation();
 		}
+		if (!after) state.polls = [];
 		for (const poll of res.polls) {
 			const index = state.polls.findIndex(entry => entry.poll_id === poll.poll_id);
 			if (index < 0) state.polls.push(poll); else state.polls[index] = poll;
@@ -4702,6 +4775,7 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 		if (res.discussion_unread_counts)
 			for (const poll of state.polls)
 				poll.discussion_unread_count = res.discussion_unread_counts[poll.poll_id] ?? 0;
+		state.polls_summary = null;
 		state.poll_revision = res.revision;
 		state.poll_can_create = res.can_create === true;
 		return true;
@@ -4724,12 +4798,12 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 		const reaction_parameter = Number.isSafeInteger(state.chat_reaction_revision)
 			? '&reaction_after=' + state.chat_reaction_revision : '';
 		res = await api_get('/api/chat/messages?conversation_kind=' + kind + conversation_parameter + team_parameter +
-			cursor + reaction_parameter + capability_parameter);
+			cursor + reaction_parameter + capability_parameter, is_current);
 		if (Number.isSafeInteger(res?.moderation_count) &&
 			Number.isSafeInteger(conversation.message_moderation_count) &&
 			res.moderation_count !== conversation.message_moderation_count && cursor !== '') {
 			// Match shared-chat moderation: reload visible history when a Message is hidden.
-			res = await api_get('/api/chat/messages?conversation_kind=' + kind + conversation_parameter + team_parameter + capability_parameter);
+			res = await api_get('/api/chat/messages?conversation_kind=' + kind + conversation_parameter + team_parameter + capability_parameter, is_current);
 			cursor = '';
 			prepend = false;
 			moderation_changed = true;
@@ -4738,7 +4812,7 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 			typeof conversation.petition_votes_visible === 'boolean' &&
 			res.petition_votes_visible !== conversation.petition_votes_visible && cursor !== '') {
 			// Revealed ballots can have IDs older than the current polling cursor.
-			res = await api_get('/api/chat/messages?conversation_kind=' + kind + conversation_parameter);
+			res = await api_get('/api/chat/messages?conversation_kind=' + kind + conversation_parameter, is_current);
 			cursor = '';
 			prepend = false;
 			moderation_changed = true;
@@ -4830,18 +4904,20 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 async function refresh_chat_page() {
 	if (!state.is_connected)
 		return;
+	const phase_started = performance.now();
 	const view_generation = ++chat_view_generation;
 	const petition_discussion = state.selected_chat_conversation?.conversation_kind === 'petition-discussion';
 	state.chat_loading = true;
 	try {
-		await Promise.all(petition_discussion
-			? [refresh_chat_state(), refresh_chat_messages('', false, false, view_generation)]
-			: [refresh_chat_state(), refresh_chat_conversations()]);
-		if (state.selected_chat_conversation && !petition_discussion)
-			await refresh_chat_messages('', false, false, view_generation);
+		await Promise.all([
+			refresh_chat_state(),
+			...(petition_discussion ? [] : [refresh_chat_conversations()]),
+			...(state.selected_chat_conversation ? [refresh_chat_messages('', false, false, view_generation)] : [])
+		]);
 		if (state.selected_chat_conversation && view_generation === chat_view_generation)
 			await state.scroll_chat_messages_to_bottom();
 	} finally {
+		transport_diagnostics?.phase('chat', performance.now() - phase_started);
 		if (view_generation === chat_view_generation) {
 			state.chat_loading = false;
 			start_chat_polling();
@@ -4917,6 +4993,14 @@ async function refresh_guild_state(force = false) {
 	}
 }
 
+async function refresh_initial_guild_state() {
+	const generation = session_generation;
+	// Let the first Events revision invalidate old reads before hydrating eligibility.
+	// A failed Events request must not leave Guild eligibility unresolved.
+	await get_client_events();
+	if (generation === session_generation && state.is_connected) await refresh_guild_state();
+}
+
 async function refresh_guild_state_after_invalidation() {
 	const pending_refresh = guild_state_refresh_request;
 	if (pending_refresh !== null)
@@ -4974,7 +5058,7 @@ async function refresh_guild_state_request() {
 			state.market_completed = [];
 			state.market_results = [];
 			state.market_listings = [];
-			state.crucible = null;
+			state.crucible = null; state.crucible_summary = null;
 		}
 
 		return res;
@@ -4997,7 +5081,8 @@ async function refresh_guild_members(page = 0, search = state.guild_member_searc
 		return;
 	state.guild_member_directory_loading = true;
 	try {
-		const res = await api_get('/api/guilds/members?page=' + page + '&search=' + encodeURIComponent(search));
+		const res = await api_get('/api/guilds/members?page=' + page + '&search=' + encodeURIComponent(search) + '&game_mode_ids=' + encodeURIComponent(JSON.stringify(
+			game_mode_sharing.search_game_mode_ids(search, game.gamemodes?.allObjects ?? []))));
 		if (res !== null) {
 			const members = (res.members ?? []).map(member => ({
 				...member,
@@ -5103,7 +5188,9 @@ async function refresh_shadowed_members(page = 0, search = state.shadowed_member
 		return;
 	state.shadowed_member_directory_loading = true;
 	try {
-		const res = await api_get('/api/guilds/members/shadowed?page=' + page + '&search=' + encodeURIComponent(search));
+		const modes = game_mode_sharing.search_game_mode_ids(search, game.gamemodes?.allObjects ?? []);
+		const res = await api_get('/api/guilds/members/shadowed?page=' + page + '&search=' + encodeURIComponent(search) +
+			(modes.length ? '&game_mode_ids=' + encodeURIComponent(JSON.stringify(modes)) : ''));
 		if (res !== null) {
 			const members = (res.members ?? []).map(member => ({
 				...member,
@@ -5136,18 +5223,22 @@ async function refresh_guild_list() {
 }
 
 async function refresh_guild_page() {
-	setup_guild_icons();
-	await get_client_events();
-	await prepare_page_snapshot('guild');
-	await refresh_guild_state();
-
-	if (state.is_guild_member) {
-		state.shadowed_member_count = 0;
-		await Promise.all([refresh_council(), refresh_shadowed_members(), refresh_guild_activity()]);
-		await state.refresh_alliance();
+	const phase_started = performance.now();
+	try {
+		setup_guild_icons();
+		await get_client_events();
+		await prepare_page_snapshot('guild');
+		await refresh_guild_state();
+		if (state.is_guild_member) {
+			state.shadowed_member_count = 0;
+			await Promise.all([refresh_council(), refresh_shadowed_members(), refresh_guild_activity()]);
+			await state.refresh_alliance();
+		}
+		else if (state.guild_state.affiliation === 'none')
+			await refresh_guild_list();
+	} finally {
+		transport_diagnostics?.phase('guild', performance.now() - phase_started);
 	}
-	else if (state.guild_state.affiliation === 'none')
-		await refresh_guild_list();
 }
 
 function set_guild_page_visible(is_visible) {
@@ -5264,7 +5355,7 @@ async function refresh_council(page = 0, append = false) {
 		if (res !== null) {
 			if (Number.isSafeInteger(res.server_time)) state.council_time_offset = res.server_time - Date.now();
 			state.council_update_time = Date.now() + state.council_time_offset;
-			await state.resolve_alliance_petition_guilds(res.petitions ?? []);
+			void state.resolve_alliance_petition_guilds(res.petitions ?? []);
 			if (append) {
 				const known = new Set(state.council_petitions.map(petition => petition.petition_id));
 				state.council_petitions.push(...res.petitions.filter(petition => !known.has(petition.petition_id)));
@@ -5306,13 +5397,19 @@ async function get_client_events(reconcile_gifts = true) {
 
 async function get_client_events_request(reconcile_gifts, request_generation) {
 	const endpoint = client_events_hydrated && !rollback_client?.needs_full()
-		? '/api/events?revision=' + client_event_revision + '&capabilities=' + CHAT_CAPABILITIES + '&pending_preview=1'
-		: '/api/events?capabilities=' + CHAT_CAPABILITIES + '&pending_preview=1';
-	const res = await api_get(endpoint);
+		? '/api/events?revision=' + client_event_revision + '&capabilities=' + CHAT_CAPABILITIES + '&pending_preview=1&summaries=1&guild_revision=' + last_guild_revision
+		: '/api/events?capabilities=' + CHAT_CAPABILITIES + '&pending_preview=1&summaries=1';
+	const listing_filters = state.listing_filters.join(',');
+	const res = await api_get(endpoint + '&listing_filters=' + encodeURIComponent(listing_filters));
 	if (res !== null && request_generation === session_generation) {
 		if (enter_unsupported_multiplayer(res.minimum_supported_mod_version))
 			return res;
-		void state.refresh_crucible();
+		if (listing_filters === state.listing_filters.join(',') && Object.hasOwn(res, 'crucible_summary')) {
+			state.crucible_summary = res.crucible_summary;
+			update_crucible_nav();
+			void recover_paid_wish_actions();
+			if (crucible_page_visible && !crucible_page_hydrating) void state.refresh_crucible();
+		} else if (!crucible_page_hydrating) void state.refresh_crucible();
 		void maybe_auto_check_in_expedition();
 		if (state.expedition_state?.tracking && !state.expedition_pending_report &&
 			Date.now() - last_expedition_work_observed_at >= 15 * 60_000)
@@ -5320,6 +5417,7 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 		if (state.expedition_state?.tracking && !state.expedition_pending_report && !state.expedition_action_pending &&
 			Date.now() - last_expedition_state_refresh_at >= EXPEDITION_STATE_REFRESH_INTERVAL)
 			void refresh_expedition_state();
+		apply_dev_badge_labels(res.dev_badge_labels);
 		check_released_mod_version(res.released_mod_version);
 		rollback_client?.consume(res.rollback);
 		void rollback_client?.calibrate();
@@ -5333,9 +5431,12 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 		}
 		economy_commands_ready = false;
 		client_events_have_pending = polling.has_pending_events(res);
-		// Events invalidate event-backed snapshots, not unrelated startup/Chat reads.
-		read_cache.invalidate(key => CACHED_READS.has(key) || key.startsWith('/api/pages/snapshot?'));
-		invalidate_guild_state();
+		const revision_scope = server_host + ':' + session_generation;
+		const guild_changed = guild_revision_scope !== revision_scope || !Number.isSafeInteger(res.guild_revision) || res.guild_revision !== last_guild_revision;
+		guild_revision_scope = revision_scope; last_guild_revision = res.guild_revision;
+		read_cache.invalidate(key => (CACHED_READS.has(key) || key.startsWith('/api/pages/snapshot?')) &&
+			(guild_changed || !/\/(?:guilds|alliances)(?:\/|$)|page=(?:guild|decisions)/.test(key)));
+		if (guild_changed) invalidate_guild_state();
 		if (state.is_transfer_page_visible) {
 			await prepare_page_snapshot('transfers');
 			schedule_transfer_history_refresh();
@@ -5407,9 +5508,12 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 			if (guild_state?.affiliation === 'none')
 				await refresh_guild_list();
 		}
-		else if (state.is_guild_member) {
+		else if (guild_changed || !state.guild_state_loaded) {
 			await prepare_page_snapshot(guild_page_visible ? 'guild' : 'decisions');
-			await Promise.all([refresh_guild_state(), state.refresh_alliance(), refresh_council()]);
+			if (request_generation !== session_generation) return null;
+			await refresh_guild_state();
+			if (request_generation !== session_generation) return null;
+			if (state.is_guild_member) await Promise.all([state.refresh_alliance(), refresh_council()]);
 		}
 		update_guild_nav();
 		show_pending_banishment_notice();
@@ -5483,12 +5587,14 @@ function handle_runtime_visibility_change() {
 
 // #region SETUP FUNCTIONS
 export async function setup(ctx) {
+	const setup_started = performance.now();
 	const loaded_save_module = await ctx.loadModule('loaded-save.mjs');
 	loaded_save_tracker = loaded_save_module.create_loaded_save_tracker({ uuid: () => crypto.randomUUID(), now: () => Date.now() });
 	loaded_save_module.install_loaded_save_capture(ctx, typeof Game === 'undefined' ? null : Game, loaded_save_tracker);
 	const { create_asset_url_resolver } = await ctx.loadModule('asset-urls.mjs');
 	get_mod_asset_url = create_asset_url_resolver(await ctx.loadData('asset-urls.json'), media => ctx.getResourceUrl(media));
 	const { ModalQueueGuard, ModalComponentRegistry } = await ctx.loadModule('modal-queue.mjs');
+	listing_filter_prompt_module = await ctx.loadModule('listing-filter-prompt.mjs');
 	changelog_loader = await ctx.loadModule('changelog.mjs');
 	updates_loader = await ctx.loadModule('updates.mjs');
 	const raid_module = await ctx.loadModule('raid-combat.mjs');
@@ -5521,8 +5627,8 @@ export async function setup(ctx) {
 	const server_config = await ctx.loadModule('server-config.mjs');
 	polling = await ctx.loadModule('polling.mjs');
 	const requests = await ctx.loadModule('request-coordinator.mjs');
-	request_scheduler = requests.create_request_scheduler();
-	read_cache = requests.create_read_cache({ scope: () => server_host + ':' + session_generation });
+	request_scheduler = requests.create_request_scheduler({ observe: entry => transport_diagnostics?.measure(entry) });
+	read_cache = requests.create_read_cache({ scope: () => server_host + ':' + session_generation, observe: entry => transport_diagnostics?.measure(entry) });
 	api_contract = await ctx.loadModule('api-contract.mjs');
 	economy_command_module = await ctx.loadModule('economy-command-journal.mjs');
 	identity_bindings = await ctx.loadModule('identity-bindings.mjs');
@@ -5545,13 +5651,14 @@ export async function setup(ctx) {
 	status_activities = await ctx.loadModule('status-activities.mjs');
 	expedition_tasks = await ctx.loadModule('expedition-tasks.mjs');
 	expedition_view = await ctx.loadModule('expedition-view.mjs');
-	const image_particles = await ctx.loadModule('image-particles.mjs');
-	const crucible_heat = await ctx.loadModule('crucible-heat.mjs');
-	const expedition_crystals = await ctx.loadModule('expedition-crystals.mjs');
-	const expedition_haze = await ctx.loadModule('expedition-haze.mjs');
-	const expedition_observatory = await ctx.loadModule('expedition-observatory.mjs');
-	const expedition_orrery = await ctx.loadModule('expedition-orrery.mjs');
-	const expedition_snow = await ctx.loadModule('expedition-snow.mjs');
+	// Independent renderer modules: load together after save capture and core runtime setup.
+	const [image_particles, crucible_heat, expedition_crystals, expedition_haze, expedition_observatory,
+		expedition_orrery, expedition_snow] = await Promise.all([
+		ctx.loadModule('image-particles.mjs'), ctx.loadModule('crucible-heat.mjs'),
+		ctx.loadModule('expedition-crystals.mjs'), ctx.loadModule('expedition-haze.mjs'),
+		ctx.loadModule('expedition-observatory.mjs'), ctx.loadModule('expedition-orrery.mjs'),
+		ctx.loadModule('expedition-snow.mjs')
+	]);
 	state.expedition_snow = { ...expedition_snow.DEFAULT_SNOW_SETTINGS };
 	status_statistics = await ctx.loadModule('status-statistics.mjs');
 	icon_catalog_discovery = await ctx.loadModule('icon-catalog-discovery.mjs');
@@ -5572,7 +5679,7 @@ export async function setup(ctx) {
 	custom_server_max_length = server_config.CUSTOM_SERVER_MAX_LENGTH;
 	const { install_common_actions } = await ctx.loadModule('client-actions-common.mjs');
 	const { install_chat_actions } = await ctx.loadModule('client-actions-chat.mjs');
-	const chat_items = await ctx.loadModule('chat-items.mjs');
+	chat_items = await ctx.loadModule('chat-items.mjs');
 	const { install_market_actions } = await ctx.loadModule('client-actions-market.mjs');
 	const { install_crucible_actions } = await ctx.loadModule('client-crucible.mjs');
 	const { install_trading_actions } = await ctx.loadModule('client-actions-trading.mjs');
@@ -5663,6 +5770,10 @@ export async function setup(ctx) {
 			format_guild_activity_time,
 			set_updates_mobile_tab,
 			load_transfer_history: (pane, append = false) => load_transfer_history(pane, append),
+			toggle_transfer_history: pane => {
+				state.transfers_history_open[pane] = !state.transfers_history_open[pane];
+				if (state.transfers_history_open[pane]) void load_transfer_history(pane);
+			},
 			get_transfer_history_entries: pane => transfer_history_module.visible_transfer_history(state.transfer_history[pane], state.transfer_history_clock).slice(0, state.transfer_history[pane].visible_count),
 			has_more_transfer_history: pane => state.transfer_history[pane].entries.length > state.transfer_history[pane].visible_count || !!state.transfer_history[pane].next_cursor,
 			get_transfer_history_items: entry => transfer_history_module.transfer_history_items(entry.items, item_id => transfer_currency_support.is_transfer_currency(game, item_id)),
@@ -5743,6 +5854,10 @@ export async function setup(ctx) {
 	await patch_localization(ctx);
 
 	install_social_mode_setting(ctx);
+	connection_diagnostics.install_loading_report(ctx, {
+		t: key => getLangString('MOD_MP_LOADING_REPORT_' + key), get_report: get_connection_report
+	});
+	transport_diagnostics.phase('setup', performance.now() - setup_started);
 	const mode_settings_section = ctx.settings.section(getLangString('MOD_MP_SETTINGS_MODE_SECTION'));
 	mode_settings_section.add({
 		type: 'social-mode',
@@ -5790,6 +5905,7 @@ export async function setup(ctx) {
 
 	});
 	ctx.onCharacterSelectionLoaded(() => {
+		listing_filter_prompt?.stop();
 		set_crucible_page_visible(false);
 		loaded_save_tracker.clear();
 		set_expedition_page_visible(false);
@@ -5803,7 +5919,6 @@ export async function setup(ctx) {
 			attributes: [['lang-id', 'MOD_MP_MENU_HEADER']]
 		})
 	});
-	
 	ctx.onInterfaceReady(() => {
 		interface_ready = true;
 		void rollback_client?.pump_notice();
@@ -5829,6 +5944,7 @@ export async function setup(ctx) {
 		if (!customElements.get('mp-expedition-orrery')) customElements.define('mp-expedition-orrery',
 			image_particles.create_image_particle_element({ create_renderer: expedition_orrery.create_orrery_renderer }));
 		const setup_interface = $main_container => {
+			const interface_started = performance.now();
 			setup_account_menu();
 			watch_chat_nav();
 			setup_mobile_sidebar_unread();
@@ -5837,8 +5953,10 @@ export async function setup(ctx) {
 			update_multiplayer_nav();
 			update_raid_nav();
 
-			for (const page of ['guild', 'raid', 'expedition', 'chat', 'transfer', 'crucible', 'market', 'updates'])
+			for (const page of ['guild', 'raid', 'expedition', 'chat', 'transfer', 'crucible', 'market', 'updates']) {
 				make_scoped_template(page + '-page', $main_container);
+			}
+			transport_diagnostics.phase('interface', performance.now() - interface_started);
 			setup_chat_sticky_header();
 			void refresh_changelog();
 			void refresh_updates();
@@ -5856,7 +5974,7 @@ export async function setup(ctx) {
 				chat_page_visible = is_visible;
 				if (is_visible) update_chat_header_offset();
 				if (is_visible && state.is_connected) {
-					void get_client_events();
+					// Chat hydrates its own inbox/configuration; polling owns Events.
 					void refresh_chat_page();
 				} else {
 					chat_view_generation++;
@@ -5868,12 +5986,22 @@ export async function setup(ctx) {
 				set_crucible_page_visible(is_visible);
 				if (!is_visible)
 					return;
-				await Promise.all([get_client_events(), refresh_guild_state()]);
-				await recover_pending_crucible_wish_actions();
-				await state.refresh_crucible(true);
+				const entry = crucible_page_entry;
+				try {
+					await get_client_events();
+					if (entry !== crucible_page_entry) return;
+					await refresh_guild_state();
+					if (entry !== crucible_page_entry) return;
+					await recover_pending_crucible_wish_actions();
+					if (entry !== crucible_page_entry) return;
+					await state.refresh_crucible(true);
+				} finally {
+					if (entry === crucible_page_entry) crucible_page_hydrating = false;
+				}
 			}, false);
 			on_page_toggle('mp-market-page', async () => {
-				await Promise.all([get_client_events(), refresh_guild_state()]);
+				await get_client_events();
+				await refresh_guild_state();
 				await update_market_page(true);
 			}, true);
 			on_page_toggle('mp-updates-page', is_visible => {
@@ -6268,7 +6396,8 @@ function patch_bank_actions() {
 		state.is_transfer_page_visible = is_visible;
 		if (is_visible) {
 			state.transfer_history_clock = performance.now();
-			await Promise.all([get_client_events(), refresh_guild_state()]);
+			await get_client_events();
+			await refresh_guild_state();
 			await prepare_page_snapshot('transfers');
 			await Promise.all([update_transfer_contents(), update_market_haggles(), refresh_transfer_history()]);
 		}
@@ -6310,6 +6439,7 @@ async function start_multiplayer_session() {
 		return;
 
 	is_connecting = true;
+	listing_filter_prompt?.stop();
 	close_expedition_work_prompt();
 	state.is_connected = false;
 	state.pending_preview = null;
@@ -6518,6 +6648,7 @@ function activate_multiplayer_identity(response, timing) {
 	state.global_chat_enabled = response.chat?.global_chat_enabled !== false;
 	state.pending_preview = null;
 	state.account_tags = Array.isArray(response.account_tags) ? response.account_tags : [];
+	apply_dev_badge_labels(response.dev_badge_labels ?? {});
 	state.alliance_access = response.alliance_access === true;
 	state.guild_chat_enabled = response.chat?.guild_chat_enabled !== false;
 	state.guild_chat_state = { affiliated: false, enabled: state.guild_chat_enabled };
@@ -6539,11 +6670,25 @@ function activate_multiplayer_identity(response, timing) {
 	start_client_event_polling(true);
 	if (chat_page_visible)
 		void refresh_chat_page();
-	void refresh_guild_state().then(() => state.refresh_crucible());
+	void refresh_initial_guild_state();
 	void raid_combat?.flush();
 	void refresh_raid_state();
-	void refresh_identities();
 	schedule_equipment_sync(0);
 	schedule_status_sync(0);
+	if (response.listing_filter_prompt_pending === true) {
+		listing_filter_prompt?.stop();
+		listing_filter_prompt = listing_filter_prompt_module.create_listing_filter_prompt({
+			current: () => generation === session_generation && origin === server_host && state.is_connected,
+			idle: () => interface_ready && document.visibilityState !== 'hidden' &&
+				pending_identity_notices.length === 0 && modal_queue_guard.pending_templates.size === 0 &&
+				typeof modalQueue !== 'undefined' && !modalQueuePaused && modalQueue.length === 0 && !modalIsOpen && !Swal.isVisible(),
+			pending: async () => (await api_get('/api/listing-filters/prompt'))?.pending,
+			show: didOpen => state.open_listing_filters_settings({ didOpen }),
+			acknowledge: async () => {
+				const result = await api_post_response('/api/listing-filters/prompt/acknowledge', {}, response.session_token);
+				return result.response?.status === 200 && result.json?.success === true;
+			}
+		});
+	}
 }
 // #endregion

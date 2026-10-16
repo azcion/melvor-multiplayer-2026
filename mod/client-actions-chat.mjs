@@ -389,7 +389,7 @@ export function install_chat_actions(runtime) {
 		show_chat_feature_picker(composer) {
 			feature_picker_composer = composer;
 			this.chat_feature_search = '';
-			this.chat_feature_catalog = items.feature_catalog(game, getLangString);
+			this.chat_feature_catalog = items.feature_catalog(game, getLangString, this.dev_badge_labels);
 			queue_modal('MOD_MP_CHAT_TAG_FEATURE', 'chat-feature-picker-modal', undefined, {
 				showConfirmButton: false,
 				customClass: { popup: 'mp-chat-item-picker-modal-popup' },
@@ -445,6 +445,8 @@ export function install_chat_actions(runtime) {
 				}
 				const name = document.createElement('span');
 				name.textContent = feature.name;
+				const badge = items.badge_feature(feature.id);
+				if (badge) name.className = `badge ${badge.class_name} mp-chat-badge`;
 				button.append(name); fragment.append(button);
 			}
 			host.replaceChildren(fragment);
@@ -580,9 +582,7 @@ export function install_chat_actions(runtime) {
 		get_chat_message_document(message) { return JSON.stringify(this.get_chat_message_parts(message)); },
 
 		get_chat_plain_content(message) {
-			return (message.parts ?? [{ type: 'text', text: message.content ?? '' }]).map(part => part.type === 'text' ? part.text :
-				part.type === 'person' ? part.display_name : part.type === 'feature' ? items.feature_name(game, getLangString, part.feature_id) :
-				game.items.getObjectByID(part.item_id)?.name ?? items.fallback_item_name(part.item_id)).join('');
+			return items.plain_text(game, getLangString, message.parts ?? [{ type: 'text', text: message.content ?? '' }]);
 		},
 
 		load_chat_notification_preferences() {
@@ -905,6 +905,7 @@ export function install_chat_actions(runtime) {
 			if (!res?.success) return show_modal_error(getLangString('MOD_MP_GENERIC_ERR'));
 			const index = this.polls.findIndex(poll => poll.poll_id === res.poll.poll_id);
 			if (index < 0) this.polls.push(res.poll); else this.polls[index] = res.poll;
+			this.polls_summary = null;
 			this.close_modal();
 		},
 
@@ -940,6 +941,7 @@ export function install_chat_actions(runtime) {
 			});
 			if (Number.isFinite(res?.retry_after_ms)) this.poll_vote_throttle_until[key] = now() + res.retry_after_ms;
 			if (res?.poll) {
+				this.polls_summary = null;
 				const index = this.polls.findIndex(entry => entry.poll_id === poll.poll_id);
 				if (index >= 0) this.polls[index] = res.poll;
 			}
@@ -951,6 +953,7 @@ export function install_chat_actions(runtime) {
 				poll_id: poll.poll_id, open: !poll.open
 			});
 			if (res?.poll) {
+				this.polls_summary = null;
 				const index = this.polls.findIndex(entry => entry.poll_id === poll.poll_id);
 				if (index >= 0) this.polls[index] = res.poll;
 			}

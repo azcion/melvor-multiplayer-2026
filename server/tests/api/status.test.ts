@@ -376,6 +376,30 @@ describe('player status API', () => {
 		expect(sae_before.json.members.find(member => member.client_id === pair.second_id)?.sae_dev_badge).toBe(true);
 		expect(sae_hidden.json).toEqual({ success: true, visible: false });
 		expect(sae_after.json.members.find(member => member.client_id === pair.second_id)?.sae_dev_badge).toBe(false);
+		await db_run(
+			"INSERT OR IGNORE INTO `melvor_accounts` (`id`, `cloud_username`, `playfab_id`, `created_at`) VALUES (819, 'osrs-test-account', 'osrs-test-playfab', 1)"
+		);
+		await db_run('UPDATE `clients` SET `melvor_account_id` = 819 WHERE `id` IN (?, ?)', [pair.first_id, pair.second_id]);
+		await post('/api/client/dev-tag/visibility', { visible: true }, owner.json.session_token);
+		await db_run("INSERT INTO service_settings (key, value) VALUES ('dev-badge-label:osrs_overhaul_dev', 'Overhaul Dev') ON CONFLICT(key) DO UPDATE SET value=excluded.value");
+		const osrs_before = await get_json_with_session<{
+			members: Array<{ client_id: number; dev_badge: boolean; sae_dev_badge: boolean; osrs_overhaul_dev_badge: boolean; dev_badge_label: string | null }>;
+		}>('/api/guilds/state', owner.json.session_token);
+		expect(osrs_before.json.members.find(member => member.client_id === pair.first_id)).toMatchObject({
+			dev_badge: false, sae_dev_badge: false, osrs_overhaul_dev_badge: true, dev_badge_label: 'Overhaul Dev'
+		});
+		expect(osrs_before.json.members.find(member => member.client_id === pair.second_id)?.osrs_overhaul_dev_badge).toBe(false);
+		const osrs_visible = await post_json<{ success: boolean; visible: boolean }>(
+			'/api/client/dev-tag/visibility', { visible: true }, pair.second.session_token);
+		expect(osrs_visible.json).toEqual({ success: true, visible: true });
+		await post('/api/client/dev-tag/visibility', { visible: false }, owner.json.session_token);
+		const osrs_after = await get_json_with_session<{ members: Array<{ client_id: number; osrs_overhaul_dev_badge: boolean }> }>(
+			'/api/guilds/state', owner.json.session_token);
+		expect(osrs_after.json.members.find(member => member.client_id === pair.first_id)?.osrs_overhaul_dev_badge).toBe(false);
+		expect(osrs_after.json.members.find(member => member.client_id === pair.second_id)?.osrs_overhaul_dev_badge).toBe(true);
+		const events = await get_json_with_session<{ dev_badge_labels: Record<string, string> }>('/api/events', owner.json.session_token);
+		expect(events.json.dev_badge_labels['multiplayer:Badge_OSRS_Overhaul_Dev']).toBe('Overhaul Dev');
+		await db_run("DELETE FROM service_settings WHERE key='dev-badge-label:osrs_overhaul_dev'");
 	});
 
 	test('shares the latest game mode by default and preserves the runtime snapshot on opt-out', async () => {

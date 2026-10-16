@@ -201,6 +201,7 @@ test('cache-busts authenticated GETs without using the Android-sensitive Fetch c
 	const cache_bust_api_endpoint = new Function(`
 		let API_GET_CACHE_NONCE = 'runtime-nonce';
 		let api_get_request_sequence = 0;
+		const get_device_diagnostics = () => ({ platform: 'unknown' });
 		${cache_buster_source}
 		return cache_bust_api_endpoint;
 	`)();
@@ -518,5 +519,21 @@ test('Guild sidebar keeps a seeded aside and updates empty, count, vote, and gui
 	state.guild_state_loaded = false;
 	update();
 	assert.equal(aside.hidden, true);
-	assert.match(main, /else if \(state.is_guild_member\) \{\s*await prepare_page_snapshot\(guild_page_visible \? 'guild' : 'decisions'\);\s*await Promise.all\(\[refresh_guild_state\(\), state.refresh_alliance\(\), refresh_council\(\)\]\)/);
+	assert.match(main, /else if \(guild_changed \|\| !state.guild_state_loaded\) \{\s*await prepare_page_snapshot\(guild_page_visible \? 'guild' : 'decisions'\);[\s\S]*await refresh_guild_state\(\);[\s\S]*if \(state.is_guild_member\) await Promise.all\(\[state.refresh_alliance\(\), refresh_council\(\)\]\)/);
+});
+
+test('browser GET URLs are stable within a session while native and unknown runtimes keep unique URLs', async () => {
+	const main = await read_client_source(root);
+	const source = main.slice(main.indexOf('function cache_bust_api_endpoint'), main.indexOf('async function prepare_page_snapshot'));
+	const create = (platform, generation) => new Function('get_device_diagnostics', 'session_generation', `
+		const API_GET_CACHE_NONCE = 'runtime'; let api_get_request_sequence = 0;
+		${source}; return cache_bust_api_endpoint;
+	`)(() => ({ platform }), generation);
+	const browser = create('browser', 1);
+	assert.equal(browser('/api/events?revision=1'), browser('/api/events?revision=1'));
+	assert.notEqual(browser('/api/events'), create('browser', 2)('/api/events'));
+	for (const platform of ['android', 'ios', 'steam', 'epic', 'unknown']) {
+		const native = create(platform, 1);
+		assert.notEqual(native('/api/events'), native('/api/events'));
+	}
 });

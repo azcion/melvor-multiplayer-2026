@@ -403,6 +403,7 @@
 	"MOD_MP_GUILD_NEW_MEMBER": "Nuevo miembro",
 	"MOD_MP_GUILD_DEV": "Dev",
 	"MOD_MP_GUILD_DEV_SAE": "SAE Dev",
+	"MOD_MP_GUILD_DEV_OSRS_OVERHAUL": "OSRS Overhaul Dev",
 	"MOD_MP_DEV_TAG_VISIBILITY": "Let others see your Dev tag",
 	"MOD_MP_GUILD_USING_CHEATS": "Usa trampas",
 	"MOD_MP_GUILD_APPLICANTS": "Solicitantes",
@@ -450,6 +451,7 @@
 	"MOD_MP_STATUS_ACTIVITY_COMBAT": "En combate",
 	"MOD_MP_CHAT_PRIVACY_ENABLE": "Permitir mensajes privados",
 	"MOD_MP_GLOBAL_CHAT_ENABLE": "Añadirme al chat global",
+	"MOD_MP_ALLIANCE_CHAT_ENABLE": "Añadirme al chat de alianza",
 	"MOD_MP_GUILD_CHAT_ENABLE": "Añadirme al chat del gremio",
 	"MOD_MP_CHAT_START": "Iniciar chat",
 	"MOD_MP_CHAT_CATEGORY_PRIVATE": "Privado",
@@ -531,7 +533,7 @@
 	"MOD_MP_MODAL_NO_GUILD_MATCHES": "Ningún gremio coincide con tu búsqueda.",
 	"MOD_MP_FREE_FELLOWSHIP_CONFIRM_TITLE": "Unirse a la Hermandad Libre",
 	"MOD_MP_FREE_FELLOWSHIP_CONFIRM_PUBLIC": "La pertenencia es pública en este servidor y no requiere solicitud.",
-	"MOD_MP_FREE_FELLOWSHIP_SEARCH": "Buscar miembros por nombre visible",
+	"MOD_MP_FREE_FELLOWSHIP_SEARCH": "Buscar",
 	"MOD_MP_FREE_FELLOWSHIP_JOINED": "Te has unido a la Hermandad Libre.",
 	"MOD_MP_GUILD_JOINED": "Has entrado en el gremio por sus puertas abiertas.",
 	"MOD_MP_GUILD_LEAVE_WARNING": "Tu progreso multijugador completado y las recompensas pendientes permanecen con esta identidad, pero las contribuciones sin terminar se quedan en este gremio. Primero debes resolver todos los anuncios del mercado, regalos e intercambios. Si eres el último miembro, salir disuelve el gremio de forma permanente y elimina sus registros compartidos.",
@@ -850,7 +852,6 @@
 	"MOD_MP_ALLIANCE_JOIN_EMPTY": "Todavía no hay Alianzas activas a las que unirse.",
 	"MOD_MP_ALLIANCE_PREVIOUS": "Anterior",
 	"MOD_MP_ALLIANCE_NEXT": "Siguiente",
-	"MOD_MP_ALLIANCE_CHAT_ENABLE": "Participar en el chat de alianza",
 	"MOD_MP_ALLIANCE_FREE_FELLOWSHIP": "Comunidad Libre",
 	"MOD_MP_ALLIANCE_STAGE_LOCAL": "Pendiente de aprobación del Consejo local",
 	"MOD_MP_ALLIANCE_STAGE_WAITING": "Esperando al otro gremio",
@@ -1284,5 +1285,9 @@
 	"MOD_MP_CHEAT_CATEGORY_SHOPS": "Trampas de tiendas",
 	"MOD_MP_CHEAT_CATEGORY_LOOT_RNG": "Trampas de botín",
 	"MOD_MP_CHEAT_PRESENCE_NOTICE": "Estos mods se notificaron como cargados en este personaje durante los últimos 7 días. Su presencia no demuestra qué funciones se activaron o utilizaron.",
-	"MOD_MP_CHEAT_EXPIRES": "Caduca en: %s"
+	"MOD_MP_CHEAT_EXPIRES": "Caduca en: %s",
+	"MOD_MP_LOADING_REPORT_TITLE": "Informe de carga",
+	"MOD_MP_LOADING_REPORT_REFRESH": "Generar informe de carga",
+	"MOD_MP_LISTING_FILTERS": "Filtros de anuncios",
+	"MOD_MP_LISTING_FILTERS_DESCRIPTION": "Oculta los anuncios de venta y las ofrendas del Crisol de jugadores con estas insignias."
 }

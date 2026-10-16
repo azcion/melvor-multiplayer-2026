@@ -56,7 +56,7 @@ test('Alt. Magic is distinct from Magic and shares its icon; lowercase concepts 
 	assert.equal(items.official_chat_feature('multiplayer:toString'), false);
 	const concepts = ['alliance', 'alliance member guild', 'guild member', 'petition', 'policy', 'buy order', 'sell listing',
 		'trade', 'gift', 'wish', 'haggle', 'chamber'];
-	assert.deepEqual(catalog.filter(feature => !feature.media).map(feature => feature.name).sort(), concepts.sort());
+	assert.deepEqual(catalog.filter(feature => !feature.media && !items.badge_feature(feature.id)).map(feature => feature.name).sort(), concepts.sort());
 	let ChatComposer;
 	items.register_chat_elements({ game, HTMLElement: class {}, customElements: {
 		define(name, element) { if (name === 'mp-chat-composer') ChatComposer = element; }
@@ -68,7 +68,7 @@ test('Alt. Magic is distinct from Magic and shares its icon; lowercase concepts 
 	for (const feature of catalog) {
 		const part = { type: 'feature', feature_id: feature.id };
 		assert.equal(items.official_chat_feature(feature.id), true);
-		assert.equal(items.fallback_text([part]), '$' + feature.name);
+		assert.equal(items.fallback_text([part]), items.badge_feature(feature.id) ? `[${feature.name}]` : '$' + feature.name);
 		composer.insert_feature(feature.id);
 		assert.deepEqual(inserted, [part, text(' ')]);
 	}
@@ -211,6 +211,44 @@ test('rendering resolves item names independently of chat translation and keeps 
 	assert.equal(state.get_chat_plain_content({ parts: [stardust] }), 'Golden Stardust');
 	assert.deepEqual(state.get_chat_message_parts({ ...message, sender_id: 1 }), message.parts);
 	assert.deepEqual(state.get_chat_message_parts({ content: '<img onerror=x>', sender_id: 1 }), [text('<img onerror=x>')]);
+});
+
+test('message actions and selected copy/cut share localized tag names without changing wire text', () => {
+	const { state, game, runtime } = context();
+	runtime.getLangString = id => ({ MOD_MP_PAGE_RAID: '突袭 (preview)', MOD_MP_CHEAT_CATEGORY_ITEMS: '物品作弊',
+		MOD_MP_CHAT_FEATURE_ALLIANCE: '联盟' })[id] ?? id;
+	Object.assign(state, install_chat_actions(runtime));
+	const parts = [sword, text(' / '), stardust, text(' / '), raid_feature, text(' / '),
+		{ type: 'feature', feature_id: 'multiplayer:Badge_Item_Cheats' }, text(' / '),
+		{ type: 'feature', feature_id: 'multiplayer:Alliance' }, text(' / '),
+		{ type: 'person', client_id: 2, display_name: 'Lucy', icon_id: 'multiplayer' }];
+	const expected = '青铜剑 / Golden Stardust / 突袭 / 物品作弊 / 联盟 / Lucy';
+	const original = structuredClone(parts);
+	assert.equal(state.get_chat_plain_content({ parts }), expected);
+	assert.equal(state.get_chat_plain_content({ content: 'legacy [Item] $Raid @Lucy' }), 'legacy [Item] $Raid @Lucy');
+	assert.equal(state.get_chat_plain_content({}), '');
+	assert.equal(items.fallback_text(parts), '[Bronze Sword] / [Golden Stardust] / $Raid / [Item Cheats] / $alliance / @Lucy');
+	let Composer;
+	items.register_chat_elements({ game, getLangString: runtime.getLangString, HTMLElement: class {},
+		customElements: { define(name, element) { if (name === 'mp-chat-composer') Composer = element; } } });
+	const composer = new Composer();
+	composer.parts = [text('before '), ...parts, text(' after')];
+	const end = 7 + items.parts_length(parts);
+	composer.selection = () => [7, end];
+	const removed = [], copied = [];
+	composer.replace_selection = (...args) => removed.push(args);
+	let prevented = 0;
+	const event = { preventDefault() { prevented++; }, clipboardData: { setData(...args) { copied.push(args); } } };
+	composer.copy(event, false);
+	assert.deepEqual(removed, []);
+	composer.copy(event, true);
+	assert.deepEqual(copied, [['text/plain', expected], ['text/plain', expected]]);
+	assert.deepEqual(removed, [[[], [7, end]]]);
+	composer.selection = () => [7, 7];
+	composer.copy(event, true);
+	assert.equal(prevented, 2);
+	assert.equal(removed.length, 1);
+	assert.deepEqual(parts, original);
 });
 
 test('item actions use the native wiki name and open a matching marketplace direction', async () => {
@@ -481,4 +519,100 @@ test('person picker renders at most 100 results after searching the complete cat
 	assert.equal(state.get_chat_person_results().length, 100);
 	state.chat_person_search = 'Person 149';
 	assert.deepEqual(state.get_chat_person_results().map(person => person.id), [149]);
+});
+
+
+test('badge catalog uses existing labels and styles, renders selectable text, and copies localized text', () => {
+	const game = {};
+	const getLangString = key => key === 'MOD_MP_CHEAT_CATEGORY_ITEMS' ? '物品作弊' : key;
+	const catalog = items.feature_catalog(game, getLangString);
+	assert.equal(catalog.filter(feature => items.badge_feature(feature.id)).length, 13);
+	assert.equal(items.official_chat_feature('multiplayer:Badge_Fake'), false);
+	const node = name => ({ name, dataset: {}, children: [],
+		append(...children) { this.children.push(...children); },
+		replaceChildren(fragment) { this.children = fragment.children; },
+		get childNodes() { return this.children; }, setAttribute() {}
+	});
+	let Message, Composer;
+	const badge_state = {};
+	items.register_chat_elements({ game, getLangString, state: badge_state,
+		document: { createElement: node, createDocumentFragment: () => node('fragment'),
+			createTextNode: text => ({ text, textContent: text, nodeType: 3 }) },
+		HTMLElement: class { replaceChildren(fragment) { this.children = fragment.children; } },
+		customElements: { define(name, element) { if (name === 'mp-chat-message-body') Message = element; else Composer = element; } }
+	});
+	for (const [key, { name: label, class_name: style }] of Object.entries(items.BADGE_FEATURES)) {
+		const part = { type: 'feature', feature_id: `multiplayer:${key}` };
+		assert.deepEqual(items.compact_parts([part]), [part]);
+		assert.equal(items.fallback_text([part]), `[${label}]`);
+		assert.equal(items.feature_media(game, part.feature_id), null);
+		const message = new Message(); message.getAttribute = () => JSON.stringify([text('Discuss '), part]); message.render();
+		const chip = message.children[1];
+		assert.equal(chip.name, 'span');
+		assert.equal(chip.className, `badge ${style} mp-chat-badge`);
+		assert.equal(chip.dataset.featureId, part.feature_id);
+		assert.equal(chip.children[0].text, key === 'Badge_Item_Cheats' ? '物品作弊' : label);
+		const composer = new Composer(); composer.parts = [text('Discuss '), part, text(' now')];
+		composer.selection = () => [0, items.parts_length(composer.parts)];
+		let copied;
+		composer.copy({ preventDefault() {}, clipboardData: { setData(type, value) { copied = value; } } }, false);
+		assert.equal(copied, `Discuss ${chip.children[0].text} now`);
+		composer.editor = node('editor');
+		composer.hasAttribute = () => false;
+		composer.getAttribute = name => name === 'value' ? JSON.stringify({ key: 'global', parts: [text('Discuss '), part] }) : '';
+		composer.sync();
+		const editable_chip = composer.editor.children[1];
+		assert.equal(editable_chip.name, 'span');
+		assert.equal(editable_chip.contentEditable, 'false');
+		assert.equal(editable_chip.className, chip.className);
+		assert.equal(editable_chip.children[0].text, chip.children[0].text);
+		assert.deepEqual(composer.read_dom(composer.editor), [text('Discuss '), part]);
+	}
+	badge_state.dev_badge_labels = { 'multiplayer:Badge_OSRS_Overhaul_Dev': 'Overhaul Dev' };
+	const renamed = new Message();
+	renamed.getAttribute = () => JSON.stringify([{ type: 'feature', feature_id: 'multiplayer:Badge_OSRS_Overhaul_Dev' }]);
+	renamed.render();
+	assert.equal(renamed.children[0].children[0].text, 'Overhaul Dev');
+});
+
+
+test('server developer labels override display and copy text without changing stable feature IDs', () => {
+	const id = 'multiplayer:Badge_OSRS_Overhaul_Dev';
+	const labels = { [id]: 'Overhaul Dev' };
+	const part = { type: 'feature', feature_id: id };
+	assert.equal(items.feature_name({}, key => key, id, labels), 'Overhaul Dev');
+	assert.equal(items.feature_catalog({}, key => key, labels).find(feature => feature.id === id).name, 'Overhaul Dev');
+	assert.equal(items.plain_text({}, key => key, [part], labels), 'Overhaul Dev');
+	assert.equal(items.fallback_text([part]), '[OSRS Overhaul Dev]');
+	for (const label of ['', ' bad ', 'a'.repeat(61), 'bad\nlabel', null]) {
+		assert.equal(items.valid_dev_badge_label(label), false);
+		assert.equal(items.feature_name({}, key => key, id, { [id]: label }), 'OSRS Overhaul Dev');
+	}
+});
+
+
+test('event label updates refresh visible Chat badges and clear previous-server overrides', async () => {
+	const source = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const start = source.indexOf('function apply_dev_badge_labels(');
+	const end = source.indexOf('async function refresh_chat_state()', start);
+	const state = { dev_badge_labels: {} };
+	const chip = { dataset: { featureId: 'multiplayer:Badge_OSRS_Overhaul_Dev' }, firstChild: { nodeType: 3, nodeValue: 'OSRS Overhaul Dev' } };
+	const globals = source.slice(source.indexOf('// #region GLOBALS'), source.indexOf('const state ='));
+	const declaration = globals.match(/^let chat_items = null;$/m)?.[0];
+	const initialization = source.match(/^\tchat_items = await ctx\.loadModule\('chat-items\.mjs'\);$/m)?.[0];
+	assert.ok(declaration, 'Chat helpers need the shared module binding');
+	assert.ok(initialization, 'setup must initialize the shared binding rather than shadow it');
+	const runtime = new Function('ctx', 'state', 'game', 'getLangString', 'document',
+		`${declaration}\nasync function initialize() { ${initialization} }\n${source.slice(start, end)}\nreturn { initialize, apply: apply_dev_badge_labels };`)(
+		{ loadModule: async path => { assert.equal(path, 'chat-items.mjs'); return items; } },
+		state, {}, key => key, { querySelectorAll: () => [chip] });
+	await runtime.initialize();
+	const apply = runtime.apply;
+	apply({ 'multiplayer:Badge_OSRS_Overhaul_Dev': 'Overhaul Dev', 'multiplayer:Badge_Fake': 'Fake' });
+	assert.deepEqual(state.dev_badge_labels, { 'multiplayer:Badge_OSRS_Overhaul_Dev': 'Overhaul Dev' });
+	assert.equal(chip.firstChild.nodeValue, 'Overhaul Dev');
+	apply(null);
+	assert.equal(chip.firstChild.nodeValue, 'Overhaul Dev');
+	apply({});
+	assert.equal(chip.firstChild.nodeValue, 'OSRS Overhaul Dev');
 });

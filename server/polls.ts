@@ -87,6 +87,17 @@ function poll_view(client_id: number, poll_id: number) {
 	return translated_poll!;
 }
 
+// Inbox metadata deliberately excludes questions, options, votes and discussion bodies.
+export function poll_inbox_summary(client_id: number, mod_version: string | null) {
+	if (!can_view_polls(mod_version)) return null;
+	const owner = get_poll_owner_key(client_id);
+	const row = db.query<{ open_uninteracted: number }, [string]>(
+		'SELECT COUNT(*) AS open_uninteracted FROM polls p WHERE p.closed_at IS NULL ' +
+		'AND NOT EXISTS(SELECT 1 FROM poll_interactions i WHERE i.poll_id=p.id AND i.owner_key=?)'
+	).get(owner);
+	return { open_uninteracted: row?.open_uninteracted ?? 0, can_create: can_create_poll(client_id) };
+}
+
 export function list_polls(client_id: number, mod_version: string | null, after_revision: number | null): PollResult<{
 	polls: NonNullable<ReturnType<typeof poll_view>>[]; deleted_poll_ids: number[]; revision: number; can_create: boolean;
 	discussion_unread_counts?: Record<number, number>

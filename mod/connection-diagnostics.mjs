@@ -51,7 +51,7 @@ export function create_installation_store(storage, random_uuid = () => crypto.ra
 	return { read, update };
 }
 
-// Only known fixed API routes may appear in a report. No query strings, arbitrary paths, or payloads.
+// Only known fixed API routes and enumerated read-model labels may appear. Never retain raw queries or payloads.
 const ROUTES = new Set(["/api/installations/enroll", "/api/authenticate", "/api/banishment/returns/acknowledge", "/api/banishment/returns/claim", "/api/chat/block", "/api/chat/conversations", "/api/chat/conversations/delete", "/api/chat/conversations/start", "/api/chat/global-participation", "/api/chat/guild-participation", "/api/chat/messages", "/api/chat/messages/delete", "/api/chat/messages/send", "/api/chat/privacy", "/api/chat/state", "/api/client/active-mods/visibility", "/api/client/activity/visibility", "/api/client/dev-tag/visibility", "/api/client/equipment/sync", "/api/client/equipment/visibility", "/api/client/game-mode/visibility", "/api/client/gp/visibility", "/api/client/icon-catalog/check", "/api/client/icon-catalog/upload", "/api/client/set_display_name", "/api/client/set_icon", "/api/client/skills/visibility", "/api/client/status/sync", "/api/client/status/visibility", "/api/economy/receipts/acknowledge", "/api/events", "/api/friends/accept", "/api/friends/add", "/api/friends/get", "/api/friends/ignore", "/api/friends/remove", "/api/gift/accept", "/api/gift/decline", "/api/gift/discard", "/api/gift/send", "/api/guilds/active-mods", "/api/guilds/activity", "/api/guilds/application/decide", "/api/guilds/apply", "/api/guilds/council", "/api/guilds/create", "/api/guilds/equipment", "/api/guilds/join", "/api/guilds/join-free", "/api/guilds/leave", "/api/guilds/list", "/api/guilds/members", "/api/guilds/members/shadowed", "/api/guilds/petitions/raise", "/api/guilds/petitions/vote", "/api/guilds/petitions/withdraw", "/api/guilds/state", "/api/guilds/status", "/api/guilds/withdraw", "/api/identities", "/api/identities/delete", "/api/identities/delete/cancel", "/api/inbox", "/api/inbox/acknowledge", "/api/inbox/claim", "/api/market/buy", "/api/market/buy-order", "/api/market/cancel", "/api/market/catalog", "/api/market/destroy", "/api/market/fulfill", "/api/market/listings", "/api/market/payout", "/api/market/search", "/api/market/sell", "/api/raids/activate", "/api/raids/assaults/abandon", "/api/raids/assaults/reserve", "/api/raids/assaults/settle", "/api/raids/cache", "/api/raids/cache/acknowledge", "/api/raids/state", "/api/register", "/api/social-mode/cancel", "/api/trade/accept", "/api/trade/cancel", "/api/trade/counter", "/api/trade/decline", "/api/trade/offer", "/api/trade/resolve", "/api/transfers/get_contents"]);
 ROUTES.add('/api/pages/snapshot');
 ROUTES.add('/api/transfers/history');
@@ -71,20 +71,50 @@ ROUTES.add('/api/expedition/supply/donate');
 ROUTES.add('/api/market/claim-legacy-payouts');
 ROUTES.add('/api/versions');
 ROUTES.add('/api/chat/messages/reaction');
+ROUTES.add('/api/crucible/contents');
 export function diagnostic_route(url) {
 	try {
 		const path = new URL(url, 'https://diagnostic.invalid').pathname.replace(/^\/api\/v2\//, '/api/');
 		return ROUTES.has(path) ? path : 'other';
 	} catch { return 'other'; }
 }
+function diagnostic_read_model(url, route) {
+	if (!['/api/expedition/state', '/api/pages/snapshot'].includes(route)) return {};
+	try {
+		const params = new URL(url, 'https://diagnostic.invalid').searchParams;
+		const views = params.getAll('view');
+		const view = views.length === 0 ? null : views.length === 1 ? views[0] : 'unknown';
+		if (route === '/api/expedition/state')
+			return { read_view: view === null ? 'full' : view === 'tracking' ? 'tracking' : 'unknown' };
+		const pages = params.getAll('page');
+		return {
+			snapshot_page: pages.length === 1 && ['transfers', 'guild', 'decisions'].includes(pages[0]) ? pages[0] : 'unknown',
+			read_view: view === null ? 'default' : view === 'active' ? 'active' : 'unknown'
+		};
+	} catch { return {}; }
+}
 export function create_transport_diagnostics(now = Date.now) {
 	const entries = [];
+	const phases = [], counters = { cache_hit: 0, coalesced: 0, invalidation: 0, dispatch: 0, max_queue_depth: 0 };
+	function measure(entry) {
+		if (Object.hasOwn(counters, entry.kind)) counters[entry.kind]++;
+		if (entry.kind === 'dispatch') counters.max_queue_depth = Math.max(counters.max_queue_depth, entry.depth || 0);
+	}
+	function phase(name, duration_ms) {
+		if (!['setup', 'interface', 'chat', 'guild', 'expedition', 'snapshot-inbox', 'snapshot-haggles',
+			'snapshot-history-inbox', 'snapshot-history-outbox', 'snapshot-history-pending'].includes(name)) return;
+		phases.push({ name, duration_ms: Math.max(0, Math.round(duration_ms) || 0) });
+		if (phases.length > 30) phases.shift();
+	}
 	function record(entry) {
-		entries.push({ at: new Date(now()).toISOString(), route: diagnostic_route(entry.route),
+		const route = diagnostic_route(entry.route);
+		entries.push({ at: new Date(now()).toISOString(), route,
+			...(entry.method === 'GET' ? diagnostic_read_model(entry.route, route) : {}),
 			method: entry.method === 'GET' ? 'GET' : 'POST',
 			session_state: entry.session_state === 'replaced' ? 'replaced' : null,
 			status: Number.isInteger(entry.status) && entry.status >= 100 && entry.status <= 599 ? entry.status : null,
 			duration_ms: Math.max(0, Math.min(60000, Math.round(entry.duration_ms) || 0)),
+			queue_wait_ms: Math.max(0, Math.min(3600000, Math.round(entry.queue_wait_ms) || 0)),
 			outcome: ['ok', 'http_error', 'timeout', 'network_error', 'response_error'].includes(entry.outcome) ? entry.outcome : 'network_error' });
 		if (entries.length > 50) entries.shift();
 	}
@@ -97,9 +127,10 @@ export function create_transport_diagnostics(now = Date.now) {
 				platform: ['android', 'ios', 'steam', 'epic', 'browser', 'unknown'].includes(device?.platform) ? device.platform : 'unknown',
 				engine: ['gecko', 'chromium', 'webkit', 'unknown'].includes(device?.engine) ? device.engine : 'unknown',
 				...sanitize_app_details(device), details_source: 'player_reported' },
+			counters: { ...counters }, phases: phases.map(value => ({ ...value })),
 			requests: entries.map(entry => ({ ...entry })) }, null, 2);
 	}
-	return { record, report };
+	return { record, report, measure, phase };
 }
 
 export function install_diagnostics_settings(ctx, { t, get_device, get_report, save_details }) {
@@ -145,4 +176,23 @@ export function install_diagnostics_settings(ctx, { t, get_device, get_report, s
 		}
 	});
 	ctx.settings.section(t('SECTION')).add({ type: 'connection-diagnostics', name: 'connection-diagnostics', default: null });
+}
+
+// Read-only, local report. Never uploads diagnostics or character data.
+export function install_loading_report(ctx, { t, get_report }) {
+	ctx.settings.type('loading-report', {
+		get: () => null, set: () => {},
+		render() {
+			const root = document.createElement('div');
+			const button = document.createElement('button');
+			button.type = 'button'; button.className = 'btn btn-secondary'; button.textContent = t('REFRESH');
+			const output = document.createElement('textarea');
+			output.readOnly = true; output.rows = 12; output.className = 'form-control mt-2';
+			output.setAttribute('aria-label', t('TITLE')); output.hidden = true;
+			button.addEventListener('click', () => { output.value = get_report(); output.hidden = false; output.focus(); output.select(); });
+			root.append(button, output);
+			return root;
+		}
+	});
+	ctx.settings.section(t('TITLE')).add({ type: 'loading-report', name: 'loading-report', default: null });
 }

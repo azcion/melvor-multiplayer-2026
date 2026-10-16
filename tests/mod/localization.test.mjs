@@ -12,7 +12,7 @@ import {
 	resolve_multiplayer_language
 } from '../../mod/localization.mjs';
 
-import { TEXT_FEATURE_NAMES, feature_catalog, feature_name, fallback_feature_name } from '../../mod/chat-items.mjs';
+import { BADGE_FEATURES, TEXT_FEATURE_NAMES, feature_catalog, feature_name, fallback_feature_name } from '../../mod/chat-items.mjs';
 
 const root = new URL('../../', import.meta.url);
 
@@ -66,7 +66,15 @@ test('iconless feature tags resolve every packaged locale while preserving IDs a
 	for (const locale of MULTIPLAYER_SUPPORTED_LANGUAGES) {
 		language = locale;
 		const catalog = feature_catalog({}, getLangString);
-		assert.equal(catalog.length, Object.keys(TEXT_FEATURE_NAMES).length);
+		assert.equal(catalog.length, Object.keys(TEXT_FEATURE_NAMES).length + Object.keys(BADGE_FEATURES).length);
+		for (const [key, { name: english, lang_id }] of Object.entries(BADGE_FEATURES)) {
+			const id = `multiplayer:${key}`;
+			const localized = dictionaries[locale][lang_id];
+			assert.ok(localized?.trim(), `${locale}:${lang_id} must be translated`);
+			assert.equal(feature_name({}, getLangString, id), localized);
+			assert.deepEqual(catalog.find(feature => feature.id === id), { id, name: localized, media: null });
+			assert.equal(fallback_feature_name(id), english);
+		}
 		for (const [key, english] of Object.entries(TEXT_FEATURE_NAMES)) {
 			const id = `multiplayer:${key}`;
 			const lang_id = 'MOD_MP_CHAT_FEATURE_' + key.toUpperCase();

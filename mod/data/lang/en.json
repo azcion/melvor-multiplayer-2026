@@ -514,6 +514,7 @@
 	"MOD_MP_GUILD_NEW_MEMBER": "New Member",
 	"MOD_MP_GUILD_DEV": "Dev",
 	"MOD_MP_GUILD_DEV_SAE": "SAE Dev",
+	"MOD_MP_GUILD_DEV_OSRS_OVERHAUL": "OSRS Overhaul Dev",
 	"MOD_MP_DEV_TAG_VISIBILITY": "Let others see your Dev tag",
 	"MOD_MP_GUILD_USING_CHEATS": "Using Cheats",
 	"MOD_MP_GUILD_APPLICANTS": "Applicants",
@@ -561,6 +562,7 @@
 	"MOD_MP_STATUS_ACTIVITY_COMBAT": "In combat",
 	"MOD_MP_CHAT_PRIVACY_ENABLE": "Allow Private Chat Messages",
 	"MOD_MP_GLOBAL_CHAT_ENABLE": "Add me to Global Chat",
+	"MOD_MP_ALLIANCE_CHAT_ENABLE": "Add me to Alliance Chat",
 	"MOD_MP_GUILD_CHAT_ENABLE": "Add me to Guild Chat",
 	"MOD_MP_CHAT_START": "Start Chat",
 	"MOD_MP_CHAT_CATEGORY_PRIVATE": "Private",
@@ -642,7 +644,7 @@
 	"MOD_MP_MODAL_NO_GUILD_MATCHES": "No Guilds match your search.",
 	"MOD_MP_FREE_FELLOWSHIP_CONFIRM_TITLE": "Join the Free Fellowship",
 	"MOD_MP_FREE_FELLOWSHIP_CONFIRM_PUBLIC": "Membership is public across this server and does not require an application.",
-	"MOD_MP_FREE_FELLOWSHIP_SEARCH": "Search members by display name",
+	"MOD_MP_FREE_FELLOWSHIP_SEARCH": "Search",
 	"MOD_MP_FREE_FELLOWSHIP_JOINED": "You joined the Free Fellowship.",
 	"MOD_MP_GUILD_JOINED": "You entered the Guild through its open gates.",
 	"MOD_MP_GUILD_LEAVE_WARNING": "Your completed Multiplayer progress and unclaimed rewards stay with this identity, but unfinished contributions stay with this Guild. You must resolve all market listings, gifts, and trades first. If you are the final member, leaving permanently dissolves the Guild and deletes its shared records.",
@@ -1104,7 +1106,6 @@
 	"MOD_MP_ALLIANCE_JOIN_EMPTY": "No active Alliances are available to join yet.",
 	"MOD_MP_ALLIANCE_PREVIOUS": "Previous",
 	"MOD_MP_ALLIANCE_NEXT": "Next",
-	"MOD_MP_ALLIANCE_CHAT_ENABLE": "Participate in Alliance Chat",
 	"MOD_MP_ALLIANCE_FREE_FELLOWSHIP": "Free Fellowship",
 	"MOD_MP_ALLIANCE_STAGE_LOCAL": "Awaiting local Council approval",
 	"MOD_MP_ALLIANCE_STAGE_WAITING": "Awaiting the other Guild",
@@ -1284,5 +1285,9 @@
 	"MOD_MP_CHEAT_CATEGORY_SHOPS": "Shop Cheats",
 	"MOD_MP_CHEAT_CATEGORY_LOOT_RNG": "Loot Cheats",
 	"MOD_MP_CHEAT_PRESENCE_NOTICE": "These mods were reported loaded on this character within the last 7 days. Loaded-mod presence does not establish which features were enabled or used.",
-	"MOD_MP_CHEAT_EXPIRES": "Expires in: %s"
+	"MOD_MP_CHEAT_EXPIRES": "Expires in: %s",
+	"MOD_MP_LOADING_REPORT_TITLE": "Loading report",
+	"MOD_MP_LOADING_REPORT_REFRESH": "Generate loading report",
+	"MOD_MP_LISTING_FILTERS": "Listing Filters",
+	"MOD_MP_LISTING_FILTERS_DESCRIPTION": "Hide Sell Listings and Crucible offerings from players with these badges."
 }

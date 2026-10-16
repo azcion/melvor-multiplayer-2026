@@ -403,6 +403,7 @@
 	"MOD_MP_GUILD_NEW_MEMBER": "Novo membro",
 	"MOD_MP_GUILD_DEV": "Dev",
 	"MOD_MP_GUILD_DEV_SAE": "SAE Dev",
+	"MOD_MP_GUILD_DEV_OSRS_OVERHAUL": "OSRS Overhaul Dev",
 	"MOD_MP_DEV_TAG_VISIBILITY": "Let others see your Dev tag",
 	"MOD_MP_GUILD_USING_CHEATS": "Usa batotas",
 	"MOD_MP_GUILD_APPLICANTS": "Candidatos",
@@ -450,6 +451,7 @@
 	"MOD_MP_STATUS_ACTIVITY_COMBAT": "Em combate",
 	"MOD_MP_CHAT_PRIVACY_ENABLE": "Permitir mensagens privadas",
 	"MOD_MP_GLOBAL_CHAT_ENABLE": "Adicionar-me à conversa global",
+	"MOD_MP_ALLIANCE_CHAT_ENABLE": "Adicionar-me à conversa da aliança",
 	"MOD_MP_GUILD_CHAT_ENABLE": "Adicionar-me à conversa da guilda",
 	"MOD_MP_CHAT_START": "Iniciar conversa",
 	"MOD_MP_CHAT_CATEGORY_PRIVATE": "Privada",
@@ -531,7 +533,7 @@
 	"MOD_MP_MODAL_NO_GUILD_MATCHES": "Nenhuma guilda corresponde à tua pesquisa.",
 	"MOD_MP_FREE_FELLOWSHIP_CONFIRM_TITLE": "Juntar-me à Irmandade Livre",
 	"MOD_MP_FREE_FELLOWSHIP_CONFIRM_PUBLIC": "A participação é pública neste servidor e não exige candidatura.",
-	"MOD_MP_FREE_FELLOWSHIP_SEARCH": "Procurar membros por nome de apresentação",
+	"MOD_MP_FREE_FELLOWSHIP_SEARCH": "Procurar",
 	"MOD_MP_FREE_FELLOWSHIP_JOINED": "Juntaste-te à Irmandade Livre.",
 	"MOD_MP_GUILD_JOINED": "Entraste na guilda pelos seus portões abertos.",
 	"MOD_MP_GUILD_LEAVE_WARNING": "O progresso multijogador concluído e as recompensas por recolher mantêm-se nesta identidade, mas as contribuições inacabadas ficam nesta guilda. Tens de resolver primeiro todos os anúncios no mercado, presentes e trocas. Se fores o último membro, sair dissolve permanentemente a guilda e elimina os seus registos partilhados.",
@@ -850,7 +852,6 @@
 	"MOD_MP_ALLIANCE_JOIN_EMPTY": "Ainda não há Alianças ativas disponíveis para aderir.",
 	"MOD_MP_ALLIANCE_PREVIOUS": "Anterior",
 	"MOD_MP_ALLIANCE_NEXT": "Seguinte",
-	"MOD_MP_ALLIANCE_CHAT_ENABLE": "Participar no chat da aliança",
 	"MOD_MP_ALLIANCE_FREE_FELLOWSHIP": "Comunidade Livre",
 	"MOD_MP_ALLIANCE_STAGE_LOCAL": "A aguardar aprovação do Conselho local",
 	"MOD_MP_ALLIANCE_STAGE_WAITING": "A aguardar a outra guilda",
@@ -1284,5 +1285,9 @@
 	"MOD_MP_CHEAT_CATEGORY_SHOPS": "Batotas de lojas",
 	"MOD_MP_CHEAT_CATEGORY_LOOT_RNG": "Batotas de saque",
 	"MOD_MP_CHEAT_PRESENCE_NOTICE": "Estes mods foram comunicados como carregados nesta personagem nos últimos 7 dias. A sua presença não comprova quais funcionalidades foram ativadas ou usadas.",
-	"MOD_MP_CHEAT_EXPIRES": "Expira em: %s"
+	"MOD_MP_CHEAT_EXPIRES": "Expira em: %s",
+	"MOD_MP_LOADING_REPORT_TITLE": "Relatório de carregamento",
+	"MOD_MP_LOADING_REPORT_REFRESH": "Gerar relatório de carregamento",
+	"MOD_MP_LISTING_FILTERS": "Filtros de anúncios",
+	"MOD_MP_LISTING_FILTERS_DESCRIPTION": "Ocultar anúncios de venda e oferendas do Cadinho de jogadores com estes emblemas."
 }

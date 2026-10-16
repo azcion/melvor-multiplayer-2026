@@ -123,7 +123,7 @@ test('stops multiplayer traffic and presents a permanent local Support notice be
 	const main = await read_client_source(root);
 	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
 	assert.match(main, /function enter_unsupported_multiplayer[\s\S]*state\.is_connected = false;[\s\S]*stop_chat_polling\(\);[\s\S]*stop_gp_sampling\(\);[\s\S]*stop_status_observer\(\);/);
-	assert.match(main, /async function api_get\(endpoint\) \{\s*if \(state\.multiplayer_unsupported\)\s*return null;/);
+	assert.match(main, /async function api_get\(endpoint, is_current = null\) \{\s*if \(state\.multiplayer_unsupported\)\s*return null;/);
 	assert.match(main, /async function api_post_response_raw[\s\S]*?if \(state\.multiplayer_unsupported\)\s*return \{ response: null, json: null \};/);
 	assert.match(main, /synthetic_unsupported: true,[\s\S]*unread_count: 1/);
 	assert.match(main, /if \(conversation\.synthetic_unsupported === true\)[\s\S]*this\.chat_messages = \[conversation\.latest_message\];/);

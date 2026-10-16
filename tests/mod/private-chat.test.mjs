@@ -173,7 +173,7 @@ test('keeps Chat at the bottom when opening or sending and anchors the viewport 
 	assert.match(chat_actions, /const previous_scroll_top = \$messages\?\.scrollTop \?\? 0;/);
 	assert.match(chat_actions, /const previous_scroll_height = \$messages\?\.scrollHeight \?\? 0;/);
 	assert.match(chat_actions, /\$messages\.scrollTop = previous_scroll_top \+ \$messages\.scrollHeight - previous_scroll_height;/);
-	assert.match(main, /await refresh_chat_messages\('', false, false, view_generation\);[\s\S]*await state\.scroll_chat_messages_to_bottom\(\);/);
+	assert.match(main, /refresh_chat_messages\('', false, false, view_generation\)[\s\S]*\]\);[\s\S]*await state\.scroll_chat_messages_to_bottom\(\);/);
 
 	const container = { scrollHeight: 1600, scrollTop: 140 };
 	const actions = install_chat_actions({

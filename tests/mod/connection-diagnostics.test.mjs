@@ -66,6 +66,41 @@ test('request observations separate HTTP, transport, response-body, and timeout 
 	assert.ok(!JSON.stringify(seen).includes('SECRET'));
 	await assert.doesNotReject(fetch_with_timeout(async () => new Response('{}'), '/api/events', {}, { observe() { throw Error(); } }));
 });
+
+test('read-model diagnostics expose only fixed views and snapshot pages, never arbitrary query values', async () => {
+	const diagnostics = create_transport_diagnostics(() => 0);
+	const cases = [
+		['/api/v2/expedition/state?view=tracking&_mp_cache=SECRET', { read_view: 'tracking' }],
+		['/api/expedition/state?_mp_cache=SECRET', { read_view: 'full' }],
+		['/api/expedition/state?view=SECRET', { read_view: 'unknown' }],
+		['/api/expedition/state?view=tracking&view=SECRET', { read_view: 'unknown' }],
+		['/api/pages/snapshot?page=transfers&view=active&token=SECRET', { snapshot_page: 'transfers', read_view: 'active' }],
+		['/api/pages/snapshot?page=guild', { snapshot_page: 'guild', read_view: 'default' }],
+		['/api/pages/snapshot?page=decisions', { snapshot_page: 'decisions', read_view: 'default' }],
+		['/api/pages/snapshot?page=SECRET&view=SECRET', { snapshot_page: 'unknown', read_view: 'unknown' }],
+		['/api/pages/snapshot?page=guild&page=SECRET', { snapshot_page: 'unknown', read_view: 'default' }],
+		['/api/chat/messages?view=tracking&page=guild&body=SECRET', {}],
+		['/api/SECRET?view=tracking&page=guild', {}],
+		['/api/v99/expedition/state?view=tracking', {}]
+	];
+	for (const [url] of cases) {
+		// Exercise the same transport observer path as real requests, including cache-busted URLs.
+		await fetch_with_timeout(async () => new Response('{}'), 'https://private-host' + url,
+			{ method: 'GET' }, { observe: diagnostics.record, consume: response => response.json() });
+	}
+	diagnostics.record({ method: 'POST', route: '/api/expedition/state?view=tracking', read_view: 'SECRET' });
+	const report = diagnostics.report({});
+	const { requests } = JSON.parse(report);
+	for (const [index, [, expected]] of cases.entries()) {
+		assert.deepEqual(Object.fromEntries(Object.entries(requests[index]).filter(([key]) =>
+			['read_view', 'snapshot_page'].includes(key))), expected);
+	}
+	assert.equal(requests.at(-1).read_view, undefined);
+	assert.equal(diagnostic_route('/api/v2/crucible/contents?token=SECRET'), '/api/crucible/contents');
+	assert.ok(!report.includes('SECRET'));
+	assert.ok(!report.includes('private-host'));
+	assert.ok(!report.includes('_mp_cache'));
+});
 test('main client reports diagnostics without introducing new preflight headers', async () => {
 	const source = await read_client_source();
 	assert.match(source, /get_device_diagnostics\(\)/);
@@ -115,4 +150,20 @@ test('normalizes only supported version prefixes in redacted diagnostics', () =>
 	assert.equal(diagnostic_route('/api/v1/authenticate'), 'other');
 	assert.equal(diagnostic_route('/api/versions'), '/api/versions');
 	assert.equal(diagnostic_route('/api/v99/events'), 'other');
+});
+
+test('loading diagnostics bound phases and retain queue/cache metadata without payloads', () => {
+	const diagnostics = create_transport_diagnostics(() => 0);
+	for (let i = 0; i < 40; i++) diagnostics.phase('chat', i);
+	diagnostics.phase('SECRET', 99);
+	diagnostics.measure({ kind: 'cache_hit', body: 'SECRET' });
+	diagnostics.measure({ kind: 'dispatch', depth: 5 });
+	diagnostics.record({ route: '/api/chat/messages?body=SECRET', queue_wait_ms: 1234, duration_ms: 20, outcome: 'ok' });
+	const report = diagnostics.report({});
+	const parsed = JSON.parse(report);
+	assert.equal(parsed.phases.length, 30);
+	assert.equal(parsed.counters.cache_hit, 1);
+	assert.equal(parsed.counters.max_queue_depth, 5);
+	assert.equal(parsed.requests[0].queue_wait_ms, 1234);
+	assert.equal(report.includes('SECRET'), false);
 });

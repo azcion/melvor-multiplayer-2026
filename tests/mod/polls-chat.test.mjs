@@ -27,7 +27,7 @@ test('wires quiet Polls below Global Chat with creator, voting, and discussion',
 	const refresh_conversations = main.slice(main.indexOf('async function refresh_chat_conversations'), main.indexOf('function update_chat_nav'));
 	assert.match(refresh_conversations, /const conversations = \[\.\.\.res\.conversations\];[\s\S]*conversations\.push\([\s\S]*state\.chat_conversations = conversations;/);
 	assert.doesNotMatch(refresh_conversations, /state\.chat_conversations = res\.conversations/);
-	assert.match(main, /get num_uninteracted_open_polls\(\) \{[\s\S]*return this\.polls\.filter\(poll => poll\.open === true && poll\.interacted !== true\)\.length;/);
+	assert.match(main, /get num_uninteracted_open_polls\(\) \{[\s\S]*return this\.polls_summary\?\.open_uninteracted \?\? this\.polls\.filter\(poll => poll\.open === true && poll\.interacted !== true\)\.length;/);
 	assert.match(templates, /<span class="badge badge-info" v-if="state\.num_uninteracted_open_polls > 0">\{\{ state\.num_uninteracted_open_polls \}\}<\/span>/);
 	assert.doesNotMatch(main.slice(main.indexOf('get num_notifications()'), main.indexOf('get num_uninteracted_open_polls()')), /poll/);
 	assert.doesNotMatch(templates, /poll.*opt.?out/i);

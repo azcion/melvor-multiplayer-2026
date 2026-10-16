@@ -1,3 +1,4 @@
+import { DEV_BADGES, get_dev_badge_labels } from './account_tags';
 import { petition_discussion_id } from './petition-discussions';
 import { petition_discussion_visibility } from './petition-discussion-visibility';
 import { db } from './db';
@@ -21,16 +22,31 @@ export const MULTIPLAYER_CHAT_FEATURES = new Map([
 	['multiplayer:Trade', 'trade'], ['multiplayer:Gift', 'gift'], ['multiplayer:Wish', 'wish'],
 	['multiplayer:Haggle', 'haggle'], ['multiplayer:Chamber', 'chamber']
 ]);
+export const CHAT_BADGE_FEATURES = new Map([
+	...Object.values(DEV_BADGES).map(badge => [badge.feature_id, badge.label] as [string, string]),
+	['multiplayer:Badge_New_Member', 'New Member'],
+	['multiplayer:Badge_Time_Cheats', 'Time Cheats'],
+	['multiplayer:Badge_Item_Cheats', 'Item Cheats'],
+	['multiplayer:Badge_Resource_Cheats', 'Resource Cheats'],
+	['multiplayer:Badge_Multitasking', 'Multitasking'],
+	['multiplayer:Badge_Shop_Cheats', 'Shop Cheats'],
+	['multiplayer:Badge_Loot_Cheats', 'Loot Cheats'],
+	['multiplayer:Badge_Social_Only', 'Social Only'],
+	['multiplayer:Badge_Aye', 'Aye'],
+	['multiplayer:Badge_Nay', 'Nay'],
+]);
+for (const [id, name] of CHAT_BADGE_FEATURES) MULTIPLAYER_CHAT_FEATURES.set(id, name);
 export const MAX_CHAT_ITEMS = 20;
 
 export function feature_name(id: string): string {
+	if (Object.values(DEV_BADGES).some(badge => badge.feature_id === id)) return get_dev_badge_labels()[id]!;
 	if (id === 'melvorD:AltMagic') return 'Alt. Magic';
 	return MULTIPLAYER_CHAT_FEATURES.get(id) ?? id.split(':')[1]!.replaceAll('_', ' ');
 }
 
 export function parts_text(parts: ChatPart[]): string {
 	return parts.map(part => part.type === 'text' ? part.text : part.type === 'item' ?
-		`[${part.item_id.split(':')[1]!.replaceAll('_', ' ')}]` : part.type === 'person' ? `@${part.display_name}` : `$${feature_name(part.feature_id)}`).join('');
+		`[${part.item_id.split(':')[1]!.replaceAll('_', ' ')}]` : part.type === 'person' ? `@${part.display_name}` : (CHAT_BADGE_FEATURES.has(part.feature_id) ? `[${feature_name(part.feature_id)}]` : `$${feature_name(part.feature_id)}`)).join('');
 }
 
 // Normalize at the request boundary. Plain clients retain their existing string contract.
@@ -97,8 +113,15 @@ export function attach_chat_parts<T extends { message_id: number }>(kind: string
 }
 
 export function compatible_chat_parts<T extends { parts?: ChatPart[]; translation_parts?: Record<string, ChatPart[]> }>(
-	message: T, supports_features: boolean, supports_people = false
+	message: T, supports_features: boolean, supports_people = false, supports_badges = false
 ): T {
+	// Older feature-aware clients discard unknown Multiplayer IDs; send readable text instead.
+	const downgrade = (parts: ChatPart[]) => parts.map(part =>
+		part.type === 'feature' && !supports_badges && CHAT_BADGE_FEATURES.has(part.feature_id)
+			? { type: 'text' as const, text: `[${feature_name(part.feature_id)}]` } : part);
+	if (message.parts) message.parts = downgrade(message.parts);
+	if (message.translation_parts) message.translation_parts = Object.fromEntries(
+		Object.entries(message.translation_parts).map(([language, parts]) => [language, downgrade(parts)]));
 	const unsupported = (part: ChatPart) => (part.type === 'feature' && !supports_features) || (part.type === 'person' && !supports_people);
 	if (message.parts?.some(unsupported)) delete message.parts;
 	if (message.translation_parts) {

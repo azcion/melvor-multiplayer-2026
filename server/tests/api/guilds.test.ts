@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { get_events, make_guild_group, make_guildmates, register_guild_client } from '../support/fixtures';
-import { get_json_with_session, post, post_json, register_client } from '../support/http';
+import { get_with_session, get_json_with_session, post, post_json, register_client } from '../support/http';
 import { db_all, db_count, db_run } from '../support/persistence';
 import { SHADOWED_AFTER } from '../../shadowed';
 
@@ -39,6 +39,83 @@ async function get_guild_state(session_token: string): Promise<GuildState> {
 }
 
 describe('guild API', () => {
+	test('searches member names, visible modes, shared mod names and visible developer aliases', async () => {
+		const pair = await make_guildmates('Search Viewer', 'Search Target');
+		const outsider = await register_guild_client('Search Outsider', 'Search Elsewhere');
+		for (const id of [pair.second_id, outsider.client_id]) {
+			await db_run('INSERT INTO client_runtime_snapshots(client_id,mod_version,active_mods,active_mod_details,game_mode_id,reported_at) VALUES(?,?,?,?,?,?)',
+				[id, '1.6.13', JSON.stringify(['Super Awesome Expansion!', 'Old School RuneScape Music', 'Literal%_Mod']),
+				 JSON.stringify([{id:987654,name:'Super Awesome Expansion!'}]), 'hcco:rehcco', Date.now()]);
+		}
+		await db_run('UPDATE clients SET active_mods_visible=1,game_mode_visible=1 WHERE id IN (?,?)', [pair.second_id, outsider.client_id]);
+		const search = async (query: string, mode_ids: string[] = [], page = 0, shadowed = false) => {
+			const result = await get_json_with_session<{members: Array<{client_id: number; search_matches: Array<{kind: string; label: string}>}>; total: number; has_more: boolean}>(
+				'/api/guilds/members' + (shadowed ? '/shadowed' : '') + '?search=' + encodeURIComponent(query) +
+				'&page=' + page + '&game_mode_ids=' + encodeURIComponent(JSON.stringify(mode_ids)), pair.first.session_token);
+			expect(result.response.status).toBe(200);
+			return result.json;
+		};
+		for (const query of ['target', 'HCCO', 'sae', 'OSRS', 'expansion', 'runescape', '%_']) {
+			const result = await search(query);
+			expect(result.members.map(member => member.client_id)).toEqual([pair.second_id]);
+			expect(result.total).toBe(1);
+			const expected = query === 'target' ? [] : query === 'HCCO'
+				? [{kind: 'game_mode', label: 'hcco:rehcco'}]
+				: [{kind: 'mod', label: ['OSRS', 'runescape'].includes(query) ? 'Old School RuneScape Music'
+					: query === '%_' ? 'Literal%_Mod' : 'Super Awesome Expansion!'}];
+			expect(result.members[0].search_matches).toEqual(expected);
+		}
+		expect((await search('')).members.every(member => member.search_matches.length === 0)).toBe(true);
+		expect((await search('987654')).total).toBe(0); // Mod IDs are never searched.
+		expect((await search('Rebalance Hardcore', ['hcco:rehcco'])).total).toBe(1);
+		expect((await search('sae', [], 1))).toMatchObject({members: [], total: 1, has_more: false});
+		await db_run('UPDATE clients SET active_mods_visible=0,game_mode_visible=0 WHERE id=?', [pair.second_id]);
+		expect((await search('target')).members[0].search_matches).toEqual([]);
+		for (const query of ['hcco', 'sae', 'osrs', 'expansion']) expect((await search(query)).total).toBe(0);
+		expect((await search('Rebalance', ['hcco:rehcco'])).total).toBe(0);
+		for (const [account_id, query] of [[12, 'sae'], [819, 'osrs']] as const) {
+			await db_run('INSERT OR IGNORE INTO melvor_accounts(id,cloud_username,playfab_id,created_at) VALUES(?,?,?,1)',
+				[account_id, 'search-dev-' + account_id, 'search-dev-playfab-' + account_id]);
+			await db_run('UPDATE clients SET melvor_account_id=?,dev_tag_visible=1 WHERE id=?', [account_id, pair.second_id]);
+			expect((await search(query)).members.map(member => member.client_id)).toEqual([pair.second_id]);
+			expect((await search(query)).members[0].search_matches).toEqual([{kind: 'dev', label: query === 'sae' ? 'SAE Dev' : 'OSRS Overhaul Dev'}]);
+			await db_run('UPDATE clients SET active_mods_visible=1 WHERE id=?', [pair.second_id]);
+			expect((await search(query)).members[0].search_matches.map(match => match.kind)).toEqual(['mod', 'dev']);
+			await db_run('UPDATE clients SET active_mods_visible=0 WHERE id=?', [pair.second_id]);
+			await db_run('UPDATE clients SET dev_tag_visible=0 WHERE id=?', [pair.second_id]);
+			expect((await search(query)).total).toBe(0);
+		}
+		await db_run('UPDATE clients SET active_mods_visible=1,last_multiplayer_active_at=1 WHERE id=?', [pair.second_id]);
+		expect((await search('expansion')).total).toBe(0);
+		expect((await search('expansion', [], 0, true)).members.map(member => member.client_id)).toEqual([pair.second_id]);
+		const invalid = await get_with_session('/api/guilds/members?game_mode_ids=' + encodeURIComponent('[1]'), pair.first.session_token);
+		expect(invalid.status).toBe(400);
+	});
+
+	test('paginates expanded matches with consistent totals and no duplicate mod matches', async () => {
+		const owner = await register_guild_client('Paged Viewer', 'Paged Search');
+		const ids: number[] = [];
+		for (let index = 0; index < 51; index++) {
+			const member = await register_client('Paged Member ' + index);
+			ids.push(member.client_id!);
+			await db_run('INSERT INTO guild_memberships(client_id,guild_id) VALUES(?,?)', [member.client_id!, owner.guild_id]);
+			await db_run('UPDATE clients SET active_mods_visible=1,last_multiplayer_active_at=? WHERE id=?', [Date.now(), member.client_id!]);
+			await db_run('INSERT INTO client_runtime_snapshots(client_id,mod_version,active_mods,reported_at) VALUES(?,?,?,?)',
+				[member.client_id!, '1.6.13', '["Old School RuneScape One","Old School RuneScape Two"]', Date.now()]);
+		}
+		const pages = [];
+		for (const page of [0, 1]) {
+			const result = await get_json_with_session<{members: Array<{client_id: number; search_matches: Array<{kind: string; label: string}>}>; total: number; has_more: boolean}>(
+				'/api/guilds/members?search=osrs&page=' + page, owner.session_token);
+			expect(result.json.total).toBe(51);
+			expect(result.json.has_more).toBe(page === 0);
+			expect(result.json.members).toHaveLength(page === 0 ? 50 : 1);
+			expect(result.json.members.every(member => member.search_matches.length === 2)).toBe(true);
+			pages.push(...result.json.members.map(member => member.client_id));
+		}
+		expect(new Set(pages)).toEqual(new Set(ids));
+	});
+
 	test('applicants expose inspectable privacy-filtered profiles without activity or last seen', async () => {
 		const owner = await register_guild_client('Applicant Inspector', 'Inspection Guild');
 		const applicant = await register_client('Inspectable Applicant');

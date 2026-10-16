@@ -1,3 +1,4 @@
+import { listing_filters_from_url, parse_listing_filters } from '../listing-filters';
 import { db } from '../db';
 import { purchase_wish_capacity, set_wish_capacity_renewal, wish_capacity_state } from '../wish-capacity';
 import * as runtime from '../app-runtime';
@@ -84,7 +85,9 @@ export function register_crucible_routes(): void {
 	session_get_route('/api/crucible/contents', async (req, url, client_id): Promise<HandlerResult> => {
 		const result = actor_for(req, client_id);
 		if ('error' in result) return result.error;
-		return get_crucible_state(result.actor!) ?? { enabled: false };
+		const filters = listing_filters_from_url(url);
+		if (filters === null) return 400;
+		return get_crucible_state(result.actor!, Date.now(), filters) ?? { enabled: false };
 	});
 
 	session_post_route('/api/crucible/cast', async (req, url, client_id, json): Promise<HandlerResult> => {
@@ -111,10 +114,12 @@ export function register_crucible_routes(): void {
 		if ('error' in result) return result.error;
 		if (!is_valid_item_id(json.item_id) || !Number.isSafeInteger(json.qty) || (json.qty as number) <= 0)
 			return 400;
+		const filters = parse_listing_filters(json.listing_filters);
+		if (filters === null) return 400;
 		try {
 			return run_economy_command(client_id, json.command_id, 'crucible-reclaim', () => {
 				const response = reclaim_crucible_offering(result.actor!, json.item_id as string, json.qty as number,
-					Date.now(), String(json.command_id));
+					Date.now(), String(json.command_id), filters);
 				return response.success === true ? { ...response, effects: [] } : response;
 			}) ?? 400;
 		} catch (error) { return error instanceof RangeError ? 400 : 500; }

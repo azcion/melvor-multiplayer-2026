@@ -403,6 +403,7 @@
 	"MOD_MP_GUILD_NEW_MEMBER": "Новый участник",
 	"MOD_MP_GUILD_DEV": "Dev",
 	"MOD_MP_GUILD_DEV_SAE": "SAE Dev",
+	"MOD_MP_GUILD_DEV_OSRS_OVERHAUL": "OSRS Overhaul Dev",
 	"MOD_MP_DEV_TAG_VISIBILITY": "Let others see your Dev tag",
 	"MOD_MP_GUILD_USING_CHEATS": "Использует читы",
 	"MOD_MP_GUILD_APPLICANTS": "Заявители",
@@ -450,6 +451,7 @@
 	"MOD_MP_STATUS_ACTIVITY_COMBAT": "В бою",
 	"MOD_MP_CHAT_PRIVACY_ENABLE": "Разрешить личные сообщения",
 	"MOD_MP_GLOBAL_CHAT_ENABLE": "Участвовать в общем чате",
+	"MOD_MP_ALLIANCE_CHAT_ENABLE": "Участвовать в чате альянса",
 	"MOD_MP_GUILD_CHAT_ENABLE": "Участвовать в чате гильдии",
 	"MOD_MP_CHAT_START": "Начать чат",
 	"MOD_MP_CHAT_CATEGORY_PRIVATE": "Личный",
@@ -531,7 +533,7 @@
 	"MOD_MP_MODAL_NO_GUILD_MATCHES": "Нет гильдий, соответствующих поиску.",
 	"MOD_MP_FREE_FELLOWSHIP_CONFIRM_TITLE": "Вступить в Вольное братство",
 	"MOD_MP_FREE_FELLOWSHIP_CONFIRM_PUBLIC": "Членство открыто для просмотра на всём сервере и не требует заявки.",
-	"MOD_MP_FREE_FELLOWSHIP_SEARCH": "Поиск участников по отображаемому имени",
+	"MOD_MP_FREE_FELLOWSHIP_SEARCH": "Поиск",
 	"MOD_MP_FREE_FELLOWSHIP_JOINED": "Вы вступили в Вольное братство.",
 	"MOD_MP_GUILD_JOINED": "Вы вошли в гильдию через открытые ворота.",
 	"MOD_MP_GUILD_LEAVE_WARNING": "Завершённый прогресс в многопользовательской игре и неполученные награды останутся у этого профиля, но незавершённые вклады останутся в гильдии. Сначала нужно разобраться со всеми объявлениями, подарками и обменами. Если вы последний участник, выход навсегда распустит гильдию и удалит её общие записи.",
@@ -850,7 +852,6 @@
 	"MOD_MP_ALLIANCE_JOIN_EMPTY": "Пока нет активных Альянсов для вступления.",
 	"MOD_MP_ALLIANCE_PREVIOUS": "Назад",
 	"MOD_MP_ALLIANCE_NEXT": "Далее",
-	"MOD_MP_ALLIANCE_CHAT_ENABLE": "Участвовать в чате альянса",
 	"MOD_MP_ALLIANCE_FREE_FELLOWSHIP": "Свободное содружество",
 	"MOD_MP_ALLIANCE_STAGE_LOCAL": "Ожидает одобрения своего Совета",
 	"MOD_MP_ALLIANCE_STAGE_WAITING": "Ожидает другую гильдию",
@@ -1284,5 +1285,9 @@
 	"MOD_MP_CHEAT_CATEGORY_SHOPS": "Читы магазинов",
 	"MOD_MP_CHEAT_CATEGORY_LOOT_RNG": "Читы добычи",
 	"MOD_MP_CHEAT_PRESENCE_NOTICE": "Эти моды были отмечены как загруженные у персонажа за последние 7 дней. Их наличие не доказывает, какие функции были включены или использованы.",
-	"MOD_MP_CHEAT_EXPIRES": "Истекает через: %s"
+	"MOD_MP_CHEAT_EXPIRES": "Истекает через: %s",
+	"MOD_MP_LOADING_REPORT_TITLE": "Отчёт о загрузке",
+	"MOD_MP_LOADING_REPORT_REFRESH": "Создать отчёт о загрузке",
+	"MOD_MP_LISTING_FILTERS": "Фильтры объявлений",
+	"MOD_MP_LISTING_FILTERS_DESCRIPTION": "Скрывать объявления о продаже и подношения тиглю от игроков с этими значками."
 }

@@ -6,6 +6,49 @@ import { install_crucible_actions } from '../../mod/client-crucible.mjs';
 import * as crucible_rules from '../../mod/crucible-rules.mjs';
 import * as transfer_currency_support from '../../mod/transfer-currencies.mjs';
 
+test('Crucible entry owns hydration through Events and recovery, then restores polling', async () => {
+	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const setter = main.slice(main.indexOf('function set_crucible_page_visible('), main.indexOf('// #endregion', main.indexOf('function set_crucible_page_visible(')));
+	const start = main.indexOf("on_page_toggle('mp-crucible-page'");
+	const callback = main.slice(start, main.indexOf('\n\t\t\t}, false);', start)) + '\n});';
+	const eventsStart = main.indexOf("if (listing_filters === state.listing_filters.join(',') && Object.hasOwn(res, 'crucible_summary'))");
+	const events = main.slice(eventsStart, main.indexOf('\n\t\tvoid maybe_auto_check_in_expedition', eventsStart));
+	for (const summary of [true, false]) {
+		let enter, tick, release, reads = 0, forced = 0, recoveries = 0;
+		const context = { crucible_page_visible: false, crucible_page_entry: 0, crucible_page_hydrating: false,
+			crucible_clock_timer: null, CRUCIBLE_CLOCK_INTERVAL: 30_000, document: {},
+			listing_filters: '', state: { listing_filters: [], is_connected: true, refresh_crucible: async force => { reads++; if (force) forced++; } },
+			polling: { is_foreground: () => true }, clearInterval() {}, setInterval: fn => { tick = fn; return 1; },
+			update_crucible_nav() {}, recover_paid_wish_actions: async () => {},
+			on_page_toggle: (_page, fn) => { enter = fn; },
+			get_client_events: async () => {
+				await new Promise(resolve => { release = resolve; });
+				runInNewContext(events, { ...context, res: summary ? { crucible_summary: {} } : {} });
+			}, refresh_guild_state: async () => {},
+			recover_pending_crucible_wish_actions: async () => { recoveries++; } };
+		runInNewContext(setter + callback, context);
+		const first = enter(true);
+		tick();
+		assert.equal(reads, 0, 'visibility and clock must not race entry');
+		release(); await first;
+		assert.equal(reads, 1, 'Events must leave the full read to entry');
+		assert.equal(recoveries, 1);
+		assert.equal(context.crucible_page_hydrating, false);
+		tick(); assert.equal(reads, 2, 'periodic refresh resumes');
+		const stale = enter(true);
+		const releaseStale = release;
+		await enter(false);
+		const current = enter(true);
+		const releaseCurrent = release;
+		releaseStale(); await stale;
+		assert.equal(context.crucible_page_hydrating, true, 'stale entry cannot clear the new owner');
+		await enter(false);
+		releaseCurrent(); await current;
+		assert.equal(forced, 2, 'leaving during Events cancels entry; only entry and clock forced reads ran');
+		assert.equal(reads, summary ? 2 : 3, 'legacy Events fallback remains supported after leaving');
+	}
+});
+
 test('Offering locks follow reclaim eligibility and clear when a partial reclaim becomes affordable', async () => {
 	const templates = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
 	const lock_expression = templates.match(/class="fa fa-lock mp-crucible-slot-lock" v-show="([^"]+)"/)[1];

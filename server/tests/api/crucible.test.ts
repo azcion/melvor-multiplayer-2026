@@ -40,6 +40,9 @@ test('Cast and Reclaim use Crucible receipts and audited custody', async () => {
 		offerings: Array<{ item_id: string; qty: number }> }>('/api/crucible/contents', newer.session_token);
 	expect(contents.json.heat).toMatchObject({ value: 400, tier: 1 });
 	expect(contents.json.offerings).toMatchObject([{ item_id, qty: 3 }]);
+	const compact = await get_json_with_session<{ crucible_summary: { offerings: { id: string; qty: number }[] } }>(
+		'/api/events?summaries=1', newer.session_token);
+	expect(compact.json.crucible_summary.offerings).toContainEqual({ id: item_id, qty: 3 });
 	const reclaim = await post_json<{ success: boolean; receipt: { effects: unknown[] } }>(
 		'/api/crucible/reclaim', { item_id, qty: 1 }, newer.session_token);
 	expect(reclaim.json).toMatchObject({ success: true, receipt: { effects: [] } });

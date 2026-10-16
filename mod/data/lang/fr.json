@@ -403,6 +403,7 @@
 	"MOD_MP_GUILD_NEW_MEMBER": "Nouveau membre",
 	"MOD_MP_GUILD_DEV": "Dev",
 	"MOD_MP_GUILD_DEV_SAE": "SAE Dev",
+	"MOD_MP_GUILD_DEV_OSRS_OVERHAUL": "OSRS Overhaul Dev",
 	"MOD_MP_DEV_TAG_VISIBILITY": "Let others see your Dev tag",
 	"MOD_MP_GUILD_USING_CHEATS": "Triche",
 	"MOD_MP_GUILD_APPLICANTS": "Candidatures",
@@ -450,6 +451,7 @@
 	"MOD_MP_STATUS_ACTIVITY_COMBAT": "Au combat",
 	"MOD_MP_CHAT_PRIVACY_ENABLE": "Autoriser les messages privés",
 	"MOD_MP_GLOBAL_CHAT_ENABLE": "M’ajouter à la discussion globale",
+	"MOD_MP_ALLIANCE_CHAT_ENABLE": "M’ajouter à la discussion d’alliance",
 	"MOD_MP_GUILD_CHAT_ENABLE": "M’ajouter à la discussion de guilde",
 	"MOD_MP_CHAT_START": "Démarrer une discussion",
 	"MOD_MP_CHAT_CATEGORY_PRIVATE": "Privé",
@@ -531,7 +533,7 @@
 	"MOD_MP_MODAL_NO_GUILD_MATCHES": "Aucune guilde ne correspond à votre recherche.",
 	"MOD_MP_FREE_FELLOWSHIP_CONFIRM_TITLE": "Rejoindre la Communauté libre",
 	"MOD_MP_FREE_FELLOWSHIP_CONFIRM_PUBLIC": "L’adhésion est publique sur ce serveur et ne nécessite aucune candidature.",
-	"MOD_MP_FREE_FELLOWSHIP_SEARCH": "Rechercher des membres par nom d’affichage",
+	"MOD_MP_FREE_FELLOWSHIP_SEARCH": "Rechercher",
 	"MOD_MP_FREE_FELLOWSHIP_JOINED": "Vous avez rejoint la Communauté libre.",
 	"MOD_MP_GUILD_JOINED": "Vous avez rejoint la guilde par ses portes ouvertes.",
 	"MOD_MP_GUILD_LEAVE_WARNING": "Votre progression multijoueur terminée et vos récompenses non réclamées restent liées à cette identité, mais les contributions inachevées restent dans cette guilde. Vous devez d’abord régler toutes les annonces au marché, cadeaux et échanges. Si vous êtes le dernier membre, votre départ dissout définitivement la guilde et supprime ses données partagées.",
@@ -850,7 +852,6 @@
 	"MOD_MP_ALLIANCE_JOIN_EMPTY": "Aucune Alliance active n’est encore disponible à rejoindre.",
 	"MOD_MP_ALLIANCE_PREVIOUS": "Précédent",
 	"MOD_MP_ALLIANCE_NEXT": "Suivant",
-	"MOD_MP_ALLIANCE_CHAT_ENABLE": "Participer au chat d’alliance",
 	"MOD_MP_ALLIANCE_FREE_FELLOWSHIP": "Communauté libre",
 	"MOD_MP_ALLIANCE_STAGE_LOCAL": "En attente de l’approbation du Conseil local",
 	"MOD_MP_ALLIANCE_STAGE_WAITING": "En attente de l’autre guilde",
@@ -1284,5 +1285,9 @@
 	"MOD_MP_CHEAT_CATEGORY_SHOPS": "Triches aux boutiques",
 	"MOD_MP_CHEAT_CATEGORY_LOOT_RNG": "Triches au butin",
 	"MOD_MP_CHEAT_PRESENCE_NOTICE": "Ces mods ont été signalés comme chargés sur ce personnage au cours des 7 derniers jours. Leur présence ne prouve pas quelles fonctions ont été activées ou utilisées.",
-	"MOD_MP_CHEAT_EXPIRES": "Expire dans : %s"
+	"MOD_MP_CHEAT_EXPIRES": "Expire dans : %s",
+	"MOD_MP_LOADING_REPORT_TITLE": "Rapport de chargement",
+	"MOD_MP_LOADING_REPORT_REFRESH": "Générer le rapport de chargement",
+	"MOD_MP_LISTING_FILTERS": "Filtres des annonces",
+	"MOD_MP_LISTING_FILTERS_DESCRIPTION": "Masquer les annonces de vente et les offrandes du Creuset des joueurs portant ces badges."
 }

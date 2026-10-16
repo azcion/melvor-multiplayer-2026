@@ -65,9 +65,10 @@ test('a blocked receipt still hydrates incoming Gifts without advancing the reco
 	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
 	const source = main.slice(main.indexOf('async function get_client_events_request('), main.indexOf('\nfunction start_client_event_polling('));
 	let contents = 0;
-	const state = { get_chat_notification_tagged: () => false, refresh_crucible: async () => {}, chat_notification_preferences: {}, events: {}, gifts: [], trades: [], resolved_trades: [], inbox_items: [] };
+	const state = { listing_filters: [], get_chat_notification_tagged: () => false, refresh_crucible: async () => {}, chat_notification_preferences: {}, events: {}, gifts: [], trades: [], resolved_trades: [], inbox_items: [] };
 	const context = {
-		rollback_client: null,
+		crucible_page_hydrating: false,
+		rollback_client: null, server_host: 'https://test.invalid', guild_revision_scope: null, last_guild_revision: null, apply_dev_badge_labels() {},
 		state, client_events_hydrated: true, economy_command_journal: null, session_generation: 1, client_event_revision: 4, CHAT_CAPABILITIES: '', chat_page_visible: false,
 		social_mode: { SOCIAL_MODE_FULL: 'full', SOCIAL_MODE_SOCIAL: 'social' },
 		polling: { has_pending_events: () => true }, event_snapshots: { reconcile_event_transfers },

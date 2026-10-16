@@ -62,6 +62,184 @@ test('visible history ages out using server time even with a skewed local clock'
 	assert.deepEqual(visible_transfer_history(page, 2).map(row => row.id), [3]);
 });
 
+test('overlapping refreshes replace duplicate snapshots, sort by timestamp then ID, and preserve the older cursor', async () => {
+	const state = { transfer_history: create_transfer_history_state() };
+	const older_cursor = { occurred_at: 700, id: 1 };
+	const replacement = { ...entry(4, 900), items: [{ item_id: 'Sword', qty: 2 }] };
+	const responses = [
+		{ server_time: 1000, entries: [entry(4, 900), entry(3, 800), entry(2, 800)], next_cursor: older_cursor },
+		{ server_time: 1000, entries: [replacement, entry(5, 1000), entry(4, 900)], next_cursor: { occurred_at: 900, id: 4 } },
+		{ server_time: 1000, entries: [replacement, entry(5, 1000)], next_cursor: { occurred_at: 900, id: 4 } }
+	];
+	const load = create_transfer_history_loader({ state, api_get: async () => responses.shift(), scope: () => 'owner', now: () => 50 });
+	await load('outbox');
+	await load('outbox');
+	const page = state.transfer_history.outbox;
+	assert.deepEqual(page.entries.map(row => row.id), [5, 4, 3, 2]);
+	// Within a response the last duplicate wins, even over an earlier replacement.
+	assert.deepEqual(page.entries[1], entry(4, 900));
+	assert.deepEqual(page.next_cursor, older_cursor);
+	await load('outbox');
+	assert.deepEqual(page.entries[1], replacement);
+	assert.deepEqual(page.next_cursor, older_cursor);
+	assert.equal(page.visible_count, 5);
+});
+
+test('refresh without older retained rows adopts the response cursor, including an empty page', async () => {
+	const state = { transfer_history: create_transfer_history_state() };
+	const responses = [
+		{ server_time: 1000, entries: [entry(2)], next_cursor: { occurred_at: 1000, id: 2 } },
+		{ server_time: 1000, entries: [entry(3), entry(2)], next_cursor: { occurred_at: 1000, id: 1 } },
+		{ server_time: 1000, entries: [] }
+	];
+	const load = create_transfer_history_loader({ state, api_get: async () => responses.shift(), scope: () => 'owner' });
+	await load('inbox');
+	await load('inbox');
+	assert.equal(state.transfer_history.inbox.next_cursor.id, 1);
+	await load('inbox');
+	assert.deepEqual(state.transfer_history.inbox.entries, []);
+	assert.equal(state.transfer_history.inbox.next_cursor, null);
+	assert.equal(state.transfer_history.inbox.loaded, true);
+});
+
+test('pagination reveals cached rows before fetching and merges the next page with response precedence', async () => {
+	const state = { transfer_history: create_transfer_history_state() };
+	const urls = [];
+	const replacement = { ...entry(1), items: [{ item_id: 'Sword', qty: 1 }] };
+	const responses = [
+		{ server_time: 1000, entries: Array.from({ length: 6 }, (_, i) => entry(6 - i)), next_cursor: { occurred_at: 1000, id: 1 } },
+		{ server_time: 1000, entries: [replacement, entry(7, 900)], next_cursor: null }
+	];
+	const load = create_transfer_history_loader({ state, api_get: async url => { urls.push(url); return responses.shift(); }, scope: () => 'owner', now: () => 100 });
+	await load('pending');
+	await load('pending', true);
+	assert.equal(urls.length, 1);
+	assert.equal(state.transfer_history.pending.visible_count, 10);
+	await load('pending', true);
+	const page = state.transfer_history.pending;
+	assert.match(urls[1], /pane=pending&before_at=1000&before_id=1$/);
+	assert.equal(page.visible_count, 15);
+	assert.deepEqual(page.entries.map(row => row.id), [6, 5, 4, 3, 2, 1, 7]);
+	assert.deepEqual(page.entries[5], replacement);
+	assert.equal(page.next_cursor, null);
+	assert.equal(await load('pending', true), false);
+});
+
+for (const append of [false, true]) {
+	for (const failure of [null, { entries: [], server_time: 1.5 }, { server_time: 1000 }, Error('offline')]) {
+		test(`failed ${append ? 'append' : 'refresh'} preserves loaded state and retries (${failure instanceof Error ? 'rejection' : JSON.stringify(failure)})`, async () => {
+			const state = { transfer_history: create_transfer_history_state() };
+			let response = { server_time: 1000, entries: [entry(2)], next_cursor: { occurred_at: 1000, id: 2 } };
+			const load = create_transfer_history_loader({ state, scope: () => 'owner', now: () => 100,
+				api_get: async () => { if (response instanceof Error) throw response; return response; } });
+			await load('inbox');
+			const page = state.transfer_history.inbox;
+			const before = structuredClone(page);
+			response = failure;
+			assert.equal(await load('inbox', append), false);
+			assert.deepEqual(page, { ...before, error: true, retry_append: append });
+			response = { server_time: 1100, entries: [entry(1)], next_cursor: null };
+			assert.equal(await load('inbox', page.retry_append), true);
+			assert.equal(page.error, false);
+			assert.equal(page.loading, false);
+			assert.equal(page.visible_count, append ? 10 : 5);
+		});
+	}
+}
+
+for (const replacement of ['scope', 'pane', 'state']) {
+	for (const reject of [false, true]) {
+		test(`late ${reject ? 'rejection' : 'response'} is ignored after ${replacement} replacement`, async () => {
+			const state = { transfer_history: create_transfer_history_state() };
+			let owner = 'first';
+			let resolve, fail;
+			const load = create_transfer_history_loader({ state, scope: () => owner,
+				api_get: () => new Promise((yes, no) => { resolve = yes; fail = no; }) });
+			const old_page = state.transfer_history.inbox;
+			const pending = load('inbox');
+			if (replacement === 'scope') owner = 'second';
+			else if (replacement === 'pane') state.transfer_history.inbox = create_transfer_history_state().inbox;
+			else state.transfer_history = create_transfer_history_state();
+			const current = structuredClone(state.transfer_history);
+			if (reject) fail(Error('offline'));
+			else resolve({ server_time: 1000, entries: [entry(1)], next_cursor: null });
+			assert.equal(await pending, false);
+			assert.equal(old_page.loading, false);
+			if (replacement === 'scope') current.inbox.loading = false;
+			assert.deepEqual(state.transfer_history, current);
+		});
+	}
+}
+
+test('a late response cannot release the loading guard of a replacement page', async () => {
+	const state = { transfer_history: create_transfer_history_state() };
+	const pending = [];
+	const load = create_transfer_history_loader({ state, scope: () => 'owner', now: () => 100,
+		api_get: () => new Promise(resolve => pending.push(resolve)) });
+	const old_request = load('inbox');
+	state.transfer_history = create_transfer_history_state();
+	const new_request = load('inbox');
+	pending[0]({ server_time: 1000, entries: [entry(1)], next_cursor: null });
+	assert.equal(await old_request, false);
+	assert.equal(state.transfer_history.inbox.loading, true);
+	assert.equal(await load('inbox'), false);
+	assert.equal(pending.length, 2);
+	pending[1]({ server_time: 1000, entries: [entry(2)], next_cursor: null });
+	assert.equal(await new_request, true);
+	assert.deepEqual(state.transfer_history.inbox.entries.map(row => row.id), [2]);
+	assert.equal(state.transfer_history.inbox.loading, false);
+});
+
+test('an initial failure remains unloaded and a successful retry clears the error', async () => {
+	const state = { transfer_history: create_transfer_history_state() };
+	let response = null;
+	const load = create_transfer_history_loader({ state, scope: () => 'owner', now: () => 100,
+		api_get: async () => response });
+	assert.equal(await load('inbox'), false);
+	assert.deepEqual(state.transfer_history.inbox, {
+		...create_transfer_history_state().inbox, error: true
+	});
+	response = { server_time: 1000, entries: [], next_cursor: null };
+	assert.equal(await load('inbox'), true);
+	assert.equal(state.transfer_history.inbox.loaded, true);
+	assert.equal(state.transfer_history.inbox.error, false);
+	assert.equal(state.transfer_history.inbox.loading, false);
+});
+
+test('history panes load independently while each pane rejects duplicate and invalid requests', async () => {
+	const state = { transfer_history: create_transfer_history_state() };
+	const pending = [];
+	const load = create_transfer_history_loader({ state, scope: () => 'owner', now: () => 100,
+		api_get: () => new Promise(resolve => pending.push(resolve)) });
+	assert.equal(await load('unknown'), false);
+	const inbox = load('inbox');
+	const outbox = load('outbox');
+	assert.equal(await load('inbox', true), false);
+	assert.equal(pending.length, 2);
+	pending[1]({ server_time: 1000, entries: [entry(2)], next_cursor: null });
+	await outbox;
+	assert.equal(state.transfer_history.inbox.loading, true);
+	assert.equal(state.transfer_history.pending.loaded, false);
+	pending[0]({ server_time: 1000, entries: [entry(1)], next_cursor: null });
+	await inbox;
+	assert.deepEqual(state.transfer_history.inbox.entries.map(row => row.id), [1]);
+	assert.deepEqual(state.transfer_history.outbox.entries.map(row => row.id), [2]);
+});
+
+test('loading filters window boundaries and anchors elapsed time to the successful response', async () => {
+	const state = { transfer_history: create_transfer_history_state() };
+	const server_time = 2 * HISTORY_WINDOW;
+	const load = create_transfer_history_loader({ state, scope: () => 'owner', now: () => 500,
+		api_get: async () => ({ server_time, entries: [entry(1, HISTORY_WINDOW), entry(2, HISTORY_WINDOW - 1), entry(3, server_time + 1), entry(4, server_time)] }) });
+	await load('inbox');
+	const page = state.transfer_history.inbox;
+	assert.equal(page.server_time, server_time);
+	assert.equal(page.loaded_at, 500);
+	assert.deepEqual(page.entries.map(row => row.id), [4, 1]);
+	assert.deepEqual(visible_transfer_history(page, 499).map(row => row.id), [4, 1]);
+	assert.deepEqual(visible_transfer_history(page, 501).map(row => row.id), [4]);
+});
+
 test('history titles use localized actions and Inbox source titles without exposing internal event codes', () => {
 	const lang = id => id; const inbox = row => 'source:' + row.source_type;
 	assert.equal(transfer_history_label({ event_type: 'inbox.received', source_type: 'gift_received' }, lang, inbox), 'source:gift_received');

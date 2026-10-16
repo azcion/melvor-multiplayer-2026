@@ -81,6 +81,27 @@ afterEach(() => {
 });
 
 describe('administration CLI', () => {
+	test('renames developer badges, invalidates roster reads, and resets defaults without maintenance', async () => {
+		const database_path = fixture_database();
+		const before = new Database(database_path, { readonly: true });
+		const revision = (before.query('SELECT event_revision FROM clients WHERE id=1').get() as { event_revision: number }).event_revision;
+		before.close();
+		const set = await run_admin(database_path, 'dev-badge-label', 'set', 'osrs_overhaul_dev', 'Overhaul Dev');
+		expect(set.exit_code).toBe(0);
+		expect(JSON.parse(set.stdout)).toMatchObject({ 'multiplayer:Badge_OSRS_Overhaul_Dev': 'Overhaul Dev' });
+		const get = await run_admin(database_path, 'dev-badge-label', 'get', 'osrs_overhaul_dev');
+		expect(JSON.parse(get.stdout)).toEqual(JSON.parse(set.stdout));
+		for (const [kind, label] of [['unknown', 'Dev'], ['dev', ''], ['dev', ' bad '], ['dev', 'a'.repeat(61)], ['dev', 'bad\nlabel']])
+			expect((await run_admin(database_path, 'dev-badge-label', 'set', kind!, label!)).exit_code).toBe(2);
+		const verification = new Database(database_path, { readonly: true });
+		expect(verification.query('SELECT event_revision FROM clients WHERE id=1').get()).toEqual({ event_revision: revision + 1 });
+		expect(verification.query("SELECT value FROM service_settings WHERE key='maintenance'").get()).toEqual({ value: '0' });
+		verification.close();
+		const reset = await run_admin(database_path, 'dev-badge-label', 'reset', 'osrs_overhaul_dev');
+		expect(reset.exit_code).toBe(0);
+		expect(JSON.parse(reset.stdout)['multiplayer:Badge_OSRS_Overhaul_Dev']).toBe('OSRS Overhaul Dev');
+	});
+
 	test('gets and sets one Updates section field without changing maintenance state', async () => {
 		const database_path = fixture_database();
 		const original_body = await run_admin(database_path, 'updates', 'get', 'dev-message', 'body');

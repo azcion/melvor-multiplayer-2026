@@ -154,6 +154,15 @@ test('contents expose the top three stack contributors and the Wish maker', () =
 	]);
 	expect(contents.wishes[0]).toMatchObject({ wisher: 'Maker 4',
 		contributors: [{ client_id: 4, icon_id: 'test:Icon_4' }] });
+	database.query('UPDATE clients SET cheats_detected_at=? WHERE id IN (2,4)').run(60_000_000);
+	const filtered = crucible_contents(1, 60_000_000, database, ['items'])!;
+	expect(filtered.offerings[0]).toMatchObject({ qty: 4, contributors: [
+		{ client_id: 3, icon_id: 'test:Icon_3' }, { client_id: 1, icon_id: 'test:Icon_1' }] });
+	expect(filtered.wishes).toEqual(contents.wishes);
+	expect(filtered.heat).toEqual(contents.heat);
+	database.query('UPDATE clients SET cheats_detected_at=?').run(60_000_000);
+	expect(crucible_contents(1, 60_000_000, database, ['items'])!.offerings).toEqual([]);
+
 	database.close();
 });
 

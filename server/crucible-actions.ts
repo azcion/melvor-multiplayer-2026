@@ -1,3 +1,6 @@
+import type { SQLQueryBindings } from 'bun:sqlite';
+import { filtered_contributor_sql, filtered_crucible_quantities } from './listing-filters';
+import type { CheatCategoryId } from './cheat-categories';
 import { wish_capacity_state, wish_price_micros, spend_ep } from './wish-capacity';
 import { create_gloop_custody, type FundingOrigin, create_custody_source, custody_at, move_custody, move_location, allocate_wish_funding, wish_funding, retire_wish_funding, record_dependency } from './economy-custody';
 import { record_economy_operation } from './save-rollback';
@@ -159,14 +162,16 @@ export function cast_crucible_items(actor: CrucibleActor, items: CastItem[], sou
 	return { success: true, ...(pet_granted ? { pet_id: CRUCIBLE_PET_ID } : {}) };
 }
 
-function consume_lots(offering: db_row.crucible_offerings, qty: number, recipient: number, now: number): Array<{ client_id: number; qty: number; root_key: string | null }> {
-	const lots = db.query<db_row.crucible_contribution_lots, [number]>(
-		'SELECT * FROM crucible_contribution_lots WHERE offering_id = ? ORDER BY contributed_at, id'
-	).all(offering.id);
+function consume_lots(offering: db_row.crucible_offerings, qty: number, recipient: number, now: number, listing_filters: CheatCategoryId[] = []): Array<{ client_id: number; qty: number; root_key: string | null }> {
+	const filter = filtered_contributor_sql('lot.client_id', listing_filters, now);
+	const lots = db.query<db_row.crucible_contribution_lots & { filtered: number }, SQLQueryBindings[]>(
+		'SELECT lot.*, ' + filter.sql + ' AS filtered FROM crucible_contribution_lots lot WHERE offering_id = ? ORDER BY contributed_at, id'
+	).all(...filter.values, offering.id);
 	const attributed = lots.reduce((sum, lot) => safe_crucible_add(sum, lot.qty), 0);
 	let remaining = Math.max(0, qty - Math.max(0, offering.qty - attributed));
 	const consumed: Array<{ client_id: number; qty: number; root_key: string | null }> = [];
 	for (const lot of lots) {
+		if (lot.filtered) continue;
 		if (remaining === 0) break;
 		const amount = Math.min(remaining, lot.qty);
 		const roots = custody_at(db,`crucible-lot:${lot.id}`);
@@ -240,7 +245,7 @@ function add_crucible_gloop(guild_id: number, qty: number, now: number): number 
 }
 
 export function reclaim_crucible_offering(actor: CrucibleActor, item_id: string, qty: number,
-	now = Date.now(), source_id: string = crypto.randomUUID()): JsonObject {
+	now = Date.now(), source_id: string = crypto.randomUUID(), listing_filters: CheatCategoryId[] = []): JsonObject {
 	if (!crucible_available(actor, now)) return { success: false, error: 'Crucible is catching up.' };
 	if (!is_open(actor.guild_id)) return { success: false, error: 'Crucible is sealed.' };
 	const membership = db.query<{ crucible_reclaim_available_at: number }, [number]>(
@@ -259,7 +264,8 @@ export function reclaim_crucible_offering(actor: CrucibleActor, item_id: string,
 	const offering = db.query<db_row.crucible_offerings, [number, string]>(
 		'SELECT * FROM crucible_offerings WHERE guild_id = ? AND item_id = ?'
 	).get(actor.guild_id, item_id);
-	if (offering === null || qty > offering.qty)
+	const hidden = filtered_crucible_quantities(db, actor.guild_id, listing_filters, now);
+	if (offering === null || qty > offering.qty - (hidden.get(offering.id) ?? 0))
 		return { success: false, error: 'Offering is unavailable.' };
 	const expedition_lock = db.query<{ locked_until: number }, [number, string, number, number, number, number]>(
 		'SELECT lot.locked_until FROM crucible_contribution_lots AS lot JOIN clients AS client ' +
@@ -270,7 +276,7 @@ export function reclaim_crucible_offering(actor: CrucibleActor, item_id: string,
 		actor.account_id ?? 0, actor.account_id ?? 0, now);
 	if (expedition_lock !== null)
 		return { success: false, error: 'Expedition supply lock is active.', available_at: expedition_lock.locked_until };
-	const consumed = consume_lots(offering, qty, actor.client_id, now);
+	const consumed = consume_lots(offering, qty, actor.client_id, now, listing_filters);
 	const direct_roots=custody_at(db,`crucible-offering:${offering.id}`);
 	let direct_remaining = Math.max(0,qty-Math.max(0,offering.qty-direct_roots.reduce((sum,r)=>safe_crucible_add(sum,r.quantity),0)));
 	for (const root of direct_roots) {
@@ -505,10 +511,35 @@ export function claim_crucible_wish(actor: CrucibleActor, now = Date.now()): Jso
 	return { success: true };
 }
 
-export function get_crucible_state(actor: CrucibleActor, now = Date.now()) {
+// Minimal locally-filterable badge model: no catalog, contributor identities or page artwork data.
+export function get_crucible_summary(actor: CrucibleActor, now = Date.now(), listing_filters: CheatCategoryId[] = []) {
+	return db.transaction(() => {
+		reconcile_crucible(actor.guild_id, now);
+		const open = is_open(actor.guild_id);
+		const next_reclaim_at = crucible_clear_state(actor, now).next_reclaim_at;
+		const join_lock = db.query<{ until: number }, [number]>(
+			'SELECT crucible_reclaim_available_at AS until FROM guild_memberships WHERE client_id=?'
+		).get(actor.client_id)?.until ?? 0;
+		const hidden = filtered_crucible_quantities(db, actor.guild_id, listing_filters, now);
+		const offerings = !open || (next_reclaim_at ?? 0) > now || join_lock > now ? [] : db.query<{
+			offering_id: number; id: string; qty: number;
+		}, [number, string, number, number, number, number]>(
+			'SELECT o.id AS offering_id,o.item_id AS id,o.qty FROM crucible_offerings o WHERE o.guild_id=? AND o.qty>0 ' +
+			'AND NOT EXISTS(SELECT 1 FROM crucible_currency_locks l WHERE l.guild_id=o.guild_id AND l.currency_id=o.item_id AND l.owner_key=? AND l.locked_until>?) ' +
+			"AND NOT EXISTS(SELECT 1 FROM crucible_contribution_lots l JOIN clients c ON c.id=l.client_id WHERE l.offering_id=o.id AND l.source_kind='expedition' AND l.locked_until>? AND (l.client_id=? OR c.melvor_account_id=?))"
+		).all(actor.guild_id, actor.owner_key, now, now, actor.client_id, actor.account_id ?? -1).map(row => ({ id: row.id, qty: Math.max(0, row.qty - (hidden.get(row.offering_id) ?? 0)) }))
+			.filter(row => row.qty > 0);
+		const wishes = !open ? [] : db.query<{ item_id: string }, [number, number, number]>(
+			'SELECT item_id FROM crucible_wishes WHERE guild_id=? AND owner_client_id=? AND formation_points>=? AND progress_gp>=required_gp'
+		).all(actor.guild_id, actor.client_id, CRUCIBLE_PROGRESS_MAX);
+		return { is_open: open, offerings, wishes };
+	}).immediate();
+}
+
+export function get_crucible_state(actor: CrucibleActor, now = Date.now(), listing_filters: CheatCategoryId[] = []) {
 	const reconcile = db.transaction(() => {
 		reconcile_crucible(actor.guild_id, now);
-		const contents = crucible_contents(actor.guild_id, now);
+		const contents = crucible_contents(actor.guild_id, now, db, listing_filters);
 		if (contents === null) return { enabled: false };
 		const currency_locks = db.query<{ currency_id: string; locked_until: number }, [number, string, number]>(
 			'SELECT currency_id, locked_until FROM crucible_currency_locks ' +

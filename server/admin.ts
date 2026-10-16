@@ -4,7 +4,7 @@ import { inspect_rollback_benefits, release_rollback_benefit } from './rollback-
 import { inspect_save_rollback } from './save-rollback';
 import { createHash } from 'node:crypto';
 import { record_audit_event } from './audit';
-import { EXPEDITION_TESTER_TAG, is_expedition_tester } from './account_tags';
+import { DEV_BADGES, get_dev_badge_labels, valid_dev_badge_label, EXPEDITION_TESTER_TAG, is_expedition_tester } from './account_tags';
 import { revoke_installation } from './installations';
 import { db, get_service_setting } from './db';
 import { make_audit_context, run_with_audit_context } from './audit-context';
@@ -51,6 +51,7 @@ function usage(output: AdminOutput): number {
   bun run admin.ts alliance-preview on|off
   bun run admin.ts icon-collection on|off
   bun run admin.ts icon-collection-limit icon-bytes|manifest-items|catalog-bytes|observations VALUE
+  bun run admin.ts dev-badge-label get|set|reset dev|sae_dev|osrs_overhaul_dev [LABEL]
   bun run admin.ts release-version VERSION|clear
   bun run admin.ts minimum-supported-version VERSION|clear
   bun run admin.ts updates get SECTION_ID title|body
@@ -819,6 +820,20 @@ function run_admin_command(args: string[], output: AdminOutput = console_output)
 				return usage(output);
 			set_setting(limit.key, String(limit.value));
 			output.log(`Icon collection ${action} limit set to ${limit.value}.`);
+			return 0;
+		}
+		case 'dev-badge-label': {
+			if (!argument || !Object.hasOwn(DEV_BADGES, argument) ||
+				!['get', 'set', 'reset'].includes(action ?? '') || args.length !== (action === 'set' ? 4 : 3) ||
+				(action === 'set' && !valid_dev_badge_label(args[3]))) return usage(output);
+			const key = 'dev-badge-label:' + argument;
+			if (action !== 'get') db.transaction(() => {
+				if (action === 'reset') db.query('DELETE FROM service_settings WHERE key = ?').run(key);
+				else db.query('INSERT INTO service_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')
+					.run(key, args[3]!);
+				db.run('UPDATE clients SET event_revision = event_revision + 1');
+			}).immediate();
+			output.log(JSON.stringify(get_dev_badge_labels()));
 			return 0;
 		}
 		case 'release-version':

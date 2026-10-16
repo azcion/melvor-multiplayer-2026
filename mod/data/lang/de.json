@@ -403,6 +403,7 @@
 	"MOD_MP_GUILD_NEW_MEMBER": "Neues Mitglied",
 	"MOD_MP_GUILD_DEV": "Dev",
 	"MOD_MP_GUILD_DEV_SAE": "SAE Dev",
+	"MOD_MP_GUILD_DEV_OSRS_OVERHAUL": "OSRS Overhaul Dev",
 	"MOD_MP_DEV_TAG_VISIBILITY": "Let others see your Dev tag",
 	"MOD_MP_GUILD_USING_CHEATS": "Verwendet Cheats",
 	"MOD_MP_GUILD_APPLICANTS": "Bewerber",
@@ -450,6 +451,7 @@
 	"MOD_MP_STATUS_ACTIVITY_COMBAT": "Im Kampf",
 	"MOD_MP_CHAT_PRIVACY_ENABLE": "Private Chatnachrichten erlauben",
 	"MOD_MP_GLOBAL_CHAT_ENABLE": "Am globalen Chat teilnehmen",
+	"MOD_MP_ALLIANCE_CHAT_ENABLE": "Am Allianzchat teilnehmen",
 	"MOD_MP_GUILD_CHAT_ENABLE": "Am Gildenchat teilnehmen",
 	"MOD_MP_CHAT_START": "Chat beginnen",
 	"MOD_MP_CHAT_CATEGORY_PRIVATE": "Privat",
@@ -531,7 +533,7 @@
 	"MOD_MP_MODAL_NO_GUILD_MATCHES": "Keine Gilden entsprechen deiner Suche.",
 	"MOD_MP_FREE_FELLOWSHIP_CONFIRM_TITLE": "Der Freien Gemeinschaft beitreten",
 	"MOD_MP_FREE_FELLOWSHIP_CONFIRM_PUBLIC": "Die Mitgliedschaft ist auf diesem Server öffentlich und erfordert keine Bewerbung.",
-	"MOD_MP_FREE_FELLOWSHIP_SEARCH": "Mitglieder nach Anzeigenamen suchen",
+	"MOD_MP_FREE_FELLOWSHIP_SEARCH": "Suchen",
 	"MOD_MP_FREE_FELLOWSHIP_JOINED": "Du bist der Freien Gemeinschaft beigetreten.",
 	"MOD_MP_GUILD_JOINED": "Du bist der Gilde durch ihre offenen Tore beigetreten.",
 	"MOD_MP_GUILD_LEAVE_WARNING": "Dein abgeschlossener Multiplayer-Fortschritt und nicht abgeholte Belohnungen bleiben bei dieser Identität. Unvollendete Beiträge bleiben bei dieser Gilde. Du musst zuerst alle Marktangebote, Geschenke und Tauschgeschäfte klären. Als letztes Mitglied löst du durch deinen Austritt die Gilde dauerhaft auf und löschst ihre gemeinsamen Aufzeichnungen.",
@@ -850,7 +852,6 @@
 	"MOD_MP_ALLIANCE_JOIN_EMPTY": "Es sind noch keine aktiven Allianzen zum Beitritt verfügbar.",
 	"MOD_MP_ALLIANCE_PREVIOUS": "Zurück",
 	"MOD_MP_ALLIANCE_NEXT": "Weiter",
-	"MOD_MP_ALLIANCE_CHAT_ENABLE": "Am Allianzchat teilnehmen",
 	"MOD_MP_ALLIANCE_FREE_FELLOWSHIP": "Freie Gemeinschaft",
 	"MOD_MP_ALLIANCE_STAGE_LOCAL": "Wartet auf die Zustimmung des eigenen Rates",
 	"MOD_MP_ALLIANCE_STAGE_WAITING": "Wartet auf die andere Gilde",
@@ -1284,5 +1285,9 @@
 	"MOD_MP_CHEAT_CATEGORY_SHOPS": "Shop-Cheats",
 	"MOD_MP_CHEAT_CATEGORY_LOOT_RNG": "Beute-Cheats",
 	"MOD_MP_CHEAT_PRESENCE_NOTICE": "Diese Mods wurden in den letzten 7 Tagen für diesen Charakter als geladen gemeldet. Das belegt nicht, welche Funktionen aktiviert oder verwendet wurden.",
-	"MOD_MP_CHEAT_EXPIRES": "Läuft ab in: %s"
+	"MOD_MP_CHEAT_EXPIRES": "Läuft ab in: %s",
+	"MOD_MP_LOADING_REPORT_TITLE": "Ladebericht",
+	"MOD_MP_LOADING_REPORT_REFRESH": "Ladebericht erstellen",
+	"MOD_MP_LISTING_FILTERS": "Angebotsfilter",
+	"MOD_MP_LISTING_FILTERS_DESCRIPTION": "Verkaufsangebote und Opfergaben im Tiegel von Spielern mit diesen Abzeichen ausblenden."
 }

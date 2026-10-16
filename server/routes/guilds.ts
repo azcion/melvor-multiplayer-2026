@@ -61,6 +61,19 @@ export function register_guilds_routes(): void {
 		const result = await get_council_petitions(membership.guild_id, client_id, resolved_page,
 			version === 'development' || is_client_version_at_least(version, '1.6.0'), has_alliance_access(client_id, version), alliance_capable(version),
 			version === 'development' || is_client_version_at_least(version, '1.6.10'));
+		// Same public labels already exposed by the authorized Alliance preview route.
+		// An explicit empty list also records that a historical Guild has disappeared.
+		if (has_alliance_access(client_id, version)) {
+			for (const petition of result.petitions) {
+				if (!petition.type.startsWith('alliance_')) continue;
+				const proposal = petition.proposal as { guild_ids?: number[]; guilds?: unknown[] };
+				proposal.guilds = (proposal.guild_ids ?? []).flatMap(id => {
+					const guild = db.query<{ guild_id: number; name: string; icon_id: string }, [number]>(
+						'SELECT id AS guild_id,name,icon_id FROM guilds WHERE id=?').get(id);
+					return guild ? [guild] : [];
+				});
+			}
+		}
 		if (!council_preview_enabled(req, client_id)) return { ...result, server_time: Date.now() };
 		const fixtures = council_test_data();
 		return { ...result, server_time: Date.now(), petitions: [...result.petitions, ...fixtures.active,
@@ -426,7 +439,15 @@ export function register_guilds_routes(): void {
 		if (!Number.isSafeInteger(page) || page < 0 || search.length > 64)
 			return 400; // Bad Request
 
-		return await get_guild_member_directory(guild_id, page, search, client_id);
+		let game_mode_ids: unknown;
+		try {
+			game_mode_ids = JSON.parse(url.searchParams.get('game_mode_ids') ?? '[]');
+		} catch { return 400; }
+		if (!Array.isArray(game_mode_ids) || game_mode_ids.length > 128 ||
+			game_mode_ids.some(id => typeof id !== 'string' || id.length > runtime.MAX_GAME_MODE_ID_LENGTH || !/^[A-Za-z0-9_-]+:[A-Za-z0-9_-]+$/.test(id)))
+			return 400;
+
+		return await get_guild_member_directory(guild_id, page, search, client_id, false, Date.now(), game_mode_ids);
 	});
 
 	session_get_route('/api/guilds/members/shadowed', async (req, url, client_id) => {
@@ -440,7 +461,15 @@ export function register_guilds_routes(): void {
 		if (!Number.isSafeInteger(page) || page < 0 || search.length > 64)
 			return 400; // Bad Request
 
-		return await get_guild_member_directory(guild_id, page, search, client_id, true);
+		let game_mode_ids: unknown;
+		try {
+			game_mode_ids = JSON.parse(url.searchParams.get('game_mode_ids') ?? '[]');
+		} catch { return 400; }
+		if (!Array.isArray(game_mode_ids) || game_mode_ids.length > 128 ||
+			game_mode_ids.some(id => typeof id !== 'string' || id.length > runtime.MAX_GAME_MODE_ID_LENGTH || !/^[A-Za-z0-9_-]+:[A-Za-z0-9_-]+$/.test(id)))
+			return 400;
+
+		return await get_guild_member_directory(guild_id, page, search, client_id, true, Date.now(), game_mode_ids);
 	});
 
 	session_get_route('/api/guilds/state', async (req, url, client_id): Promise<HandlerResult> => {

@@ -557,3 +557,73 @@ test('synthetic destructive confirmations collect a reason without submitting', 
 	assert.equal(state.alliance_reason_confirmation, null);
 	assert.equal(calls.filter(call => call[0] === 'post').length, 0);
 });
+
+test('showcase preserves real proposals and returns fresh fixtures on each view', () => {
+	const { state } = showcase_state();
+	const real_proposal = { process_id: 42, kind: 'leave', stage: 'local' };
+	state.alliance_state.processes = [real_proposal];
+	const first = state.alliance_view;
+	assert.equal(first.processes.at(-1), real_proposal);
+	assert.equal(real_proposal.synthetic, undefined);
+	first.processes[0].applicant.name = 'Changed preview';
+	assert.equal(state.alliance_view.processes[0].applicant.name, 'Willow Wardens');
+	assert.deepEqual(state.alliance_state.processes, [real_proposal]);
+	state.alliance_state.alliance = { id: 7, name: 'Real Alliance' };
+	assert.equal(state.alliance_view, state.alliance_state);
+});
+
+test('Alliance summaries preserve empty, singular and Free Fellowship active counts', () => {
+	const { state, runtime } = setup();
+	const english = JSON.parse(readFileSync(new URL('../../mod/data/lang/en.json', import.meta.url), 'utf8'));
+	runtime.getLangString = key => english[key];
+	Object.assign(state, install_social_actions(runtime));
+	assert.equal(state.alliance_members_text(null), '0 Members');
+	assert.equal(state.alliance_guild_count_text(null), '0 Member Guilds');
+	assert.equal(state.alliance_members_text({ member_guilds: [{ member_count: 1 }] }), '1 Member (0 Active)');
+	assert.equal(state.alliance_members_text({ member_guilds: [{ member_count: 1, active_member_count: 1 }] }), '1 Member');
+	assert.equal(state.alliance_guild_count_text({ member_guilds: [{ type: 'free_fellowship' }] }), '1 Member Guild');
+});
+
+test('Guild preview age preserves legacy timestamps, missing values and future-date clamping', () => {
+	const { state } = setup();
+	state.alliance_preview = { established_at: Date.now() - 3.5 * 86400000 };
+	assert.equal(state.guild_preview_established(), 3);
+	state.alliance_preview.created_at = Date.now() + 86400000;
+	assert.equal(state.guild_preview_established(), 0);
+	state.alliance_preview.created_at = 'invalid';
+	assert.equal(state.guild_preview_established(), null);
+	state.alliance_preview = null;
+	assert.equal(state.guild_preview_established(), null);
+});
+
+test('proposal descriptions preserve Guild source precedence and explicit empty lists', () => {
+	const { state, runtime } = setup();
+	const english = JSON.parse(readFileSync(new URL('../../mod/data/lang/en.json', import.meta.url), 'utf8'));
+	runtime.getLangString = key => english[key];
+	Object.assign(state, install_social_actions(runtime));
+	state.guild_state = { guild: { guild_id: 1 } };
+	state.alliance_state = { alliance: { name: 'Current Alliance' } };
+	const own = { guild_id: 1, name: 'Ours' };
+	const other = { guild_id: 2, name: '{alliance} $& <Guild>' };
+	const proposal = { kind: 'found', guilds: [own, null, other], founding_guilds: [own], applicant: own, target_guild: own };
+	const bold_parts = (value, kind) => state.alliance_proposal_parts(value, kind).filter(part => part.bold);
+	assert.deepEqual(bold_parts(proposal), [
+		{ text: 'Current Alliance', bold: true },
+		{ text: other.name, bold: true, guild_id: 2 },
+	]);
+	assert.equal(bold_parts({ ...proposal, guilds: [] })[1].text, 'an unavailable Guild');
+	assert.equal(bold_parts({ ...proposal, guilds: undefined, founding_guilds: [] })[1].text, 'an unavailable Guild');
+	assert.equal(bold_parts({ kind: 'remove', applicant: other, target_guild: own })[0].text, other.name);
+	assert.equal(bold_parts({ kind: 'remove', target_guild: own })[0].guild_id, 1);
+	assert.equal(bold_parts({ kind: 'found', name: '', founding_guilds: [other] })[0].text, 'Current Alliance');
+	state.alliance_state = { alliance: null };
+	assert.equal(bold_parts({ kind: 'found' })[0].text, english.MOD_MP_ALLIANCE_UNNAMED);
+});
+
+test('resolved and legacy proposals retain stage text despite unfinished consent fields', () => {
+	const { state } = setup();
+	for (const stage of ['accepted', 'denied', 'cancelled', 'withdrawn']) {
+		assert.equal(state.alliance_proposal_status({ kind: 'found', governance_version: 2, stage, own_council: 'granted' }), state.alliance_stage(stage));
+	}
+	assert.equal(state.alliance_proposal_status({ kind: 'found', governance_version: 1, stage: 'recipient', own_council: 'granted' }), state.alliance_stage('recipient'));
+});

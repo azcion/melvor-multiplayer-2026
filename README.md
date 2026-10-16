@@ -56,7 +56,9 @@ and build are explicitly player-reported, not inferred from the phone brand. The
 request logs; origin categories, recognized preflight header names, and rejection reasons help diagnose transport
 failures. The operator retains up to 32 latest installation records per Client, with first/last authentication times; those records are erased when the Client is deleted.
 Diagnostics exclude IP addresses, raw user agents, device names, credentials, and request bodies. Connection request
-details remain local to the installation and are not uploaded as a report automatically.
+details remain local to the installation and are not uploaded as a report automatically. In Mod Settings,
+**Loading report** generates a selectable report of queue waits, request outcomes, cache activity, and page timings.
+It contains no Message text, request bodies, credentials, or server address.
 
 New servers enroll a separate installation credential in device-local storage after a successful connection.
 Credential hashes and revocation state remain with the retained Client to support recovery after soft deletion;

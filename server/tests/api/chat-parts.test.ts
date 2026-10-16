@@ -231,3 +231,27 @@ test('Support person tags follow player and team unread acknowledgements', async
 		await db_run('DELETE FROM support_team_memberships WHERE client_id = ?', [member.client_id]);
 	}
 });
+
+
+test('badge features retain new-client rendering and old-client text in responses, history and inbox', async () => {
+	const { first, second } = await make_guildmates('Badge Sender', 'Badge Reader', 'Badge Guild',
+		{ first: '1.6.13', second: '1.6.12' });
+	const parts = [{ type: 'text', text: 'Discuss ' }, { type: 'feature', feature_id: 'multiplayer:Badge_Item_Cheats' },
+		{ type: 'text', text: ' in ' }, { type: 'feature', feature_id: 'multiplayer:Guild_Raid' }];
+	const downgraded = [parts[0], { type: 'text', text: '[Item Cheats]' }, parts[2], parts[3]];
+	const sent = await post_json<any>('/api/chat/messages/send', { conversation_kind: 'private',
+		client_id: second.client_id, conversation_id: null, idempotency_key: crypto.randomUUID(), content: 'ignored', parts }, first.session_token);
+	expect(sent.response.status).toBe(200);
+	expect(sent.json.message.parts).toEqual(parts);
+	expect(sent.json.message.content).toBe('Discuss [Item Cheats] in $Raid');
+	const conversation_id = sent.json.message.conversation_id;
+	for (const [client, expected] of [[first, parts], [second, downgraded]] as const) {
+		const history = await get_json_with_session<any>(`/api/chat/messages?conversation_id=${conversation_id}`, client.session_token);
+		expect(history.json.messages[0].parts).toEqual(expected);
+		const inbox = await get_json_with_session<any>('/api/chat/conversations', client.session_token);
+		expect(inbox.json.conversations.find((row: any) => row.conversation_id === conversation_id).latest_message.parts).toEqual(expected);
+	}
+	const old_send = await post_json<any>('/api/chat/messages/send', { conversation_kind: 'private',
+		client_id: first.client_id, conversation_id, idempotency_key: crypto.randomUUID(), content: 'ignored', parts }, second.session_token);
+	expect(old_send.json.message.parts).toEqual(downgraded);
+});

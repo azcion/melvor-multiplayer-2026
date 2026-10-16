@@ -4,14 +4,18 @@ export const HISTORY_WINDOW = 14 * 24 * 60 * 60 * 1000;
 
 export function create_transfer_history_state() {
 	return Object.fromEntries(HISTORY_PANES.map(pane => [pane, {
-		entries: [], next_cursor: null, loading: false, error: false, loaded: false,
-		server_time: 0, loaded_at: 0, retry_append: false, visible_count: HISTORY_PAGE_SIZE
+		entries: [], next_cursor: null, visible_count: HISTORY_PAGE_SIZE,
+		loading: false, error: false, loaded: false, retry_append: false,
+		server_time: 0, loaded_at: 0
 	}]));
 }
 
 export function visible_transfer_history(page, local_now = performance.now()) {
-	const now = page.server_time + Math.max(0, local_now - page.loaded_at);
-	return page.entries.filter(entry => entry.occurred_at >= now - HISTORY_WINDOW && entry.occurred_at <= now);
+	// Advance the server clock using monotonic elapsed time, never the local wall clock.
+	const elapsed = Math.max(0, local_now - page.loaded_at);
+	const now = page.server_time + elapsed;
+	const cutoff = now - HISTORY_WINDOW;
+	return page.entries.filter(entry => entry.occurred_at >= cutoff && entry.occurred_at <= now);
 }
 
 export function create_transfer_history_loader({ state, api_get, scope, now = () => performance.now() }) {
@@ -19,12 +23,14 @@ export function create_transfer_history_loader({ state, api_get, scope, now = ()
 		if (!HISTORY_PANES.includes(pane)) return false;
 		const page = state.transfer_history[pane];
 		if (page.loading) return false;
+		// Reveal cached entries before requesting the next older page.
 		if (append && page.entries.length > page.visible_count) {
 			page.visible_count += HISTORY_PAGE_SIZE;
 			return true;
 		}
 		if (append && !page.next_cursor) return false;
 		const request_scope = scope();
+		const is_current_request = () => scope() === request_scope && page === state.transfer_history[pane];
 		const cursor = append ? page.next_cursor : null;
 		page.loading = true;
 		page.error = false;
@@ -32,33 +38,46 @@ export function create_transfer_history_loader({ state, api_get, scope, now = ()
 		try {
 			const query = cursor ? `&before_at=${cursor.occurred_at}&before_id=${cursor.id}` : '';
 			const result = await api_get(`/api/transfers/history?pane=${pane}${query}`);
-			if (scope() !== request_scope || page !== state.transfer_history[pane]) return false;
+			if (!is_current_request()) return false;
+			// Validate the response envelope before applying entries or pagination state.
 			if (!Array.isArray(result?.entries) || !Number.isSafeInteger(result.server_time)) {
 				page.error = true;
 				return false;
 			}
-			const known = new Set(page.entries.map(entry => entry.id));
-			const overlaps = result.entries.some(entry => known.has(entry.id));
-			const last = result.entries[result.entries.length - 1];
-			const keep_older = !append && overlaps && last && page.entries.some(entry =>
-				entry.occurred_at < last.occurred_at || (entry.occurred_at === last.occurred_at && entry.id < last.id));
-			const previous = append || keep_older ? page.entries : [];
-			const merged = new Map([...previous, ...result.entries].map(entry => [entry.id, entry]));
-			page.server_time = result.server_time;
-			page.loaded_at = now();
-			page.entries = visible_transfer_history({ ...page, entries: [...merged.values()] }, page.loaded_at)
-				.sort((left, right) => right.occurred_at - left.occurred_at || right.id - left.id);
-			if (!keep_older) page.next_cursor = result.next_cursor ?? null;
-			page.visible_count = append ? page.visible_count + HISTORY_PAGE_SIZE : HISTORY_PAGE_SIZE;
-			page.loaded = true;
+			apply_history_response(page, result, append, now);
 			return true;
 		} catch {
-			if (scope() === request_scope && page === state.transfer_history[pane]) page.error = true;
+			if (is_current_request()) page.error = true;
 			return false;
 		} finally {
+			// Release the captured page only; a replacement may have its own request.
 			page.loading = false;
 		}
 	};
+}
+
+// Only an overlapping head refresh can retain the already loaded tail. A gap
+// starts a new page chain, while an overlap keeps its existing older-page cursor.
+function refresh_retains_older_history(entries, incoming) {
+	const known = new Set(entries.map(entry => entry.id));
+	if (!incoming.some(entry => known.has(entry.id))) return false;
+	const last = incoming[incoming.length - 1];
+	return entries.some(entry => entry.occurred_at < last.occurred_at ||
+		(entry.occurred_at === last.occurred_at && entry.id < last.id));
+}
+
+function apply_history_response(page, result, append, now) {
+	const keep_older = !append && refresh_retains_older_history(page.entries, result.entries);
+	const previous = append || keep_older ? page.entries : [];
+	// Incoming snapshots replace cached entries; the last incoming duplicate wins.
+	const merged = new Map([...previous, ...result.entries].map(entry => [entry.id, entry]));
+	page.server_time = result.server_time;
+	page.loaded_at = now();
+	page.entries = visible_transfer_history({ ...page, entries: [...merged.values()] }, page.loaded_at)
+		.sort((left, right) => right.occurred_at - left.occurred_at || right.id - left.id);
+	if (!keep_older) page.next_cursor = result.next_cursor ?? null;
+	page.visible_count = append ? page.visible_count + HISTORY_PAGE_SIZE : HISTORY_PAGE_SIZE;
+	page.loaded = true;
 }
 
 export function transfer_history_items(items, is_currency) {

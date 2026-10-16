@@ -20,7 +20,7 @@ import { register_page_read } from './page-reads';
 import { record_pending_exchange } from './transfer-history';
 import { cleanup_market_permissions } from './alliance-market';
 import { execute_alliance_petition, alliance_petition_withdrawable, maintain_alliances, remove_alliance_guild, alliance_for_guild, alliance_guilds } from './alliances';
-import { dev_tag_kind } from './account_tags';
+import { dev_tag_kind, get_dev_badge_label, get_dev_badge_labels } from './account_tags';
 import { replay_economy_command } from './economy';
 import { create_api_server, validate_api_command, ECONOMY_COMMAND_KINDS } from './api-contract';
 import { createHash } from 'node:crypto';
@@ -2044,7 +2044,7 @@ export function get_guild_member_owned_dlc(member: Pick<GuildMemberRow, 'owned_d
 	return [];
 }
 
-export function guild_member_from_row(member: GuildMemberRow, now = Date.now(), admin_view = false, marking?: CheatMarking) {
+export function guild_member_from_row(member: GuildMemberRow, now = Date.now(), admin_view = false, marking?: CheatMarking, dev_labels = get_dev_badge_labels()) {
 	marking ??= read_cheat_markings(db, [member], now).get(member.client_id)!;
 	const status_activity = get_guild_member_status_activity(member);
 	const account_age = member.account_creation_date !== null &&
@@ -2054,8 +2054,10 @@ export function guild_member_from_row(member: GuildMemberRow, now = Date.now(), 
 	return {
 		client_id: member.client_id,
 		raid_defeats: member.raid_defeats,
+		dev_badge_label: member.dev_tag_visible === 1 ? get_dev_badge_label(member.melvor_account_id, dev_labels) : null,
 		dev_badge: member.dev_tag_visible === 1 && dev_tag_kind(member.melvor_account_id) === 'dev',
 		sae_dev_badge: member.dev_tag_visible === 1 && dev_tag_kind(member.melvor_account_id) === 'sae_dev',
+		osrs_overhaul_dev_badge: member.dev_tag_visible === 1 && dev_tag_kind(member.melvor_account_id) === 'osrs_overhaul_dev',
 		social_mode: member.social_mode,
 		display_name: member.display_name,
 		icon_id: member.icon_id,
@@ -2128,7 +2130,8 @@ export async function get_guild_members(guild_id: number, viewer_id: number, sha
 	) as GuildMemberRow[];
 	const admin_view = is_admin(viewer_id);
 	const markings = read_cheat_markings(db, members, now);
-	return members.map(member => guild_member_from_row(member, now, admin_view, markings.get(member.client_id)));
+	const dev_labels = get_dev_badge_labels();
+	return members.map(member => guild_member_from_row(member, now, admin_view, markings.get(member.client_id), dev_labels));
 }
 
 export async function get_guild_member_directory(
@@ -2137,17 +2140,34 @@ export async function get_guild_member_directory(
 	search: string,
 	viewer_id: number,
 	shadowed = false,
-	now = Date.now()
+	now = Date.now(),
+	game_mode_ids: string[] = []
 ) {
 	const escaped_search = search.replace(/[\\%_]/g, '\\$&');
 	const search_pattern = `%${escaped_search}%`;
+	const mod_alias = ({ sae: 'super awesome expansion', osrs: 'old school runescape' } as Record<string, string>)[search.toLowerCase()];
+	const mod_pattern = mod_alias ? `%${mod_alias}%` : search_pattern;
+	const dev_account = search.toLowerCase() === 'sae' ? 12 : search.toLowerCase() === 'osrs' ? 819 : null;
+	// The same predicate serves rows and totals. Never search hidden mod lists, even for admins.
+	const mod_name_filter = 'mod.type = \'text\' AND (LOWER(mod.value) LIKE LOWER(?) ESCAPE \'\\\' ' +
+		'OR LOWER(mod.value) LIKE LOWER(?) ESCAPE \'\\\')';
+	const search_filter = '(LOWER(c.`display_name`) LIKE LOWER(?) ESCAPE \'\\\' ' +
+		'OR (c.`game_mode_visible` = 1 AND (LOWER(runtime.`game_mode_id`) LIKE LOWER(?) ESCAPE \'\\\' ' +
+		(game_mode_ids.length ? 'OR runtime.`game_mode_id` IN (' + game_mode_ids.map(() => '?').join(',') + ') ' : '') + ')) ' +
+		'OR (c.`active_mods_visible` = 1 AND EXISTS (SELECT 1 FROM json_each(runtime.`active_mods`) AS mod ' +
+		'WHERE ' + mod_name_filter + ')) ' +
+		'OR (c.`dev_tag_visible` = 1 AND c.`melvor_account_id` = ?))';
+	const search_values = [search_pattern, search_pattern, ...game_mode_ids, search_pattern, mod_pattern, dev_account];
 	const cutoff = shadowed_cutoff(now);
 	const activity_filter = shadowed
 		? ' AND (c.`last_multiplayer_active_at` = 0 OR c.`last_multiplayer_active_at` < ?)'
 		: ' AND c.`last_multiplayer_active_at` >= ?';
 	const [members, count] = await Promise.all([
 			db_get_all(
-				'SELECT c.`id` AS `client_id`, CASE WHEN c.`social_mode_enforced` = 1 OR COALESCE(account.`social_mode_enforced`, 0) = 1 ' +
+				'SELECT CASE WHEN c.`active_mods_visible` = 1 AND ? <> \'\' THEN ' +
+				'(SELECT json_group_array(DISTINCT mod.value) FROM json_each(runtime.`active_mods`) AS mod WHERE ' +
+				mod_name_filter + ') ELSE \'[]\' END AS `search_mod_names`, ' +
+				'c.`id` AS `client_id`, CASE WHEN c.`social_mode_enforced` = 1 OR COALESCE(account.`social_mode_enforced`, 0) = 1 ' +
 				'OR (g.`cheat_restriction_enabled` = 1 AND c.`cheats_detected_at` BETWEEN ? AND ?) ' +
 				'THEN \'social\' ELSE c.`social_mode` END AS `social_mode`, c.`display_name`, c.`icon_id`, ' +
 				'c.`equipment_visible`, ' +
@@ -2173,23 +2193,37 @@ export async function get_guild_member_directory(
 			'LEFT JOIN `client_runtime_snapshots` AS runtime ON runtime.`client_id` = c.`id` ' +
 			'LEFT JOIN `guild_activity_events` AS joined_activity ON joined_activity.`guild_id` = m.`guild_id` ' +
 				"AND joined_activity.`source_key` = 'membership:' || m.`id` || ':joined' " +
-			'WHERE m.`guild_id` = ? AND LOWER(c.`display_name`) LIKE LOWER(?) ESCAPE \'\\\'' + activity_filter + ' ' +
+			'WHERE m.`guild_id` = ? AND ' + search_filter + activity_filter + ' ' +
 			'ORDER BY c.`last_multiplayer_active_at` DESC, c.`display_name` COLLATE NOCASE, c.`id` ' +
 			'LIMIT ? OFFSET ?',
-			[now - CHEAT_USE_WINDOW, now, guild_id, search_pattern, cutoff, GUILD_MEMBER_PAGE_SIZE, page * GUILD_MEMBER_PAGE_SIZE]
+			[search, search_pattern, mod_pattern, now - CHEAT_USE_WINDOW, now, guild_id, ...search_values, cutoff, GUILD_MEMBER_PAGE_SIZE, page * GUILD_MEMBER_PAGE_SIZE]
 		),
 		db_get_single(
 			' SELECT COUNT(*) AS `count` FROM `guild_memberships` AS m ' +
 			'JOIN `clients` AS c ON c.`id` = m.`client_id` ' +
-			'WHERE m.`guild_id` = ? AND LOWER(c.`display_name`) LIKE LOWER(?) ESCAPE \'\\\'' + activity_filter,
-			[guild_id, search_pattern, cutoff]
+			'LEFT JOIN `client_runtime_snapshots` AS runtime ON runtime.`client_id` = c.`id` ' +
+			'WHERE m.`guild_id` = ? AND ' + search_filter + activity_filter,
+			[guild_id, ...search_values, cutoff]
 		)
 	]);
 
 	const admin_view = is_admin(viewer_id);
 	const markings = read_cheat_markings(db, members as GuildMemberRow[], now);
+	const dev_labels = get_dev_badge_labels();
 	return {
-		members: (members as GuildMemberRow[]).map(member => guild_member_from_row(member, now, admin_view, markings.get(member.client_id))),
+		members: (members as Array<GuildMemberRow & { search_mod_names: string }>).map(member => {
+			const result = guild_member_from_row(member, now, admin_view, markings.get(member.client_id), dev_labels);
+			const search_matches: Array<{ kind: 'mod' | 'game_mode' | 'dev'; label: string }> = [];
+			if (search !== '') {
+				for (const label of JSON.parse(member.search_mod_names) as string[])
+					search_matches.push({ kind: 'mod', label });
+				if (result.game_mode_id && (result.game_mode_id.toLowerCase().includes(search.toLowerCase()) || game_mode_ids.includes(result.game_mode_id)))
+					search_matches.push({ kind: 'game_mode', label: result.game_mode_id });
+				if (dev_account !== null && member.melvor_account_id === dev_account && result.dev_badge_label)
+					search_matches.push({ kind: 'dev', label: result.dev_badge_label });
+			}
+			return { ...result, search_matches };
+		}),
 		page,
 		page_size: GUILD_MEMBER_PAGE_SIZE,
 		search,
@@ -2259,7 +2293,8 @@ export async function get_guild_applicants(client_id: number) {
 		[now - CHEAT_USE_WINDOW, now, guild_id]
 	) as (GuildMemberRow & { application_id: number })[];
 	const markings = read_cheat_markings(db, applicants, now);
-	return applicants.map(row => ({ ...guild_member_from_row(row, now, is_admin(client_id), markings.get(row.client_id)),
+	const dev_labels = get_dev_badge_labels();
+	return applicants.map(row => ({ ...guild_member_from_row(row, now, is_admin(client_id), markings.get(row.client_id), dev_labels),
 		application_id: row.application_id, profile_source: 'chat',
 		activity_visible: false, activity_available: false, status_activity: null, status_activities: [],
 		last_seen_at: null, joined_at: null }));

@@ -118,7 +118,7 @@ test('twenty repeated page visits share one Transfers and one Guild snapshot', a
 		}
 	};
 	const prepare = main.slice(main.indexOf('async function prepare_page_snapshot'), main.indexOf('async function coordinated_request'));
-	const reads = main.slice(main.indexOf('async function api_get(endpoint)'), main.indexOf('async function api_post_response('));
+	const reads = main.slice(main.indexOf('async function api_get(endpoint,'), main.indexOf('async function api_post_response('));
 	runInNewContext(prepare + reads, context);
 	for (let i = 0; i < 20; i++) {
 		await context.prepare_page_snapshot('transfers');
@@ -159,9 +159,10 @@ test('the transport prioritizes acknowledgements and treats POST read routes as 
 	const { readFile } = await import('node:fs/promises');
 	const { runInNewContext } = await import('node:vm');
 	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
-	const source = main.slice(main.indexOf('async function coordinated_request'), main.indexOf('async function api_get(endpoint)'));
+	const source = main.slice(main.indexOf('async function coordinated_request'), main.indexOf('async function api_get(endpoint,'));
 	const priorities = [];
 	const context = { session_generation: 1, server_host: 'https://example.test', fetch: () => {},
+		chat_page_visible: false, guild_page_visible: false, crucible_page_visible: false, expedition_page_visible: false, state: {},
 		request_scheduler: { run(priority, run, valid) { assert.equal(valid(), true); priorities.push(priority); return run(); }, observe() {} },
 		polling: { fetch_with_timeout: async (_fetch, _url, _options, request) => request.consume(Response.json({ success: true })) }
 	};
@@ -197,8 +198,8 @@ test('changed Events preserve pending startup and Chat reads while refreshing ca
 	}));
 	await Promise.resolve();
 	const constants = main.slice(main.indexOf('const CACHED_READS ='), main.indexOf('let transfer_history_module'));
-	const invalidate = main.match(/read_cache\.invalidate\(key => CACHED_READS[^;]+;/)[0];
-	runInNewContext(constants + invalidate, { read_cache: cache });
+	const invalidate = main.match(/read_cache\.invalidate\(key => \(CACHED_READS[^;]+;/)[0];
+	runInNewContext(constants + invalidate, { read_cache: cache, guild_changed: true });
 	for (const finish of finishes.values()) finish({ initial: true });
 	const values = await Promise.all(reads);
 	assert.deepEqual(values, [{ initial: true }, { initial: true }, { initial: true }, { fresh: true }]);
@@ -227,7 +228,7 @@ test('missing Guild previews survive Council refreshes but reset across servers 
 	const { readFile } = await import('node:fs/promises');
 	const { runInNewContext } = await import('node:vm');
 	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
-	const source = main.slice(main.indexOf('async function api_get(endpoint)'), main.indexOf('async function api_post_response('));
+	const source = main.slice(main.indexOf('async function api_get(endpoint,'), main.indexOf('async function api_post_response('));
 	let status = 404, calls = 0;
 	const context = { state: {}, session_generation: 1, selected_api_major: 2, server_host: 'https://one.test',
 		session_token: 'fixture', transport_diagnostics: null, resolve_api_endpoint: route => route,
@@ -259,4 +260,149 @@ test('missing Guild previews survive Council refreshes but reset across servers 
 	status = 404;
 	assert.equal(await context.api_get('/api/guilds/state'), null);
 	assert.equal(await context.api_get_request(endpoint, () => false), null);
+});
+
+test('foreground reads preserve recovery capacity and aged work receives a fair turn', async () => {
+	let time = 0, release;
+	const observations = [], order = [];
+	const scheduler = create_request_scheduler({ now: () => time, concurrency: 1, capacity: 8,
+		observe: entry => observations.push(entry) });
+	const first = scheduler.run(0, () => new Promise(resolve => { release = resolve; }));
+	await Promise.resolve();
+	const background = scheduler.run(0, () => order.push('background'));
+	time = 16000;
+	const foreground = scheduler.run(1, () => order.push('foreground'), () => true, true);
+	const ack = scheduler.run(2, () => order.push('ack'));
+	release();
+	await Promise.all([first, background, foreground, ack]);
+	assert.deepEqual(order, ['ack', 'background', 'foreground']);
+	assert.equal(observations.some(entry => entry.queue_wait_ms === 16000), true);
+});
+
+test('a foreground read cannot consume the reserved acknowledgement token', async () => {
+	const order = [];
+	// Capacity must accommodate the reserve plus a read after refill.
+	const usable = create_request_scheduler({ capacity: 2, read_reserve: 1, refill_per_second: 200 });
+	await usable.run(0, () => {});
+	const read = usable.run(1, () => order.push('read'), () => true, true);
+	const ack = usable.run(2, () => order.push('ack'));
+	await Promise.all([read, ack]);
+	assert.deepEqual(order, ['ack', 'read']);
+});
+
+test('Chat entry hydrates without a second Events-triggered inbox read; background consumers share the same key', async () => {
+	const { readFile } = await import('node:fs/promises');
+	const { runInNewContext } = await import('node:vm');
+	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const toggle = main.slice(main.indexOf("on_page_toggle('mp-chat-page'"), main.indexOf("on_page_toggle('mp-crucible-page'"));
+	let enter, calls = 0, finish;
+	const context = {
+		state: { is_connected: true }, chat_page_visible: false, chat_view_generation: 0,
+		update_chat_header_offset() {}, stop_chat_polling() {},
+		get_client_events: () => assert.fail('Chat entry should not request unrelated Events'),
+		refresh_chat_page: () => { calls++; }, on_page_toggle: (_page, callback) => { enter = callback; }
+	};
+	runInNewContext(toggle, context);
+	enter(true); assert.equal(calls, 1);
+	enter(false); assert.equal(context.chat_view_generation, 1);
+
+	context.read_cache = create_read_cache({ scope: () => 'origin:session' });
+	Object.assign(context, { server_host: 'origin', session_generation: 1, guild_preview_scope: null,
+		unavailable_guild_previews: new Set(), CACHED_READS: new Set(),
+		api_get_request: () => { calls++; return new Promise(resolve => { finish = resolve; }); } });
+	runInNewContext(main.slice(main.indexOf('async function api_get(endpoint,'), main.indexOf('async function api_get_request(')), context);
+	const route = '/api/chat/conversations?capabilities=global-chat-v1';
+	const page = context.api_get(route);
+	const events = context.api_get(route);
+	await Promise.resolve();
+	finish({ conversations: [], unread: 3 });
+	assert.deepEqual(await page, await events);
+	assert.equal(calls, 2); // One page callback and one transport for both readers.
+});
+
+test('Guild startup waits for Events invalidation, reuses hydration, falls back on failure and rejects old sessions', async () => {
+	const { readFile } = await import('node:fs/promises');
+	const { runInNewContext } = await import('node:vm');
+	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const source = main.slice(main.indexOf('async function refresh_initial_guild_state'), main.indexOf('async function refresh_guild_state_after_invalidation'));
+	for (const outcome of ['snapshot', 'failure', 'session-change']) {
+		let finish, reads = 0;
+		let cache;
+		const context = { session_generation: 1, state: { is_connected: true },
+			get_client_events: () => new Promise(resolve => { finish = resolve; }),
+			refresh_guild_state: () => cache.read('/api/guilds/state', () => { reads++; return { affiliation: 'member' }; }) };
+		cache = create_read_cache({ scope: () => context.session_generation });
+		runInNewContext(source, context);
+		const pending = context.refresh_initial_guild_state();
+		assert.equal(reads, 0);
+		cache.invalidate();
+		if (outcome === 'snapshot') cache.prime('/api/guilds/state', { affiliation: 'member' });
+		if (outcome === 'session-change') context.session_generation++;
+		finish(outcome === 'failure' ? null : {});
+		await pending;
+		assert.equal(reads, outcome === 'failure' ? 1 : 0);
+	}
+});
+
+test('first and changed Guild revisions hydrate eligibility from one snapshot, including Guildless transitions', async () => {
+	const { readFile } = await import('node:fs/promises');
+	const { runInNewContext } = await import('node:vm');
+	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const start = main.indexOf('else if (guild_changed || !state.guild_state_loaded)');
+	const branch = main.slice(start + 5, main.indexOf('\n\t\tupdate_guild_nav();', start));
+	const cache = create_read_cache({ scope: () => 'session' });
+	let snapshots = 0, reads = 0, decisions = 0, affiliation = 'member';
+	const context = { guild_changed: true, guild_page_visible: false, request_generation: 1, session_generation: 1,
+		state: { guild_state_loaded: false, is_guild_member: false, refresh_alliance: async () => { decisions++; } },
+		prepare_page_snapshot: async () => { snapshots++; cache.prime('/api/guilds/state', { affiliation }); },
+		refresh_guild_state: async () => {
+			const result = await cache.read('/api/guilds/state', () => { reads++; return { affiliation }; });
+			context.state.is_guild_member = result.affiliation === 'member'; context.state.guild_state_loaded = true;
+		}, refresh_council: async () => { decisions++; } };
+	runInNewContext('async function refresh() {' + branch + '}', context);
+	await context.refresh();
+	assert.equal(snapshots, 1); assert.equal(reads, 0); assert.equal(decisions, 2);
+	context.guild_changed = false;
+	await context.refresh(); assert.equal(snapshots, 1);
+	context.guild_changed = true; affiliation = 'none'; cache.invalidate();
+	await context.refresh();
+	assert.equal(snapshots, 2); assert.equal(reads, 0); assert.equal(decisions, 2);
+	assert.equal(context.state.is_guild_member, false);
+});
+
+test('page entry waits for Events before Guild reads so revision invalidation cannot duplicate hydration', async () => {
+	const { readFile } = await import('node:fs/promises');
+	const { runInNewContext } = await import('node:vm');
+	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	for (const page of ['transfer', 'market', 'crucible']) {
+		for (const changed of [true, false, null]) {
+			let enter, finish, reads = 0, content = 0;
+			const cache = create_read_cache({ scope: () => 'session' });
+			const context = { crucible_page_entry: 0, crucible_page_hydrating: false,
+				state: { refresh_crucible: async () => { content++; } }, performance: { now: () => 1 },
+				on_page_toggle: (_page, callback) => { enter = callback; },
+				get_client_events: () => new Promise(resolve => { finish = async () => {
+					if (changed) {
+						cache.invalidate();
+						cache.prime('/api/guilds/state', { affiliation: 'member' });
+					}
+					resolve(changed === null ? null : {});
+				}; }),
+				refresh_guild_state: () => cache.read('/api/guilds/state', () => { reads++; return { affiliation: 'member' }; }),
+				prepare_page_snapshot: async () => {}, update_transfer_contents: async () => { content++; },
+				update_market_haggles: async () => {}, refresh_transfer_history: async () => {},
+				update_market_page: async () => { content++; }, set_crucible_page_visible() {}, recover_pending_crucible_wish_actions: async () => {} };
+			const start = main.indexOf("on_page_toggle('mp-" + page + "-page'");
+			const end = main.indexOf(page === 'transfer' ? '\n\t});' : '\n\t\t\t},', start);
+			runInNewContext(main.slice(start, end) + '\n});', context);
+			const pending = enter(true);
+			await Promise.resolve();
+			assert.equal(reads, 0, page + ' must wait for Events');
+			assert.equal(content, 0);
+			await finish();
+			await pending;
+			assert.equal(reads, changed ? 0 : 1, page + ' reuses changed-revision hydration or falls back');
+			assert.equal(content, 1);
+		}
+	}
 });

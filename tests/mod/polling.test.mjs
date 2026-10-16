@@ -144,7 +144,7 @@ test('refreshes event state after relevant navigation and successful mutations o
 		assert.doesNotMatch(mutations, new RegExp(endpoint.replaceAll('/', '\\/')));
 	assert.match(main, /is_event_affecting_mutation\(endpoint\)[\s\S]*void get_client_events\(\)/);
 	assert.match(main, /async function refresh_guild_page\(\)[\s\S]*await get_client_events\(\);[\s\S]*prepare_page_snapshot\('guild'\)[\s\S]*await refresh_guild_state\(\)/);
-	assert.match(main, /on_page_toggle\('mp-market-page'[\s\S]*Promise\.all\(\[get_client_events\(\), refresh_guild_state\(\)\]\)/);
+	assert.match(main, /on_page_toggle\('mp-market-page'[\s\S]*await get_client_events\(\);\s*await refresh_guild_state\(\);/);
 });
 
 test('bounds requests and releases guarded page loaders from finally blocks', () => {

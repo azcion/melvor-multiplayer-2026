@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { install_common_actions } from '../../mod/client-actions-common.mjs';
+import * as game_mode_sharing from '../../mod/game-mode-sharing.mjs';
 import { read_client_source } from './source.mjs';
-import { get_base_game_mode, resolve_game_mode } from '../../mod/game-mode-sharing.mjs';
+import { get_base_game_mode, get_known_game_mode, resolve_game_mode } from '../../mod/game-mode-sharing.mjs';
 
 const root = new URL('../../', import.meta.url);
 
@@ -41,6 +43,56 @@ test('uses a question mark and a local name for custom modes when available', ()
 	assert.equal(unknown.media, 'assets/media/main/question.png');
 });
 
+test('recognizes supported mod IDs without the viewer installing those mods', async () => {
+	const modes = [
+		['hcco:hcco', 'Hardcore Combat Only', 'hcco.png'],
+		['hcco:mcco', 'Mediumcore Combat Only', 'mcco.png'],
+		['hcco:rehcco', 'Rebalance Hardcore Combat Only', 'hrco.png'],
+		['hcco:remcco', 'Rebalance Mediumcore Combat Only', 'rmco.png'],
+		['RandomAdventure:RandomAdventure', 'Randomized Adventure Mode', 'randomized_adventure.png'],
+		['taskman:Taskman', 'Taskman', 'taskman.svg'],
+		['gamemodesbyphoenix:adventurenoxpcap', 'Phoenix Adventure Mode', 'phoenix.png'],
+		['phoenixgamemodemanager:BirthdayMode', 'Phoenix Birthday Mode', 'phoenix.png']
+	];
+	for (const [id, name, asset] of modes) {
+		const path = 'assets/gamemode_' + asset;
+		assert.deepEqual(resolve_game_mode(id, () => undefined, 'Unknown Mode', path => 'bundle://' + path), {
+			name, media: 'bundle://' + path, is_modded: true
+		});
+		await readFile(new URL('mod/' + path, root));
+	}
+	assert.equal(get_known_game_mode('hcco:remcco_extra'), null);
+	assert.equal(get_known_game_mode('melvorD:Unset'), null);
+	assert.equal(get_known_game_mode('constructor'), null);
+});
+
+test('uses installed custom mode media and localized unknown fallback', () => {
+	assert.deepEqual(resolve_game_mode('custom:Mode', () => ({ name: ' Local Mode ', media: 'blob:local-icon' })), {
+		name: 'Local Mode', media: 'blob:local-icon', is_modded: true
+	});
+	assert.deepEqual(resolve_game_mode('missing:Mode', () => ({ name: ' ', media: '' }), 'Unbekannter Modus'), {
+		name: 'Unbekannter Modus', media: 'assets/media/main/question.png', is_modded: true
+	});
+});
+
+test('keeps hidden modes private and resolves bundled icons in both player views', () => {
+	const actions = install_common_actions({
+		game_mode_sharing,
+		ctx: { getResourceUrl: path => 'bundle://' + path },
+		game: { gamemodes: { getObjectByID: () => undefined } },
+		getLangString: () => 'Unknown Mode'
+	});
+	for (const visible of [false, undefined]) {
+		const member = { game_mode_visible: visible, game_mode_id: 'hcco:remcco' };
+		assert.equal(actions.get_shared_game_mode(member), null);
+		assert.equal(actions.get_roster_game_mode(member), null);
+	}
+	const member = { game_mode_visible: true, game_mode_id: 'hcco:remcco' };
+	assert.equal(actions.get_shared_game_mode(member).media, 'bundle://assets/gamemode_rmco.png');
+	assert.deepEqual(actions.get_roster_game_mode(member), actions.get_shared_game_mode(member));
+	assert.equal(actions.get_roster_game_mode({ ...member, game_mode_id: 'missing:Mode' }), null);
+});
+
 test('wires game modes into the roster, other-player modal, and Options sharing control', async () => {
 	const [templates, main, language, style] = await Promise.all([
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'),
@@ -71,7 +123,7 @@ test('wires game modes into the roster, other-player modal, and Options sharing 
 	assert.doesNotMatch(member_modal, /state\.get_shared_game_mode\(state\.selected_guild_member\)\.(?:media|name)/);
 	assert.match(templates.slice(templates.indexOf('<template id="template-mp-multiplayer-settings-modal">')), /state\.set_game_mode_visibility\(\$event\)/);
 	assert.match(main, /game\.gamemodes\?\.getObjectByID\(id\)/);
-	assert.match(main, /api_post\('\/api\/client\/game-mode\/visibility'/);
+	assert.match(main, /'\/api\/client\/game-mode\/visibility'/);
 	assert.match(style, /\.mp-game-mode-icon \{[^}]*object-fit: contain;[^}]*position: absolute;[^}]*width: 96px;[^}]*opacity: \.15;[^}]*right: calc\(50% - 48px\);[^}]*height: 96px;[^}]*\}/s);
 	assert.doesNotMatch(style, /\.mp-game-mode-icon \{[^}]*top:/s);
 	assert.match(style, /\.mp-guild-member-avatar \{[^}]*height: 40px;[^}]*width: 40px;[^}]*\}/s);
@@ -84,4 +136,47 @@ test('wires game modes into the roster, other-player modal, and Options sharing 
 	assert.match(style, /\.mp-game-mode-label img \{[^}]*width: 24px;[^}]*height: 24px;[^}]*object-fit: contain;[^}]*\}/s);
 	assert.equal(language.MOD_MP_GAME_MODE_VISIBILITY, 'Let others see your game mode');
 	assert.equal(language.MOD_MP_GAME_MODE_UNKNOWN, 'Unknown Mode');
+});
+
+
+test('searches known and installed mode names case-insensitively without installing known mods', () => {
+	assert.deepEqual(game_mode_sharing.search_game_mode_ids('Rebalance Hardcore'), ['hcco:rehcco']);
+	assert.deepEqual(game_mode_sharing.search_game_mode_ids('IRON', [
+		{ id: 'custom:Mode', name: 'Iron Idler' },
+		{ id: 'custom:Other', name: 'Other' }
+	]), ['custom:Mode']);
+	assert.deepEqual(game_mode_sharing.search_game_mode_ids(''), []);
+	assert.deepEqual(game_mode_sharing.search_game_mode_ids('missing'), []);
+});
+
+test('all directory placeholders use the short localized Search label', async () => {
+	const { readdir } = await import('node:fs/promises');
+	for (const file of await readdir(new URL('mod/data/lang/', root))) {
+		if (!file.endsWith('.json')) continue;
+		const language = JSON.parse(await readFile(new URL('mod/data/lang/' + file, root), 'utf8'));
+		assert.equal(language.MOD_MP_FREE_FELLOWSHIP_SEARCH, language.MOD_MP_PLACEHOLDER_SEARCH_ITEMS, file);
+	}
+});
+
+
+test('search reason labels resolve modes, preserve mod names and support older backends', () => {
+	const actions = install_common_actions({ state: {}, game_mode_sharing,
+		game: {gamemodes: {getObjectByID: () => null}}, ctx: {getResourceUrl: path => path}, getLangString: key => key });
+	assert.deepEqual(actions.get_member_search_tags({}), []);
+	assert.deepEqual(actions.get_member_search_tags({active_mods_visible: true, game_mode_visible: true, game_mode_id: 'hcco:rehcco', search_matches: [
+		{kind: 'mod', label: 'Super Awesome Expansion!'}, {kind: 'mod', label: 'Super Awesome Expansion!'},
+		{kind: 'game_mode', label: 'hcco:rehcco'}, {kind: 'dev', label: 'Custom SAE Dev'}, {kind: 'unknown', label: 'Ignore'}
+	]}), ['Super Awesome Expansion!', 'Rebalance Hardcore Combat Only', 'Custom SAE Dev']);
+	assert.deepEqual(actions.get_member_search_tags({active_mods_visible: false, game_mode_visible: false, search_matches: [
+		{kind: 'mod', label: 'Hidden'}, {kind: 'game_mode', label: 'hcco:rehcco'}
+	]}), []);
+});
+
+test('search tags render plain text with Font Awesome in each searchable member surface', async () => {
+	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
+	const applicants = templates.slice(templates.indexOf('v-for="application in state.guild_applicants"'), templates.indexOf('v-for="(member, member_index) in state.guild_members"'));
+	assert.doesNotMatch(applicants, /get_member_search_tags/);
+	assert.equal((templates.match(/class="badge badge-info mp-member-search-tag"/g) ?? []).length, 4);
+	assert.equal((templates.match(/<i class="fa fa-search mr-1" aria-hidden="true"><\/i>{{ label }}/g) ?? []).length, 4);
+	assert.doesNotMatch(templates, /v-html="label"/);
 });

@@ -3334,6 +3334,12 @@ mp-chat-composer { display: block; min-width: 0; }
 	pointer-events: none;
 }
 .mp-chat-item-unavailable { opacity: .75; }
+.mp-chat-badge {
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: text;
+	vertical-align: baseline;
+}
 .mp-chat-editor {
 	width: 100%;
 	min-height: 95px;
@@ -4106,6 +4112,7 @@ span:has([lang-id="MOD_MP_TRANSFER_HISTORY_RECONSTRUCTED"]) {
 .mp-multiplayer-settings .mp-listing-toggle { align-items: flex-start; gap: 1rem; padding: .5rem 0; }
 .mp-multiplayer-settings .mp-listing-toggle > span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .mp-multiplayer-settings .mp-listing-toggle:disabled { opacity: .6; cursor: wait; }
+.mp-listing-filters p { font-size: .875rem; margin: .25rem 0 .5rem; }
 .mp-settings-close { display: block; width: 100%; margin-top: .75rem; }
 
 .mp-chat-tagged {
@@ -4165,3 +4172,36 @@ span:has([lang-id="MOD_MP_TRANSFER_HISTORY_RECONSTRUCTED"]) {
 	overflow-wrap: anywhere;
 }
 .mp-cheat-details li { margin-bottom: 1rem; }
+
+.mp-member-search-tag {
+	max-width: 100%;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	text-align: left;
+}
+
+.mp-recipient-name {
+	min-width: 0;
+}
+
+.mp-recipient-search-tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25rem;
+}
+
+.mp-search-recipient {
+	height: auto;
+	min-height: 50px;
+	padding-block: 0.25rem;
+}
+
+.mp-search-recipient > img,
+.mp-search-recipient > button {
+	flex-shrink: 0;
+}
+
+.mp-search-member {
+	flex-wrap: wrap;
+	padding-block: 0.5rem;
+}

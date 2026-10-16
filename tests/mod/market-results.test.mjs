@@ -98,7 +98,7 @@ test('captures Marketplace queries and ignores stale generations', async () => {
 	assert.match(search, /const direction = state\.market_direction/);
 	assert.match(search, /const item_id = state\.market_filter_item/);
 	assert.match(search, /const item_namespaces = get_local_item_namespaces\(\)/);
-	assert.match(search, /api_post\('\/api\/market\/catalog',[\s\S]*direction\s*\n?\s*\}/);
+	assert.match(search, /api_post\('\/api\/market\/catalog',[\s\S]*direction,[\s\S]*listing_filters: \[\.\.\.state\.listing_filters\]\s*\}/);
 	assert.match(search, /unresolved_item_ids = \(catalog\.item_ids \?\? \[\]\)\.filter\(item_id =>[\s\S]*!is_local_item_resolved\(item_id\) \|\| is_market_item_hidden_by_discovery\(item_id\)/);
 	assert.match(search, /market_owner: item\.buyer \?\? item\.seller \?\? null/);
 	assert.match(search, /filter_items_for_owned_dlc\([\s\S]*res\.items \?\? \[\][\s\S]*item => item\.item_id[\s\S]*owned_dlc_namespaces/);

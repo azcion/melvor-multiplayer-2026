@@ -44,38 +44,16 @@ export function install_social_actions(runtime) {
 		get_alliance_view() {
 			const real = this.alliance_state;
 			if (!this.guild_showcase || real.alliance || !this.alliance_access) return real;
-			const now = Date.now(), day = 86400000;
-			const ours = { ...this.guild_state.guild, member_count: this.guild_member_count, active_member_count: this.guild_active_member_count };
-			const guild = (guild_id, name, member_count) => ({ guild_id, name, member_count, active_member_count: guild_id === -102 ? 0 : Math.max(1, member_count - 2), type: 'private', restricts_cheaters: guild_id === -101, market_discovery_restriction_enabled: false, icon_id: 'melvorD:Golbin', created_at: now - 80 * day, synthetic: true });
-			const members = [ours, guild(-101, 'The Criminals', 12), guild(-102, 'The Copper Kettle', 8)];
-			const process = (id, kind, stage, extra = {}) => ({ process_id: id, kind, name: 'Wandering Fellowship', stage,
-				synthetic: true, governance_version: 2, expires_at: now + day, resolved_at: now - day, own_ballot: stage === 'denied' ? 'nay' : 'aye',
-				tally: { eligible: 3, aye: 1, nay: 0 }, can_consider: false, can_withdraw: false, ...extra });
-			const no_ballots = { own_ballot: null, tally: { eligible: 0, aye: 0, nay: 0 } };
-			const history = [
-				process(-204, 'found', 'accepted', { founding_guilds: members.slice(0, 2), ...no_ballots }),
-				process(-205, 'remove', 'denied', { target_guild: members[2], tally: { eligible: 3, required_aye: 2, aye: 1, nay: 2 } }),
-				process(-210, 'market_disable', 'accepted', { own_ballot: 'nay', tally: { eligible: 3, required_aye: 2, aye: 2, nay: 1 } }),
-				process(-211, 'market_enable', 'cancelled', { resolution_reason: 'roster_changed' }),
-				process(-212, 'found', 'cancelled', { name: 'Copperleaf Accord', founding_guilds: members.slice(0, 2), resolution_reason: 'affiliated_elsewhere', resolution_guild_name: members[1].name, ...no_ballots }),
-				process(-213, 'found', 'cancelled', { name: 'Willow Compact', founding_guilds: [ours, guild(-105, 'Willow Hearth', 5)], resolution_reason: 'guild_unavailable', ...no_ballots }),
-				process(-214, 'join', 'cancelled', { name: 'Silver Concord', display_kind: 'apply', applicant: ours, resolution_reason: 'alliance_unavailable', own_ballot: null, tally: { eligible: 3, required_aye: 2, aye: 0, nay: 0 } }),
-				process(-215, 'remove', 'cancelled', { target_guild: members[2], resolution_reason: 'target_unavailable' }),
-				process(-216, 'found', 'cancelled', { name: 'Wayfarer Pact', founding_guilds: members.slice(0, 2), resolution_reason: 'affiliated_elsewhere', ...no_ballots })
-			];
-			const processes = this.alliance_preview_affiliated ? [
-				process(-201, 'join', 'collective', { applicant: guild(-103, 'Willow Wardens', 6), applicant_consent: 'granted' }),
-				process(-202, 'join', 'collective', { applicant: guild(-104, 'Silver Dawn', 19), applicant_consent: 'active', tally: { eligible: 3, required_aye: 2, aye: 2, nay: 0 } }),
-				process(-203, 'market_enable', 'collective'),
-				process(-207, 'remove', 'collective', { target_guild: members[1], tally: { eligible: 3, aye: 1, nay: 1 } })
-			] : [
-				process(-206, 'found', 'waiting', { founding_guilds: members.slice(0, 2), own_council: 'granted', can_withdraw: true, ...no_ballots }),
-				process(-208, 'found', 'waiting', { name: 'Copperleaf Accord', founding_guilds: [ours, guild(-103, 'Willow Wardens', 6)], own_council: null, can_consider: true, consider_blocked_reason: 'affiliation_pending', ...no_ballots })
-			];
-			processes.push(...history);
-			return { ...real, synthetic: true, affiliation_pending: false, market_proposal_pending: processes.some(p => ['market_enable', 'market_disable'].includes(p.kind) && this.is_alliance_process_active(p)),
-				alliance: this.alliance_preview_affiliated ? { id: -1, name: 'Wandering Fellowship', created_at: now - 42 * day, shared_marketplace: false, member_guilds: members } : null,
-				processes: [...processes, ...real.processes] };
+			const own_guild = { ...this.guild_state.guild, member_count: this.guild_member_count, active_member_count: this.guild_active_member_count };
+			const showcase = build_alliance_showcase(own_guild, this.alliance_preview_affiliated, Date.now());
+			return {
+				...real,
+				...showcase,
+				synthetic: true,
+				affiliation_pending: false,
+				market_proposal_pending: showcase.processes.some(proposal => ['market_enable', 'market_disable'].includes(proposal.kind) && this.is_alliance_process_active(proposal)),
+				processes: [...showcase.processes, ...real.processes],
+			};
 		},
 		alliance_established_days() {
 			return this.alliance_age(this.alliance_view.alliance) ?? 0;
@@ -289,14 +267,14 @@ export function install_social_actions(runtime) {
 			const guilds = alliance?.member_guilds ?? [];
 			const members = guilds.reduce((sum, guild) => sum + (guild.member_count ?? 0), 0);
 			const active = guilds.reduce((sum, guild) => sum + (guild.active_member_count ?? 0), 0);
-			return getLangString(active !== members ? members === 1 ? 'MOD_MP_GUILD_MEMBER_ACTIVE_COUNT_ONE' : 'MOD_MP_GUILD_MEMBER_ACTIVE_COUNT' : members === 1 ? 'MOD_MP_GUILD_MEMBER_COUNT_ONE' : 'MOD_MP_GUILD_MEMBER_COUNT')
-				.replace('%s', members).replace('%s', active);
+			const key = active !== members ? 'MOD_MP_GUILD_MEMBER_ACTIVE_COUNT' : 'MOD_MP_GUILD_MEMBER_COUNT';
+			return getLangString(key + (members === 1 ? '_ONE' : '')).replace('%s', members).replace('%s', active);
 		},
 		alliance_guild_count_text(alliance) {
 			const guilds = alliance?.member_guilds ?? [];
 			const active = guilds.filter(guild => (guild.active_member_count ?? 0) > 0 || guild.type === 'free_fellowship').length;
-			return getLangString(active !== guilds.length ? guilds.length === 1 ? 'MOD_MP_ALLIANCE_GUILD_ACTIVE_COUNT_ONE' : 'MOD_MP_ALLIANCE_GUILD_ACTIVE_COUNT' : guilds.length === 1 ? 'MOD_MP_ALLIANCE_GUILD_COUNT_ONE' : 'MOD_MP_ALLIANCE_GUILD_COUNT')
-				.replace('%s', guilds.length).replace('%s', active);
+			const key = active !== guilds.length ? 'MOD_MP_ALLIANCE_GUILD_ACTIVE_COUNT' : 'MOD_MP_ALLIANCE_GUILD_COUNT';
+			return getLangString(key + (guilds.length === 1 ? '_ONE' : '')).replace('%s', guilds.length).replace('%s', active);
 		},
 		alliance_label(kind) { return getLangString('MOD_MP_ALLIANCE_' + String(kind ?? 'ballot').toUpperCase()); },
 		async resolve_alliance_petition_guilds(petitions) {
@@ -307,7 +285,7 @@ export function install_social_actions(runtime) {
 				for (const guild of [...(process.founding_guilds ?? []), process.applicant, process.target_guild])
 					if (guild) guilds.set(guild.guild_id, guild);
 			}
-			const ids = [...new Set(petitions.flatMap(p => p.type.startsWith('alliance_') ? p.proposal.guild_ids ?? [] : []))];
+			const ids = [...new Set(petitions.flatMap(p => p.type.startsWith('alliance_') && !Array.isArray(p.proposal.guilds) ? p.proposal.guild_ids ?? [] : []))];
 			// Bound concurrent reads; preview failures must not hide the Council itself.
 			for (let offset = 0; offset < ids.length; offset += 4) {
 				await Promise.all(ids.slice(offset, offset + 4).map(async id => {
@@ -319,7 +297,7 @@ export function install_social_actions(runtime) {
 				}));
 			}
 			for (const petition of petitions)
-				if (petition.type.startsWith('alliance_')) {
+				if (petition.type.startsWith('alliance_') && !Array.isArray(petition.proposal.guilds)) {
 					petition.proposal.guilds = (petition.proposal.guild_ids ?? []).map(id => guilds.get(id)).filter(Boolean);
 					if (petition.synthetic && !petition.proposal.guilds.length)
 						petition.proposal.guilds = [[...guilds.values()].find(guild => guild.guild_id !== this.guild_state?.guild?.guild_id) ?? { name: getLangString('MOD_MP_ALLIANCE_SYNTHETIC_GUILD') }];
@@ -333,24 +311,47 @@ export function install_social_actions(runtime) {
 			const action = petition.type.slice(9);
 			return ['consider', 'withdraw'].includes(action) ? action : petition.proposal.kind ?? action;
 		},
+		alliance_proposal_guilds(proposal, kind) {
+			// An explicit Guild list (even empty) takes precedence over process summaries.
+			let guilds = proposal.guilds ?? proposal.founding_guilds;
+			if (!guilds) {
+				if (proposal.applicant) guilds = [proposal.applicant];
+				else if (proposal.target_guild) guilds = [proposal.target_guild];
+				else guilds = [];
+			}
+			const exclude_own_guild = ['found', 'consider'].includes(kind);
+			return guilds.filter(guild => guild && (!exclude_own_guild || guild.guild_id !== this.guild_state?.guild?.guild_id));
+		},
 		alliance_proposal_parts(proposal, kind = proposal.display_kind ?? proposal.kind) {
-			const name = proposal.name || this.alliance_state?.alliance?.name || getLangString('MOD_MP_ALLIANCE_UNNAMED');
-			const guilds = (proposal.guilds ?? proposal.founding_guilds ?? (proposal.applicant ? [proposal.applicant] : proposal.target_guild ? [proposal.target_guild] : []))
-				.filter(guild => guild && (!['found', 'consider'].includes(kind) || guild.guild_id !== this.guild_state?.guild?.guild_id));
+			const alliance_name = proposal.name || this.alliance_state?.alliance?.name || getLangString('MOD_MP_ALLIANCE_UNNAMED');
+			const guilds = this.alliance_proposal_guilds(proposal, kind);
+			const description_key = proposal.governance_version === 2 && kind === 'consider'
+				? 'MOD_MP_ALLIANCE_PARALLEL_DESCRIPTION_CONSIDER'
+				: 'MOD_MP_ALLIANCE_DESCRIPTION_' + String(kind ?? 'ballot').toUpperCase();
 			const parts = [];
-			const text = getLangString(proposal.governance_version === 2 && kind === 'consider' ? 'MOD_MP_ALLIANCE_PARALLEL_DESCRIPTION_CONSIDER' : 'MOD_MP_ALLIANCE_DESCRIPTION_' + String(kind ?? 'ballot').toUpperCase());
-			for (const piece of text.split(/(\{alliance\}|\{guilds\}|\{proposal\})/)) {
-				if (piece === '{alliance}') parts.push({ text: name, bold: true });
-				else if (piece === '{guilds}') {
-					const targets = guilds.length ? guilds : [{ name: getLangString('MOD_MP_ALLIANCE_UNKNOWN_GUILD') }];
-					for (const [index, guild] of targets.entries()) {
-						if (index) parts.push({ text: ', ' });
-						parts.push({ text: guild.name, bold: true, guild_id: guild.guild_id });
+			for (const token of getLangString(description_key).split(/(\{alliance\}|\{guilds\}|\{proposal\})/)) {
+				switch (token) {
+					case '{alliance}':
+						parts.push({ text: alliance_name, bold: true });
+						break;
+					case '{guilds}': {
+						const targets = guilds.length ? guilds : [{ name: getLangString('MOD_MP_ALLIANCE_UNKNOWN_GUILD') }];
+						for (const [index, guild] of targets.entries()) {
+							if (index) parts.push({ text: ', ' });
+							parts.push({ text: guild.name, bold: true, guild_id: guild.guild_id });
+						}
+						break;
 					}
-				} else if (piece === '{proposal}') {
-					const action = ['withdraw', 'ballot'].includes(proposal.kind) ? 'ballot' : proposal.kind === 'join' ? 'apply' : proposal.kind;
-					parts.push(...this.alliance_proposal_parts(proposal, action));
-				} else if (piece) parts.push({ text: piece });
+					case '{proposal}': {
+						let nested_kind = proposal.kind;
+						if (['withdraw', 'ballot'].includes(nested_kind)) nested_kind = 'ballot';
+						else if (nested_kind === 'join') nested_kind = 'apply';
+						parts.push(...this.alliance_proposal_parts(proposal, nested_kind));
+						break;
+					}
+					default:
+						if (token) parts.push({ text: token });
+				}
 			}
 			return parts;
 		},
@@ -362,30 +363,32 @@ export function install_social_actions(runtime) {
 		},
 		alliance_outcome(stage) { return getLangString('MOD_MP_ALLIANCE_OUTCOME_' + stage.toUpperCase()); },
 		guild_preview_established() {
-			const guild = this.alliance_preview;
-			const created = guild?.created_at ?? guild?.established_at;
-			return Number.isFinite(created) ? Math.max(0, Math.floor((Date.now() - created) / 86400000)) : null;
+			return this.alliance_age(this.alliance_preview);
 		},
 		alliance_confirmation_hint() {
 			const kind = this.alliance_confirmation?.kind;
-			const key = ['found', 'consider'].includes(kind) ? 'MOD_MP_ALLIANCE_CONFIRM_FOUNDING'
-				: kind === 'join' ? 'MOD_MP_ALLIANCE_CONFIRM_ADMISSION'
-				: kind === 'leave' ? 'MOD_MP_ALLIANCE_CONFIRM_LEAVING'
-				: kind === 'withdraw' ? 'MOD_MP_ALLIANCE_CONFIRM_WITHDRAWAL'
-				: 'MOD_MP_ALLIANCE_CONFIRM_COLLECTIVE';
-			return getLangString(key);
+			switch (kind) {
+				case 'found':
+				case 'consider': return getLangString('MOD_MP_ALLIANCE_CONFIRM_FOUNDING');
+				case 'join': return getLangString('MOD_MP_ALLIANCE_CONFIRM_ADMISSION');
+				case 'leave': return getLangString('MOD_MP_ALLIANCE_CONFIRM_LEAVING');
+				case 'withdraw': return getLangString('MOD_MP_ALLIANCE_CONFIRM_WITHDRAWAL');
+				default: return getLangString('MOD_MP_ALLIANCE_CONFIRM_COLLECTIVE');
+			}
 		},
 		alliance_market_pending() {
 			return this.alliance_view?.market_proposal_pending ?? (this.alliance_view?.processes ?? []).some(p =>
 				['market_enable', 'market_disable'].includes(p.kind) && this.is_alliance_process_active(p));
 		},
 		alliance_proposal_status(proposal) {
-			if (proposal.governance_version === 2 && this.is_alliance_process_active(proposal)) {
-				if (proposal.kind === 'found') return getLangString(proposal.own_council === 'granted'
-					? 'MOD_MP_ALLIANCE_FOUNDING_OTHER_COUNCIL' : 'MOD_MP_ALLIANCE_FOUNDING_COUNCILS');
-				if (proposal.kind === 'join' && proposal.tally?.aye >= proposal.tally?.required_aye && proposal.applicant_consent !== 'granted')
-					return getLangString('MOD_MP_ALLIANCE_AWAITING_APPLICANT_CONSENT');
+			if (proposal.governance_version !== 2 || !this.is_alliance_process_active(proposal))
+				return this.alliance_stage(proposal.stage);
+			if (proposal.kind === 'found') {
+				const key = proposal.own_council === 'granted' ? 'MOD_MP_ALLIANCE_FOUNDING_OTHER_COUNCIL' : 'MOD_MP_ALLIANCE_FOUNDING_COUNCILS';
+				return getLangString(key);
 			}
+			if (proposal.kind === 'join' && proposal.tally?.aye >= proposal.tally?.required_aye && proposal.applicant_consent !== 'granted')
+				return getLangString('MOD_MP_ALLIANCE_AWAITING_APPLICANT_CONSENT');
 			return this.alliance_stage(proposal.stage);
 		},
 		alliance_cancellation_parts(proposal) {
@@ -1003,5 +1006,41 @@ export function install_social_actions(runtime) {
 			notify('MOD_MP_NOTIF_FRIEND_REQ_SENT');
 			state.close_modal();
 		},
+	};
+}
+
+// Showcase fixtures stay local to presentation; real membership always wins in get_alliance_view.
+function build_alliance_showcase(own_guild, affiliated, now) {
+	const day = 86400000;
+	const guild = (guild_id, name, member_count) => ({ guild_id, name, member_count, active_member_count: guild_id === -102 ? 0 : Math.max(1, member_count - 2), type: 'private', restricts_cheaters: guild_id === -101, market_discovery_restriction_enabled: false, icon_id: 'melvorD:Golbin', created_at: now - 80 * day, synthetic: true });
+	const members = [own_guild, guild(-101, 'The Criminals', 12), guild(-102, 'The Copper Kettle', 8)];
+	const process = (id, kind, stage, extra = {}) => ({ process_id: id, kind, name: 'Wandering Fellowship', stage,
+		synthetic: true, governance_version: 2, expires_at: now + day, resolved_at: now - day, own_ballot: stage === 'denied' ? 'nay' : 'aye',
+		tally: { eligible: 3, aye: 1, nay: 0 }, can_consider: false, can_withdraw: false, ...extra });
+	const no_ballots = { own_ballot: null, tally: { eligible: 0, aye: 0, nay: 0 } };
+	const history = [
+		process(-204, 'found', 'accepted', { founding_guilds: members.slice(0, 2), ...no_ballots }),
+		process(-205, 'remove', 'denied', { target_guild: members[2], tally: { eligible: 3, required_aye: 2, aye: 1, nay: 2 } }),
+		process(-210, 'market_disable', 'accepted', { own_ballot: 'nay', tally: { eligible: 3, required_aye: 2, aye: 2, nay: 1 } }),
+		process(-211, 'market_enable', 'cancelled', { resolution_reason: 'roster_changed' }),
+		process(-212, 'found', 'cancelled', { name: 'Copperleaf Accord', founding_guilds: members.slice(0, 2), resolution_reason: 'affiliated_elsewhere', resolution_guild_name: members[1].name, ...no_ballots }),
+		process(-213, 'found', 'cancelled', { name: 'Willow Compact', founding_guilds: [own_guild, guild(-105, 'Willow Hearth', 5)], resolution_reason: 'guild_unavailable', ...no_ballots }),
+		process(-214, 'join', 'cancelled', { name: 'Silver Concord', display_kind: 'apply', applicant: own_guild, resolution_reason: 'alliance_unavailable', own_ballot: null, tally: { eligible: 3, required_aye: 2, aye: 0, nay: 0 } }),
+		process(-215, 'remove', 'cancelled', { target_guild: members[2], resolution_reason: 'target_unavailable' }),
+		process(-216, 'found', 'cancelled', { name: 'Wayfarer Pact', founding_guilds: members.slice(0, 2), resolution_reason: 'affiliated_elsewhere', ...no_ballots })
+	];
+	const processes = affiliated ? [
+		process(-201, 'join', 'collective', { applicant: guild(-103, 'Willow Wardens', 6), applicant_consent: 'granted' }),
+		process(-202, 'join', 'collective', { applicant: guild(-104, 'Silver Dawn', 19), applicant_consent: 'active', tally: { eligible: 3, required_aye: 2, aye: 2, nay: 0 } }),
+		process(-203, 'market_enable', 'collective'),
+		process(-207, 'remove', 'collective', { target_guild: members[1], tally: { eligible: 3, aye: 1, nay: 1 } })
+	] : [
+		process(-206, 'found', 'waiting', { founding_guilds: members.slice(0, 2), own_council: 'granted', can_withdraw: true, ...no_ballots }),
+		process(-208, 'found', 'waiting', { name: 'Copperleaf Accord', founding_guilds: [own_guild, guild(-103, 'Willow Wardens', 6)], own_council: null, can_consider: true, consider_blocked_reason: 'affiliation_pending', ...no_ballots })
+	];
+	processes.push(...history);
+	return {
+		alliance: affiliated ? { id: -1, name: 'Wandering Fellowship', created_at: now - 42 * day, shared_marketplace: false, member_guilds: members } : null,
+		processes,
 	};
 }

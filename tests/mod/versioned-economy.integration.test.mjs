@@ -66,7 +66,8 @@ test('real API and mod recovery expose Gifts during a blocked receipt and never 
 	const state = { refresh_crucible: async () => {}, chat_notification_preferences: {}, events: {}, gifts: [], trades: [], resolved_trades: [], inbox_items: [], get_chat_notification_tagged: () => false };
 	let contents, chat_refreshes = 0;
 	const context = {
-		rollback_client: null,
+		rollback_client: null, server_host: 'https://test.invalid', guild_revision_scope: null, last_guild_revision: null, apply_dev_badge_labels() {},
+		update_crucible_nav() {}, recover_paid_wish_actions: async () => {}, crucible_page_visible: false, crucible_page_hydrating: false,
 		state, client_events_hydrated: false, session_generation: 1, client_event_revision: 0, CHAT_CAPABILITIES: '', chat_page_visible: false,
 		legacy_market_payout_migration_started: false, MOD_VERSION: '1.6.9', get_instance_storage_item: () => undefined,
 		polling: { has_pending_events: () => true }, event_snapshots, economy_command_journal: journal,

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Background -->
+  <rect width="64" height="64" rx="10" fill="#1a1200"/>
+  <!-- Scroll/parchment body -->
+  <rect x="10" y="8" width="44" height="50" rx="4" fill="#c8a040"/>
+  <rect x="10" y="8" width="44" height="50" rx="4" fill="none" stroke="#e8c96b" stroke-width="2"/>
+  <!-- Scroll top roll -->
+  <ellipse cx="32" cy="10" rx="22" ry="5" fill="#e8c96b"/>
+  <ellipse cx="32" cy="10" rx="22" ry="5" fill="none" stroke="#a07828" stroke-width="1.5"/>
+  <!-- Scroll bottom roll -->
+  <ellipse cx="32" cy="56" rx="22" ry="5" fill="#e8c96b"/>
+  <ellipse cx="32" cy="56" rx="22" ry="5" fill="none" stroke="#a07828" stroke-width="1.5"/>
+  <!-- Checkmark lines -->
+  <line x1="18" y1="24" x2="30" y2="24" stroke="#3d2000" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="18" y1="32" x2="30" y2="32" stroke="#3d2000" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="18" y1="40" x2="30" y2="40" stroke="#3d2000" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Checkmarks -->
+  <polyline points="33,21 36,25 43,19" stroke="#2a6e2a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <polyline points="33,29 36,33 43,27" stroke="#2a6e2a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <polyline points="33,37 36,41 43,35" stroke="#2a6e2a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

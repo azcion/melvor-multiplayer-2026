@@ -24,7 +24,7 @@ test('adds independent skills and activity visibility controls to member actions
 	assert.match(main, /api_get\('\/api\/' \+ profile_path \+ '\/equipment\?client_id=' \+ member\.client_id\)/);
 	assert.match(main, /api_get\('\/api\/' \+ profile_path \+ '\/status\?client_id=' \+ member\.client_id\)/);
 	assert.match(main, /'\/api\/client\/skills\/visibility'/);
-	assert.match(main, /api_post\('\/api\/client\/activity\/visibility'/);
+	assert.match(main, /'\/api\/client\/activity\/visibility'/);
 	assert.equal(language.MOD_MP_PROFILE_VIEW, 'View Skills & Equipment');
 	assert.equal(language.MOD_MP_SKILLS_VISIBILITY, 'Let others see your skills');
 	assert.equal(language.MOD_MP_ACTIVITY_VISIBILITY, 'Let others see your activity');
@@ -184,7 +184,7 @@ test('collects changed raw GP in the status batch and keeps formatting viewer-lo
 	assert.match(main, /gp_scheduled_checks\+\+/);
 	assert.match(main, /polling\.event_poll_delay\(false, gp_scheduled_checks\)/);
 	assert.match(main, /stop_gp_sampling\(\)/);
-	assert.match(main, /api_post\('\/api\/client\/gp\/visibility'/);
+	assert.match(main, /'\/api\/client\/gp\/visibility'/);
 	assert.doesNotMatch(main, /!state\.gp_visible \|\| polling\.is_foreground/);
 	assert.match(main, /format_shared_gp\(amount\)[^]*Number\.isSafeInteger\(amount\)[^]*formatNumber\(amount\)/);
 	assert.match(member_list, /state\.format_shared_gp\(member\.gp\)/);

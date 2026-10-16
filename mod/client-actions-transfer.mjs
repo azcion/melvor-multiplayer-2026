@@ -96,6 +96,20 @@ export function install_transfer_actions(runtime) {
 	} = runtime;
 	let transfer_confirmation = null;
 
+	// Pending state stays with each handler so it also covers setting-specific follow-up work.
+	async function request_visibility_change(actions, path, visible, setting_name) {
+		let res = null;
+		try {
+			res = await api_post(path, { visible });
+		} catch (e) {
+			log(setting_name + ' visibility update failed (%s)', e);
+		}
+		if (res?.success)
+			return res;
+		actions.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+		return null;
+	}
+
 	return {
 		// #region TRANSFER ACTIONS
 		show_transfer_confirmation(action, transfer_id = null) {
@@ -432,6 +446,7 @@ export function install_transfer_actions(runtime) {
 		},
 
 		show_identities_modal() {
+			void refresh_identities();
 			queue_modal('MOD_MP_IDENTITIES_TITLE', 'identities-modal', 'assets/multiplayer.svg', {
 				showConfirmButton: false
 			});
@@ -528,11 +543,32 @@ export function install_transfer_actions(runtime) {
 
 		async open_multiplayer_settings_from_options() {
 			this.member_actions_error = '';
+			this.multiplayer_settings_section = 'all';
 			await this.close_modal_and_wait('member-actions-modal');
 			queue_modal('MOD_MP_MULTIPLAYER_SETTINGS', 'multiplayer-settings-modal', '', {
 				imageUrl: '', showConfirmButton: false,
 				customClass: { popup: 'mp-multiplayer-settings-popup' }
 			}, true, false);
+		},
+
+		open_listing_filters_settings({ didOpen } = {}) {
+			this.member_actions_error = '';
+			this.multiplayer_settings_section = 'listing_filters';
+			return queue_modal('MOD_MP_LISTING_FILTERS', 'multiplayer-settings-modal', '', {
+				didOpen,
+				imageUrl: '', showConfirmButton: false,
+				customClass: { popup: 'mp-multiplayer-settings-popup' }
+			}, true, false);
+		},
+
+		async toggle_listing_filter(id) {
+			if (!this.listing_filter_categories.includes(id)) return;
+			this.listing_filters = this.listing_filters.includes(id)
+				? this.listing_filters.filter(category => category !== id) : [...this.listing_filters, id];
+			set_instance_storage_item('listing_filters', [...this.listing_filters]);
+			this.market_current_page = 1;
+			if (this.is_connected && this.is_guild_member && !this.is_social_only)
+				await Promise.all([update_market_search(), this.refresh_crucible(true)]);
 		},
 
 		open_display_name_from_options() {
@@ -557,24 +593,16 @@ export function install_transfer_actions(runtime) {
 			const desired = !this.equipment_visible;
 			this.equipment_visibility_pending = true;
 			this.member_actions_error = '';
-			let res = null;
-			try {
-				res = await api_post('/api/client/equipment/visibility', { visible: desired });
-			} catch (e) {
-				log('equipment visibility update failed (%s)', e);
-			}
-			if (res?.success) {
+			const res = await request_visibility_change(
+				this, '/api/client/equipment/visibility', desired, 'equipment'
+			);
+			if (res) {
 				this.equipment_visible = res.visible;
 				if (this.selected_guild_member?.client_id === this.chat_client_id)
 					this.selected_guild_member.equipment_visible = res.visible;
-				if (res.visible) {
-					runtime.last_synced_equipment = null;
+				runtime.last_synced_equipment = null;
+				if (res.visible)
 					schedule_equipment_sync(0);
-				} else {
-					runtime.last_synced_equipment = null;
-				}
-			} else {
-				this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 			}
 			this.equipment_visibility_pending = false;
 		},
@@ -586,13 +614,10 @@ export function install_transfer_actions(runtime) {
 			const desired = !this.skills_visible;
 			this.skills_visibility_pending = true;
 			this.member_actions_error = '';
-			let res = null;
-			try {
-				res = await api_post('/api/client/skills/visibility', { visible: desired });
-			} catch (e) {
-				log('player skills visibility update failed (%s)', e);
-			}
-			if (res?.success) {
+			const res = await request_visibility_change(
+				this, '/api/client/skills/visibility', desired, 'player skills'
+			);
+			if (res) {
 				this.skills_visible = res.visible;
 				if (!res.visible)
 					invalidate_status_icon_collection();
@@ -605,8 +630,6 @@ export function install_transfer_actions(runtime) {
 				runtime.last_synced_status_statistics = null;
 				start_status_observer();
 				schedule_status_sync(0);
-			} else {
-				this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 			}
 			this.skills_visibility_pending = false;
 		},
@@ -618,13 +641,10 @@ export function install_transfer_actions(runtime) {
 			const desired = !this.activity_visible;
 			this.activity_visibility_pending = true;
 			this.member_actions_error = '';
-			let res = null;
-			try {
-				res = await api_post('/api/client/activity/visibility', { visible: desired });
-			} catch (e) {
-				log('player activity visibility update failed (%s)', e);
-			}
-			if (res?.success) {
+			const res = await request_visibility_change(
+				this, '/api/client/activity/visibility', desired, 'player activity'
+			);
+			if (res) {
 				this.activity_visible = res.visible;
 				if (this.selected_guild_member?.client_id === this.chat_client_id)
 					Object.assign(this.selected_guild_member, {
@@ -634,8 +654,6 @@ export function install_transfer_actions(runtime) {
 				runtime.last_synced_status_activities = null;
 				start_status_observer();
 				schedule_status_sync(0);
-			} else {
-				this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 			}
 			this.activity_visibility_pending = false;
 		},
@@ -647,13 +665,10 @@ export function install_transfer_actions(runtime) {
 			const desired = !this.gp_visible;
 			this.gp_visibility_pending = true;
 			this.member_actions_error = '';
-			let res = null;
-			try {
-				res = await api_post('/api/client/gp/visibility', { visible: desired });
-			} catch (e) {
-				log('GP visibility update failed (%s)', e);
-			}
-			if (res?.success) {
+			const res = await request_visibility_change(
+				this, '/api/client/gp/visibility', desired, 'GP'
+			);
+			if (res) {
 				this.gp_visible = res.visible;
 				if (this.selected_guild_member?.client_id === this.chat_client_id) {
 					this.selected_guild_member.gp_visible = res.visible;
@@ -663,8 +678,6 @@ export function install_transfer_actions(runtime) {
 				runtime.last_synced_gp = null;
 				start_gp_sampling(true);
 				schedule_status_sync(0);
-			} else {
-				this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 			}
 			this.gp_visibility_pending = false;
 		},
@@ -676,20 +689,15 @@ export function install_transfer_actions(runtime) {
 			const desired = !this.game_mode_visible;
 			this.game_mode_visibility_pending = true;
 			this.member_actions_error = '';
-			let res = null;
-			try {
-				res = await api_post('/api/client/game-mode/visibility', { visible: desired });
-			} catch (e) {
-				log('game mode visibility update failed (%s)', e);
-			}
-			if (res?.success) {
+			const res = await request_visibility_change(
+				this, '/api/client/game-mode/visibility', desired, 'game mode'
+			);
+			if (res) {
 				this.game_mode_visible = res.visible;
 				if (this.selected_guild_member?.client_id === this.chat_client_id) {
 					this.selected_guild_member.game_mode_visible = res.visible;
 					this.selected_guild_member.game_mode_id = runtime.loaded_game_mode_id;
 				}
-			} else {
-				this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 			}
 			this.game_mode_visibility_pending = false;
 		},
@@ -701,20 +709,15 @@ export function install_transfer_actions(runtime) {
 			const desired = !this.active_mods_visible;
 			this.active_mods_visibility_pending = true;
 			this.member_actions_error = '';
-			let res = null;
-			try {
-				res = await api_post('/api/client/active-mods/visibility', { visible: desired });
-			} catch (e) {
-				log('active mod visibility update failed (%s)', e);
-			}
-			if (res?.success) {
+			const res = await request_visibility_change(
+				this, '/api/client/active-mods/visibility', desired, 'active mod'
+			);
+			if (res) {
 				this.active_mods_visible = res.visible;
 				if (this.selected_guild_member?.client_id === this.chat_client_id) {
 					this.selected_guild_member.active_mods_visible = res.visible;
 					this.selected_guild_member.active_mods_available = res.visible && runtime.active_mod_names.length > 0;
 				}
-			} else {
-				this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 			}
 			this.active_mods_visibility_pending = false;
 		},
@@ -726,17 +729,12 @@ export function install_transfer_actions(runtime) {
 			const desired = !this.dev_tag_visible;
 			this.dev_tag_visibility_pending = true;
 			this.member_actions_error = '';
-			let res = null;
-			try {
-				res = await api_post('/api/client/dev-tag/visibility', { visible: desired });
-			} catch (e) {
-				log('Dev tag visibility update failed (%s)', e);
-			}
-			if (res?.success) {
+			const res = await request_visibility_change(
+				this, '/api/client/dev-tag/visibility', desired, 'Dev tag'
+			);
+			if (res) {
 				this.dev_tag_visible = res.visible;
 				await refresh_guild_state(true);
-			} else {
-				this.member_actions_error = getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
 			}
 			this.dev_tag_visibility_pending = false;
 		},

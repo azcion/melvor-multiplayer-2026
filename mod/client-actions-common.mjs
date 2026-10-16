@@ -73,14 +73,28 @@ export function install_common_actions(runtime) {
 			return game_mode_sharing.resolve_game_mode(
 				member.game_mode_id,
 				id => game.gamemodes?.getObjectByID(id),
-				getLangString('MOD_MP_GAME_MODE_UNKNOWN')
+				getLangString('MOD_MP_GAME_MODE_UNKNOWN'),
+				path => ctx.getResourceUrl(path)
 			);
+		},
+
+		get_member_search_tags(member) {
+			if (!Array.isArray(member?.search_matches)) return [];
+			const labels = member.search_matches.flatMap(match => {
+				if (match?.kind === 'game_mode') {
+					if (member.game_mode_visible !== true) return [];
+					return [this.get_shared_game_mode(member)?.name || match.label];
+				}
+				if (match?.kind === 'mod' && member.active_mods_visible !== true) return [];
+				return typeof match?.label === 'string' && ['mod', 'dev'].includes(match.kind) ? [match.label] : [];
+			});
+			return [...new Set(labels)].filter(label => typeof label === 'string' && label.length > 0);
 		},
 
 		get_roster_game_mode(member) {
 			if (member?.game_mode_visible !== true)
 				return null;
-			return game_mode_sharing.get_base_game_mode(member.game_mode_id);
+			return game_mode_sharing.get_known_game_mode(member.game_mode_id, path => ctx.getResourceUrl(path));
 		},
 
 		get_language_lang_id(language) {
