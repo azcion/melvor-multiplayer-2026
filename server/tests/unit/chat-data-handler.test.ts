@@ -1,0 +1,24 @@
+import { expect, test } from 'bun:test';
+import { create_chat_data_handler } from '../../chat-data-handler';
+import { type HandlerResult } from '../../http';
+test('rejects before upstream; reauthorizes after asynchronous success or failure', async () => {
+	let permitted = false, loads = 0, checks = 0;
+	const authorize = (handler: () => HandlerResult) => () => { checks++; return permitted ? Response.json(handler()) : new Response('Unauthorized', { status: 401 }); };
+	const req = new Request('https://example.test/chat/api/data?locale=de');
+	const url = new URL(req.url);
+	let release!: () => void;
+	const handler = create_chat_data_handler(authorize, async (locale) => { expect(locale).toBe('de'); loads++; await new Promise<void>(resolve => release = resolve); return { items: [] }; });
+	expect((await handler(req, url) as Response).status).toBe(401);
+	expect(loads).toBe(0);
+	permitted = true;
+	const pending = handler(req, url);
+	await Promise.resolve();
+	expect(loads).toBe(1);
+	permitted = false;
+	release();
+	expect((await pending as Response).status).toBe(401);
+	expect(checks).toBe(3);
+	permitted = true;
+	const failed = create_chat_data_handler(authorize, async () => { permitted = false; throw Error('outage'); });
+	expect((await failed(req, url) as Response).status).toBe(401);
+});

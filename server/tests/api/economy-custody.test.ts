@@ -5,7 +5,7 @@ import { post_json, get_json_with_session } from '../support/http';
 import { db_all,db_run } from '../support/persistence';
 
 async function capable<T extends {client_id:number;client_identifier:string;client_key:string;session_token:string}>(client:T):Promise<T> {
- const version=(await db_all<{mod_version:string|null}>('SELECT mod_version FROM client_sessions WHERE session_token=?',[client.session_token]))[0]?.mod_version??'1.6.9';
+ const version=(await db_all<{mod_version:string|null}>('SELECT mod_version FROM client_sessions WHERE session_token=?',[client.session_token]))[0]?.mod_version??'1.6.14';
  const session=await post_json<any>('/api/authenticate',{client_identifier:client.client_identifier,client_key:client.client_key,
   client_runtime:{mod_version:version,active_mods:[],capabilities:['save-rollback-v1']}});
  return {...client,session_token:session.json.session_token};
@@ -16,8 +16,8 @@ async function make_guildmates(...args:Parameters<typeof make_base_pair>) {
 }
 
 test('restored same command retires stably without replacing its receipt; unrelated incoming recovery remains available',async()=>{
-	const player=await register_guild_client('Retired Custody','Custody Guild','1.6.9');
-	const supported=await post_json<any>('/api/authenticate',{client_identifier:player.client_identifier,client_key:player.client_key,client_runtime:{mod_version:'1.6.9',active_mods:[],capabilities:['save-rollback-v1']}});
+	const player=await register_guild_client('Retired Custody','Custody Guild','1.6.14');
+	const supported=await post_json<any>('/api/authenticate',{client_identifier:player.client_identifier,client_key:player.client_key,client_runtime:{mod_version:'1.6.14',active_mods:[],capabilities:['save-rollback-v1']}});
 	player.session_token=supported.json.session_token;
 	const command=crypto.randomUUID();const item=`test:Custody_${command.replaceAll('-','')}`;
 	const body={command_id:command,source:'bank',items:[{id:item,qty:3,value_currency_id:'melvorD:GP',value_per_item:1}]};
@@ -42,7 +42,7 @@ test('restored same command retires stably without replacing its receipt; unrela
 });
 
 test('manual claim racing due automatic delivery issues only one protected Wish entitlement and keeps terminal funding',async()=>{
-	const player=await register_guild_client('Wish Delivery Race','Wish Race Guild','1.6.11');
+	const player=await register_guild_client('Wish Delivery Race','Wish Race Guild','1.6.14');
 	const account=crypto.randomUUID();const now=Date.now();
 	await db_run('INSERT INTO melvor_accounts(cloud_username,playfab_id,created_at) VALUES(?,?,?)',['race',account,now]);
 	const owner=(await db_all<{id:number}>('SELECT id FROM melvor_accounts WHERE playfab_id=?',[account]))[0]!;
@@ -114,7 +114,6 @@ test('Marketplace merged deposits retain separate immutable commands and settled
 	expect(await db_all('SELECT quantity FROM economy_custody_sources WHERE root_key=?',[`market-escrow:${escrow}`])).toEqual([{quantity:35}]);
 	expect((await db_all<{phase:string}>('SELECT phase FROM economy_terminal_snapshots WHERE table_name=\'market_items\' AND row_id=? ORDER BY id',[lot.id])).map(row=>row.phase)).toEqual(['source','terminal','terminal']);
 });
-
 import { Database } from 'bun:sqlite';
 import { correct_custody_operation } from '../../economy-correction';
 
@@ -139,7 +138,7 @@ function apply_market_correction(input:ReturnType<typeof approved_market_correct
 	try{return correct_custody_operation(db,input.incident,input.operation,input.activation);}finally{db.close();}
 }
 async function market_pair() {
-	const pair=await make_guildmates('Rollback Market Seller','Rollback Market Buyer','Rollback Market',{first:'1.6.9',second:'1.6.9'});
+	const pair=await make_guildmates('Rollback Market Seller','Rollback Market Buyer','Rollback Market',{first:'1.6.14',second:'1.6.14'});
 	const item=`test:Market_${crypto.randomUUID().replaceAll('-','')}`;const command=crypto.randomUUID();
 	expect((await post_json<any>('/api/market/sell',{command_id:command,item_id:item,item_qty:10,item_sell_price:7,purchase_limit:10},pair.first.session_token)).json.success).toBe(true);
 	const lot=(await db_all<{id:number}>('SELECT id FROM market_items WHERE client_id=? AND item_id=?',[pair.first_id,item]))[0]!.id;
@@ -275,7 +274,7 @@ test('cancel, destroy, expiry and Social Only returns retain eligible stock root
 test('Banishment keeps exact Buy Order GP custody; unissued returns correct once and issued GP claims remain protected',async()=>{
 	const {make_guild_group}=await import('../support/fixtures');
 	for(const issue of [false,true]) {
-		const [petitioner,target,voter,other]=await make_guild_group(['Market Ban Petitioner','Market Ban Target','Market Ban Voter','Market Ban Peer'],'Market Ban Guild','1.6.9');
+		const [petitioner,target,voter,other]=await make_guild_group(['Market Ban Petitioner','Market Ban Target','Market Ban Voter','Market Ban Peer'],'Market Ban Guild','1.6.14');
 		const command=crypto.randomUUID();const item=`test:BanishMarket_${command.replaceAll('-','')}`;
 		await post_json('/api/market/buy-order',{command_id:command,item_id:item,item_qty:3,item_buy_price:7},target.session_token);
 		const petition=(await post_json<any>('/api/guilds/petitions/raise',{type:'banishment',target_client_id:target.client_id},petitioner.session_token)).json;
@@ -345,7 +344,7 @@ test('independent Buy Order correction serializes against fill and cannot refund
 },15000);
 
 async function trade_pair(legacy=false) {
-	const pair=await make_guildmates('Rollback Trade Sender','Rollback Trade Counter','Rollback Trade',{first:'1.6.9',second:'1.6.9'});
+	const pair=await make_guildmates('Rollback Trade Sender','Rollback Trade Counter','Rollback Trade',{first:'1.6.14',second:'1.6.14'});
 	const item=`test:Trade_${crypto.randomUUID().replaceAll('-','')}`;
 	const command=crypto.randomUUID();
 	const body={command_id:command,recipient_id:pair.second_id,items:[{id:item,qty:2},{id:item,qty:3}]};
@@ -439,7 +438,7 @@ test('legacy Trade correction serializes against resolve and preserves issued ef
 test('Banishment Trade returns retain each duplicate root and preserve valid other escrow through correction and claim issuance',async()=>{
 	const {make_guild_group}=await import('../support/fixtures');
 	for(const issued of [false,true]) {
-		const [petitioner,target,voter,peer]=await make_guild_group(['Trade Ban Petitioner','Trade Ban Target','Trade Ban Voter','Trade Ban Peer'],'Trade Ban Guild','1.6.9');
+		const [petitioner,target,voter,peer]=await make_guild_group(['Trade Ban Petitioner','Trade Ban Target','Trade Ban Voter','Trade Ban Peer'],'Trade Ban Guild','1.6.14');
 		const command=crypto.randomUUID(),item=`test:TradeBan_${command.replaceAll('-','')}`;
 		const trade=(await post_json<any>('/api/trade/offer',{command_id:command,recipient_id:peer.client_id,items:[{id:item,qty:2},{id:item,qty:3}]},target.session_token)).json.trade_id;
 		await post_json('/api/trade/counter',{command_id:crypto.randomUUID(),trade_id:trade,items:[{id:item,qty:7}]},peer.session_token);

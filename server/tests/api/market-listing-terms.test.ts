@@ -8,8 +8,8 @@ type Reply = { success: boolean; error_lang?: string; receipt?: { effects: unkno
 const read = (client: RegisteredClient) => get_json_with_session<Reply>('/api/market/listings', client.session_token);
 const send = (client: RegisteredClient, route: string, data: Record<string, unknown>) => post_json<Reply>(route, data, client.session_token);
 
-test('new terms merge only matching lots, hide from 1.6.5, enforce limits and replay once', async () => {
-	const pair = await make_guildmates('Terms Buyer', 'Terms Seller', 'Terms Guild', { first: '1.6.6', second: '1.6.6' });
+test('listing terms merge only matching lots, enforce limits and replay once', async () => {
+	const pair = await make_guildmates('Terms Buyer', 'Terms Seller', 'Terms Guild', { first: '1.6.14', second: '1.6.14' });
 	const data = { item_id: 'melvorD:Terms_Apple', item_qty: 10, item_sell_price: 7, currency_id: 'melvorD:SlayerCoins', purchase_limit: 3, allow_haggles: false };
 	await send(pair.second, '/api/market/sell', data);
 	await send(pair.second, '/api/market/sell', { ...data, item_qty: 2 });
@@ -27,15 +27,11 @@ test('new terms merge only matching lots, hide from 1.6.5, enforce limits and re
 	expect((await send(pair.first, '/api/market/haggle', { id: lot.id, qty: 1, price: 4 })).json.success).toBe(false);
 	await send(pair.first, '/api/market/buy', { ...buy, qty: 2, command_id: crypto.randomUUID() });
 	expect((await send(pair.first, '/api/market/buy', { ...buy, command_id: crypto.randomUUID() })).json.error_lang).toBe('MOD_MP_MARKET_PURCHASE_LIMIT_REACHED');
-	const legacy = await register_client('Terms Legacy', undefined, '1.6.5');
-	await db_run('INSERT INTO guild_memberships(guild_id,client_id) VALUES(?,?)', [pair.guild_id, legacy.client_id]);
-	expect((await send(legacy, '/api/market/search', { item_id: data.item_id })).json.items).toEqual([]);
-	expect((await send(legacy, '/api/market/buy', { ...buy, command_id: crypto.randomUUID() })).json.success).not.toBe(true);
-	expect((await send(legacy, '/api/market/catalog', { item_namespaces: ['melvorD'] })).json).toMatchObject({ item_ids: [] });
+
 });
 
 test('currency Haggles reserve purchase limits, refund on cancellation and settle exact currency', async () => {
-	const pair = await make_guildmates('Currency Buyer', 'Currency Seller', 'Currency Guild', { first: '1.6.6', second: '1.6.6' });
+	const pair = await make_guildmates('Currency Buyer', 'Currency Seller', 'Currency Guild', { first: '1.6.14', second: '1.6.14' });
 	for (const currency_id of ['melvorD:SlayerCoins', 'melvorItA:AbyssalPieces', 'melvorItA:AbyssalSlayerCoins']) {
 		await send(pair.second, '/api/market/sell', { item_id: 'melvorD:Terms_Haggle', item_qty: 10, item_sell_price: 7, currency_id, purchase_limit: 2 });
 		const lot = (await read(pair.second)).json.items.find(row => row.currency_id === currency_id)!;
@@ -53,10 +49,9 @@ test('currency Haggles reserve purchase limits, refund on cancellation and settl
 	}
 });
 
-
 test('Alliance prices drive search, purchase receipts and payout accounting without duplicate proceeds', async () => {
-	const pair = await make_guildmates('Price Guild Buyer', 'Price Seller', 'Price Guild', { first: '1.6.6', second: '1.6.6' });
-	const outside = await register_guild_client('Price Ally', 'Price Ally Guild', '1.6.6');
+	const pair = await make_guildmates('Price Guild Buyer', 'Price Seller', 'Price Guild', { first: '1.6.14', second: '1.6.14' });
+	const outside = await register_guild_client('Price Ally', 'Price Ally Guild', '1.6.14');
 	for (const client of [pair.first, pair.second, outside]) await allow_alliance_preview(client.client_id);
 	const name = crypto.randomUUID().slice(0, 15);
 	await db_run('INSERT INTO alliances(name,shared_marketplace,created_at) VALUES(?,1,?)', [name, Date.now()]);
@@ -76,8 +71,8 @@ test('Alliance prices drive search, purchase receipts and payout accounting with
 });
 
 test('linked characters share a purchase limit under simultaneous requests, while legacy ordinary lots remain usable', async () => {
-	const pair = await make_guildmates('Limit Buyer', 'Limit Seller', 'Limit Guild', { first: '1.6.6', second: '1.6.5' });
-	const sibling = await register_client('Limit Sibling', undefined, '1.6.6');
+	const pair = await make_guildmates('Limit Buyer', 'Limit Seller', 'Limit Guild', { first: '1.6.14', second: '1.6.14' });
+	const sibling = await register_client('Limit Sibling', undefined, '1.6.14');
 	await db_run('INSERT INTO guild_memberships(guild_id,client_id) VALUES(?,?)', [pair.guild_id, sibling.client_id]);
 	await allow_alliance_preview(pair.first.client_id); await allow_alliance_preview(sibling.client_id);
 	await send(pair.second, '/api/market/sell', { item_id: 'melvorD:Terms_Legacy', item_qty: 3, item_sell_price: 1 });

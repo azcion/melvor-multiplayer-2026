@@ -1,32 +1,27 @@
 import { can_cast_council_vote, snapshot_council_threshold, resolve_council_vote } from '../council-voting';
 import { is_feature_tester, council_test_data, valid_council_test_action } from '../feature-testers';
 import { cleanup_market_permissions } from '../alliance-market';
-import { has_alliance_access, alliance_petition_withdrawable, alliance_capable, alliance_ballot_activity, maintain_alliances, remove_alliance_guild } from '../alliances';
+import { has_alliance_access, alliance_petition_withdrawable, alliance_ballot_activity, maintain_alliances, remove_alliance_guild } from '../alliances';
 import * as runtime from '../app-runtime';
 import type { GuildSummary, GuildType } from '../app-runtime';
-import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
-import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
-import { is_free_fellowship_petition, petition_expiry, type PetitionType } from '../council';
+import type { HandlerResult } from '../http';
+import { is_free_fellowship_petition, petition_expiry } from '../council';
 import { get_guild_activity, parse_guild_activity_cursor } from '../guild-activity';
 import { record_guild_activity } from '../guild-activity';
 import { cancel_client_haggles } from './haggle';
-import { is_client_version_at_least } from '../client-version-policy';
 import { is_crucible_petition_type, settle_departing_crucible_wish, snapshot_crucible_petition } from '../crucible-council';
 
 const { DIRECT_JOIN_CRUCIBLE_LOCK, FREE_FELLOWSHIP_TYPE, GiftFlags, PETITION_LIFETIME, PUBLIC_GUILD_TYPE, db, db_get_all, db_get_single, db_run, ensure_guild_campaign, expire_petitions, forget_guild_campaign, get_client_display, get_client_guild_id, get_council_petitions, get_guild_applicants, get_guild_capabilities, get_guild_established_at, get_guild_member_directory, get_guild_members, get_guild_summary, get_guild_type, get_petition_conflict_subject, guild_summary_from_row, has_guild_departure_blocker, is_petition_choice, is_petition_type, is_valid_guild_icon_id, parse_guild_name, process_council_actions, resize_unprogressed_campaign, session_get_route, session_post_route, shadowed_cutoff, unlock_winnowing_targets } = runtime;
 
-function petition_visible_to_client(type: string, req: Request, client_id: number): boolean {
-	if (type.startsWith('alliance_')) return has_alliance_access(client_id, runtime.get_request_mod_version(req));
-	const version = runtime.get_request_mod_version(req);
-	const crucible_client = version === 'development' || is_client_version_at_least(version, '1.6.0');
-	return crucible_client || !type.startsWith('crucible_');
+function petition_visible_to_client(type: string, client_id: number): boolean {
+	if (type.startsWith('alliance_')) return has_alliance_access(client_id);
+
+	return true;
 }
 
-function council_preview_enabled(req: Request, client_id: number): boolean {
-	const version = runtime.get_request_mod_version(req);
-	return (version === 'development' || is_client_version_at_least(version, '1.6.3')) &&
-		is_feature_tester(db, client_id, 'council');
+function council_preview_enabled(client_id: number): boolean {
+	return is_feature_tester(db, client_id, 'council');
 }
 
 export function register_guilds_routes(): void {
@@ -37,9 +32,8 @@ export function register_guilds_routes(): void {
 		const cursor = parse_guild_activity_cursor(url.searchParams.get('cursor'));
 		if (cursor === false)
 			return 400;
-		const version = runtime.get_request_mod_version(req);
-		const include_legacy = version !== 'development' && !is_client_version_at_least(version, '1.6.0');
-		return get_guild_activity(guild_id, client_id, cursor, include_legacy, has_alliance_access(client_id, version));
+
+		return get_guild_activity(guild_id, client_id, cursor, has_alliance_access(client_id));
 	});
 	session_get_route('/api/guilds/council', async (req, url, client_id): Promise<HandlerResult> => {
 		expire_petitions();
@@ -57,13 +51,11 @@ export function register_guilds_routes(): void {
 		if (!Number.isSafeInteger(resolved_page) || resolved_page < 0)
 			return 400; // Bad Request
 
-		const version = runtime.get_request_mod_version(req);
 		const result = await get_council_petitions(membership.guild_id, client_id, resolved_page,
-			version === 'development' || is_client_version_at_least(version, '1.6.0'), has_alliance_access(client_id, version), alliance_capable(version),
-			version === 'development' || is_client_version_at_least(version, '1.6.10'));
+			has_alliance_access(client_id));
 		// Same public labels already exposed by the authorized Alliance preview route.
 		// An explicit empty list also records that a historical Guild has disappeared.
-		if (has_alliance_access(client_id, version)) {
+		if (has_alliance_access(client_id)) {
 			for (const petition of result.petitions) {
 				if (!petition.type.startsWith('alliance_')) continue;
 				const proposal = petition.proposal as { guild_ids?: number[]; guilds?: unknown[] };
@@ -74,7 +66,7 @@ export function register_guilds_routes(): void {
 				});
 			}
 		}
-		if (!council_preview_enabled(req, client_id)) return { ...result, server_time: Date.now() };
+		if (!council_preview_enabled(client_id)) return { ...result, server_time: Date.now() };
 		const fixtures = council_test_data();
 		return { ...result, server_time: Date.now(), petitions: [...result.petitions, ...fixtures.active,
 			...(resolved_page === 0 ? fixtures.history : [])] };
@@ -86,9 +78,7 @@ export function register_guilds_routes(): void {
 
 		const petition_type = json.type;
 		if (petition_type.startsWith('alliance_')) return 400;
-		const version = runtime.get_request_mod_version(req);
-		const crucible_client = version === 'development' || is_client_version_at_least(version, '1.6.0');
-		if (is_crucible_petition_type(petition_type) && !crucible_client) return 400;
+
 		const proposed_name = petition_type === 'appellation' ? parse_guild_name(json.name) : null;
 		const proposed_icon_id = petition_type === 'heraldry' && is_valid_guild_icon_id(json.icon_id) ? json.icon_id : null;
 		let target_client_id: number | null = null;
@@ -134,7 +124,7 @@ export function register_guilds_routes(): void {
 					return { status: 'crucible_unavailable' as const };
 			}
 			if (guild.type === FREE_FELLOWSHIP_TYPE &&
-				(!alliance_capable(version) || !is_free_fellowship_petition(petition_type)))
+				(!is_free_fellowship_petition(petition_type)))
 				return { status: 'unavailable' as const };
 			if ((petition_type === 'fellowship' && guild.type !== 'private') ||
 				(petition_type === 'enclosure' && guild.type !== PUBLIC_GUILD_TYPE))
@@ -252,7 +242,7 @@ export function register_guilds_routes(): void {
 		const petition_id = json.petition_id;
 		const choice = json.choice;
 		if (typeof petition_id === 'number' && petition_id < 0)
-			return council_preview_enabled(req, client_id) && valid_council_test_action(petition_id, 'vote', choice)
+			return council_preview_enabled(client_id) && valid_council_test_action(petition_id, 'vote', choice)
 				? { success: true, synthetic: true, lifecycle: 'active' } : 400;
 		if (typeof petition_id !== 'number' || !Number.isSafeInteger(petition_id) || petition_id < 1 ||
 			!is_petition_choice(choice))
@@ -266,13 +256,13 @@ export function register_guilds_routes(): void {
 			const petition = db.query('SELECT * FROM `guild_petitions` WHERE `id` = ? LIMIT 1').get(
 				petition_id
 			) as db_row.guild_petitions;
-			if (petition === null || !petition_visible_to_client(petition.type, req, client_id))
+			if (petition === null || !petition_visible_to_client(petition.type, client_id))
 				return { status: 'missing' as const };
 			const guild = db.query('SELECT `type` FROM `guilds` WHERE `id` = ? LIMIT 1').get(
 				petition.guild_id
 			) as { type: GuildType } | null;
 			if (guild?.type === FREE_FELLOWSHIP_TYPE &&
-				(!alliance_capable(runtime.get_request_mod_version(req)) || !is_free_fellowship_petition(petition.type)))
+				(!is_free_fellowship_petition(petition.type)))
 				return { status: 'unavailable' as const };
 			if (petition.lifecycle !== 'active')
 				return { status: 'final' as const };
@@ -343,7 +333,7 @@ export function register_guilds_routes(): void {
 	session_post_route('/api/guilds/petitions/withdraw', async (req, url, client_id, json): Promise<HandlerResult> => {
 		const petition_id = json.petition_id;
 		if (typeof petition_id === 'number' && petition_id < 0)
-			return council_preview_enabled(req, client_id) && valid_council_test_action(petition_id, 'withdraw')
+			return council_preview_enabled(client_id) && valid_council_test_action(petition_id, 'withdraw')
 				? { success: true, synthetic: true } : 400;
 		if (typeof petition_id !== 'number' || !Number.isSafeInteger(petition_id) || petition_id < 1)
 			return 400; // Bad Request
@@ -354,13 +344,13 @@ export function register_guilds_routes(): void {
 			const petition = db.query('SELECT * FROM `guild_petitions` WHERE `id` = ? LIMIT 1').get(
 				petition_id
 			) as db_row.guild_petitions;
-			if (petition === null || !petition_visible_to_client(petition.type, req, client_id))
+			if (petition === null || !petition_visible_to_client(petition.type, client_id))
 				return 'missing';
 			const guild = db.query('SELECT `type` FROM `guilds` WHERE `id` = ? LIMIT 1').get(
 				petition.guild_id
 			) as { type: GuildType } | null;
 			if (guild?.type === FREE_FELLOWSHIP_TYPE &&
-				(!alliance_capable(runtime.get_request_mod_version(req)) || !is_free_fellowship_petition(petition.type)))
+				(!is_free_fellowship_petition(petition.type)))
 				return 'unavailable';
 			if (petition.lifecycle === 'active' && petition.expires_at <= now) {
 				unlock_winnowing_targets(petition_id);
@@ -493,7 +483,7 @@ export function register_guilds_routes(): void {
 					established_at,
 					capabilities: {
 						...get_guild_capabilities(guild_type),
-						council: guild_type !== FREE_FELLOWSHIP_TYPE || alliance_capable(runtime.get_request_mod_version(req))
+						council: true
 					}
 				},
 				members: member_directory?.members ?? await get_guild_members(guild_id, client_id),

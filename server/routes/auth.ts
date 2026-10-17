@@ -5,7 +5,6 @@ import { record_load_clock } from '../save-rollback';
 import { has_alliance_access } from '../alliances';
 import { API_VERSIONS } from '../api-contract';
 import { get_dev_badge_labels, get_account_tags, get_dev_tag_visibility } from '../account_tags';
-import { is_client_version_at_least } from '../client-version-policy';
 import { record_character_save_load } from '../character-save-loads';
 import { db } from '../db';
 import { authenticate_installation, enroll_installation } from '../installations';
@@ -14,16 +13,13 @@ import { mark_rejection } from '../diagnostics';
 import { release_campaign_refunds } from '../campaign-retirement';
 import { get_raid_monster_drops, RAID_TIER_PROGRESS } from '../raid';
 import * as runtime from '../app-runtime';
-import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
-import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
-import type { PetitionType } from '../council';
 
 const { AUTH_RESPONSE_DELAY_MS, BACKEND_VERSION, DEFAULT_USER_ICON_ID, allow_browser_access, associate_client_with_melvor_account, cancel_deletion_on_authentication, db_get_single, execute_due_client_deletions, generate_friend_code, generate_session_token, get_chat_state, get_client_social_mode, get_client_social_mode_enforcement, get_minimum_supported_mod_version, get_owned_pet_ids, get_released_mod_version, identify_request, is_valid_uuid, log, parse_client_runtime, parse_melvor_account, persist_client_runtime, recover_deleted_client, register_client, require_registration_capacity, require_service_available, require_source_capacity, server, temporary_unavailable, validate_display_name, validate_json_request } = runtime;
 
 export function register_auth_routes(): void {
 	server.route('/api/versions', allow_browser_access(require_source_capacity(require_service_available(() => ({
-		page_snapshots: true, capabilities:['save-rollback-v1'], api_versions: API_VERSIONS, preferred_api_version: API_VERSIONS[API_VERSIONS.length - 1],
+		page_snapshots: true, capabilities:['save-rollback-v1', 'identity-registration-v1'], api_versions: API_VERSIONS, preferred_api_version: API_VERSIONS[API_VERSIONS.length - 1],
 		minimum_supported_mod_version: get_minimum_supported_mod_version()
 	})))), ['GET', 'OPTIONS']);
 	server.route('/health', require_source_capacity(() => ({ status: 'ok', backend_version: BACKEND_VERSION })));
@@ -100,8 +96,7 @@ export function register_auth_routes(): void {
 			return load;
 		}).immediate();
 		const session_token = await generate_session_token(client_row.id, client_runtime?.mod_version ?? null, session_device, installation_auth ? String(json.installation_id).toLowerCase() : null, save_load_id, client_runtime?.capabilities);
-		if (is_client_version_at_least(client_runtime?.mod_version, '1.6.0'))
-			release_campaign_refunds(client_row.id);
+		release_campaign_refunds(client_row.id);
 		log('client', 'authorized client session for identity {%d}', client_row.id);
 
 		return { ...(client_runtime?.capabilities.includes('save-rollback-v1')?{rollback:rollback_player_status(db,client_row.id,save_load_id,true)}:{}), rollback_clock_sample: save_load_id === null ? null : {...db.query<{server_admitted_at:number;load_id:string},[number]>(
@@ -116,16 +111,15 @@ export function register_auth_routes(): void {
 			active_mods_visible: client_row.active_mods_visible === 1,
 			dev_badge_labels: get_dev_badge_labels(),
 			dev_tag: get_dev_tag_visibility(client_row.id),
-			alliance_access: has_alliance_access(client_row.id, client_runtime?.mod_version),
+			alliance_access: has_alliance_access(client_row.id),
 			chat: get_chat_state(client_row.id),
 			listing_filter_prompt_pending: listing_filter_prompt_pending(db, client_row.id),
-			...(is_client_version_at_least(client_runtime?.mod_version, '1.6.0')
-				? { account_tags: get_account_tags(client_row.id) } : {}),
+			account_tags: get_account_tags(client_row.id),
 			installation_auth_supported: true, backend_version: BACKEND_VERSION,
 			server_owned_pets: true,
 			raid_tier_progress: RAID_TIER_PROGRESS,
 			raid_monster_drops: get_raid_monster_drops(client_row.id),
-			owned_pet_ids: get_owned_pet_ids(client_row.id, client_runtime?.mod_version),
+			owned_pet_ids: get_owned_pet_ids(client_row.id),
 			released_mod_version: get_released_mod_version(),
 			minimum_supported_mod_version: get_minimum_supported_mod_version(),
 			deletion_cancelled, identity_recovered };
@@ -138,6 +132,8 @@ export function register_auth_routes(): void {
 
 		if (typeof client_key !== 'string' || !is_valid_uuid(client_key))
 			return 400; // Bad Request
+		if (json.registration_id !== undefined && (typeof json.registration_id !== 'string' || !is_valid_uuid(json.registration_id)))
+			return 400;
 		const melvor_account = parse_melvor_account(json);
 		if (melvor_account === undefined)
 			return 400; // Bad Request
@@ -149,7 +145,7 @@ export function register_auth_routes(): void {
 		const friend_code = await generate_friend_code();
 		const display_name = validate_display_name(json.display_name);
 
-		const client_identifier = crypto.randomUUID();
+		const client_identifier = typeof json.registration_id === 'string' ? json.registration_id : crypto.randomUUID();
 		const registration = register_client(
 			client_identifier,
 			client_key,
@@ -160,6 +156,11 @@ export function register_auth_routes(): void {
 			client_runtime?.device ?? null
 		);
 
+		// Replays authenticate through the ordinary route so preferences, revocation and sessions
+		// have exactly the same checks as every other login. Never return fresh-profile defaults.
+		if (registration.status === 'replayed')
+			return Response.json({ identity_status: 'registration_exists' }, { status: 409 });
+		if (registration.status === 'conflict') return 401;
 		if (registration.status !== 'created')
 			return temporary_unavailable();
 
@@ -183,16 +184,15 @@ export function register_auth_routes(): void {
 			active_mods_visible: true,
 			dev_badge_labels: get_dev_badge_labels(),
 			dev_tag: get_dev_tag_visibility(client_id),
-			alliance_access: has_alliance_access(client_id, client_runtime?.mod_version),
+			alliance_access: has_alliance_access(client_id),
 			chat: get_chat_state(client_id),
 			listing_filter_prompt_pending: listing_filter_prompt_pending(db, client_id),
-			...(is_client_version_at_least(client_runtime?.mod_version, '1.6.0')
-				? { account_tags: get_account_tags(client_id) } : {}),
+			account_tags: get_account_tags(client_id),
 			installation_auth_supported: true, backend_version: BACKEND_VERSION,
 			server_owned_pets: true,
 			raid_tier_progress: RAID_TIER_PROGRESS,
 			raid_monster_drops: get_raid_monster_drops(client_id),
-			owned_pet_ids: get_owned_pet_ids(client_id, client_runtime?.mod_version),
+			owned_pet_ids: get_owned_pet_ids(client_id),
 			released_mod_version: get_released_mod_version(),
 			minimum_supported_mod_version: get_minimum_supported_mod_version() };
 	}))))), ['POST', 'OPTIONS']);

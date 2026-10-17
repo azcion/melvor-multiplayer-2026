@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { get_events, make_guildmates, register_guild_client } from '../support/fixtures';
-import { get_json_with_session, post, post_json } from '../support/http';
+import { get_json_with_session, post_json  } from '../support/http';
 
 type Receipt = {
 	id: string;
@@ -52,7 +52,7 @@ describe('Economy Receipts', () => {
 				payout: number;
 			}>;
 		}>('/api/market/listings', seller.session_token);
-		expect(listings.json.items.filter(item => item.item_id === 'melvorD:Receipt_Ore')).toEqual([
+		expect(listings.json.items.filter(item => item.item_id === 'melvorD:Receipt_Ore')).toMatchObject([
 			{ id: expect.any(Number), item_id: 'melvorD:Receipt_Ore', qty: 3, available: 3, reserved: 0,
 				haggled: 0, price: 7, payout: 0 }
 		]);

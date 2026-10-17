@@ -41,7 +41,7 @@ const journaled_mutations = new Set([
 ]);
 
 export async function request(path: string, init: RequestInit = {}): Promise<Response> {
-	const wire_path = path.startsWith('/api/') && !path.startsWith('/api/v2/') && path !== '/api/versions'
+	const wire_path = path.startsWith('/api/') && !/^\/api\/v[0-9]+\//.test(path) && path !== '/api/versions'
 		? `/api/v2/${path.slice('/api/'.length)}` : path;
 	return fetch(new URL(wire_path, server_url), init);
 }
@@ -85,13 +85,13 @@ export async function post(
 
 	if (session_token)
 		request_headers.set('X-Session-Token', session_token);
-	if (path === '/api/client/status/sync' && !path.startsWith('/api/v2/') &&
+	if (path === '/api/client/status/sync' && !/^\/api\/v[0-9]+\//.test(path) &&
 		typeof body === 'object' && body !== null && !Array.isArray(body) && Object.hasOwn(body, 'activity') && !Object.hasOwn(body, 'activities')) {
 		const legacy_activity = (body as Record<string, any>).activity;
 		body = { ...(body as Record<string, unknown>), activities: legacy_activity?.type === 'idle' ? [] : [legacy_activity] };
 		delete (body as Record<string, unknown>).activity;
 	}
-	if (path.startsWith('/api/') && !path.startsWith('/api/v2/') && journaled_mutations.has(path.split('?')[0]) &&
+	if (path.startsWith('/api/') && !/^\/api\/v[0-9]+\//.test(path) && journaled_mutations.has(path.split('?')[0]) &&
 		typeof body === 'object' && body !== null && !Array.isArray(body) && !Object.hasOwn(body, 'command_id'))
 		body = { ...(body as Record<string, unknown>), command_id: crypto.randomUUID() };
 
@@ -149,7 +149,7 @@ export async function get_json_with_session<T>(path: string, session_token: stri
 export async function register_client(
 	display_name = 'Test Idler',
 	melvor_account?: MelvorAccountFixture,
-	mod_version?: string
+	mod_version: string | null = '1.6.14'
 ): Promise<RegisteredClient> {
 	const client_key = crypto.randomUUID();
 	const { response, json } = await post_json<Omit<RegisteredClient, 'client_key' | 'client_id'> & {
@@ -158,7 +158,7 @@ export async function register_client(
 		client_key,
 		display_name,
 		...melvor_account,
-		...(mod_version === undefined ? {} : { client_runtime: { mod_version, active_mods: [] } })
+		...(mod_version === null ? {} : { client_runtime: { mod_version, active_mods: [] } })
 	});
 
 	if (!response.ok)

@@ -1,8 +1,6 @@
 import * as runtime from '../app-runtime';
-import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
-import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
-import type { PetitionType } from '../council';
+import type { HandlerResult, JsonSerializable } from '../http';
 import { record_guild_activity } from '../guild-activity';
 import { add_inbox_gp } from '../inbox';
 import { replay_economy_command } from '../economy';
@@ -31,7 +29,7 @@ export function register_campaign_routes(): void {
 			return {
 				active: true,
 				history, rankings,
-				owned_pet_ids: get_owned_pet_ids(client_id, runtime.get_request_mod_version(req)),
+				owned_pet_ids: get_owned_pet_ids(client_id),
 				campaign_id: campaign.campaign_id,
 				contribution: contribution?.item_amount ?? 0,
 				item_id: campaign.item_id,
@@ -42,7 +40,7 @@ export function register_campaign_routes(): void {
 			return {
 				active: false,
 				history, rankings,
-				owned_pet_ids: get_owned_pet_ids(client_id, runtime.get_request_mod_version(req)),
+				owned_pet_ids: get_owned_pet_ids(client_id),
 				next_campaign: runtime.campaign_is_draining()
 					? runtime.paused_campaign_next() : campaign.next_active_timestamp
 			} as JsonSerializable;

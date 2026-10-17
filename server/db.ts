@@ -20,6 +20,8 @@ export type MelvorAccountInput = {
 
 export type ClientRegistration =
 	| { status: 'created'; client_id: number }
+	| { status: 'replayed'; client_id: number }
+	| { status: 'conflict' }
 	| { status: 'closed' };
 
 const database_path = process.env.DB_PATH ?? './data/melvor-multiplayer.sqlite';
@@ -154,6 +156,16 @@ export function register_client(
 	device: DeviceDiagnostics | null = null
 ): ClientRegistration {
 	const transaction = db.transaction((): ClientRegistration => {
+		const existing = db.query<{ id: number; client_key: string; melvor_account_id: number | null; disabled: number; deleted_at: number | null }, [string]>(
+			'SELECT id, client_key, melvor_account_id, disabled, deleted_at FROM clients WHERE client_identifier = ?'
+		).get(client_identifier);
+		if (existing) {
+			const matching_account = melvor_account === null ? existing.melvor_account_id === null :
+				db.query('SELECT 1 FROM melvor_accounts WHERE id = ? AND playfab_id = ?')
+					.get(existing.melvor_account_id, melvor_account.playfab_id) !== null;
+			return existing.client_key === client_key && matching_account && !existing.disabled && existing.deleted_at === null
+				? { status: 'replayed', client_id: existing.id } : { status: 'conflict' };
+		}
 		if (get_service_setting('registrations_open') !== '1')
 			return { status: 'closed' };
 

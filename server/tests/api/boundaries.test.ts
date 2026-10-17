@@ -184,7 +184,7 @@ describe('browser and request boundaries', () => {
 	test('omits retired read POST compatibility from registration and authentication', async () => {
 		const registered = await register_client('Read Compatibility');
 		expect((registered as RegisteredClient & { read_post_supported?: boolean }).read_post_supported).toBeUndefined();
-		const { response, json } = await post_json<{ read_post_supported: boolean }>('/api/authenticate', {
+		const { response, json } = await post_json<{ read_post_supported: boolean }>('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
 			client_identifier: registered.client_identifier, client_key: registered.client_key
 		});
 		expect(response.status).toBe(200);

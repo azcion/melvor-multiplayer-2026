@@ -1,14 +1,16 @@
 import { expect, test } from 'bun:test';
 import { allow_alliance_preview as allow_preview, make_guildmates, register_guild_client as register_versioned_guild } from '../support/fixtures';
-import { post,post_json,get_json_with_session,request } from '../support/http';
+import { post_json, get_json_with_session, request  } from '../support/http';
 import { db_all,db_run } from '../support/persistence';
 const headers={};
-const register_guild_client = async (name:string,guild:string,version='1.6.2')=> {
+const register_guild_client = async (name:string,guild:string,version='1.6.14')=> {
 	const client=await register_versioned_guild(name,guild,version);
 	await allow_preview(client.client_id);
 	return client;
 };
 async function propose(client: {session_token:string},body:object) {
+	if (['leave','remove','market_disable'].includes((body as any).kind) && !Object.hasOwn(body,'reason'))
+		body = { ...body, reason: 'A deliberate Council proposal.' };
 	return (await post_json<{success?:boolean;petition_id:number;process_id:number;error?:string}>('/api/alliances/propose',body,client.session_token,headers)).json;
 }
 async function vote(client:{session_token:string},id:number,choice='aye') {
@@ -136,14 +138,6 @@ test('strict majority counts concurrent Council consent and admits applicants wi
 	await vote(b,await next_ballot(b,join.process_id));expect((await view(c)).alliance.member_guilds.length).toBe(3);
 	const disable=await propose(a,{kind:'market_disable'});await vote(a,disable.petition_id);
 	await vote(c,await next_ballot(c,disable.process_id));expect((await view(a)).alliance.shared_marketplace).toBe(0);
-});
-test('legacy clients cannot read or vote on Alliance processes',async()=> {
-	const a=await register_guild_client('Gated A','Gated Guild A');const b=await register_guild_client('Gated B','Gated Guild B');
-	const p=await propose(a,{kind:'found',name:'Gated Alliance',target_id:b.guild_id});
-	const old=await register_versioned_guild('Old Client','Old Client Guild','1.6.1');
-	expect((await request('/api/alliances',{headers:{'X-Session-Token':old.session_token}})).status).toBe(404);
-	const oldvote=await post_json<any>('/api/guilds/petitions/vote',{petition_id:p.petition_id,choice:'aye'},old.session_token);
-	expect(oldvote.json.success).toBeUndefined();
 });
 
 test('Alliance Chat is retained, independent, membership-scoped and capability-gated',async()=> {
@@ -280,28 +274,9 @@ test('cross-Guild Buy Orders settle and receipt replay and accepted Haggle claim
 	for(const client of [buyer,seller]) expect((await post_json<any>('/api/market/haggle/claim',{id:offer.id},client.session_token)).json.success).toBe(true);
 });
 
-test('1.6.1 members retain ordinary Council and same-Guild Marketplace while Alliance actions stay hidden',async()=> {
-	const pair=await make_guildmates('Mixed New','Mixed Old','Mixed Guild',{first:'1.6.2',second:'1.6.1'});
-	await allow_preview(pair.first_id);
-	const recipient=await register_guild_client('Mixed Recipient','Mixed Recipient');
-	const p=await propose(pair.first,{kind:'found',name:'Mixed Alliance',target_id:recipient.guild_id});
-	const council=await get_json_with_session<any>('/api/guilds/council',pair.second.session_token);
-	expect(council.json.petitions.some((petition:any)=>petition.petition_id===p.petition_id)).toBe(false);
-	expect((await vote(pair.second,p.petition_id)).success).toBeUndefined();
-	const ordinary=await post_json<any>('/api/guilds/petitions/raise',{type:'appellation',name:'Mixed Renamed'},pair.first.session_token);
-	expect(ordinary.json.success).toBe(true);
-	expect((await vote(pair.second,ordinary.json.petition_id)).success).toBe(true);
-	await post_json('/api/market/sell',{item_id:'melvorD:Mixed_Item',item_qty:3,item_sell_price:2},pair.first.session_token);
-	const listing=(await get_json_with_session<any>('/api/market/listings',pair.first.session_token)).json.items[0];
-	expect((await post_json<any>('/api/market/search',{item_id:'melvorD:Mixed_Item'},pair.second.session_token)).json.items[0].id).toBe(listing.id);
-	expect((await post_json<any>('/api/market/buy',{id:listing.id,qty:1},pair.second.session_token)).json.success).toBe(true);
-	expect((await get_json_with_session<any>('/api/chat/conversations',pair.second.session_token)).json.conversations.some((c:any)=>c.conversation_kind==='alliance')).toBe(false);
-});
-
-
 test('ordinary accounts and unlinked characters can found Alliances, vote, chat, and share Marketplace listings',async()=> {
-	const a=await register_versioned_guild('Public A','Public Guild A','1.6.8');
-	const b=await register_versioned_guild('Public B','Public Guild B','1.6.8');
+	const a=await register_versioned_guild('Public A','Public Guild A','1.6.14');
+	const b=await register_versioned_guild('Public B','Public Guild B','1.6.14');
 	await db_run('UPDATE clients SET melvor_account_id=NULL WHERE id IN (?,?)',[a.client_id,b.client_id]);
 	for(const client of [a,b]) {
 		expect((await get_json_with_session<any>('/api/events',client.session_token)).json.alliance_access).toBe(true);
@@ -318,9 +293,8 @@ test('ordinary accounts and unlinked characters can found Alliances, vote, chat,
 	expect((await request('/api/chat/messages?conversation_kind=alliance&conversation_id='+alliance.id,{headers:{'X-Session-Token':b.session_token}})).status).toBe(200);
 });
 
-
 test('Guild previews add Shadowed-aware active counts without changing member totals', async () => {
-	const pair = await make_guildmates('Alliance Count Owner', 'Alliance Count Mate', 'Alliance Count Guild', {first: '1.6.3', second: '1.6.3'});
+	const pair = await make_guildmates('Alliance Count Owner', 'Alliance Count Mate', 'Alliance Count Guild', {first: '1.6.14', second: '1.6.14'});
 	await allow_preview(pair.first_id);
 	await db_run('UPDATE clients SET last_multiplayer_active_at=0 WHERE id=?', [pair.second_id]);
 	const response = await get_json_with_session<any>('/api/alliances/guild-preview?guild_id=' + pair.guild_id, pair.first.session_token);
@@ -336,8 +310,7 @@ test('missing Guild previews return a normal nullable result while validation an
 	for (const id of ['0', '-1', 'invalid', '1.5'])
 		expect((await request(route + id, {headers: {'X-Session-Token': client.session_token}})).status).toBe(400);
 	expect((await request(route + Number.MAX_SAFE_INTEGER)).status).toBe(401);
-	const old = await register_guild_client('Old Missing Preview', 'Old Missing Guild', '1.6.1');
-	expect((await request(route + Number.MAX_SAFE_INTEGER, {headers: {'X-Session-Token': old.session_token}})).status).toBe(404);
+
 });
 
 test('founding Councils vote concurrently; recipient approval alone cannot create an Alliance', async()=> {
@@ -528,9 +501,9 @@ test('legacy policy processes still carry initiating approval after local delibe
 });
 
 for (const kind of ['leave', 'remove', 'market_disable']) test(`${kind} validates modern reasons and atomically posts them in every Council`, async () => {
-	const a=await register_guild_client(`R ${kind} A`,`R ${kind} A`,'1.6.12');
-	const b=await register_guild_client(`R ${kind} B`,`R ${kind} B`,'1.6.12');
-	const c=await register_guild_client(`R ${kind} C`,`R ${kind} C`,'1.6.12');
+	const a=await register_guild_client(`R ${kind} A`,`R ${kind} A`,'1.6.14');
+	const b=await register_guild_client(`R ${kind} B`,`R ${kind} B`,'1.6.14');
+	const c=await register_guild_client(`R ${kind} C`,`R ${kind} C`,'1.6.14');
 	const alliance=await found(a,b);
 	const admission=await propose(c,{kind:'join',target_id:alliance.id});
 	await vote(c,admission.petition_id); await vote(a,await next_ballot(a,admission.process_id)); await vote(b,await next_ballot(b,admission.process_id));
@@ -576,7 +549,7 @@ test(`decisive Alliance ${outcome} resolves unfinished ${tally} Guild tally with
 	const alliance=await found(a,b);
 	for (const member of [c,d]) await db_run('INSERT INTO alliance_memberships(guild_id,alliance_id,joined_at) VALUES(?,?,?)',[member.guild_id,alliance.id,Date.now()]);
 	// Keep A's Council open even when it has recorded votes.
-	const mates=await make_guildmates('Closure Mate 1','Closure Mate 2','Closure Mates',{first:'1.6.2',second:'1.6.2'});
+	const mates=await make_guildmates('Closure Mate 1','Closure Mate 2','Closure Mates',{first:'1.6.14',second:'1.6.14'});
 	await db_run('UPDATE guild_memberships SET guild_id=? WHERE client_id IN (?,?)',[a.guild_id,mates.first.client_id,mates.second.client_id]);
 	await db_run('UPDATE alliances SET shared_marketplace=1 WHERE id=?',[alliance.id]);
 	const policy=await propose(b,{kind:'market_disable'});

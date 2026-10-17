@@ -13,12 +13,12 @@ const report=()=>({load_id:crypto.randomUUID(),save_timestamp:Date.now()-60000,c
 async function authenticate(player:any,loaded_save:any,device:string,capable=true) {
  const sent=Date.now(),start=performance.now();
  const response=await post_json<any>('/api/authenticate',{client_identifier:player.client_identifier,client_key:player.client_key,
-  client_runtime:{mod_version:'1.6.10',active_mods:[],loaded_save,device:{installation_id:device},...(capable?{capabilities:['save-rollback-v1']}:{})}});
+  client_runtime:{mod_version:'1.6.14',active_mods:[],loaded_save,device:{installation_id:device},...(capable?{capabilities:['save-rollback-v1']}:{})}});
  return {response,sample:{...response.json.rollback_clock_sample,client_sent_at:sent,client_received_at:Date.now(),elapsed_ms:Math.round(performance.now()-start)}};
 }
 
 test('prospective admission withholds outgoing replay, corrects once, clears Gift caches and retains private notice',async()=>{
- const pair=await make_guildmates('Admission Actor','Admission Peer','Admission Guild',{first:'1.6.10',second:'1.6.10'});
+ const pair=await make_guildmates('Admission Actor','Admission Peer','Admission Guild',{first:'1.6.14',second:'1.6.14'});
  const actor=pair.first;const device=crypto.randomUUID();const original_report=report();
  const first=await authenticate(actor,original_report,device);expect(first.response.response.status).toBe(200);
  const original_token=first.response.json.session_token;
@@ -69,8 +69,8 @@ test('prospective admission withholds outgoing replay, corrects once, clears Gif
 });
 
 test('manual hold blocks only unsafe economy while unaffected older sessions and safe reads keep working',async()=>{
- const player=await register_guild_client('Held Old Protocol','Held Protocol Guild','1.6.10');
- const other=await register_guild_client('Unaffected Protocol','Ordinary Protocol','1.6.10');
+ const player=await register_guild_client('Held Old Protocol','Held Protocol Guild','1.6.14');
+ const other=await register_guild_client('Unaffected Protocol','Ordinary Protocol','1.6.14');
  controls(db=>set_rollback_hold(db,crypto.randomUUID(),player.client_id,0,true,'Isolated manual review'));
  const cast={source:'bank',items:[{id:'melvorD:GP',qty:1000}]};
  expect((await post('/api/crucible/cast',cast,player.session_token)).status).toBe(426);
@@ -85,7 +85,7 @@ test('manual hold blocks only unsafe economy while unaffected older sessions and
 });
 
 test('receipt recovery filters before pagination and uses each session capability after release and disable',async()=>{
- const player=await register_guild_client('Recovery Pagination','Recovery Guild','1.6.10');
+ const player=await register_guild_client('Recovery Pagination','Recovery Guild','1.6.14');
  const device=crypto.randomUUID();const supported=await authenticate(player,report(),device);
  const capable_token=supported.response.json.session_token;
  expect((await post('/api/installations/enroll',{installation_id:device,installation_key:crypto.randomUUID()},capable_token)).status).toBe(200);
@@ -116,13 +116,13 @@ test('receipt recovery filters before pagination and uses each session capabilit
  expect((await receipts(unsupported.response.json.session_token)).map((r:any)=>r.id)).toEqual(incoming);
  // Latest runtime is unsupported, but the enrolled capable session retains its own promise.
  expect((await receipts(capable_token)).map((r:any)=>r.id)).toEqual(outgoing.slice(1));
- const ordinary=await register_guild_client('Ordinary Recovery','Ordinary Guild','1.6.10');
+ const ordinary=await register_guild_client('Ordinary Recovery','Ordinary Guild','1.6.14');
  const cast=await post_json<any>('/api/crucible/cast',{source:'bank',items:[{id:'melvorD:Logs',qty:1}]},ordinary.session_token);
  expect((await receipts(ordinary.session_token)).map((r:any)=>r.id)).toContain(cast.json.receipt.id);
 });
 
 test('held players keep Friends and independent Raid/work routes; pending acceptance is gated but terminal Haggle and Trade counterparty claims recover',async()=>{
- const pair=await make_guildmates('Terminal Owner','Terminal Buyer','Terminal Guild',{first:'1.6.10',second:'1.6.10'});
+ const pair=await make_guildmates('Terminal Owner','Terminal Buyer','Terminal Guild',{first:'1.6.14',second:'1.6.14'});
  const sell=await post_json<any>('/api/market/sell',{item_id:'melvorD:Logs',item_qty:10,item_sell_price:10},pair.first.session_token);
  const lot=sell.json.id ?? (await db_all<{id:number}>('SELECT id FROM market_items WHERE client_id=?',[pair.first_id]))[0]!.id;
  const opening=await post_json<any>('/api/market/haggle',{id:lot,qty:2,price:5},pair.second.session_token);

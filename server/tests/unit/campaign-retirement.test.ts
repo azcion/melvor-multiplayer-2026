@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 
-test('settles Campaigns once and keeps returned items behind the 1.6.0 Inbox boundary', async () => {
+test('settles Campaigns once and delivers returned items through the current Inbox', async () => {
 	const subprocess = Bun.spawn(['bun', 'run', 'tests/support/campaign-retirement-fixture.ts'], {
 		cwd: new URL('../..', import.meta.url).pathname,
 		env: { ...process.env, DB_PATH: `/tmp/campaign-retirement-${crypto.randomUUID()}.sqlite` },

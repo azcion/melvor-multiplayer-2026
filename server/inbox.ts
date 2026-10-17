@@ -6,7 +6,6 @@ import { db } from './db';
 import type { JsonObject } from './http';
 import type * as db_row from './db/types/db_types';
 import { audit_position_key, link_audit_events, move_audit_value_with_fallback, record_audit_event } from './audit';
-import { is_client_version_at_least } from './client-version-policy';
 
 export const MAX_INBOX_EXISTING_ITEM_IDS = 512;
 
@@ -67,16 +66,11 @@ export function add_inbox_gp(client_id: number, qty: number, source: InboxSource
 	add_inbox_items(client_id, [{ item_id: 'melvorD:GP', qty }], source);
 }
 
-
-function refund_visible(mod_version?: string | null): boolean {
-	return is_client_version_at_least(mod_version, '1.6.0');
-}
-
-export function get_inbox(client_id: number, mod_version?: string | null): { items: JsonObject[]; groups: JsonObject[]; pending_claim: boolean } {
+export function get_inbox(client_id: number): { items: JsonObject[]; groups: JsonObject[]; pending_claim: boolean } {
 	const items = db.query<db_row.inbox_items, [number]>(
 		' SELECT * FROM `inbox_items` WHERE `client_id` = ? ' +
 		'ORDER BY COALESCE(`created_at`, 0), `source_type`, `source_name`, `item_id`'
-	).all(client_id).filter(item => refund_visible(mod_version) || item.source_type !== 'campaign_refund');
+	).all(client_id);
 	const groups: JsonObject[] = [];
 	const groups_by_source = new Map<string, { source_type: string; source_name: string; items: JsonObject[] }>();
 	for (const item of items) {
@@ -100,17 +94,17 @@ export function get_inbox(client_id: number, mod_version?: string | null): { ite
 		items: [...item_totals].sort(([left], [right]) => left.localeCompare(right))
 			.map(([item_id, qty]) => ({ item_id, qty })),
 		groups,
-		pending_claim: pending_claim !== null && (refund_visible(mod_version) || pending_claim.campaign_refund_included === 0)
+		pending_claim: pending_claim !== null
 	};
 }
 
-export function has_pending_inbox(client_id: number, mod_version?: string | null): boolean {
+export function has_pending_inbox(client_id: number): boolean {
 	return db.query(
-		' SELECT 1 FROM `inbox_items` WHERE `client_id` = ? AND (? = 1 OR `source_type` != \'campaign_refund\') LIMIT 1'
-	).get(client_id, refund_visible(mod_version) ? 1 : 0) !== null || db.query(
+		' SELECT 1 FROM `inbox_items` WHERE `client_id` = ? LIMIT 1'
+	).get(client_id) !== null || db.query(
 		' SELECT 1 FROM `inbox_claims` WHERE `client_id` = ? AND `acknowledged_at` IS NULL ' +
-		'AND (? = 1 OR `campaign_refund_included` = 0) LIMIT 1'
-	).get(client_id, refund_visible(mod_version) ? 1 : 0) !== null;
+		'LIMIT 1'
+	).get(client_id) !== null;
 }
 
 function get_inbox_claim(claim_id: string, client_id: number): db_row.inbox_claims | null {
@@ -119,9 +113,9 @@ function get_inbox_claim(claim_id: string, client_id: number): db_row.inbox_clai
 	).get(claim_id, client_id);
 }
 
-export function get_inbox_claim_view(claim_id: string, client_id: number, mod_version?: string | null): JsonObject | null {
+export function get_inbox_claim_view(claim_id: string, client_id: number): JsonObject | null {
 	const claim = get_inbox_claim(claim_id, client_id);
-	if (claim === null || (!refund_visible(mod_version) && claim.campaign_refund_included === 1))
+	if (claim === null)
 		return null;
 	return {
 		claim_id: claim.id,
@@ -131,25 +125,20 @@ export function get_inbox_claim_view(claim_id: string, client_id: number, mod_ve
 	};
 }
 
-export function create_inbox_claim(
-	client_id: number,
-	existing_item_ids: string[],
-	available_slots: number,
-	request?: Request,
-	mod_version?: string | null
+export function create_inbox_claim(client_id: number, existing_item_ids: string[], available_slots: number, request?: Request
 ): string | null {
 	const create_claim = db.transaction(() => {
 		const outstanding = db.query<Pick<db_row.inbox_claims, 'id' | 'campaign_refund_included'>, [number]>(
 			' SELECT `id`, `campaign_refund_included` FROM `inbox_claims` WHERE `client_id` = ? AND `acknowledged_at` IS NULL LIMIT 1'
 		).get(client_id);
 		if (outstanding !== null)
-			return refund_visible(mod_version) || outstanding.campaign_refund_included === 0 ? outstanding.id : null;
+			return outstanding.id;
 
 		const existing = new Set(existing_item_ids);
 		let remaining_slots = available_slots;
 		const available = db.query<db_row.inbox_items, [number]>(
 			' SELECT * FROM `inbox_items` WHERE `client_id` = ? ORDER BY `item_id`, `source_type`, `source_name`'
-		).all(client_id).filter(item => refund_visible(mod_version) || item.source_type !== 'campaign_refund');
+		).all(client_id);
 		const admitted = new Set<string>();
 		const selected = available.filter(item => {
 			if (item.item_id === 'melvorD:GP' || existing.has(item.item_id) || admitted.has(item.item_id))
@@ -204,14 +193,13 @@ export function create_inbox_claim(
 	return create_claim.immediate();
 }
 
-export function acknowledge_inbox_claim(client_id: number, claim_id: string, request?: Request,
-	mod_version?: string | null): boolean {
+export function acknowledge_inbox_claim(client_id: number, claim_id: string, request?: Request): boolean {
 	const acknowledged = db.transaction(() => {
 		const claim = db.query(
 			' SELECT `acknowledged_at`, `campaign_refund_included` FROM `inbox_claims` ' +
 			'WHERE `id` = ? AND `client_id` = ? LIMIT 1'
 		).get(claim_id, client_id) as { acknowledged_at: number | null; campaign_refund_included: number } | null;
-		if (claim === null || (!refund_visible(mod_version) && claim.campaign_refund_included === 1))
+		if (claim === null)
 			return false;
 		if (claim.acknowledged_at === null) {
 			const acknowledged_at = Date.now();

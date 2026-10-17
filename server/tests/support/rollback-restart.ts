@@ -6,12 +6,12 @@ import {db_all} from './persistence';
 import {rollback_policy,set_rollback_policy} from '../../rollback-policy';
 export type RollbackRestartState={client_id:number;session_token:string;command_id:string;notice_id:string;claim: {claim_id:string;items:unknown[]}};
 export async function setup_rollback_restart():Promise<RollbackRestartState> {
- const actor=await register_guild_client('Restart Rollback','Restart Rollback','1.6.10');
+ const actor=await register_guild_client('Restart Rollback','Restart Rollback','1.6.14');
  const device=crypto.randomUUID();
  const authenticate=async()=>{
   const sent=Date.now(),started=performance.now();
   const result=await post_json<any>('/api/authenticate',{client_identifier:actor.client_identifier,client_key:actor.client_key,
-   client_runtime:{mod_version:'1.6.10',active_mods:[],capabilities:['save-rollback-v1'],device:{installation_id:device},
+   client_runtime:{mod_version:'1.6.14',active_mods:[],capabilities:['save-rollback-v1'],device:{installation_id:device},
     loaded_save:{load_id:crypto.randomUUID(),save_timestamp:Date.now()-60000,client_loaded_at:Date.now()-1,capture_source:'decode'}}});
   expect(result.response.status).toBe(200);
   return {token:result.json.session_token,sample:{...result.json.rollback_clock_sample,client_sent_at:sent,client_received_at:Date.now(),elapsed_ms:Math.round(performance.now()-started)}};

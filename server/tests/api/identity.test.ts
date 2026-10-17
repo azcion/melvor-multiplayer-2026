@@ -93,7 +93,7 @@ describe('identity API', () => {
 		const client_key = crypto.randomUUID();
 		const registered = await post_json<{ client_identifier: string; chat: { client_id: number } }>('/api/register', {
 			client_key, display_name: 'ID Runtime', client_runtime: {
-				mod_version: '1.6.10', active_mods: ['Renamed Cheat', 'Custom Mod'],
+				mod_version: '1.6.14', active_mods: ['Renamed Cheat', 'Custom Mod'],
 				active_mod_details: [{ id: 2429395, name: 'Renamed Cheat' }, { id: 99, name: 'Custom Mod' }]
 			}
 		});
@@ -103,14 +103,14 @@ describe('identity API', () => {
 			.toEqual([{ mod_name: 'Add Items', mod_id: 2429395 }]);
 		const authenticated = await post('/api/authenticate', {
 			client_identifier: registered.json.client_identifier, client_key,
-			client_runtime: { mod_version: '1.6.10', active_mods: ['Custom Mod', 'Local'] }
+			client_runtime: { mod_version: '1.6.14', active_mods: ['Custom Mod', 'Local'] }
 		});
 		expect(authenticated.status).toBe(200);
 		const rows = await db_all<{ active_mod_details: string }>('SELECT active_mod_details FROM client_runtime_snapshots WHERE client_id=?', [id]);
 		expect(JSON.parse(rows[0]!.active_mod_details)).toEqual([{ id: 99, name: 'Custom Mod' }, { id: null, name: 'Local' }]);
 		const local = await post('/api/authenticate', {
 			client_identifier: registered.json.client_identifier, client_key,
-			client_runtime: { mod_version: '1.6.10', active_mods: ['Custom Mod'], active_mod_details: [{ id: -1, name: 'Custom Mod' }] }
+			client_runtime: { mod_version: '1.6.14', active_mods: ['Custom Mod'], active_mod_details: [{ id: -1, name: 'Custom Mod' }] }
 		});
 		expect(local.status).toBe(200);
 		const local_rows = await db_all<{ active_mod_details: string }>('SELECT active_mod_details FROM client_runtime_snapshots WHERE client_id=?', [id]);
@@ -136,7 +136,7 @@ describe('identity API', () => {
 			const authenticated = await post('/api/authenticate', {
 				client_identifier: client.client_identifier,
 				client_key: client.client_key,
-				client_runtime: { mod_version: '1.5.10', active_mods: [mod_name] }
+				client_runtime: { mod_version: '1.6.14', active_mods: [mod_name] }
 			});
 			expect(authenticated.status).toBe(200);
 			const [stored] = await db_all<{ cheats_detected_at: number | null }>(
@@ -150,7 +150,7 @@ describe('identity API', () => {
 		const clean = await post('/api/authenticate', {
 			client_identifier: client.client_identifier,
 			client_key: client.client_key,
-			client_runtime: { mod_version: '1.5.10', active_mods: ['Multiplayer', 'Cheat Engine Lookalike'] }
+			client_runtime: { mod_version: '1.6.14', active_mods: ['Multiplayer', 'Cheat Engine Lookalike'] }
 		});
 		const [stored] = await db_all<{ cheats_detected_at: number | null }>(
 			'SELECT `cheats_detected_at` FROM `clients` WHERE `id` = ?', [client.client_id]
@@ -164,7 +164,7 @@ describe('identity API', () => {
 	});
 
 	test('keeps runtime reporting optional and rejects malformed snapshots', async () => {
-		const legacy = await register_client('Legacy Runtime Test');
+		const legacy = await register_client('Legacy Runtime Test', undefined, null);
 		const legacy_sessions = await db_all<{ mod_version: string | null }>(
 			'SELECT `mod_version` FROM `client_sessions` WHERE `client_id` = ?',
 			[legacy.client_id]
@@ -211,7 +211,7 @@ describe('identity API', () => {
 		const client = await register_client('Released Version Test');
 		await db_run("UPDATE `service_settings` SET `value` = '1.3.0' WHERE `key` = 'released_mod_version'");
 		try {
-			const authenticated = await post_json<{ released_mod_version: string | null }>('/api/authenticate', {
+			const authenticated = await post_json<{ released_mod_version: string | null }>('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
 				client_identifier: client.client_identifier,
 				client_key: client.client_key
 			});
@@ -223,7 +223,7 @@ describe('identity API', () => {
 	});
 
 	test('rejects malformed registration credentials', async () => {
-		const response = await post('/api/register', {
+		const response = await post('/api/register', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
 			client_key: 'not-a-uuid',
 			display_name: 'Invalid'
 		});
@@ -233,7 +233,7 @@ describe('identity API', () => {
 
 	test('authenticates a registered client and rejects incorrect credentials', async () => {
 		const client = await register_client('Authentication Test');
-		const invalid = await post('/api/authenticate', {
+		const invalid = await post('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
 			client_identifier: client.client_identifier,
 			client_key: crypto.randomUUID(),
 			display_name: 'Authentication Test'
@@ -243,7 +243,7 @@ describe('identity API', () => {
 			friend_code: string;
 			display_name: string;
 			icon_id: string;
-		}>('/api/authenticate', {
+		}>('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
 			client_identifier: client.client_identifier,
 			client_key: client.client_key,
 			display_name: 'Renamed Character'
@@ -262,7 +262,7 @@ describe('identity API', () => {
 			session_token: string;
 			friend_code: string;
 			icon_id: string;
-		}>('/api/authenticate', {
+		}>('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
 			client_identifier: client.client_identifier,
 			client_key: client.client_key,
 			display_name: 'Friend Code Authentication Test'
@@ -273,7 +273,7 @@ describe('identity API', () => {
 	});
 
 	test('rejects malformed authentication credentials', async () => {
-		const response = await post('/api/authenticate', {
+		const response = await post('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
 			client_identifier: 'not-a-uuid',
 			client_key: 'also-not-a-uuid'
 		});
@@ -300,7 +300,7 @@ describe('identity API', () => {
 			session_token: string;
 			friend_code: string;
 			icon_id: string;
-		}>('/api/authenticate', {
+		}>('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
 			client_identifier: client.client_identifier,
 			client_key: client.client_key,
 			display_name: 'Icon Test'
@@ -338,7 +338,7 @@ describe('identity API', () => {
 		const authenticated = await post_json<{
 			session_token: string;
 			display_name: string;
-		}>('/api/authenticate', {
+		}>('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
 			client_identifier: client.client_identifier,
 			client_key: client.client_key,
 			display_name: 'Different Character Name'
@@ -403,7 +403,7 @@ describe('identity API', () => {
 		const initial = await get_with_session('/api/events', client.session_token);
 		const authenticated = await post_json<{
 			session_token: string;
-		}>('/api/authenticate', {
+		}>('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
 			client_identifier: client.client_identifier,
 			client_key: client.client_key,
 			display_name: 'Session Rotation Test'
@@ -421,11 +421,11 @@ describe('identity API', () => {
 		const client = await register_client('Closed Registration Authentication');
 		await db_run("UPDATE `service_settings` SET `value` = '0' WHERE `key` = 'registrations_open'");
 		try {
-			const registration = await post('/api/register', {
+			const registration = await post('/api/register', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
 				client_key: crypto.randomUUID(),
 				display_name: 'Closed Registration'
 			});
-			const authentication = await post('/api/authenticate', {
+			const authentication = await post('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
 				client_identifier: client.client_identifier,
 				client_key: client.client_key
 			});
@@ -444,7 +444,7 @@ describe('identity API', () => {
 			'ON CONFLICT (`key`) DO UPDATE SET `value` = excluded.`value`'
 		);
 		try {
-			const response = await post('/api/register', {
+			const response = await post('/api/register', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
 				client_key: crypto.randomUUID(),
 				display_name: 'Uncapped Registration'
 			});
@@ -463,7 +463,7 @@ describe('identity API', () => {
 		);
 		try {
 			const session = await get_with_session('/api/events', client.session_token);
-			const authentication = await post('/api/authenticate', {
+			const authentication = await post('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
 				client_identifier: client.client_identifier,
 				client_key: client.client_key
 			});

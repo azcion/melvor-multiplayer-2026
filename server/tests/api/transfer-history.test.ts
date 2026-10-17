@@ -7,7 +7,7 @@ type Feed = { entries: Array<{ id: number; event_type: string; source_name: stri
 	items: Array<{ item_id: string; qty: number; direction: string }> }>; next_cursor: unknown };
 
 test('Transfers history is authenticated, owner-scoped and retains replay-safe Gift lifecycle snapshots', async () => {
-	const pair = await make_guildmates('History Sender', 'History Recipient', 'History Guild', { first: '1.6.3', second: '1.6.3' });
+	const pair = await make_guildmates('History Sender', 'History Recipient', 'History Guild', { first: '1.6.14', second: '1.6.14' });
 	expect((await request('/api/transfers/history?pane=inbox')).status).toBe(401);
 	for (const query of ['pane=invalid', 'pane=inbox&before_at=1', 'pane=inbox&before_at=-1&before_id=2', 'pane=inbox&before_at=1&before_id=0'])
 		expect((await get_with_session('/api/transfers/history?' + query, pair.first.session_token)).status).toBe(400);
@@ -29,7 +29,7 @@ test('Transfers history is authenticated, owner-scoped and retains replay-safe G
 });
 
 test('both Trade participants retain completion and item bundles after the active rows disappear', async () => {
-	const pair = await make_guildmates('History Trade Sender', 'History Trade Recipient', 'History Guild', { first: '1.6.3', second: '1.6.3' });
+	const pair = await make_guildmates('History Trade Sender', 'History Trade Recipient', 'History Guild', { first: '1.6.14', second: '1.6.14' });
 	const offered = (await post_json<{ trade_id: number }>('/api/trade/offer', { recipient_id: pair.second_id,
 		items: [{ id: 'melvorD:Coal_Ore', qty: 6 }] }, pair.first.session_token)).json;
 	await post_json('/api/trade/counter', { trade_id: offered.trade_id, items: [{ id: 'melvorD:Raw_Shrimp', qty: 2 }] }, pair.second.session_token);
@@ -43,7 +43,7 @@ test('both Trade participants retain completion and item bundles after the activ
 });
 
 test('Haggle counter, cancellation and claim history preserves each price snapshot', async () => {
-	const pair = await make_guildmates('History Haggle Buyer', 'History Haggle Seller', 'History Haggle Guild', { first: '1.6.3', second: '1.6.3' });
+	const pair = await make_guildmates('History Haggle Buyer', 'History Haggle Seller', 'History Haggle Guild', { first: '1.6.14', second: '1.6.14' });
 	await post_json('/api/market/sell', { item_id: 'melvorD:Coal_Ore', item_qty: 4, item_sell_price: 9 }, pair.second.session_token);
 	const listings = (await get_json_with_session<{ items: Array<{ id: number }> }>('/api/market/listings', pair.second.session_token)).json;
 	const created = (await post_json<{ haggle_id: string }>('/api/market/haggle', { id: listings.items[0]!.id, qty: 2, price: 7 }, pair.first.session_token)).json;
@@ -59,7 +59,7 @@ test('Haggle counter, cancellation and claim history preserves each price snapsh
 
 test('claimed stacks retain each source after aggregation, acknowledgement and replay', async () => {
 	const { db_run } = await import('../support/persistence');
-	const pair = await make_guildmates('Source A', 'Claim Owner', 'Sources', { first: '1.6.3', second: '1.6.3' });
+	const pair = await make_guildmates('Source A', 'Claim Owner', 'Sources', { first: '1.6.14', second: '1.6.14' });
 	const at = Date.now();
 	for (const [type, name, qty] of [['gift_received', 'Source A', 10], ['market_bought', 'Source:B', 20]] as const)
 		await db_run('INSERT INTO inbox_items(client_id,item_id,qty,source_type,source_name,created_at,updated_at) VALUES(?,?,?,?,?,?,?)',
@@ -83,7 +83,7 @@ test('claimed stacks retain each source after aggregation, acknowledgement and r
 
 test('Marketplace destinations snapshot the counterparty and survive receipt replay and rename', async () => {
 	const { db_run } = await import('../support/persistence');
-	const pair = await make_guildmates('Context Buyer', 'Context Seller', 'Context Market', { first: '1.6.3', second: '1.6.3' });
+	const pair = await make_guildmates('Context Buyer', 'Context Seller', 'Context Market', { first: '1.6.14', second: '1.6.14' });
 	await post_json('/api/market/sell', { item_id: 'melvorD:Coal_Ore', item_qty: 4, item_sell_price: 9 }, pair.second.session_token);
 	const listings = (await get_json_with_session<{ items: Array<{ id: number }> }>('/api/market/listings', pair.second.session_token)).json;
 	const body = { id: listings.items[0]!.id, qty: 2, command_id: crypto.randomUUID() };
@@ -99,7 +99,7 @@ test('Marketplace destinations snapshot the counterparty and survive receipt rep
 
 test('sell-listing exchanges preserve both halves, actual currencies, partial quantities and replay', async () => {
 	const { db_run } = await import('../support/persistence');
-	const pair = await make_guildmates('Exchange Buyer', 'Exchange Seller', 'Exchange Market', { first: '1.6.9', second: '1.6.9' });
+	const pair = await make_guildmates('Exchange Buyer', 'Exchange Seller', 'Exchange Market', { first: '1.6.14', second: '1.6.14' });
 	const read = async (player: typeof pair.first, pane: string) =>
 		(await get_json_with_session<any>('/api/transfers/history?pane=' + pane, player.session_token)).json.entries;
 	for (const currency_id of ['melvorD:GP', 'melvorD:SlayerCoins', 'melvorItA:AbyssalPieces', 'melvorItA:AbyssalSlayerCoins']) {
@@ -142,7 +142,7 @@ test('sell-listing exchanges preserve both halves, actual currencies, partial qu
 });
 
 test('buy-order fulfillments snapshot actual quantities and payments for both participants after deletion', async () => {
-	const pair = await make_guildmates('Order Buyer', 'Order Seller', 'Order Exchange', { first: '1.6.9', second: '1.6.9' });
+	const pair = await make_guildmates('Order Buyer', 'Order Seller', 'Order Exchange', { first: '1.6.14', second: '1.6.14' });
 	const read = async (player: typeof pair.first, pane: string) =>
 		(await get_json_with_session<any>('/api/transfers/history?pane=' + pane, player.session_token)).json.entries;
 	await post_json('/api/market/buy-order', { item_id: 'melvorD:Coal_Ore', item_qty: 5, item_buy_price: 7 }, pair.first.session_token);

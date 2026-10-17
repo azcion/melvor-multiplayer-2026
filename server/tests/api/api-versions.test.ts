@@ -6,7 +6,7 @@ test('publishes only the v2 API contract', async () => {
 	const versions = await request('/api/versions');
 	expect(versions.status).toBe(200);
 	expect(await versions.json()).toEqual({ page_snapshots: true, api_versions: [2], preferred_api_version: 2,
-		minimum_supported_mod_version: null, capabilities: ['save-rollback-v1'] });
+		minimum_supported_mod_version: '1.6.14', capabilities: ['save-rollback-v1', 'identity-registration-v1'] });
 	const auth = await post_json<Record<string, any>>('/api/v2/register', {
 		client_key: crypto.randomUUID(), display_name: 'V2 Bootstrap'
 	});
@@ -64,19 +64,19 @@ test('accepts current status payloads and preserves split status updates', async
 
 test('blocks every client below the operator support floor while preserving feature-aware update delivery', async () => {
 	const { db_run } = await import('../support/persistence');
-	await db_run("UPDATE `service_settings` SET `value` = '1.5.16' WHERE `key` = 'minimum_supported_mod_version'");
+	await db_run("UPDATE `service_settings` SET `value` = '1.6.15' WHERE `key` = 'minimum_supported_mod_version'");
 	try {
 		const feature_aware = await register_client('Unsupported Runtime', undefined, '1.5.10');
 		const legacy = await register_client('Legacy Runtime Floor', undefined, '1.5.9');
-		const unreported = await register_client('Unreported Runtime Floor');
+		const unreported = await register_client('Unreported Runtime Floor', undefined, null);
 		const malformed = await register_client('Malformed Runtime Floor', undefined, 'development');
-		const current = await register_client('Current Runtime Floor', undefined, '1.5.16');
+		const current = await register_client('Current Runtime Floor', undefined, '1.6.15');
 		const blocked = await get_with_session('/api/identities', feature_aware.session_token);
 		expect(blocked.status).toBe(426);
-		expect(await blocked.json()).toEqual({ minimum_supported_mod_version: '1.5.16' });
+		expect(await blocked.json()).toEqual({ minimum_supported_mod_version: '1.6.15' });
 		const events = await get_json_with_session<{ minimum_supported_mod_version: string }>('/api/events', feature_aware.session_token);
 		expect(events.response.status).toBe(200);
-		expect(events.json.minimum_supported_mod_version).toBe('1.5.16');
+		expect(events.json.minimum_supported_mod_version).toBe('1.6.15');
 		for (const session_token of [legacy.session_token, unreported.session_token, malformed.session_token]) {
 			expect((await get_with_session('/api/identities', session_token)).status).toBe(426);
 			expect((await get_with_session('/api/events', session_token)).status).toBe(426);

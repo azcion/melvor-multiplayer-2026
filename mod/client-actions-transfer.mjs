@@ -551,6 +551,16 @@ export function install_transfer_actions(runtime) {
 			}, true, false);
 		},
 
+		async open_browser_chat_from_options() {
+			this.member_actions_error = '';
+			await this.close_modal_and_wait('member-actions-modal');
+			queue_modal('MOD_MP_BROWSER_LINK_TITLE', 'browser-chat-modal', '', {
+				imageUrl: '', showConfirmButton: false,
+				customClass: { popup: 'mp-browser-chat-popup' },
+				didOpen: () => this.manage_browser_links('list')
+			}, true, false);
+		},
+
 		open_listing_filters_settings({ didOpen } = {}) {
 			this.member_actions_error = '';
 			this.multiplayer_settings_section = 'listing_filters';

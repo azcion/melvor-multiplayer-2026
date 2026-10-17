@@ -72,15 +72,14 @@ export function record_guild_activity(input: ActivityInput): boolean {
 	return inserted.changes === 1;
 }
 
-export function get_guild_activity(guild_id: number, viewer_client_id: number,
-	cursor: { created_at: number; id: number } | null, include_legacy: boolean, include_alliance = true) {
+export function get_guild_activity(guild_id: number, viewer_client_id: number, cursor: { created_at: number; id: number } | null, include_alliance = true) {
 	const rows = db.query(
 		'SELECT `id`, `event_type`, `actor_client_id`, `actor_display_name`, `metadata`, `created_at`, ' +
 		'`buyer_client_id`, `buyer_display_name`, `seller_client_id`, `seller_display_name`, `item_id`, `quantity` ' +
 		'FROM `guild_activity_events` WHERE `guild_id` = ? ' +
 		'AND (`buyer_client_id` IS NULL OR `buyer_client_id` = ? OR `seller_client_id` = ?) ' +
 		"AND `event_type` != 'charitree_donated' " +
-		(include_legacy ? '' : "AND `event_type` NOT IN ('campaign_started', " +
+		("AND `event_type` NOT IN ('campaign_started', " +
 			"'campaign_completed', 'campaign_contributed') ") +
 		(include_alliance ? '' : "AND COALESCE(json_extract(metadata, '$.petition_type'), '') NOT LIKE 'alliance_%' ") +
 		(cursor === null ? '' : 'AND (`created_at` < ? OR (`created_at` = ? AND `id` < ?)) ') +

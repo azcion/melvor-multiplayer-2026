@@ -74,9 +74,9 @@ test('leaving and rejoining resets the wait, keeps the ballot, and does not expo
 });
 
 test('Alliance Council ballots use cast-majority closure and returning-member eligibility', async () => {
-	const members = await make_guild_group(['Alliance threshold A', 'Alliance threshold B', 'Alliance returning'], 'Alliance threshold', '1.6.3');
+	const members = await make_guild_group(['Alliance threshold A', 'Alliance threshold B', 'Alliance returning'], 'Alliance threshold', '1.6.14');
 	for (const member of members) await allow_alliance_preview(member.client_id);
-	const target = await make_guild_group(['Alliance target'], 'Alliance target', '1.6.3');
+	const target = await make_guild_group(['Alliance target'], 'Alliance target', '1.6.14');
 	await allow_alliance_preview(target[0].client_id);
 	await db_run('UPDATE clients SET last_multiplayer_active_at=? WHERE id=?', [Date.now() - 8 * 86400000, members[2].client_id]);
 	const proposed = await post_json<{ petition_id: number; process_id: number }>('/api/alliances/propose',

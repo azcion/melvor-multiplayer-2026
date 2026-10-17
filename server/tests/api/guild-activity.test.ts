@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { make_guildmates, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post_json, request } from '../support/http';
-import { db_count, db_run } from '../support/persistence';
+import { db_run  } from '../support/persistence';
 
 type ActivityEvent = {
 	id: number;
@@ -40,10 +40,9 @@ describe('Guild Activity', () => {
 		expect(feed.response.status).toBe(200);
 		expect(feed.json.events.map(event => [event.event_type, event.actor_display_name])).toEqual([
 			['joined', 'Activity Member'],
-			['campaign_started', null],
 			['joined', 'Activity Founder']
 		]);
-		expect(outsider_feed.json.events).toHaveLength(2);
+		expect(outsider_feed.json.events).toHaveLength(1);
 		expect(outsider_feed.json.events.find(event => event.event_type === 'joined')?.actor_display_name)
 			.toBe('Activity Outsider');
 	});
@@ -53,14 +52,14 @@ describe('Guild Activity', () => {
 		for (let index = 0; index < 25; index++)
 			await db_run(
 				'INSERT INTO `guild_activity_events` (`guild_id`, `event_type`, `source_key`, `created_at`) VALUES(?, ?, ?, ?)',
-				[client.guild_id, 'campaign_started', `page:${index}`, 100 + Math.floor(index / 2)]
+				[client.guild_id, 'joined', `page:${index}`, 100 + Math.floor(index / 2)]
 			);
 
 		const first = await activity(client.session_token);
 		expect(first.json.events).toHaveLength(20);
 		expect(first.json.next_cursor).not.toBeNull();
 		const second = await activity(client.session_token, first.json.next_cursor as string);
-		expect(second.json.events).toHaveLength(7);
+		expect(second.json.events).toHaveLength(6);
 		expect(second.json.next_cursor).toBeNull();
 		const ids = [...first.json.events, ...second.json.events].map(event => event.id);
 		expect(new Set(ids).size).toBe(ids.length);
@@ -71,7 +70,7 @@ describe('Guild Activity', () => {
 
 	test('hides retired Charitree events from every client and Campaign events from current Activity pages', async () => {
 		const pair = await make_guildmates('Legacy Feed', 'Crucible Feed', 'Versioned Activity',
-			{ first: '1.5.16', second: '1.6.0' });
+			{ first: '1.6.14', second: '1.6.14' });
 		const kinds = ['joined', 'campaign_started', 'campaign_completed', 'campaign_contributed',
 			'charitree_donated'];
 		for (let index = 0; index < 25; index++)
@@ -82,13 +81,8 @@ describe('Guild Activity', () => {
 		expect(modern_first.json.events).toHaveLength(7);
 		expect(modern_first.json.next_cursor).toBeNull();
 		expect(modern_first.json.events.every(event => event.event_type === 'joined')).toBe(true);
-		const legacy_first = await activity(pair.first.session_token);
-		expect(legacy_first.json.events).toHaveLength(20);
-		expect(legacy_first.json.next_cursor).not.toBeNull();
-		expect(legacy_first.json.events.some(event => event.event_type === 'charitree_donated')).toBe(false);
+
 	});
-
-
 
 	test('records Marketplace purchases and fulfillments privately for both participants', async () => {
 		const pair = await make_guildmates('Market Seller', 'Market Buyer', 'Activity Market');

@@ -59,7 +59,7 @@ register_response="$(
 		--show-error \
 		--header "Origin: https://melvoridle.com" \
 		--header "Content-Type: application/json" \
-		--data "{\"client_key\":\"${client_key}\",\"display_name\":\"Smoke Test\"}" \
+		--data "{\"client_key\":\"${client_key}\",\"display_name\":\"Smoke Test\",\"client_runtime\":{\"mod_version\":\"1.6.14\",\"active_mods\":[]}}" \
 		"${base_url}/api/v2/register"
 )"
 

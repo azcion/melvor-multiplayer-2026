@@ -1,3 +1,5 @@
+import { register_browser_chat_shell_routes } from './routes/browser-chat-shell';
+import { register_browser_chat_auth_routes } from './routes/browser-chat-auth';
 import { register_alliance_routes } from './routes/alliances';
 import { register_market_routes } from './routes/market';
 import { register_campaign_routes } from './routes/campaign';
@@ -45,6 +47,8 @@ register_equipment_routes();
 register_player_status_routes();
 register_icon_catalog_routes();
 register_chat_routes();
+register_browser_chat_auth_routes();
+register_browser_chat_shell_routes();
 register_friends_routes();
 register_identities_routes();
 register_general_routes();

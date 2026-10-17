@@ -1,3 +1,4 @@
+import { is_client_version_at_least } from './client-version-policy';
 import { db } from './db';
 import { has_alliance_access, alliance_for_guild } from './alliances';
 
@@ -9,11 +10,13 @@ function participant(id:number):MarketParticipant|null {
 		JOIN guild_memberships gm ON gm.client_id=c.id JOIN guilds g ON g.id=gm.guild_id
 		LEFT JOIN client_runtime_snapshots r ON r.client_id=c.id LEFT JOIN melvor_accounts a ON a.id=c.melvor_account_id WHERE c.id=?`).get(id);
 }
-export function market_deal_allowed(client_id:number,owner_id:number,listing_guild_id:number,request_version?:string|null,now=Date.now()):boolean {
+export function market_deal_allowed(client_id:number, owner_id:number, listing_guild_id:number, now=Date.now()):boolean {
 	const buyer=participant(client_id),owner=participant(owner_id);
 	if(!buyer||!owner||owner.guild_id!==listing_guild_id) return false;
 	if(buyer.guild_id===owner.guild_id) return true;
-	if(!has_alliance_access(client_id,request_version===undefined?buyer.mod_version:request_version)||!has_alliance_access(owner_id,owner.mod_version)) return false;
+	// The seller's stored runtime is a historical participant delivery boundary.
+	if(!has_alliance_access(client_id)||!has_alliance_access(owner_id)||
+		(owner.mod_version !== 'development' && !is_client_version_at_least(owner.mod_version, '1.6.2'))) return false;
 	const a=alliance_for_guild(buyer.guild_id),b=alliance_for_guild(owner.guild_id);
 	if(!a||!b||a.id!==b.id||a.shared_marketplace!==1) return false;
 	if(buyer.social_mode==='social'||owner.social_mode==='social'||buyer.enforced||owner.enforced) return false;
@@ -23,10 +26,10 @@ export function market_deal_allowed(client_id:number,owner_id:number,listing_gui
 	return true;
 }
 // Bounded SQL discovery shares exactly the mutation permission predicate, without loading every listing.
-export function market_visibility_sql(alias:string,client_id:number,version:string|null):{sql:string;values:(string|number)[]} {
+export function market_visibility_sql(alias:string, client_id:number):{sql:string;values:(string|number)[]} {
 	const own=participant(client_id);
 	if(!own) return {sql:'0',values:[]};
-	if(!has_alliance_access(client_id,version)) return {sql:`${alias}.guild_id = ?`,values:[own.guild_id]};
+	if(!has_alliance_access(client_id)) return {sql:`${alias}.guild_id = ?`,values:[own.guild_id]};
 	return {sql:`(${alias}.guild_id = ? OR (${alias}.guild_id IN (
 		SELECT am.guild_id FROM alliance_memberships am JOIN alliances a ON a.id=am.alliance_id
 		WHERE a.shared_marketplace=1 AND am.alliance_id=(SELECT alliance_id FROM alliance_memberships WHERE guild_id=?)

@@ -30,7 +30,7 @@ async function authenticate(client: RegisteredClient, account?: MelvorAccountFix
 		identity_status?: string;
 		deletion_cancelled?: null | { requester_display_name: string; requested_at: number };
 		identity_recovered?: boolean;
-	}>('/api/authenticate', {
+	}>('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
 		client_identifier: client.client_identifier,
 		client_key: client.client_key,
 		...account
@@ -121,7 +121,7 @@ describe('Melvor account identity lifecycle', () => {
 		const before = await db_count('SELECT COUNT(*) AS `count` FROM `melvor_accounts`');
 		await db_run("UPDATE `service_settings` SET `value` = '0' WHERE `key` = 'registrations_open'");
 		try {
-			const response = await post('/api/register', {
+			const response = await post('/api/register', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
 				client_key: crypto.randomUUID(),
 				display_name: 'Closed Registration',
 				...closed_account

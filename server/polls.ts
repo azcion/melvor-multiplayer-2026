@@ -2,13 +2,10 @@ import { save_chat_parts, same_chat_parts, type ChatPart } from './chat_parts';
 import { chat_shadow_visibility, is_chat_shadowbanned } from './chat_shadowban';
 import { attach_translations } from './chat_translation';
 import { db } from './db';
-import { is_client_version_at_least } from './client-version-policy';
 import { get_poll_owner_key } from './poll-ownership';
 import { is_admin } from './admin_identity';
 
 export const POLLS_CAPABILITY = 'polls-v1';
-export const POLLS_MINIMUM_CLIENT_VERSION = '1.5.14';
-const POLL_DISCUSSION_UNREAD_MINIMUM_CLIENT_VERSION = '1.6.0';
 const POLL_VOTE_THROTTLE_MS = 350;
 const allowed_creator_identifiers = new Set<string>();
 
@@ -29,10 +26,6 @@ export function reconcile_poll_creators(value: string | undefined): void {
 	allowed_creator_identifiers.clear();
 	for (const identifier of identifiers)
 		allowed_creator_identifiers.add(identifier);
-}
-
-export function can_view_polls(mod_version: string | null): boolean {
-	return is_client_version_at_least(mod_version, POLLS_MINIMUM_CLIENT_VERSION);
 }
 
 export function can_create_poll(client_id: number): boolean {
@@ -88,8 +81,7 @@ function poll_view(client_id: number, poll_id: number) {
 }
 
 // Inbox metadata deliberately excludes questions, options, votes and discussion bodies.
-export function poll_inbox_summary(client_id: number, mod_version: string | null) {
-	if (!can_view_polls(mod_version)) return null;
+export function poll_inbox_summary(client_id: number) {
 	const owner = get_poll_owner_key(client_id);
 	const row = db.query<{ open_uninteracted: number }, [string]>(
 		'SELECT COUNT(*) AS open_uninteracted FROM polls p WHERE p.closed_at IS NULL ' +
@@ -98,14 +90,13 @@ export function poll_inbox_summary(client_id: number, mod_version: string | null
 	return { open_uninteracted: row?.open_uninteracted ?? 0, can_create: can_create_poll(client_id) };
 }
 
-export function list_polls(client_id: number, mod_version: string | null, after_revision: number | null): PollResult<{
+export function list_polls(client_id: number, after_revision: number | null): PollResult<{
 	polls: NonNullable<ReturnType<typeof poll_view>>[]; deleted_poll_ids: number[]; revision: number; can_create: boolean;
 	discussion_unread_counts?: Record<number, number>
 }> {
 	if (after_revision !== null && (!Number.isSafeInteger(after_revision) || after_revision < 0))
 		return { status: 'bad_request' };
-	if (!can_view_polls(mod_version))
-		return { status: 'ok', value: { polls: [], deleted_poll_ids: [], revision: 0, can_create: false } };
+
 	const rows = db.query<{ id: number; revision: number; reaction_revision: number }, number[]>(
 		after_revision === null ? 'SELECT `id`, `revision`, `reaction_revision` FROM `polls` ORDER BY `id`' :
 			'SELECT `id`, `revision`, `reaction_revision` FROM `polls` WHERE MAX(`revision`, `reaction_revision`) > ? ORDER BY `id`'
@@ -117,7 +108,7 @@ export function list_polls(client_id: number, mod_version: string | null, after_
 		"SELECT CAST(`value` AS INTEGER) AS `revision` FROM `service_settings` WHERE `key` = 'poll_revision'"
 	).get()?.revision ?? 0;
 	const discussion_unread_counts: Record<number, number> = {};
-	if (is_client_version_at_least(mod_version, POLL_DISCUSSION_UNREAD_MINIMUM_CLIENT_VERSION)) {
+	{
 		const unread = db.query<{ poll_id: number; unread_count: number }, [number, number, number, number]>(
 			'SELECT message.`poll_id`, COUNT(*) AS `unread_count` FROM `poll_discussion_messages` AS message ' +
 			'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` ' +
@@ -131,7 +122,7 @@ export function list_polls(client_id: number, mod_version: string | null, after_
 	return { status: 'ok', value: {
 		polls: rows.map(row => poll_view(client_id, row.id)).filter(value => value !== null), deleted_poll_ids,
 		revision, can_create: can_create_poll(client_id),
-		...(is_client_version_at_least(mod_version, POLL_DISCUSSION_UNREAD_MINIMUM_CLIENT_VERSION) ? { discussion_unread_counts } : {})
+		discussion_unread_counts
 	} };
 }
 
@@ -140,13 +131,12 @@ function valid_options(options: unknown): options is string[] {
 		options.every(option => typeof option === 'string' && option.trim().length >= 1 && option.trim().length <= 200);
 }
 
-export function create_poll(client_id: number, mod_version: string | null, idempotency_key: string, content: string, options: unknown,
-	choice_mode: unknown = 'multi', now = Date.now()): PollResult<{ poll: NonNullable<ReturnType<typeof poll_view>> }> {
+export function create_poll(client_id: number, idempotency_key: string, content: string, options: unknown, choice_mode: unknown = 'multi', now = Date.now()): PollResult<{ poll: NonNullable<ReturnType<typeof poll_view>> }> {
 	const trimmed = content.trim();
 	if (idempotency_key.length < 1 || idempotency_key.length > 128 || trimmed.length < 1 || trimmed.length > 1000 ||
 		!valid_options(options) || (choice_mode !== 'single' && choice_mode !== 'multi'))
 		return { status: 'bad_request' };
-	if (!can_view_polls(mod_version) || !can_create_poll(client_id))
+	if (!can_create_poll(client_id))
 		return { status: 'forbidden' };
 	const poll_id = db.transaction(() => {
 		const existing = db.query<{ id: number }, [number, string]>(
@@ -166,9 +156,7 @@ export function create_poll(client_id: number, mod_version: string | null, idemp
 	return { status: 'ok', value: { poll: poll_view(client_id, poll_id)! } };
 }
 
-export function add_poll_options(client_id: number, mod_version: string | null, poll_id: number, options: unknown, now = Date.now()): PollResult<{ poll: NonNullable<ReturnType<typeof poll_view>> }> {
-	if (!can_view_polls(mod_version))
-		return { status: 'forbidden' };
+export function add_poll_options(client_id: number, poll_id: number, options: unknown, now = Date.now()): PollResult<{ poll: NonNullable<ReturnType<typeof poll_view>> }> {
 	if (!Number.isSafeInteger(poll_id) || poll_id < 1 || !valid_options(options))
 		return { status: 'bad_request' };
 	const poll = db.query<{ creator_id: number; closed_at: number | null }, [number]>(
@@ -189,9 +177,7 @@ export function add_poll_options(client_id: number, mod_version: string | null, 
 	return { status: 'ok', value: { poll: poll_view(client_id, poll_id)! } };
 }
 
-export function delete_poll(client_id: number, mod_version: string | null, poll_id: number): PollResult<{ deleted: true; poll_id: number; revision: number }> {
-	if (!can_view_polls(mod_version))
-		return { status: 'forbidden' };
+export function delete_poll(client_id: number, poll_id: number): PollResult<{ deleted: true; poll_id: number; revision: number }> {
 	if (!Number.isSafeInteger(poll_id) || poll_id < 1)
 		return { status: 'bad_request' };
 	const poll = db.query<{ creator_id: number }, [number]>(
@@ -209,10 +195,7 @@ export function delete_poll(client_id: number, mod_version: string | null, poll_
 	return { status: 'ok', value: { deleted: true, poll_id, revision } };
 }
 
-export function set_poll_vote(client_id: number, mod_version: string | null, poll_id: number, option_id: number, selected: boolean,
-	now = Date.now()): PollResult<{ poll: NonNullable<ReturnType<typeof poll_view>>; retry_after_ms: number }> {
-	if (!can_view_polls(mod_version))
-		return { status: 'forbidden' };
+export function set_poll_vote(client_id: number, poll_id: number, option_id: number, selected: boolean, now = Date.now()): PollResult<{ poll: NonNullable<ReturnType<typeof poll_view>>; retry_after_ms: number }> {
 	if (![poll_id, option_id].every(value => Number.isSafeInteger(value) && value > 0) || typeof selected !== 'boolean')
 		return { status: 'bad_request' };
 	const option = db.query<{ id: number; choice_mode: 'single' | 'multi'; closed_at: number | null }, [number, number]>(
@@ -250,8 +233,8 @@ export function set_poll_vote(client_id: number, mod_version: string | null, pol
 	return { status: 'ok', value: { poll: poll_view(client_id, poll_id)!, retry_after_ms: POLL_VOTE_THROTTLE_MS } };
 }
 
-export function set_poll_open(client_id: number, mod_version: string | null, poll_id: number, open: boolean, now = Date.now()): PollResult<{ poll: NonNullable<ReturnType<typeof poll_view>> }> {
-	if (!can_view_polls(mod_version) || !can_create_poll(client_id))
+export function set_poll_open(client_id: number, poll_id: number, open: boolean, now = Date.now()): PollResult<{ poll: NonNullable<ReturnType<typeof poll_view>> }> {
+	if (!can_create_poll(client_id))
 		return { status: 'forbidden' };
 	if (!Number.isSafeInteger(poll_id) || poll_id < 1 || typeof open !== 'boolean')
 		return { status: 'bad_request' };
@@ -274,10 +257,7 @@ function discussion_message_view(message: DiscussionMessage) {
 		sender: { client_id: message.sender_id, display_name: message.display_name, icon_id: message.icon_id }, reactions: [] };
 }
 
-export function list_poll_discussion_messages(client_id: number, mod_version: string | null, poll_id: number, before: number | null,
-	after: number | null): PollResult<{ messages: ReturnType<typeof discussion_message_view>[]; has_more: boolean }> {
-	if (!can_view_polls(mod_version))
-		return { status: 'forbidden' };
+export function list_poll_discussion_messages(client_id: number, poll_id: number, before: number | null, after: number | null): PollResult<{ messages: ReturnType<typeof discussion_message_view>[]; has_more: boolean }> {
 	if (!Number.isSafeInteger(poll_id) || poll_id < 1 || !poll_view(client_id, poll_id) ||
 		(before !== null && (!Number.isSafeInteger(before) || before < 1)) ||
 		(after !== null && (!Number.isSafeInteger(after) || after < 0)) || (before !== null && after !== null))
@@ -291,7 +271,7 @@ export function list_poll_discussion_messages(client_id: number, mod_version: st
 		' ORDER BY message.`id` DESC LIMIT 21'
 	).all(values[0] as number, client_id, client_id, ...values.slice(1));
 	const has_more = rows.length > 20;
-	if (is_client_version_at_least(mod_version, POLL_DISCUSSION_UNREAD_MINIMUM_CLIENT_VERSION) && rows.length > 0) {
+	if (rows.length > 0) {
 		const last_read_message_id = rows[0]!.id;
 		db.query('INSERT INTO `poll_discussion_read_state` (`poll_id`, `client_id`, `last_read_message_id`) VALUES (?, ?, ?) ' +
 			'ON CONFLICT (`poll_id`, `client_id`) DO UPDATE SET `last_read_message_id` = ' +
@@ -301,10 +281,7 @@ export function list_poll_discussion_messages(client_id: number, mod_version: st
 	return { status: 'ok', value: { messages: rows.slice(0, 20).reverse().map(discussion_message_view), has_more } };
 }
 
-export function send_poll_discussion_message(client_id: number, mod_version: string | null, poll_id: number, idempotency_key: string,
-	content: string, now = Date.now(), parts?: ChatPart[]): PollResult<{ message: ReturnType<typeof discussion_message_view> }> {
-	if (!can_view_polls(mod_version))
-		return { status: 'forbidden' };
+export function send_poll_discussion_message(client_id: number, poll_id: number, idempotency_key: string, content: string, now = Date.now(), parts?: ChatPart[]): PollResult<{ message: ReturnType<typeof discussion_message_view> }> {
 	const trimmed = content.trim();
 	if (!Number.isSafeInteger(poll_id) || poll_id < 1 || idempotency_key.length < 1 || idempotency_key.length > 128 ||
 		trimmed.length < 1 || trimmed.length > 1000 || !poll_view(client_id, poll_id))

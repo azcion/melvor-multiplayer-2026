@@ -1,5 +1,4 @@
 import { db } from './db';
-import { is_client_version_at_least } from './client-version-policy';
 
 export const CHARITY_PET_ID = 'Multiplayer_Pet_Charity';
 export const CRUCIBLE_PET_ID = 'Multiplayer_Pet_Crucible';
@@ -29,11 +28,10 @@ export function get_campaign_pet_id(campaign_id: string): MultiplayerPetId | nul
 	return CAMPAIGN_PET_IDS[campaign_id as keyof typeof CAMPAIGN_PET_IDS] ?? null;
 }
 
-export function get_owned_pet_ids(client_id: number, mod_version?: string | null): MultiplayerPetId[] {
+export function get_owned_pet_ids(client_id: number): MultiplayerPetId[] {
 	return db.query<{ pet_id: MultiplayerPetId }, [number]>(
 		'SELECT `pet_id` FROM `multiplayer_pet_ownership` WHERE `client_id` = ? ORDER BY `pet_id`'
-	).all(client_id).map(row => row.pet_id).filter(pet_id => pet_id !== CRUCIBLE_PET_ID ||
-		mod_version === 'development' || is_client_version_at_least(mod_version, '1.6.0'));
+	).all(client_id).map(row => row.pet_id);
 }
 
 export function has_owned_pet(client_id: number, pet_id: MultiplayerPetId): boolean {

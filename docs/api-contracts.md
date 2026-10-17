@@ -1,19 +1,23 @@
 # Multiplayer API contracts
 
-The minimum supported mod version is 1.6.1. The hosted API exposes one current wire contract, API v2; backend deployment
+The minimum supported mod version is 1.6.14. The hosted API exposes one current wire contract, API v2; backend deployment
 versions remain independent of mod releases.
+
+The compiled support baseline is 1.6.14. The operator may raise the minimum supported version; clearing an override
+restores that baseline. Empty, malformed or older stored overrides cannot reopen retired request contracts. API
+discovery, major selection, explicit capability negotiation and update notices remain available for future releases.
 
 Authentication may include `social_mode_enforcement` as `identity`, `account`, or null. When non-null, the effective
 `social_mode` is `social`, Full-mode changes return `MOD_MP_SOCIAL_MODE_ENFORCED`, and every Social Only authorization
-gate remains authoritative for both API majors. Older clients safely receive the effective mode without needing the
-new field; 1.5.8 uses it to explain the operator restriction and hide the unavailable Full Experience choice.
+gate remains authoritative. Clients use the enforcement source to explain the operator restriction and hide the
+unavailable Full Experience choice.
 
 Developer badges (1.6.13+) use server-owned plain-text labels. Registration, authentication, Chat state, and Events
 (including unchanged Events) include `dev_badge_labels`, a map from stable Chat feature IDs to display labels.
 Guild roster and applicant entries include nullable `dev_badge_label`, already filtered by the character's visibility
-preference. Clients render the label using the existing pink developer badge style; `null` means no badge. An absent
-field permits legacy boolean/translation fallbacks. Stable feature IDs preserve saved Chat tags when labels change.
-Older clients retain their bundled roster labels and receive readable Chat fallback text for unsupported badge tags.
+preference. Clients render the label using the existing pink developer badge style; `null` means no badge.
+Stable feature IDs preserve saved Chat tags when labels change. Structured feature, person and badge parts are returned
+directly for supported clients.
 
 ## Selection
 
@@ -36,11 +40,48 @@ independent of API versioning.
 - Server-owned pets and reward computation are unconditional. Historical recipient delivery predicates and payout queues
   remain until their value-safe reconciliation is complete.
 - Optional runtime metadata is not an authentication credential. Session, installation, Guild, ownership, and
-  Social Only authorization apply on both versions. Unsupported reported clients cannot bypass the refresh gate by
+  Social Only authorization apply to every request. Unsupported reported clients cannot bypass the refresh gate by
   changing the URL prefix.
 
 The contract tests cover the current v2 route/method boundary directly; historical release inventories remain in the
 compatibility cleanup plan rather than executable fixtures.
+
+## Standalone Chat browser authentication
+
+Browser credentials are scoped separately from game sessions. Game-authenticated
+`POST /api/v2/chat/browser-links/issue`, `GET /api/v2/chat/browser-links/list`, and
+`POST /api/v2/chat/browser-links/revoke` issue a five-minute one-use code, list the authenticated Client's links,
+and revoke one owned `session_id`. Codes and browser bearers are stored only as hashes. Each identity requires
+its own code; reported Melvor account siblings never inherit browser access.
+
+The browser-only routes have no CORS support and return private/no-store responses:
+
+| Method | Path | Contract |
+| --- | --- | --- |
+| POST | `/chat/api/pair` | JSON `{code}`; returns `{ok:true,link_id}` and a host-only HttpOnly cookie |
+| GET | `/chat/api/session` | Returns `{links:[{link_id,client_id,display_name,expires_at}],csrf_token}`; no selected identity |
+| POST | `/chat/api/logout` | JSON `{}`; revoke exactly the selected link |
+| POST | `/chat/api/logout-all` | JSON `{}`; revoke this browser and all its links |
+
+All mutations require exact configured Origin and `Content-Type: application/json`; supplied foreign/null Origin
+and cross-site Fetch Metadata are rejected on reads too. Same-origin GET may omit Origin. Adding a link to an
+existing browser and both logout routes require `X-Chat-CSRF` from bootstrap. Identity-scoped operations also
+require exactly one canonical positive safe-integer `X-Chat-Link-ID` belonging to that browser; missing or ambiguous
+selection returns 400, unauthorized/expired/revoked links return 401, and invalid CSRF returns 403. There is no
+implicit identity selection. Bootstrap does not refresh idle clocks or return Chat content.
+
+The cookie uses `Path=/chat; Secure; HttpOnly; SameSite=Strict`, no Domain, and thirty-day Max-Age; explicit loopback
+HTTP configuration uses a distinct non-Secure local cookie. A link has thirty-day absolute and seven-day idle
+expiry, with limits of ten active identities per browser and ten active browsers per identity. Adding another
+identity retains the bearer and extends cookie retention without extending existing links. A fresh code for an
+already active link is consumed and returns the existing link without renewing it. Relinking after revocation or
+expiry requires a fresh code and returns a new link ID.
+
+A stale browser cookie on bootstrap/pair returns 401 with cookie expiry. Pairing does not consume the code or
+silently replace that browser; a subsequent explicit no-cookie attempt can establish a new browser. Logout-one
+retains the cookie while other links remain. Logout-all revokes the container and every link atomically. Browser
+cookies never authenticate game API routes or update game activity, runtime snapshots or game sessions. Chat
+content uses the scoped shared handlers documented below; the website messaging UI is a separate slice.
 
 ## Guild mod-category markings
 
@@ -150,6 +191,36 @@ only (200 success or 404 for missing/wrong owner); it never dismisses an inciden
 identity survives restored saves/reconnects; retrying acknowledgement is idempotent. Fetch the next pending notice after
 acknowledgement. Client UI/journal/timing implementation and full integration acceptance remain the next slice.
 
+## Profile registration and recovery (1.6.15)
+
+`GET /api/versions` advertises `identity-registration-v1`. `POST /api/register` optionally accepts a UUID
+`registration_id`, used as the new `client_identifier`. Clients persist and read-verify a pending UUID identifier plus
+`client_key` in origin/account-scoped character storage and require a verified native save before sending. Requests
+without this field retain the generated-identifier contract for older clients.
+
+The backend remains compatible with 1.6.14 authentication, registration and installation enrollment. That client can
+reconnect another device using the keeper profile's binding carried in a native save, including a cloud save. The
+target device authenticates with that proof and enrolls its own installation credential for the keeper identity;
+both installations can retain access when the duplicate identity is later disabled. This does not merge server data.
+The older client's automatic registration on missing proof remains unchanged until the client is upgraded.
+
+The registration transaction checks for an existing identifier before insertion. Repeating the same identifier,
+save proof and exact account association returns HTTP 409 with `{identity_status: "registration_exists"}`;
+the client then uses `/api/authenticate` to obtain the retained profile and preferences through normal authorization.
+A different proof/account, or a disabled/deleted existing profile, returns 401 without changing it. A replay never
+creates another registration audit event. Pending authentication uses that same saved proof after a lost response;
+registration replay is bounded to one authentication attempt per connection attempt. No schema migration is required.
+
+The 1.6.15 client offers explicit existing-profile recovery or confirmed creation when proof is absent or rejected. The
+exception for valid legacy proof associated with a different active Melvor account still creates that account's own
+Client, as before. New clients refuse registration on servers lacking the capability; healthy authentication works.
+
+A portable `MP1.` recovery code contains the normalized origin and save-carried UUID identifier/key, encoded as
+base64 JSON. It is a bearer credential, not encryption, an account lookup, or a new source of authority. Imported proof
+must pass the ordinary authentication route, including supplied installation revocation and account-association
+checks, before replacing a binding. Successful import saves the binding before activation. User-facing guidance
+warns against sharing codes or credential-bearing saves. Neither codes nor authentication payloads are logged.
+
 ## Recovery
 
 A logical command retains its original UUID, payload, command kind, and originating API major across retries and
@@ -190,7 +261,8 @@ independent of Offering generations, so merges cannot remove it. Merges reset Me
 needs six hours to Meld, preventing an earlier indirect return through Wish funding or Gloop.
 
 Wish Cancel and Claim retain their dedicated server journal and server-owned outcomes. Historical committed Make
-commands replay that journal without a new charge, including from older clients. New paid mutations require 1.6.11+.
+commands replay that journal without a new charge after upgrading. New Make commands require validated EP/GP
+quotes and an Economy Receipt; the server-only free Make request contract has been retired.
 All receipt replays precede current domain validation, including changed Guild membership, expiry or balances.
 
 Do not delete historical value queues or journal rows as part of API retirement. Marketplace legacy payouts and
@@ -278,3 +350,74 @@ It is unsigned presentation context for the other half of a direct Marketplace p
 and total, and Purchased and Sold use the actual exchanged quantity. Clients must not apply exchange context as an
 economy effect. Claim source breakdowns and receipt replay are unchanged. Older entries without reliable retained
 context omit the object. Transfers page snapshots reuse this same read model.
+
+### Standalone shell and demo definitions (unreleased 1.6.15)
+
+`GET /chat` serves the browser shell; `/chat/` redirects to it. Only the explicitly registered
+`/chat/assets/chat.css`, `/chat/assets/chat.mjs`, `/chat/assets/transport.mjs`,
+`/chat/assets/controller.mjs`, and `/chat/assets/render.mjs` assets are served.
+Unknown paths return 404 and known paths with unsupported methods return 405. The shell uses self-hosted
+scripts/styles, same-origin API requests, no inline user HTML, and no-store/referrer/nosniff/CSP protections.
+
+`GET /chat/api/data?locale=en|de|zh-CN` requires a valid cookie, `X-Chat-CSRF`, and explicit
+`X-Chat-Link-ID`. It returns `{locale,items:[{id,name,media}],provenance}`. Unsupported locales and unavailable
+localized labels fall back to English. It is a fixed official demo adapter, not a URL relay or complete game
+registry. Only official demo JSON, the three fixed language files and the official asset-resolver source text
+are fetched; upstream scripts are never executed and browser credentials are never forwarded upstream.
+Artwork is allowed only when the inspected resolver establishes the supported official CDN and item media path.
+Unknown DLC/mod items retain readable local and canonical IDs without guessed media.
+
+Each upstream response is capped at 8 MB while streaming, uses a 15-second timeout and rejects redirects.
+Five fixed cache keys share in-flight requests, remain fresh for one hour, and may serve validated stale data
+for at most 24 hours from fetch during source failures/schema drift. Provenance includes adapter version,
+package, source paths, oldest fetch timestamp and stale status. The route authorizes again after upstream
+I/O, including failures; a revoked selection cannot receive the result. Data failures leave linking usable.
+
+The shell stores only the selected nonsecret link ID in tab-local session storage. CSRF stays in memory;
+linking codes are cleared on submit and never retried automatically. Initial linking holds an origin-wide
+Web Lock around session recheck, exchange and bootstrap; without Web Locks the page instructs single-tab
+linking and fresh-code recovery after simultaneous anonymous exchanges. The server cannot merge two fresh
+anonymous requests. Identity switches abort pending reads, invalidate late responses, and clear old content.
+Selected-link 401 responses re-bootstrap remaining links without discarding another valid identity.
+The responsive inbox and composer use only the authenticated shared Chat API below. Only the foreground selected
+conversation requests history (history reads acknowledge returned Messages); inbox polls never fetch every thread.
+Older pages, incremental Message/reaction cursors and moderation-count invalidation use the shared read model.
+Foreground polling is single flight with finally rescheduling, bounded jitter/backoff and server retry guidance.
+
+Drafts, typed tags, people, cursors, history and pending sends are isolated in memory by selected link and conversation.
+A lost/aborted send retains its original payload, identity and idempotency key; only explicit Retry sends it again.
+Switching never automatically sends or retargets a pending payload. The page warns before reload while a result is
+unknown, because reload loses that in-memory recovery state. No Message body or bearer is stored in browser storage.
+Presentation language selects persisted translations and validated demo item labels without changing game runtime;
+original text remains available. Missing translations/items use readable text/canonical IDs. Upstream item failures
+leave the inbox and composer usable. All Message/translated/tag text uses DOM text nodes; artwork accepts only
+validated official demo CDN media. Private-only participant hiding is separate from host moderation, which this UI
+never exposes. Virtual Support welcomes have no durable Message actions before materialization.
+
+### Standalone shared Chat adapter (unreleased 1.6.15)
+
+Every route below requires the browser cookie, `X-Chat-Link-ID`, and `X-Chat-CSRF`, including GET.
+POST also requires the configured Origin and JSON. Payloads and ordinary Chat read models match the
+corresponding `/api/v2/chat/` routes; there is no game credential or cookie fallback between transports.
+
+| Method | Exact `/chat/api/` suffixes |
+| --- | --- |
+| GET | `state`, `profile` (including `people=1`), `conversations`, `messages`, `messages/details` |
+| POST | `conversations/start`, `messages/send`, `messages/reaction`, `global-participation`, `guild-participation`, `alliance-participation`, `block`, `privacy`, `messages/delete`, `conversations/delete` |
+
+The server supplies only `global-chat-v1,guild-chat-v1` capabilities, ignoring browser capability parameters.
+Supported `conversation_kind` values are `private`, `global`, `guild`, `alliance`, `support`, and `testers`
+(Expedition Chat). Poll/Petition discussions and unknown kinds return 400 before domain dispatch on every
+exposed path, including people queries. Participant deletion accepts only omitted/`private` kind, preventing
+numeric ID collisions from deleting another domain's Private history. Delete-for-all and other game actions
+are unregistered (404); known wrong methods return 405.
+
+Shared synchronous handlers run inside selected-link authorization's SQLite transaction. They retain canonical
+conversation permissions, current membership, participation, Blocks/privacy, shadow visibility, Support exact-Client
+membership, immutable idempotent sends, typed parts, translation markers, reactions and read acknowledgements.
+History reads acknowledge returned Messages; callers must fetch only the visible selected conversation.
+Browser state omits `is_admin`, inbox entries omit `can_moderate`, and Poll summaries/counts are absent.
+Profile construction disables admin overrides before calculating private fields, even for a linked administrator.
+Message details use ordinary reaction visibility and expose readers/reactors only for visible Messages.
+Browser dispatch updates its selected link's browser clock and normal Chat state, without game activity,
+runtime, save admission, Expedition catch-up, identity recovery, or economy operations.

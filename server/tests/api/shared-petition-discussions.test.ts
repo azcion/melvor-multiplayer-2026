@@ -12,9 +12,9 @@ const notifications = async (client: {session_token:string}, id:number) =>
 	(await get_json_with_session<any>('/api/events',client.session_token)).json.petition_discussions.find((d:any)=>d.discussion_id===id);
 
 test('1.6.11 aliases share messages, personal vote disclosure, tags and live membership while preserving the electorate and closed audience',async()=> {
-	const a=await make_guild_group(['Shared A1','Shared A2','Shared A3'],'Shared Guild A','1.6.11');
-	const b=await make_guild_group(['Shared B1','Shared B2','Shared B3'],'Shared Guild B','1.6.11');
-	const c=await register_guild_client('Shared Applicant','Shared Guild C','1.6.11');
+	const a=await make_guild_group(['Shared A1','Shared A2','Shared A3'],'Shared Guild A','1.6.14');
+	const b=await make_guild_group(['Shared B1','Shared B2','Shared B3'],'Shared Guild B','1.6.14');
+	const c=await register_guild_client('Shared Applicant','Shared Guild C','1.6.14');
 	await db_run('INSERT INTO alliances(name,created_at) VALUES(?,?)',['Shared Alliance',Date.now()]);
 	const alliance=(await db_all<{id:number}>('SELECT id FROM alliances WHERE name=?',['Shared Alliance']))[0].id;
 	for(const guild of [a[0],b[0]]) await db_run('INSERT INTO alliance_memberships VALUES(?,?,?)',[guild.guild_id,alliance,Date.now()]);
@@ -53,14 +53,14 @@ test('1.6.11 aliases share messages, personal vote disclosure, tags and live mem
 	expect(await notifications(a[2],id)).toMatchObject({discussion_unread_count:1,discussion_has_unread_tag:true,council:true,alliance:true});
 	await read(a[2],aid);
 	expect(await notifications(a[2],id)).toMatchObject({discussion_unread_count:0,discussion_has_unread_tag:false});
-	const late=await register_guild_client('Shared Late Guild','Shared Guild D','1.6.11');
+	const late=await register_guild_client('Shared Late Guild','Shared Guild D','1.6.14');
 	await db_run('INSERT INTO alliance_memberships VALUES(?,?,?)',[late.guild_id,alliance,Date.now()]);
 	expect((await notifications(late,id)).discussion_unread_count).toBeGreaterThan(0);
 	expect((await read(late,id)).json.petition_votes_visible).toBe(false);
 	expect(await db_all('SELECT 1 FROM alliance_process_petitions l JOIN guild_petitions p ON p.id=l.petition_id WHERE l.process_id=? AND p.guild_id=?',[proposed.process_id,late.guild_id])).toEqual([]);
 	await db_run('DELETE FROM alliance_memberships WHERE guild_id=?',[late.guild_id]);
 	expect((await read(late,id)).json.error_lang).toBe('MOD_MP_CHAT_CONVERSATION_MISSING');
-	const newcomer=await register_client('Shared Late Member',undefined,'1.6.11');
+	const newcomer=await register_client('Shared Late Member',undefined,'1.6.14');
 	await db_run('INSERT INTO guild_memberships(client_id,guild_id) VALUES(?,?)',[newcomer.client_id,b[0].guild_id]);
 	expect((await notifications(newcomer,id)).discussion_unread_count).toBeGreaterThan(0);
 	await read(newcomer,bid);

@@ -9,7 +9,26 @@
 				<lang-string lang-id="MOD_MP_MENU_OPTIONS"></lang-string>
 			</a>
 		</template>
+		<a class="dropdown-item pointer-enabled" v-show="!state.is_connected" @click.stop="state.open_identity_bootstrap()">
+			<lang-string lang-id="MOD_MP_IDENTITY_CONNECT_TITLE"></lang-string>
+		</a>
 	</div>
+</template>
+<template id="template-mp-identity-bootstrap-modal">
+	<div class="mp-modal-text"><lang-string lang-id="MOD_MP_IDENTITY_CONNECT_INFO"></lang-string></div>
+	<label for="mp-identity-recovery-input"><lang-string lang-id="MOD_MP_IDENTITY_CODE_LABEL"></lang-string></label>
+	<textarea id="mp-identity-recovery-input" class="form-control mp-identity-code" v-model="state.identity_code" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+	<div class="text-danger my-2" role="alert">{{ state.identity_error }}</div>
+	<button class="btn btn-primary my-2" :disabled="state.identity_bootstrap_busy || !state.identity_code.trim()" @click="state.connect_identity_code()"><lang-string lang-id="MOD_MP_IDENTITY_CONNECT_ACTION"></lang-string></button>
+	<hr>
+	<label class="d-block"><input type="checkbox" v-model="state.identity_create_confirmed"> <lang-string lang-id="MOD_MP_IDENTITY_CREATE_CONFIRM"></lang-string></label>
+	<button class="btn btn-warning" :disabled="state.identity_bootstrap_busy || !state.identity_create_confirmed" @click="state.create_multiplayer_identity()"><lang-string lang-id="MOD_MP_IDENTITY_CREATE_ACTION"></lang-string></button>
+	<button class="btn btn-secondary ml-2" :disabled="state.identity_bootstrap_busy" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
+</template>
+<template id="template-mp-identity-backup-modal">
+	<div class="mp-modal-text"><lang-string lang-id="MOD_MP_IDENTITY_BACKUP_INFO"></lang-string></div>
+	<label for="mp-identity-recovery-output"><lang-string lang-id="MOD_MP_IDENTITY_CODE_LABEL"></lang-string></label>
+	<textarea id="mp-identity-recovery-output" class="form-control mp-identity-code" :value="state.identity_code" readonly autocomplete="off" spellcheck="false"></textarea>
 </template>
 <template id="template-mp-social-mode-choice-modal">
 	<div class="mp-social-mode-choice">
@@ -365,6 +384,8 @@
 	<div class="mp-member-actions" v-if="state.selected_guild_member">
 		<template v-if="!state.member_actions_preview && (Number.isSafeInteger(state.chat_client_id) && state.chat_client_id > 0 && state.selected_guild_member.client_id === state.chat_client_id)">
 			<button type="button" class="btn btn-primary" @click="state.open_multiplayer_settings_from_options()"><lang-string lang-id="MOD_MP_MULTIPLAYER_SETTINGS"></lang-string></button>
+			<button type="button" class="btn btn-primary" @click="state.open_browser_chat_from_options()"><lang-string lang-id="MOD_MP_BROWSER_LINK_TITLE"></lang-string></button>
+			<button type="button" class="btn btn-primary" @click="state.show_identity_recovery_code()"><lang-string lang-id="MOD_MP_IDENTITY_BACKUP_TITLE"></lang-string></button>
 			<button type="button" class="btn btn-primary" @click="state.open_display_name_from_options()">
 				<lang-string lang-id="MOD_MP_MENU_CHANGE_DISPLAY_NAME"></lang-string>
 			</button>
@@ -3083,5 +3104,36 @@
 		</section>
 		<div class="text-danger" role="alert" v-show="state.member_actions_error">{{ state.member_actions_error }}</div>
 		<button type="button" class="btn btn-primary mp-settings-close" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
+	</div>
+</template>
+
+<template id="template-mp-browser-chat-modal">
+	<div class="mp-browser-chat" @click.stop>
+		<p class="mp-browser-chat-intro"><lang-string lang-id="MOD_MP_BROWSER_LINK_INSTRUCTIONS"></lang-string></p>
+		<p class="mp-browser-chat-url"><a :href="state.browser_chat_url()" @click.prevent="state.open_browser_chat_url()">{{ state.browser_chat_url() }}</a></p>
+		<section class="mp-browser-chat-code">
+			<h3><lang-string lang-id="MOD_MP_BROWSER_LINK_CODE"></lang-string></h3>
+			<div v-show="state.browser_link_code">
+				<input class="form-control" readonly :value="state.browser_link_code" :aria-label="getLangString('MOD_MP_BROWSER_LINK_CODE')" @click="$event.target.select()">
+				<small><lang-string lang-id="MOD_MP_BROWSER_LINK_EXPIRES"></lang-string> {{ state.browser_link_time(state.browser_link_expiry) }}</small>
+			</div>
+		</section>
+		<div class="mp-browser-chat-list-heading"><h3><lang-string lang-id="MOD_MP_BROWSER_LINK_BROWSERS"></lang-string></h3><button type="button" class="btn btn-sm btn-secondary" :disabled="state.browser_link_pending || !state.is_connected" @click="state.manage_browser_links('list')"><lang-string lang-id="MOD_MP_BROWSER_LINK_REFRESH"></lang-string></button></div>
+		<p role="status" v-show="state.browser_link_pending"><lang-string lang-id="MOD_MP_BROWSER_LINK_LOADING"></lang-string></p>
+		<p role="status" class="mp-browser-chat-feedback">{{ state.browser_link_feedback }}</p>
+		<div class="mp-browser-chat-sessions">
+			<p v-show="state.browser_links_visible && !state.browser_link_pending && !state.browser_link_sessions.length"><lang-string lang-id="MOD_MP_BROWSER_LINK_EMPTY"></lang-string></p>
+			<article class="mp-browser-chat-session" v-for="browser in state.browser_link_sessions" :key="browser.id">
+				<div class="mp-browser-chat-session-title"><strong><lang-string lang-id="MOD_MP_BROWSER_LINK_BROWSER"></lang-string> {{ browser.id }}</strong><button type="button" class="btn btn-sm btn-outline-danger" :disabled="state.browser_link_pending || !state.is_connected" @click="state.manage_browser_links('revoke', browser.id)"><lang-string lang-id="MOD_MP_BROWSER_LINK_REVOKE"></lang-string></button></div>
+				<small><lang-string lang-id="MOD_MP_BROWSER_LINK_CREATED"></lang-string> {{ state.browser_link_time(browser.created_at) }}</small>
+				<small><lang-string lang-id="MOD_MP_BROWSER_LINK_LAST_SEEN"></lang-string> {{ state.browser_link_time(browser.last_browser_seen_at) }}</small>
+				<small><lang-string lang-id="MOD_MP_BROWSER_LINK_EXPIRES"></lang-string> {{ state.browser_link_time(browser.expires_at) }}</small>
+			</article>
+		</div>
+		<div class="mp-button-tray">
+			<button type="button" class="btn btn-success" :disabled="state.browser_link_pending || !state.is_connected" @click="state.manage_browser_links('issue')"><lang-string lang-id="MOD_MP_BROWSER_LINK_ISSUE"></lang-string></button>
+			<button type="button" class="btn btn-outline-success" v-show="state.browser_link_code" :disabled="state.browser_link_pending" @click="state.copy_browser_link_code()"><lang-string lang-id="MOD_MP_BROWSER_LINK_COPY"></lang-string></button>
+			<button type="button" class="btn btn-secondary mp-browser-chat-close" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
+		</div>
 	</div>
 </template>

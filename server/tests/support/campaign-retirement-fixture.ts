@@ -56,25 +56,22 @@ assert.equal(db.query<{ value: string }, [string]>('SELECT value FROM service_se
 
 assert.equal(release_campaign_refunds(1), 1);
 assert.equal(release_campaign_refunds(1), 0);
-assert.deepEqual(get_inbox(1, '1.5.16').items, [{ item_id: 'melvorD:GP', qty: 300 }]);
-assert.deepEqual(get_inbox(1, '1.6.0').items, [
+assert.deepEqual(get_inbox(1).items, [
 	{ item_id: 'melvorD:GP', qty: 300 }, { item_id: 'melvorD:Rune_Essence', qty: 7 }
 ]);
 
-const claim_id = create_inbox_claim(1, [], 1, undefined, '1.6.0')!;
+const claim_id = create_inbox_claim(1, [], 1, undefined)!;
 assert.ok(claim_id);
-assert.equal(get_inbox_claim_view(claim_id, 1, '1.5.16'), null);
-assert.equal(create_inbox_claim(1, [], 1, undefined, '1.5.16'), null);
-assert.equal(acknowledge_inbox_claim(1, claim_id, undefined, '1.5.16'), false);
-assert.deepEqual(get_inbox_claim_view(claim_id, 1, '1.6.0')?.items, [
+assert.ok(get_inbox_claim_view(claim_id, 1));
+assert.equal(create_inbox_claim(1, [], 1, undefined), claim_id);
+assert.deepEqual(get_inbox_claim_view(claim_id, 1)?.items, [
 	{ id: 'melvorD:GP', qty: 300 }, { id: 'melvorD:Rune_Essence', qty: 7 }
 ]);
-assert.equal(acknowledge_inbox_claim(1, claim_id, undefined, '1.6.0'), true);
+assert.equal(acknowledge_inbox_claim(1, claim_id, undefined), true);
 
 db.run('UPDATE economy_receipts SET acknowledged_at = ? WHERE id = ?', [cutover_at + 1, 'pending-debit']);
 assert.equal(release_campaign_refunds(1), 1);
-assert.deepEqual(get_inbox(1, '1.5.16').items, []);
-assert.deepEqual(get_inbox(1, '1.6.0').items, [{ item_id: 'melvorD:Rune_Essence', qty: 5 }]);
+assert.deepEqual(get_inbox(1).items, [{ item_id: 'melvorD:Rune_Essence', qty: 5 }]);
 assert.equal(release_campaign_refunds(1), 0);
 
 process.exit(0);

@@ -1,3 +1,5 @@
+// Raising this baseline permits removal of older request contracts. Operator overrides may only raise it.
+export const MINIMUM_CLIENT_VERSION = '1.6.14';
 export const MINIMUM_SUPPORTED_VERSION_FEATURE = '1.5.10';
 
 function parse_version(value: unknown): number[] | null {
@@ -26,7 +28,7 @@ export function is_client_version_at_least(actual: unknown, minimum: unknown): b
 
 export function is_minimum_supported_version(value: unknown): value is string {
 	const parsed = parse_version(value);
-	const feature = parse_version(MINIMUM_SUPPORTED_VERSION_FEATURE)!;
+	const feature = parse_version(MINIMUM_CLIENT_VERSION)!;
 	return parsed !== null && compare_versions(parsed, feature) >= 0;
 }
 
@@ -35,4 +37,8 @@ export function is_client_version_unsupported(actual: unknown, minimum: unknown)
 	const parsed_minimum = parse_version(minimum);
 	return parsed_minimum !== null &&
 		(parsed_actual === null || compare_versions(parsed_actual, parsed_minimum) < 0);
+}
+
+export function effective_minimum_client_version(configured: unknown): string {
+	return is_minimum_supported_version(configured) ? configured : MINIMUM_CLIENT_VERSION;
 }

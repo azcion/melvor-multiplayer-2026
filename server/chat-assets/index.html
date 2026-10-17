@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,interactive-widget=resizes-content">
+<title>Multiplayer Chat</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">
+<link rel="stylesheet" href="/chat/assets/chat.css">
+<script type="module" src="/chat/assets/chat.mjs">
+</script>
+</head>
+<body>
+<main>
+<header>
+<p class="eyebrow">Melvor Multiplayer</p>
+<h1>Chat</h1>
+
+</header>
+<p id="status" role="status" aria-live="polite">Checking browser access…</p>
+<section id="link-panel" hidden>
+<h2 id="link-title">Link a character</h2>
+<p>In Melvor, open Options → Browser Chat → Link browser. Enter the one-use code before its displayed expiry. Each character needs its own code.</p>
+<p id="lock-help" hidden>Browser locks are unavailable. Close other Chat tabs before linking and keep only this tab open until linking finishes. If an identity disappears after simultaneous linking, obtain a fresh code and link it again here.</p>
+<form id="link-form">
+<label for="code">One-use linking code</label>
+<input id="code" name="code" autocomplete="off" spellcheck="false" required maxlength="64">
+<button id="pair" type="submit">Link character</button>
+</form>
+<p>Expired or already used? Get a fresh code in Melvor. If linking is limited, wait before trying again. At capacity, revoke an unused browser in Melvor or remove an identity here. Codes are never retried automatically.</p>
+</section>
+<details id="identity-panel" hidden>
+<summary aria-label="Character settings"><span id="active-character"></span><span aria-hidden="true">⚙</span></summary>
+<div class="identity-controls">
+<label for="identity">Character</label><select id="identity"></select>
+<p id="identity-detail"></p>
+<div class="actions"><button id="add" type="button">Link another character</button><button id="logout" type="button">Unlink selected character</button><button id="logout-all" type="button">Unlink all characters</button></div>
+</div></details>
+<section id="workspace" hidden>
+<p id="chat-notice" role="status" aria-live="polite"></p>
+<div class="chat-layout">
+<aside aria-label="Conversations"><h2>Conversations</h2><p id="inbox-status" role="status"></p><nav id="inbox" aria-label="Chat inbox"></nav></aside>
+<div class="thread-area"><p id="choose-thread">Choose a conversation to read and reply.</p>
+<div id="thread" hidden>
+<header class="thread-header"><button id="mobile-inbox" type="button">‹ Inbox</button><h2><button id="thread-title" type="button" aria-haspopup="dialog"></button></h2><div class="translation-control"><label for="translation" title="Message translation"><span aria-hidden="true">文↔A</span><span class="sr-only">Message translation</span></label><select id="translation"><option value="">Off</option><option value="en">English</option><option value="zh-CN">简体中文</option></select></div></header>
+<p id="history-status" role="status"></p><div id="messages" role="region" aria-label="Messages" tabindex="0"><button id="older" type="button" hidden>Load older messages</button><div id="message-rows"></div></div>
+<p id="read-only" role="status"></p>
+<p id="pending-warning" role="status"></p>
+<form id="composer">
+<div id="tags" aria-label="Message tags"></div>
+<label for="draft">Message</label><textarea id="draft" maxlength="1000" rows="3" placeholder="Write a message…"></textarea>
+<div class="actions"><button id="people-tag" type="button" hidden>@ Person</button><button id="item-picker" type="button" hidden># Item</button><button id="retry-send" type="button" hidden>Retry original send</button><span id="draft-count" aria-live="off">0 / 1000</span><button id="send" type="submit">Send</button></div>
+</form>
+<div id="item-suggestions" hidden><h3>Insert an item tag</h3><p>Official Melvor items. Unavailable definitions keep readable names in messages.</p><p id="data-status" role="status"></p><label for="search">Search items</label><input id="search" type="search" maxlength="100"><ul id="items"></ul></div>
+</div></div></div>
+</section>
+</main>
+<div id="reaction-picker" class="reaction-picker" popover="auto" role="group" aria-label="Add a reaction"></div>
+<dialog id="dialog" aria-labelledby="dialog-title"><h2 id="dialog-title"></h2><div id="dialog-content" class="dialog-scroll"></div><div class="actions dialog-actions"><div id="dialog-actions"></div><button id="dialog-close" type="button">Close</button></div></dialog>
+</body>
+</html>

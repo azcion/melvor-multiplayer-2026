@@ -5,7 +5,7 @@ import { db_run, db_all } from '../support/persistence';
 
 test('item parts survive sends, retries, history and inboxes across every Chat kind', async () => {
 	const { first, second, guild_id } = await make_guildmates(
-		'Tag Sender', 'Tag Reader', 'Tag Test Guild', { first: '1.5.14', second: '1.5.14' }
+		'Tag Sender', 'Tag Reader', 'Tag Test Guild', { first: '1.6.14', second: '1.6.14' }
 	);
 	try {
 		const inbox = await get_json_with_session<{ conversations: any[] }>('/api/chat/conversations', first.session_token);
@@ -61,9 +61,9 @@ test('item parts survive sends, retries, history and inboxes across every Chat k
 	}
 });
 
-test('feature tags stay structured for 1.6.0 and readable for 1.5.16', async () => {
+test('feature tags stay structured in responses, history and inbox', async () => {
 	const { first, second } = await make_guildmates(
-		'Feature Sender', 'Legacy Reader', 'Feature Tag Guild', { first: '1.6.0', second: '1.5.16' }
+		'Feature Sender', 'Legacy Reader', 'Feature Tag Guild', { first: '1.6.14', second: '1.6.14' }
 	);
 	const parts = [{ type: 'text', text: 'Try ' }, { type: 'feature', feature_id: 'multiplayer:Guild_Raid' },
 		{ type: 'text', text: ' and ' }, { type: 'feature', feature_id: 'melvorD:Cooking' }];
@@ -80,17 +80,17 @@ test('feature tags stay structured for 1.6.0 and readable for 1.5.16', async () 
 	const old_history = await get_json_with_session<{ messages: any[] }>(
 		`/api/chat/messages?conversation_id=${conversation_id}`, second.session_token);
 	expect(old_history.json.messages[0].content).toBe('Try $Raid and $Cooking');
-	expect(old_history.json.messages[0].parts).toBeUndefined();
+	expect(old_history.json.messages[0].parts).toEqual(parts);
 	const inbox = await get_json_with_session<{ conversations: any[] }>('/api/chat/conversations', second.session_token);
 	expect(inbox.json.conversations.find(conversation => conversation.conversation_id === conversation_id)
-		?.latest_message.parts).toBeUndefined();
+		?.latest_message.parts).toEqual(parts);
 	expect((await post('/api/chat/messages/send', { ...payload, idempotency_key: crypto.randomUUID(),
-		client_id: first.client_id, conversation_id }, second.session_token)).status).toBe(400);
+		client_id: first.client_id, conversation_id }, second.session_token)).status).toBe(200);
 });
 
 test('person tags allow outsiders, reject self and missing targets, and prioritize full visible history', async () => {
-	const { first, second, guild_id } = await make_guildmates('Mention Sender', 'Lucy Mention', 'Mention Guild', { first: '1.6.9', second: '1.6.8' });
-	const { first: outsider } = await make_guildmates('Albert Mention', 'Bob Mention', 'Other Mention Guild', { first: '1.6.9', second: '1.6.9' });
+	const { first, second, guild_id } = await make_guildmates('Mention Sender', 'Lucy Mention', 'Mention Guild', { first: '1.6.14', second: '1.6.14' });
+	const { first: outsider } = await make_guildmates('Albert Mention', 'Bob Mention', 'Other Mention Guild', { first: '1.6.14', second: '1.6.14' });
 	const endpoint = '/api/chat/messages/send?capabilities=guild-chat-v1,global-chat-v1';
 	const send = (sender: typeof first, parts: unknown[], conversation_kind = 'guild', conversation_id: number | null = guild_id) =>
 		post_json<any>(endpoint, { conversation_kind, conversation_id, client_id: second.client_id,
@@ -103,10 +103,9 @@ test('person tags allow outsiders, reject self and missing targets, and prioriti
 	expect(sent.json.message.content).toBe('Hi @Albert Mention');
 	for (const id of [first.client_id, 0, -1, Number.MAX_SAFE_INTEGER, 1.5])
 		expect((await post(endpoint, { conversation_kind: 'guild', conversation_id: guild_id, idempotency_key: crypto.randomUUID(), content: 'ignored', parts: [{ ...person, client_id: id }] }, first.session_token)).status).toBe(400);
-	expect((await post(endpoint, { conversation_kind: 'guild', conversation_id: guild_id, idempotency_key: crypto.randomUUID(), content: 'ignored', parts: [person] }, second.session_token)).status).toBe(400);
 	const url = `/api/chat/messages?conversation_kind=guild&conversation_id=${guild_id}&capabilities=guild-chat-v1`;
 	const legacy = await get_json_with_session<any>(url, second.session_token);
-	expect(legacy.json.messages.at(-1).parts).toBeUndefined();
+	expect(legacy.json.messages.at(-1).parts).toEqual(sent.json.message.parts);
 	expect(legacy.json.messages.at(-1).content).toBe('Hi @Albert Mention');
 	// The speaker must still be prioritized after their Message falls outside the initial history page.
 	for (let index = 0; index < 60; index++)
@@ -128,9 +127,8 @@ test('person tags allow outsiders, reject self and missing targets, and prioriti
 	await db_run('DELETE FROM global_chat_messages WHERE sender_id = ?', [first.client_id]);
 });
 
-
 test('person picker orders speakers, active Guild members, then outsiders and excludes Shadowed people', async () => {
-	const { first, second, guild_id } = await make_guildmates('Picker Viewer', 'Z Picker Speaker', 'Picker Order Guild', { first: '1.6.9', second: '1.6.9' });
+	const { first, second, guild_id } = await make_guildmates('Picker Viewer', 'Z Picker Speaker', 'Picker Order Guild', { first: '1.6.14', second: '1.6.14' });
 	const newer = await register_client('Z Picker Newer');
 	const older = await register_client('A Picker Older');
 	const shadowed = await register_client('Picker Shadowed');
@@ -151,10 +149,9 @@ test('person picker orders speakers, active Guild members, then outsiders and ex
 	expect(new Set(ids).size).toBe(ids.length);
 });
 
-
 test('unread person tags survive later untagged replies and clear after reading across ordinary chats', async () => {
-	const { first, second, guild_id } = await make_guildmates('Badge Sender', 'Badge Reader', 'Badge Guild', { first: '1.6.9', second: '1.6.9' });
-	const outsider = await register_client('Badge Outsider', undefined, '1.6.9');
+	const { first, second, guild_id } = await make_guildmates('Badge Sender', 'Badge Reader', 'Badge Guild', { first: '1.6.14', second: '1.6.14' });
+	const outsider = await register_client('Badge Outsider', undefined, '1.6.14');
 	const capabilities = 'global-chat-v1,guild-chat-v1';
 	const inbox = (client: typeof first) => get_json_with_session<any>('/api/chat/conversations?capabilities=' + capabilities, client.session_token);
 	try {
@@ -184,9 +181,8 @@ test('unread person tags survive later untagged replies and clear after reading 
 	}
 });
 
-
 test('Alliance person tags use the current Alliance read boundary and visibility', async () => {
-	const { first, second, guild_id } = await make_guildmates('Alliance Tag Sender', 'Alliance Tag Reader', 'Alliance Tag Guild', { first: '1.6.9', second: '1.6.9' });
+	const { first, second, guild_id } = await make_guildmates('Alliance Tag Sender', 'Alliance Tag Reader', 'Alliance Tag Guild', { first: '1.6.14', second: '1.6.14' });
 	await db_run('INSERT INTO alliances(name,shared_marketplace,created_at) VALUES(?,1,?)', ['Tag Alliance', Date.now()]);
 	const [alliance] = await db_all<{ id: number }>('SELECT id FROM alliances WHERE name = ?', ['Tag Alliance']);
 	await db_run('INSERT INTO alliance_memberships(guild_id,alliance_id,joined_at) VALUES(?,?,?)', [guild_id, alliance!.id, Date.now()]);
@@ -204,8 +200,8 @@ test('Alliance person tags use the current Alliance read boundary and visibility
 });
 
 test('Support person tags follow player and team unread acknowledgements', async () => {
-	const player = await register_client('Support Tag Player', undefined, '1.6.9');
-	const member = await register_client('Support Tag Member', undefined, '1.6.9');
+	const player = await register_client('Support Tag Player', undefined, '1.6.14');
+	const member = await register_client('Support Tag Member', undefined, '1.6.14');
 	const inbox = (client: typeof player) => get_json_with_session<any>('/api/chat/conversations', client.session_token);
 	const support = (await inbox(player)).json.conversations.find((c: any) => c.conversation_kind === 'support');
 	await db_run('INSERT INTO support_team_memberships(team_id, client_id, member_display_name, created_at) VALUES(?, ?, ?, ?)',
@@ -232,20 +228,18 @@ test('Support person tags follow player and team unread acknowledgements', async
 	}
 });
 
-
-test('badge features retain new-client rendering and old-client text in responses, history and inbox', async () => {
+test('badge features retain structured parts in responses, history and inbox', async () => {
 	const { first, second } = await make_guildmates('Badge Sender', 'Badge Reader', 'Badge Guild',
-		{ first: '1.6.13', second: '1.6.12' });
+		{ first: '1.6.14', second: '1.6.14' });
 	const parts = [{ type: 'text', text: 'Discuss ' }, { type: 'feature', feature_id: 'multiplayer:Badge_Item_Cheats' },
 		{ type: 'text', text: ' in ' }, { type: 'feature', feature_id: 'multiplayer:Guild_Raid' }];
-	const downgraded = [parts[0], { type: 'text', text: '[Item Cheats]' }, parts[2], parts[3]];
 	const sent = await post_json<any>('/api/chat/messages/send', { conversation_kind: 'private',
 		client_id: second.client_id, conversation_id: null, idempotency_key: crypto.randomUUID(), content: 'ignored', parts }, first.session_token);
 	expect(sent.response.status).toBe(200);
 	expect(sent.json.message.parts).toEqual(parts);
 	expect(sent.json.message.content).toBe('Discuss [Item Cheats] in $Raid');
 	const conversation_id = sent.json.message.conversation_id;
-	for (const [client, expected] of [[first, parts], [second, downgraded]] as const) {
+	for (const [client, expected] of [[first, parts], [second, parts]] as const) {
 		const history = await get_json_with_session<any>(`/api/chat/messages?conversation_id=${conversation_id}`, client.session_token);
 		expect(history.json.messages[0].parts).toEqual(expected);
 		const inbox = await get_json_with_session<any>('/api/chat/conversations', client.session_token);
@@ -253,5 +247,5 @@ test('badge features retain new-client rendering and old-client text in response
 	}
 	const old_send = await post_json<any>('/api/chat/messages/send', { conversation_kind: 'private',
 		client_id: first.client_id, conversation_id, idempotency_key: crypto.randomUUID(), content: 'ignored', parts }, second.session_token);
-	expect(old_send.json.message.parts).toEqual(downgraded);
+	expect(old_send.json.message.parts).toEqual(parts);
 });

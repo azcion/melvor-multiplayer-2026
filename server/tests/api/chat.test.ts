@@ -344,8 +344,8 @@ describe('Private Chat API', () => {
 			total_skill_level: 123
 		}, pair.first.session_token);
 		await db_run(
-			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `game_mode_id`, `language`, `reported_at`) VALUES(?, ?, ?, ?, ?, ?)',
-			[pair.first_id, '1.5.10', JSON.stringify(['Multiplayer']), 'melvorD:Standard', 'en', Date.now()]
+			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `game_mode_id`, `language`, `reported_at`) VALUES(?, ?, ?, ?, ?, ?) ON CONFLICT(client_id) DO UPDATE SET mod_version=excluded.mod_version, active_mods=excluded.active_mods, game_mode_id=excluded.game_mode_id, language=excluded.language, reported_at=excluded.reported_at',
+			[pair.first_id, '1.6.14', JSON.stringify(['Multiplayer']), 'melvorD:Standard', 'en', Date.now()]
 		);
 
 		const profile = await get_json_with_session<any>(
@@ -453,7 +453,7 @@ describe('Private Chat API', () => {
 	test('loads twenty newest messages, paginates older history, and acknowledges only returned messages', async () => {
 		const pair = await make_guildmates('Chat Pager', 'Chat Page Reader');
 		const support_welcome = (await conversations(pair.second.session_token)).json.conversations.find(entry =>
-			(entry as Conversation & { conversation_kind?: string }).conversation_kind === 'support'
+			(entry as { conversation_kind?: string }).conversation_kind === 'support'
 		) as Conversation & { support_team_id: number };
 		await get_json_with_session(
 			`/api/chat/messages?conversation_kind=support&support_team_id=${support_welcome.support_team_id}`,
@@ -502,10 +502,10 @@ describe('Private Chat API', () => {
 
 		await post_json('/api/chat/conversations/delete', { conversation_id }, pair.first.session_token);
 		expect((await conversations(pair.first.session_token)).json.conversations.filter(entry =>
-			(entry as Conversation & { conversation_kind?: string }).conversation_kind !== 'support'
+			(entry as { conversation_kind?: string }).conversation_kind !== 'support' && (entry as { conversation_kind?: string }).conversation_kind !== 'testers'
 		)).toEqual([]);
 		expect((await conversations(pair.second.session_token)).json.conversations.filter(entry =>
-			(entry as Conversation & { conversation_kind?: string }).conversation_kind !== 'support'
+			(entry as { conversation_kind?: string }).conversation_kind !== 'support' && (entry as { conversation_kind?: string }).conversation_kind !== 'testers'
 		)).toHaveLength(1);
 		await send_chat(pair.second.session_token, conversation_id, 'Later');
 		const reopened = await conversations(pair.first.session_token);
@@ -971,7 +971,7 @@ describe('Support Chat API', () => {
 		const player = await register_client('Support Revision Player');
 		const member = await register_client('Support Revision Member');
 		const support = (await conversations(player.session_token)).json.conversations.find(entry =>
-			(entry as Conversation & { conversation_kind?: string }).conversation_kind === 'support'
+			(entry as { conversation_kind?: string }).conversation_kind === 'support'
 		) as Conversation & { support_team_id: number };
 		await get_json_with_session(
 			`/api/chat/messages?conversation_kind=support&support_team_id=${support.support_team_id}`,
@@ -1056,7 +1056,7 @@ describe('Support Chat API', () => {
 		const player = await register_client('Guildless Support Player');
 		const inbox = await conversations(player.session_token);
 		const support = inbox.json.conversations.find(entry =>
-			(entry as Conversation & { conversation_kind?: string }).conversation_kind === 'support'
+			(entry as { conversation_kind?: string }).conversation_kind === 'support'
 		) as Conversation & { conversation_kind: 'support'; support_team_id: number };
 
 		expect(support.conversation_id).toBeNull();
@@ -1073,7 +1073,7 @@ describe('Support Chat API', () => {
 		await db_run('UPDATE `support_teams` SET `welcome_content` = ? WHERE `id` = ?',
 			['Updated welcome before materialization', support.support_team_id]);
 		const updated_virtual = (await conversations(player.session_token)).json.conversations.find(entry =>
-			(entry as Conversation & { conversation_kind?: string }).conversation_kind === 'support'
+			(entry as { conversation_kind?: string }).conversation_kind === 'support'
 		) as Conversation;
 		expect(updated_virtual.latest_message?.content).toBe('Updated welcome before materialization');
 		expect(updated_virtual.unread_count).toBe(0);
@@ -1098,7 +1098,7 @@ describe('Support Chat API', () => {
 		expect(await db_count('SELECT COUNT(*) AS count FROM `support_messages` WHERE `conversation_id` = ?',
 			[first.json.message.conversation_id])).toBe(2);
 		const materialized = (await conversations(player.session_token)).json.conversations.find(entry =>
-			(entry as Conversation & { conversation_kind?: string }).conversation_kind === 'support'
+			(entry as { conversation_kind?: string }).conversation_kind === 'support'
 		) as Conversation;
 		expect(materialized.unread_count).toBe(0);
 		expect((await get_events(player)).chat_unread).toBe(0);
@@ -1126,9 +1126,8 @@ describe('Support Chat API', () => {
 	test('localizes automated Support welcomes while retaining English team history', async () => {
 		const player = await register_client('Localized Support Player');
 		await db_run(
-			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `language`, `reported_at`) ' +
-			'VALUES(?, ?, ?, ?, ?)',
-			[player.client_id, '1.5.11', '[]', 'zh-TW', Date.now()]
+			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `language`, `reported_at`) VALUES(?, ?, ?, ?, ?) ON CONFLICT(client_id) DO UPDATE SET mod_version=excluded.mod_version, active_mods=excluded.active_mods, language=excluded.language, reported_at=excluded.reported_at',
+			[player.client_id, '1.6.14', '[]', 'zh-TW', Date.now()]
 		);
 		const support = (await conversations(player.session_token)).json.conversations.find(entry =>
 			entry.conversation_kind === 'support'
@@ -1221,12 +1220,12 @@ describe('Support Chat API', () => {
 		expect(restored?.conversation_id).toBe(sent.json.message.conversation_id);
 		expect(restored?.latest_message?.content).toBe('SAE question');
 
-		await set_runtime('1.6.10', ['Renamed SAE'], [{ name: 'Renamed SAE', id: 5043199 }]);
+		await set_runtime('1.6.14', ['Renamed SAE'], [{ name: 'Renamed SAE', id: 5043199 }]);
 		expect((await support_entries()).find(entry => entry.participant.display_name === 'SAE Support Team')?.conversation_id)
 			.toBe(sent.json.message.conversation_id);
-		await set_runtime('1.6.10', ['SUPER AWESOME EXPANSION'], [{ name: 'SUPER AWESOME EXPANSION', id: 999 }]);
+		await set_runtime('1.6.14', ['SUPER AWESOME EXPANSION'], [{ name: 'SUPER AWESOME EXPANSION', id: 999 }]);
 		expect((await support_entries()).some(entry => entry.participant.display_name === 'SAE Support Team')).toBe(false);
-		await set_runtime('1.6.10', ['SUPER AWESOME EXPANSION'], [{ name: 'SUPER AWESOME EXPANSION', id: null }]);
+		await set_runtime('1.6.14', ['SUPER AWESOME EXPANSION'], [{ name: 'SUPER AWESOME EXPANSION', id: null }]);
 		expect((await support_entries()).some(entry => entry.participant.display_name === 'SAE Support Team')).toBe(true);
 	});
 
@@ -1237,7 +1236,7 @@ describe('Support Chat API', () => {
 			cloud_username: 'LaterTeamCloud', playfab_id: 'TEAM-CHAT-ID'
 		});
 		const support = (await conversations(player.session_token)).json.conversations.find(entry =>
-			(entry as Conversation & { conversation_kind?: string }).conversation_kind === 'support'
+			(entry as { conversation_kind?: string }).conversation_kind === 'support'
 		) as Conversation & { support_team_id: number };
 		const sent = await post_json<{ message: Message }>('/api/chat/messages/send', {
 			conversation_kind: 'support', conversation_id: null, support_team_id: support.support_team_id,
@@ -1251,7 +1250,7 @@ describe('Support Chat API', () => {
 
 		const team_inbox = await conversations(team.session_token);
 		const team_conversation = team_inbox.json.conversations.find(entry =>
-			(entry as Conversation & { conversation_kind?: string }).conversation_kind === 'support'
+			(entry as { conversation_kind?: string }).conversation_kind === 'support'
 		) as Conversation & { support_team_id: number; viewer_side: string };
 		expect(team_conversation.participant.display_name).toBe('Support Lucy @mp');
 		expect(team_conversation.unread_count).toBe(1);
@@ -1302,7 +1301,7 @@ describe('Support Chat API', () => {
 	});
 });
 
-describe('Expedition Chat version eligibility', () => {
+describe('Expedition Chat participation', () => {
 	const inbox = async (token: string) => {
 		const { json } = await get_json_with_session<{ conversations: Array<{
 			conversation_kind: string; can_send: boolean; contributes_unread: boolean; unread_count: number
@@ -1312,50 +1311,24 @@ describe('Expedition Chat version eligibility', () => {
 	const send = (token: string, extra = {}) => post_json<{ message: { message_id: number } }>(
 		'/api/chat/messages/send', { conversation_kind: 'testers', conversation_id: 1,
 			idempotency_key: crypto.randomUUID(), content: 'Expedition preview discussion', ...extra }, token);
-	const denied_send = (token: string, extra = {}) => post('/api/chat/messages/send', {
-		conversation_kind: 'testers', conversation_id: 1, idempotency_key: crypto.randomUUID(),
-		content: 'Not eligible', ...extra
-	}, token);
 	const react = (token: string, message_id: number) => post_json<{ success?: boolean; error_lang?: string }>('/api/chat/messages/reaction', {
 		conversation_kind: 'testers', conversation_id: 1, message_id, reaction: '👍', reacted: true
 	}, token);
 
-	test('1.6.2+ untagged players can send, react and receive normal unread counts; 1.6.1 remains read-only', async () => {
-		const newer = await register_client('Expedition New', undefined, '1.6.2');
-		const future = await register_client('Expedition Future', undefined, '1.6.3');
-		const older = await register_client('Expedition Old', undefined, '1.6.1');
+	test('untagged players can send, react and receive normal unread counts', async () => {
+		const newer = await register_client('Expedition New', undefined, '1.6.14');
+		const future = await register_client('Expedition Future', undefined, '1.6.14');
 		for (const client of [newer, future]) {
 			const conversation = await inbox(client.session_token);
 			expect(conversation.can_send).toBe(true);
 			expect(conversation.contributes_unread).toBe(true);
 		}
-		expect((await inbox(older.session_token)).can_send).toBe(false);
-		expect((await inbox(older.session_token)).contributes_unread).toBe(false);
 		const baseline_new = await get_events(newer);
-		const baseline_old = await get_events(older);
 		const message = await send(future.session_token);
 		expect(message.response.status).toBe(200);
 		expect((await react(newer.session_token, message.json.message.message_id)).json.success).toBe(true);
-		expect((await react(older.session_token, message.json.message.message_id)).json.error_lang).toBe('MOD_MP_CHAT_CONVERSATION_MISSING');
-		expect((await denied_send(older.session_token, { mod_version: '1.6.2' })).status).toBe(403);
 		expect((await inbox(newer.session_token)).unread_count).toBeGreaterThan(0);
 		expect((await get_events(newer)).chat_unread).toBe(baseline_new.chat_unread + 1);
-		expect((await get_events(older)).chat_unread).toBe(baseline_old.chat_unread);
 	});
 
-	test('1.6.1 tester accounts retain participation and lose it when their tag is revoked', async () => {
-		const account = { cloud_username: 'Expedition Legacy Tester', playfab_id: crypto.randomUUID() };
-		const tester = await register_client('Expedition Tagged', account, '1.6.1');
-		await db_run('INSERT INTO melvor_account_tags (account_id, tag, granted_at) ' +
-			"SELECT melvor_account_id, 'expedition-tester', ? FROM clients WHERE id = ?", [Date.now(), tester.client_id]);
-		expect((await inbox(tester.session_token)).can_send).toBe(true);
-		const message = await send(tester.session_token);
-		expect(message.response.status).toBe(200);
-		expect((await react(tester.session_token, message.json.message.message_id)).json.success).toBe(true);
-		await db_run('DELETE FROM melvor_account_tags WHERE account_id = ' +
-			'(SELECT melvor_account_id FROM clients WHERE id = ?)', [tester.client_id]);
-		expect((await inbox(tester.session_token)).can_send).toBe(false);
-		expect((await denied_send(tester.session_token)).status).toBe(403);
-		expect((await react(tester.session_token, message.json.message.message_id)).json.error_lang).toBe('MOD_MP_CHAT_CONVERSATION_MISSING');
-	});
 });

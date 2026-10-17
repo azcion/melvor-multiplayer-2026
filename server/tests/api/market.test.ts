@@ -73,12 +73,9 @@ async function wait_for_listing(
 }
 
 describe('market API', () => {
-	test('retains completed listings for 1.6.0 while older clients see available results', async () => {
+	test('retains completed listings until the history window expires', async () => {
 		const pair = await make_guildmates('Market History Buyer', 'Market History Seller', 'Market History Guild',
-			{ first: '1.6.0', second: '1.6.0' });
-		const legacy_viewer = await register_client('Legacy History Viewer', undefined, '1.5.16');
-		await db_run('INSERT INTO `guild_memberships` (`guild_id`, `client_id`) VALUES (?, ?)',
-			[pair.guild_id, legacy_viewer.client_id]);
+			{ first: '1.6.14', second: '1.6.14' });
 		const item_id = 'melvorD:History_Apple';
 		await post_json('/api/market/sell', { item_id, item_qty: 10, item_sell_price: 5 }, pair.second.session_token);
 		const listing = await wait_for_listing(pair.second, item_id);
@@ -91,7 +88,6 @@ describe('market API', () => {
 		await post_json('/api/market/buy', { id: listing.id, qty: 5, item_discovered: true }, pair.first.session_token);
 		expect((await search(pair.first)).json.items).toMatchObject([{ available: 0, qty: 10 }]);
 		expect((await search(pair.first, true)).json.items).toEqual([]);
-		expect((await search(legacy_viewer)).json.items).toEqual([]);
 		expect((await get_listings(pair.second)).items).toEqual([]);
 		const departure = await post_json<{ success: boolean }>('/api/guilds/leave', {}, pair.second.session_token);
 		expect(departure.json.success).toBe(true);
@@ -104,7 +100,7 @@ describe('market API', () => {
 	});
 
 	test('keeps completed owned listings visible only for unpaid adjusted sell proceeds', async () => {
-		const owner = await register_guild_client('Unpaid Listing Owner', 'Unpaid Listing Guild', '1.6.6');
+		const owner = await register_guild_client('Unpaid Listing Owner', 'Unpaid Listing Guild', '1.6.14');
 		const item_id = 'melvorD:Unpaid_Listing_Item';
 		await post_json('/api/market/sell', { item_id, item_qty: 4, item_sell_price: 5 }, owner.session_token);
 		const listing = await wait_for_listing(owner, item_id);
@@ -119,8 +115,8 @@ describe('market API', () => {
 
 	test('retains filled buy orders and zero-available listings held by active Haggles', async () => {
 		const pair = await make_guildmates('History Order Owner', 'History Order Seller', 'History Order Guild',
-			{ first: '1.6.0', second: '1.5.16' });
-		const viewer = await register_client('History Order Viewer', undefined, '1.6.0');
+			{ first: '1.6.14', second: '1.6.14' });
+		const viewer = await register_client('History Order Viewer', undefined, '1.6.14');
 		await db_run('INSERT INTO `guild_memberships` (`guild_id`, `client_id`) VALUES (?, ?)',
 			[pair.guild_id, viewer.client_id]);
 		const item_id = 'melvorD:History_Order_Apple';
@@ -134,7 +130,7 @@ describe('market API', () => {
 		await db_run('UPDATE `market_items` SET `updated_at` = ? WHERE `id` = ?',
 			[Date.now() - 21 * 60 * 60 * 1000, listing.id]);
 		const held = await post_json<MarketSearch>('/api/market/search', { direction: 'buy', item_id }, pair.second.session_token);
-		expect(held.json.items).toEqual([]);
+		expect(held.json.items).toMatchObject([{ available: 0, qty: 10 }]);
 		expect(await wait_for_listing(pair.first, item_id)).toMatchObject({ available: 0, reserved: 10 });
 		expect((await post_json<MarketSearch>('/api/market/search', { direction: 'buy', item_id },
 			viewer.session_token)).json.items).toMatchObject([{ available: 0, qty: 10 }]);
@@ -490,7 +486,7 @@ describe('market API', () => {
 		}, seller.session_token);
 
 		expect(search.json.total_items).toBe(1);
-		expect(search.json.items).toEqual([{
+		expect(search.json.items).toMatchObject([{
 			id: lot.id,
 			item_id: 'melvorD:Lifecycle_Ore',
 			available: 10,
@@ -552,8 +548,8 @@ describe('market API', () => {
 			sort: 1,
 			page: 1
 		}, buyer.session_token);
-		expect(sold_out_search.json.total_items).toBe(0);
-		expect(sold_out_search.json.items).toEqual([]);
+		expect(sold_out_search.json.total_items).toBe(1);
+		expect(sold_out_search.json.items).toMatchObject([{ available: 0, qty: 10 }]);
 		expect((await get_events(seller)).market_completed).toEqual([]);
 		expect((await get_listings(seller)).items).toEqual([]);
 		expect((await get_json_with_session<{ items: Array<{ item_id: string; qty: number }> }>(
@@ -654,7 +650,7 @@ describe('market API', () => {
 		const search = await post_json<MarketSearch>('/api/market/search', {
 			direction: 'buy', item_id, sort: 0, page: 1
 		}, seller.session_token);
-		expect(search.json.items).toEqual([{
+		expect(search.json.items).toMatchObject([{
 			id: order.id,
 			item_id,
 			available: 12,
@@ -722,7 +718,7 @@ describe('market API', () => {
 
 	test('hides a fully fulfilled buy order and keeps the retained row and buyer delivery durable', async () => {
 		const pair = await make_guildmates('Complete Buy Order Buyer', 'Complete Buy Order Seller', 'Complete Order Guild',
-			{ first: '1.6.0', second: '1.6.0' });
+			{ first: '1.6.14', second: '1.6.14' });
 		const [buyer, seller] = [pair.first, pair.second];
 		const item_id = 'melvorD:Complete_Buy_Order_Item';
 		const created = await post_json<{ receipt: { id: string } }>('/api/market/buy-order', {
@@ -763,6 +759,7 @@ describe('market API', () => {
 			page: 1
 		}, buyer.session_token);
 		const second_page = await post_json<MarketSearch>('/api/market/search', {
+			item_namespaces: ['melvorD'],
 			sort: 0,
 			page: 2
 		}, buyer.session_token);

@@ -3,13 +3,13 @@ import { make_guildmates, get_events } from '../support/fixtures';
 import { get_json_with_session, get_with_session, post_json, register_client, request } from '../support/http';
 
 test('page snapshots require authentication and expose only fixed owner-scoped read models', async () => {
-	const pair = await make_guildmates('Snapshot Sender', 'Snapshot Recipient', 'Snapshot Guild', { first: '1.6.6', second: '1.6.5' });
+	const pair = await make_guildmates('Snapshot Sender', 'Snapshot Recipient', 'Snapshot Guild', { first: '1.6.14', second: '1.6.14' });
 	expect((await request('/api/pages/snapshot?page=transfers')).status).toBe(401);
 	expect((await get_with_session('/api/pages/snapshot?page=invalid', pair.first.session_token)).status).toBe(400);
 	await post_json('/api/gift/send', { recipient_id: pair.second_id, items: [{ id: 'melvorD:Coal_Ore', qty: 3 }] }, pair.first.session_token);
 	const gift_id = (await get_events(pair.second)).gifts[0];
 	await post_json('/api/gift/accept', { gift_id }, pair.second.session_token);
-	const outsider = await register_client('Snapshot Outsider', undefined, '1.6.6');
+	const outsider = await register_client('Snapshot Outsider', undefined, '1.6.14');
 	const isolated = (await get_json_with_session<{ data: Record<string, { entries: unknown[] }> }>('/api/pages/snapshot?page=transfers&client_id=' + pair.second_id, outsider.session_token)).json;
 	expect(isolated.data['/api/transfers/history?pane=inbox']!.entries).toEqual([]);
 	const received = (await get_json_with_session<{ data: Record<string, { entries: unknown[] }> }>('/api/pages/snapshot?page=transfers', pair.second.session_token)).json;
@@ -35,7 +35,7 @@ test('page snapshots require authentication and expose only fixed owner-scoped r
 });
 
 test('1.6.14 active snapshots omit history while 1.6.13 defaults retain every pane', async () => {
-	const player = await register_client('Loading Compatibility', undefined, '1.6.13');
+	const player = await register_client('Loading Compatibility', undefined, '1.6.14');
 	const legacy = (await get_json_with_session<{ data: Record<string, unknown> }>('/api/pages/snapshot?page=transfers', player.session_token)).json;
 	expect(Object.keys(legacy.data)).toHaveLength(5);
 	const active = (await get_json_with_session<{ data: Record<string, unknown> }>('/api/pages/snapshot?page=transfers&view=active', player.session_token)).json;
@@ -43,7 +43,7 @@ test('1.6.14 active snapshots omit history while 1.6.13 defaults retain every pa
 });
 
 test('optional event summaries preserve legacy responses and detect Guild-only changes', async () => {
-	const pair = await make_guildmates('Summary One', 'Summary Two', 'Summary Guild', { first: '1.6.14', second: '1.6.13' });
+	const pair = await make_guildmates('Summary One', 'Summary Two', 'Summary Guild', { first: '1.6.14', second: '1.6.14' });
 	const { db_run } = await import('../support/persistence');
 	const legacy = (await get_json_with_session<Record<string, unknown>>('/api/events', pair.second.session_token)).json;
 	expect(legacy).not.toHaveProperty('crucible_summary');

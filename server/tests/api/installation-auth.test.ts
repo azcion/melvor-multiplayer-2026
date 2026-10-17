@@ -6,14 +6,14 @@ async function new_client() {
 	const client_key = crypto.randomUUID();
 	const installation_id = crypto.randomUUID();
 	const registered = await post_json<any>('/api/register', { client_key, display_name: 'Installations',
-		client_runtime: { mod_version: '1.5.1', active_mods: [], device: { installation_id, platform: 'android' } } });
+		client_runtime: { mod_version: '1.6.14', active_mods: [], device: { installation_id, platform: 'android' } } });
 	return { ...registered.json, client_key, installation_id, installation_key: crypto.randomUUID() };
 }
 async function enroll(client: any) {
 	return post('/api/installations/enroll', { installation_id: client.installation_id, installation_key: client.installation_key }, client.session_token);
 }
 function installation_auth(client: any, extra = {}) {
-	return post('/api/authenticate', { client_identifier: client.client_identifier,
+	return post('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] }, client_identifier: client.client_identifier,
 		installation_id: client.installation_id, installation_key: client.installation_key, ...extra });
 }
 
@@ -42,7 +42,7 @@ test('independent installations remain connected and same-installation authentic
 	await enroll(first);
 	const second = { ...first, installation_id: crypto.randomUUID(), installation_key: crypto.randomUUID() };
 	const legacy = await post_json<any>('/api/authenticate', { client_identifier: first.client_identifier, client_key: first.client_key,
-		client_runtime: { mod_version: '1.5.1', active_mods: [], device: { installation_id: second.installation_id } } });
+		client_runtime: { mod_version: '1.6.14', active_mods: [], device: { installation_id: second.installation_id } } });
 	second.session_token = legacy.json.session_token;
 	expect((await enroll(second)).status).toBe(200);
 	const attempts = await Promise.all([installation_auth(first), installation_auth(second)]);
@@ -60,7 +60,7 @@ test('independent installations remain connected and same-installation authentic
 	expect(sessions[0].count).toBe(2);
 	const creds = await db_all<any>('SELECT COUNT(*) AS count FROM installation_credentials WHERE client_id = ?', [first.chat.client_id]);
 	expect(creds[0].count).toBe(2);
-	const legacy_again = await post('/api/authenticate', { client_identifier: first.client_identifier, client_key: first.client_key });
+	const legacy_again = await post('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] }, client_identifier: first.client_identifier, client_key: first.client_key });
 	expect(legacy_again.status).toBe(200);
 	expect((await get_with_session('/api/events', connected[1])).status).toBe(200);
 	await db_run('UPDATE installation_credentials SET revoked_at = 1 WHERE client_id = ? AND installation_id = ?', [first.chat.client_id, first.installation_id]);
@@ -108,4 +108,41 @@ test('retained installation credentials allow the existing soft-deletion recover
 	const response = await installation_auth(client);
 	expect(response.status).toBe(200);
 	expect((await response.json() as any).identity_recovered).toBe(true);
+});
+
+test('1.6.14 save sync moves a duplicate device onto the keeper without registration or credential changes', async () => {
+	const account = { playfab_id: crypto.randomUUID(), cloud_username: 'Save Sync Player' };
+	async function register_copy(platform: string) {
+		const client_key = crypto.randomUUID(), installation_id = crypto.randomUUID();
+		const registered = await post_json<any>('/api/register', { client_key, display_name: 'Same Save', ...account,
+			client_runtime: { mod_version: '1.6.14', active_mods: [], device: { installation_id, platform } } });
+		expect(registered.response.status).toBe(200);
+		return { ...registered.json, client_key, installation_id, installation_key: crypto.randomUUID() };
+	}
+	const keeper = await register_copy('windows'), duplicate = await register_copy('ios');
+	expect(duplicate.client_identifier).not.toBe(keeper.client_identifier);
+	expect((await enroll(keeper)).status).toBe(200);
+	expect((await enroll(duplicate)).status).toBe(200);
+	// 1.6.14 resolves the imported save's identifier/key before its per-identity installation lookup.
+	// This device's old duplicate installation key must not be sent for the imported keeper identifier.
+	const imported = await post_json<any>('/api/authenticate', {
+		client_identifier: keeper.client_identifier, client_key: keeper.client_key, ...account,
+		client_runtime: { mod_version: '1.6.14', active_mods: [], device: { installation_id: duplicate.installation_id, platform: 'ios' } }
+	});
+	expect(imported.response.status).toBe(200);
+	expect(imported.json.chat.client_id).toBe(keeper.chat.client_id);
+	const mobile = { ...keeper, installation_id: duplicate.installation_id, installation_key: crypto.randomUUID(), session_token: imported.json.session_token };
+	expect((await enroll(mobile)).status).toBe(200);
+	const desktop_login = await installation_auth(keeper, account), mobile_login = await installation_auth(mobile, account);
+	expect(desktop_login.status).toBe(200); expect(mobile_login.status).toBe(200);
+	const desktop = await desktop_login.json() as any, phone = await mobile_login.json() as any;
+	expect(desktop.chat.client_id).toBe(keeper.chat.client_id);
+	expect(phone.chat.client_id).toBe(keeper.chat.client_id);
+	for (const token of [desktop.session_token, phone.session_token]) expect((await get_with_session('/api/events', token)).status).toBe(200);
+	const clients = await db_all<{ count: number }>('SELECT COUNT(*) AS count FROM clients c JOIN melvor_accounts a ON a.id = c.melvor_account_id WHERE a.playfab_id = ?', [account.playfab_id]);
+	expect(clients[0]?.count).toBe(2); // Sync reconnects; it neither registers nor merges backend records.
+	await db_run('UPDATE clients SET disabled = 1 WHERE id = ?', [duplicate.chat.client_id]);
+	expect((await installation_auth(duplicate, account)).status).toBe(403);
+	for (const token of [desktop.session_token, phone.session_token]) expect((await get_with_session('/api/events', token)).status).toBe(200);
+	expect((await installation_auth(mobile, account)).status).toBe(200);
 });

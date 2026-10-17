@@ -5,7 +5,6 @@ import { get_inbox_claim_view } from './inbox';
 import { guard_rollback_write, related_rollback_gate, rollback_request_clients, unsafe_rollback_request, RollbackGateError } from './rollback-gate';
 import { install_database_write_guard } from './audit-context';
 import { evaluate_rollback_admission } from './rollback-admission';
-import { rollback_player_status } from './rollback-policy';
 import { market_correction_cache_clients } from './market-custody';
 import { trade_correction_cache_clients } from './trade-custody';
 import { parse_protocol_capabilities, SAVE_ROLLBACK_CAPABILITY } from './rollback-protocol';
@@ -25,11 +24,9 @@ import { replay_economy_command } from './economy';
 import { create_api_server, validate_api_command, ECONOMY_COMMAND_KINDS } from './api-contract';
 import { createHash } from 'node:crypto';
 import { parse_device_diagnostics, mark_rejection, type DeviceDiagnostics } from './diagnostics';
-import { audit_position_key, move_audit_value_with_fallback, record_audit_event } from './audit';
 import { make_audit_context, run_with_audit_context } from './audit-context';
 // #region IMPORTS
 import { format } from 'node:util';
-import type { SQLQueryBindings } from 'bun:sqlite';
 import {
 	db,
 	db_get_single,
@@ -81,7 +78,7 @@ import { get_campaign_item_gp_value, get_campaign_item_gp_values } from './campa
 import { record_guild_activity } from './guild-activity';
 import type * as db_row from './db/types/db_types';
 import { BACKEND_VERSION } from './version';
-import { MINIMUM_SUPPORTED_VERSION_FEATURE, is_client_version_at_least, is_client_version_unsupported } from './client-version-policy';
+import { effective_minimum_client_version, MINIMUM_SUPPORTED_VERSION_FEATURE, is_client_version_at_least, is_client_version_unsupported } from './client-version-policy';
 import { is_admin } from './admin_identity';
 import { catch_up_expedition_before_activity } from './guild-expedition';
 import {
@@ -137,7 +134,7 @@ import {
 	set_global_chat_enabled
 } from './global_chat';
 import { attach_translations, chat_translation_worker } from './chat_translation';
-import { add_poll_options, can_view_polls, create_poll, delete_poll, has_polls_capability, list_poll_discussion_messages, list_polls, reconcile_poll_creators, send_poll_discussion_message, set_poll_open, set_poll_vote } from './polls';
+import { add_poll_options, create_poll, delete_poll, has_polls_capability, list_poll_discussion_messages, list_polls, reconcile_poll_creators, send_poll_discussion_message, set_poll_open, set_poll_vote } from './polls';
 import {
 	acknowledge_deletion_return_claim,
 	associate_client_with_melvor_account,
@@ -160,15 +157,7 @@ import {
 	pending_economy_receipts,
 	run_economy_command
 } from './economy';
-import {
-	acknowledge_victory_cache,
-	abandon_assault,
-	activate_raid,
-	get_raid_state,
-	get_victory_cache,
-	reserve_assault,
-	settle_assault,
-	type RaidOutcome
+import { acknowledge_victory_cache, abandon_assault, activate_raid, get_raid_state, get_victory_cache, reserve_assault, settle_assault
 } from './raid';
 import { apply_crucible_petition, is_crucible_petition_type, settle_departing_crucible_wish } from './crucible-council';
 // #endregion
@@ -187,7 +176,7 @@ export { get_support_unread_count, list_support_conversations, list_support_mess
 export { get_guild_chat_inbox, get_guild_chat_unread_count, has_guild_chat_capability, list_guild_chat_messages, moderate_guild_chat_message, send_guild_chat_message, set_guild_chat_enabled } from './guild_chat';
 export { get_global_chat_inbox, get_global_chat_unread_count, has_global_chat_capability, list_global_chat_messages, moderate_global_chat_message, send_global_chat_message, set_global_chat_enabled } from './global_chat';
 export { attach_translations, chat_translation_worker } from './chat_translation';
-export { add_poll_options, can_view_polls, create_poll, delete_poll, has_polls_capability, list_poll_discussion_messages, list_polls, reconcile_poll_creators, send_poll_discussion_message, set_poll_open, set_poll_vote } from './polls';
+export { add_poll_options, create_poll, delete_poll, has_polls_capability, list_poll_discussion_messages, list_polls, reconcile_poll_creators, send_poll_discussion_message, set_poll_open, set_poll_vote } from './polls';
 export { attach_reactions, reaction_updates, set_message_reaction } from './chat_reactions';
 export { acknowledge_deletion_return_claim, associate_client_with_melvor_account, cancel_deletion_on_authentication, cancel_scheduled_client_deletion, CLIENT_DELETION_MAINTENANCE_INTERVAL, create_deletion_return_claim, get_client_deletion_status, get_deletion_claim_view, has_deletion_returns, list_sibling_identities, parse_melvor_account, process_due_client_deletions, recover_deleted_client, schedule_client_deletion } from './identity';
 export { acknowledge_economy_receipt, economy_item_effects, pending_economy_receipts, run_economy_command } from './economy';
@@ -204,7 +193,6 @@ export {
 	grant_pet,
 	has_owned_pet
 } from './pets';
-
 
 install_database_write_guard(guard_rollback_write);
 
@@ -818,9 +806,8 @@ export function get_released_mod_version(): string | null {
 	return version === null || version.length === 0 ? null : version;
 }
 
-export function get_minimum_supported_mod_version(): string | null {
-	const version = get_service_setting('minimum_supported_mod_version');
-	return version === null || version.length === 0 ? null : version;
+export function get_minimum_supported_mod_version(): string {
+	return effective_minimum_client_version(get_service_setting('minimum_supported_mod_version'));
 }
 
 export function parse_market_excluded_item_ids(value: unknown): string[] | null {
@@ -2381,12 +2368,8 @@ export function petition_to_player_view(row: CouncilPetitionRow, client_id: numb
 }
 
 export async function get_council_petitions(guild_id: number, client_id: number, resolved_page: number,
-	crucible_client = false, alliance_client = false, free_fellowship_council = alliance_client, petition_discussions = false) {
-	if (!free_fellowship_council && await get_guild_type(guild_id) === FREE_FELLOWSHIP_TYPE)
-		return { petitions: [], available_petition_types: [], market_discovery_restriction_enabled: false,
-			resolved_page, has_more: false };
-	const excluded = (alliance_client ? "" : " AND p.type NOT LIKE 'alliance_%'") +
-		(crucible_client ? "" : " AND p.type NOT LIKE 'crucible_%'");
+	alliance_client: boolean) {
+	const excluded = alliance_client ? '' : " AND p.type NOT LIKE 'alliance_%'";
 	const select =
 		'SELECT p.*, target.`display_name` AS `target_display_name`, target.`icon_id` AS `target_icon_id`, ' +
 		'(SELECT COUNT(*) FROM `guild_petition_winnowing_targets` WHERE `petition_id` = p.`id`) AS `winnowing_target_count`, ' +
@@ -2402,7 +2385,7 @@ export async function get_council_petitions(guild_id: number, client_id: number,
 		[client_id, client_id, guild_id]
 	) as CouncilPetitionRow[];
 	const resolved = await db_get_all(
-		select + "WHERE p.`guild_id` = ? AND p.`lifecycle` IN ('granted', 'denied', 'lapsed'" + (petition_discussions ? ", 'withdrawn'" : "") + ")" + excluded + ' ' +
+		select + "WHERE p.`guild_id` = ? AND p.`lifecycle` IN ('granted', 'denied', 'lapsed', 'withdrawn')" + excluded + ' ' +
 		'ORDER BY p.`resolved_at` DESC, p.`id` DESC LIMIT ? OFFSET ?',
 		[
 			client_id,
@@ -2438,7 +2421,7 @@ export async function get_council_petitions(guild_id: number, client_id: number,
 		available_petition_types.push('indulgence');
 	else if (guild?.market_discovery_restriction_enabled === 0)
 		available_petition_types.push('temperance');
-	if (crucible_client) {
+	{
 		const crucible = db.query<{ is_open: number }, [number]>(
 			'SELECT is_open FROM crucible_guilds WHERE guild_id = ?').get(guild_id);
 		if (crucible?.is_open === 1) {
@@ -3021,7 +3004,7 @@ function rollback_issued_recovery(path:string,client:number,version:string|null,
 	}
 	if(path==='/api/inbox/claim') {
 		const claim=db.query<{id:string},[number]>('SELECT id FROM inbox_claims WHERE client_id=? AND acknowledged_at IS NULL ORDER BY created_at LIMIT 1').get(client);
-		if(claim) return {claim:get_inbox_claim_view(claim.id,client,version)};
+		if(claim) return {claim:get_inbox_claim_view(claim.id, client)};
 	}
 	if(path==='/api/banishment/returns/claim') {
 		const claim=db.query<{id:string},[number]>('SELECT id FROM banishment_return_claims WHERE client_id=? AND acknowledged_at IS NULL LIMIT 1').get(client);

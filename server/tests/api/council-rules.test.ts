@@ -4,7 +4,7 @@ import { post_json, get_json_with_session, register_client } from '../support/ht
 import { db_all, db_run } from '../support/persistence';
 
 test('dissolved Guild petitions lapse without blocking Council and Alliance reads', async () => {
-	const viewers = await make_guild_group(['Surviving A', 'Surviving B'], 'Surviving Council', '1.6.12');
+	const viewers = await make_guild_group(['Surviving A', 'Surviving B'], 'Surviving Council', '1.6.14');
 	await allow_alliance_preview(viewers[0].client_id);
 	for (const overdue of [false, true]) {
 		const members = await make_guild_group(['Dissolving A', 'Dissolving B', 'Dissolving C'], 'Dissolving Council');
@@ -94,10 +94,9 @@ test('raising a Petition invalidates member event snapshots but rejected raises 
 		`/api/events?revision=${before_rejection.json.revision}`, members[1].session_token)).json.unchanged).toBe(true);
 });
 
-
 test('Free Fellowship votes extend inactivity only up to 36 hours and cannot reopen a capped petition', async () => {
 	const members = [];
-	for (let i=0;i<4;i++) members.push(await attach_to_free_fellowship(await register_client(`Deadline ${i}`,undefined,'1.6.9')));
+	for (let i=0;i<4;i++) members.push(await attach_to_free_fellowship(await register_client(`Deadline ${i}`,undefined,'1.6.14')));
 	await db_run('UPDATE clients SET last_multiplayer_active_at=? WHERE id IN (?,?,?,?)',[Date.now(),...members.map(m=>m.client_id)]);
 	const raised = await post_json<{success:boolean;petition_id:number}>('/api/guilds/petitions/raise', {type:'temperance'}, members[0].session_token);
 	expect(raised.json.success).toBe(true);

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Melvor · Chat data lab</title><link rel="stylesheet" href="/poc.css">
+	<script type="module" src="/poc.mjs"></script>
+</head>
+<body>
+	<main>
+		<header><span class="eyebrow">MULTIPLAYER / PROOF OF CONCEPT</span><h1>Chat, without the game.</h1>
+		<p>Official Melvor data. Official artwork. No loaded character.</p></header>
+		<section class="diagnostics" aria-label="Source diagnostics">
+			<div><span class="label">CONNECTION</span><strong id="transport" role="status">Checking official sources…</strong></div>
+			<div><span class="label">ITEMS RESOLVED</span><strong id="count">—</strong></div>
+			<div><span class="label">GAME RUNTIME</span><strong>Not loaded</strong></div>
+		</section>
+		<p id="explanation" class="muted" role="status">Trying a direct cross-origin request before using the localhost relay.</p>
+		<div class="workspace">
+			<section class="panel preview"><span class="eyebrow">LOCAL CHAT PREVIEW</span><h2>A familiar conversation</h2>
+				<p class="muted">Sample messages only. Nothing is sent to Multiplayer.</p>
+				<div id="messages" class="messages" aria-live="polite"></div>
+				<form id="compose"><label for="draft">Try an item tag</label><div class="compose-row"><input id="draft" value="Anyone need these?" maxlength="1000"><button id="send" disabled>Preview</button></div>
+				<p class="muted">Choose an item to attach it, then preview your message.</p><div id="selection"></div></form>
+			</section>
+			<section class="panel catalog"><div class="catalog-title"><div><span class="eyebrow">LIVE OFFICIAL DATA</span><h2>Find an item</h2></div>
+				<label>Language<select id="language"><option value="en">English</option><option value="de">Deutsch</option><option value="zh-CN">简体中文</option></select></label></div>
+				<label class="search-label" for="search">Search demo items</label><input id="search" type="search" placeholder="Logs, sword, shrimp…" disabled>
+				<p id="results-status" class="muted"></p><div id="results" class="results"></div>
+			</section>
+		</div>
+		<details><summary>Where does this come from?</summary><p>The tool reads Melvor’s official demo JSON, language JSON, and asset resolver source. It never executes game JavaScript. The item index exists only in memory; the relay caches original responses until it stops.</p>
+			<ul id="sources"></ul><p>Demo package only. Full-game, DLC, modded items, dependent packages, and gameplay tooltips are outside this experiment. Reachable files do not establish permission for a public redistribution.</p>
+			<p id="image-status" role="status">Artwork checks pending.</p></details>
+	</main>
+</body></html>

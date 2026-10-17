@@ -48,7 +48,7 @@ describe('updates API', () => {
 	});
 
 	test('serves completed Simplified Chinese translations to zh-CN clients', async () => {
-		const client = await register_client('Chinese Updates Reader', undefined, '1.5.14');
+		const client = await register_client('Chinese Updates Reader', undefined, '1.6.14');
 		await db_run('UPDATE `client_runtime_snapshots` SET `language` = ? WHERE `client_id` = ?', ['zh-CN', client.client_id]);
 		try {
 			await db_run("UPDATE `update_section_translations` SET `content` = ?, `state` = 'complete' " +
@@ -70,7 +70,7 @@ describe('updates API', () => {
 	});
 
 	test('invalidates stale translations and falls back to current English content', async () => {
-		const client = await register_client('Stale Updates Reader', undefined, '1.5.14');
+		const client = await register_client('Stale Updates Reader', undefined, '1.6.14');
 		await db_run('UPDATE `client_runtime_snapshots` SET `language` = ? WHERE `client_id` = ?', ['zh-CN', client.client_id]);
 		try {
 			await db_run("UPDATE `update_section_translations` SET `content` = ?, `state` = 'complete' " +

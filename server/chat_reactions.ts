@@ -4,7 +4,6 @@ import { is_admin } from './admin_identity';
 import { db } from './db';
 import { chat_shadow_visibility } from './chat_shadowban';
 import { can_access_support_conversation } from './support_chat';
-import { has_expedition_access } from './account_tags';
 import type { JsonObject } from './http';
 
 export type ChatMessageKind = 'private' | 'alliance' | 'guild' | 'global' | 'testers' | 'support' | 'poll-discussion' | 'petition-discussion';
@@ -201,14 +200,12 @@ export function reaction_updates(kind: ChatMessageKind, client_id: number, conve
 	};
 }
 
-export function set_message_reaction(client_id: number, kind: ChatMessageKind, conversation_id: number,
-	message_id: number, reaction: string, reacted: boolean, now = Date.now(), mod_version?: unknown) {
+export function set_message_reaction(client_id: number, kind: ChatMessageKind, conversation_id: number, message_id: number, reaction: string, reacted: boolean, now = Date.now()) {
 	if (kind === 'petition-discussion') conversation_id = petition_discussion_id(conversation_id) ?? conversation_id;
 	if (!Number.isSafeInteger(conversation_id) || conversation_id < 1 ||
 		!Number.isSafeInteger(message_id) || message_id < 1 || typeof reaction !== 'string' || typeof reacted !== 'boolean')
 		return { status: 'bad_request' as const };
-	if (kind === 'testers' && !has_expedition_access(client_id, mod_version))
-		return { status: 'missing' as const };
+
 	if (!message_is_visible(client_id, kind, conversation_id, message_id))
 		return { status: 'missing' as const };
 	return db.transaction(() => {

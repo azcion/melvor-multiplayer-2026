@@ -1,3 +1,5 @@
+import { browser_chat_auth_migration } from './migrations/browser-chat-auth';
+import { browser_chat_identities_migration } from './migrations/browser-chat-identities';
 import { cheat_categories_migration } from './migrations/cheat-categories';
 import { shared_petition_discussions_migration } from './migrations/shared-petition-discussions';
 import { wish_capacity_migration } from './migrations/wish-capacity';
@@ -373,4 +375,6 @@ export const migrations: Migration[] = [
 			viewed_at INTEGER NOT NULL CHECK(viewed_at BETWEEN 0 AND 9007199254740991)
 		);
 	` },
+	browser_chat_auth_migration,
+	browser_chat_identities_migration,
 ];

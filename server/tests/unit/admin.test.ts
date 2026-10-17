@@ -314,7 +314,7 @@ describe('administration CLI', () => {
 
 	test('sets, reports, validates, and clears the minimum supported mod version', async () => {
 		const database_path = fixture_database();
-		const set = await run_admin(database_path, 'minimum-supported-version', '1.5.11');
+		const set = await run_admin(database_path, 'minimum-supported-version', '1.6.15');
 		const status = await run_admin(database_path, 'status');
 		const too_old = await run_admin(database_path, 'minimum-supported-version', '1.5.9');
 		const invalid = await run_admin(database_path, 'minimum-supported-version', 'latest');
@@ -322,13 +322,13 @@ describe('administration CLI', () => {
 		const cleared_status = await run_admin(database_path, 'status');
 
 		expect(set.exit_code).toBe(0);
-		expect(set.stdout).toBe('Minimum supported mod version set to 1.5.11.\n');
-		expect(status.stdout).toContain('minimum_supported_mod_version=1.5.11\n');
+		expect(set.stdout).toBe('Minimum supported mod version set to 1.6.15.\n');
+		expect(status.stdout).toContain('minimum_supported_mod_version=1.6.15\n');
 		expect(too_old.exit_code).toBe(2);
 		expect(invalid.exit_code).toBe(2);
 		expect(clear.exit_code).toBe(0);
 		expect(clear.stdout).toBe('Minimum supported mod version cleared.\n');
-		expect(cleared_status.stdout).toContain('minimum_supported_mod_version=none\n');
+		expect(cleared_status.stdout).toContain('minimum_supported_mod_version=1.6.14\n');
 	});
 
 	test('toggles and reports icon collection without accepting arbitrary values', async () => {
@@ -422,7 +422,7 @@ describe('administration CLI', () => {
 
 });
 
-test('Alliance switch controls public access while retaining identity and version eligibility', async () => {
+test('Alliance switch controls public access while retaining identity eligibility', async () => {
 	const database_path = fixture_database();
 	const database = new Database(database_path);
 	database.query("INSERT INTO melvor_accounts(id,cloud_username,playfab_id,created_at) VALUES(1,'Preview','preview-switch',0)").run();
@@ -430,7 +430,7 @@ test('Alliance switch controls public access while retaining identity and versio
 	const initial_revision = database.query<{ event_revision: number }, []>('SELECT event_revision FROM clients WHERE id=1').get()!.event_revision;
 	const access = async () => {
 		const child = Bun.spawn({
-			cmd: [process.execPath, '--eval', "import { has_alliance_access } from './alliances'; console.log(JSON.stringify([has_alliance_access(1,'1.6.2'),has_alliance_access(1,'development'),has_alliance_access(1,'1.6.1'),has_alliance_access(999,'development')]));"],
+			cmd: [process.execPath, '--eval', "import { has_alliance_access } from './alliances'; console.log(JSON.stringify([has_alliance_access(1),has_alliance_access(999)]));"],
 			cwd: join(import.meta.dir, '../..'), env: { ...Bun.env, DB_PATH: database_path }, stdout: 'pipe', stderr: 'pipe'
 		});
 		const [code, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);
@@ -438,15 +438,15 @@ test('Alliance switch controls public access while retaining identity and versio
 		return JSON.parse(stdout.trim());
 	};
 	try {
-		expect(await access()).toEqual([true,true,false,false]);
+		expect(await access()).toEqual([true,false]);
 		expect((await run_admin(database_path,'alliance-preview','off')).exit_code).toBe(0);
-		expect(await access()).toEqual([false,false,false,false]);
+		expect(await access()).toEqual([false,false]);
 		expect((await run_admin(database_path,'status')).stdout).toContain('alliance_preview=off');
 		expect(database.query<{ event_revision: number }, []>('SELECT event_revision FROM clients WHERE id=1').get()!.event_revision).toBe(initial_revision+1);
 		expect((await run_admin(database_path,'alliance-preview','invalid')).exit_code).toBe(2);
-		expect(await access()).toEqual([false,false,false,false]);
+		expect(await access()).toEqual([false,false]);
 		expect((await run_admin(database_path,'alliance-preview','on')).exit_code).toBe(0);
-		expect(await access()).toEqual([true,true,false,false]);
+		expect(await access()).toEqual([true,false]);
 		expect(database.query<{ event_revision: number }, []>('SELECT event_revision FROM clients WHERE id=1').get()!.event_revision).toBe(initial_revision+2);
 	} finally {
 		database.close();

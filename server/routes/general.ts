@@ -1,20 +1,17 @@
 import { acknowledge_listing_filter_prompt, listing_filter_prompt_pending, listing_filters_from_url } from '../listing-filters';
 import { crucible_actor, get_crucible_summary } from '../crucible-actions';
-import { can_view_petition_discussions, petition_discussion_notifications } from '../petition-discussions';
+import { petition_discussion_notifications } from '../petition-discussions';
 import { rollback_player_status, acknowledge_rollback_notice, rollback_affected } from '../rollback-policy';
 import { read_page } from '../page-reads';
 import { is_feature_tester, pending_test_data } from '../feature-testers';
 import { has_alliance_access } from '../alliances';
 import { get_alliance_chat_unread_count } from '../alliance_chat';
 import * as runtime from '../app-runtime';
-import type { SQLQueryBindings } from 'bun:sqlite';
 import type * as db_row from '../db/types/db_types';
-import type { HandlerResult, JsonObject, JsonSerializable } from '../http';
-import type { PetitionType } from '../council';
+import type { HandlerResult, JsonObject } from '../http';
 import { has_pending_inbox } from '../inbox';
 import { change_display_name } from '../audit';
 import { get_dev_badge_labels, get_account_tags } from '../account_tags';
-import { is_client_version_at_least } from '../client-version-policy';
 import { get_tester_chat_unread_count } from '../tester_chat';
 import { release_campaign_refunds } from '../campaign-retirement';
 
@@ -39,8 +36,7 @@ export function register_general_routes(): void {
 		return data === null ? 400 : { data, timings };
 	});
 	session_get_route('/api/events', async (req, url, client_id): Promise<HandlerResult> => {
-		if (is_client_version_at_least(runtime.get_request_mod_version(req), '1.6.0'))
-			release_campaign_refunds(client_id);
+		release_campaign_refunds(client_id);
 		const session=await runtime.get_client_session(req.headers.get('X-Session-Token'));
 		const rollback:JsonObject=session!.rollback_capable||rollback_affected(db,client_id)?{rollback:rollback_player_status(db,client_id,session!.save_load_id,session!.rollback_capable)}:{};
 		const listing_filters = listing_filters_from_url(url);
@@ -60,6 +56,10 @@ export function register_general_routes(): void {
 			Number(url.searchParams.get('guild_revision')) === summaries.guild_revision))
 			return { ...rollback, ...summaries, revision: client.event_revision, unchanged: true, dev_badge_labels: get_dev_badge_labels(), released_mod_version: get_released_mod_version(),
 				minimum_supported_mod_version: get_minimum_supported_mod_version() };
+		const tester_chat_unread = get_tester_chat_unread_count(client_id);
+		// Initializing Expedition Chat read state can advance this client's event revision.
+		client.event_revision = db.query<Pick<db_row.clients, 'event_revision'>, [number]>(
+			'SELECT event_revision FROM clients WHERE id = ?').get(client_id)!.event_revision;
 		const trade_ids = await get_client_trades(client_id);
 		const trade_meta = [];
 
@@ -84,7 +84,7 @@ export function register_general_routes(): void {
 			social_mode_enforcement: get_client_social_mode_enforcement(client_id),
 			friend_requests: await get_friend_requests(client_id),
 			guild_applicants: await get_guild_applicants(client_id),
-			...(can_view_petition_discussions(runtime.get_request_mod_version(req)) ? { petition_discussions: petition_discussion_notifications(client_id) } : {}),
+			petition_discussions: petition_discussion_notifications(client_id),
 			gifts: await get_client_gifts(client_id),
 			trades: trade_meta,
 			resolved_trades: await get_client_resolved_trades(client_id),
@@ -101,15 +101,13 @@ export function register_general_routes(): void {
 				'SELECT 1 FROM `banishment_returns` WHERE `client_id` = ? AND `completed_at` IS NULL LIMIT 1',
 				[client_id]
 			) || has_deletion_returns(client_id),
-			inbox_pending: has_pending_inbox(client_id, runtime.get_request_mod_version(req)),
-			...(is_client_version_at_least(runtime.get_request_mod_version(req), '1.6.0')
-				? { account_tags: get_account_tags(client_id) } : {}),
-			alliance_access: has_alliance_access(client_id, runtime.get_request_mod_version(req)),
-			chat_unread: (has_alliance_access(client_id, runtime.get_request_mod_version(req)) ? get_alliance_chat_unread_count(client_id) : 0) + get_unread_chat_count(client_id) + get_support_unread_count(client_id) +
+			inbox_pending: has_pending_inbox(client_id),
+			account_tags: get_account_tags(client_id),
+			alliance_access: has_alliance_access(client_id),
+			chat_unread: (has_alliance_access(client_id) ? get_alliance_chat_unread_count(client_id) : 0) + get_unread_chat_count(client_id) + get_support_unread_count(client_id) +
 				(has_global_chat_capability(url) ? get_global_chat_unread_count(client_id) : 0) +
 				(has_guild_chat_capability(url) ? get_guild_chat_unread_count(client_id) : 0) +
-				(is_client_version_at_least(runtime.get_request_mod_version(req), '1.6.0')
-					? get_tester_chat_unread_count(client_id, runtime.get_request_mod_version(req)) : 0)
+				tester_chat_unread
 		};
 	});
 

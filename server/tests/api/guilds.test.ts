@@ -43,8 +43,8 @@ describe('guild API', () => {
 		const pair = await make_guildmates('Search Viewer', 'Search Target');
 		const outsider = await register_guild_client('Search Outsider', 'Search Elsewhere');
 		for (const id of [pair.second_id, outsider.client_id]) {
-			await db_run('INSERT INTO client_runtime_snapshots(client_id,mod_version,active_mods,active_mod_details,game_mode_id,reported_at) VALUES(?,?,?,?,?,?)',
-				[id, '1.6.13', JSON.stringify(['Super Awesome Expansion!', 'Old School RuneScape Music', 'Literal%_Mod']),
+			await db_run('INSERT INTO client_runtime_snapshots (client_id,mod_version,active_mods,active_mod_details,game_mode_id,reported_at) VALUES(?,?,?,?,?,?) ON CONFLICT(client_id) DO UPDATE SET mod_version=excluded.mod_version, active_mods=excluded.active_mods, active_mod_details=excluded.active_mod_details, game_mode_id=excluded.game_mode_id, reported_at=excluded.reported_at',
+				[id, '1.6.14', JSON.stringify(['Super Awesome Expansion!', 'Old School RuneScape Music', 'Literal%_Mod']),
 				 JSON.stringify([{id:987654,name:'Super Awesome Expansion!'}]), 'hcco:rehcco', Date.now()]);
 		}
 		await db_run('UPDATE clients SET active_mods_visible=1,game_mode_visible=1 WHERE id IN (?,?)', [pair.second_id, outsider.client_id]);
@@ -100,8 +100,8 @@ describe('guild API', () => {
 			ids.push(member.client_id!);
 			await db_run('INSERT INTO guild_memberships(client_id,guild_id) VALUES(?,?)', [member.client_id!, owner.guild_id]);
 			await db_run('UPDATE clients SET active_mods_visible=1,last_multiplayer_active_at=? WHERE id=?', [Date.now(), member.client_id!]);
-			await db_run('INSERT INTO client_runtime_snapshots(client_id,mod_version,active_mods,reported_at) VALUES(?,?,?,?)',
-				[member.client_id!, '1.6.13', '["Old School RuneScape One","Old School RuneScape Two"]', Date.now()]);
+			await db_run('INSERT INTO client_runtime_snapshots (client_id,mod_version,active_mods,reported_at) VALUES(?,?,?,?) ON CONFLICT(client_id) DO UPDATE SET mod_version=excluded.mod_version, active_mods=excluded.active_mods, reported_at=excluded.reported_at',
+				[member.client_id!, '1.6.14', '["Old School RuneScape One","Old School RuneScape Two"]', Date.now()]);
 		}
 		const pages = [];
 		for (const page of [0, 1]) {
@@ -554,9 +554,8 @@ describe('guild API', () => {
 	test('exposes Guild member DLC ownership in the fixed display order', async () => {
 		const pair = await make_guildmates('DLC Viewer', 'DLC Member', 'DLC Guild');
 		await db_run(
-			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `owned_dlc`, `reported_at`) ' +
-			'VALUES(?, ?, ?, ?, ?)',
-			[pair.second_id, '1.5.11', '[]', '["melvorItA","melvorTotH"]', Date.now()]
+			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `owned_dlc`, `reported_at`) VALUES(?, ?, ?, ?, ?) ON CONFLICT(client_id) DO UPDATE SET mod_version=excluded.mod_version, active_mods=excluded.active_mods, owned_dlc=excluded.owned_dlc, reported_at=excluded.reported_at',
+			[pair.second_id, '1.6.14', '[]', '["melvorItA","melvorTotH"]', Date.now()]
 		);
 
 		const state = await get_guild_state(pair.first.session_token);
@@ -586,10 +585,10 @@ describe('guild API', () => {
 		]);
 	});
 
-	test('keeps permanent Free Fellowship membership, directory, and 1.6.2-only policy and Winnowing petitions', async () => {
+	test('keeps permanent Free Fellowship membership, directory, and policy and Winnowing petitions', async () => {
 		const [first, second, browser] = await Promise.all([
-			register_client('Fellowship First', undefined, '1.6.2'),
-			register_client('Fellowship Second', undefined, '1.6.1'),
+			register_client('Fellowship First', undefined, '1.6.14'),
+			register_client('Fellowship Second', undefined, '1.6.14'),
 			register_client('Fellowship Browser')
 		]);
 		const listing = await get_json_with_session<{ guilds: Array<GuildSummary & {
@@ -669,26 +668,13 @@ describe('guild API', () => {
 		expect(no_council.json.available_petition_types).toEqual(['interdict', 'temperance']);
 		expect(no_petition.json.error_lang).toBe('MOD_MP_GUILD_COUNCIL_UNAVAILABLE');
 
-
 		const council = async (token: string) => (await get_json_with_session<{
 			petitions: Array<{ petition_id: number; type: string; lifecycle: string; execution_state: string }>;
 			available_petition_types: string[]; has_more: boolean;
 		}>('/api/guilds/council', token)).json;
-		const old_state = await get_guild_state(second.session_token);
-		expect(old_state.guild).toMatchObject({ capabilities: { council: false } });
-		for (const type of ['interdict', 'heresy', 'winnowing', 'temperance', 'indulgence']) {
-			const rejected = await post_json<{ error_lang: string }>('/api/guilds/petitions/raise', { type }, second.session_token);
-			expect(rejected.json.error_lang).toBe('MOD_MP_GUILD_COUNCIL_UNAVAILABLE');
-		}
 		for (const type of ['interdict', 'temperance', 'heresy', 'indulgence']) {
 			const raised = await post_json<{ success: boolean; petition_id: number }>('/api/guilds/petitions/raise', { type }, first.session_token);
 			expect(raised.json.success).toBe(true);
-			const old_view = await council(second.session_token);
-			expect(old_view).toMatchObject({ petitions: [], available_petition_types: [], has_more: false });
-			const old_vote = await post_json<{ error_lang: string }>('/api/guilds/petitions/vote', {
-				petition_id: raised.json.petition_id, choice: 'aye'
-			}, second.session_token);
-			expect(old_vote.json.error_lang).toBe('MOD_MP_GUILD_COUNCIL_UNAVAILABLE');
 			const voted = await post_json<{ success: boolean; lifecycle: string }>('/api/guilds/petitions/vote', {
 				petition_id: raised.json.petition_id, choice: 'aye'
 			}, first.session_token);
@@ -698,22 +684,10 @@ describe('guild API', () => {
 				({ interdict: 'heresy', heresy: 'interdict', temperance: 'indulgence', indulgence: 'temperance' })[type]!
 			);
 		}
-		// Exercise withdrawal as the petitioner after changing the authenticated client version.
 		const withdrawable = await post_json<{ petition_id: number }>('/api/guilds/petitions/raise', { type: 'interdict' }, first.session_token);
-		for (const version of ['1.6.1', '1.6.2']) {
-			const auth = await post_json<{ session_token: string }>('/api/authenticate', {
-				client_identifier: first.client_identifier, client_key: first.client_key,
-				client_runtime: { mod_version: version, active_mods: [] }
-			});
-			first.session_token = auth.json.session_token;
-			const withdrawn = await post_json<{ success?: boolean; error_lang?: string }>('/api/guilds/petitions/withdraw', {
-				petition_id: withdrawable.json.petition_id
-			}, first.session_token);
-			if (version === '1.6.1') {
-				expect(withdrawn.json.error_lang).toBe('MOD_MP_GUILD_COUNCIL_UNAVAILABLE');
-				expect((await council(first.session_token)).petitions).toEqual([]);
-			} else expect(withdrawn.json.success).toBe(true);
-		}
+		const withdrawn = await post_json<{ success: boolean }>('/api/guilds/petitions/withdraw', { petition_id: withdrawable.json.petition_id }, first.session_token);
+		expect(withdrawn.json.success).toBe(true);
+		expect((await council(first.session_token)).petitions.find(p => p.petition_id === withdrawable.json.petition_id)?.lifecycle).toBe('withdrawn');
 		await db_run('UPDATE clients SET last_multiplayer_active_at = ? WHERE id = ?', [Date.now() - SHADOWED_AFTER - 1000, second.client_id]);
 		expect((await council(first.session_token)).available_petition_types).toContain('winnowing');
 		const winnowing = await post_json<{ success: boolean; petition_id: number }>('/api/guilds/petitions/raise', { type: 'winnowing' }, first.session_token);

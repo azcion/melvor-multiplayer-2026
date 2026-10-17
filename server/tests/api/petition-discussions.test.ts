@@ -11,7 +11,7 @@ const send = (session: string, id: number, key: string, content = 'A normal repl
 const council = (session: string) => get_json_with_session<{ petitions: { petition_id: number; discussion_unread_count: number }[] }>('/api/guilds/council', session);
 
 test('closed petitions suppress unread alerts without marking retained messages read', async () => {
-	const members = await make_guild_group(['Closed Author', 'Closed Reader'], 'Closed Alerts', '1.6.12');
+	const members = await make_guild_group(['Closed Author', 'Closed Reader'], 'Closed Alerts', '1.6.14');
 	for (const lifecycle of ['granted', 'denied', 'lapsed', 'withdrawn']) {
 		const id = (await post_json<{ petition_id: number }>('/api/guilds/petitions/raise',
 			{ type: 'appellation', name: 'Closed ' + lifecycle }, members[0].session_token)).json.petition_id;
@@ -35,7 +35,7 @@ test('closed petitions suppress unread alerts without marking retained messages 
 });
 
 test('petition discussion records proposal and immutable votes, supports chat and retains history after resolution', async () => {
-	const members = await make_guild_group(['Petition Bob', 'Petition Alice', 'Petition Eve'], 'Petition Discussion', '1.6.10');
+	const members = await make_guild_group(['Petition Bob', 'Petition Alice', 'Petition Eve'], 'Petition Discussion', '1.6.14');
 	const raised = await post_json<{ petition_id: number }>('/api/guilds/petitions/raise',
 		{ type: 'appellation', name: 'Petition Renamed' }, members[0].session_token);
 	const id = raised.json.petition_id;
@@ -58,17 +58,15 @@ test('petition discussion records proposal and immutable votes, supports chat an
 	await db_run("UPDATE guild_petitions SET lifecycle='denied',resolved_at=created_at,subject_locked=0 WHERE id=?", [id]);
 	expect((await messages(members[2].session_token, id)).json.messages).toHaveLength(4);
 	expect((await send(members[2].session_token, id, 'after-resolution')).response.status).toBe(200);
-	const outsider = await register_client('Petition Outsider', undefined, '1.6.10');
+	const outsider = await register_client('Petition Outsider', undefined, '1.6.14');
 	expect((await messages(outsider.session_token, id)).json.error_lang).toBe('MOD_MP_CHAT_CONVERSATION_MISSING');
 	expect((await send(outsider.session_token, id, 'outsider')).json.error_lang).toBe('MOD_MP_CHAT_CONVERSATION_MISSING');
-	const old = await register_client('Old Petition Client', undefined, '1.6.9');
-	expect((await request(`/api/chat/messages?conversation_kind=petition-discussion&conversation_id=${id}`, { headers: { 'X-Session-Token': old.session_token } })).status).toBe(404);
 	const inbox = await get_json_with_session<{ conversations: { conversation_kind: string }[] }>('/api/chat/conversations', members[2].session_token);
 	expect(inbox.json.conversations.some(c => c.conversation_kind === 'petition-discussion')).toBe(false);
 });
 
 test('creator suppression hides only proposal identity, including from reactions and person picker', async () => {
-	const members = await make_guild_group(['Hidden Creator', 'Named Voter', 'Discussion Viewer'], 'Hidden Petition', '1.6.10');
+	const members = await make_guild_group(['Hidden Creator', 'Named Voter', 'Discussion Viewer'], 'Hidden Petition', '1.6.14');
 	const id = (await post_json<{ petition_id: number }>('/api/guilds/petitions/raise',
 		{ type: 'appellation', name: 'Hidden Renamed' }, members[0].session_token)).json.petition_id;
 	const proposal = (await messages(members[1].session_token, id)).json.messages[0]!;
@@ -95,9 +93,8 @@ test('creator suppression hides only proposal identity, including from reactions
 	expect((await messages(members[2].session_token, id)).json.error_lang).toBe('MOD_MP_CHAT_CONVERSATION_MISSING');
 });
 
-
 test('active ballots stay private across history, unread and reactions until the viewer votes or closure', async () => {
-	const members = await make_guild_group(['Ballot Author', 'Ballot Voter', 'Ballot Viewer', 'Ballot Other'], 'Ballot Privacy', '1.6.10');
+	const members = await make_guild_group(['Ballot Author', 'Ballot Voter', 'Ballot Viewer', 'Ballot Other'], 'Ballot Privacy', '1.6.14');
 	const id = (await post_json<{ petition_id: number }>('/api/guilds/petitions/raise',
 		{ type: 'appellation', name: 'Ballot Renamed' }, members[0].session_token)).json.petition_id;
 	await messages(members[2].session_token, id);
@@ -123,7 +120,7 @@ test('active ballots stay private across history, unread and reactions until the
 });
 
 test('incremental petition reads deliver all burst messages and acknowledge only delivered rows', async () => {
-	const members = await make_guild_group(['Burst Author', 'Burst Reader'], 'Burst Discussion', '1.6.10');
+	const members = await make_guild_group(['Burst Author', 'Burst Reader'], 'Burst Discussion', '1.6.14');
 	const id = (await post_json<{ petition_id: number }>('/api/guilds/petitions/raise',
 		{ type: 'appellation', name: 'Burst Renamed' }, members[0].session_token)).json.petition_id;
 	const initial = (await messages(members[1].session_token, id)).json.messages.at(-1)!.message_id;
@@ -138,16 +135,4 @@ test('incremental petition reads deliver all burst messages and acknowledge only
 	expect(second.messages.map(m => m.message_id)).toEqual(sent.slice(20));
 	expect(second.has_more).toBe(false);
 	expect((await council(members[1].session_token)).json.petitions.find(p => p.petition_id === id)?.discussion_unread_count).toBe(0);
-});
-
-test('development clients can read, send and react in petition discussions', async () => {
-	const members = await make_guild_group(['Development Author', 'Development Reader'], 'Development Chat', 'development');
-	const id = (await post_json<{ petition_id: number }>('/api/guilds/petitions/raise',
-		{ type: 'appellation', name: 'Development Name' }, members[0].session_token)).json.petition_id;
-	expect((await messages(members[1].session_token, id)).response.status).toBe(200);
-	const reply = await send(members[1].session_token, id, 'development-reply');
-	expect(reply.response.status).toBe(200);
-	expect((await post_json('/api/chat/messages/reaction', { conversation_kind: 'petition-discussion',
-		conversation_id: id, message_id: reply.json.message.message_id, reaction: '👍', reacted: true },
-		members[0].session_token)).response.status).toBe(200);
 });

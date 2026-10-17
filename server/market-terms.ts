@@ -1,19 +1,8 @@
 import { db } from './db';
 import type { market_items } from './db/types/db_types';
-import { is_client_version_at_least } from './client-version-policy';
 import { get_transfer_currency_cap } from './transfer-caps';
 import type { EconomyEffect } from './economy';
 
-export function supports_market_terms(version: string | null): boolean {
-	return version === 'development' || is_client_version_at_least(version, '1.6.6');
-}
-export function legacy_market_filter(alias = 'm'): string {
-	return `${alias}.currency_id='melvorD:GP' AND ${alias}.alliance_price=0 AND ${alias}.purchase_limit=0 AND ${alias}.allow_haggles=1`;
-}
-export function market_terms_readable(lot: market_items, version: string | null): boolean {
-	return supports_market_terms(version) || (lot.currency_id === 'melvorD:GP' && lot.alliance_price === 0 &&
-		lot.purchase_limit === 0 && lot.allow_haggles === 1);
-}
 export function market_currency_effect(currency_id: string, qty: number): EconomyEffect {
 	return currency_id === 'melvorD:GP' ? { storage: 'gp', qty } : { storage: 'bank', item_id: currency_id, qty };
 }

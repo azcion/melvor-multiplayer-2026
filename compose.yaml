@@ -4,6 +4,7 @@ services:
       context: .
     environment:
       SERVER_PORT: "3000"
+      CHAT_PUBLIC_ORIGIN: ${MELVOR_CHAT_PUBLIC_ORIGIN:-https://melvor.azcn.io}
       DB_PATH: /app/data/melvor-multiplayer.sqlite
       TRUST_PROXY: ${MELVOR_TRUST_PROXY:-0}
       MAX_JSON_BODY_BYTES: ${MELVOR_MAX_JSON_BODY_BYTES:-32768}

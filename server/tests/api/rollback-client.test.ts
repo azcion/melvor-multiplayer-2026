@@ -8,7 +8,7 @@ import {post_json,get_json_with_session,post} from '../support/http';
 import {rollback_policy,set_rollback_policy} from '../../rollback-policy';
 
 test('real API and client modules calibrate opt-in restores, retire exact commands, deliver generic notices and preserve incoming recovery',async()=>{
- const actor=await register_guild_client('Client Integration','Client Integration','1.6.10');
+ const actor=await register_guild_client('Client Integration','Client Integration','1.6.14');
  const device=crypto.randomUUID(),storage=new Map<string,any>();
  let bank=20,retired=0;
  const loaded=()=>({load_id:crypto.randomUUID(),save_timestamp:Date.now()-60000,client_loaded_at:Date.now()-1,capture_source:'decode'});
@@ -17,7 +17,7 @@ test('real API and client modules calibrate opt-in restores, retire exact comman
   const timer=create_handshake_timer((url:any,options:any)=>fetch(url,options));
   const response=await timer.fetch(`${process.env.TEST_SERVER_URL}/api/v2/authenticate`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
    client_identifier:actor.client_identifier,client_key:actor.client_key,cloud_username:`rollback-${device}`,playfab_id:device,
-   client_runtime:{mod_version:'1.6.10',capabilities:['save-rollback-v1'],active_mods:[],device:{installation_id:device},loaded_save:report}})});
+   client_runtime:{mod_version:'1.6.14',capabilities:['save-rollback-v1'],active_mods:[],device:{installation_id:device},loaded_save:report}})});
   expect(response.status).toBe(200);return {response:await response.json() as any,timing:{...timer.snapshot(),origin:'fixture',generation:1,load_id:report.load_id}};
  };
  const create=(auth:any,notice_queue:any[])=>{

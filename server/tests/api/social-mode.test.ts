@@ -15,7 +15,7 @@ describe('Social Only mode cancellation', () => {
 		const pair = await make_guildmates('Forced Social Client', 'Forced Social Peer');
 		await db_run('UPDATE `clients` SET `social_mode_enforced` = 1 WHERE `id` = ?', [pair.first_id]);
 		const authenticated = await post_json<{ social_mode: string; social_mode_enforcement: string; session_token: string }>(
-			'/api/authenticate', { client_identifier: pair.first.client_identifier, client_key: pair.first.client_key }
+			'/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] }, client_identifier: pair.first.client_identifier, client_key: pair.first.client_key }
 		);
 		expect(authenticated.json).toMatchObject({ social_mode: 'social', social_mode_enforcement: 'identity' });
 		const rejected = await post_json<{ success: boolean; error_lang: string; social_mode: string }>(
@@ -33,7 +33,7 @@ describe('Social Only mode cancellation', () => {
 			[cloud_username, playfab_id]);
 		await db_run('UPDATE `clients` SET `social_mode_enforced` = 0, `melvor_account_id` = 999999 WHERE `id` = ?', [pair.first_id]);
 		const account_auth = await post_json<{ social_mode: string; social_mode_enforcement: string }>(
-			'/api/authenticate', { client_identifier: pair.first.client_identifier, client_key: pair.first.client_key,
+			'/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] }, client_identifier: pair.first.client_identifier, client_key: pair.first.client_key,
 				cloud_username, playfab_id }
 		);
 		expect(account_auth.json).toMatchObject({ social_mode: 'social', social_mode_enforcement: 'account' });
@@ -48,7 +48,7 @@ describe('Social Only mode cancellation', () => {
 		}>('/api/social-mode/set', { mode: 'social', command_id: crypto.randomUUID() }, pair.first.session_token);
 
 		expect(changed.json).toMatchObject({ success: true, social_mode: 'social' });
-		const authenticated = await post_json<{ social_mode: string; session_token: string }>('/api/authenticate', {
+		const authenticated = await post_json<{ social_mode: string; session_token: string }>('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
 			client_identifier: pair.first.client_identifier,
 			client_key: pair.first.client_key
 		});

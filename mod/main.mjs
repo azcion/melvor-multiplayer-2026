@@ -160,6 +160,9 @@ let icon_catalog_discovery = null;
 let icon_catalog_collection = null;
 let economy_receipts = null;
 let identity_bindings = null;
+let identity_bootstrap = null;
+let identity_registration_supported = false;
+let active_identity_credentials = null;
 let instance_storage = null;
 let social_mode = null;
 let social_mode_change_request = Promise.resolve();
@@ -285,6 +288,24 @@ const state = ui.createStore({
 	// #region REACTIVE GLOBALS
 	TRANSFER_INVENTORY_MAX_LIMIT,
 
+	identity_code: '',
+	identity_error: '',
+	identity_create_confirmed: false,
+	identity_bootstrap_busy: false,
+	show_identity_recovery_code() { show_identity_recovery_code(); },
+	open_identity_bootstrap() { open_identity_bootstrap(); },
+	async connect_identity_code() {
+		if (this.identity_bootstrap_busy) return;
+		this.identity_bootstrap_busy = true;
+		try { await start_multiplayer_session({ recovery_code: this.identity_code }); }
+		finally { this.identity_bootstrap_busy = false; }
+	},
+	async create_multiplayer_identity() {
+		if (!this.identity_create_confirmed || this.identity_bootstrap_busy) return;
+		this.identity_bootstrap_busy = true;
+		try { await start_multiplayer_session({ create: true }); }
+		finally { this.identity_bootstrap_busy = false; }
+	},
 	is_connected: false,
 	multiplayer_unsupported: false,
 	minimum_supported_mod_version: '',
@@ -4156,6 +4177,7 @@ function handle_session_response(response, request_generation) {
 	if (request_generation !== session_generation || response.status !== 401 || !state.is_connected)
 		return;
 	state.is_connected = false;
+	state.clear_browser_links?.();
 	state.pending_preview = null;
 	client_event_poll_id++;
 	stop_chat_polling();
@@ -4200,6 +4222,7 @@ function enter_unsupported_multiplayer(minimum_supported_mod_version) {
 	state.multiplayer_unsupported = true;
 	state.minimum_supported_mod_version = minimum_supported_mod_version;
 	state.is_connected = false;
+	state.clear_browser_links?.();
 	state.pending_preview = null;
 	economy_commands_ready = false;
 	client_event_poll_id++;
@@ -4229,6 +4252,7 @@ async function discover_api_contract() {
 	const generation = session_generation;
 	selected_api_major = null;
 	rollback_server_supported = false;
+	identity_registration_supported = false;
 	let minimum_supported_mod_version = null;
 	const major = await polling.fetch_with_timeout(fetch, origin + '/api/versions', { method: 'GET' }, {
 		observe: entry => transport_diagnostics?.record(entry),
@@ -4236,6 +4260,7 @@ async function discover_api_contract() {
 			const body = response.status === 200 ? await response.json() : null;
 			minimum_supported_mod_version = body?.minimum_supported_mod_version ?? null;
 			page_snapshots_supported = body?.page_snapshots === true;
+			identity_registration_supported = Array.isArray(body?.capabilities) && body.capabilities.includes('identity-registration-v1');
 			rollback_server_supported = Array.isArray(body?.capabilities) && body.capabilities.includes('save-rollback-v1');
 			return api_contract.select_api_major(response.status, body);
 		}
@@ -4565,7 +4590,9 @@ function show_pending_identity_notices() {
 	if (!interface_ready)
 		return;
 	for (const notice of pending_identity_notices.splice(0)) {
-		if (notice.type === 'account_changed') {
+		if (notice.type === 'bootstrap') {
+			if (!state.is_connected) open_identity_bootstrap();
+		} else if (notice.type === 'account_changed') {
 			queue_modal('MOD_MP_IDENTITY_ACCOUNT_CHANGED_TITLE', 'identity-account-changed-modal');
 		} else if (notice.type === 'deletion_cancelled') {
 			state.identity_notice_requester = notice.data.requester_display_name;
@@ -4602,6 +4629,7 @@ function set_session_token(token) {
 	state.transfer_history = transfer_history_module.create_transfer_history_state();
 	session_token = token;
 	session_generation++;
+	state.clear_browser_links?.();
 	events_refreshed_at = 0;
 	last_events_result = null;
 	state.is_connected = true;
@@ -5632,6 +5660,7 @@ export async function setup(ctx) {
 	api_contract = await ctx.loadModule('api-contract.mjs');
 	economy_command_module = await ctx.loadModule('economy-command-journal.mjs');
 	identity_bindings = await ctx.loadModule('identity-bindings.mjs');
+	identity_bootstrap = await ctx.loadModule('identity-bootstrap.mjs');
 	instance_storage = await ctx.loadModule('instance-storage.mjs');
 	social_mode = await ctx.loadModule('social-mode.mjs');
 	event_snapshots = await ctx.loadModule('event-snapshots.mjs');
@@ -5679,6 +5708,7 @@ export async function setup(ctx) {
 	custom_server_max_length = server_config.CUSTOM_SERVER_MAX_LENGTH;
 	const { install_common_actions } = await ctx.loadModule('client-actions-common.mjs');
 	const { install_chat_actions } = await ctx.loadModule('client-actions-chat.mjs');
+	const { install_browser_link_actions } = await ctx.loadModule('browser-links.mjs');
 	chat_items = await ctx.loadModule('chat-items.mjs');
 	const { install_market_actions } = await ctx.loadModule('client-actions-market.mjs');
 	const { install_crucible_actions } = await ctx.loadModule('client-crucible.mjs');
@@ -5786,6 +5816,8 @@ export async function setup(ctx) {
 		},
 		install_common_actions(action_runtime),
 		install_chat_actions(action_runtime),
+		install_browser_link_actions({ state, api_get, api_post_response, getLangString,
+			get_scope: () => server_host + ':' + session_generation, get_origin: () => server_host }),
 		install_market_actions(action_runtime),
 		install_crucible_actions(action_runtime, crucible_rules),
 		install_trading_actions(action_runtime),
@@ -5887,6 +5919,7 @@ export async function setup(ctx) {
 	localization.localize_raid_content({ game, getLangString });
 
 	ctx.onCharacterLoaded(() => {
+		state.clear_browser_links?.();
 		client_runtime.queue_mod_conflict_notice(mod.manager.getLoadedModList(), getLangString, addModalToQueue, document, ctx.name);
 		raid_combat.clear_loaded_combat();
 		raid_loaded_session_id = crypto.randomUUID();
@@ -5905,6 +5938,7 @@ export async function setup(ctx) {
 
 	});
 	ctx.onCharacterSelectionLoaded(() => {
+		state.clear_browser_links?.();
 		listing_filter_prompt?.stop();
 		set_crucible_page_visible(false);
 		loaded_save_tracker.clear();
@@ -6110,6 +6144,7 @@ function apply_server_configuration() {
 	if (previous_server_host !== server_host) {
 		selected_api_major = null;
 		session_generation++;
+		state.clear_browser_links?.();
 		events_refreshed_at = 0;
 		last_events_result = null;
 		page_snapshots_supported = false;
@@ -6434,11 +6469,12 @@ async function patch_localization(ctx) {
 	}
 }
 
-async function start_multiplayer_session() {
+async function start_multiplayer_session(options = {}) {
 	if (is_connecting)
 		return;
 
 	is_connecting = true;
+	active_identity_credentials = null;
 	listing_filter_prompt?.stop();
 	close_expedition_work_prompt();
 	state.is_connected = false;
@@ -6446,6 +6482,7 @@ async function start_multiplayer_session() {
 	state.multiplayer_unsupported = false;
 	state.minimum_supported_mod_version = '';
 	session_generation++;
+	state.clear_browser_links?.();
 	events_refreshed_at = 0;
 	last_events_result = null;
 	state.transfer_history = transfer_history_module.create_transfer_history_state();
@@ -6471,11 +6508,22 @@ async function start_multiplayer_session() {
 		const legacy_credentials = typeof legacy_identifier === 'string' && typeof legacy_key === 'string'
 			? { client_identifier: legacy_identifier, client_key: legacy_key }
 			: null;
-		const credentials = binding ?? legacy_credentials;
-		const using_legacy_credentials = binding === null && legacy_credentials !== null;
+		const pending = identity_bootstrap.read_pending_registration(get_instance_storage_item(identity_bootstrap.pending_registration_key(account)), account);
+		let credentials = pending ?? binding ?? legacy_credentials;
+		if (options.recovery_code !== undefined) {
+			credentials = identity_bootstrap.decode_recovery_code(options.recovery_code, server_host);
+			if (!credentials) { state.identity_error = getLangString('MOD_MP_IDENTITY_CODE_INVALID'); return; }
+		}
+		state.identity_error = '';
+		if (options.create === true) {
+			await register_multiplayer_identity(account, false);
+			if (state.is_connected) state.close_modal();
+			return;
+		}
+		const using_legacy_credentials = credentials === legacy_credentials;
 
-		if (credentials === null) {
-			await register_multiplayer_identity(account, account !== null && normalized_bindings.entries.length > 0);
+		if (!identity_bootstrap.valid_identity_credentials(credentials)) {
+			queue_identity_notice('bootstrap');
 			return;
 		}
 
@@ -6493,9 +6541,13 @@ async function start_multiplayer_session() {
 			api_contract.validate_api_bootstrap(auth.json, selected_api_major)) {
 			if (enter_unsupported_multiplayer(auth.json.minimum_supported_mod_version))
 				return;
-			if (account !== null)
-				store_account_identity_binding(account, { ...credentials, friend_code: auth.json.friend_code });
+			persist_identity_credentials(account, { ...credentials, friend_code: auth.json.friend_code });
+			if (pending?.client_identifier === credentials.client_identifier || options.recovery_code !== undefined)
+				remove_instance_storage_item(identity_bootstrap.pending_registration_key(account));
+			if (options.recovery_code !== undefined) flush_identity_storage();
+			active_identity_credentials = credentials;
 			activate_multiplayer_identity(auth.json, auth.timing);
+			if (options.recovery_code !== undefined) { state.identity_code = ''; state.close_modal(); }
 			void enroll_current_installation(auth.json, credentials.client_identifier);
 			if (auth.json.deletion_cancelled)
 				queue_identity_notice('deletion_cancelled', auth.json.deletion_cancelled);
@@ -6504,20 +6556,73 @@ async function start_multiplayer_session() {
 			return;
 		}
 
+		if (auth.response?.status === 401 && pending?.client_identifier === credentials.client_identifier && options.recovery_code === undefined && !options.registration_replay) {
+			await register_multiplayer_identity(account, false);
+			return;
+		}
 		if (auth.response?.status === 409 && auth.json?.identity_status === 'melvor_account_mismatch' &&
-			account !== null && using_legacy_credentials) {
+			account !== null && using_legacy_credentials && options.recovery_code === undefined) {
 			await register_multiplayer_identity(account, true);
 			return;
 		}
 
+		state.identity_error = getLangString('MOD_MP_IDENTITY_CONNECT_FAILED');
+		if (options.recovery_code === undefined && [401, 403, 409].includes(auth.response?.status)) queue_identity_notice('bootstrap');
 		notify_error(auth.json?.identity_status === 'installation_revoked' ? 'MOD_MP_INSTALLATION_REVOKED' : 'MOD_MP_MULTIPLAYER_CONNECTION_ERR');
 		error('failed to authenticate client (%s), multiplayer features not available', auth.response?.status ?? 'transport');
 	} catch (e) {
 		notify_error(e?.code === 'api_incompatible' ? 'MOD_MP_API_INCOMPATIBLE' : 'MOD_MP_MULTIPLAYER_CONNECTION_ERR');
-		error('failed to start multiplayer session (%s)', e);
+		state.identity_error = getLangString('MOD_MP_IDENTITY_CONNECT_FAILED');
+		error('failed to start multiplayer session');
 	} finally {
 		is_connecting = false;
 	}
+}
+
+function open_identity_bootstrap() {
+	if (modal_queue_guard.pending_templates.has('identity-bootstrap-modal') || modal_queue_guard.is_template_active('identity-bootstrap-modal')) return;
+	state.identity_code = '';
+	state.identity_create_confirmed = false;
+	queue_modal('MOD_MP_IDENTITY_CONNECT_TITLE', 'identity-bootstrap-modal', 'assets/multiplayer.svg', {
+		showConfirmButton: false, didClose: () => { state.identity_code = ''; }
+	});
+}
+
+function show_identity_recovery_code() {
+	if (!state.is_connected) { queue_identity_notice('bootstrap'); return; }
+	const credentials = active_identity_credentials;
+	try { state.identity_code = identity_bootstrap.encode_recovery_code(server_host, credentials); }
+	catch { notify_error('MOD_MP_IDENTITY_CONNECT_FAILED'); return; }
+	state.close_modal();
+	queue_modal('MOD_MP_IDENTITY_BACKUP_TITLE', 'identity-backup-modal', 'assets/multiplayer.svg', {
+		didClose: () => { state.identity_code = ''; }
+	});
+}
+
+// Melvor characterStorage is serialized only when the native game saves.
+function flush_identity_storage() {
+	if (IS_DEV_MODE || is_creator_toolkit_local_mod()) return;
+	if (typeof saveData !== 'function' || typeof getKeyForSaveSlot !== 'function' || typeof currentCharacter !== 'number')
+		throw new Error('Native save unavailable');
+	const key = getKeyForSaveSlot(currentCharacter) + 'saveGame';
+	const before = localStorage.getItem(key);
+	saveData();
+	const after = localStorage.getItem(key);
+	if (typeof after !== 'string' || after === before) throw new Error('Native save did not persist');
+}
+
+function persist_identity_credentials(account, credentials) {
+	if (account !== null) store_account_identity_binding(account, credentials);
+	else {
+		set_instance_storage_item('client_key', credentials.client_key);
+		set_instance_storage_item('client_identifier', credentials.client_identifier);
+		set_instance_storage_item('friend_code', credentials.friend_code);
+	}
+	const stored = account !== null ? identity_bindings.find_identity_binding(get_instance_storage_item('identity_bindings'), account) : {
+		client_identifier: get_instance_storage_item('client_identifier'), client_key: get_instance_storage_item('client_key')
+	};
+	if (!stored || stored.client_identifier !== credentials.client_identifier || stored.client_key !== credentials.client_key)
+		throw new Error('Identity storage did not persist');
 }
 
 function store_account_identity_binding(account, credentials) {
@@ -6533,15 +6638,29 @@ function store_account_identity_binding(account, credentials) {
 
 async function register_multiplayer_identity(account, account_changed) {
 	log('missing identity for current Melvor account, registering new identity...');
-	const client_key = crypto.randomUUID();
+	if (!identity_registration_supported) {
+		state.identity_error = getLangString('MOD_MP_IDENTITY_HOST_UPGRADE');
+		return false;
+	}
+	const pending = identity_bootstrap.prepare_registration(get_instance_storage_item, set_instance_storage_item, account);
+	flush_identity_storage();
+	const client_key = pending.client_key;
 	const registration = await api_post_response('/api/register', {
 		client_key,
+		registration_id: pending.client_identifier,
 		display_name: game.characterName,
 		client_runtime: get_client_runtime_report(),
 		...account
 	});
+	if (registration.response?.status === 409 && registration.json?.identity_status === 'registration_exists') {
+		// The server committed a previous attempt. Reconnect using the already persisted proof.
+		is_connecting = false;
+		await start_multiplayer_session({ registration_replay: true });
+		return state.is_connected;
+	}
 	if (registration.response?.status !== 200 || registration.json === null ||
 		!api_contract.validate_api_bootstrap(registration.json, selected_api_major)) {
+		state.identity_error = getLangString('MOD_MP_IDENTITY_CONNECT_FAILED');
 		notify_error('MOD_MP_MULTIPLAYER_CONNECTION_ERR');
 		error('failed to register client (%s), multiplayer features not available', registration.response?.status ?? 'transport');
 		return false;
@@ -6554,13 +6673,11 @@ async function register_multiplayer_identity(account, account_changed) {
 		client_key,
 		friend_code: registration.json.friend_code
 	};
-	if (account === null) {
-		set_instance_storage_item('client_key', client_key);
-		set_instance_storage_item('client_identifier', registration.json.client_identifier);
-		set_instance_storage_item('friend_code', registration.json.friend_code);
-	} else {
-		store_account_identity_binding(account, credentials);
-	}
+	if (registration.json.client_identifier !== pending.client_identifier) throw new Error('Unexpected registered identity');
+	persist_identity_credentials(account, credentials);
+	remove_instance_storage_item(identity_bootstrap.pending_registration_key(account));
+
+	active_identity_credentials = credentials;
 	activate_multiplayer_identity(registration.json, registration.timing);
 	void enroll_current_installation(registration.json, credentials.client_identifier);
 	if (account_changed)

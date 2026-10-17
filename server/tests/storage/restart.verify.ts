@@ -1,3 +1,4 @@
+import { verify_browser_chat_restart } from '../support/browser-chat-restart';
 import {verify_rollback_restart} from '../support/rollback-restart';
 import { expect, test } from 'bun:test';
 import { get_events } from '../support/fixtures';
@@ -6,6 +7,7 @@ import { read_restart_state } from '../support/restart-state';
 import { db_all } from '../support/persistence';
 
 test('rebuilds caches and preserves API state after a server restart', async () => {
+	await verify_browser_chat_restart();
 	const state = await read_restart_state();
 	await verify_rollback_restart(state.rollback);
 	const alliance = await get_json_with_session<any>('/api/alliances', state.alliance.client.session_token);
@@ -39,7 +41,7 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	expect(checked_work.json.settlement.credited_ms).toBeLessThanOrEqual(checked_work.json.settlement.elapsed_ms);
 	const existing_installation = await get_json_with_session('/api/events', state.installation.session_token);
 	expect(existing_installation.response.status).toBe(200);
-	const reauthenticated = await post_json<{ session_token: string }>('/api/authenticate', {
+	const reauthenticated = await post_json<{ session_token: string }>('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
 		client_identifier: state.installation.client_identifier, installation_id: state.installation.installation_id,
 		installation_key: state.installation.installation_key
 	});

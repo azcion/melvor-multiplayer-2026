@@ -14,6 +14,27 @@ pursue collective goals, face Guild Raids, and shape your community together.
 - Showing off profiles for equipment, skill levels, GP, and current activity.
 - Guild Council petitions, so members can shape their Guild together.
 
+## Reconnect a multiplayer profile
+
+Healthy save-carried credentials reconnect automatically, including in 1.6.14. To reconnect another device through
+Melvor cloud saves, back up both devices' saves and choose the multiplayer profile to keep. Save and upload from the
+device connected to that profile, then explicitly load that cloud save on the other device using the same Melvor
+account and multiplayer server. Have the same published Multiplayer mod installed and enabled before loading the
+save. Loading the cloud save replaces the target character's game progress, so preserve any newer progress first.
+Verify both devices connect to the same multiplayer profile before disabling a duplicate. Cloud saves carry access
+to a profile; they do not merge separate profiles' multiplayer items, Guild membership, or progress.
+
+In 1.6.15, if credentials are missing or rejected, choose **Connect existing
+profile** and paste the **Recovery code** from **Multiplayer Options** on a connected device, or use a code saved
+earlier. Use the same Melvor account and server. Keep the code private: it grants access to that multiplayer profile,
+just like a save containing its credentials. Never post it in Chat or include it in diagnostics.
+
+Choose **Create new profile** only when this character needs a separate multiplayer profile, and confirm the warning.
+This does not merge or transfer an existing profile's Guild membership, items, or progress. A Melvor account can contain
+several multiplayer characters, so signing into the same account does not identify which profile to reconnect.
+New profile creation requires a backend advertising `identity-registration-v1`; existing authentication remains
+compatible with older supported backends. Storage or native-save failures prevent registration until resolved.
+
 ## Self-hosting
 
 See the [self-hosting guide](docs/self-hosting.md) for Docker setup, connecting the published mod, and building a

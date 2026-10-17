@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { post_json, get_with_session } from '../support/http';
 import { db_all } from '../support/persistence';
 
-test('new diagnostics are bounded, session-specific, and optional for legacy clients', async () => {
+test('new diagnostics are bounded, session-specific, and optional at bootstrap', async () => {
 	const client_key = crypto.randomUUID();
 	const installation_id = crypto.randomUUID();
 	const device = { installation_id, platform: 'android', engine: 'gecko', distribution: 'google_play', app_channel: 'beta', secret: 'MUST-NOT-PERSIST' };
@@ -21,7 +21,7 @@ test('new diagnostics are bounded, session-specific, and optional for legacy cli
 	expect(legacy.response.status).toBe(200);
 	const legacy_sessions = await db_all<any>('SELECT device_diagnostics FROM client_sessions WHERE client_id = ?', [client_id]);
 	expect(legacy_sessions[0].device_diagnostics).toBeNull();
-	expect((await get_with_session('/api/events', legacy.json.session_token)).status).toBe(200);
+	expect((await get_with_session('/api/events', legacy.json.session_token)).status).toBe(426);
 	const malformed = await post_json<any>('/api/authenticate', { client_key, client_identifier: registered.json.client_identifier,
 		client_runtime: { mod_version: '1.4.5', active_mods: [], device: { installation_id: 'invalid' } } });
 	expect(malformed.response.status).toBe(200);

@@ -22,7 +22,7 @@ test('real API and mod recovery expose Gifts during a blocked receipt and never 
 		return { response, json: await response.json() };
 	}
 	const register = async name => (await request('/api/register', { client_key: crypto.randomUUID(), display_name: name,
-		client_runtime: { mod_version: '1.6.9', active_mods: [] } })).json;
+		client_runtime: { mod_version: '1.6.14', active_mods: [] } })).json;
 	const sender = await register('Integrated Sender'), recipient = await register('Integrated Recipient');
 	for (const client of [sender, recipient]) await request('/api/guilds/join-free', {}, client.session_token);
 	let transfer = []; // Reproduce a missing local donation snapshot without altering server history.
@@ -63,13 +63,13 @@ test('real API and mod recovery expose Gifts during a blocked receipt and never 
 		items: [{ id: 'melvorD:Integration_Fish', qty: 2 }], command_id: crypto.randomUUID() }, sender.session_token);
 	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
 	const source = main.slice(main.indexOf('async function get_client_events_request('), main.indexOf('\nfunction start_client_event_polling('));
-	const state = { refresh_crucible: async () => {}, chat_notification_preferences: {}, events: {}, gifts: [], trades: [], resolved_trades: [], inbox_items: [], get_chat_notification_tagged: () => false };
+	const state = { listing_filters: [], refresh_crucible: async () => {}, chat_notification_preferences: {}, events: {}, gifts: [], trades: [], resolved_trades: [], inbox_items: [], get_chat_notification_tagged: () => false };
 	let contents, chat_refreshes = 0;
 	const context = {
 		rollback_client: null, server_host: 'https://test.invalid', guild_revision_scope: null, last_guild_revision: null, apply_dev_badge_labels() {},
-		update_crucible_nav() {}, recover_paid_wish_actions: async () => {}, crucible_page_visible: false, crucible_page_hydrating: false,
+		update_crucible_nav() {}, recover_paid_wish_actions: async () => {}, crucible_page_visible: false, crucible_page_hydrating: false, guild_page_visible: false, refresh_guild_state: async () => {},
 		state, client_events_hydrated: false, session_generation: 1, client_event_revision: 0, CHAT_CAPABILITIES: '', chat_page_visible: false,
-		legacy_market_payout_migration_started: false, MOD_VERSION: '1.6.9', get_instance_storage_item: () => undefined,
+		legacy_market_payout_migration_started: false, MOD_VERSION: '1.6.14', get_instance_storage_item: () => undefined,
 		polling: { has_pending_events: () => true }, event_snapshots, economy_command_journal: journal,
 		social_mode: { SOCIAL_MODE_FULL: 'full', SOCIAL_MODE_SOCIAL: 'social' },
 		enter_unsupported_multiplayer: () => false, check_released_mod_version() {}, maybe_auto_check_in_expedition() {},

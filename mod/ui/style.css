@@ -4205,3 +4205,46 @@ span:has([lang-id="MOD_MP_TRANSFER_HISTORY_RECONSTRUCTED"]) {
 	flex-wrap: wrap;
 	padding-block: 0.5rem;
 }
+
+.mp-identity-code {
+	height: 6rem;
+	max-height: 6rem;
+	overflow-y: scroll;
+	-webkit-overflow-scrolling: touch;
+	touch-action: pan-y;
+	overscroll-behavior-y: contain;
+}
+
+/* Browser Chat uses a separate Options handoff and lets its modal grow with its content. */
+.mp-browser-chat-popup {
+	width: min(38rem, 96vw) !important;
+	background: #182732 !important;
+	color: #f5f7fa !important;
+	border: 1px solid #45616b;
+	border-radius: .55rem;
+}
+.mp-browser-chat-popup .swal2-title,
+.mp-browser-chat-popup h3 { color: #f5f7fa; }
+.mp-browser-chat-popup .swal2-html-container { margin: .75rem 1.25rem; }
+.mp-browser-chat { text-align: left; min-width: 0; }
+.mp-browser-chat h3 { font-size: 1rem; margin: 0; }
+.mp-browser-chat-intro { color: #c4d0d5; line-height: 1.45; margin-top: .65rem; }
+.mp-browser-chat-url { overflow-wrap: anywhere; color: #88d5b2; user-select: text; }
+.mp-browser-chat-url a { color: inherit; text-decoration: underline; }
+.mp-browser-chat-code { padding: .85rem; border: 1px solid #45616b; background: #1c303b; border-radius: .4rem; }
+.mp-browser-chat-code input { margin-top: .65rem; text-align: center; font-size: 1.25rem; letter-spacing: .08em; color: #f5f7fa; background: #101c25; }
+.mp-browser-chat small { display: block; color: #c4d0d5; line-height: 1.5; }
+.mp-browser-chat > .mp-button-tray { margin-top: .65rem; }
+.mp-browser-chat-list-heading,
+.mp-browser-chat-session-title { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
+.mp-browser-chat-list-heading { margin-top: 1rem; }
+.mp-browser-chat-feedback { color: #f5dea1; margin: .5rem 0; overflow-wrap: anywhere; }
+.mp-browser-chat-feedback:empty { display: none; }
+.mp-browser-chat-session { padding: .75rem; margin-bottom: .5rem; border: 1px solid #3e5964; border-radius: .35rem; background: #101c25; overflow-wrap: anywhere; }
+.mp-browser-chat-session-title { margin-bottom: .35rem; }
+.mp-browser-chat-close { margin-left: auto; }
+.mp-browser-chat-popup :focus-visible { outline: 2px solid #6adbac; outline-offset: 3px; }
+@media (max-width: 480px) {
+	.mp-browser-chat-popup .swal2-html-container { margin: .65rem; }
+	.mp-browser-chat-code input { font-size: 1rem; letter-spacing: .04em; }
+}

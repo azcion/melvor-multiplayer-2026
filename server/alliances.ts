@@ -4,7 +4,6 @@ import { record_guild_activity } from './guild-activity';
 import type { JsonObject } from './http';
 import { db, get_service_setting } from './db';
 import type { PetitionType } from './council';
-import { is_client_version_at_least } from './client-version-policy';
 
 export type AllianceProcess = {
 	id: number; kind: string; initiator_guild_id: number; target_guild_id: number | null;
@@ -14,10 +13,10 @@ export type AllianceProcess = {
 };
 export const PROPOSAL_LIFETIME = 1000 * 60 * 60 * 96;
 const pending = "('local','waiting','recipient','collective')";
-export const alliance_capable = (version: unknown) => version === 'development' || is_client_version_at_least(version, '1.6.2');
-// Keep the operator switch and protocol floor; Alliance access is public for every identity.
-export function has_alliance_access(client_id: number, version: unknown): boolean {
-	return get_service_setting('alliance_preview_enabled') !== '0' && alliance_capable(version) && db.query(
+
+// Keep the operator switch and identity check; the shared API guard owns the client floor.
+export function has_alliance_access(client_id: number): boolean {
+	return get_service_setting('alliance_preview_enabled') !== '0' && db.query(
 		'SELECT 1 FROM clients WHERE id = ?'
 	).get(client_id) !== null;
 }

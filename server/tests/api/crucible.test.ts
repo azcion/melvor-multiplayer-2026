@@ -9,11 +9,9 @@ beforeAll(async () => {
 		'SELECT id, ?, ? FROM guilds', [Math.floor(now / 60_000), now]);
 });
 
-
-
 test('Cast and Reclaim use Crucible receipts and audited custody', async () => {
-	const newer = await register_guild_client('Crucible New', 'Crucible New Guild', '1.6.0');
-	const older = await register_guild_client('Crucible Old', 'Crucible Old Guild', '1.5.16');
+	const newer = await register_guild_client('Crucible New', 'Crucible New Guild', '1.6.14');
+	const older = await register_guild_client('Crucible Old', 'Crucible Old Guild', '1.6.14');
 	const item_id = `test:Crucible_Ore_${crypto.randomUUID().replaceAll('-', '')}`;
 	const command_id = crypto.randomUUID();
 	const body = { command_id, source: 'bank', items: [{ id: item_id, qty: 3,
@@ -71,7 +69,7 @@ test('Cast and Reclaim use Crucible receipts and audited custody', async () => {
 
 test('Reclaim bonus creates audited Gloop in the Guild Crucible', async () => {
 	const pair = await make_guildmates('Crucible Bonus Donor', 'Crucible Bonus Taker',
-		'Crucible Bonus', { first: '1.6.0', second: '1.6.0' });
+		'Crucible Bonus', { first: '1.6.14', second: '1.6.14' });
 	const account = await db_run('INSERT INTO melvor_accounts (cloud_username, playfab_id, created_at) ' +
 		'VALUES (?, ?, ?)', [`crucible-bonus-${crypto.randomUUID()}`, crypto.randomUUID(), Date.now()]);
 	expect(account).toBe(1);
@@ -116,7 +114,7 @@ test('Reclaim bonus creates audited Gloop in the Guild Crucible', async () => {
 });
 
 test('Wish reset and paid Clear the Slag use independent Crucible state', async () => {
-	const client = await register_guild_client('Crucible Wish', 'Crucible Wish Guild', '1.6.11');
+	const client = await register_guild_client('Crucible Wish', 'Crucible Wish Guild', '1.6.14');
 	const account_id = await db_run('INSERT INTO melvor_accounts (cloud_username, playfab_id, created_at) VALUES (?, ?, ?)',
 		[`crucible-${crypto.randomUUID()}`, crypto.randomUUID(), Date.now()]);
 	expect(account_id).toBe(1);
@@ -158,7 +156,7 @@ test('Wish reset and paid Clear the Slag use independent Crucible state', async 
 });
 
 test('Council Purging targets only the captured Offering generation', async () => {
-	const newer = await register_guild_client('Crucible Council', 'Crucible Council', '1.6.0');
+	const newer = await register_guild_client('Crucible Council', 'Crucible Council', '1.6.14');
 	const cast = async (qty: number) => post_json<{ success: boolean }>('/api/crucible/cast', {
 		command_id: crypto.randomUUID(), source: 'bank',
 		items: [{ id: 'test:Council_Ore', qty, value_currency_id: 'melvorD:GP', value_per_item: 100 }]
@@ -182,8 +180,8 @@ test('Council Purging targets only the captured Offering generation', async () =
 
 test('linked characters share Wishes and Slag within each Guild and remain independent across Guilds', async () => {
 	const pair = await make_guildmates('Scope First', 'Scope Sibling', 'Scope Shared',
-		{ first: '1.6.11', second: '1.6.11' });
-	const other = await register_guild_client('Scope Other', 'Scope Other Guild', '1.6.11');
+		{ first: '1.6.14', second: '1.6.14' });
+	const other = await register_guild_client('Scope Other', 'Scope Other Guild', '1.6.14');
 	await db_run('INSERT INTO melvor_accounts (cloud_username, playfab_id, created_at) VALUES (?, ?, ?)',
 		[`scope-${crypto.randomUUID()}`, crypto.randomUUID(), Date.now()]);
 	const account = (await db_all<{ id: number }>('SELECT id FROM melvor_accounts ORDER BY id DESC LIMIT 1'))[0]!;
@@ -215,9 +213,8 @@ test('linked characters share Wishes and Slag within each Guild and remain indep
 	expect(await state(pair.second.session_token)).toMatchObject({ level: -9, active_wish: true });
 });
 
-
 test('retired Charitree endpoints are absent for every supported client', async () => {
-	const client = await register_guild_client('Retired Endpoint', 'Retired Endpoint', '1.6.9');
+	const client = await register_guild_client('Retired Endpoint', 'Retired Endpoint', '1.6.14');
 	for (const endpoint of ['/api/charity/donate', '/api/charity/take', '/api/charity/shuffle', '/api/charity/wish/make'])
 		expect((await post(endpoint, { command_id: crypto.randomUUID() }, client.session_token)).status).toBe(404);
 });

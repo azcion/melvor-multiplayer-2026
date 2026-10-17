@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.15
+
+- Added standalone Multiplayer Chat at https://melvor.azcn.io/chat. Link each character with a one-use code from Options → Browser Chat, manage linked browsers in a dedicated dialog, switch between linked characters, and return without loading Melvor. Chat keeps a split-pane inbox with in-game styling, character avatars, item and feature tags, reactions, and per-conversation English or Chinese translation across Global, Guild, Private and Support groups. Message actions open from timestamps; desktop Enter sends and Shift+Enter adds a newline, while mobile uses Send. Browser access is limited to Chat and can be revoked for each character.
+- Missing or rejected profile credentials now offer **Connect existing profile** or an explicitly confirmed **Create new profile** choice, preventing silent duplicate profiles. Multiplayer Options includes a private Recovery code to reconnect on another device or keep as a backup.
+- New profile creation safely retries interrupted requests and requires saved credentials before contacting the server. Self-hosters must update the backend before creating profiles with this client; existing profiles can still connect to older compatible servers.
+
 ## 1.6.14
 
 - Added localized Listing Filters in Multiplayer Settings to hide Sell Listings and Crucible offerings by cheat-category badge, with Item Cheats selected initially. Every account receives a one-time prompt after startup dialogs to review these filters. Mixed Crucible stacks show and reclaim only unfiltered contributions; Buy Orders, Wishes and direct trades remain available.

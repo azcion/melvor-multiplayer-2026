@@ -173,7 +173,7 @@ describe('player status API', () => {
 			account_creation_date, total_skill_level: 555
 		});
 		await db_run(
-			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `language`, `reported_at`) VALUES(?, ?, ?, ?, ?)',
+			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `language`, `reported_at`) VALUES(?, ?, ?, ?, ?) ON CONFLICT(client_id) DO UPDATE SET mod_version=excluded.mod_version, active_mods=excluded.active_mods, language=excluded.language',
 			[pair.first_id, '1.4.5', '[]', 'x-debug-locale', Date.now()]
 		);
 
@@ -286,7 +286,7 @@ describe('player status API', () => {
 		const pair = await make_guildmates('Language Owner', 'Language Viewer');
 		await db_run(
 			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `language`, `reported_at`) ' +
-			'VALUES(?, ?, ?, ?, ?)',
+			'VALUES(?, ?, ?, ?, ?) ON CONFLICT(client_id) DO UPDATE SET mod_version=excluded.mod_version, active_mods=excluded.active_mods, language=excluded.language',
 			[pair.first_id, '1.4.0', '[]', 'x-debug-locale', Date.now()]
 		);
 
@@ -353,9 +353,9 @@ describe('player status API', () => {
 		const after = await get_json_with_session<{ members: Array<{ client_id: number; dev_badge: boolean }> }>(
 			'/api/guilds/state', pair.second.session_token);
 		const sibling = await post_json<{ dev_tag: { eligible: boolean; visible: boolean } }>(
-			'/api/authenticate', { client_identifier: other_character.client_identifier, client_key: other_character.client_key, cloud_username: 'dev-test-account', playfab_id: 'dev-test-playfab' });
+			'/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] }, client_identifier: other_character.client_identifier, client_key: other_character.client_key, cloud_username: 'dev-test-account', playfab_id: 'dev-test-playfab' });
 		const owner = await post_json<{ session_token: string; dev_tag: { eligible: boolean; visible: boolean } }>(
-			'/api/authenticate', { client_identifier: pair.first.client_identifier, client_key: pair.first.client_key, cloud_username: 'dev-test-account', playfab_id: 'dev-test-playfab' });
+			'/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] }, client_identifier: pair.first.client_identifier, client_key: pair.first.client_key, cloud_username: 'dev-test-account', playfab_id: 'dev-test-playfab' });
 		expect(before.json.members.find(member => member.client_id === pair.first_id)?.dev_badge).toBe(true);
 		expect(rejected.status).toBe(403);
 		expect(malformed.status).toBe(400);
@@ -406,8 +406,8 @@ describe('player status API', () => {
 		const pair = await make_guildmates('Mode Visibility Owner', 'Mode Visibility Viewer');
 		await db_run(
 			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `game_mode_id`, `reported_at`) ' +
-			'VALUES(?, ?, ?, ?, ?)',
-			[pair.first_id, '1.3.0', '[]', 'melvorF:Adventure', Date.now()]
+			'VALUES(?, ?, ?, ?, ?) ON CONFLICT(client_id) DO UPDATE SET mod_version=excluded.mod_version, active_mods=excluded.active_mods, game_mode_id=excluded.game_mode_id',
+			[pair.first_id, '1.6.14', '[]', 'melvorF:Adventure', Date.now()]
 		);
 
 		const shared_state = await get_json_with_session<{
@@ -426,7 +426,7 @@ describe('player status API', () => {
 			'SELECT `game_mode_id` FROM `client_runtime_snapshots` WHERE `client_id` = ?',
 			[pair.first_id]
 		);
-		const authenticated = await post_json<{ game_mode_visible: boolean }>('/api/authenticate', {
+		const authenticated = await post_json<{ game_mode_visible: boolean }>('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
 			client_identifier: pair.first.client_identifier,
 			client_key: pair.first.client_key
 		});
@@ -451,7 +451,7 @@ describe('player status API', () => {
 		const active_mods = ['Multiplayer', 'Combat Indicators', 'Bank Tab Values'];
 		await db_run(
 			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `reported_at`) ' +
-			'VALUES(?, ?, ?, ?)',
+			'VALUES(?, ?, ?, ?) ON CONFLICT(client_id) DO UPDATE SET mod_version=excluded.mod_version, active_mods=excluded.active_mods',
 			[pair.first_id, '1.3.0', JSON.stringify(active_mods), Date.now()]
 		);
 
@@ -482,7 +482,7 @@ describe('player status API', () => {
 			'SELECT `active_mods` FROM `client_runtime_snapshots` WHERE `client_id` = ?',
 			[pair.first_id]
 		);
-		const authenticated = await post_json<{ active_mods_visible: boolean }>('/api/authenticate', {
+		const authenticated = await post_json<{ active_mods_visible: boolean }>('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
 			client_identifier: pair.first.client_identifier,
 			client_key: pair.first.client_key
 		});
@@ -507,7 +507,7 @@ describe('player status API', () => {
 		const pair = await make_guildmates('Empty Active Mods Owner', 'Empty Active Mods Viewer');
 		await db_run(
 			'INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `reported_at`) ' +
-			'VALUES(?, ?, ?, ?)',
+			'VALUES(?, ?, ?, ?) ON CONFLICT(client_id) DO UPDATE SET mod_version=excluded.mod_version, active_mods=excluded.active_mods',
 			[pair.first_id, '1.3.0', '[]', Date.now()]
 		);
 
@@ -534,8 +534,8 @@ describe('player status API', () => {
 			['RESTART-ADMIN-MODS', admin.client_id]);
 		await db_run('UPDATE `clients` SET `client_identifier` = ? WHERE `id` = ?',
 			['RESTART-ADMIN-GUILD', pair.second_id]);
-		await db_run('INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `reported_at`) VALUES (?, ?, ?, ?)',
-			[pair.first_id, '1.5.17', JSON.stringify(['Multiplayer', 'Private Mod']), Date.now()]);
+		await db_run('INSERT INTO `client_runtime_snapshots` (`client_id`, `mod_version`, `active_mods`, `reported_at`) VALUES (?, ?, ?, ?) ON CONFLICT(client_id) DO UPDATE SET mod_version=excluded.mod_version, active_mods=excluded.active_mods',
+			[pair.first_id, '1.6.14', JSON.stringify(['Multiplayer', 'Private Mod']), Date.now()]);
 		await post_json('/api/client/active-mods/visibility', { visible: false }, pair.first.session_token);
 		const account_key = crypto.randomUUID();
 		await db_run('INSERT INTO `melvor_accounts` (`cloud_username`, `playfab_id`, `created_at`) VALUES (?, ?, ?)',

@@ -37,8 +37,8 @@ async function get_campaign_info(session_token: string): Promise<ActiveCampaign>
 }
 
 describe('campaign API', () => {
-	test('keeps the legacy Campaign API available to 1.5.16 clients', async () => {
-		const client = await register_guild_client('Campaign Info', 'Campaign Legacy', '1.5.16');
+	test('supports Campaign progress before operator retirement', async () => {
+		const client = await register_guild_client('Campaign Info', 'Campaign Legacy', '1.6.14');
 		const info = await get_campaign_info(client.session_token);
 		const events = await get_events(client);
 
@@ -320,7 +320,7 @@ describe('campaign API', () => {
 	});
 
 	test('delivers an identity-owned completed reward through one durable receipt', async () => {
-		const contributor = await register_guild_client('Receipt Contributor', 'Receipt Guild', '1.5.9');
+		const contributor = await register_guild_client('Receipt Contributor', 'Receipt Guild', '1.6.14');
 		const campaign = await get_campaign_info(contributor.session_token);
 		await post_json('/api/campaign/contribute', {
 			item_amount: campaign.item_total
@@ -356,7 +356,7 @@ describe('campaign API', () => {
 	});
 
 	test('rejects zero-value Campaign rewards without recording a claim', async () => {
-		const contributor = await register_guild_client('Zero Campaign', 'Zero Campaign Guild', '1.5.3');
+		const contributor = await register_guild_client('Zero Campaign', 'Zero Campaign Guild', '1.6.14');
 		const state = (await db_all<{ id: number }>(
 			'SELECT id FROM campaign_state WHERE guild_id = ? ORDER BY id DESC LIMIT 1', [contributor.guild_id]
 		))[0];
@@ -374,7 +374,7 @@ describe('campaign API', () => {
 	});
 
 	test('calculates server-owned campaign claims from fixed item values and pet ownership', async () => {
-		const contributor = await register_guild_client('Pet Campaign', 'Pet Campaign Guild', '1.5.3');
+		const contributor = await register_guild_client('Pet Campaign', 'Pet Campaign Guild', '1.6.14');
 		const state = (await db_all<{ id: number }>(
 			'SELECT `id` FROM `campaign_state` WHERE `guild_id` = ? ORDER BY `id` DESC LIMIT 1',
 			[contributor.guild_id]

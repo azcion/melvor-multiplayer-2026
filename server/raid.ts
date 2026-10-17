@@ -5,7 +5,6 @@ import { scale_expedition_hours } from './guild-expedition';
 import { record_guild_activity } from './guild-activity';
 import { add_inbox_items } from './inbox';
 import { client_uses_legacy_transfer_protocol } from './transfer-compatibility';
-import { is_client_version_at_least } from './client-version-policy';
 import { shadowed_cutoff } from './shadowed';
 
 export const RAID_DURATION = RAID_WEEKEND;
@@ -181,10 +180,6 @@ type RaidCutover = { cutover_at: number; resume_at: number; max_raid_id: number 
 function raid_cutover(): RaidCutover | null {
 	return db.query('SELECT `cutover_at`, `resume_at`, `max_raid_id` FROM `raid_cutover` WHERE `id` = 1')
 		.get() as RaidCutover | null;
-}
-
-function legacy_raid_client(mod_version: string | null): boolean {
-	return mod_version !== 'development' && !is_client_version_at_least(mod_version, '1.6.0');
 }
 
 export function guild_raid_tier_defeats(guild_id: number, now = Date.now()): Record<number, number> {
@@ -385,7 +380,7 @@ function public_raid(raid: RaidRow, membership_id: number, now: number) {
 	};
 }
 
-export function get_raid_state(client_id: number, now = Date.now(), mod_version: string | null = null) {
+export function get_raid_state(client_id: number, now = Date.now()) {
 	const membership = membership_for(client_id);
 	const cache_pending = db.query(
 		'SELECT EXISTS(SELECT 1 FROM `guild_raid_victory_caches` WHERE `client_id` = ? AND `acknowledged_at` IS NULL) AS `pending`'
@@ -396,7 +391,7 @@ export function get_raid_state(client_id: number, now = Date.now(), mod_version:
 	maintain_raids(now, membership.guild_id);
 	const latest = latest_raid(membership.guild_id);
 	const raid = latest !== null && now < latest.expires_at ? latest : null;
-	const legacy_blocked = raid_cutover() !== null && legacy_raid_client(mod_version);
+
 	const schedule = raid_schedule_state(db, now);
 	const available_at = raid === null && schedule.active ? schedule.next_starts_at : schedule.available_at;
 	const entered = raid !== null && db.query('SELECT 1 FROM raid_entries WHERE raid_id = ? AND client_id = ?')
@@ -406,7 +401,7 @@ export function get_raid_state(client_id: number, now = Date.now(), mod_version:
 		cache_pending: cache_pending.pending === 1,
 		server_now: now,
 		activation_available_at: available_at,
-		can_activate: !legacy_blocked && raid !== null,
+		can_activate: raid !== null,
 		entered,
 		schedule: { starts_at: raid !== null && schedule.active ? schedule.starts_at : available_at,
 			ends_at: raid !== null && schedule.active ? schedule.ends_at : available_at + RAID_DURATION,
@@ -424,14 +419,13 @@ export function maintain_raids(now = Date.now(), guild_id?: number): number {
 	return maintain_global_raids(db, now, raid_max_health, guild_id);
 }
 
-// Retain the endpoint for older clients; activation now only enters an existing Raid.
-export function activate_raid(client_id: number, now = Date.now(), mod_version: string | null = null):
+// Activation enters an existing scheduled Raid.
+export function activate_raid(client_id: number, now = Date.now()):
 	{ error_lang: string } | { success: true; raid: ReturnType<typeof public_raid> } {
 	return db.transaction(() => {
 		const membership = membership_for(client_id);
 		if (membership === null) return { error_lang: 'MOD_MP_GUILD_REQUIRED' } as const;
-		if (raid_cutover() !== null && legacy_raid_client(mod_version))
-			return { error_lang: 'MOD_MP_RAID_COOLDOWN' } as const;
+
 		maintain_raids(now, membership.guild_id);
 		const raid = latest_raid(membership.guild_id);
 		if (raid === null || now >= raid.expires_at)
@@ -442,7 +436,7 @@ export function activate_raid(client_id: number, now = Date.now(), mod_version: 
 	}).immediate();
 }
 
-export function reserve_assault(client_id: number, tier: number, loaded_session_id: string, now = Date.now(), mod_version: string | null = null) {
+export function reserve_assault(client_id: number, tier: number, loaded_session_id: string, now = Date.now()) {
 	if (!Number.isSafeInteger(tier) || RAID_TIER_PROGRESS[tier] === undefined ||
 		typeof loaded_session_id !== 'string' || loaded_session_id.length < 8 || loaded_session_id.length > 128)
 		return { status: 400 as const };
@@ -451,8 +445,7 @@ export function reserve_assault(client_id: number, tier: number, loaded_session_
 		const membership = membership_for(client_id);
 		if (membership === null)
 			return { error_lang: 'MOD_MP_GUILD_REQUIRED' } as const;
-		if (raid_cutover() !== null && legacy_raid_client(mod_version))
-			return { error_lang: 'MOD_MP_RAID_COOLDOWN' } as const;
+
 		maintain_raids(now, membership.guild_id);
 		const raid = latest_raid(membership.guild_id);
 		if (raid === null || now >= raid.expires_at)
@@ -481,7 +474,7 @@ export function reserve_assault(client_id: number, tier: number, loaded_session_
 		const settlement_key = crypto.randomUUID();
 		const combat_deadline = now + ASSAULT_DURATION;
 		const fortified_resistance = raid_fortified_resistance(guild_raid_tier_defeats(raid.guild_id, now)[tier]);
-		const inbox_loot = legacy_raid_client(mod_version) ? 0 : 1;
+		const inbox_loot = 1;
 		db.query(
 			'INSERT INTO `guild_raid_assaults` (`id`, `raid_id`, `membership_id`, `client_id`, `tier`, ' +
 			'`loaded_session_id`, `settlement_key`, `reserved_at`, `combat_deadline`, `settlement_deadline`, ' +

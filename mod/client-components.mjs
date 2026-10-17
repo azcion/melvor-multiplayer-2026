@@ -50,6 +50,8 @@ export function register_components(runtime) {
 		}
 
 		unmountTemplate() {
+			if (this.getAttribute('data-template-id') === 'browser-chat-modal')
+				state.clear_browser_links?.();
 			if (this.template_app === null)
 				return;
 			this.template_app.unmount();

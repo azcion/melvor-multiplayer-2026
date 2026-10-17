@@ -1,3 +1,4 @@
+import { setup_browser_chat_restart } from '../support/browser-chat-restart';
 import {setup_rollback_restart} from '../support/rollback-restart';
 import { enter_transition_raid, seed_transition_raid } from '../support/raid';
 import { expect, test } from 'bun:test';
@@ -9,6 +10,7 @@ import type { RestartState } from '../support/restart-state';
 import { wait_for } from '../support/wait';
 
 test('creates representative state before a server restart', async () => {
+	await setup_browser_chat_restart();
 	const pair = await make_guildmates('Restart First', 'Restart Second');
 	await post_json('/api/gift/send', {
 		recipient_id: pair.second_id,
@@ -40,7 +42,7 @@ test('creates representative state before a server restart', async () => {
 	);
 	const market_lot_id = market.items.find(item => item.item_id === market_item_id)?.id as number;
 
-	const crucible_client = await register_guild_client('Restart Crucible', 'Restart Crucible', '1.6.9');
+	const crucible_client = await register_guild_client('Restart Crucible', 'Restart Crucible', '1.6.14');
 	const crucible_item_id = 'melvorD:Restart_Crucible';
 	await post_json('/api/crucible/cast', {
 		source: 'transfer',
@@ -220,7 +222,7 @@ test('creates representative state before a server restart', async () => {
 	const installation_key = crypto.randomUUID();
 	const installed = await post_json<{ client_identifier: string; session_token: string }>('/api/register', {
 		client_key: crypto.randomUUID(), display_name: 'Restart Install',
-		client_runtime: { mod_version: '1.5.1', active_mods: [], device: { installation_id, platform: 'android', app_channel: 'beta' } }
+		client_runtime: { mod_version: '1.6.14', active_mods: [], device: { installation_id, platform: 'android', app_channel: 'beta' } }
 	});
 	const enrolled = await post_json<{ success: boolean }>('/api/installations/enroll', { installation_id, installation_key }, installed.json.session_token);
 	expect(enrolled.json.success).toBe(true);
@@ -245,8 +247,8 @@ test('creates representative state before a server restart', async () => {
 		offset_ms: work_report.captured_at - work_started.json.tracking.started_at,
 		report: work_report, response: work_started.json };
 
-	const founder = await register_guild_client('Restart Ally A', 'Restart Ally A', '1.6.2');
-	const recipient = await register_guild_client('Restart Ally B', 'Restart Ally B', '1.6.2');
+	const founder = await register_guild_client('Restart Ally A', 'Restart Ally A', '1.6.14');
+	const recipient = await register_guild_client('Restart Ally B', 'Restart Ally B', '1.6.14');
 	await allow_alliance_preview(founder.client_id);
 	await allow_alliance_preview(recipient.client_id);
 	const founding = await post_json<any>('/api/alliances/propose', { kind: 'found', target_id: recipient.guild_id, name: 'Restart Alliance' }, founder.session_token);

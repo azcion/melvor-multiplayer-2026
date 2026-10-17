@@ -2,7 +2,7 @@ import { filtered_contributor_sql, parse_listing_filters } from '../listing-filt
 import { inbox_custody_location } from '../economy-custody';
 import { market_position, settle_market_fifo, market_benefit, listing_return_items } from '../market-custody';
 import { create_custody_source } from '../economy-custody';
-import { supports_market_terms, legacy_market_filter, market_terms_readable, market_currency_effect, market_remaining_limit, record_market_purchase, market_price } from '../market-terms';
+import { market_currency_effect, market_remaining_limit, record_market_purchase, market_price } from '../market-terms';
 import { get_transfer_currency_cap } from '../transfer-caps';
 import { market_deal_allowed, market_visibility_sql } from '../alliance-market';
 import * as runtime from '../app-runtime';
@@ -14,24 +14,18 @@ import { add_inbox_gp, add_inbox_items, get_inbox_source_name, type InboxSource 
 import { client_uses_legacy_transfer_protocol } from '../transfer-compatibility';
 import { cancel_listing_haggles } from './haggle';
 import { expire_market_listings, expire_market_listings_now } from '../market-expiry';
-import { is_client_version_at_least } from '../client-version-policy';
 
 const { MARKET_ITEMS_PER_PAGE, db, db_get_all, db_get_single, get_client_guild_id, is_market_discovery_restricted,
 	is_social_only_client, is_valid_item_id, is_valid_uuid, market_completed_cached, parse_market_excluded_item_ids,
 	parse_market_namespaces, remove_player_cache_entry, run_economy_command, session_get_route, session_post_route } = runtime;
 
-function currency_filter(value: unknown, modern: boolean, alias = 'm'): { sql: string; values: SQLQueryBindings[] } | null {
-	if (!modern || value === undefined) return { sql: '', values: [] };
+function currency_filter(value: unknown, alias = 'm'): { sql: string; values: SQLQueryBindings[] } | null {
+	if (value === undefined) return { sql: '', values: [] };
 	if (!Array.isArray(value) || value.length > 4 || value.some(id => typeof id !== 'string' || get_transfer_currency_cap(id) === null)) return null;
 	return value.length ? { sql: ` AND ${alias}.currency_id IN (${value.map(() => '?').join(',')})`, values: value as string[] } : { sql: ' AND 0', values: [] };
 }
 
 type MarketDirection = 'sell' | 'buy';
-
-function can_view_completed_market_listings(req: Request): boolean {
-	const version = runtime.get_request_mod_version(req);
-	return version === 'development' || is_client_version_at_least(version, '1.6.0');
-}
 
 function parse_market_direction(value: unknown): MarketDirection | null {
 	if (value === undefined)
@@ -112,11 +106,10 @@ export function register_market_routes(): void {
 		if (!is_valid_item_id(item_id))
 			return 400; // Bad Request
 
-		const modern = supports_market_terms(runtime.get_request_mod_version(req));
-		const currency_id = modern ? json.currency_id ?? 'melvorD:GP' : 'melvorD:GP';
-		const alliance_price = modern ? json.alliance_price ?? 0 : 0;
-		const purchase_limit = modern ? json.purchase_limit ?? 0 : 0;
-		const allow_haggles = modern ? json.allow_haggles ?? true : true;
+		const currency_id = json.currency_id ?? 'melvorD:GP';
+		const alliance_price = json.alliance_price ?? 0;
+		const purchase_limit = json.purchase_limit ?? 0;
+		const allow_haggles = json.allow_haggles ?? true;
 		if (typeof currency_id !== 'string' || get_transfer_currency_cap(currency_id) === null ||
 			typeof alliance_price !== 'number' || !Number.isSafeInteger(alliance_price) || alliance_price < 0 ||
 			typeof purchase_limit !== 'number' || !Number.isSafeInteger(purchase_limit) || purchase_limit < 0 ||
@@ -237,7 +230,7 @@ export function register_market_routes(): void {
 				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 			const lot = db.query('SELECT * FROM `market_items` WHERE `id` = ? AND `direction` = \'sell\' LIMIT 1')
 				.get(lot_id) as db_row.market_items | null;
-			if (lot === null || !market_deal_allowed(client_id, lot.client_id, lot.guild_id, runtime.get_request_mod_version(req)) || lot.available <= 0 || !market_terms_readable(lot, runtime.get_request_mod_version(req)))
+			if (lot === null || !market_deal_allowed(client_id, lot.client_id, lot.guild_id) || lot.available <= 0)
 				return { error_lang: 'MOD_MP_MARKET_BUY_ERROR_INVALID' };
 			if (is_market_discovery_restricted(guild_id) && json.item_discovered !== true)
 				return { success: false, error_lang: 'MOD_MP_MARKET_DISCOVERY_REQUIRED' };
@@ -316,7 +309,7 @@ export function register_market_routes(): void {
 				return { success: false, error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' };
 			const lot = db.query('SELECT * FROM `market_items` WHERE `id` = ? AND `direction` = \'buy\' LIMIT 1')
 				.get(lot_id) as db_row.market_items | null;
-			if (lot === null || !market_deal_allowed(client_id, lot.client_id, lot.guild_id, runtime.get_request_mod_version(req)) || lot.available <= 0 || lot.client_id === client_id)
+			if (lot === null || !market_deal_allowed(client_id, lot.client_id, lot.guild_id) || lot.available <= 0 || lot.client_id === client_id)
 				return { error_lang: 'MOD_MP_MARKET_FULFILL_ERROR_INVALID' };
 			const final_qty = Math.min(lot.available, sell_qty);
 			const final_cost = safe_market_total(final_qty, lot.price);
@@ -372,7 +365,6 @@ export function register_market_routes(): void {
 
 		const results = await db_get_all(
 			'SELECT * FROM `market_items` WHERE `guild_id` = ? AND `client_id` = ?' +
-				(supports_market_terms(runtime.get_request_mod_version(req)) ? '' : ' AND ' + legacy_market_filter('market_items')) +
 				' AND (`available` > 0 OR `reserved` > 0 OR (`direction` = \'sell\' AND ' +
 					'(`qty` - `available` - `reserved` - `haggled`) * `price` - `price_adjustment` > `payout`))',
 			[guild_id, client_id]
@@ -381,9 +373,9 @@ export function register_market_routes(): void {
 
 		for (let i = 0; i < results.length; i++) {
 			const row = results[i] as db_row.market_items;
-			const terms: Record<string, JsonSerializable> = supports_market_terms(runtime.get_request_mod_version(req)) ? {
+			const terms: Record<string, JsonSerializable> = {
 				currency_id: row.currency_id, alliance_price: row.alliance_price, purchase_limit: row.purchase_limit,
-				allow_haggles: row.allow_haggles === 1 } : {};
+				allow_haggles: row.allow_haggles === 1 };
 			items[i] = row.direction === 'buy'
 				? { id: row.id, direction: row.direction, item_id: row.item_id, available: row.available,
 					reserved: row.reserved, haggled: row.haggled, qty: row.qty, price: row.price, escrow_gp: row.escrow_gp }
@@ -519,13 +511,11 @@ export function register_market_routes(): void {
 			return { success: true, item_ids: [],
 				market_discovery_restriction_enabled: is_market_discovery_restricted(guild_id) };
 
-		const visibility = market_visibility_sql('m', client_id, runtime.get_request_mod_version(req));
-		const currencies = currency_filter(json.currency_ids, supports_market_terms(runtime.get_request_mod_version(req)));
+		const visibility = market_visibility_sql('m', client_id);
+		const currencies = currency_filter(json.currency_ids);
 		if (!currencies) return 400;
 		const item_ids = await db_get_all(
 			'SELECT DISTINCT `item_id` FROM `market_items` m WHERE ' + visibility.sql + ' AND `client_id` != ? AND `direction` = ? ' +
-			(can_view_completed_market_listings(req) ? '' : 'AND `available` > 0 ') +
-			(supports_market_terms(runtime.get_request_mod_version(req)) ? '' : 'AND ' + legacy_market_filter('m') + ' ') +
 			'AND (' + namespace_parameters.map(() => '`item_id` LIKE ? ESCAPE \'\\\'').join(' OR ') +
 			')' + currencies.sql + (direction === 'sell' ? ' AND NOT ' + filter.sql : '') + ' ORDER BY `item_id` LIMIT 5000',
 			[...visibility.values, client_id, direction, ...namespace_parameters, ...currencies.values, ...(direction === 'sell' ? filter.values : [])]
@@ -548,7 +538,7 @@ export function register_market_routes(): void {
 		const direction = parse_market_direction(json.direction);
 		if (direction === null)
 			return 400; // Bad Request
-		const visibility = market_visibility_sql('m', client_id, runtime.get_request_mod_version(req));
+		const visibility = market_visibility_sql('m', client_id);
 		const query_parameters: SQLQueryBindings[] = [...visibility.values, client_id, direction];
 
 		let item_filter = '';
@@ -558,7 +548,6 @@ export function register_market_routes(): void {
 			item_filter = ' AND m.`item_id` = ?';
 			query_parameters.push(json.item_id);
 		}
-		let has_namespace_filter = false;
 		if (json.item_namespaces !== undefined) {
 			const namespace_parameters = parse_market_namespaces(json.item_namespaces);
 			if (namespace_parameters === null)
@@ -567,24 +556,21 @@ export function register_market_routes(): void {
 			if (namespace_parameters.length === 0)
 				item_filter += ' AND 0';
 			else {
-				has_namespace_filter = true;
 				item_filter += ' AND (' + namespace_parameters.map(() => 'm.`item_id` LIKE ? ESCAPE \'\\\'').join(' OR ') + ')';
 				query_parameters.push(...namespace_parameters);
 			}
 		}
-		let has_exact_item_filter = false;
 		if (json.unresolved_item_ids !== undefined) {
 			const unresolved_item_ids = parse_market_excluded_item_ids(json.unresolved_item_ids);
 			if (unresolved_item_ids === null || json.item_namespaces === undefined)
 				return 400; // Bad Request
-			has_exact_item_filter = true;
 			if (unresolved_item_ids.length > 0) {
 				item_filter += ' AND m.`item_id` NOT IN (SELECT `value` FROM json_each(?))';
 				query_parameters.push(JSON.stringify(unresolved_item_ids));
 			}
 		}
 
-		const currencies = currency_filter(json.currency_ids, supports_market_terms(runtime.get_request_mod_version(req)));
+		const currencies = currency_filter(json.currency_ids);
 		if (!currencies) return 400;
 		item_filter += currencies.sql;
 		query_parameters.push(...currencies.values);
@@ -598,13 +584,10 @@ export function register_market_routes(): void {
 		const price_sort = typeof json.sort === 'number'
 			? (json.sort === 0 ? 'DESC' : 'ASC')
 			: (direction === 'sell' ? 'ASC' : 'DESC');
-		const new_market_view = can_view_completed_market_listings(req);
-		const available_only = !new_market_view || json.available_only === true;
+		const available_only = json.available_only === true;
 		const where = ' FROM `market_items` AS m JOIN `clients` AS owner ON owner.`id` = m.`client_id` ' +
 			'WHERE ' + visibility.sql + ' AND m.`client_id` != ? AND m.`direction` = ? ' +
-			(available_only ? 'AND m.`available` > 0' : '') +
-			(supports_market_terms(runtime.get_request_mod_version(req)) ? '' : ' AND ' + legacy_market_filter('m')) + item_filter;
-		const paginate = !has_namespace_filter || has_exact_item_filter;
+			(available_only ? 'AND m.`available` > 0' : '') + item_filter;
 		const requested_page = typeof json.page === 'number' && Number.isSafeInteger(json.page)
 			? Math.max(json.page, 1)
 			: 1;
@@ -612,9 +595,7 @@ export function register_market_routes(): void {
 		const total_items = count?.count ?? 0;
 		const page_count = Math.max(Math.ceil(total_items / MARKET_ITEMS_PER_PAGE), 1);
 		const page = Math.min(requested_page, page_count);
-		const page_clause = paginate
-			? ' LIMIT ' + MARKET_ITEMS_PER_PAGE + ' OFFSET ' + ((page - 1) * MARKET_ITEMS_PER_PAGE)
-			: ' LIMIT 5000';
+		const page_clause = ' LIMIT ' + MARKET_ITEMS_PER_PAGE + ' OFFSET ' + ((page - 1) * MARKET_ITEMS_PER_PAGE);
 		const result = await db_get_all(
 			'SELECT m.*, owner.`display_name`, owner.`icon_id`' +
 			where + ' ORDER BY ' + (recent
@@ -627,7 +608,7 @@ export function register_market_routes(): void {
 				id: row.id,
 				item_id: row.item_id,
 				available: row.available,
-				...(new_market_view ? { qty: row.qty } : {}),
+				qty: row.qty,
 				price: row.price,
 				direction,
 				buyer: { display_name: row.display_name, icon_id: row.icon_id }
@@ -636,12 +617,14 @@ export function register_market_routes(): void {
 				id: row.id,
 				item_id: row.item_id,
 				available: row.available,
-				...(new_market_view ? { qty: row.qty } : {}),
+				qty: row.qty,
 				price: market_price(row as db_row.market_items, guild_id),
-				...(supports_market_terms(runtime.get_request_mod_version(req)) ? {
-					currency_id: row.currency_id, alliance_price: row.alliance_price, guild_price: row.price,
-					purchase_limit: row.purchase_limit, buyable: market_remaining_limit(row as db_row.market_items, client_id),
-					allow_haggles: row.allow_haggles === 1 } : {}),
+				currency_id: row.currency_id,
+				alliance_price: row.alliance_price,
+				guild_price: row.price,
+				purchase_limit: row.purchase_limit,
+				buyable: market_remaining_limit(row as db_row.market_items, client_id),
+				allow_haggles: row.allow_haggles === 1,
 				direction,
 				seller: { display_name: row.display_name, icon_id: row.icon_id }
 			} as JsonSerializable));

@@ -1,5 +1,4 @@
 import { can_access_petition_discussion, petition_discussion_summary } from '../petition-discussions';
-import { is_client_version_at_least } from '../client-version-policy';
 import { is_chat_shadowbanned } from '../chat_shadowban';
 import type { HandlerResult } from '../http';
 import * as runtime from '../app-runtime';
@@ -17,7 +16,7 @@ function public_alliance(id: number) {
 }
 export function register_alliance_routes() {
 	runtime.session_get_route('/api/alliances', async (req,url,client_id): Promise<HandlerResult> => {
-		if (!has_alliance_access(client_id, runtime.get_request_mod_version(req))) return 404;
+		if (!has_alliance_access(client_id)) return 404;
 		runtime.expire_petitions(); runtime.process_council_actions(); maintain_alliances();
 		const guild_id = await runtime.get_client_guild_id(client_id);
 		if (guild_id === null) return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
@@ -48,7 +47,7 @@ export function register_alliance_routes() {
 			}) };
 	});
 	runtime.session_get_route('/api/alliances/discover', async(req,url,client_id)=> {
-		if (!has_alliance_access(client_id, runtime.get_request_mod_version(req))) return 404;
+		if (!has_alliance_access(client_id)) return 404;
 		maintain_alliances();
 		const page=Number(url.searchParams.get('page')??0);
 		if (!Number.isSafeInteger(page)||page<0||page>1000000) return 400;
@@ -61,7 +60,7 @@ export function register_alliance_routes() {
 		return { entries:ids.slice(0,20).map(row=>mode==='found'?public_guild(row.id):public_alliance(row.id)),has_more:ids.length>20,page };
 	});
 	runtime.session_get_route('/api/alliances/guild-preview',async(req,url,client_id)=> {
-		if(!has_alliance_access(client_id, runtime.get_request_mod_version(req))) return 404;
+		if(!has_alliance_access(client_id)) return 404;
 		const id=Number(url.searchParams.get('guild_id'));
 		if(!Number.isSafeInteger(id)||id<1) return 400;
 		const guild=public_guild(id);
@@ -69,14 +68,13 @@ export function register_alliance_routes() {
 		return {guild: guild ?? null};
 	});
 	runtime.session_post_route('/api/alliances/propose',async(req,url,client_id,json): Promise<HandlerResult> => {
-		if(!has_alliance_access(client_id, runtime.get_request_mod_version(req))) return 404;
+		if(!has_alliance_access(client_id)) return 404;
 		if(typeof json.kind!=='string'||!['found','join','leave','remove','market_enable','market_disable'].includes(json.kind)) return 400;
 		const kind=json.kind;
 		const destructive = ['leave','remove','market_disable'].includes(kind);
-		const version = runtime.get_request_mod_version(req);
-		const requires_reason = destructive && (version === 'development' || is_client_version_at_least(version, '1.6.12'));
+
 		const reason = typeof json.reason === 'string' ? json.reason.trim() : null;
-		if ((requires_reason || json.reason !== undefined) && (reason === null || [...reason].length < 10 || reason.length > 1000))
+		if ((destructive || json.reason !== undefined) && (reason === null || [...reason].length < 10 || reason.length > 1000))
 			return { error_lang: 'MOD_MP_ALLIANCE_REASON_REQUIRED' };
 		const target=json.target_id===undefined?null:json.target_id;
 		if(target!==null&&(typeof target!=='number'||!Number.isSafeInteger(target)||target<1)) return 400;
@@ -99,7 +97,7 @@ export function register_alliance_routes() {
 		}).immediate();
 	});
 	for(const action of ['consider','withdraw']) runtime.session_post_route(`/api/alliances/${action}`,async(req,url,client_id,json): Promise<HandlerResult> => {
-		if(!has_alliance_access(client_id, runtime.get_request_mod_version(req))) return 404;
+		if(!has_alliance_access(client_id)) return 404;
 		if(typeof json.process_id!=='number'||!Number.isSafeInteger(json.process_id)||json.process_id<1) return 400;
 		const id=json.process_id;
 		return runtime.db.transaction(()=> {

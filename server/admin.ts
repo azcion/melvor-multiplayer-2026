@@ -8,7 +8,7 @@ import { DEV_BADGES, get_dev_badge_labels, valid_dev_badge_label, EXPEDITION_TES
 import { revoke_installation } from './installations';
 import { db, get_service_setting } from './db';
 import { make_audit_context, run_with_audit_context } from './audit-context';
-import { is_minimum_supported_version } from './client-version-policy';
+import { effective_minimum_client_version, is_minimum_supported_version } from './client-version-policy';
 import { preview_campaign_retirement, settle_campaign_retirement } from './campaign-retirement';
 import { preview_raid_cutover, settle_raid_cutover } from './raid';
 import { BACKEND_VERSION } from './version';
@@ -764,7 +764,7 @@ function run_admin_command(args: string[], output: AdminOutput = console_output)
 			output.log(`icon_collection_max_catalog_bytes=${get_service_setting(ICON_CATALOG_SETTING_KEYS.max_catalog_bytes)}`);
 			output.log(`icon_collection_max_observations=${get_service_setting(ICON_CATALOG_SETTING_KEYS.max_observations)}`);
 			output.log(`released_mod_version=${get_service_setting('released_mod_version') || 'none'}`);
-			output.log(`minimum_supported_mod_version=${get_service_setting('minimum_supported_mod_version') || 'none'}`);
+			output.log(`minimum_supported_mod_version=${effective_minimum_client_version(get_service_setting('minimum_supported_mod_version'))}`);
 			output.log(`campaign_retirement_phase=${get_service_setting('campaign_retirement_phase') ?? 'active'}`);
 			const raid_cutover = db.query<{ cutover_at: number; resume_at: number }, []>(
 				'SELECT `cutover_at`, `resume_at` FROM `raid_cutover` WHERE `id` = 1').get();

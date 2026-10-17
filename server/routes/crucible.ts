@@ -3,7 +3,6 @@ import { db } from '../db';
 import { purchase_wish_capacity, set_wish_capacity_renewal, wish_capacity_state } from '../wish-capacity';
 import * as runtime from '../app-runtime';
 import type { HandlerResult, JsonObject } from '../http';
-import { is_client_version_at_least } from '../client-version-policy';
 import { cap_transfer_items, get_transfer_currency_cap, get_transfer_currency_overage } from '../transfer-caps';
 import { cast_crucible_items, claim_crucible_wish, clear_crucible_slag, crucible_actor,
 	get_crucible_state, make_crucible_wish, reclaim_crucible_offering, run_crucible_wish_command,
@@ -13,13 +12,7 @@ import { economy_item_effects } from '../economy';
 const { is_social_only_client, is_valid_item_id, parse_transfer_items, run_economy_command,
 	session_get_route, session_post_route } = runtime;
 
-function supports_crucible(req: Request): boolean {
-	const version = runtime.get_request_mod_version(req);
-	return version === 'development' || is_client_version_at_least(version, '1.6.0');
-}
-
 function actor_for(req: Request, client_id: number): { error: HandlerResult } | { actor: CrucibleActor } {
-	if (!supports_crucible(req)) return { error: 426 as HandlerResult };
 	const actor = crucible_actor(client_id);
 	if (actor === null) return { error: { error_lang: 'MOD_MP_GUILD_REQUIRED' } as HandlerResult };
 	if (is_social_only_client(client_id)) return { error: { error_lang: 'MOD_MP_SOCIAL_ONLY_DISABLED' } as HandlerResult };
@@ -147,15 +140,7 @@ export function register_crucible_routes(): void {
 		if (legacy) return JSON.parse(legacy.response_json) as JsonObject;
 		const result = actor_for(req, client_id);
 		if ('error' in result) return result.error;
-		const version = runtime.get_request_mod_version(req);
-		if (version !== 'development' && !is_client_version_at_least(version, '1.6.11')) {
-			// Released clients use the server-only journal and cannot apply upfront payment receipts.
-			if (!is_valid_item_id(json.item_id) || !Number.isSafeInteger(json.qty) ||
-				(json.qty as number) < 1 || (json.qty as number) > 100 ||
-				json.ep_micros !== undefined || json.gp !== undefined || json.gp_balance !== undefined) return 400;
-			return run_crucible_wish_command(client_id, json.command_id, 'make', () =>
-				make_crucible_wish(result.actor!, json.item_id as string, json.qty as number, null)) ?? 400;
-		}
+
 		if (!is_valid_item_id(json.item_id) || !Number.isSafeInteger(json.qty) ||
 			(json.qty as number) < 1 || (json.qty as number) > 1000 ||
 			!Number.isSafeInteger(json.ep_micros) || !Number.isSafeInteger(json.gp) ||
@@ -174,9 +159,7 @@ export function register_crucible_routes(): void {
 		session_post_route(`/api/crucible/wish/${kind}`, async (req, url, client_id, json): Promise<HandlerResult> => {
 			const result = actor_for(req, client_id);
 			if ('error' in result) return result.error;
-			const version = runtime.get_request_mod_version(req);
-			if (version !== 'development' && !is_client_version_at_least(version, '1.6.11'))
-				return { success: false, error_lang: 'MOD_MP_UNSUPPORTED_VERSION_MESSAGE' };
+
 			if (typeof json.auto_renew !== 'boolean' || !Number.isSafeInteger(json.ep_micros) ||
 				(kind === 'capacity' && !Number.isSafeInteger(json.base))) return 400;
 			if (result.actor!.account_id === null) return { success: false, error: 'Melvor account is required.' };

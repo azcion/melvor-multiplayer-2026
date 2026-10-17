@@ -9,7 +9,7 @@ test('informational categories preserve legacy API, Interdict admission and priv
 	await db_run('UPDATE clients SET active_mods_visible=0 WHERE id=?',[pair.first_id]);
 	const auth = await post_json<{ session_token: string; social_mode: string; social_mode_enforcement: string | null }>('/api/authenticate', {
 		client_identifier: pair.first.client_identifier, client_key: pair.first.client_key,
-		client_runtime: { mod_version: '1.6.12', active_mods: ['Time Skip','Remove Consumptions','Private Unflagged Mod'] }
+		client_runtime: { mod_version: '1.6.14', active_mods: ['Time Skip','Remove Consumptions','Private Unflagged Mod'] }
 	});
 	expect(auth.json.social_mode).toBe('full');
 	expect(auth.json.social_mode_enforcement).toBeNull();
@@ -24,7 +24,7 @@ test('informational categories preserve legacy API, Interdict admission and priv
 	expect(events.json.social_mode).toBe('full');
 	const legacy = await post_json<{ session_token: string; social_mode: string; social_mode_enforcement: string }>('/api/authenticate', {
 		client_identifier: pair.first.client_identifier, client_key: pair.first.client_key,
-		client_runtime: { mod_version: '1.6.12', active_mods: ['Add Items'], active_mod_details: [{name:'Add Items',id:null}] }
+		client_runtime: { mod_version: '1.6.14', active_mods: ['Add Items'], active_mod_details: [{name:'Add Items',id:null}] }
 	});
 	expect(legacy.json).toMatchObject({social_mode:'social',social_mode_enforcement:'guild'});
 	const after = await get_json_with_session<{ members: Record<string, any>[] }>('/api/guilds/state',pair.second.session_token);
@@ -46,7 +46,7 @@ test('applicant category details remain visible independently of ordinary mod sh
 	await post_json('/api/guilds/apply',{guild_id:owner.guild_id},applicant.session_token);
 	await post_json('/api/authenticate', {
 		client_identifier: applicant.client_identifier,client_key:applicant.client_key,
-		client_runtime:{mod_version:'1.6.12',active_mods:['Multitasking','Hidden Mod']}
+		client_runtime:{mod_version:'1.6.14',active_mods:['Multitasking','Hidden Mod']}
 	});
 	await db_run('UPDATE clients SET active_mods_visible=0 WHERE id=?',[applicant.client_id]);
 	const state = await get_json_with_session<{applicants: Record<string, any>[]}>('/api/guilds/state',owner.session_token);
@@ -55,43 +55,13 @@ test('applicant category details remain visible independently of ordinary mod sh
 	expect(JSON.stringify(state.json.applicants)).not.toContain('Hidden Mod');
 });
 
-test('1.6.11 clients keep their original runtime and Guild Interdict contract', async () => {
-	const pair = await make_guildmates('Legacy Subject', 'Legacy Viewer', 'Legacy Contract', { first: '1.6.11', second: '1.6.11' });
-	await db_run('UPDATE guilds SET cheat_restriction_enabled=1 WHERE id=?', [pair.guild_id]);
-	const informational = await post_json<{ session_token: string; social_mode: string }>('/api/authenticate', {
-		client_identifier: pair.first.client_identifier, client_key: pair.first.client_key,
-		client_runtime: { mod_version: '1.6.11', active_mods: ['Time Skip'] }
-	});
-	expect(informational.response.status).toBe(200);
-	expect(informational.json.social_mode).toBe('full');
-	let roster = await get_json_with_session<{ members: Record<string, any>[] }>('/api/guilds/state', pair.second.session_token);
-	let member = roster.json.members.find(row => row.client_id === pair.first_id)!;
-	expect(member).toMatchObject({ using_cheats: false, cheats_detected_at: null, cheat_mods: [], social_mode: 'full' });
-	expect(member.cheat_categories.map((row: any) => row.id)).toEqual(['time']);
-	const interdict = await post_json<{ session_token: string; social_mode: string; social_mode_enforcement: string }>('/api/authenticate', {
-		client_identifier: pair.first.client_identifier, client_key: pair.first.client_key,
-		client_runtime: { mod_version: '1.6.11', active_mods: ['Add Items'] }
-	});
-	expect(interdict.response.status).toBe(200);
-	expect(interdict.json).toMatchObject({ social_mode: 'social', social_mode_enforcement: 'guild' });
-	roster = await get_json_with_session<{ members: Record<string, any>[] }>('/api/guilds/state', pair.second.session_token);
-	member = roster.json.members.find(row => row.client_id === pair.first_id)!;
-	expect(member.using_cheats).toBe(true);
-	expect(member.cheats_detected_at).toBeGreaterThan(0);
-	expect(member.cheat_mods).toEqual(['Add Items']);
-	expect(member.cheat_categories.map((row: any) => row.id)).toEqual(['time', 'items']);
-	const events = await get_json_with_session<{ social_mode: string; social_mode_enforcement: string }>('/api/events', interdict.json.session_token);
-	expect(events.response.status).toBe(200);
-	expect(events.json).toMatchObject({ social_mode: 'social', social_mode_enforcement: 'guild' });
-});
-
 test('reviewed Item Cheats set enforces Interdict while God Mode remains informational', async () => {
 	for (const name of ['X  Auto Manger','Requirement Filler']) {
 		const pair = await make_guildmates('Reviewed Subject','Reviewed Viewer');
 		await db_run('UPDATE guilds SET cheat_restriction_enabled=1 WHERE id=?',[pair.guild_id]);
 		const god = await post_json<{session_token:string;social_mode:string;social_mode_enforcement:string|null}>('/api/authenticate',{
 			client_identifier:pair.first.client_identifier,client_key:pair.first.client_key,
-			client_runtime:{mod_version:'1.6.12',active_mods:['God Mode']}
+			client_runtime:{mod_version:'1.6.14',active_mods:['God Mode']}
 		});
 		expect(god.json).toMatchObject({social_mode:'full',social_mode_enforcement:null});
 		let roster = await get_json_with_session<{members:Record<string,any>[]}>('/api/guilds/state',pair.second.session_token);
@@ -100,7 +70,7 @@ test('reviewed Item Cheats set enforces Interdict while God Mode remains informa
 		expect(member.using_cheats).toBe(false);
 		const flagged = await post_json<{session_token:string;social_mode:string;social_mode_enforcement:string}>('/api/authenticate',{
 			client_identifier:pair.first.client_identifier,client_key:pair.first.client_key,
-			client_runtime:{mod_version:'1.6.12',active_mods:[name]}
+			client_runtime:{mod_version:'1.6.14',active_mods:[name]}
 		});
 		expect(flagged.json).toMatchObject({social_mode:'social',social_mode_enforcement:'guild'});
 		roster = await get_json_with_session<{members:Record<string,any>[]}>('/api/guilds/state',pair.second.session_token);
@@ -110,7 +80,7 @@ test('reviewed Item Cheats set enforces Interdict while God Mode remains informa
 		const clock = member.cheats_detected_at;
 		await post_json('/api/authenticate',{
 			client_identifier:pair.first.client_identifier,client_key:pair.first.client_key,
-			client_runtime:{mod_version:'1.6.12',active_mods:[]}
+			client_runtime:{mod_version:'1.6.14',active_mods:[]}
 		});
 		const clocks = await db_all('SELECT cheats_detected_at FROM clients WHERE id=?',[pair.first_id]);
 		expect(clocks).toEqual([{cheats_detected_at:clock}]);

@@ -29,7 +29,7 @@ test('sends the authenticated Melvor account pair and preserves account-specific
 test('refuses ambiguous legacy credentials when the Melvor account context is unavailable', async () => {
 	const { main } = await sources();
 	const guard = main.indexOf('if (account === null && normalized_bindings.entries.length > 0)');
-	const credentials = main.indexOf('const credentials = binding ?? legacy_credentials');
+	const credentials = main.indexOf('let credentials = pending ?? binding ?? legacy_credentials');
 
 	assert.notEqual(guard, -1);
 	assert.notEqual(credentials, -1);

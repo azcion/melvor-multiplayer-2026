@@ -7,7 +7,16 @@
 config/*.key
 
 assets
-mod
+mod/*
+!mod/chat-items.mjs
+!mod/assets/
+mod/assets/*
+!mod/assets/multiplayer.svg
+!mod/assets/transfer_bag.svg
+!mod/assets/market.svg
+!mod/assets/crucible.png
+!mod/assets/expedition-nav.png
+!mod/assets/raid-nav.png
 tests
 
 dist

@@ -112,27 +112,6 @@ export function attach_chat_parts<T extends { message_id: number }>(kind: string
 	return messages.map(message => by_id.has(message.message_id) ? { ...message, parts: by_id.get(message.message_id)! } : message);
 }
 
-export function compatible_chat_parts<T extends { parts?: ChatPart[]; translation_parts?: Record<string, ChatPart[]> }>(
-	message: T, supports_features: boolean, supports_people = false, supports_badges = false
-): T {
-	// Older feature-aware clients discard unknown Multiplayer IDs; send readable text instead.
-	const downgrade = (parts: ChatPart[]) => parts.map(part =>
-		part.type === 'feature' && !supports_badges && CHAT_BADGE_FEATURES.has(part.feature_id)
-			? { type: 'text' as const, text: `[${feature_name(part.feature_id)}]` } : part);
-	if (message.parts) message.parts = downgrade(message.parts);
-	if (message.translation_parts) message.translation_parts = Object.fromEntries(
-		Object.entries(message.translation_parts).map(([language, parts]) => [language, downgrade(parts)]));
-	const unsupported = (part: ChatPart) => (part.type === 'feature' && !supports_features) || (part.type === 'person' && !supports_people);
-	if (message.parts?.some(unsupported)) delete message.parts;
-	if (message.translation_parts) {
-		const supported = Object.fromEntries(Object.entries(message.translation_parts)
-			.filter(([, parts]) => !parts.some(unsupported)));
-		if (Object.keys(supported).length > 0) message.translation_parts = supported;
-		else delete message.translation_parts;
-	}
-	return message;
-}
-
 const escape_html = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;')
 	.replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 

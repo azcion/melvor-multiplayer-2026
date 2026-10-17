@@ -3,9 +3,6 @@ import { has_alliance_access } from './alliances';
 import { db } from './db';
 import { chat_shadow_visibility, is_chat_shadowbanned } from './chat_shadowban';
 import { save_chat_parts, same_chat_parts, type ChatPart } from './chat_parts';
-import { is_client_version_at_least } from './client-version-policy';
-
-export const can_view_petition_discussions = (version: unknown) => version === 'development' || is_client_version_at_least(version, '1.6.10');
 
 // Petition IDs remain aliases for older clients; new clients use the independent discussion ID.
 export function petition_discussion_id(petition_id: number): number | null {
@@ -22,7 +19,7 @@ export function can_access_petition_discussion(client_id: number, petition_id: n
 	FROM petition_discussions d JOIN petition_discussion_guilds g ON g.discussion_id=d.id
 	JOIN guild_memberships m ON m.guild_id=g.guild_id JOIN clients c ON c.id=m.client_id
 	WHERE d.id=? AND m.client_id=? AND c.deleted_at IS NULL`).get(id, client_id);
-	return discussion !== null && (!discussion.alliance || has_alliance_access(client_id, '1.6.10'));
+	return discussion !== null && (!discussion.alliance || has_alliance_access(client_id));
 }
 
 function petition_votes_visible(client_id: number, petition_id: number): boolean {
@@ -130,5 +127,5 @@ export function petition_discussion_notifications(client_id: number) {
 	(d.process_id IS NOT NULL OR EXISTS(SELECT 1 FROM petition_discussion_links l JOIN guild_petitions p ON p.id=l.petition_id WHERE l.discussion_id=d.id AND p.type LIKE 'alliance_%')) alliance
 	FROM petition_discussions d JOIN petition_discussion_guilds g ON g.discussion_id=d.id
 	JOIN guild_memberships m ON m.guild_id=g.guild_id WHERE m.client_id=?`).all(client_id);
-	return rows.filter(row => !row.alliance || has_alliance_access(client_id,'1.6.10')).map(row => ({ ...petition_discussion_summary(client_id,row.id), alliance: !!row.alliance, council: !!row.council }));
+	return rows.filter(row => !row.alliance || has_alliance_access(client_id)).map(row => ({ ...petition_discussion_summary(client_id,row.id), alliance: !!row.alliance, council: !!row.council }));
 }

@@ -414,7 +414,7 @@ describe('Council API', () => {
 		expect(conflict.json.error_lang).toBe('MOD_MP_COUNCIL_CONFLICT');
 		expect(withdrawn.json.success).toBe(true);
 		expect(replacement.json.success).toBe(true);
-		expect((await get_council(member.session_token)).petitions).toHaveLength(1);
+		expect((await get_council(member.session_token)).petitions.filter(p => p.lifecycle === 'active')).toHaveLength(1);
 	});
 
 	test('validates banishment against an exact current membership tenure', async () => {

@@ -77,7 +77,7 @@ describe('friends API', () => {
 			revision: initial.json.revision,
 			unchanged: true,
 			released_mod_version: null,
-			minimum_supported_mod_version: null,
+			minimum_supported_mod_version: '1.6.14',
 			dev_badge_labels: {
 				'multiplayer:Badge_Dev': 'Dev',
 				'multiplayer:Badge_SAE_Dev': 'SAE Dev',
@@ -93,7 +93,7 @@ describe('friends API', () => {
 		const client = await register_client('Release Poll Recipient');
 		const initial = await get_json_with_session<{ revision: number }>('/api/events', client.session_token);
 
-		await db_run("UPDATE `service_settings` SET `value` = '1.5.10' WHERE `key` = 'released_mod_version'");
+		await db_run("UPDATE `service_settings` SET `value` = '1.6.14' WHERE `key` = 'released_mod_version'");
 		try {
 			const polled = await get_json_with_session<{
 				revision: number;
@@ -106,8 +106,8 @@ describe('friends API', () => {
 			expect(polled.json).toEqual({
 				revision: initial.json.revision,
 				unchanged: true,
-				released_mod_version: '1.5.10',
-				minimum_supported_mod_version: null,
+				released_mod_version: '1.6.14',
+				minimum_supported_mod_version: '1.6.14',
 				dev_badge_labels: {
 					'multiplayer:Badge_Dev': 'Dev',
 					'multiplayer:Badge_SAE_Dev': 'SAE Dev',

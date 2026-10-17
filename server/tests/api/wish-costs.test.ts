@@ -16,7 +16,7 @@ const body=(qty=1,ep_micros=10000)=>({command_id:crypto.randomUUID(),item_id:'me
 const balance=async(id:number)=>(await db_all<{points_micros:number}>('SELECT points_micros FROM expedition_ep_balances WHERE client_id=?',[id]))[0]!.points_micros;
 
 test('paid Wish atomically charges once, preserves funding and locks sibling GP across merges',async()=>{
-	const pair=await make_guildmates('Paid Wish','Paid Sibling','Paid Wish Guild',{first:'1.6.11',second:'1.6.11'});
+	const pair=await make_guildmates('Paid Wish','Paid Sibling','Paid Wish Guild',{first:'1.6.14',second:'1.6.14'});
 	await account([pair.first_id,pair.second_id]);
 	await db_run('UPDATE guild_memberships SET crucible_reclaim_available_at=0 WHERE guild_id=?',[pair.guild_id]);
 	const input=body(101,1020000);
@@ -44,7 +44,7 @@ test('paid Wish atomically charges once, preserves funding and locks sibling GP 
 });
 
 test('failed quotes and insufficient balances leave EP, Offerings and Wishes unchanged',async()=>{
-	const player=await register_guild_client('Wish Failures','Wish Failures','1.6.11');await account([player.client_id]);
+	const player=await register_guild_client('Wish Failures','Wish Failures','1.6.14');await account([player.client_id]);
 	for(const input of [{...body(),gp:249},{...body(),ep_micros:9999},{...body(),gp_balance:249}]) {
 		const response=await post_json<any>('/api/crucible/wish/make',input,player.session_token);
 		expect(response.json.success).not.toBe(true);
@@ -58,7 +58,7 @@ test('failed quotes and insufficient balances leave EP, Offerings and Wishes unc
 });
 
 test('capacity API purchases, upgrades, expiry quotes and renewal commands are replay safe and character owned',async()=>{
-	const pair=await make_guildmates('Capacity Buyer','Capacity Sibling','Capacity API',{first:'1.6.11',second:'1.6.11'});await account([pair.first_id,pair.second_id]);
+	const pair=await make_guildmates('Capacity Buyer','Capacity Sibling','Capacity API',{first:'1.6.14',second:'1.6.14'});await account([pair.first_id,pair.second_id]);
 	const input={command_id:crypto.randomUUID(),base:300,ep_micros:30000000,auto_renew:true};
 	const first=(await post_json<any>('/api/crucible/wish/capacity',input,pair.first.session_token)).json;
 	expect(first).toMatchObject({success:true,capacity:{base:300,auto_renew:true,renewal_micros:30000000}});
@@ -90,44 +90,16 @@ test('capacity API purchases, upgrades, expiry quotes and renewal commands are r
 	expect(await balance(pair.first_id)).toBe(879000000);
 });
 
-test('older clients cannot start paid Wishes; legacy committed commands still replay without charging',async()=>{
-	const player=await register_guild_client('Legacy Wish','Legacy Wish','1.6.9');await account([player.client_id]);
-	expect((await post('/api/crucible/wish/make',body(),player.session_token)).status).toBe(400);
+test('legacy committed Wish commands replay for current clients without charging',async()=>{
+	const player=await register_guild_client('Legacy Wish','Legacy Wish','1.6.14');await account([player.client_id]);
 	const command_id=crypto.randomUUID();const response={success:true,wish_id:123};
 	await db_run("INSERT INTO crucible_commands(id,client_id,kind,response_json,created_at) VALUES(?,?,'make',?,?)",[command_id,player.client_id,JSON.stringify(response),Date.now()]);
 	expect((await post_json<any>('/api/crucible/wish/make',{command_id},player.session_token)).json).toEqual(response);
 	expect(await balance(player.client_id)).toBe(1000000000);
 });
 
-test('released 1.6.10 Wishes retain server-only creation and replay without EP or GP charges', async () => {
-	const player = await register_guild_client('Released Wish', 'Released Wish', '1.6.10');
-	await account([player.client_id]);
-	const input = { command_id: crypto.randomUUID(), item_id: 'melvorAoD:Torn_Parchment', qty: 100 };
-	const make = () => post_json<any>('/api/crucible/wish/make', input, player.session_token);
-	const [first, repeated] = await Promise.all([make(), make()]);
-	expect(first.json.success).toBe(true);
-	expect(first.json.receipt).toBeUndefined();
-	expect(repeated.json).toEqual(first.json);
-	expect(await balance(player.client_id)).toBe(1000000000);
-	expect(await db_all('SELECT qty,required_gp,progress_gp,formation_points FROM crucible_wishes WHERE id=?', [first.json.wish_id]))
-		.toEqual([{ qty: 100, required_gp: 50000, progress_gp: 0, formation_points: 0 }]);
-	expect(await db_all('SELECT id FROM crucible_offerings WHERE guild_id=?', [player.guild_id])).toEqual([]);
-	expect(await db_all('SELECT id FROM wish_ep_spends WHERE client_id=?', [player.client_id])).toEqual([]);
-	expect(await db_all('SELECT currency_id FROM crucible_currency_locks WHERE guild_id=?', [player.guild_id])).toEqual([]);
-	expect((await post_json<any>('/api/crucible/wish/cancel', {}, player.session_token)).json.success).toBe(true);
-	// Replay a lost response after cancellation without recreating or charging for the Wish.
-	expect((await make()).json).toEqual(first.json);
-	expect(await db_all('SELECT id FROM crucible_wishes WHERE guild_id=?', [player.guild_id])).toEqual([]);
-	expect((await post('/api/crucible/wish/make', { ...input, command_id: crypto.randomUUID(), qty: 101 }, player.session_token)).status).toBe(400);
-	expect((await post('/api/crucible/wish/make', body(), player.session_token)).status).toBe(400);
-	for (const kind of ['capacity', 'renewal'])
-		expect((await post_json<any>(`/api/crucible/wish/${kind}`, { base: 200, ep_micros: 10000000, auto_renew: true }, player.session_token)).json)
-			.toMatchObject({ success: false, error_lang: 'MOD_MP_UNSUPPORTED_VERSION_MESSAGE' });
-	expect(await balance(player.client_id)).toBe(1000000000);
-});
-
-test('1.6.11 cannot omit payment quotes to create a free Wish', async () => {
-	const player = await register_guild_client('Missing Quote', 'Missing Quote', '1.6.11');
+test('Wish creation requires payment quotes', async () => {
+	const player = await register_guild_client('Missing Quote', 'Missing Quote', '1.6.14');
 	await account([player.client_id]);
 	expect((await post('/api/crucible/wish/make', { item_id: 'melvorAoD:Torn_Parchment', qty: 1 }, player.session_token)).status).toBe(400);
 	expect(await db_all('SELECT id FROM crucible_wishes WHERE guild_id=?', [player.guild_id])).toEqual([]);
@@ -135,7 +107,7 @@ test('1.6.11 cannot omit payment quotes to create a free Wish', async () => {
 });
 
 test('EP arriving after an unaffordable renewal does not silently revive it',async()=>{
-	const player=await register_guild_client('Late EP','Late EP Guild','1.6.11');await account([player.client_id]);
+	const player=await register_guild_client('Late EP','Late EP Guild','1.6.14');await account([player.client_id]);
 	const registered=(await post_json<any>('/api/expedition/register',{operation_id:crypto.randomUUID()},player.session_token)).json;
 	await db_run('UPDATE expedition_ep_balances SET points_micros=0 WHERE client_id=?',[player.client_id]);
 	await db_run('INSERT INTO wish_capacities(client_id,base,expires_at,auto_renew) VALUES(?,200,?,1)',[player.client_id,Date.now()-1]);
@@ -148,7 +120,7 @@ test('EP arriving after an unaffordable renewal does not silently revive it',asy
 });
 
 test('an Offering numeric overflow rolls back the EP debit and Wish creation',async()=>{
-	const player=await register_guild_client('Wish Overflow','Wish Overflow','1.6.11');await account([player.client_id]);
+	const player=await register_guild_client('Wish Overflow','Wish Overflow','1.6.14');await account([player.client_id]);
 	await post_json<any>('/api/crucible/cast',{source:'bank',items:[{id:'melvorD:GP',qty:1,value_currency_id:'melvorD:GP',value_per_item:1}]},player.session_token);
 	await db_run('UPDATE crucible_offerings SET qty=? WHERE guild_id=? AND item_id=?',[Number.MAX_SAFE_INTEGER,player.guild_id,'melvorD:GP']);
 	expect((await post('/api/crucible/wish/make',body(),player.session_token)).status).toBe(400);
@@ -163,7 +135,7 @@ test('actual mod actions recover a lost API response with exhausted EP and apply
 	const rules=await import(module_root+'crucible-rules.mjs');
 	const {create_pending_economy_actions}=await import(module_root+'pending-economy-actions.mjs');
 	const {apply_economy_receipt}=await import(module_root+'economy-receipts.mjs');
-	const player=await register_guild_client('Wish Client Flow','Wish Client Flow','1.6.11');await account([player.client_id]);
+	const player=await register_guild_client('Wish Client Flow','Wish Client Flow','1.6.14');await account([player.client_id]);
 	await db_run('UPDATE expedition_ep_balances SET points_micros=1020000 WHERE client_id=?',[player.client_id]);
 	const game={gp:{amount:100000000}};
 	const state:any={is_guild_member:true,is_connected:true,is_social_only:false,crucible_wish_item_id:'melvorAoD:Torn_Parchment',
@@ -202,7 +174,7 @@ test('actual mod actions recover a lost API response with exhausted EP and apply
 });
 
 test('odd funding requirements round GP upward and large payments bypass the ordinary Cast transfer cap',async()=>{
-	const player=await register_guild_client('Exact Wish GP','Exact Wish GP','1.6.11');await account([player.client_id]);
+	const player=await register_guild_client('Exact Wish GP','Exact Wish GP','1.6.14');await account([player.client_id]);
 	const odd=(await post_json<any>('/api/crucible/wish/make',{...body(),item_id:'melvorD:Frozen_Chest',gp:1723},player.session_token)).json;
 	expect(odd).toMatchObject({success:true,paid_gp:1723});
 	expect(await db_all('SELECT required_gp,progress_gp FROM crucible_wishes WHERE id=?',[odd.wish_id])).toEqual([{required_gp:3445,progress_gp:0}]);
