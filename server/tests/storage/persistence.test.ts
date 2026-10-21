@@ -97,6 +97,7 @@ describe('SQLite persistence probe', () => {
 			'economy_operator_commands',
 			'economy_player_notices',
 			'economy_policy_changes',
+			'economy_receipt_reviews',
 			'economy_receipts',
 			'economy_terminal_snapshots',
 			'economy_wish_funding',

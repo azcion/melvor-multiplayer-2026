@@ -142,7 +142,7 @@ test('Crucible keeps migration unavailability distinct from a failed load', asyn
 	assert.deepEqual(state.crucible.wishes, []);
 	assert.equal(state.crucible_error, '');
 	const template = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
-	assert.match(template, /v-show="state\.crucible_error && !state\.crucible"><lang-string lang-id="MOD_MP_MULTIPLAYER_CONNECTION_ERR"/);
+	assert.match(template, /v-show="state\.crucible_error && !state\.crucible && !state\.service_status"><lang-string lang-id="MOD_MP_MULTIPLAYER_CONNECTION_ERR"/);
 });
 
 test('Crucible countdown uses localized text for each time scale', () => {

@@ -270,8 +270,18 @@ describe('browser and request boundaries', () => {
 			expect(response.status).toBe(503);
 			expect((await post('/api/events', {}, client.session_token)).status).toBe(405);
 			expect(response.headers.get('Retry-After')).toBe('300');
-			expect(await response.text()).toBe('Service Unavailable');
+			expect(await response.json()).toEqual({ error: 'maintenance' });
+			expect(response.headers.get('Cache-Control')).toBe('no-store');
 			expect(preflight.status).toBe(204);
+			for (const entry of [
+				await request('/api/versions', { headers: { Origin: allowed_origin } }),
+				await post('/api/authenticate', {}),
+				await post('/api/register', {})
+			]) {
+				expect(entry.status).toBe(503);
+				expect(await entry.json()).toEqual({ error: 'maintenance' });
+				expect(entry.headers.get('Retry-After')).toBe('300');
+			}
 		} finally {
 			await db_run("UPDATE `service_settings` SET `value` = '0' WHERE `key` = 'maintenance'");
 		}

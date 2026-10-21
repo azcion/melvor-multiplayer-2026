@@ -1,4 +1,10 @@
 {
+	"MOD_MP_CHAT_HIGHLIGHT": "Hervorheben",
+	"MOD_MP_CHAT_HIGHLIGHT_COLOR": "Hex-Farbe",
+	"MOD_MP_CHAT_HIGHLIGHT_HELP": "Sechs Hex-Zeichen eingeben (RGB, ohne Alpha).",
+	"MOD_MP_CHAT_HIGHLIGHT_PREVIEW": "Vorschau",
+	"MOD_MP_CHAT_HIGHLIGHT_CLEAR": "Hervorhebung entfernen",
+	"MOD_MP_CHAT_HIGHLIGHT_APPLY": "Anwenden",
 	"MOD_MP_ALLIANCE_REASON_MARKET_DISABLE": "Marktplatz schließen",
 	"MOD_MP_ALLIANCE_REASON_REMOVE": "Ausschluss vorschlagen",
 	"MOD_MP_ALLIANCE_REASON_LEAVE": "Austritt vorschlagen",
@@ -1322,5 +1328,10 @@
 	"MOD_MP_BROWSER_LINK_CAPACITY": "Browserlimit erreicht. Aktualisiere die verknüpften Browser und widerrufe einen Zugriff, bevor du einen weiteren Browser verknüpfst.",
 	"MOD_MP_BROWSER_LINK_BROWSERS": "Verknüpfte Browser",
 	"MOD_MP_BROWSER_LINK_REFRESH": "Aktualisieren",
-	"MOD_MP_BROWSER_LINK_BROWSER": "Browser"
+	"MOD_MP_BROWSER_LINK_BROWSER": "Browser",
+	"MOD_MP_SERVICE_TITLE": "Multiplayer-Verbindung",
+	"MOD_MP_SERVICE_MAINTENANCE": "Der Multiplayer macht eine Wartungspause. Sobald er wieder bereit ist, verbinden wir dich automatisch.",
+	"MOD_MP_SERVICE_UNREACHABLE": "Wir können den Multiplayer-Server gerade nicht erreichen. Wir versuchen weiterhin, die Verbindung wiederherzustellen.",
+	"MOD_MP_SERVICE_UNAVAILABLE": "Im Multiplayer gibt es gerade Probleme. Wir versuchen weiterhin, die Verbindung wiederherzustellen.",
+	"MOD_MP_SERVICE_RESOLVED": "Der Multiplayer ist wieder verfügbar. Danke für deine Geduld!"
 }

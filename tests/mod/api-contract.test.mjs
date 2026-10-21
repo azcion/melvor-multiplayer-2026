@@ -35,6 +35,7 @@ test('a stale discovery cannot pin another session or origin', async () => {
 		transport_diagnostics: null, api_contract: { select_api_major },
 		polling: { fetch_with_timeout: () => new Promise(done => resolve = done) }
 	};
+	context.service_fetch = context.polling.fetch_with_timeout;
 	const pending = runInNewContext(source + '\ndiscover_api_contract()', context);
 	context.server_host = 'https://two.example';
 	context.session_generation++;

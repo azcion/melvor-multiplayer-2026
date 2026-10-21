@@ -11,7 +11,7 @@ import type * as db_row from './db/types/db_types';
 import type { JsonObject } from './http';
 import { crucible_contents, distribute_crucible_value, reconcile_crucible } from './crucible-service';
 import { CRUCIBLE_GLOOP_ID, CRUCIBLE_PROGRESS_MAX, crucible_heat_value, crucible_known_valuation,
-	crucible_stack_value, safe_crucible_add, type CrucibleValuation } from './crucible-values';
+	crucible_stack_value, crucible_overflow_gloop, safe_crucible_add, type CrucibleValuation } from './crucible-values';
 import { CRUCIBLE_PET_ID, get_crucible_pet_chance, grant_pet } from './pets';
 
 const RECLAIM_COOLDOWN_MS = 20 * 60 * 60_000;
@@ -222,9 +222,9 @@ function bonus_from_reclaim(actor: CrucibleActor, offering: db_row.crucible_offe
 				throw new RangeError('Reclaim bonus exceeds safe integer range');
 			const residual = distribute_crucible_value(actor.guild_id, Number(overflow), now,
 				new Set([lot.client_id]),db,origins);
-			if (residual > 0)
-				gloop_qty = safe_crucible_add(gloop_qty, Math.ceil(residual / 1_000));
-			if(residual>0) gloop_origins.push({origins,key:`reclaim:${lot.root_key ?? 'unknown'}:${gloop_origins.length}`});
+			const gloop = crucible_overflow_gloop(residual, offering, 10);
+			gloop_qty = safe_crucible_add(gloop_qty, gloop);
+			if(gloop>0) gloop_origins.push({origins,key:`reclaim:${lot.root_key ?? 'unknown'}:${gloop_origins.length}`});
 		}
 	}
 	return gloop_qty;
@@ -311,7 +311,7 @@ export function reclaim_crucible_offering(actor: CrucibleActor, item_id: string,
 	if (bonus_gloop > 0) {
 		create_audit_lot(reclaim_event, CRUCIBLE_GLOOP_ID, bonus_gloop, 'crucible', String(actor.guild_id));
 		const id=add_crucible_gloop(actor.guild_id, bonus_gloop, now)!;
-		for(const [index,output] of gloop_origins.entries()) create_gloop_custody(db,id,output.origins,`${source_id}:${index}`,actor.guild_id,now);
+		for(const [index,output] of gloop_origins.entries()) create_gloop_custody(db,id,output.origins,`${source_id}:${index}`,actor.guild_id,now,10);
 	}
 	return { success: true, item_qty: qty, remaining_qty: offering.qty - qty,
 		next_reclaim_at: now + RECLAIM_COOLDOWN_MS };

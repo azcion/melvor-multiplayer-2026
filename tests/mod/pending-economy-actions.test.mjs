@@ -57,3 +57,15 @@ test('never saves a new donation snapshot while an earlier spend is unresolved',
 	assert.equal(h.storage.size, 0);
 	assert.equal(h.requests.length, 0);
 });
+
+test('a reviewed old action does not capture the next confirmation or resend the old quantity', async () => {
+	const h = harness();
+	await create_pending_economy_actions(h.options).run('cast', '/api/crucible/cast', { qty: 353 });
+	const old_id = h.requests[0].payload.command_id;
+	h.respond({ success: true, receipt: null });
+	h.apply();
+	const actions = create_pending_economy_actions({ ...h.options, is_reviewed: id => id === old_id });
+	await actions.run('cast', '/api/crucible/cast', { qty: 2 });
+	assert.notEqual(h.requests[1].payload.command_id, old_id);
+	assert.equal(h.requests[1].payload.qty, 2);
+});

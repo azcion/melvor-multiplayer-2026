@@ -1,8 +1,12 @@
-import type { Database } from 'bun:sqlite';
+import { Database } from 'bun:sqlite';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { expect, test } from 'bun:test';
 import { create_test_database } from '../support/database';
 import { crucible_contents, reconcile_crucible } from '../../crucible-service';
 import type * as db_row from '../../db/types/db_types';
+import { create_custody_source } from '../../economy-custody';
 import { apply_crucible_petition, snapshot_crucible_petition, settle_departing_crucible_wish } from '../../crucible-council';
 
 function database_at_minute(minute: number): Database {
@@ -207,3 +211,111 @@ for (const type of ['crucible_sealing', 'crucible_purging', 'crucible_unsealing'
 			database.close();
 		}
 	});
+
+
+function add_test_gloop(database: Database, qty: number, created_at = 1): number {
+	return database.query<{ id: number }, [number, number, number]>(
+		"INSERT INTO crucible_offerings (guild_id,item_id,qty,created_at,refreshed_at,is_untimed) " +
+		"VALUES (1,'melvorD:Weird_Gloop',?,?,?,1) RETURNING id").get(qty, created_at, created_at)!.id;
+}
+
+test('Gloop decays at noon UTC once, catches up each missed day and preserves hidden untimed state', () => {
+	const database = database_at_minute(719);
+	try {
+		add_test_gloop(database, 1_000_000);
+		reconcile_crucible(1, 720 * 60_000 - 1, database);
+		expect(crucible_contents(1, 0, database)!.offerings[0]!.qty).toBe(1_000_000);
+		reconcile_crucible(1, 720 * 60_000, database);
+		expect(crucible_contents(1, 0, database)!.offerings[0]!.qty).toBe(750_000);
+		reconcile_crucible(1, 720 * 60_000, database);
+		expect(crucible_contents(1, 0, database)!.offerings[0]!.qty).toBe(750_000);
+		reconcile_crucible(1, (720 + 2 * 1440) * 60_000, database);
+		expect(database.query('SELECT qty,is_untimed,meld_points FROM crucible_offerings').get())
+			.toEqual({ qty: 421_875, is_untimed: 1, meld_points: 0 });
+		expect(database.query("SELECT COUNT(*) AS count FROM audit_events WHERE event_type='crucible.gloop_decayed'").get())
+			.toEqual({ count: 3 });
+		expect(crucible_contents(1, 0, database)!.heat.value).toBe(0);
+	} finally { database.close(); }
+});
+
+test('Gloop created after noon waits until the next noon; small and maximum-safe stacks round exactly', () => {
+	for (const qty of [1, 2, 3, 4, Number.MAX_SAFE_INTEGER]) {
+		const database = database_at_minute(721);
+		try {
+			add_test_gloop(database, qty, 721 * 60_000);
+			reconcile_crucible(1, 2159 * 60_000, database);
+			expect(database.query('SELECT qty FROM crucible_offerings').get()).toEqual({ qty });
+			reconcile_crucible(1, 2160 * 60_000, database);
+			expect(database.query('SELECT qty FROM crucible_offerings').get())
+				.toEqual({ qty: Number((BigInt(qty) * 3n + 3n) / 4n) });
+		} finally { database.close(); }
+	}
+});
+
+test('noon decay precedes newly melded Gloop and does not fund Wishes', () => {
+	const database = database_at_minute(719);
+	try {
+		add_test_gloop(database, 1000);
+		database.run("INSERT INTO crucible_offerings(guild_id,item_id,qty,value_currency_id,value_per_item,meld_points,created_at,refreshed_at) " +
+			"VALUES(1,'test:NoonOre',1,'melvorD:GP',1000000,10079,1,1)");
+		reconcile_crucible(1, 720 * 60_000, database);
+		expect(database.query('SELECT qty FROM crucible_offerings').get()).toEqual({ qty: 1750 });
+	} finally { database.close(); }
+});
+
+test('decay retires exact custody and audit value atomically and remains retryable after failure', () => {
+	const database = database_at_minute(719);
+	try {
+		database.run("INSERT INTO clients(id,client_identifier,client_key,friend_code,display_name,icon_id) " +
+			"VALUES(100,'decay-client','key','111-222-333','Test','melvorD:Plant')");
+		const id = add_test_gloop(database, 1000);
+		create_custody_source(database, { root_key: 'decay-root', operation_key: 'decay-operation',
+			client_id: 100, object_id: 'melvorD:Weird_Gloop', quantity: 900, created_at: 1, snapshot: {} },
+			`crucible-offering:${id}`);
+		database.run("CREATE TRIGGER fail_decay BEFORE UPDATE OF qty ON crucible_offerings " +
+			"BEGIN SELECT RAISE(ABORT,'injected decay failure'); END");
+		expect(() => database.transaction(() => reconcile_crucible(1, 720 * 60_000, database)).immediate()).toThrow('injected decay failure');
+		expect(database.query('SELECT processed_minute FROM crucible_guilds WHERE guild_id=1').get()).toEqual({processed_minute:719});
+		expect(database.query('SELECT qty FROM crucible_offerings').get()).toEqual({qty:1000});
+		expect(database.query("SELECT COUNT(*) AS count FROM audit_events WHERE event_type='crucible.gloop_decayed'").get()).toEqual({count:0});
+		database.run('DROP TRIGGER fail_decay');
+		database.transaction(() => reconcile_crucible(1, 720 * 60_000, database)).immediate();
+		expect(database.query('SELECT quantity,location FROM economy_custody_balances ORDER BY location').all())
+			.toEqual([{quantity:150,location:'consumed:gloop-decay'},{quantity:750,location:`crucible-offering:${id}`}]);
+		expect(database.query("SELECT quantity FROM audit_event_values WHERE event_id IN " +
+			"(SELECT id FROM audit_events WHERE event_type='crucible.gloop_decayed')").all()).toEqual([{quantity:250}]);
+	} finally { database.close(); }
+});
+
+test('non-GP, zero and unknown Meld value cannot produce Gloop', () => {
+	for (const [currency, value] of [['melvorD:SlayerCoins', 10000], ['melvorD:GP', 0], [null, null]] as const) {
+		const database = database_at_minute(1000);
+		try {
+			database.query('INSERT INTO crucible_offerings(guild_id,item_id,qty,value_currency_id,value_per_item,meld_points,created_at,refreshed_at) ' +
+				"VALUES(1,'test:NoGP',10000,?,?,10079,1,1)").run(currency, value);
+			reconcile_crucible(1, 1001 * 60_000, database);
+			expect(database.query('SELECT * FROM crucible_offerings').all()).toEqual([]);
+		} finally { database.close(); }
+	}
+});
+
+
+test('persisted reconciliation cursor survives restart without repeating noon decay', () => {
+	const directory = mkdtempSync(join(tmpdir(), 'crucible-decay-'));
+	const path = join(directory, 'state.sqlite');
+	let database = database_at_minute(719);
+	try {
+		add_test_gloop(database, 1_000_000);
+		database.transaction(() => reconcile_crucible(1, 720 * 60_000, database)).immediate();
+		writeFileSync(path, database.serialize());
+		database.close();
+		database = new Database(path, { strict: true });
+		database.run('PRAGMA foreign_keys=ON');
+		database.transaction(() => reconcile_crucible(1, 721 * 60_000, database)).immediate();
+		expect(database.query('SELECT qty FROM crucible_offerings').get()).toEqual({qty:750000});
+		database.transaction(() => reconcile_crucible(1, 2160 * 60_000, database)).immediate();
+		expect(database.query('SELECT qty FROM crucible_offerings').get()).toEqual({qty:562500});
+		expect(database.query('PRAGMA integrity_check').get()).toEqual({integrity_check:'ok'});
+		expect(database.query('PRAGMA foreign_key_check').all()).toEqual([]);
+	} finally { database.close(); rmSync(directory, {recursive:true,force:true}); }
+});

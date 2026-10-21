@@ -63,10 +63,19 @@ export function crucible_heat(value: number): { tier: number; points_per_minute:
 	return { tier, points_per_minute: HEAT_RATES[tier]! };
 }
 
-export function crucible_gloop_quantity(residual_value: number): number {
-	if (!Number.isSafeInteger(residual_value) || residual_value < 0)
+export function crucible_gloop_quantity(residual_value: number, meld_multiplier = 1): number {
+	if (!Number.isSafeInteger(residual_value) || residual_value < 0 ||
+		!Number.isSafeInteger(meld_multiplier) || meld_multiplier <= 0)
 		throw new RangeError('Invalid Crucible residual value');
-	return residual_value === 0 ? 0 : Math.floor((residual_value - 1) / 1_000) + 1;
+	const divisor = 1_000n * BigInt(meld_multiplier);
+	return Number((BigInt(residual_value) + divisor - 1n) / divisor);
+}
+
+/** Non-GP and unknown sale values cannot produce GP-priced Gloop. Wish funding is independent. */
+export function crucible_overflow_gloop(residual_value: number, valuation: CrucibleValuation,
+	meld_multiplier = 1): number {
+	if (valuation.value_currency_id !== CRUCIBLE_GP_ID || !valuation.value_per_item) return 0;
+	return crucible_gloop_quantity(residual_value, meld_multiplier);
 }
 
 export function crucible_estimated_completion_at(points: number, points_per_minute: number,

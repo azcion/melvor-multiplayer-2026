@@ -88,13 +88,18 @@ export function normalize_chat_parts(value: unknown, sender_id?: number): ChatPa
 	return length > 0 && length <= 1000 ? result : null;
 }
 
-export function save_chat_parts(kind: string, message_id: number, parts?: ChatPart[]): void {
+export function save_chat_parts(kind: string, message_id: number, parts?: ChatPart[], highlight_color: string | null = null): void {
+	if (highlight_color !== null) db.query('UPDATE chat_translation_jobs SET highlight_color = ? WHERE source_kind = ? AND message_id = ?')
+		.run(highlight_color, kind, message_id);
 	if (!parts?.some(part => part.type !== 'text')) return;
 	db.query('INSERT INTO chat_message_bodies (job_id, parts) SELECT id, ? FROM chat_translation_jobs ' +
 		'WHERE source_kind = ? AND message_id = ?').run(JSON.stringify(parts), kind, message_id);
 }
 
-export function same_chat_parts(kind: string, message_id: number, parts?: ChatPart[]): boolean {
+export function same_chat_parts(kind: string, message_id: number, parts?: ChatPart[], highlight_color: string | null = null): boolean {
+	const highlight = db.query<{ highlight_color: string | null }, [string, number]>(
+		'SELECT highlight_color FROM chat_translation_jobs WHERE source_kind = ? AND message_id = ?').get(kind, message_id);
+	if ((highlight?.highlight_color ?? null) !== highlight_color) return false;
 	const existing = db.query<{ parts: string }, [string, number]>('SELECT body.parts FROM chat_message_bodies body ' +
 		'JOIN chat_translation_jobs job ON job.id = body.job_id WHERE job.source_kind = ? AND job.message_id = ?')
 		.get(kind, message_id);
@@ -102,14 +107,19 @@ export function same_chat_parts(kind: string, message_id: number, parts?: ChatPa
 }
 
 export function attach_chat_parts<T extends { message_id: number }>(kind: string, messages: T[]):
-	Array<T & { parts?: ChatPart[] }> {
+	Array<T & { parts?: ChatPart[]; highlight_color?: string }> {
 	if (messages.length === 0) return [];
-	const rows = db.query<{ message_id: number; parts: string }, Array<string | number>>(
-		'SELECT job.message_id, body.parts FROM chat_message_bodies body JOIN chat_translation_jobs job ON job.id = body.job_id ' +
+	const rows = db.query<{ message_id: number; parts: string | null; highlight_color: string | null }, Array<string | number>>(
+		'SELECT job.message_id, body.parts, job.highlight_color FROM chat_translation_jobs job ' +
+		'LEFT JOIN chat_message_bodies body ON job.id = body.job_id ' +
 		`WHERE job.source_kind = ? AND job.message_id IN (${messages.map(() => '?').join(',')})`
 	).all(kind, ...messages.map(message => message.message_id));
-	const by_id = new Map(rows.map(row => [row.message_id, JSON.parse(row.parts) as ChatPart[]]));
-	return messages.map(message => by_id.has(message.message_id) ? { ...message, parts: by_id.get(message.message_id)! } : message);
+	const by_id = new Map(rows.map(row => [row.message_id, row]));
+	return messages.map(message => {
+		const row = by_id.get(message.message_id);
+		return { ...message, ...(row?.parts ? { parts: JSON.parse(row.parts) as ChatPart[] } : {}),
+			...(row?.highlight_color ? { highlight_color: row.highlight_color } : {}) };
+	});
 }
 
 const escape_html = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;')

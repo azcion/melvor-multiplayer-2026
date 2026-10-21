@@ -2,6 +2,8 @@ import { create_chat_controller, conversation_key } from './controller.mjs';
 import { node, kind_labels, presentation, render_parts, avatar_node, conversation_image, conversation_label } from './render.mjs';
 import { create_transport, create_selection, pair_serialized } from './transport.mjs';
 const $ = id => document.getElementById(id);
+import { CHAT_HIGHLIGHT_PRESETS, highlight_input, highlight_color } from '../../mod/chat-highlights.mjs';
+
 const dev_tags = new URLSearchParams(window.location.search).get('devTags') === '1';
 for (const id of ['people-tag', 'item-picker']) $(id).hidden = !dev_tags;
 const transport = create_transport();
@@ -245,6 +247,10 @@ function render_chat(view) {
 	const focused = document.activeElement?.chatFocus;
 	const e = view.entry;
 	$('chat-notice').textContent = view.notice;
+	const other_unread = view.inbox.reduce((count,c) => count + (conversation_key(c) === view.selected ? 0 : c.unread_count || 0), 0);
+	$('mobile-inbox-unread').hidden = !other_unread;
+	$('mobile-inbox-unread').textContent = String(other_unread);
+	$('mobile-inbox-unread').setAttribute('aria-label', `${other_unread} unread messages in other conversations`);
 	$('inbox-status').textContent = view.loading ? 'Loading conversations…' : view.inbox.length ? '' : 'No conversations available. Manage Chat participation in Melvor.';
 	const next_inbox = JSON.stringify([view.link,view.selected,view.inbox,items,avatars]);
 	if (inbox_signature !== next_inbox) { inbox_signature = next_inbox; $('inbox').replaceChildren(...[['Global',['global','testers']],['Guild',['alliance','guild']],['Private',['private']],['Support',['support']]].flatMap(([label,kinds]) => {
@@ -257,7 +263,11 @@ function render_chat(view) {
 			const icon = conversation_image(document,c,avatars); if (icon) b.append(icon);
 			const copy = node(document,'span',undefined,'conversation-copy'); b.append(copy);
 			copy.append(node(document,'strong',conversation_label(c)));
-			if (c.unread_tagged || c.unread_count) copy.append(node(document,'span', `${c.unread_tagged ? '@ Mention · ' : ''}${c.unread_count || 0} unread`, c.unread_tagged ? 'mention' : 'unread'));
+			if (c.unread_count) {
+				const badge = node(document,'span',String(c.unread_count),'unread');
+				badge.setAttribute('aria-label', `${c.unread_count} unread messages`); copy.append(badge);
+			}
+			if (c.unread_tagged) copy.append(node(document,'span','@','mention'));
 			if (c.latest_message) { const preview = node(document,'small'); render_parts(document,preview,c.latest_message.parts,c.latest_message.content,items,undefined,avatars); copy.append(preview); }
 			return b;
 		})];
@@ -294,7 +304,11 @@ function render_chat(view) {
 		row.append(header);
 		const display = presentation(m,locale,own_message(m,view) || originals.has(`${selected}/${view.selected}/${m.message_id}`));
 		const bubble = node(document,'div',undefined,'message-bubble'); row.append(bubble);
-		const body = node(document,'div',undefined,'message-content'); render_parts(document,body,display.parts,display.text,items,id => void show_profile(id),avatars); bubble.append(body);
+		const body = node(document,'div',undefined,'message-content');
+		const tagged = (m.parts ?? []).some(part => part.type === 'person' && part.client_id === view.state.client_id);
+		const glow = tagged ? '#FF00E3' : highlight_color(m.highlight_color);
+		if (glow) body.style.boxShadow = `0 0 4px 2px ${glow}`;
+		render_parts(document,body,display.parts,display.text,items,id => void show_profile(id),avatars); bubble.append(body);
 		const reactions = node(document,'div',undefined,'message-reactions');
 		if (m.message_id > 0) for (const r of m.reactions ?? []) {
 			const summary = button(`${r.reaction} ${r.count}`, () => void chat.reaction(m.message_id,r.reaction,!r.reacted),e.denied);
@@ -316,8 +330,13 @@ function render_chat(view) {
 	const disabled = e.denied || e.validating || c.blocked || c.can_send === false || private_chat && view.state.messaging_enabled === false;
 	$('composer').hidden = disabled; $('read-only').textContent = e.validating && !e.denied ? 'Checking conversation access…' : disabled ? 'Messaging is unavailable for this conversation. Check participation, privacy or Block settings.' : '';
 	if ($('draft').value !== e.draft) $('draft').value = e.draft;
+	$('highlight').hidden = view.state.can_highlight !== true;
+	$('highlight').disabled = Boolean(e.pending);
+	$('highlight').setAttribute('aria-pressed', String(Boolean(e.highlight_color)));
+	$('draft').style.boxShadow = e.highlight_color ? `0 0 4px 2px ${e.highlight_color}` : '';
 	$('draft-count').textContent = `${e.draft.length} / 1000`;
-	$('draft').disabled = Boolean(e.pending);
+	// Read-only preserves keyboard focus while the exact pending payload is locked.
+	$('draft').readOnly = Boolean(e.pending);
 	$('send').disabled = Boolean(e.pending) || e.sending || view.mutating;
 	$('retry-send').hidden = !e.pending || e.sending; $('retry-send').disabled = e.sending || Date.now() < e.retry_at;
 	$('pending-warning').textContent = e.pending && !e.sending ? 'Send result may be unknown. Retry sends the exact original message once. Keep this page open; reloading loses its retry key.' : '';
@@ -415,6 +434,38 @@ $('draft').addEventListener('keydown', event => {
 });
 $('retry-send').addEventListener('click', () => void chat.send(true));
 $('older').addEventListener('click', () => void chat.history('older'));
+$('highlight').addEventListener('click', () => {
+	const view = chat.view(), e = view.entry;
+	if (!e || !view.state.can_highlight || e.pending) return;
+	show_dialog('Highlight');
+	const content = $('dialog-content'), swatches = node(document, 'div', undefined, 'highlight-presets');
+	const label = node(document, 'label', 'Hex color'); label.htmlFor = 'highlight-hex';
+	const field = node(document, 'div', undefined, 'highlight-hex');
+	const input = node(document, 'input'); input.id = 'highlight-hex'; input.type = 'text'; input.placeholder = 'RRGGBB';
+	input.autocomplete = 'off'; input.spellcheck = false; input.value = highlight_input(e.highlight_color);
+	const help = node(document, 'p', 'Enter six hex digits (RGB, no alpha).'); help.id = 'highlight-help';
+	input.setAttribute('aria-describedby', help.id);
+	const sample = node(document, 'div', 'Preview', 'highlight-sample');
+	const apply = button('Apply', () => {
+		if (chat.view().entry !== e || !highlight_color(input.value)) return;
+		chat.highlight(input.value); close_dialog();
+	});
+	const update = () => {
+		input.value = highlight_input(input.value);
+		const color = highlight_color(input.value); apply.disabled = !color;
+		input.setAttribute('aria-invalid', String(!color));
+		sample.style.boxShadow = color ? `0 0 4px 2px ${color}` : '';
+		for (const swatch of swatches.children) swatch.setAttribute('aria-pressed', String(swatch.getAttribute('aria-label') === color));
+	};
+	input.addEventListener('input', update);
+	for (const color of CHAT_HIGHLIGHT_PRESETS) {
+		const swatch = button('', () => { input.value = color; update(); }); swatch.className = 'highlight-swatch';
+		swatch.style.backgroundColor = color; swatch.setAttribute('aria-label', color); swatches.append(swatch);
+	}
+	field.append(node(document, 'span', '#'), input); content.append(swatches, label, field, help, sample);
+	$('dialog-actions').append(button('Clear highlight', () => { if (chat.view().entry === e) chat.highlight(null); close_dialog(); }), apply);
+	update();
+});
 $('people-tag').addEventListener('click', () => void show_people(true));
 $('item-picker').addEventListener('click', () => { $('item-suggestions').hidden = !$('item-suggestions').hidden; if (!$('item-suggestions').hidden) $('search').focus(); });
 $('dialog-close').addEventListener('click',close_dialog);

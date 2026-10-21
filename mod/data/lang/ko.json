@@ -1,4 +1,10 @@
 {
+	"MOD_MP_CHAT_HIGHLIGHT": "강조",
+	"MOD_MP_CHAT_HIGHLIGHT_COLOR": "16진수 색상",
+	"MOD_MP_CHAT_HIGHLIGHT_HELP": "16진수 여섯 자리를 입력하세요(RGB, 알파 없음).",
+	"MOD_MP_CHAT_HIGHLIGHT_PREVIEW": "미리보기",
+	"MOD_MP_CHAT_HIGHLIGHT_CLEAR": "강조 해제",
+	"MOD_MP_CHAT_HIGHLIGHT_APPLY": "적용",
 	"MOD_MP_ALLIANCE_REASON_MARKET_DISABLE": "시장 닫기",
 	"MOD_MP_ALLIANCE_REASON_REMOVE": "제명 제안",
 	"MOD_MP_ALLIANCE_REASON_LEAVE": "탈퇴 제안",
@@ -1322,5 +1328,10 @@
 	"MOD_MP_BROWSER_LINK_CAPACITY": "브라우저 수 제한에 도달했습니다. 연결된 브라우저를 새로고침하고 하나의 접근을 취소한 뒤 새 브라우저를 연결하세요.",
 	"MOD_MP_BROWSER_LINK_BROWSERS": "연결된 브라우저",
 	"MOD_MP_BROWSER_LINK_REFRESH": "새로고침",
-	"MOD_MP_BROWSER_LINK_BROWSER": "브라우저"
+	"MOD_MP_BROWSER_LINK_BROWSER": "브라우저",
+	"MOD_MP_SERVICE_TITLE": "멀티플레이어 연결",
+	"MOD_MP_SERVICE_MAINTENANCE": "멀티플레이어가 점검 중이에요. 준비가 되면 자동으로 다시 연결할게요.",
+	"MOD_MP_SERVICE_UNREACHABLE": "지금은 멀티플레이어 서버에 연결할 수 없어요. 계속해서 다시 연결을 시도할게요.",
+	"MOD_MP_SERVICE_UNAVAILABLE": "지금 멀티플레이어에 문제가 발생했어요. 계속해서 다시 연결을 시도할게요.",
+	"MOD_MP_SERVICE_RESOLVED": "멀티플레이어를 다시 이용할 수 있어요. 기다려 주셔서 감사해요!"
 }

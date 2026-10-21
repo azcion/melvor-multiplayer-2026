@@ -134,7 +134,7 @@ export function list_tester_chat_messages(client_id: number, conversation_id: nu
 	return { status: 'ok', value: { messages: page.map(message_view), has_more } };
 }
 
-export function send_tester_chat_message(client_id: number, conversation_id: number, idempotency_key: string, content: string, now = Date.now(), parts?: ChatPart[]): TesterResult<{
+export function send_tester_chat_message(client_id: number, conversation_id: number, idempotency_key: string, content: string, now = Date.now(), parts?: ChatPart[], highlight_color: string | null = null): TesterResult<{
 		message: ReturnType<typeof message_view>; retry_after_ms: number
 	}> {
 	const trimmed = typeof content === 'string' ? content.trim() : '';
@@ -147,7 +147,7 @@ export function send_tester_chat_message(client_id: number, conversation_id: num
 			'SELECT id, content, channel FROM global_chat_messages WHERE sender_id = ? AND idempotency_key = ?'
 		).get(client_id, idempotency_key);
 		if (duplicate !== null) {
-			if (duplicate.channel !== 'testers' || duplicate.content !== trimmed || !same_chat_parts('global', duplicate.id, parts))
+			if (duplicate.channel !== 'testers' || duplicate.content !== trimmed || !same_chat_parts('global', duplicate.id, parts, highlight_color))
 				return { status: 'bad_request' };
 			return { status: 'ok', value: { message_id: duplicate.id,
 				retry_after_ms: current_throttle_wait(client_id, now, 'testers') } };
@@ -157,7 +157,7 @@ export function send_tester_chat_message(client_id: number, conversation_id: num
 		const created = db.query('INSERT INTO global_chat_messages ' +
 			'(sender_id, idempotency_key, content, created_at, shadow_hidden, channel) VALUES (?, ?, ?, ?, ?, ?)'
 		).run(client_id, idempotency_key, trimmed, now, is_chat_shadowbanned(client_id) ? 1 : 0, 'testers');
-		save_chat_parts('global', Number(created.lastInsertRowid), parts);
+		save_chat_parts('global', Number(created.lastInsertRowid), parts, highlight_color);
 		return { status: 'ok', value: { message_id: Number(created.lastInsertRowid),
 			retry_after_ms: current_throttle_wait(client_id, now, 'testers') } };
 	});

@@ -13,6 +13,14 @@ import {
 
 const root = new URL('../../', import.meta.url);
 
+test('development storage starts without a shared identity or seeded character values', async () => {
+	const main = await read_client_source(root);
+	const declaration = main.match(/const DEV_CHARACTER_STORAGE = ([\s\S]*?);\n/);
+	assert.ok(declaration, 'development storage declaration must be present');
+	const storage = runInNewContext(declaration[1]);
+	assert.deepEqual(Object.keys(storage), []);
+});
+
 test('prunes only matching legacy identity copies in the selected character and instance', () => {
 	const legacy = 'kru-melvor-multiplayer:local-character:0:instance:release:';
 	const current = 'mp:local-character:0:instance:release:';

@@ -6,9 +6,11 @@ import { apply_economy_receipt } from '../../mod/economy-receipts.mjs';
 import * as event_snapshots from '../../mod/event-snapshots.mjs';
 import { create_pending_economy_actions } from '../../mod/pending-economy-actions.mjs';
 import { create_economy_command_journal } from '../../mod/economy-command-journal.mjs';
+import { create_economy_receipt_reviews } from '../../mod/economy-receipt-reviews.mjs';
+import * as economy_receipts from '../../mod/economy-receipts.mjs';
 
 // Run with the isolated API runner and TEST_SERVER_URL=http://127.0.0.1:3001.
-test('real API and mod recovery expose Gifts during a blocked receipt and never repeat the donation', {
+test('real API and mod recovery flag a blocked receipt while Gifts and new transactions continue', {
 	skip: !process.env.TEST_SERVER_URL
 }, async () => {
 	const origin = process.env.TEST_SERVER_URL;
@@ -29,14 +31,23 @@ test('real API and mod recovery expose Gifts during a blocked receipt and never 
 	const processed = [], acknowledged = [];
 	const storage = new Map();
 	let journal;
+	const reviews = create_economy_receipt_reviews({
+		read: () => storage.get('reviews'), write: value => storage.set('reviews', structuredClone(value)),
+		report: async payload => (await request('/api/economy/receipts/review', payload, recipient.session_token)).json
+	});
 	async function reconcile(receipts) {
 		for (const receipt of receipts.filter(Boolean)) {
+			if (reviews.has(receipt.id)) { journal.retire(receipt.id); continue; }
 			const outcome = apply_economy_receipt(receipt, processed, {
 				maximum_transfer_entries: 32, get_transfer_inventory: () => transfer,
 				replace_transfer_inventory: value => transfer = value, persist_processed_ids() {},
 				has_bank_item: () => true, get_bank_qty: () => 0, get_gp: () => 0
 			});
-			if (outcome === 'blocked' || outcome === 'invalid') return false;
+			if (outcome === 'blocked' || outcome === 'invalid') {
+				assert.equal(reviews.defer(receipt.id, outcome), true);
+				journal.retire(receipt.id);
+				continue;
+			}
 			await request('/api/economy/receipts/acknowledge', { receipt_id: receipt.id }, recipient.session_token);
 			acknowledged.push(receipt.id);
 			journal.acknowledge(receipt.id);
@@ -57,8 +68,9 @@ test('real API and mod recovery expose Gifts during a blocked receipt and never 
 	const payload = { source: 'transfer', items: [{ id: 'melvorD:Integration_Logs', qty: 3 }], donation_value: 30 };
 	const first = actions.run('donation', '/api/crucible/cast', payload);
 	assert.equal(first, actions.run('donation', '/api/crucible/cast', payload));
-	assert.equal(await first, null);
-	const command_id = storage.get('journal').payload.command_id;
+	assert.equal((await first).success, true);
+	const command_id = storage.get('reviews')[0].id;
+	assert.equal(storage.has('journal'), false);
 	await request('/api/gift/send', { recipient_id: recipient.chat.client_id,
 		items: [{ id: 'melvorD:Integration_Fish', qty: 2 }], command_id: crypto.randomUUID() }, sender.session_token);
 	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
@@ -66,7 +78,7 @@ test('real API and mod recovery expose Gifts during a blocked receipt and never 
 	const state = { listing_filters: [], refresh_crucible: async () => {}, chat_notification_preferences: {}, events: {}, gifts: [], trades: [], resolved_trades: [], inbox_items: [], get_chat_notification_tagged: () => false };
 	let contents, chat_refreshes = 0;
 	const context = {
-		rollback_client: null, server_host: 'https://test.invalid', guild_revision_scope: null, last_guild_revision: null, apply_dev_badge_labels() {},
+		economy_receipt_reviews: reviews, rollback_client: null, server_host: 'https://test.invalid', guild_revision_scope: null, last_guild_revision: null, apply_dev_badge_labels() {},
 		update_crucible_nav() {}, recover_paid_wish_actions: async () => {}, crucible_page_visible: false, crucible_page_hydrating: false, guild_page_visible: false, refresh_guild_state: async () => {},
 		state, client_events_hydrated: false, session_generation: 1, client_event_revision: 0, CHAT_CAPABILITIES: '', chat_page_visible: false,
 		legacy_market_payout_migration_started: false, MOD_VERSION: '1.6.14', get_instance_storage_item: () => undefined,
@@ -86,7 +98,7 @@ test('real API and mod recovery expose Gifts during a blocked receipt and never 
 		reconcile_pending_gifts: () => contents = request('/api/transfers/get_contents', {
 			gift_ids: state.gifts.map(gift => gift.id), trade_ids: [], resolved_trade_ids: []
 		}, recipient.session_token),
-		economy_receipts: { is_complete_economy_receipt_page: () => true }, ECONOMY_RECEIPT_PAGE_SIZE: 64,
+		economy_receipts, ECONOMY_RECEIPT_PAGE_SIZE: 64,
 		remove_instance_storage_item() {}, show_pending_banishment_notice() {}
 	};
 	await runInNewContext(source + '\nget_client_events_request(true, 1)', context);
@@ -94,14 +106,21 @@ test('real API and mod recovery expose Gifts during a blocked receipt and never 
 	assert.equal(state.gifts.length, 1);
 	assert.ok((await contents).json.gifts[state.gifts[0].id]);
 	assert.deepEqual(acknowledged, []);
-	assert.equal(context.client_event_revision, 0);
+	assert.ok(context.client_event_revision > 0);
+	assert.equal(context.economy_commands_ready, true);
+	await reviews.flush();
+	assert.equal((await request('/api/events', undefined, recipient.session_token)).json.economy_receipts.length, 0);
 	transfer = [{ id: 'melvorD:Integration_Logs', qty: 3 }];
 	await runInNewContext(source + '\nget_client_events_request(true, 1)', context);
 	await contents;
-	assert.equal(transfer.length, 0);
-	assert.ok(acknowledged.includes(command_id));
+	assert.equal(transfer.length, 1, 'reviewed deductions never apply after local inventory recovers');
+	assert.ok(!acknowledged.includes(command_id));
+	const replay = await request('/api/crucible/cast', { ...payload, command_id }, recipient.session_token);
+	assert.equal(replay.json.receipt, null);
+	assert.equal(replay.json.receipt_review_pending, true);
 	const reloaded = create_pending_economy_actions(options);
 	assert.equal((await reloaded.run('donation', '/api/crucible/cast', payload)).success, true);
 	const stock = (await request('/api/crucible/contents', undefined, recipient.session_token)).json.offerings;
-	assert.equal(stock.find(item => item.item_id === 'melvorD:Integration_Logs').qty, 3);
+	assert.equal(stock.find(item => item.item_id === 'melvorD:Integration_Logs').qty, 6, 'a new transaction uses a fresh command and applies its own deduction');
+	assert.equal(transfer.length, 0);
 });

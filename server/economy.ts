@@ -75,6 +75,8 @@ export function replay_economy_command(client_id: number, command_id: unknown, k
 	if (db.query("SELECT 1 FROM economy_operations o JOIN economy_corrections c ON c.operation_id=o.id WHERE o.source_key=? AND o.local_effect='outgoing' LIMIT 1").get(`receipt:${command_id}`))
 		return {success:false,error:'economy_command_retired',retired_command_id:command_id,receipt:null};
 	const response = JSON.parse(existing.response_json) as JsonObject;
+	if (db.query('SELECT 1 FROM economy_receipt_reviews WHERE receipt_id = ?').get(command_id))
+		return { ...response, receipt: null, receipt_review_pending: true };
 	return existing.acknowledged_at === null ? response : { ...response, receipt: null };
 }
 
@@ -119,10 +121,26 @@ export function pending_economy_receipts(client_id: number, rollback_capable: bo
 	const withhold_outgoing = rollback_held(db, client_id) || (!rollback_capable && rollback_affected(db, client_id));
 	return db.query<{ response_json: string }, [number, number]>(
 		'SELECT response_json FROM economy_receipts WHERE client_id = ? AND acknowledged_at IS NULL ' +
+		'AND NOT EXISTS(SELECT 1 FROM economy_receipt_reviews review WHERE review.receipt_id=economy_receipts.id) ' +
 		"AND NOT EXISTS(SELECT 1 FROM economy_operations o JOIN economy_corrections c ON c.operation_id=o.id WHERE o.source_key='receipt:'||economy_receipts.id AND o.local_effect='outgoing') " +
 		"AND (? = 0 OR NOT EXISTS(SELECT 1 FROM json_each(economy_receipts.response_json,'$.receipt.effects') effect WHERE json_extract(effect.value,'$.qty') < 0)) " +
 		'ORDER BY created_at, id LIMIT 64'
 	).all(client_id, Number(withhold_outgoing)).map(row => (JSON.parse(row.response_json) as { receipt: EconomyReceipt }).receipt);
+}
+
+// A recovery failure is evidence, not an acknowledgement or a forgiveness of the effects.
+export function review_economy_receipt(client_id: number, receipt_id: unknown, reason: unknown, now = Date.now()): boolean | null {
+	if (!valid_command_id(receipt_id) || typeof reason !== 'string' || !['blocked', 'invalid', 'acknowledgement_failed'].includes(reason))
+		return null;
+	return db.transaction(() => {
+		if (!db.query('SELECT 1 FROM economy_receipts WHERE id = ? AND client_id = ?').get(receipt_id, client_id))
+			return false;
+		const result = db.query('INSERT INTO economy_receipt_reviews(receipt_id, reason, reported_at) VALUES(?, ?, ?) ON CONFLICT DO NOTHING')
+			.run(receipt_id, reason, now);
+		if (result.changes > 0)
+			db.query('UPDATE clients SET event_revision = event_revision + 1 WHERE id = ?').run(client_id);
+		return true;
+	}).immediate();
 }
 
 export function acknowledge_economy_receipt(client_id: number, receipt_id: unknown, now = Date.now()): boolean | null {

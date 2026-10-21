@@ -1,4 +1,10 @@
 {
+	"MOD_MP_CHAT_HIGHLIGHT": "Подсветка",
+	"MOD_MP_CHAT_HIGHLIGHT_COLOR": "Цвет HEX",
+	"MOD_MP_CHAT_HIGHLIGHT_HELP": "Введите шесть шестнадцатеричных цифр (RGB, без альфа-канала).",
+	"MOD_MP_CHAT_HIGHLIGHT_PREVIEW": "Предпросмотр",
+	"MOD_MP_CHAT_HIGHLIGHT_CLEAR": "Убрать подсветку",
+	"MOD_MP_CHAT_HIGHLIGHT_APPLY": "Применить",
 	"MOD_MP_ALLIANCE_REASON_MARKET_DISABLE": "Закрыть рынок",
 	"MOD_MP_ALLIANCE_REASON_REMOVE": "Предложить исключение",
 	"MOD_MP_ALLIANCE_REASON_LEAVE": "Предложить выход",
@@ -1322,5 +1328,10 @@
 	"MOD_MP_BROWSER_LINK_CAPACITY": "Достигнут лимит браузеров. Обновите список и отзовите один доступ, прежде чем привязать новый браузер.",
 	"MOD_MP_BROWSER_LINK_BROWSERS": "Привязанные браузеры",
 	"MOD_MP_BROWSER_LINK_REFRESH": "Обновить",
-	"MOD_MP_BROWSER_LINK_BROWSER": "Браузер"
+	"MOD_MP_BROWSER_LINK_BROWSER": "Браузер",
+	"MOD_MP_SERVICE_TITLE": "Подключение к мультиплееру",
+	"MOD_MP_SERVICE_MAINTENANCE": "В мультиплеере идёт техническое обслуживание. Мы автоматически подключим вас, когда всё будет готово.",
+	"MOD_MP_SERVICE_UNREACHABLE": "Сейчас не удаётся связаться с сервером мультиплеера. Мы продолжим попытки подключения.",
+	"MOD_MP_SERVICE_UNAVAILABLE": "Сейчас в мультиплеере возникли неполадки. Мы продолжим попытки подключения.",
+	"MOD_MP_SERVICE_RESOLVED": "Мультиплеер снова доступен. Спасибо за ожидание!"
 }

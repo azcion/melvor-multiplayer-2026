@@ -143,6 +143,8 @@
 								<mp-expedition-haze v-if="state.expedition_state?.expedition?.chamber?.id === 'glassroot_terraces'"></mp-expedition-haze>
 								<mp-expedition-observatory v-if="state.expedition_state?.expedition?.chamber?.id === 'buried_observatory'"></mp-expedition-observatory>
 								<mp-expedition-orrery v-if="state.expedition_state?.expedition?.chamber?.id === 'prismatic_orrery'"></mp-expedition-orrery>
+								<mp-expedition-voidwatch v-if="state.expedition_state?.expedition?.chamber?.id === 'voidwatch_threshold'"></mp-expedition-voidwatch>
+								<mp-expedition-hollow-star v-if="state.expedition_state?.expedition?.chamber?.id === 'hollow_star'"></mp-expedition-hollow-star>
 							</div>
 							<div class="mp-expedition-chamber-copy">
 								<h2 :class="{ 'mp-expedition-chamber-title': state.expedition_state?.expedition?.chamber?.id === 'entrance' }">{{ state.expedition_display_label(state.expedition_state?.expedition?.chamber?.label) }}</h2>
@@ -290,7 +292,7 @@
 					<div class="alert alert-success mt-3" v-if="state.raid?.secured && state.raid?.active"><lang-string lang-id="MOD_MP_RAID_SECURED_INFO"></lang-string></div>
 				</div>
 			</div>
-			<div class="block-content text-danger" v-if="state.raid_error">{{ state.raid_error }}</div>
+			<div class="block-content text-danger" v-if="state.raid_error && !state.service_status">{{ state.raid_error }}</div>
 			<div class="block-content alert alert-info m-3" v-if="state.is_social_only"><lang-string lang-id="MOD_MP_SOCIAL_ONLY_RAID_INFO"></lang-string></div>
 		</div>
 
@@ -628,8 +630,8 @@
 				<div class="block-header block-header-default mp-chat-header">
 					<div class="mp-chat-buttons">
 						<button type="button" class="btn btn-sm btn-secondary" @click="state.back_from_chat_conversation()"><i class="fa fa-chevron-left mr-1"></i><lang-string lang-id="MOD_MP_CHAT_BACK"></lang-string></button>
-						<button type="button" aria-haspopup="dialog" :aria-label="getLangString('MOD_MP_CHAT_TRANSLATION_TITLE')" class="btn btn-sm btn-primary mp-translation-button" :aria-pressed="state.is_chat_translation_enabled()" @click="state.show_chat_translation_modal()"><i class="fa fa-language"></i></button>
-						<button type="button" class="btn btn-sm btn-secondary mp-notifications-button" v-if="state.selected_chat_conversation?.conversation_kind !== 'polls' && state.selected_chat_conversation?.conversation_kind !== 'poll-discussion' && state.selected_chat_conversation?.conversation_kind !== 'petition-discussion'" :aria-label="getLangString(state.is_chat_notifications_enabled() ? 'MOD_MP_CHAT_NOTIFICATIONS_ENABLED' : 'MOD_MP_CHAT_NOTIFICATIONS_DISABLED')" :aria-pressed="state.is_chat_notifications_enabled()" :disabled="state.chat_notifications_busy" @click="state.toggle_chat_notifications()"><i class="fa" :class="state.is_chat_notifications_enabled() ? 'fa-bell' : 'fa-bell-slash'" aria-hidden="true"></i></button>
+						<button type="button" aria-haspopup="dialog" :aria-label="getLangString('MOD_MP_CHAT_TRANSLATION_TITLE')" class="btn btn-sm btn-primary mp-translation-button" v-show="!state.selected_chat_conversation?.synthetic_service" :aria-pressed="state.is_chat_translation_enabled()" @click="state.show_chat_translation_modal()"><i class="fa fa-language"></i></button>
+						<button type="button" class="btn btn-sm btn-secondary mp-notifications-button" v-show="!state.selected_chat_conversation?.synthetic_service" v-if="state.selected_chat_conversation?.conversation_kind !== 'polls' && state.selected_chat_conversation?.conversation_kind !== 'poll-discussion' && state.selected_chat_conversation?.conversation_kind !== 'petition-discussion'" :aria-label="getLangString(state.is_chat_notifications_enabled() ? 'MOD_MP_CHAT_NOTIFICATIONS_ENABLED' : 'MOD_MP_CHAT_NOTIFICATIONS_DISABLED')" :aria-pressed="state.is_chat_notifications_enabled()" :disabled="state.chat_notifications_busy" @click="state.toggle_chat_notifications()"><i class="fa" :class="state.is_chat_notifications_enabled() ? 'fa-bell' : 'fa-bell-slash'" aria-hidden="true"></i></button>
 					</div>
 					<button type="button" class="mp-chat-participant" v-if="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private'" @click="state.show_chat_actions_modal()" aria-haspopup="dialog">
 						<img class="skill-icon-xs" :src="state.get_chat_participant_icon()">
@@ -676,7 +678,7 @@
 						<div class="mp-chat-message-meta"><button type="button" class="mp-chat-message-author" @click="state.show_chat_message_member(message)" :disabled="!message.sender_id"><img class="mp-chat-message-avatar" :src="state.get_chat_message_icon(message)" alt=""><span class="font-w600">{{ message.sender.display_name }}</span></button><button type="button" class="mp-chat-message-timestamp" @click="state.show_chat_message_actions(message)"><time :datetime="state.format_chat_datetime(message.created_at)">{{ state.format_chat_time(message.created_at) }}</time></button></div>
 						<div class="mp-chat-message-bubble">
 							<div class="mp-chat-message-content" v-if="message.petition_event === 'aye' || message.petition_event === 'nay'"><span class="badge" :class="message.petition_event === 'aye' ? 'badge-success' : 'badge-danger'"><lang-string :lang-id="message.petition_event === 'aye' ? 'MOD_MP_COUNCIL_AYE' : 'MOD_MP_COUNCIL_NAY'"></lang-string></span></div>
-							<div class="mp-chat-message-content" :class="{ 'mp-chat-tagged': state.is_chat_message_tagged(message), 'mp-chat-message-translating': state.get_chat_message_content(message) === getLangString('MOD_MP_CHAT_TRANSLATING') }" v-else><mp-chat-message-body :parts="state.get_chat_message_document(message)"></mp-chat-message-body></div>
+							<div class="mp-chat-message-content" :style="state.get_chat_highlight_style(message)" :class="{ 'mp-chat-tagged': state.is_chat_message_tagged(message), 'mp-chat-message-translating': state.get_chat_message_content(message) === getLangString('MOD_MP_CHAT_TRANSLATING') }" v-else><mp-chat-message-body :parts="state.get_chat_message_document(message)"></mp-chat-message-body></div>
 							<div class="mp-chat-reactions" :class="{ 'mp-chat-reactions-empty': !message.reactions?.length }">
 								<button type="button" class="mp-chat-reaction-summary" :class="{ 'mp-chat-reaction-reacted': summary.reacted }" :disabled="state.selected_chat_conversation?.conversation_kind === 'testers' && state.selected_chat_conversation?.can_send !== true" v-for="summary in message.reactions" :key="summary.reaction" @click="state.toggle_chat_reaction(message, summary.reaction)"><span>{{ summary.reaction }}</span><span>{{ summary.count }}</span></button>
 								<button type="button" class="mp-chat-reaction-add" v-if="message.message_id > 0 && (state.selected_chat_conversation?.conversation_kind !== 'testers' || state.selected_chat_conversation?.can_send)" :aria-label="state.get_chat_reaction_add_label()" :aria-expanded="state.chat_reaction_picker_message_id === message.message_id" @click="state.toggle_chat_reaction_picker(message, $event)">☻<span aria-hidden="true">+</span></button>
@@ -690,7 +692,7 @@
 				<div class="block-content mp-chat-compose" v-else-if="state.selected_chat_conversation?.conversation_kind === 'testers' && state.selected_chat_conversation?.can_send !== true">
 					<div class="mp-chat-disabled-message"><lang-string lang-id="MOD_MP_TESTER_CHAT_READ_ONLY"></lang-string></div>
 				</div>
-				<div class="block-content mp-chat-compose" v-else-if="state.selected_chat_conversation?.synthetic_unsupported !== true">
+				<div class="block-content mp-chat-compose" v-else-if="state.selected_chat_conversation?.synthetic_unsupported !== true && state.selected_chat_conversation?.synthetic_service !== true">
 					<div class="mp-chat-support-prompts" v-if="state.show_chat_support_prompts">
 						<div class="mp-chat-support-prompts-label"><lang-string lang-id="MOD_MP_CHAT_SUPPORT_PROMPTS"></lang-string></div>
 						<div class="mp-chat-support-prompt-actions">
@@ -699,22 +701,27 @@
 						</div>
 					</div>
 					<form v-else @submit="state.send_chat_message($event)">
-						<mp-chat-composer :value="state.get_chat_draft_document()" :disabled="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && !state.messaging_enabled ? 'disabled' : null" :placeholder="state.get_chat_compose_placeholder()"></mp-chat-composer>
+						<div class="mp-chat-highlight-preview" :style="state.get_chat_draft_highlight_style()"><mp-chat-composer :value="state.get_chat_draft_document()" :disabled="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && !state.messaging_enabled ? 'disabled' : null" :placeholder="state.get_chat_compose_placeholder()"></mp-chat-composer></div>
 						<div class="mp-chat-compose-actions">
-							<button type="button" class="btn btn-secondary mp-chat-insert-person" @mousedown.prevent @click="state.open_chat_person_picker()" :disabled="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && !state.messaging_enabled"><lang-string lang-id="MOD_MP_CHAT_TAG_PERSON">@Person</lang-string></button>
-							<button type="button" class="btn btn-secondary mp-chat-insert-feature" @mousedown.prevent @click="state.open_chat_feature_picker()" :disabled="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && !state.messaging_enabled"><lang-string lang-id="MOD_MP_CHAT_TAG_FEATURE">$Feature</lang-string></button>
-							<button type="button" class="btn btn-secondary mp-chat-insert-item" @mousedown.prevent @click="state.open_chat_item_picker()" :disabled="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && !state.messaging_enabled"><lang-string lang-id="MOD_MP_CHAT_INSERT_ITEM"></lang-string></button>
-							<span class="mp-chat-compose-count" :class="{ 'text-danger': !state.is_chat_item_draft_valid() }">{{ state.get_chat_item_count_label() }}</span>
-							<button type="button" class="mp-chat-budget" v-if="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && state.chat_budget_enabled" @click="state.show_chat_budget_modal()" aria-haspopup="dialog" :aria-label="getLangString('MOD_MP_CHAT_BUDGET_ARIA')">
-								<mp-lang-string-f lang-id="MOD_MP_CHAT_BUDGET" :lang-arg-1="state.chat_budget.credits" :lang-arg-2="state.chat_budget.maximum"></mp-lang-string-f>
-								<img class="skill-icon-xxs" :src="state.get_item_icon('melvorD:Message_In_A_Bottle')" alt="">
-								<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.chat_budget.credits < state.chat_budget.maximum"></span>
-							</button>
-							<button type="submit" class="btn btn-primary" :disabled="!state.chat_can_send"><span class="spinner-border spinner-border-sm text-light mr-2" role="status" v-if="state.chat_sending"></span><lang-string lang-id="MOD_MP_CHAT_SEND"></lang-string></button>
+							<div class="mp-chat-compose-tools">
+								<button type="button" class="btn btn-secondary mp-chat-insert-person" @mousedown.prevent @click="state.open_chat_person_picker()" :disabled="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && !state.messaging_enabled"><lang-string lang-id="MOD_MP_CHAT_TAG_PERSON">@Person</lang-string></button>
+								<button type="button" class="btn btn-secondary mp-chat-insert-feature" @mousedown.prevent @click="state.open_chat_feature_picker()" :disabled="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && !state.messaging_enabled"><lang-string lang-id="MOD_MP_CHAT_TAG_FEATURE">$Feature</lang-string></button>
+								<button type="button" class="btn btn-secondary mp-chat-insert-item" @mousedown.prevent @click="state.open_chat_item_picker()" :disabled="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && !state.messaging_enabled"><lang-string lang-id="MOD_MP_CHAT_INSERT_ITEM"></lang-string></button>
+								<button type="button" class="btn btn-secondary mp-chat-highlight" v-if="state.chat_can_highlight" :aria-pressed="!!state.get_chat_draft_highlight()" @mousedown.prevent @click="state.open_chat_highlight_picker()" :disabled="state.chat_sending"><lang-string lang-id="MOD_MP_CHAT_HIGHLIGHT"></lang-string></button>
+							</div>
+							<div class="mp-chat-compose-submit">
+								<span class="mp-chat-compose-count" :class="{ 'text-danger': !state.is_chat_item_draft_valid() }">{{ state.get_chat_item_count_label() }}</span>
+								<button type="button" class="mp-chat-budget" v-if="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && state.chat_budget_enabled" @click="state.show_chat_budget_modal()" aria-haspopup="dialog" :aria-label="getLangString('MOD_MP_CHAT_BUDGET_ARIA')">
+									<mp-lang-string-f lang-id="MOD_MP_CHAT_BUDGET" :lang-arg-1="state.chat_budget.credits" :lang-arg-2="state.chat_budget.maximum"></mp-lang-string-f>
+									<img class="skill-icon-xxs" :src="state.get_item_icon('melvorD:Message_In_A_Bottle')" alt="">
+									<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.chat_budget.credits < state.chat_budget.maximum"></span>
+								</button>
+								<button type="submit" class="btn btn-primary" :disabled="!state.chat_can_send"><span class="spinner-border spinner-border-sm text-light mr-2" role="status" v-if="state.chat_sending"></span><lang-string lang-id="MOD_MP_CHAT_SEND"></lang-string></button>
+							</div>
 						</div>
 					</form>
 					<div class="text-danger mt-2" role="status" v-if="!state.is_chat_item_draft_valid()"><lang-string lang-id="MOD_MP_CHAT_ITEM_LIMIT"></lang-string></div>
-					<div class="text-danger mt-2" v-if="state.chat_error">{{ state.chat_error }}</div>
+					<div class="text-danger mt-2" v-if="state.chat_error && !state.service_status">{{ state.chat_error }}</div>
 				</div>
 			</div>
 			<div class="mp-chat-reaction-picker" v-if="state.chat_reaction_picker_message_id !== null" :style="state.chat_reaction_picker_style">
@@ -1291,7 +1298,7 @@
 									</div>
 								</div>
 								<div class="p-3 text-muted" v-show="!state.guild_activity_loading && !state.guild_activity_error && state.guild_activity.length === 0"><lang-string lang-id="MOD_MP_GUILD_ACTIVITY_EMPTY"></lang-string></div>
-								<div class="p-3 text-danger" v-show="state.guild_activity_error"><lang-string lang-id="MOD_MP_GUILD_ACTIVITY_FAILED"></lang-string></div>
+								<div class="p-3 text-danger" v-show="state.guild_activity_error && !state.service_status"><lang-string lang-id="MOD_MP_GUILD_ACTIVITY_FAILED"></lang-string></div>
 								<div class="block-content text-center" v-show="state.guild_activity_cursor !== null">
 									<button type="button" class="btn btn-sm btn-secondary" @click="state.load_more_guild_activity()" :disabled="state.guild_activity_loading"><lang-string lang-id="MOD_MP_BUTTON_LOAD_MORE"></lang-string></button>
 								</div>
@@ -1473,7 +1480,7 @@
 				</div>
 			</div>
 
-			<div class="block block-rounded" v-show="state.guild_page_view === 'error'">
+			<div class="block block-rounded" v-show="state.guild_page_view === 'error' && !state.service_status">
 				<div class="block-content text-muted">{{ state.guild_state_error }}</div>
 			</div>
 
@@ -2206,7 +2213,7 @@
 				</div>
 			</section>
 			<div class="block block-rounded p-4" v-show="state.crucible_loading && !state.crucible"><lang-string lang-id="MOD_MP_LOADING"></lang-string></div>
-			<div class="block block-rounded p-4 text-danger" v-show="state.crucible_error && !state.crucible"><lang-string lang-id="MOD_MP_MULTIPLAYER_CONNECTION_ERR"></lang-string></div>
+			<div class="block block-rounded p-4 text-danger" v-show="state.crucible_error && !state.crucible && !state.service_status"><lang-string lang-id="MOD_MP_MULTIPLAYER_CONNECTION_ERR"></lang-string></div>
 			<div class="block block-rounded p-4" v-show="!state.crucible_loading && !state.crucible_error && !state.crucible"><lang-string lang-id="MOD_MP_CRUCIBLE_UNAVAILABLE"></lang-string></div>
 			<div class="mp-crucible-content" v-show="state.crucible">
 				<div class="block block-rounded p-3" v-show="!state.crucible?.is_open"><i class="fa fa-lock mr-2" aria-hidden="true"></i><lang-string lang-id="MOD_MP_CRUCIBLE_SEALED"></lang-string></div>
@@ -2318,7 +2325,7 @@
 						</h3>
 						<div id="mp-transfer-history-inbox-body" class="mp-transfer-panel-body" v-show="state.transfers_history_open.inbox">
 							<p class="mp-transfer-history-description"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_WINDOW"></lang-string></p>
-							<p role="status" v-show="state.transfer_history.inbox.error"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_ERROR"></lang-string></p>
+							<p role="status" v-show="state.transfer_history.inbox.error && !state.service_status"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_ERROR"></lang-string></p>
 							<p class="mp-transfer-empty" v-show="state.transfer_history.inbox.loaded &amp;&amp; !state.transfer_history.inbox.loading &amp;&amp; !state.transfer_history.inbox.error &amp;&amp; state.get_transfer_history_entries('inbox').length === 0"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_EMPTY"></lang-string></p>
 							<div class="mp-transfer-history-list">
 								<article class="mp-transfer-history-entry" v-for="entry of state.get_transfer_history_entries('inbox')" :key="entry.id">
@@ -2335,7 +2342,7 @@
 								</article>
 							</div>
 							<div class="mp-transfer-history-controls">
-								<button type="button" class="btn btn-secondary" :disabled="state.transfer_history.inbox.loading" @click="state.load_transfer_history('inbox', state.transfer_history.inbox.retry_append)" v-show="state.transfer_history.inbox.error"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_RETRY"></lang-string></button>
+								<button type="button" class="btn btn-secondary" :disabled="state.transfer_history.inbox.loading" @click="state.load_transfer_history('inbox', state.transfer_history.inbox.retry_append)" v-show="state.transfer_history.inbox.error && !state.service_status"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_RETRY"></lang-string></button>
 								<button type="button" class="btn btn-secondary" :disabled="state.transfer_history.inbox.loading" @click="state.load_transfer_history('inbox', true)" v-show="state.has_more_transfer_history('inbox') &amp;&amp; !state.transfer_history.inbox.error"><lang-string lang-id="MOD_MP_BUTTON_LOAD_MORE"></lang-string></button>
 							</div>
 						</div>
@@ -2408,7 +2415,7 @@
 						</h3>
 						<div id="mp-transfer-history-outbox-body" class="mp-transfer-panel-body" v-show="state.transfers_history_open.outbox">
 							<p class="mp-transfer-history-description"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_WINDOW"></lang-string></p>
-							<p role="status" v-show="state.transfer_history.outbox.error"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_ERROR"></lang-string></p>
+							<p role="status" v-show="state.transfer_history.outbox.error && !state.service_status"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_ERROR"></lang-string></p>
 							<p class="mp-transfer-empty" v-show="state.transfer_history.outbox.loaded &amp;&amp; !state.transfer_history.outbox.loading &amp;&amp; !state.transfer_history.outbox.error &amp;&amp; state.get_transfer_history_entries('outbox').length === 0"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_EMPTY"></lang-string></p>
 							<div class="mp-transfer-history-list">
 								<article class="mp-transfer-history-entry" v-for="entry of state.get_transfer_history_entries('outbox')" :key="entry.id">
@@ -2425,7 +2432,7 @@
 								</article>
 							</div>
 							<div class="mp-transfer-history-controls">
-								<button type="button" class="btn btn-secondary" :disabled="state.transfer_history.outbox.loading" @click="state.load_transfer_history('outbox', state.transfer_history.outbox.retry_append)" v-show="state.transfer_history.outbox.error"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_RETRY"></lang-string></button>
+								<button type="button" class="btn btn-secondary" :disabled="state.transfer_history.outbox.loading" @click="state.load_transfer_history('outbox', state.transfer_history.outbox.retry_append)" v-show="state.transfer_history.outbox.error && !state.service_status"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_RETRY"></lang-string></button>
 								<button type="button" class="btn btn-secondary" :disabled="state.transfer_history.outbox.loading" @click="state.load_transfer_history('outbox', true)" v-show="state.has_more_transfer_history('outbox') &amp;&amp; !state.transfer_history.outbox.error"><lang-string lang-id="MOD_MP_BUTTON_LOAD_MORE"></lang-string></button>
 							</div>
 						</div>
@@ -2704,7 +2711,7 @@
 						</h3>
 						<div id="mp-transfer-history-pending-body" class="mp-transfer-panel-body" v-show="state.transfers_history_open.pending">
 							<p class="mp-transfer-history-description"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_WINDOW"></lang-string></p>
-							<p role="status" v-show="state.transfer_history.pending.error"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_ERROR"></lang-string></p>
+							<p role="status" v-show="state.transfer_history.pending.error && !state.service_status"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_ERROR"></lang-string></p>
 							<p class="mp-transfer-empty" v-show="state.transfer_history.pending.loaded &amp;&amp; !state.transfer_history.pending.loading &amp;&amp; !state.transfer_history.pending.error &amp;&amp; state.get_transfer_history_entries('pending').length === 0"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_EMPTY"></lang-string></p>
 							<div class="mp-transfer-history-list">
 								<article class="mp-transfer-history-entry" v-for="entry of state.get_transfer_history_entries('pending')" :key="entry.id">
@@ -2721,7 +2728,7 @@
 								</article>
 							</div>
 							<div class="mp-transfer-history-controls">
-								<button type="button" class="btn btn-secondary" :disabled="state.transfer_history.pending.loading" @click="state.load_transfer_history('pending', state.transfer_history.pending.retry_append)" v-show="state.transfer_history.pending.error"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_RETRY"></lang-string></button>
+								<button type="button" class="btn btn-secondary" :disabled="state.transfer_history.pending.loading" @click="state.load_transfer_history('pending', state.transfer_history.pending.retry_append)" v-show="state.transfer_history.pending.error && !state.service_status"><lang-string lang-id="MOD_MP_TRANSFER_HISTORY_RETRY"></lang-string></button>
 								<button type="button" class="btn btn-secondary" :disabled="state.transfer_history.pending.loading" @click="state.load_transfer_history('pending', true)" v-show="state.has_more_transfer_history('pending') &amp;&amp; !state.transfer_history.pending.error"><lang-string lang-id="MOD_MP_BUTTON_LOAD_MORE"></lang-string></button>
 							</div>
 						</div>
@@ -3134,6 +3141,22 @@
 			<button type="button" class="btn btn-success" :disabled="state.browser_link_pending || !state.is_connected" @click="state.manage_browser_links('issue')"><lang-string lang-id="MOD_MP_BROWSER_LINK_ISSUE"></lang-string></button>
 			<button type="button" class="btn btn-outline-success" v-show="state.browser_link_code" :disabled="state.browser_link_pending" @click="state.copy_browser_link_code()"><lang-string lang-id="MOD_MP_BROWSER_LINK_COPY"></lang-string></button>
 			<button type="button" class="btn btn-secondary mp-browser-chat-close" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
+		</div>
+	</div>
+</template>
+
+<template id="template-mp-chat-highlight-modal">
+	<div class="mp-chat-highlight-picker">
+		<div class="mp-chat-highlight-presets">
+			<button type="button" v-for="color in state.chat_highlight_presets" :key="color" class="mp-chat-highlight-swatch" :style="{ backgroundColor: color }" :aria-label="color" :aria-pressed="state.chat_highlight_input === color.slice(1)" @click="state.choose_chat_highlight_preset(color)"></button>
+		</div>
+		<label for="mp-chat-highlight-hex"><lang-string lang-id="MOD_MP_CHAT_HIGHLIGHT_COLOR"></lang-string></label>
+		<div class="mp-chat-highlight-hex"><span aria-hidden="true">#</span><input id="mp-chat-highlight-hex" class="mp-input-text" type="text" :value="state.chat_highlight_input" @input="state.update_chat_highlight_input($event)" autocomplete="off" autocapitalize="characters" spellcheck="false" :aria-invalid="!state.is_chat_highlight_input_valid()" aria-describedby="mp-chat-highlight-help"></div>
+		<p id="mp-chat-highlight-help"><lang-string lang-id="MOD_MP_CHAT_HIGHLIGHT_HELP"></lang-string></p>
+		<div class="mp-chat-highlight-sample" :style="state.get_chat_highlight_preview_style()"><lang-string lang-id="MOD_MP_CHAT_HIGHLIGHT_PREVIEW"></lang-string></div>
+		<div class="mp-chat-highlight-actions">
+			<button type="button" class="btn btn-secondary" @click="state.apply_chat_highlight(true)"><lang-string lang-id="MOD_MP_CHAT_HIGHLIGHT_CLEAR"></lang-string></button>
+			<button type="button" class="btn btn-primary" :disabled="!state.is_chat_highlight_input_valid()" @click="state.apply_chat_highlight()"><lang-string lang-id="MOD_MP_CHAT_HIGHLIGHT_APPLY"></lang-string></button>
 		</div>
 	</div>
 </template>

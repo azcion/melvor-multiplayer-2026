@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { get_events, make_guildmates, register_guild_client } from '../support/fixtures';
-import { get_json_with_session, post_json  } from '../support/http';
+import { get_json_with_session, post, post_json } from '../support/http';
+import { db_all, db_run } from '../support/persistence';
 
 type Receipt = {
 	id: string;
@@ -13,6 +14,51 @@ type Receipt = {
 };
 
 describe('Economy Receipts', () => {
+	test('owner-only review preserves unpaid effects, excludes recovery, and permits another transaction', async () => {
+		const owner = await register_guild_client('Receipt Review Owner');
+		const other = await register_guild_client('Receipt Review Other');
+		const command_id = crypto.randomUUID();
+		const body = { command_id, source: 'bank', items: [{ id: 'melvorD:Dragon_Crossbow_Head', qty: 353 }], donation_value: 353 };
+		const committed = await post_json<{ success: boolean; receipt: Receipt }>('/api/crucible/cast', body, owner.session_token);
+		expect(committed.json.success).toBe(true);
+		const before = await get_events(owner);
+		const report = { receipt_id: command_id, reason: 'blocked' };
+		expect((await post('/api/economy/receipts/review', report, other.session_token)).status).toBe(404);
+		expect((await post('/api/economy/receipts/review', { ...report, reason: 'anything' }, owner.session_token)).status).toBe(400);
+		expect((await post('/api/economy/receipts/review', { ...report, receipt_id: 'invalid' }, owner.session_token)).status).toBe(400);
+		expect((await post_json('/api/economy/receipts/review', report, owner.session_token)).response.status).toBe(200);
+		const records = await db_all<{ acknowledged_at: number | null; response_json: string; reason: string; reported_at: number }>(
+			'SELECT r.acknowledged_at,r.response_json,v.reason,v.reported_at FROM economy_receipts r JOIN economy_receipt_reviews v ON v.receipt_id=r.id WHERE r.id=?', [command_id]);
+		expect(records).toHaveLength(1);
+		expect(records[0].acknowledged_at).toBeNull();
+		expect(JSON.parse(records[0].response_json)).toEqual(committed.json);
+		expect(records[0].reason).toBe('blocked');
+		const after = await get_events(owner);
+		expect(after.economy_receipts).toEqual([]);
+		expect(after.revision).toBeGreaterThan(before.revision);
+		await post_json('/api/economy/receipts/review', { ...report, reason: 'invalid' }, owner.session_token);
+		expect(await db_all('SELECT reason,reported_at FROM economy_receipt_reviews WHERE receipt_id=?', [command_id]))
+			.toEqual([{ reason: records[0].reason, reported_at: records[0].reported_at }]);
+		expect((await post_json('/api/crucible/cast', body, owner.session_token)).json)
+			.toEqual({ success: true, receipt: null, receipt_review_pending: true });
+		const next = await post_json<{ success: boolean; receipt: Receipt }>('/api/market/sell', {
+			command_id: crypto.randomUUID(), item_id: 'melvorD:Review_Ore', item_qty: 2, item_sell_price: 7
+		}, owner.session_token);
+		expect(next.json.success).toBe(true);
+		expect((await get_events(owner)).economy_receipts).toEqual([next.json.receipt]);
+	});
+
+	test('reviewed receipts do not consume the pending delivery page', async () => {
+		const owner = await register_guild_client('Receipt Review Page');
+		const ids = Array.from({ length: 65 }, () => crypto.randomUUID());
+		await db_run(`INSERT INTO economy_receipts(id,client_id,kind,response_json,created_at)
+			SELECT value,?,'market-buy',json_object('success',json('true'),'receipt',json_object('id',value,'kind','market-buy','effects',json('[]'))),CAST(key AS INTEGER)
+			FROM json_each(?)`, [owner.client_id, JSON.stringify(ids)]);
+		await db_run(`INSERT INTO economy_receipt_reviews(receipt_id,reason,reported_at)
+			SELECT value,'blocked',1 FROM json_each(?)`, [JSON.stringify(ids.slice(0, 64))]);
+		expect((await get_events(owner)).economy_receipts).toEqual([{ id: ids[64], kind: 'market-buy', effects: [] }]);
+	});
+
 	test('replays a committed command and keeps its receipt pending until acknowledgement', async () => {
 		const seller = await register_guild_client('Receipt Seller');
 		const before = await get_json_with_session<{ revision: number }>('/api/events', seller.session_token);

@@ -88,6 +88,7 @@ test('main scheduler measures actual fetch dispatch/response, excluding queue an
   request_scheduler:{run(_priority,run){return new Promise(resolve=>{dispatch=()=>resolve(run());});},observe(){}},
   rollback_module:{...rollback,create_handshake_timer:fetch=>rollback.create_handshake_timer(fetch,{now:()=>wall,monotonic:()=>mono})},
   polling:{fetch_with_timeout:async(fetch,url,options,request)=>request.consume(await fetch(url,options))}};
+ context.service_fetch = context.polling.fetch_with_timeout;
  runInNewContext(source,context);
  const pending=context.coordinated_request('https://one.test/api/v2/authenticate',{method:'POST',body:JSON.stringify({client_runtime:{loaded_save:{load_id:load}}})},
   {consume:async response=>{wall+=20;mono+=20;return {json:await response.json()};}});
@@ -127,7 +128,7 @@ test('unchanged status release requires a full event snapshot, including no-cand
  const main=await readFile(new URL('../../mod/main.mjs',import.meta.url),'utf8');
  const source=main.slice(main.indexOf('async function get_client_events_request('),main.indexOf('\nfunction start_client_event_polling('));
  let event={unchanged:true,revision:7,rollback:status()},recoveries=0;
- const context={crucible_page_hydrating:false,server_host:'https://one.test',guild_revision_scope:null,last_guild_revision:null,rollback_client:h.client,session_generation:1,client_events_hydrated:true,client_event_trailing:false,client_event_revision:7,CHAT_CAPABILITIES:'',
+ const context={crucible_page_hydrating:false,server_host:'https://one.test',guild_revision_scope:null,last_guild_revision:null,economy_receipt_reviews: null, rollback_client:h.client,session_generation:1,client_events_hydrated:true,client_event_trailing:false,client_event_revision:7,CHAT_CAPABILITIES:'',
   state:{listing_filters:[],refresh_crucible:async()=>{},chat_notification_preferences:{},events:{},inbox_items:[],get_chat_notification_tagged:()=>false},
   api_get:async endpoint=>{assert.ok(!endpoint.includes('revision='));return event;},
   enter_unsupported_multiplayer:()=>false,check_released_mod_version(){},apply_dev_badge_labels(){},maybe_auto_check_in_expedition(){},
@@ -191,7 +192,7 @@ test('main receipt reconciliation preserves incoming during review and ignores r
  const main=await readFile(new URL('../../mod/main.mjs',import.meta.url),'utf8');
  const source=main.slice(main.indexOf('function reconcile_economy_receipts('),main.indexOf('\nfunction show_pending_banishment_notice'));
  let bank=10;const storage=new Map(),acks=[];
- const context={server_host:'https://one.test',guild_revision_scope:null,last_guild_revision:null,rollback_client:h.client,session_generation:1,server_host:'https://one.test',economy_receipts:receipts,
+ const context={server_host:'https://one.test',guild_revision_scope:null,last_guild_revision:null,economy_receipt_reviews: null, rollback_client:h.client,session_generation:1,server_host:'https://one.test',economy_receipts:receipts,
   economy_receipt_reconciliation:Promise.resolve(),get_instance_storage_item:key=>storage.get(key),set_instance_storage_item:(key,value)=>storage.set(key,value),remove_instance_storage_item:key=>storage.delete(key),
   acknowledged_economy_receipt_ids:[],economy_command_journal:{retire(){},acknowledge(){}},TRANSFER_INVENTORY_MAX_LIMIT:6,
   transfer_currency_support:null,game:{items:{getObjectByID:()=>({})},bank:{getQty:()=>bank,removeItemQuantity:(_item,qty)=>{bank-=qty;}},gp:{amount:0,add(){throw Error('GP mutation');},remove(){throw Error('GP mutation');}}},
@@ -236,7 +237,7 @@ test('actual activation wires scoped admission into existing journal recovery an
  const storage=new Map([['pending_economy_command:1',{endpoint:'/api/crucible/cast',payload:{command_id:command},major:2}]]);
  let sends=0,events=0;
  const context={session_generation:1,server_host:'https://one.test',rollback_server_supported:true,loaded_save_tracker:{report:()=>({load_id:load})},
-  state:{is_connected:true,refresh_crucible:async()=>{}},rollback_module:rollback,economy_command_module:{create_economy_command_journal},economy_command_journal:null,
+  state:{is_connected:true,refresh_crucible:async()=>{}},rollback_module:rollback,economy_receipt_review_module:{create_economy_receipt_reviews:()=>null},economy_command_module:{create_economy_command_journal},economy_command_journal:null,
   enter_unsupported_multiplayer:()=>false,set_session_token(){context.session_generation++;},
   get_instance_storage_item:key=>storage.get(key),set_instance_storage_item:(key,value)=>storage.set(key,value),remove_instance_storage_item:key=>storage.delete(key),get_instance_storage_keys:()=>[...storage.keys()],
   api_get_request:async()=>status('review'),api_post_response_raw:async()=>{sends++;return {response:{status:409},json:{error:'economy_review_pending'}};},reconcile_economy_receipts:async()=>true,
@@ -258,7 +259,7 @@ test('actual raw request gate permits recovery and affected-only 426 keeps ordin
  const source=main.slice(main.indexOf('async function api_post_response_raw('),main.indexOf('async function api_post_binary_response('));
  let sends=0,blocks=0;const floors=[];
  const context={state:{multiplayer_unsupported:false},session_token:'fixture',selected_api_major:2,session_generation:1,server_host:'https://one.test',
-  rollback_client:{admitted:()=>false,block(){blocks++;}},rollback_module:rollback,resolve_api_endpoint:path=>path,transport_diagnostics:null,
+  economy_receipt_reviews: null, rollback_client:{admitted:()=>false,block(){blocks++;}},rollback_module:rollback,resolve_api_endpoint:path=>path,transport_diagnostics:null,
   coordinated_request:async(_url,_options,request)=>{sends++;return request.consume(Response.json({error:'economy_upgrade_required'},{status:426}));},
   handle_session_response(){},enter_unsupported_multiplayer:floor=>{floors.push(floor);return false;},error(){throw Error('transport');}};
  runInNewContext(source,context);
@@ -272,7 +273,7 @@ test('actual Wish wiring preserves unowned legacy work, transient snapshots and 
  const source=main.slice(main.indexOf('function finish_pending_crucible_wish_action('),main.indexOf('function load_social_mode('));
  const legacy={endpoint:'/api/crucible/wish/make',payload:{command_id:command}};
  const storage=new Map([['pending_crucible_wish:make',legacy]]);let sends=0,result={success:false,error:'economy_review_pending'};
- const context={rollback_client:{admitted:()=>true},rollback_module:rollback,session_generation:1,server_host:'https://one.test',state:{chat_client_id:1},crypto:{randomUUID:()=>notice},
+ const context={economy_receipt_reviews: null, rollback_client:{admitted:()=>true},rollback_module:rollback,session_generation:1,server_host:'https://one.test',state:{chat_client_id:1},crypto:{randomUUID:()=>notice},
   get_instance_storage_item:key=>storage.get(key),set_instance_storage_item:(key,value)=>storage.set(key,value),remove_instance_storage_item:key=>storage.delete(key),
   api_post_without_economy_journal:async()=>{sends++;return result;}};
  runInNewContext(source,context);
@@ -312,7 +313,7 @@ test('actual receipt wiring notifies only reconciled fulfillment value, excludin
  const main=await readFile(new URL('../../mod/main.mjs',import.meta.url),'utf8');
  const source=main.slice(main.indexOf('function reconcile_economy_receipts('),main.indexOf('\nfunction show_pending_banishment_notice'));
  let bank=10,gp=0;const storage=new Map(),notices=[],acks=[];
- const context={server_host:'https://one.test',guild_revision_scope:null,last_guild_revision:null,rollback_client:h.client,session_generation:1,server_host:'https://one.test',economy_receipts:receipts,
+ const context={server_host:'https://one.test',guild_revision_scope:null,last_guild_revision:null,economy_receipt_reviews: null, rollback_client:h.client,session_generation:1,server_host:'https://one.test',economy_receipts:receipts,
   economy_receipt_reconciliation:Promise.resolve(),get_instance_storage_item:key=>storage.get(key),set_instance_storage_item:(key,value)=>storage.set(key,value),remove_instance_storage_item:key=>storage.delete(key),
   acknowledged_economy_receipt_ids:[],economy_command_journal:{retire(){},acknowledge(){}},TRANSFER_INVENTORY_MAX_LIMIT:6,transfer_currency_support:null,
   game:{items:{getObjectByID:()=>({})},bank:{getQty:()=>bank,removeItemQuantity:(_item,qty)=>{bank-=qty;}},gp:{get amount(){return gp;},add(qty){gp+=qty;},remove(){throw Error('GP debit');}}},

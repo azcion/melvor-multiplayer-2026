@@ -194,7 +194,7 @@ export function send_alliance_chat_message(
 	idempotency_key: string,
 	content: string,
 	now = Date.now(),
-	parts?: ChatPart[]
+	parts?: ChatPart[], highlight_color: string | null = null
 ): AllianceChatResult<{ message: ReturnType<typeof message_view> }> {
 	const trimmed = typeof content === 'string' ? content.trim() : '';
 	if (!Number.isSafeInteger(alliance_id) || alliance_id < 1 || typeof idempotency_key !== 'string' ||
@@ -210,7 +210,7 @@ export function send_alliance_chat_message(
 			'WHERE `sender_id` = ? AND `idempotency_key` = ?'
 		).get(client_id, idempotency_key);
 		if (duplicate !== null) {
-			if (duplicate.alliance_id !== alliance_id || duplicate.content !== trimmed || !same_chat_parts('alliance', duplicate.id, parts))
+			if (duplicate.alliance_id !== alliance_id || duplicate.content !== trimmed || !same_chat_parts('alliance', duplicate.id, parts, highlight_color))
 				return { status: 'bad_request' };
 			return { status: 'ok', value: { message_id: duplicate.id } };
 		}
@@ -218,7 +218,7 @@ export function send_alliance_chat_message(
 			'INSERT INTO `alliance_chat_messages` (`alliance_id`, `sender_id`, `idempotency_key`, `content`, `created_at`, `shadow_hidden`) ' +
 			'VALUES(?, ?, ?, ?, ?, ?)'
 		).run(alliance_id, client_id, idempotency_key, trimmed, now, is_chat_shadowbanned(client_id) ? 1 : 0);
-		save_chat_parts('alliance', Number(created.lastInsertRowid), parts);
+		save_chat_parts('alliance', Number(created.lastInsertRowid), parts, highlight_color);
 		return { status: 'ok', value: { message_id: Number(created.lastInsertRowid) } };
 	});
 	const result = send.immediate();

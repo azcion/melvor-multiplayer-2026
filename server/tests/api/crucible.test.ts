@@ -81,7 +81,7 @@ test('Reclaim bonus creates audited Gloop in the Guild Crucible', async () => {
 	const item_id = `test:Bonus_Ore_${crypto.randomUUID().replaceAll('-', '')}`;
 	const cast = await post_json<{ success: boolean }>('/api/crucible/cast', {
 		command_id: crypto.randomUUID(), source: 'bank',
-		items: [{ id: item_id, qty: 1, value_currency_id: 'melvorD:GP', value_per_item: 100 }]
+		items: [{ id: item_id, qty: 1, value_currency_id: 'melvorD:GP', value_per_item: 10000 }]
 	}, pair.first.session_token);
 	expect(cast.json.success).toBe(true);
 	await db_run('INSERT INTO crucible_wishes (guild_id, owner_client_id, melvor_account_id, item_id, qty, ' +
@@ -92,25 +92,25 @@ test('Reclaim bonus creates audited Gloop in the Guild Crucible', async () => {
 	expect(reclaimed.json.success).toBe(true);
 	expect(await db_all<{ qty: number }>(
 		'SELECT qty FROM crucible_offerings WHERE guild_id = ? AND item_id = ?',
-		[pair.guild_id, 'melvorD:Weird_Gloop'])).toEqual([{ qty: 1 }]);
+		[pair.guild_id, 'melvorD:Weird_Gloop'])).toEqual([{ qty: 10 }]);
 	expect(await db_all('SELECT root_key,origin_kind,amount_gp FROM economy_wish_funding WHERE wish_id IN (SELECT id FROM crucible_wishes WHERE guild_id=?)',[pair.guild_id]))
 		.toMatchObject([{root_key:expect.stringContaining('cast:'),origin_kind:'derived',amount_gp:100}]);
 	expect(await db_all('SELECT quantity,location FROM economy_custody_balances WHERE root_key IN (SELECT root_key FROM economy_custody_sources WHERE client_id=? AND object_id=?)',[pair.first_id,item_id]))
 		.toEqual([{quantity:1,location:`protected:reclaim:${pair.second_id}`}]);
 	expect(await db_all("SELECT quantity FROM economy_custody_sources WHERE client_id=? AND json_extract(snapshot_json,'$.benefit_kind')='gloop'",[pair.first_id]))
-		.toEqual([{quantity:1}]);
+		.toEqual([{quantity:10}]);
 	expect(await db_all<{ quantity: number; direction: string }>(
 		'SELECT value.quantity, value.direction FROM audit_event_values AS value ' +
 		'JOIN audit_events AS event ON event.id = value.event_id ' +
 		'WHERE event.event_type = ? AND event.guild_id = ? AND value.object_id = ?',
 		['crucible.reclaimed', pair.guild_id, 'melvorD:Weird_Gloop']))
-		.toEqual([{ quantity: 1, direction: 'create' }]);
+		.toEqual([{ quantity: 10, direction: 'create' }]);
 	expect(await db_all<{ quantity: number }>(
 		'SELECT position.quantity FROM audit_value_lot_positions AS position ' +
 		'JOIN audit_value_lots AS lot ON lot.id = position.lot_id ' +
 		'WHERE position.position_kind = ? AND position.position_key = ? AND lot.object_id = ?',
 		['crucible', String(pair.guild_id), 'melvorD:Weird_Gloop']))
-		.toEqual([{ quantity: 1 }]);
+		.toEqual([{ quantity: 10 }]);
 });
 
 test('Wish reset and paid Clear the Slag use independent Crucible state', async () => {

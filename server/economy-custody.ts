@@ -86,7 +86,9 @@ export function retire_wish_funding(database: Database, wish_id: number, origins
 
 /** Capture exact whole Gloop units and explicit mixed rounding boundaries without per-unit iteration. */
 export function create_gloop_custody(database: Database, offering_id: number, origins: FundingOrigin[],
-	event_key: string, guild_id: number, now: number): void {
+	event_key: string, guild_id: number, now: number, meld_multiplier = 1): void {
+	if (!Number.isSafeInteger(meld_multiplier) || meld_multiplier <= 0) throw new RangeError('Invalid Gloop Meld multiplier');
+	const divisor=1000n*BigInt(meld_multiplier);
 	const total=origins.reduce((sum,o)=>sum+BigInt(o.amount_gp),0n);
 	if(total===0n) return;
 	let cursor=0n;
@@ -96,23 +98,23 @@ export function create_gloop_custody(database: Database, offering_id: number, or
 	const boundaries=new Set<string>();
 	for(let index=0;index<intervals.length;index++) {
 		const interval=intervals[index]!;
-		const first=(interval.start+999n)/1000n;
-		const end=interval.end/1000n;
+		const first=(interval.start+divisor-1n)/divisor;
+		const end=interval.end/divisor;
 		let units=end>first?end-first:0n;
-		if(interval.end===total && total%1000n!==0n && interval.start<=total/1000n*1000n) units++;
-		if(interval.end<total && interval.end%1000n!==0n) boundaries.add(String(interval.end/1000n));
+		if(interval.end===total && total%divisor!==0n && interval.start<=total/divisor*divisor) units++;
+		if(interval.end<total && interval.end%divisor!==0n) boundaries.add(String(interval.end/divisor));
 		if(units===0n || interval.root_key===null) continue;
 		const parent=database.query<{operation_key:string;client_id:number},[string]>('SELECT operation_key,client_id FROM economy_custody_sources WHERE root_key=?').get(interval.root_key)!;
 		create_custody_source(database,{root_key:`gloop:${event_key}:${index}`,operation_key:`derived:${parent.operation_key}`,
 			client_id:parent.client_id,object_id:'melvorD:Weird_Gloop',quantity:Number(units),created_at:now,
 			snapshot:{parent_root:interval.root_key,benefit_kind:'gloop',guild_id,offering_id,first_unit:String(first),units:Number(units),
-				gp_start:String(interval.start),gp_end:String(interval.end),total_gp:String(total)}},`crucible-offering:${offering_id}`);
+				gp_start:String(interval.start),gp_end:String(interval.end),total_gp:String(total),meld_multiplier}},`crucible-offering:${offering_id}`);
 	}
 	for(const boundary of boundaries) {
-		const start=BigInt(boundary)*1000n;const end=start+1000n<total?start+1000n:total;
+		const start=BigInt(boundary)*divisor;const end=start+divisor<total?start+divisor:total;
 		const contributors=intervals.filter(o=>o.start<end && o.end>start);
 		for(const contributor of contributors) record_dependency(database,contributor.root_key,'mixed-gloop-rounding',1,
-			{event_key,offering_id,guild_id,unit:boundary,total_gp:String(total),contributors:contributors.map(o=>({root_key:o.root_key,
+			{event_key,offering_id,guild_id,unit:boundary,total_gp:String(total),meld_multiplier,contributors:contributors.map(o=>({root_key:o.root_key,
 				gp:Number((o.end<end?o.end:end)-(o.start>start?o.start:start))}))});
 	}
 }

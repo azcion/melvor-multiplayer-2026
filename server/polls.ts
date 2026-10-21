@@ -281,7 +281,7 @@ export function list_poll_discussion_messages(client_id: number, poll_id: number
 	return { status: 'ok', value: { messages: rows.slice(0, 20).reverse().map(discussion_message_view), has_more } };
 }
 
-export function send_poll_discussion_message(client_id: number, poll_id: number, idempotency_key: string, content: string, now = Date.now(), parts?: ChatPart[]): PollResult<{ message: ReturnType<typeof discussion_message_view> }> {
+export function send_poll_discussion_message(client_id: number, poll_id: number, idempotency_key: string, content: string, now = Date.now(), parts?: ChatPart[], highlight_color: string | null = null): PollResult<{ message: ReturnType<typeof discussion_message_view> }> {
 	const trimmed = content.trim();
 	if (!Number.isSafeInteger(poll_id) || poll_id < 1 || idempotency_key.length < 1 || idempotency_key.length > 128 ||
 		trimmed.length < 1 || trimmed.length > 1000 || !poll_view(client_id, poll_id))
@@ -291,11 +291,11 @@ export function send_poll_discussion_message(client_id: number, poll_id: number,
 			'SELECT `id`, `poll_id`, `content` FROM `poll_discussion_messages` WHERE `sender_id` = ? AND `idempotency_key` = ?'
 		).get(client_id, idempotency_key);
 		if (existing) return existing.poll_id === poll_id && existing.content === trimmed &&
-			same_chat_parts('poll-discussion', existing.id, parts) ? existing.id : null;
+			same_chat_parts('poll-discussion', existing.id, parts, highlight_color) ? existing.id : null;
 		const created = Number(db.query(
 			'INSERT INTO `poll_discussion_messages` (`poll_id`, `sender_id`, `idempotency_key`, `content`, `created_at`, `shadow_hidden`) VALUES (?, ?, ?, ?, ?, ?)'
 		).run(poll_id, client_id, idempotency_key, trimmed, now, is_chat_shadowbanned(client_id) ? 1 : 0).lastInsertRowid);
-		save_chat_parts('poll-discussion', created, parts);
+		save_chat_parts('poll-discussion', created, parts, highlight_color);
 		return created;
 	}).immediate();
 	if (message_id === null) return { status: 'bad_request' };

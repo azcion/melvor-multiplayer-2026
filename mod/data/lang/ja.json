@@ -1,4 +1,10 @@
 {
+	"MOD_MP_CHAT_HIGHLIGHT": "ハイライト",
+	"MOD_MP_CHAT_HIGHLIGHT_COLOR": "16進カラー",
+	"MOD_MP_CHAT_HIGHLIGHT_HELP": "6桁の16進数を入力（RGB、アルファなし）。",
+	"MOD_MP_CHAT_HIGHLIGHT_PREVIEW": "プレビュー",
+	"MOD_MP_CHAT_HIGHLIGHT_CLEAR": "ハイライトを解除",
+	"MOD_MP_CHAT_HIGHLIGHT_APPLY": "適用",
 	"MOD_MP_ALLIANCE_REASON_MARKET_DISABLE": "市場を閉鎖",
 	"MOD_MP_ALLIANCE_REASON_REMOVE": "除名を提案",
 	"MOD_MP_ALLIANCE_REASON_LEAVE": "脱退を提案",
@@ -1322,5 +1328,10 @@
 	"MOD_MP_BROWSER_LINK_CAPACITY": "ブラウザ数の上限に達しました。連携済みブラウザを更新し、いずれかのアクセスを取り消してから別のブラウザを連携してください。",
 	"MOD_MP_BROWSER_LINK_BROWSERS": "連携済みブラウザ",
 	"MOD_MP_BROWSER_LINK_REFRESH": "更新",
-	"MOD_MP_BROWSER_LINK_BROWSER": "ブラウザ"
+	"MOD_MP_BROWSER_LINK_BROWSER": "ブラウザ",
+	"MOD_MP_SERVICE_TITLE": "マルチプレイヤーの接続",
+	"MOD_MP_SERVICE_MAINTENANCE": "マルチプレイヤーはメンテナンス中です。準備ができ次第、自動的に再接続します。",
+	"MOD_MP_SERVICE_UNREACHABLE": "現在、マルチプレイヤーサーバーに接続できません。引き続き再接続を試みます。",
+	"MOD_MP_SERVICE_UNAVAILABLE": "現在、マルチプレイヤーで問題が発生しています。引き続き再接続を試みます。",
+	"MOD_MP_SERVICE_RESOLVED": "マルチプレイヤーが再び利用できるようになりました。お待ちいただきありがとうございます！"
 }

@@ -42,7 +42,7 @@ test('replaced sessions pause once, do not reconnect automatically, and ignore s
 	const source = await read_client_source();
 	const body = source.slice(source.indexOf('function handle_session_response('), source.indexOf('function cache_bust_api_endpoint('));
 	const notices = [];
-	const context = { state: { is_connected: true }, session_generation: 2, client_event_poll_id: 3, status_sync_timer: null,
+	const context = { service_availability: null, state: { is_connected: true }, session_generation: 2, client_event_poll_id: 3, status_sync_timer: null,
 		stop_chat_polling() {}, stop_gp_sampling() {}, stop_status_observer() {}, clearTimeout() {},
 		notify_error: text => notices.push(text) };
 	runInNewContext(body, context);

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { crucible_gloop_quantity, crucible_heat, crucible_heat_value, crucible_known_valuation,
-	crucible_stack_value, crucible_estimated_completion_at } from '../../crucible-values';
+	crucible_stack_value, crucible_overflow_gloop, crucible_estimated_completion_at } from '../../crucible-values';
 
 test('Heat uses timed stack value and one stack bonus, excluding Gloop', () => {
 	expect(crucible_heat_value([
@@ -37,4 +37,17 @@ test('one-point and maximum-rate completion estimates', () => {
 	expect(crucible_estimated_completion_at(0, 1, 0)).toBe(7 * 24 * 60 * 60_000);
 	expect(crucible_estimated_completion_at(0, 28, 0)).toBe(6 * 60 * 60_000);
 	expect(crucible_estimated_completion_at(0, 0, 0)).toBeNull();
+});
+
+
+test('Gloop uses unboosted GP overflow and rounds once without unsafe intermediate arithmetic', () => {
+	const gp = { value_currency_id: 'melvorD:GP', value_per_item: 750 };
+	expect(crucible_overflow_gloop(10_000, gp, 10)).toBe(1);
+	expect(crucible_overflow_gloop(10_001, gp, 10)).toBe(2);
+	expect(crucible_overflow_gloop(10_000, gp)).toBe(10);
+	expect(crucible_overflow_gloop(10_000, { value_currency_id: 'melvorD:SlayerCoins', value_per_item: 750 })).toBe(0);
+	expect(crucible_overflow_gloop(10_000, { value_currency_id: null, value_per_item: null })).toBe(0);
+	expect(crucible_overflow_gloop(10_000, { ...gp, value_per_item: 0 })).toBe(0);
+	expect(crucible_gloop_quantity(Number.MAX_SAFE_INTEGER, 10))
+		.toBe(Number((BigInt(Number.MAX_SAFE_INTEGER) + 9999n) / 10000n));
 });

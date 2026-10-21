@@ -19,17 +19,7 @@ const SERVER_SCOPED_LEGACY_STORAGE_KEYS = [
 const LOG_PREFIX = '[multiplayer] ';
 
 const IS_DEV_MODE = false;
-const DEV_CHARACTER_STORAGE = {
-	client_identifier: '04fcad4c-7df5-43c3-a70e-299cd618a0ab',
-	client_key: 'f88596d3-e2b2-4a50-9754-6b05f1a15bac',
-	friend_code: '689-388-847',
-	transfer_inventory: [
-		{
-			id: 'melvorF:Fire_Acolyte_Wizard_Hat', // hats, get your hats! free hats!
-			qty: 200
-		}
-	]
-};
+const DEV_CHARACTER_STORAGE = Object.create(null);
 
 const TRANSFER_INVENTORY_MAX_LIMIT = 6;
 const ECONOMY_RECEIPT_PAGE_SIZE = 64;
@@ -110,6 +100,8 @@ let custom_server_max_length = null;
 let modal_queue_guard = null;
 let modal_component_registry = null;
 let polling = null;
+let service_availability = null;
+let service_module = null;
 let chat_items = null;
 let open_transfer_page = null;
 let request_scheduler = null;
@@ -159,6 +151,8 @@ let status_statistics = null;
 let icon_catalog_discovery = null;
 let icon_catalog_collection = null;
 let economy_receipts = null;
+let economy_receipt_review_module = null;
+let economy_receipt_reviews = null;
 let identity_bindings = null;
 let identity_bootstrap = null;
 let identity_registration_supported = false;
@@ -308,6 +302,7 @@ const state = ui.createStore({
 	},
 	is_connected: false,
 	multiplayer_unsupported: false,
+	service_status: null,
 	minimum_supported_mod_version: '',
 	is_transfer_page_visible: false,
 	is_updating_transfer_contents: false,
@@ -545,6 +540,7 @@ const state = ui.createStore({
 	chat_conversations: [],
 	selected_chat_conversation: null,
 	chat_messages: [],
+	chat_message_cursor: null,
 	chat_loading: false,
 	chat_messages_loading: false,
 	chat_has_more: false,
@@ -552,6 +548,10 @@ const state = ui.createStore({
 	chat_error: '',
 	chat_drafts: {},
 	chat_item_drafts: {},
+	chat_highlight_drafts: {},
+	chat_can_highlight: false,
+	chat_highlight_input: '',
+	chat_highlight_modal_key: null,
 	chat_item_search: '',
 	chat_person_search: '',
 	chat_person_catalog: [],
@@ -1000,10 +1000,6 @@ const state = ui.createStore({
 		return this.polls_summary?.open_uninteracted ?? this.polls.filter(poll => poll.open === true && poll.interacted !== true).length;
 	},
 
-	get chat_latest_message_id() {
-		return this.chat_messages.reduce((latest, message) => Math.max(latest, message.message_id), 0);
-	},
-
 	get chat_can_send() {
 		const kind = this.selected_chat_conversation?.conversation_kind ?? 'private';
 		return (kind !== 'private' || (this.messaging_enabled && (!this.chat_budget_enabled || this.chat_budget.credits > 0))) &&
@@ -1440,6 +1436,7 @@ function queue_modal(title_lang, template_id, image_url = 'assets/multiplayer.sv
 }
 
 function show_modal_error(text) {
+	if (state.service_status) return;
 	const $modal_error = $('mp-modal-error');
 	$modal_error.textContent = text;
 	$modal_error.classList.remove('d-none');
@@ -2736,6 +2733,7 @@ function $(id) {
 }
 
 function notify_error(lang_id, icon) {
+	if (state.service_status && ['MOD_MP_MULTIPLAYER_CONNECTION_ERR', 'MOD_MP_GENERIC_ERR'].includes(lang_id)) return;
 	notify(lang_id, 'danger', icon);
 }
 
@@ -4031,6 +4029,10 @@ async function recover_paid_wish_actions() {
 		const key = `crucible_wish_${kind}`;
 		const pending = get_instance_storage_item(`pending_economy_action:${state.chat_client_id}:${key}`);
 		if (pending?.endpoint !== `/api/crucible/wish/${kind}` || typeof pending?.payload?.command_id !== 'string') continue;
+		if (economy_receipt_reviews?.has(pending.payload.command_id)) {
+			remove_instance_storage_item(`pending_economy_action:${state.chat_client_id}:${key}`);
+			continue;
+		}
 		await run_pending_economy_action(key, pending.endpoint, pending.payload);
 		if (generation !== session_generation || origin !== server_host) return;
 	}
@@ -4040,6 +4042,7 @@ function reconcile_economy_receipts(receipts) {
 	if (!Array.isArray(receipts))
 		return Promise.resolve(false);
 	const generation = session_generation, origin = server_host;
+	const reviews = economy_receipt_reviews;
 	receipts = receipts.filter(receipt => receipt !== null && receipt !== undefined);
 	if (receipts.length === 0)
 		return Promise.resolve(true);
@@ -4053,6 +4056,10 @@ function reconcile_economy_receipts(receipts) {
 			if (generation !== session_generation || origin !== server_host) return false;
 			if (rollback_client?.is_retired(receipt?.id)) { economy_command_journal?.retire(receipt.id); continue; }
 			if (rollback_client && !rollback_client.allows_receipt(receipt)) { deferred = true; continue; }
+			if (reviews?.has(receipt?.id)) {
+				economy_command_journal?.retire(receipt.id);
+				continue;
+			}
 			if (typeof receipt?.id === 'string' && acknowledged_economy_receipt_ids.includes(receipt.id)) {
 				economy_command_journal?.acknowledge(receipt.id);
 				continue;
@@ -4089,12 +4096,19 @@ function reconcile_economy_receipts(receipts) {
 			});
 			if (result === 'invalid' || result === 'blocked') {
 				error('could not apply Economy Receipt %s (%s)', receipt?.id, result);
-				return false;
+				if (!reviews?.defer(receipt?.id, result)) return false;
+				economy_command_journal?.retire(receipt.id);
+				void reviews.flush();
+				continue;
 			}
 			const acknowledged = await api_post('/api/economy/receipts/acknowledge', { receipt_id: receipt.id });
 			if (generation !== session_generation || origin !== server_host) return false;
-			if (!acknowledged?.success)
-				return false;
+			if (!acknowledged?.success) {
+				if (!reviews?.defer(receipt.id, 'acknowledgement_failed')) return false;
+				economy_command_journal?.retire(receipt.id);
+				void reviews.flush();
+				continue;
+			}
 			reconciled_receipts.push(receipt);
 			economy_command_journal?.acknowledge(receipt.id);
 			processed_ids = economy_receipts.forget_processed_economy_receipt(processed_ids, receipt.id);
@@ -4173,10 +4187,80 @@ async function reconcile_banishment_returns() {
 // #endregion
 
 // #region API FUNCTIONS
+function update_service_notice(kind, translate = getLangString) {
+	if (state.multiplayer_unsupported) return;
+	state.service_status = kind === 'resolved' ? null : kind;
+	const previous = state.chat_conversations.find(entry => entry.synthetic_service);
+	const conversation = service_module.service_conversation(kind, translate, previous);
+	state.chat_conversations = [...state.chat_conversations.filter(entry => !entry.synthetic_service), conversation];
+	if (state.selected_chat_conversation?.synthetic_service) {
+		state.selected_chat_conversation = conversation;
+		state.chat_messages = [conversation.latest_message];
+	}
+	state.chat_error = '';
+	state.chat_unread = state.get_chat_notification_unread();
+	if (interface_ready) update_chat_nav();
+	if (kind !== 'resolved') stop_chat_polling();
+}
+
+async function service_fetch(fetch_impl, endpoint, options, request = {}, probe = false) {
+	if (service_availability?.active() && !probe)
+		throw Object.assign(new Error('Service paused'), { code: 'service_paused' });
+	const generation = session_generation, origin = server_host;
+	const ticket = service_availability?.ticket();
+	const current = () => generation === session_generation && origin === server_host && !state.multiplayer_unsupported;
+	let received = false;
+	return polling.fetch_with_timeout(fetch_impl, endpoint, options, { ...request,
+		observe: entry => {
+			request.observe?.(entry);
+			if (current() && ['network_error', 'timeout', 'response_error'].includes(entry.outcome))
+				service_availability?.fail(received ? 'unavailable' : 'unreachable', null, ticket);
+		},
+		consume: async response => {
+			received = true;
+			if (response.status >= 500 && current()) {
+				let body = null;
+				if (response.headers.get('Content-Type')?.includes('application/json')) {
+					try { body = await response.clone().json(); } catch { /* Gateway bodies need not be JSON. */ }
+				}
+				if (current()) service_availability?.fail(response.status === 503 && body?.error === 'maintenance' ? 'maintenance' : 'unavailable',
+					response.headers.get('Retry-After'), ticket);
+			}
+			return request.consume ? request.consume(response) : response;
+		}
+	});
+}
+
+async function probe_multiplayer_service() {
+	const origin = server_host, generation = session_generation;
+	if (!polling.is_foreground(document) || state.multiplayer_unsupported) return false;
+	const response = await service_fetch(fetch, origin + '/api/versions', { method: 'GET', cache: 'no-store' }, {
+		consume: async response => ({ status: response.status, json: response.ok ? await response.json() : null })
+	}, true);
+	if (origin !== server_host || generation !== session_generation || response.status !== 200 || !Array.isArray(response.json?.api_versions)) return false;
+	// Release the transport gate before login; no user command is automatically replayed.
+	service_availability.reset();
+	update_service_notice('resolved');
+	if (!state.is_connected) await start_multiplayer_session({ service_retry: true });
+	else {
+		read_cache.invalidate(); events_refreshed_at = 0;
+		start_client_event_polling(); start_chat_polling();
+	}
+	return true;
+}
+
 function handle_session_response(response, request_generation) {
 	if (request_generation !== session_generation || response.status !== 401 || !state.is_connected)
 		return;
 	state.is_connected = false;
+	service_availability?.reset();
+	state.service_status = null;
+	if (state.chat_conversations?.some(entry => entry.synthetic_service)) {
+		state.chat_conversations = state.chat_conversations.filter(entry => !entry.synthetic_service);
+		if (state.selected_chat_conversation?.synthetic_service) state.close_chat_conversation();
+		state.chat_unread = state.get_chat_notification_unread();
+		if (interface_ready) update_chat_nav();
+	}
 	state.clear_browser_links?.();
 	state.pending_preview = null;
 	client_event_poll_id++;
@@ -4219,6 +4303,8 @@ function unsupported_support_conversation(minimum_supported_mod_version) {
 function enter_unsupported_multiplayer(minimum_supported_mod_version) {
 	if (!client_runtime.is_mod_version_unsupported(MOD_VERSION, minimum_supported_mod_version))
 		return false;
+	service_availability?.reset();
+	state.service_status = null;
 	state.multiplayer_unsupported = true;
 	state.minimum_supported_mod_version = minimum_supported_mod_version;
 	state.is_connected = false;
@@ -4254,7 +4340,7 @@ async function discover_api_contract() {
 	rollback_server_supported = false;
 	identity_registration_supported = false;
 	let minimum_supported_mod_version = null;
-	const major = await polling.fetch_with_timeout(fetch, origin + '/api/versions', { method: 'GET' }, {
+	const major = await service_fetch(fetch, origin + '/api/versions', { method: 'GET' }, {
 		observe: entry => transport_diagnostics?.record(entry),
 		consume: async response => {
 			const body = response.status === 200 ? await response.json() : null;
@@ -4319,7 +4405,7 @@ async function coordinated_request(endpoint, options, request) {
 		const queue_wait_ms = Date.now() - queued_at;
 		const handshake = /\/api\/v\d+\/(?:authenticate|register)(?:\?|$)/.test(endpoint);
 		const timer = handshake && rollback_module ? rollback_module.create_handshake_timer(fetch) : null;
-		const result = await polling.fetch_with_timeout(timer?.fetch ?? fetch, endpoint, options, { ...request, observe: entry => request.observe?.({ ...entry, queue_wait_ms }), consume: response => {
+		const result = await service_fetch(timer?.fetch ?? fetch, endpoint, options, { ...request, observe: entry => request.observe?.({ ...entry, queue_wait_ms }), consume: response => {
 			request_scheduler.observe(response);
 			return consume(response);
 		} });
@@ -4694,6 +4780,7 @@ async function refresh_chat_state() {
 	state.guild_chat_enabled = res.guild_chat_enabled !== false;
 	state.chat_client_id = res.client_id;
 	state.chat_is_admin = res.is_admin === true;
+	state.chat_can_highlight = res.can_highlight === true;
 	state.chat_budget_enabled = res.budget_enabled !== false;
 	if (res.budget)
 		state.chat_budget = res.budget;
@@ -4705,6 +4792,7 @@ async function refresh_chat_conversations() {
 	if (!Array.isArray(res?.conversations))
 		return;
 	const conversations = [...res.conversations];
+	conversations.push(...(state.chat_conversations ?? []).filter(entry => entry.synthetic_service));
 	state.polls_summary = res.polls_summary ?? null;
 	if (res.polls_summary) state.poll_can_create = res.polls_summary.can_create === true;
 	conversations.push({ conversation_kind: 'polls', conversation_id: 1,
@@ -4716,7 +4804,8 @@ async function refresh_chat_conversations() {
 	state.alliance_chat_enabled = state.alliance_chat_state.enabled !== false;
 	state.guild_chat_state = res.guild_chat ?? { affiliated: false, enabled: state.guild_chat_enabled };
 	state.guild_chat_enabled = state.guild_chat_state.enabled !== false;
-	state.chat_unread = state.get_chat_notification_unread(res.conversations);
+	state.chat_unread = state.get_chat_notification_unread(res.conversations) +
+		(state.chat_conversations?.find(entry => entry.synthetic_service)?.unread_count ?? 0);
 	update_chat_nav();
 	// An inbox request must not restore a conversation the player has since left.
 	if (selected && state.selected_chat_conversation === selected) {
@@ -4776,6 +4865,7 @@ function setup_mobile_sidebar_unread() {
 
 async function refresh_chat_messages(cursor = '', prepend = false, quiet = false, view_generation = chat_view_generation) {
 	const conversation = state.selected_chat_conversation;
+	if (conversation?.synthetic_service || conversation?.synthetic_unsupported) return true;
 	if (!conversation || (state.chat_messages_loading && !quiet))
 		return false;
 	const kind = conversation.conversation_kind ?? 'private';
@@ -4811,6 +4901,8 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 	if (kind === 'private' && conversation.conversation_id === null)
 		return false;
 	const conversation_id = conversation.conversation_id;
+	// Sends, older history and translation refreshes do not prove that intervening Messages were fetched.
+	const advances_cursor = !prepend && (cursor.startsWith('&after=') || state.chat_message_cursor === null);
 	if (!quiet)
 		state.chat_messages_loading = true;
 	state.chat_error = '';
@@ -4857,9 +4949,13 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 		if (Array.isArray(res?.messages)) {
 			if (moderation_changed) {
 				state.chat_messages = [];
+				state.chat_message_cursor = null;
 				state.chat_before_cursor = null;
 				state.chat_reaction_revision = null;
 			}
+			if (advances_cursor || moderation_changed)
+				state.chat_message_cursor = res.messages.reduce((latest, message) =>
+					Math.max(latest, message.message_id), state.chat_message_cursor ?? 0);
 			if (Number.isSafeInteger(res.moderation_count)) conversation.message_moderation_count = res.moderation_count;
 			if (kind === 'petition-discussion') conversation.petition_votes_visible = res.petition_votes_visible;
 			if (kind === 'petition-discussion' && !prepend) {
@@ -4957,13 +5053,13 @@ function stop_chat_polling() {
 	chat_poll_id++;
 }
 
-function start_chat_polling() {
+function start_chat_polling(immediate = false) {
 	stop_chat_polling();
 	chat_poll_failures = 0;
-	if (!chat_page_visible || !state.selected_chat_conversation?.conversation_id || !polling.is_foreground(document))
+	if (service_availability?.active() || state.selected_chat_conversation?.synthetic_service || state.selected_chat_conversation?.synthetic_unsupported || !chat_page_visible || !state.selected_chat_conversation?.conversation_id || !polling.is_foreground(document))
 		return;
 	const poll_id = chat_poll_id;
-	setTimeout(() => poll_chat_messages(poll_id), polling.chat_poll_delay());
+	setTimeout(() => poll_chat_messages(poll_id), immediate ? 0 : polling.chat_poll_delay());
 }
 
 async function poll_chat_messages(poll_id) {
@@ -4976,7 +5072,7 @@ async function poll_chat_messages(poll_id) {
 			const translation_pending = state.chat_messages.some(message =>
 				state.is_chat_message_translation_pending(message));
 			succeeded = await refresh_chat_messages(
-				translation_pending ? '' : '&after=' + state.chat_latest_message_id,
+				translation_pending || state.chat_message_cursor === null ? '' : '&after=' + state.chat_message_cursor,
 				false,
 				true,
 				view_generation
@@ -5449,6 +5545,7 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 		check_released_mod_version(res.released_mod_version);
 		rollback_client?.consume(res.rollback);
 		void rollback_client?.calibrate();
+		void economy_receipt_reviews?.flush();
 		if (rollback_client?.needs_full() && res.unchanged === true) {
 			client_events_hydrated = false; client_event_trailing = true;
 			return res;
@@ -5480,7 +5577,7 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 			update_market_haggles();
 		const has_muted_chats = Object.values(state.chat_notification_preferences).includes(false);
 		if (!has_muted_chats)
-			state.chat_unread = res.chat_unread ?? 0;
+			state.chat_unread = (res.chat_unread ?? 0) + (state.chat_conversations?.find(entry => entry.synthetic_service)?.unread_count ?? 0);
 		state.inbox_pending_claim = res.inbox_pending === true;
 		update_chat_nav();
 		if (chat_page_visible || has_muted_chats || state.chat_unread > 0 || state.get_chat_notification_tagged())
@@ -5511,7 +5608,8 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 			return res;
 		if (request_generation !== session_generation)
 			return null;
-		if (economy_receipts.is_complete_economy_receipt_page(pending_economy_receipts, ECONOMY_RECEIPT_PAGE_SIZE)) {
+		const active_receipts = pending_economy_receipts?.filter(receipt => !economy_receipt_reviews?.has(receipt?.id));
+		if (economy_receipts.is_complete_economy_receipt_page(active_receipts, ECONOMY_RECEIPT_PAGE_SIZE)) {
 			if (!rollback_client || rollback_client.admitted()) remove_instance_storage_item('processed_economy_receipt_ids');
 			economy_commands_ready = rollback_client ? rollback_client.complete_snapshot(true) : true;
 		}
@@ -5609,7 +5707,7 @@ function handle_runtime_visibility_change() {
 	start_gp_sampling();
 	start_status_observer();
 	schedule_status_sync(0);
-	start_chat_polling();
+	start_chat_polling(true);
 }
 // #region
 
@@ -5639,6 +5737,7 @@ export async function setup(ctx) {
 	transfer_currency_support = await ctx.loadModule('transfer-currencies.mjs');
 	rollback_module = await ctx.loadModule('save-rollback.mjs');
 	economy_receipts = await ctx.loadModule('economy-receipts.mjs');
+	economy_receipt_review_module = await ctx.loadModule('economy-receipt-reviews.mjs');
 	const pending_actions = await ctx.loadModule('pending-economy-actions.mjs');
 	pending_economy_actions = pending_actions.create_pending_economy_actions({
 		read: get_instance_storage_item,
@@ -5649,11 +5748,14 @@ export async function setup(ctx) {
 		uuid: () => crypto.randomUUID(),
 		scope: () => `${server_host}:${state.chat_client_id}:${session_generation}`,
 		is_retired: id => rollback_client?.is_retired(id) === true,
+		is_reviewed: id => economy_receipt_reviews?.has(id) === true,
 		can_recover: pending => rollback_client?.admitted() !== false || rollback_module.protected_rollback_recovery_route(pending.endpoint),
 		can_start: () => economy_commands_ready && !economy_command_journal?.has_pending()
 	});
 	const server_config = await ctx.loadModule('server-config.mjs');
 	polling = await ctx.loadModule('polling.mjs');
+	service_module = await ctx.loadModule('service-availability.mjs');
+	service_availability = service_module.create_service_availability({ probe: probe_multiplayer_service, changed: update_service_notice });
 	const requests = await ctx.loadModule('request-coordinator.mjs');
 	request_scheduler = requests.create_request_scheduler({ observe: entry => transport_diagnostics?.measure(entry) });
 	read_cache = requests.create_read_cache({ scope: () => server_host + ':' + session_generation, observe: entry => transport_diagnostics?.measure(entry) });
@@ -5682,10 +5784,11 @@ export async function setup(ctx) {
 	expedition_view = await ctx.loadModule('expedition-view.mjs');
 	// Independent renderer modules: load together after save capture and core runtime setup.
 	const [image_particles, crucible_heat, expedition_crystals, expedition_haze, expedition_observatory,
-		expedition_orrery, expedition_snow] = await Promise.all([
+		expedition_orrery, expedition_voidwatch, expedition_hollow_star, expedition_snow] = await Promise.all([
 		ctx.loadModule('image-particles.mjs'), ctx.loadModule('crucible-heat.mjs'),
 		ctx.loadModule('expedition-crystals.mjs'), ctx.loadModule('expedition-haze.mjs'),
 		ctx.loadModule('expedition-observatory.mjs'), ctx.loadModule('expedition-orrery.mjs'),
+		ctx.loadModule('expedition-voidwatch.mjs'), ctx.loadModule('expedition-hollow-star.mjs'),
 		ctx.loadModule('expedition-snow.mjs')
 	]);
 	state.expedition_snow = { ...expedition_snow.DEFAULT_SNOW_SETTINGS };
@@ -5720,6 +5823,7 @@ export async function setup(ctx) {
 	action_runtime.raid_resistance_from_defeats = raid_module.raid_resistance_from_defeats;
 	action_runtime.format_raid_attack_description = attack => raid_module.format_raid_attack_description(attack, game);
 	action_runtime.chat_items = chat_items;
+	action_runtime.chat_highlights = await ctx.loadModule('chat-highlights.mjs');
 	Object.assign(
 		state,
 		{
@@ -5920,6 +6024,10 @@ export async function setup(ctx) {
 
 	ctx.onCharacterLoaded(() => {
 		state.clear_browser_links?.();
+		service_availability.reset();
+		state.service_status = null;
+		state.chat_conversations = state.chat_conversations.filter(entry => !entry.synthetic_service);
+		if (state.selected_chat_conversation?.synthetic_service) state.close_chat_conversation();
 		client_runtime.queue_mod_conflict_notice(mod.manager.getLoadedModList(), getLangString, addModalToQueue, document, ctx.name);
 		raid_combat.clear_loaded_combat();
 		raid_loaded_session_id = crypto.randomUUID();
@@ -5977,6 +6085,12 @@ export async function setup(ctx) {
 			image_particles.create_image_particle_element({ create_renderer: expedition_observatory.create_observatory_renderer }));
 		if (!customElements.get('mp-expedition-orrery')) customElements.define('mp-expedition-orrery',
 			image_particles.create_image_particle_element({ create_renderer: expedition_orrery.create_orrery_renderer }));
+		if (!customElements.get('mp-expedition-voidwatch')) customElements.define('mp-expedition-voidwatch',
+			image_particles.create_image_particle_element({ create_renderer: expedition_voidwatch.create_voidwatch_renderer }));
+		if (!customElements.get('mp-expedition-hollow-star')) customElements.define('mp-expedition-hollow-star',
+			image_particles.create_image_particle_element({ create_renderer: () => expedition_hollow_star.create_hollow_star_renderer({
+				get_tasks: () => expedition_hollow_star.hollow_star_tasks(state.expedition_state)
+			}) }));
 		const setup_interface = $main_container => {
 			const interface_started = performance.now();
 			setup_account_menu();
@@ -6142,6 +6256,10 @@ function apply_server_configuration() {
 		} catch { /* Browser storage availability must not block server selection. */ }
 	}
 	if (previous_server_host !== server_host) {
+		service_availability?.reset();
+		state.service_status = null;
+		state.chat_conversations = state.chat_conversations.filter(entry => !entry.synthetic_service);
+		if (state.selected_chat_conversation?.synthetic_service) state.close_chat_conversation();
 		selected_api_major = null;
 		session_generation++;
 		state.clear_browser_links?.();
@@ -6451,6 +6569,8 @@ async function patch_localization(ctx) {
 			for (const [key, value] of Object.entries(patch_lang))
 				language[key] = value;
 			localize_multiplayer_page_names();
+			const notice = state.chat_conversations.find(entry => entry.synthetic_service);
+			if (notice) update_service_notice(notice.service_status, key => language[key] ?? getLangString(key));
 		} catch (e) {
 			error('Failed to patch localization for %s (%s)', fetch_lang, e);
 		}
@@ -6566,13 +6686,13 @@ async function start_multiplayer_session(options = {}) {
 			return;
 		}
 
-		state.identity_error = getLangString('MOD_MP_IDENTITY_CONNECT_FAILED');
+		state.identity_error = state.service_status ? '' : getLangString('MOD_MP_IDENTITY_CONNECT_FAILED');
 		if (options.recovery_code === undefined && [401, 403, 409].includes(auth.response?.status)) queue_identity_notice('bootstrap');
 		notify_error(auth.json?.identity_status === 'installation_revoked' ? 'MOD_MP_INSTALLATION_REVOKED' : 'MOD_MP_MULTIPLAYER_CONNECTION_ERR');
 		error('failed to authenticate client (%s), multiplayer features not available', auth.response?.status ?? 'transport');
 	} catch (e) {
 		notify_error(e?.code === 'api_incompatible' ? 'MOD_MP_API_INCOMPATIBLE' : 'MOD_MP_MULTIPLAYER_CONNECTION_ERR');
-		state.identity_error = getLangString('MOD_MP_IDENTITY_CONNECT_FAILED');
+		state.identity_error = state.service_status ? '' : getLangString('MOD_MP_IDENTITY_CONNECT_FAILED');
 		error('failed to start multiplayer session');
 	} finally {
 		is_connecting = false;
@@ -6660,7 +6780,7 @@ async function register_multiplayer_identity(account, account_changed) {
 	}
 	if (registration.response?.status !== 200 || registration.json === null ||
 		!api_contract.validate_api_bootstrap(registration.json, selected_api_major)) {
-		state.identity_error = getLangString('MOD_MP_IDENTITY_CONNECT_FAILED');
+		state.identity_error = state.service_status ? '' : getLangString('MOD_MP_IDENTITY_CONNECT_FAILED');
 		notify_error('MOD_MP_MULTIPLAYER_CONNECTION_ERR');
 		error('failed to register client (%s), multiplayer features not available', registration.response?.status ?? 'transport');
 		return false;
@@ -6703,6 +6823,13 @@ function activate_multiplayer_identity(response, timing) {
 	const generation = session_generation;
 	const origin = server_host;
 	const storage_key = `pending_economy_command:${response.chat.client_id}`;
+	const review_key = `economy_receipt_reviews:${response.chat.client_id}`;
+	economy_receipt_reviews = economy_receipt_review_module.create_economy_receipt_reviews({
+		read: () => get_instance_storage_item(review_key),
+		write: value => set_instance_storage_item(review_key, value),
+		report: payload => api_post('/api/economy/receipts/review', payload),
+		current: () => generation === session_generation && origin === server_host && state.is_connected
+	});
 	rollback_client = rollback_module.create_rollback_client({
 		supported: rollback_server_supported || response.rollback?.protocol === 'save-rollback-v1',
 		origin, client_id: response.chat.client_id, load_id: loaded_save_tracker?.report()?.load_id,
@@ -6771,6 +6898,9 @@ function activate_multiplayer_identity(response, timing) {
 	state.guild_chat_state = { affiliated: false, enabled: state.guild_chat_enabled };
 	state.chat_client_id = response.chat?.client_id ?? null;
 	state.chat_is_admin = false;
+	state.chat_can_highlight = false;
+	state.chat_highlight_drafts = {};
+	state.chat_highlight_modal_key = null;
 	state.chat_budget_enabled = response.chat?.budget_enabled !== false;
 	check_released_mod_version(response.released_mod_version);
 	if (response.chat?.budget)

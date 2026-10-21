@@ -126,8 +126,8 @@ test('stops multiplayer traffic and presents a permanent local Support notice be
 	assert.match(main, /async function api_get\(endpoint, is_current = null\) \{\s*if \(state\.multiplayer_unsupported\)\s*return null;/);
 	assert.match(main, /async function api_post_response_raw[\s\S]*?if \(state\.multiplayer_unsupported\)\s*return \{ response: null, json: null \};/);
 	assert.match(main, /synthetic_unsupported: true,[\s\S]*unread_count: 1/);
-	assert.match(main, /if \(conversation\.synthetic_unsupported === true\)[\s\S]*this\.chat_messages = \[conversation\.latest_message\];/);
-	assert.match(templates, /v-else-if="state\.selected_chat_conversation\?\.synthetic_unsupported !== true"/);
+	assert.match(main, /if \(conversation\.synthetic_unsupported === true \|\| conversation\.synthetic_service === true\)[\s\S]*this\.chat_messages = \[conversation\.latest_message\];/);
+	assert.match(templates, /v-else-if="state\.selected_chat_conversation\?\.synthetic_unsupported !== true && state\.selected_chat_conversation\?\.synthetic_service !== true"/);
 });
 
 test('initializes action dependencies before installing split actions', async () => {

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { request } from '../support/http';
 test('canonical shell and exact packaged assets have restrictive security headers', async () => {
-	for (const path of ['/chat', '/chat/assets/chat.css', '/chat/assets/chat.mjs', '/chat/assets/transport.mjs', '/chat/assets/controller.mjs', '/chat/assets/render.mjs', '/mod/chat-items.mjs', '/chat/assets/multiplayer.svg']) {
+	for (const path of ['/chat', '/chat/assets/chat.css', '/chat/assets/chat.mjs', '/chat/assets/transport.mjs', '/chat/assets/controller.mjs', '/chat/assets/render.mjs', '/mod/chat-items.mjs', '/chat/assets/multiplayer.svg', '/chat/assets/logo.png']) {
 		const response = await request(path);
 		expect(response.status).toBe(200);
 		expect(response.headers.get('Cache-Control')).toBe('private, no-store');

@@ -1,3 +1,5 @@
+import { highlight_color } from '../../mod/chat-highlights.mjs';
+
 // All transient state belongs to an explicit link and logical conversation. Nothing is persisted.
 export const kinds = ['global', 'guild', 'alliance', 'private', 'support', 'testers'];
 export function conversation_key(c) {
@@ -27,7 +29,7 @@ export function create_chat_controller({ transport, changed = () => {}, unauthor
 	const notify = () => changed(api.view());
 	function get_entry(c) {
 		const id = entry_key(c);
-		if (!entries.has(id)) entries.set(id, { conversation: c, messages: [], draft: '', tags: [], pending: null,
+		if (!entries.has(id)) entries.set(id, { conversation: c, messages: [], draft: '', tags: [], highlight_color: null, pending: null,
 			people: [], reaction_revision: 0, has_more: false, loaded: false, denied: false, history: null, retry_at: 0 });
 		const e = entries.get(id); e.conversation = c; return e;
 	}
@@ -140,14 +142,14 @@ export function create_chat_controller({ transport, changed = () => {}, unauthor
 				conversation_kind: e.conversation.conversation_kind ?? 'private', conversation_id: e.conversation.conversation_id,
 				...(e.conversation.support_team_id ? { support_team_id: e.conversation.support_team_id } : {}),
 				...(e.conversation.participant.client_id ? { client_id: e.conversation.participant.client_id } : {}),
-				content, parts, idempotency_key: key() })) };
+				content, parts, ...(state.can_highlight && e.highlight_color ? { highlight_color: e.highlight_color } : {}), idempotency_key: key() })) };
 		}
 		if (!e.pending) return;
 		const pending = e.pending; e.sending = true; notify();
 		try {
 			const data = await request('messages/send', { ...s, link: pending.link, csrf: pending.csrf }, pending.body);
 			// Settling this owned entry is safe even offscreen; rendering remains guarded by the selection epoch.
-			e.pending = null; e.draft = ''; e.tags = []; e.retry_at = 0; e.send_revision = (e.send_revision ?? 0) + 1;
+			e.pending = null; e.draft = ''; e.tags = []; e.highlight_color = null; e.retry_at = 0; e.send_revision = (e.send_revision ?? 0) + 1;
 			if (data.message) {
 				const m = data.message;
 				if (e.conversation.conversation_kind === 'support' && e.conversation.conversation_id == null && m.conversation_id != null) {
@@ -156,7 +158,7 @@ export function create_chat_controller({ transport, changed = () => {}, unauthor
 				e.conversation = { ...e.conversation, conversation_id: m.conversation_id ?? e.conversation.conversation_id };
 				e.messages = e.messages.filter(old => old.message_id > 0 && old.message_id !== m.message_id).concat(m).sort((a,b) => a.message_id - b.message_id);
 			}
-			if (current(s)) { notice = 'Message sent.'; await refresh_inbox(); if (current(s) && e.reload) await history('reload'); }
+			if (current(s)) { notice = ''; await refresh_inbox(); if (current(s) && e.reload) await history('reload'); }
 		} catch (error) {
 			// Abort/lost response may have committed: preserve the exact payload and key until explicit Retry.
 			e.retry_at = now() + (error.retry_after_ms ?? 0);
@@ -179,6 +181,10 @@ export function create_chat_controller({ transport, changed = () => {}, unauthor
 			try { await history('reload'); } finally { arm(); }
 		},
 		draft(value) { const e = entry(); if (e && !e.pending) { e.draft = value; } },
+		highlight(value) {
+			const e = entry();
+			if (e && state.can_highlight === true && !e.pending) { e.highlight_color = highlight_color(value); notify(); }
+		},
 		tag(part) { const e = entry(); if (e && !e.pending && e.tags.length < 20) { e.tags.push(part); notify(); } },
 		untag(index) { const e = entry(); if (e && !e.pending) { e.tags.splice(index,1); notify(); } },
 		send, history, tick,

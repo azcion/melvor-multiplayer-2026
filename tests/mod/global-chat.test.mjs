@@ -42,6 +42,6 @@ test('shows a localized read-only footer instead of the composer to non-testers'
 		readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse)
 	]);
 	const chat_view = templates.slice(templates.indexOf('<template id="template-mp-chat-page">'));
-	assert.match(chat_view, /class="block-content mp-chat-compose" v-else-if="state\.selected_chat_conversation\?\.conversation_kind === 'testers' && state\.selected_chat_conversation\?\.can_send !== true">\s*<div class="mp-chat-disabled-message"><lang-string lang-id="MOD_MP_TESTER_CHAT_READ_ONLY"><\/lang-string><\/div>\s*<\/div>\s*<div class="block-content mp-chat-compose" v-else-if="state\.selected_chat_conversation\?\.synthetic_unsupported !== true">/);
+	assert.match(chat_view, /class="block-content mp-chat-compose" v-else-if="state\.selected_chat_conversation\?\.conversation_kind === 'testers' && state\.selected_chat_conversation\?\.can_send !== true">\s*<div class="mp-chat-disabled-message"><lang-string lang-id="MOD_MP_TESTER_CHAT_READ_ONLY"><\/lang-string><\/div>\s*<\/div>\s*<div class="block-content mp-chat-compose" v-else-if="state\.selected_chat_conversation\?\.synthetic_unsupported !== true && state\.selected_chat_conversation\?\.synthetic_service !== true">/);
 	assert.match(english.MOD_MP_TESTER_CHAT_READ_ONLY, /Expedition testers/);
 });

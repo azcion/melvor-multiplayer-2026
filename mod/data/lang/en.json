@@ -1,4 +1,10 @@
 {
+	"MOD_MP_CHAT_HIGHLIGHT": "Highlight",
+	"MOD_MP_CHAT_HIGHLIGHT_COLOR": "Hex color",
+	"MOD_MP_CHAT_HIGHLIGHT_HELP": "Enter six hex digits (RGB, no alpha).",
+	"MOD_MP_CHAT_HIGHLIGHT_PREVIEW": "Preview",
+	"MOD_MP_CHAT_HIGHLIGHT_CLEAR": "Clear highlight",
+	"MOD_MP_CHAT_HIGHLIGHT_APPLY": "Apply",
 	"MOD_MP_ALLIANCE_REASON_MARKET_DISABLE": "Close Marketplace",
 	"MOD_MP_ALLIANCE_REASON_REMOVE": "Propose Removal",
 	"MOD_MP_ALLIANCE_REASON_LEAVE": "Propose Leaving",
@@ -1322,5 +1328,10 @@
 	"MOD_MP_BROWSER_LINK_CAPACITY": "Browser limit reached. Refresh linked browsers and revoke one before linking another.",
 	"MOD_MP_BROWSER_LINK_BROWSERS": "Linked browsers",
 	"MOD_MP_BROWSER_LINK_REFRESH": "Refresh",
-	"MOD_MP_BROWSER_LINK_BROWSER": "Browser"
+	"MOD_MP_BROWSER_LINK_BROWSER": "Browser",
+	"MOD_MP_SERVICE_TITLE": "Multiplayer connection",
+	"MOD_MP_SERVICE_MAINTENANCE": "Multiplayer is taking a maintenance break. We’ll reconnect you automatically when it’s ready.",
+	"MOD_MP_SERVICE_UNREACHABLE": "We can’t reach the multiplayer server right now. We’ll keep trying to reconnect.",
+	"MOD_MP_SERVICE_UNAVAILABLE": "Multiplayer is having trouble right now. We’ll keep trying to reconnect.",
+	"MOD_MP_SERVICE_RESOLVED": "Multiplayer is available again. Thanks for waiting!"
 }

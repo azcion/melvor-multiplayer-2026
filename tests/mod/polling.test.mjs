@@ -150,7 +150,7 @@ test('refreshes event state after relevant navigation and successful mutations o
 test('bounds requests and releases guarded page loaders from finally blocks', () => {
 	const api = main.slice(main.indexOf('async function api_get'), main.indexOf('async function refresh_identities'));
 	assert.match(api, /coordinated_request\(server_host/);
-	assert.match(main, /await polling\.fetch_with_timeout\(timer\?\.fetch \?\? fetch, endpoint/);
+	assert.match(main, /await service_fetch\(timer\?\.fetch \?\? fetch, endpoint/);
 	assert.match(api, /return \{ response: null, json: null \}/);
 
 	for (const [function_name, loading_flag] of [
@@ -170,4 +170,66 @@ test('bounds requests and releases guarded page loaders from finally blocks', ()
 		const source = main.slice(start, end === -1 ? main.length : end);
 		assert.match(source, new RegExp(`finally \\{[\\s\\S]*${loading_flag} = false`), function_name);
 	}
+});
+
+function foreground_chat_harness() {
+	const scheduler = main.slice(main.indexOf('function stop_chat_polling('), main.indexOf('\nasync function get_friends('));
+	const visibility = main.slice(main.indexOf('function handle_runtime_visibility_change('), main.indexOf('// #region SETUP FUNCTIONS'));
+	const document = { visibilityState: 'visible' };
+	const timers = [], requests = [];
+	const state = { selected_chat_conversation: { conversation_id: 42 }, chat_messages: [{ message_id: 10 }],
+		chat_message_cursor: 10, is_chat_message_translation_pending: () => false };
+	let succeed = true;
+	const functions = new Function('state', 'document', 'polling', 'setTimeout', 'refresh_chat_messages', `
+		let chat_poll_id = 0, chat_poll_failures = 0, chat_view_generation = 1, chat_page_visible = true;
+		let client_event_poll_id = 0, status_sync_timer = null;
+		const service_availability = null, clearTimeout = () => {}, error = () => {};
+		const stop_gp_sampling = () => {}, stop_status_observer = () => {}, start_client_event_polling = () => {};
+		const start_gp_sampling = () => {}, start_status_observer = () => {}, schedule_status_sync = () => {};
+		${scheduler}\n${visibility}
+		return { start: start_chat_polling, visibility: handle_runtime_visibility_change,
+			set_page_visible: value => { chat_page_visible = value; } };
+	`)(state, document, { is_foreground, chat_poll_delay: () => 5000, retry_poll_delay: () => 10000 },
+		(fn, delay) => timers.push({ fn, delay }), async cursor => {
+			requests.push(cursor);
+			if (succeed) { state.chat_messages.push({ message_id: 11 }); state.chat_message_cursor = 11; }
+			return succeed;
+		});
+	return { ...functions, state, document, timers, requests, fail: () => { succeed = false; } };
+}
+
+test('returning to a visible conversation catches up immediately and invalidates the old timer', async () => {
+	const h = foreground_chat_harness();
+	h.start();
+	const old_timer = h.timers.shift();
+	assert.equal(old_timer.delay, 5000);
+	h.document.visibilityState = 'hidden';
+	h.visibility();
+	await old_timer.fn();
+	assert.deepEqual(h.requests, []);
+	assert.equal(h.timers.length, 0);
+	h.document.visibilityState = 'visible';
+	h.visibility();
+	assert.equal(h.timers[0].delay, 0);
+	await h.timers.shift().fn();
+	assert.deepEqual(h.requests, ['&after=10']);
+	assert.deepEqual(h.state.chat_messages.map(m => m.message_id), [10, 11]);
+	assert.equal(h.timers[0].delay, 5000);
+});
+
+test('foreground catch-up retries failures and leaves other game pages and empty inboxes idle', async () => {
+	const h = foreground_chat_harness();
+	h.fail();
+	h.visibility();
+	await h.timers.shift().fn();
+	assert.equal(h.timers[0].delay, 10000);
+	assert.equal(h.state.chat_message_cursor, 10);
+	h.timers.length = 0;
+	h.set_page_visible(false);
+	h.visibility();
+	assert.equal(h.timers.length, 0);
+	h.set_page_visible(true);
+	h.state.selected_chat_conversation = null;
+	h.visibility();
+	assert.equal(h.timers.length, 0);
 });

@@ -2,7 +2,7 @@ const transient_rollback_failure = result => ['economy_review_pending','economy_
 const retired_rollback_command = result => result?.error === 'economy_command_retired' && result.receipt === null && typeof result.retired_command_id === 'string' ? result.retired_command_id : null;
 // A pending action owns its exact payload until a definitive failure or receipt acknowledgement.
 // Storage is supplied by the character's selected server/identity namespace.
-export function create_pending_economy_actions({ read, write, remove, post, reconcile, uuid, scope = () => null, can_start = () => true, is_retired = _id => false, can_recover = _pending => true }) {
+export function create_pending_economy_actions({ read, write, remove, post, reconcile, uuid, scope = () => null, can_start = () => true, is_retired = _id => false, is_reviewed = _id => false, can_recover = _pending => true }) {
 	const running = new Map();
 	return {
 		run(key, endpoint, payload) {
@@ -13,6 +13,10 @@ export function create_pending_economy_actions({ read, write, remove, post, reco
 			const generation = scope();
 			const execute = async () => {
 				let pending = read(storage_key);
+				if (pending !== undefined && is_reviewed(pending?.payload?.command_id)) {
+					remove(storage_key);
+					pending = undefined;
+				}
 				if (pending === undefined) {
 					if (!can_start()) return null;
 					pending = JSON.parse(JSON.stringify({ endpoint, payload: { ...payload, command_id: uuid() } }));

@@ -1,4 +1,5 @@
 import { browser_chat_auth_migration } from './migrations/browser-chat-auth';
+import { receipt_reviews_migration } from './migrations/receipt-reviews';
 import { browser_chat_identities_migration } from './migrations/browser-chat-identities';
 import { cheat_categories_migration } from './migrations/cheat-categories';
 import { shared_petition_discussions_migration } from './migrations/shared-petition-discussions';
@@ -377,4 +378,10 @@ export const migrations: Migration[] = [
 	` },
 	browser_chat_auth_migration,
 	browser_chat_identities_migration,
+	receipt_reviews_migration,
+	{ version: 193, sql: `
+		ALTER TABLE chat_translation_jobs ADD COLUMN highlight_color TEXT
+			CHECK(highlight_color IS NULL OR (length(highlight_color) = 7 AND
+				substr(highlight_color, 1, 1) = '#' AND substr(highlight_color, 2) NOT GLOB '*[^0-9a-fA-F]*'));
+	` },
 ];

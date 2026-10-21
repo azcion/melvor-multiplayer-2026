@@ -1,3 +1,4 @@
+import { CHAT_HIGHLIGHT_PRESETS, highlight_input, highlight_color } from '../../mod/chat-highlights.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { create_transport, create_selection, pair_serialized, readable_item } from '../../server/chat-assets/transport.mjs';
@@ -49,7 +50,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 async function shell_fixture(fetcher, messaging = false, touch = false, storage = { getItem() { return null; }, setItem() { }, removeItem() { } }, search = '') {
 	class Element {
-		constructor(id = '', tag = '') { this.tagName = tag.toUpperCase(); this.id = id; this.value = ''; this.scrollTop = 0; this.clientHeight = 100; this.hidden = false; this.children = []; this.listeners = {}; this.textContent = ''; }
+		constructor(id = '', tag = '') { this.tagName = tag.toUpperCase(); this.id = id; this.value = ''; this.scrollTop = 0; this.clientHeight = 100; this.hidden = false; this.children = []; this.listeners = {}; this.style = {}; this.textContent = ''; }
 		get textContent() { return this.ownText + this.children.map(child => child.textContent).join(''); }
 		set textContent(value) { this.ownText = value; this.children = []; }
 		get scrollHeight() { return this.id === 'messages' ? (elements.get('message-rows')?.children.length ?? 0) * 100 + (elements.get('older')?.hidden ? 0 : 40) : 0; }
@@ -57,8 +58,11 @@ async function shell_fixture(fetcher, messaging = false, touch = false, storage 
 		append(...children) { this.children.push(...children); }
 		remove() { }
 		setAttribute(key,value) { this[key] = value; }
+		getAttribute(key) { return this[key]; }
 		showModal() { this.open = true; }
 		close() { this.open = false; }
+		set disabled(value) { this.isDisabled = value; if (value && document.activeElement === this) document.activeElement = null; }
+		get disabled() { return this.isDisabled; }
 		focus() { document.activeElement = this; }
 		addEventListener(event, fn) { this.listeners[event] = fn; }
 	}
@@ -66,7 +70,7 @@ async function shell_fixture(fetcher, messaging = false, touch = false, storage 
 	const document = { getElementById: id => { if (!elements.has(id))
 			elements.set(id, new Element(id)); return elements.get(id); }, createElement: tag => new Element('',tag), querySelectorAll: () => { const found = new Set(); const visit = element => { found.add(element); for (const child of element.children) visit(child); }; for (const element of elements.values()) visit(element); return [...found]; }, addEventListener() { } };
 	const source = (await readFile(new URL('../../server/chat-assets/chat.mjs', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '');
-	const context = { document, navigator: { maxTouchPoints: touch === true ? 1 : 0, locks: { request: async (_name, callback) => callback() } }, sessionStorage: storage,
+	const context = { CHAT_HIGHLIGHT_PRESETS, highlight_input, highlight_color, document, navigator: { maxTouchPoints: touch === true ? 1 : 0, locks: { request: async (_name, callback) => callback() } }, sessionStorage: storage,
 		create_transport: () => create_transport({ fetcher: (path, options) => !messaging && ['/chat/api/state','/chat/api/conversations'].includes(path) ? Promise.resolve(Response.json(path.endsWith('state') ? {} : { conversations: [] })) : fetcher(path,options) }), create_selection, pair_serialized,
 		create_chat_controller: options => create_chat_controller({ ...options, schedule: () => 1, cancel() { } }), conversation_key, node, kind_labels, presentation, render_parts, avatar_node, conversation_image, conversation_label,
 		window: { innerWidth: touch === 'narrow' ? 390 : 1200, location: { search }, addEventListener() { } }, URLSearchParams, console, Date, Number, Boolean };
@@ -460,13 +464,67 @@ test('an older click during quiet polling runs once after success and is dropped
 
 test('ordinary send has no uncertainty warning and confirmed send scrolls from older history to newest', async () => {
  let resolve_send;
- const {elements,settle} = await message_shell(false,7,'private',() => new Promise(resolve => { resolve_send = resolve; }));
+ const {elements,settle,document} = await message_shell(false,7,'private',() => new Promise(resolve => { resolve_send = resolve; }));
  const list = elements.get('messages'); list.scrollTop = 0;
  elements.get('draft').value = 'hello';
- elements.get('composer').listeners.submit({preventDefault(){}}); await settle();
+ elements.get('draft').focus();
+ elements.get('draft').listeners.keydown({key:'Enter',preventDefault(){}}); await settle();
+ assert.equal(document.activeElement,elements.get('draft'));
+ assert.equal(elements.get('draft').readOnly,true);
  assert.equal(elements.get('pending-warning').textContent,'');
  assert.equal(elements.get('retry-send').hidden,true);
  resolve_send(Response.json({message:{message_id:8,created_at:2,content:'sent'}})); await settle();
  assert.equal(list.scrollTop,list.scrollHeight);
  assert.equal(elements.get('draft').value,'');
+ assert.equal(document.activeElement,elements.get('draft'));
+ assert.equal(elements.get('draft').readOnly,false);
+ assert.equal(elements.get('chat-notice').textContent,'');
+});
+
+test('unread badges show numeric counters and Inbox excludes the selected conversation', async () => {
+ const channels = [
+  {conversation_kind:'global',conversation_id:1,participant:{display_name:'World'},unread_count:3,unread_tagged:true},
+  {conversation_kind:'guild',conversation_id:2,participant:{display_name:'Oak'},unread_count:2},
+ ];
+ const {elements,choose,poll} = await inbox_shell({conversations:channels});
+ await choose('World');
+ assert.equal(elements.get('mobile-inbox-unread').textContent,'2');
+ assert.equal(elements.get('mobile-inbox-unread').hidden,false);
+ assert.deepEqual(descendants(elements.get('inbox')).filter(e=>e.className === 'unread').map(e=>e.textContent),['3','2']);
+ await choose('Oak');
+ assert.equal(elements.get('mobile-inbox-unread').textContent,'3');
+ channels[0].unread_count = 0;
+ await poll();
+ assert.equal(elements.get('mobile-inbox-unread').hidden,true);
+});
+
+test('Dev highlight dialog normalizes pasted hex, validates RGB, previews and clears after sending', async () => {
+ const calls = [];
+ const { elements, settle } = await shell_fixture(async (path, options) => {
+  calls.push({ path, options });
+  if (path === '/chat/api/session') return Response.json({ links: [link(1, 'Dev')], csrf_token: 'csrf' });
+  if (path === '/chat/api/state') return Response.json({ client_id: 101, can_highlight: true, messaging_enabled: true });
+  if (path === '/chat/api/conversations') return Response.json({ conversations: [{ conversation_kind: 'global', conversation_id: 1, participant: { display_name: 'Global' } }] });
+  if (path.startsWith('/chat/api/messages?')) return Response.json({ messages: [] });
+  if (path === '/chat/api/messages/send') return Response.json({ message: { message_id: 1, sender_id: 101, content: 'Hello', highlight_color: '#ABC123', created_at: 1 } });
+  return Response.json(demo_data);
+ }, true);
+ descendants(elements.get('inbox')).find(e => e.className === 'conversation').listeners.click(); await settle();
+ assert.equal(elements.get('highlight').hidden, false);
+ elements.get('highlight').listeners.click();
+ const swatches = descendants(elements.get('dialog-content')).filter(e => e.className === 'highlight-swatch');
+ assert.equal(swatches.length, 8);
+ const input = descendants(elements.get('dialog-content')).find(e => e.tagName === 'INPUT');
+ const apply = elements.get('dialog-actions').children.find(e => e.textContent === 'Apply');
+ input.value = '#12345678'; input.listeners.input(); assert.equal(apply.disabled, true);
+ input.value = '#aBc123'; input.listeners.input(); assert.equal(input.value, 'ABC123'); assert.equal(apply.disabled, false);
+ assert.match(descendants(elements.get('dialog-content')).find(e => e.className === 'highlight-sample').style.boxShadow, /#ABC123/);
+ apply.listeners.click(); assert.match(elements.get('draft').style.boxShadow, /#ABC123/);
+ elements.get('draft').value = 'Hello'; elements.get('draft').listeners.input();
+ elements.get('composer').listeners.submit({ preventDefault() {} }); await settle();
+ assert.equal(JSON.parse(calls.find(c => c.path === '/chat/api/messages/send').options.body).highlight_color, '#ABC123');
+ assert.equal(elements.get('draft').style.boxShadow, '');
+ elements.get('highlight').listeners.click(); swatches[0].listeners.click();
+ elements.get('dialog-actions').children.find(e => e.textContent === 'Clear highlight').listeners.click();
+ assert.equal(elements.get('draft').style.boxShadow, '');
 });

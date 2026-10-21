@@ -1,13 +1,13 @@
 import { filtered_contributor_sql, filtered_crucible_quantities } from './listing-filters';
 import type { CheatCategoryId } from './cheat-categories';
 import { maintain_wish_capacities } from './wish-capacity';
-import { create_gloop_custody, custody_at, move_location, allocate_wish_funding, record_dependency, type FundingOrigin } from './economy-custody';
+import { create_gloop_custody, custody_at, move_custody_fifo, move_location, allocate_wish_funding, record_dependency, type FundingOrigin } from './economy-custody';
 import type { Database, SQLQueryBindings } from 'bun:sqlite';
 import { db } from './db';
 import { create_audit_lot, move_audit_value_with_fallback, record_audit_event } from './audit';
 import type * as db_row from './db/types/db_types';
 import { CRUCIBLE_GLOOP_ID, CRUCIBLE_PROGRESS_MAX, crucible_estimated_completion_at,
-	crucible_gloop_quantity, crucible_heat, crucible_heat_value, crucible_stack_value,
+	crucible_overflow_gloop, crucible_heat, crucible_heat_value, crucible_stack_value,
 	safe_crucible_add, crucible_unit_value } from './crucible-values';
 
 const MINUTE_MS = 60_000;
@@ -115,7 +115,7 @@ function meld_offering(row: Offering, now: number, database: Database): void {
 	const residual = distribute_crucible_value(row.guild_id, value, now, contributor_ids, database,origins);
 	for (const lot of lots) move_location(database,`crucible-lot:${lot.id}`,'consumed:meld',now,'meld');
 
-	const gloop_qty = crucible_gloop_quantity(residual);
+	const gloop_qty = crucible_overflow_gloop(residual, row);
 	const event_id = record_audit_event({ event_type: 'crucible.offering_melded',
 		source_key: `crucible-meld:${row.id}:${row.generation}`, actor: { kind: 'system' },
 		guild_id: row.guild_id, occurred_at: now,
@@ -132,6 +132,30 @@ function meld_offering(row: Offering, now: number, database: Database): void {
 	database.query('DELETE FROM crucible_offerings WHERE id = ?').run(row.id);
 	const gloop_id=add_gloop(row.guild_id, gloop_qty, now, database);
 	if(gloop_id!==null) create_gloop_custody(database,gloop_id,origins,`meld:${row.id}:${row.generation}`,row.guild_id,now);
+}
+
+/** Runs at a reconciled noon boundary; the durable minute cursor prevents replay. */
+function decay_gloop(guild_id: number, now: number, database: Database): void {
+	const row = database.query<Offering, [number, string]>(
+		'SELECT * FROM crucible_offerings WHERE guild_id = ? AND item_id = ?'
+	).get(guild_id, CRUCIBLE_GLOOP_ID);
+	if (row === null || row.created_at > now) return;
+	// ceil(qty * 750 / 1000), using BigInt even for maximum-safe stacks.
+	const quantity = Number((BigInt(row.qty) * 3n + 3n) / 4n);
+	const lost = row.qty - quantity;
+	if (lost === 0) return;
+	const event = record_audit_event({ event_type: 'crucible.gloop_decayed',
+		source_key: `crucible-gloop-decay:${guild_id}:${now}`, actor: { kind: 'system' },
+		guild_id, occurred_at: now,
+		values: [{ object_id: CRUCIBLE_GLOOP_ID, quantity: lost, direction: 'destroy' }],
+		details: { offering_id: row.id, previous_qty: row.qty, remaining_qty: quantity } }, database);
+	move_audit_value_with_fallback(event, CRUCIBLE_GLOOP_ID, lost, 'crucible',
+		String(guild_id), null, null, database);
+	const location = `crucible-offering:${row.id}`;
+	const known = custody_at(database, location).reduce((sum, source) => safe_crucible_add(sum, source.quantity), 0);
+	if (known > row.qty) throw new Error('Gloop custody exceeds stack quantity');
+	move_custody_fifo(database, location, 'consumed:gloop-decay', lost, now, 'gloop-decay', row.qty - known);
+	database.query('UPDATE crucible_offerings SET qty = ? WHERE id = ?').run(quantity, row.id);
 }
 
 function deliver_due_wishes(guild_id: number, now: number, database: Database): void {
@@ -176,7 +200,9 @@ export function reconcile_crucible(guild_id: number, now = Date.now(), database:
 		const until_transition = already_ready ? 1 : rate === 0 || incomplete.length === 0 ? target - cursor
 			: Math.max(1, Math.min(...incomplete.map(points =>
 				Math.ceil((CRUCIBLE_PROGRESS_MAX - points) / rate))));
-		const step = Math.min(target - cursor, until_transition);
+		const next_noon = Math.floor((cursor - 720) / 1440) * 1440 + 2160;
+		const has_gloop = current_offerings.some(row => row.item_id === CRUCIBLE_GLOOP_ID && row.qty > 3);
+		const step = Math.min(target - cursor, until_transition, has_gloop ? next_noon - cursor : Infinity);
 		if (rate > 0) {
 			const earned = step * rate;
 			database.query('UPDATE crucible_wishes SET formation_points = MIN(?, formation_points + ?) ' +
@@ -195,6 +221,8 @@ export function reconcile_crucible(guild_id: number, now = Date.now(), database:
 		const ready = database.query<Offering, [number, number]>(
 			'SELECT * FROM crucible_offerings WHERE guild_id = ? AND is_untimed = 0 AND meld_points >= ? ORDER BY id'
 		).all(guild_id, CRUCIBLE_PROGRESS_MAX);
+		// Decay the existing stack before adding value from Offerings melding at noon.
+		if (cursor === next_noon) decay_gloop(guild_id, boundary, database);
 		for (const row of ready) meld_offering(row, boundary, database);
 		deliver_due_wishes(guild_id, boundary, database);
 		transitions++;

@@ -149,7 +149,7 @@ test('implements jittered foreground conversation polling and cursor-based histo
 	assert.match(main, /if \(is_visible && state\.is_connected\) \{[\s\S]*void get_client_events\(\);[\s\S]*void refresh_chat_page\(\);/);
 	assert.match(main, /async function refresh_chat_page\(\) \{\s*if \(!state\.is_connected\)\s*return;/);
 	assert.match(main, /start_client_event_polling\(true\);\s*if \(chat_page_visible\)\s*void refresh_chat_page\(\);/);
-	assert.match(main, /'&after=' \+ state\.chat_latest_message_id/);
+	assert.match(main, /'&after=' \+ state\.chat_message_cursor/);
 	assert.match(main, /'&reaction_after=' \+ state\.chat_reaction_revision/);
 	assert.match(main, /Array\.isArray\(res\.reaction_updates\)[\s\S]*message\.reactions = update\.reactions/);
 	assert.match(main, /should_scroll_for_additions = quiet && additions\.length > 0 && state\.chat_messages_are_at_bottom\(\)[\s\S]*await state\.scroll_chat_messages_to_bottom\(\)/);
@@ -848,7 +848,7 @@ test('notification bell renders the current enabled state and locks while thrott
 	assert.match(bell, /:disabled="state.chat_notifications_busy"/);
 	assert.doesNotMatch(bell, /aria-haspopup|modal/);
 	assert.match(main, /apply_server_configuration\(\);\s*state.load_chat_notification_preferences\(\)/);
-	assert.match(main, /if \(!has_muted_chats\)\s*state.chat_unread = res.chat_unread/);
+	assert.match(main, /if \(!has_muted_chats\)\s*state.chat_unread = \(res.chat_unread/);
 	assert.match(main, /if \(chat_page_visible \|\| has_muted_chats \|\| state.chat_unread > 0 \|\| state.get_chat_notification_tagged\(\)\)\s*await refresh_chat_conversations/);
 });
 
@@ -871,7 +871,7 @@ test('person tag glow uses character IDs and navigation tags respect unread, acc
 	conversation.unread_count = 0;
 	assert.equal(state.get_chat_notification_tagged(), false);
 	const { main, templates, style } = await sources();
-	assert.match(templates, /mp-chat-message-content" :class="\{ 'mp-chat-tagged': state.is_chat_message_tagged\(message\)/);
+	assert.match(templates, /mp-chat-message-content" :style="state.get_chat_highlight_style\(message\)" :class="\{ 'mp-chat-tagged': state.is_chat_message_tagged\(message\)/);
 	assert.match(templates, /conversation.unread_tagged \? '@' : conversation.unread_count/);
 	assert.match(main, /chat_page_visible \|\| has_muted_chats \|\| state.chat_unread > 0 \|\| state.get_chat_notification_tagged\(\)/);
 	assert.match(style, /box-shadow: 0 0 4px 2px rgb\(255, 0, 227\)/);
@@ -899,4 +899,95 @@ test('new private Messages refresh conversation previews while petition Messages
 		assert.equal(await refresh('&after=9', false, true), true);
 		assert.equal(refreshes, kind === 'private' ? 1 : 0, 'duplicate Messages do not refresh previews again');
 	}
+});
+
+async function chat_delivery_harness() {
+	const main = await readFile(new URL('mod/main.mjs', root), 'utf8');
+	const refresh_source = main.slice(main.indexOf('async function refresh_chat_messages('), main.indexOf('\nasync function refresh_chat_page('));
+	const poll_source = main.slice(main.indexOf('async function poll_chat_messages('), main.indexOf('\nasync function get_friends('));
+	const conversation = { conversation_kind: 'private', conversation_id: 42, participant: { client_id: 2 } };
+	const state = {
+		selected_chat_conversation: conversation, chat_messages: [], chat_message_cursor: null,
+		chat_before_cursor: null, chat_reaction_revision: null, chat_messages_loading: false,
+		chat_draft: 'hello', chat_drafts: { private: 'hello' }, chat_pending_sends: {}, chat_sending_conversations: {},
+		get_chat_draft_parts: () => [{ type: 'text', text: 'hello' }], is_chat_item_draft_valid: () => true,
+		is_chat_message_translation_pending: () => false,
+		chat_messages_are_at_bottom: () => false, scroll_chat_messages_to_bottom: async () => {}
+	};
+	const requests = [], responses = [];
+	const runtime = { chat_view_generation: 1, state, get_chat_conversation_key: () => 'private',
+		chat_items: {}, crypto: { randomUUID: () => 'send-key' }, refresh_chat_conversations: async () => {},
+		start_chat_polling: () => {}, api_post: async () => ({ success: true, message: { message_id: 12, conversation_id: 42 } }) };
+	const functions = new Function('state', 'api_get', 'refresh_chat_conversations', 'polling', `
+		let chat_view_generation = 1, chat_poll_id = 1, chat_poll_failures = 0, chat_page_visible = true;
+		const document = {}, log = () => {}, error = () => {}, update_guild_nav = () => {};
+		const GLOBAL_CHAT_CAPABILITY = 'global-chat-v1', POLLS_CAPABILITY = 'polls-v1';
+		const setTimeout = () => {};
+		${refresh_source}\n${poll_source}
+		return { refresh: refresh_chat_messages, poll: () => poll_chat_messages(1), invalidate: () => chat_view_generation++ };
+	`)(state, async url => { requests.push(url); return responses.shift(); }, runtime.refresh_chat_conversations,
+		{ is_foreground: () => true, chat_poll_delay: () => 5000, retry_poll_delay: () => 5000 });
+	const actions = install_chat_actions(runtime);
+	return { state, requests, responses, actions, ...functions };
+}
+
+test('simultaneous send does not move polling past an unseen incoming Message', async () => {
+	const h = await chat_delivery_harness();
+	h.state.get_chat_draft_highlight = h.actions.get_chat_draft_highlight;
+	h.responses.push({ messages: [{ message_id: 10 }] });
+	await h.refresh();
+	await h.actions.send_chat_message.call(h.state);
+	assert.deepEqual(h.state.chat_messages.map(m => m.message_id), [10, 12]);
+	h.responses.push({ messages: [{ message_id: 11 }, { message_id: 12 }] });
+	await h.poll();
+	assert.match(h.requests.at(-1), /&after=10(?:&|$)/);
+	assert.deepEqual(h.state.chat_messages.map(m => m.message_id), [10, 11, 12]);
+	assert.equal(h.state.chat_message_cursor, 12);
+});
+
+test('translation refreshes and older history cannot skip a backlog of incoming Messages', async () => {
+	const h = await chat_delivery_harness();
+	h.responses.push({ messages: [{ message_id: 10 }] });
+	await h.refresh();
+	h.state.is_chat_message_translation_pending = () => true;
+	h.responses.push({ messages: [{ message_id: 30 }, { message_id: 31 }] });
+	await h.poll();
+	assert.equal(h.state.chat_message_cursor, 10);
+	h.responses.push({ messages: [{ message_id: 5 }] });
+	await h.refresh('&before=10', true);
+	assert.equal(h.state.chat_message_cursor, 10);
+	h.state.is_chat_message_translation_pending = () => false;
+	h.responses.push({ messages: Array.from({ length: 21 }, (_, i) => ({ message_id: i + 11 })), has_more: true });
+	await h.poll();
+	assert.match(h.requests.at(-1), /&after=10(?:&|$)/);
+	assert.deepEqual(h.state.chat_messages.map(m => m.message_id), [5, ...Array.from({ length: 22 }, (_, i) => i + 10)]);
+	assert.equal(h.state.chat_message_cursor, 31);
+});
+
+test('empty initial history, failed reads and stale responses preserve the delivery cursor', async () => {
+	const h = await chat_delivery_harness();
+	h.responses.push({ messages: [] });
+	await h.refresh();
+	assert.equal(h.state.chat_message_cursor, 0);
+	h.responses.push(null);
+	await h.poll();
+	assert.equal(h.state.chat_message_cursor, 0);
+	assert.match(h.requests.at(-1), /&after=0(?:&|$)/);
+	h.responses.push({ messages: [{ message_id: 1 }] });
+	const pending = h.refresh('&after=0', false, true);
+	h.invalidate();
+	assert.equal(await pending, false);
+	assert.equal(h.state.chat_message_cursor, 0);
+	assert.deepEqual(h.state.chat_messages, []);
+});
+
+test('opening and closing a conversation reset the delivery cursor', async () => {
+	const state = { chat_message_cursor: 99, scroll_chat_messages_to_bottom: async () => {} };
+	const runtime = { chat_view_generation: 1, start_chat_polling: () => {}, stop_chat_polling: () => {},
+		refresh_chat_messages: async () => { assert.equal(state.chat_message_cursor, null); } };
+	const actions = install_chat_actions(runtime);
+	await actions.open_chat_conversation.call(state, { conversation_kind: 'private', conversation_id: 42 });
+	state.chat_message_cursor = 100;
+	actions.close_chat_conversation.call(state);
+	assert.equal(state.chat_message_cursor, null);
 });

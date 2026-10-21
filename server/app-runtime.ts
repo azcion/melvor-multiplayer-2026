@@ -562,7 +562,7 @@ export function require_service_available(handler: RequestHandler): RequestHandl
 	return (req, url) => {
 		if (get_service_setting('maintenance') === '1') {
 			mark_rejection(req, 'maintenance');
-			return temporary_unavailable();
+			return Response.json({ error: 'maintenance' }, { status: 503, headers: { 'Retry-After': '300', 'Cache-Control': 'no-store' } });
 		}
 		return handler(req, url);
 	};

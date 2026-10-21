@@ -182,7 +182,7 @@ test('keeps top-level Guild views mounted when affiliation changes', async () =>
 	assert.match(page_view_getter, /return 'loading'/);
 	assert.match(page_view_getter, /return this\.guild_state\.affiliation === 'none' \? 'onboarding' : 'loading'/);
 	for (const view of ['member', 'applicant', 'error', 'loading', 'onboarding'])
-		assert.match(guild_page, new RegExp(`v-show="state\\.guild_page_view === '${view}'"`));
+		assert.match(guild_page, new RegExp(`v-show="state\\.guild_page_view === '${view}'${view === 'error' ? ' && !state.service_status' : ''}"`));
 	assert.doesNotMatch(guild_page, /v-(?:if|else-if)="state\.guild_page_view/);
 	assert.match(guild_page, /state\.guild_state\.application\?\.icon_id/);
 	assert.match(guild_page, /state\.guild_state\.application\?\.member_count \?\? 0/);
@@ -208,7 +208,7 @@ test('cache-busts authenticated GETs without using the Android-sensitive Fetch c
 	const api_get = main.slice(main.indexOf('async function api_get'), main.indexOf('async function api_post_response'));
 	const guild_page = templates.slice(templates.indexOf('<template id="template-mp-guild-page">'));
 	const loading = guild_page.indexOf("v-show=\"state.guild_page_view === 'loading'\"");
-	const failure = guild_page.indexOf("v-show=\"state.guild_page_view === 'error'\"");
+	const failure = guild_page.indexOf("v-show=\"state.guild_page_view === 'error' && !state.service_status\"");
 	const onboarding = guild_page.indexOf("v-show=\"state.guild_page_view === 'onboarding'\"");
 
 	assert.match(main, /const API_GET_CACHE_NONCE = crypto\.randomUUID\(\);/);

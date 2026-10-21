@@ -6,9 +6,11 @@
 .env.*
 config/*.key
 
-assets
+assets/*
+!assets/melvor_multiplayer_remastered_logo.png
 mod/*
 !mod/chat-items.mjs
+!mod/chat-highlights.mjs
 !mod/assets/
 mod/assets/*
 !mod/assets/multiplayer.svg

@@ -698,3 +698,21 @@ test('historical Trade without command custody cannot authorize correction or re
 		expect(f.db.query('SELECT * FROM economy_corrections').all()).toEqual([]);
 	}finally{f.db.close();}
 });
+
+
+test('Pick Gloop custody uses the unboosted ratio and correction holds only units surviving daily decay',()=>{
+	const f=fixture();try {
+		principal(f,offering(f.db,10,'test:Ore',100000));
+		const id=offering(f.db,1000,'melvorD:Weird_Gloop',750);
+		f.db.query('UPDATE crucible_offerings SET is_untimed=1 WHERE id=?').run(id);
+		create_gloop_custody(f.db,id,[{root_key:'root',amount_gp:10000000}],'pick-unboosted',1,4000,10);
+		expect(custody_at(f.db,`crucible-offering:${id}`)).toMatchObject([{quantity:1000}]);
+		f.db.query('UPDATE crucible_guilds SET processed_minute=719 WHERE guild_id=1').run();
+		f.db.transaction(()=>reconcile_crucible(1,720*60000,f.db)).immediate();
+		expect(custody_at(f.db,`crucible-offering:${id}`)).toMatchObject([{quantity:750}]);
+		expect(correct(f).applied).toBe(true);
+		expect(f.db.query('SELECT qty FROM crucible_offerings WHERE id=?').get(id)).toBeNull();
+		expect(f.db.query("SELECT quantity,disposition FROM economy_corrections WHERE object_id='melvorD:Weird_Gloop' AND disposition='held'").all())
+			.toEqual([{quantity:750,disposition:'held'}]);
+	}finally{f.db.close();}
+});

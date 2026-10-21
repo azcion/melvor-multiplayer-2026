@@ -209,7 +209,7 @@ export function send_global_chat_message(
 	idempotency_key: string,
 	content: string,
 	now = Date.now(),
-	parts?: ChatPart[]
+	parts?: ChatPart[], highlight_color: string | null = null
 ): GlobalChatResult<{ message: ReturnType<typeof message_view>; retry_after_ms: number }> {
 	const trimmed = typeof content === 'string' ? content.trim() : '';
 	if (conversation_id !== GLOBAL_CHAT_CONVERSATION_ID || typeof idempotency_key !== 'string' ||
@@ -223,7 +223,7 @@ export function send_global_chat_message(
 			'SELECT `id`, `content`, `channel` FROM `global_chat_messages` WHERE `sender_id` = ? AND `idempotency_key` = ?'
 		).get(client_id, idempotency_key);
 		if (duplicate !== null) {
-			if (duplicate.channel !== 'global' || duplicate.content !== trimmed || !same_chat_parts('global', duplicate.id, parts))
+			if (duplicate.channel !== 'global' || duplicate.content !== trimmed || !same_chat_parts('global', duplicate.id, parts, highlight_color))
 				return { status: 'bad_request' };
 			return { status: 'ok', value: { message_id: duplicate.id, retry_after_ms: current_throttle_wait(client_id, now) } };
 		}
@@ -234,7 +234,7 @@ export function send_global_chat_message(
 			'INSERT INTO `global_chat_messages` (`sender_id`, `idempotency_key`, `content`, `created_at`, `shadow_hidden`) ' +
 			'VALUES(?, ?, ?, ?, ?)'
 		).run(client_id, idempotency_key, trimmed, now, is_chat_shadowbanned(client_id) ? 1 : 0);
-		save_chat_parts('global', Number(created.lastInsertRowid), parts);
+		save_chat_parts('global', Number(created.lastInsertRowid), parts, highlight_color);
 		return { status: 'ok', value: {
 			message_id: Number(created.lastInsertRowid),
 			retry_after_ms: current_throttle_wait(client_id, now)

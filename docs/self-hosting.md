@@ -13,7 +13,7 @@ git clone https://github.com/azcion/melvor-multiplayer-2026.git
 cd melvor-multiplayer-2026
 ```
 
-For a reproducible release test, check out its tag before building, for example `git checkout 1.6.1`.
+For a reproducible release test, check out the desired release tag before building.
 Run all Compose commands below from the repository root.
 
 Use a dedicated Compose project name so an existing development database is not reused:

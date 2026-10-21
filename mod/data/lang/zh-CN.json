@@ -1,4 +1,10 @@
 {
+	"MOD_MP_CHAT_HIGHLIGHT": "高亮",
+	"MOD_MP_CHAT_HIGHLIGHT_COLOR": "十六进制颜色",
+	"MOD_MP_CHAT_HIGHLIGHT_HELP": "输入六位十六进制颜色值（RGB，不含透明度）。",
+	"MOD_MP_CHAT_HIGHLIGHT_PREVIEW": "预览",
+	"MOD_MP_CHAT_HIGHLIGHT_CLEAR": "清除高亮",
+	"MOD_MP_CHAT_HIGHLIGHT_APPLY": "应用",
 	"MOD_MP_ALLIANCE_REASON_MARKET_DISABLE": "关闭市场",
 	"MOD_MP_ALLIANCE_REASON_REMOVE": "提议移除",
 	"MOD_MP_ALLIANCE_REASON_LEAVE": "提议退出",
@@ -1322,5 +1328,10 @@
 	"MOD_MP_BROWSER_LINK_CAPACITY": "已达到浏览器数量上限。请刷新已关联浏览器并撤销其中一个的访问权限，然后再关联新的浏览器。",
 	"MOD_MP_BROWSER_LINK_BROWSERS": "已关联的浏览器",
 	"MOD_MP_BROWSER_LINK_REFRESH": "刷新",
-	"MOD_MP_BROWSER_LINK_BROWSER": "浏览器"
+	"MOD_MP_BROWSER_LINK_BROWSER": "浏览器",
+	"MOD_MP_SERVICE_TITLE": "多人游戏连接",
+	"MOD_MP_SERVICE_MAINTENANCE": "多人游戏正在维护中。准备就绪后，我们会自动为你重新连接。",
+	"MOD_MP_SERVICE_UNREACHABLE": "暂时无法连接到多人游戏服务器。我们会继续尝试重新连接。",
+	"MOD_MP_SERVICE_UNAVAILABLE": "多人游戏暂时遇到了问题。我们会继续尝试重新连接。",
+	"MOD_MP_SERVICE_RESOLVED": "多人游戏已恢复可用。感谢你的耐心等待！"
 }

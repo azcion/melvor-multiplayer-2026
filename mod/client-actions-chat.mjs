@@ -110,6 +110,7 @@ export function install_chat_actions(runtime) {
 		schedule_timeout = (callback, delay) => setTimeout(callback, delay),
 	} = runtime;
 	const items = runtime.chat_items;
+	const { CHAT_HIGHLIGHT_PRESETS, highlight_input, highlight_color, highlight_style } = runtime.chat_highlights ?? {};
 	let item_picker_composer = null;
 	let feature_picker_composer = null;
 	let person_picker_composer = null;
@@ -126,6 +127,7 @@ export function install_chat_actions(runtime) {
 			(kind === 'alliance' || kind === 'global' || kind === 'guild') ? 'zh-CN' : null;
 	};
 	const translation_preference = conversation => {
+		if (conversation?.synthetic_service) return null;
 		const key = get_chat_conversation_key(conversation);
 		if (key === null) return null;
 		const stored = state.chat_translation_preferences[key];
@@ -410,6 +412,48 @@ export function install_chat_actions(runtime) {
 			});
 		},
 
+		chat_highlight_presets: CHAT_HIGHLIGHT_PRESETS,
+
+		get_chat_draft_highlight() {
+			const key = get_chat_conversation_key(this.selected_chat_conversation);
+			return this.chat_can_highlight ? highlight_color(this.chat_highlight_drafts?.[key]) : null;
+		},
+
+		get_chat_highlight_style(message) {
+			return highlight_style(message?.highlight_color, this.is_chat_message_tagged(message));
+		},
+
+		get_chat_draft_highlight_style() { return highlight_style(this.get_chat_draft_highlight()); },
+		get_chat_highlight_preview_style() { return highlight_style(this.chat_highlight_input); },
+		is_chat_highlight_input_valid() { return highlight_color(this.chat_highlight_input) !== null; },
+		update_chat_highlight_input(event) {
+			this.chat_highlight_input = highlight_input(event.target.value);
+			event.target.value = this.chat_highlight_input;
+		},
+		choose_chat_highlight_preset(color) { this.chat_highlight_input = highlight_input(color); },
+
+		open_chat_highlight_picker() {
+			const key = get_chat_conversation_key(this.selected_chat_conversation);
+			if (!this.chat_can_highlight || key === null || this.chat_sending_conversations[key]) return;
+			this.chat_highlight_modal_key = key;
+			this.chat_highlight_input = highlight_input(this.get_chat_draft_highlight());
+			queue_modal('MOD_MP_CHAT_HIGHLIGHT', 'chat-highlight-modal', undefined, {
+				showConfirmButton: false,
+				didClose: () => { state.chat_highlight_modal_key = null; }
+			});
+		},
+
+		apply_chat_highlight(clear = false) {
+			const key = this.chat_highlight_modal_key;
+			const color = clear ? null : highlight_color(this.chat_highlight_input);
+			if (!this.chat_can_highlight || key === null || key !== get_chat_conversation_key(this.selected_chat_conversation) ||
+				this.chat_sending_conversations[key] || (!clear && !color)) return;
+			this.chat_highlight_drafts ??= {};
+			if (color) this.chat_highlight_drafts[key] = color;
+			else delete this.chat_highlight_drafts[key];
+			this.close_modal();
+		},
+
 		open_chat_feature_picker() {
 			document.querySelector('mp-chat-composer')?.open_picker(undefined, false, 'feature');
 		},
@@ -592,6 +636,7 @@ export function install_chat_actions(runtime) {
 		},
 
 		is_chat_notifications_enabled(conversation = this.selected_chat_conversation) {
+			if (conversation?.synthetic_service) return true;
 			const key = get_chat_conversation_key(conversation);
 			return this.chat_notification_preferences[key] !== false;
 		},
@@ -612,6 +657,7 @@ export function install_chat_actions(runtime) {
 		},
 
 		toggle_chat_notifications() {
+			if (this.selected_chat_conversation?.synthetic_service) return;
 			const key = get_chat_conversation_key(this.selected_chat_conversation);
 			if (key === null || this.chat_notifications_busy || now() < notifications_next_toggle_at)
 				return;
@@ -673,6 +719,7 @@ export function install_chat_actions(runtime) {
 			}
 			this.selected_chat_conversation = { ...res.conversation, blocked: false };
 			this.chat_messages = [];
+			this.chat_message_cursor = null;
 			this.chat_reaction_revision = null;
 			this.selected_chat_message = null;
 			this.chat_has_more = false;
@@ -684,6 +731,7 @@ export function install_chat_actions(runtime) {
 			const view_generation = ++runtime.chat_view_generation;
 			this.selected_chat_conversation = conversation;
 			this.chat_messages = [];
+			this.chat_message_cursor = null;
 			this.chat_reaction_revision = null;
 			this.selected_chat_message = null;
 			this.chat_has_more = false;
@@ -691,7 +739,7 @@ export function install_chat_actions(runtime) {
 			this.chat_error = '';
 			this.chat_messages_loading = false;
 			this.chat_loading = false;
-			if (conversation.synthetic_unsupported === true) {
+			if (conversation.synthetic_unsupported === true || conversation.synthetic_service === true) {
 				this.chat_messages = [conversation.latest_message];
 				await this.scroll_chat_messages_to_bottom();
 				return;
@@ -710,6 +758,7 @@ export function install_chat_actions(runtime) {
 			runtime.chat_view_generation++;
 			this.selected_chat_conversation = null;
 			this.chat_messages = [];
+			this.chat_message_cursor = null;
 			this.chat_reaction_revision = null;
 			this.selected_chat_message = null;
 			this.chat_reaction_picker_message_id = null;
@@ -1059,6 +1108,7 @@ export function install_chat_actions(runtime) {
 		},
 
 		show_chat_translation_modal() {
+			if (this.selected_chat_conversation?.synthetic_service) return;
 			const current = translation_preference(this.selected_chat_conversation);
 			this.chat_translation_language_input = current ??
 				(typeof setLang === 'string' && setLang === 'zh-CN' ? 'zh-CN' : 'en');
@@ -1245,6 +1295,7 @@ export function install_chat_actions(runtime) {
 
 		async send_chat_message(event) {
 			event?.preventDefault();
+			if (this.selected_chat_conversation?.synthetic_service || this.selected_chat_conversation?.synthetic_unsupported) return;
 			const conversation = this.selected_chat_conversation;
 			const conversation_key = get_chat_conversation_key(conversation);
 			const view_generation = runtime.chat_view_generation;
@@ -1252,6 +1303,7 @@ export function install_chat_actions(runtime) {
 			const draft_parts = this.get_chat_draft_parts();
 			const parts = draft_parts.some(part => part.type !== 'text') ? items.compact_parts(draft_parts, true) : undefined;
 			const parts_key = JSON.stringify(parts ?? null);
+			const highlight_color = this.get_chat_draft_highlight();
 			if (!conversation || conversation_key === null || content.length === 0 || content.length > 1000 ||
 				(conversation.conversation_kind === 'testers' && conversation.can_send !== true) ||
 				this.chat_sending_conversations[conversation_key] === true || !this.is_chat_item_draft_valid())
@@ -1264,7 +1316,7 @@ export function install_chat_actions(runtime) {
 				pending?.conversation_id === conversation.conversation_id &&
 				pending.support_team_id === conversation.support_team_id &&
 				pending.client_id === conversation.participant.client_id && pending.content === content &&
-				(pending.parts_key ?? 'null') === parts_key
+				(pending.parts_key ?? 'null') === parts_key && (pending.highlight_color ?? null) === highlight_color
 				? pending.idempotency_key
 				: crypto.randomUUID();
 			this.chat_pending_sends[conversation_key] = {
@@ -1274,6 +1326,7 @@ export function install_chat_actions(runtime) {
 				client_id: conversation.participant.client_id,
 				content,
 				parts_key,
+				highlight_color,
 				idempotency_key
 			};
 			let res = null;
@@ -1289,7 +1342,8 @@ export function install_chat_actions(runtime) {
 					client_id: conversation.participant.client_id,
 					idempotency_key,
 					content,
-					...(parts ? { parts } : {})
+					...(parts ? { parts } : {}),
+					...(highlight_color ? { highlight_color } : {})
 				});
 			} catch (e) {
 				log('Chat send failed (%s)', e);
@@ -1316,6 +1370,8 @@ export function install_chat_actions(runtime) {
 					if (res.budget)
 						this.chat_budget = res.budget;
 					this.chat_budget_enabled = res.budget_enabled !== false;
+					if ((this.chat_highlight_drafts?.[conversation_key] ?? null) === highlight_color && this.chat_highlight_drafts)
+						delete this.chat_highlight_drafts[conversation_key];
 					if (this.chat_drafts[conversation_key]?.trim() === content &&
 						JSON.stringify(this.chat_item_drafts?.[conversation_key]?.some(part => part.type !== 'text') ?
 							items.compact_parts(this.chat_item_drafts[conversation_key], true) : null) === parts_key) {

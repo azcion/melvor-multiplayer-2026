@@ -82,7 +82,7 @@ export function list_petition_discussion_messages(client_id: number, petition_id
 }
 
 export function send_petition_discussion_message(client_id: number, petition_id: number, key: string,
-	content: string, now = Date.now(), parts?: ChatPart[]) {
+	content: string, now = Date.now(), parts?: ChatPart[], highlight_color: string | null = null) {
 	if (!can_access_petition_discussion(client_id, petition_id)) return { status: 'missing' as const };
 	const requested_id = petition_id;
 	petition_id = petition_discussion_id(petition_id)!;
@@ -94,11 +94,11 @@ export function send_petition_discussion_message(client_id: number, petition_id:
 		const existing = db.query<{ id: number; petition_id: number; content: string }, [number, string]>(
 			'SELECT id,petition_id,content FROM petition_discussion_messages WHERE sender_id=? AND idempotency_key=?').get(client_id, key);
 		if (existing) return existing.petition_id === petition_id && existing.content === trimmed &&
-			same_chat_parts('petition-discussion', existing.id, parts) ? existing.id : null;
+			same_chat_parts('petition-discussion', existing.id, parts, highlight_color) ? existing.id : null;
 		const id = Number(db.query(`INSERT INTO petition_discussion_messages
 			(petition_id,sender_id,idempotency_key,content,created_at,shadow_hidden) VALUES(?,?,?,?,?,?)`)
 			.run(petition_id, client_id, key, trimmed, now, is_chat_shadowbanned(client_id) ? 1 : 0).lastInsertRowid);
-		save_chat_parts('petition-discussion', id, parts);
+		save_chat_parts('petition-discussion', id, parts, highlight_color);
 		return id;
 	}).immediate();
 	if (message_id === null) return { status: 'bad_request' as const };

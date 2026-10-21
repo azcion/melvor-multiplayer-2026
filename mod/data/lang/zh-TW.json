@@ -1,4 +1,10 @@
 {
+	"MOD_MP_CHAT_HIGHLIGHT": "醒目提示",
+	"MOD_MP_CHAT_HIGHLIGHT_COLOR": "十六進位色彩",
+	"MOD_MP_CHAT_HIGHLIGHT_HELP": "輸入六位十六進位色碼（RGB，不含透明度）。",
+	"MOD_MP_CHAT_HIGHLIGHT_PREVIEW": "預覽",
+	"MOD_MP_CHAT_HIGHLIGHT_CLEAR": "清除醒目提示",
+	"MOD_MP_CHAT_HIGHLIGHT_APPLY": "套用",
 	"MOD_MP_ALLIANCE_REASON_MARKET_DISABLE": "關閉市場",
 	"MOD_MP_ALLIANCE_REASON_REMOVE": "提議移除",
 	"MOD_MP_ALLIANCE_REASON_LEAVE": "提議退出",
@@ -1322,5 +1328,10 @@
 	"MOD_MP_BROWSER_LINK_CAPACITY": "已達到瀏覽器數量上限。請重新整理已連結瀏覽器並撤銷其中一個的存取權限，再連結新的瀏覽器。",
 	"MOD_MP_BROWSER_LINK_BROWSERS": "已連結的瀏覽器",
 	"MOD_MP_BROWSER_LINK_REFRESH": "重新整理",
-	"MOD_MP_BROWSER_LINK_BROWSER": "瀏覽器"
+	"MOD_MP_BROWSER_LINK_BROWSER": "瀏覽器",
+	"MOD_MP_SERVICE_TITLE": "多人遊戲連線",
+	"MOD_MP_SERVICE_MAINTENANCE": "多人遊戲正在維護中。準備就緒後，我們會自動為你重新連線。",
+	"MOD_MP_SERVICE_UNREACHABLE": "暫時無法連線至多人遊戲伺服器。我們會繼續嘗試重新連線。",
+	"MOD_MP_SERVICE_UNAVAILABLE": "多人遊戲暫時遇到了問題。我們會繼續嘗試重新連線。",
+	"MOD_MP_SERVICE_RESOLVED": "多人遊戲已恢復可用。感謝你的耐心等候！"
 }

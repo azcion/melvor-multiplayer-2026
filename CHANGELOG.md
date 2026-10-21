@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.16
+
+- Accounts with any Dev badge can highlight individual Chat messages with eight preset colors or a custom RGB hex color. The composer previews the glow and clears it after sending; pink @mentions take priority. Composer tools wrap on small screens while the counter and Send stay together.
+- Fixed incoming Chat messages being skipped when both people send at the same time. Open conversations now catch up immediately when returning to the browser tab or game.
+- Maintenance and connection problems now appear as localized Support notices, with automatic reconnection and a recovery message when the server is available again.
+- Added violet flames, rising embers, chasm mist, and a softly pulsing doorway to Voidwatch Threshold. The Hollow Star now changes with shared task progress: chamber gas clears as it is vented, the star becomes molten plasma, drifting star motes accumulate, and combat brings red haze and spectral tendrils from the pit.
+- Crucible overflow now produces Weird Gloop from GP sale value at 1 Gloop per 1,000 GP, rounded up, excluding the Pick bonus. Existing Crucible Gloop decays daily at 12:00 UTC to 75% of its quantity, rounded up.
+- Stuck item or currency receipts no longer block Wishes, Crucible contributions, Transfers, or Marketplace transactions. Failed recovery is saved for later review while unrelated transactions continue.
+
 ## 1.6.15
 
 - Added standalone Multiplayer Chat at https://melvor.azcn.io/chat. Link each character with a one-use code from Options → Browser Chat, manage linked browsers in a dedicated dialog, switch between linked characters, and return without loading Melvor. Chat keeps a split-pane inbox with in-game styling, character avatars, item and feature tags, reactions, and per-conversation English or Chinese translation across Global, Guild, Private and Support groups. Message actions open from timestamps; desktop Enter sends and Shift+Enter adds a newline, while mobile uses Send. Browser access is limited to Chat and can be revoked for each character.

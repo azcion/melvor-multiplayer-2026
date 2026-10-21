@@ -1,4 +1,10 @@
 {
+	"MOD_MP_CHAT_HIGHLIGHT": "Resaltar",
+	"MOD_MP_CHAT_HIGHLIGHT_COLOR": "Color hexadecimal",
+	"MOD_MP_CHAT_HIGHLIGHT_HELP": "Introduce seis dígitos hexadecimales (RGB, sin alfa).",
+	"MOD_MP_CHAT_HIGHLIGHT_PREVIEW": "Vista previa",
+	"MOD_MP_CHAT_HIGHLIGHT_CLEAR": "Quitar resaltado",
+	"MOD_MP_CHAT_HIGHLIGHT_APPLY": "Aplicar",
 	"MOD_MP_ALLIANCE_REASON_MARKET_DISABLE": "Cerrar el mercado",
 	"MOD_MP_ALLIANCE_REASON_REMOVE": "Proponer expulsión",
 	"MOD_MP_ALLIANCE_REASON_LEAVE": "Proponer salida",
@@ -1322,5 +1328,10 @@
 	"MOD_MP_BROWSER_LINK_CAPACITY": "Se alcanzó el límite de navegadores. Actualiza los navegadores vinculados y revoca un acceso antes de vincular otro.",
 	"MOD_MP_BROWSER_LINK_BROWSERS": "Navegadores vinculados",
 	"MOD_MP_BROWSER_LINK_REFRESH": "Actualizar",
-	"MOD_MP_BROWSER_LINK_BROWSER": "Navegador"
+	"MOD_MP_BROWSER_LINK_BROWSER": "Navegador",
+	"MOD_MP_SERVICE_TITLE": "Conexión multijugador",
+	"MOD_MP_SERVICE_MAINTENANCE": "El multijugador está en mantenimiento. Te volveremos a conectar automáticamente cuando esté listo.",
+	"MOD_MP_SERVICE_UNREACHABLE": "No podemos contactar con el servidor multijugador en este momento. Seguiremos intentando reconectarte.",
+	"MOD_MP_SERVICE_UNAVAILABLE": "El multijugador está teniendo problemas. Seguiremos intentando reconectarte.",
+	"MOD_MP_SERVICE_RESOLVED": "El multijugador vuelve a estar disponible. ¡Gracias por esperar!"
 }

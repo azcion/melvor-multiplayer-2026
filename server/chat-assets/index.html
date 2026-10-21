@@ -12,7 +12,7 @@
 <body>
 <main>
 <header>
-<p class="eyebrow">Melvor Multiplayer</p>
+<img class="brand-logo" src="/chat/assets/logo.png" alt="Melvor Multiplayer Remastered" width="1536" height="636">
 <h1>Chat</h1>
 
 </header>
@@ -41,14 +41,14 @@
 <aside aria-label="Conversations"><h2>Conversations</h2><p id="inbox-status" role="status"></p><nav id="inbox" aria-label="Chat inbox"></nav></aside>
 <div class="thread-area"><p id="choose-thread">Choose a conversation to read and reply.</p>
 <div id="thread" hidden>
-<header class="thread-header"><button id="mobile-inbox" type="button">‹ Inbox</button><h2><button id="thread-title" type="button" aria-haspopup="dialog"></button></h2><div class="translation-control"><label for="translation" title="Message translation"><span aria-hidden="true">文↔A</span><span class="sr-only">Message translation</span></label><select id="translation"><option value="">Off</option><option value="en">English</option><option value="zh-CN">简体中文</option></select></div></header>
+<header class="thread-header"><button id="mobile-inbox" type="button">‹ Inbox <span id="mobile-inbox-unread" class="unread" hidden></span></button><h2><button id="thread-title" type="button" aria-haspopup="dialog"></button></h2><div class="translation-control"><label for="translation" title="Message translation"><span aria-hidden="true">文↔A</span><span class="sr-only">Message translation</span></label><select id="translation"><option value="">Off</option><option value="en">English</option><option value="zh-CN">简体中文</option></select></div></header>
 <p id="history-status" role="status"></p><div id="messages" role="region" aria-label="Messages" tabindex="0"><button id="older" type="button" hidden>Load older messages</button><div id="message-rows"></div></div>
 <p id="read-only" role="status"></p>
 <p id="pending-warning" role="status"></p>
 <form id="composer">
 <div id="tags" aria-label="Message tags"></div>
 <label for="draft">Message</label><textarea id="draft" maxlength="1000" rows="3" placeholder="Write a message…"></textarea>
-<div class="actions"><button id="people-tag" type="button" hidden>@ Person</button><button id="item-picker" type="button" hidden># Item</button><button id="retry-send" type="button" hidden>Retry original send</button><span id="draft-count" aria-live="off">0 / 1000</span><button id="send" type="submit">Send</button></div>
+<div class="actions"><div class="compose-tools"><button id="highlight" type="button" hidden>Highlight</button><button id="people-tag" type="button" hidden>@ Person</button><button id="item-picker" type="button" hidden># Item</button><button id="retry-send" type="button" hidden>Retry original send</button></div><div class="compose-submit"><span id="draft-count" aria-live="off">0 / 1000</span><button id="send" type="submit">Send</button></div></div>
 </form>
 <div id="item-suggestions" hidden><h3>Insert an item tag</h3><p>Official Melvor items. Unavailable definitions keep readable names in messages.</p><p id="data-status" role="status"></p><label for="search">Search items</label><input id="search" type="search" maxlength="100"><ul id="items"></ul></div>
 </div></div></div>

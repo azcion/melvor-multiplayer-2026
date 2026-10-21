@@ -20,6 +20,7 @@ function harness() {
 		eligible_crucible_wish_items: [{ id: 'chest' }] };
 	Object.defineProperties(state, Object.getOwnPropertyDescriptors(new Function('game','crucible_rules', `return ({${getters}});`)(game, rules)));
 	const storage = new Map(), requests = [], receipts = new Map(), processed = [], errors = [], closed = [];
+	const reviewed = new Set();
 	let online = true, lose_response = false, rejection = null;
 	const options = {
 		read: key => storage.get(key), write: (key,value) => storage.set(key, structuredClone(value)), remove: key => storage.delete(key), uuid: randomUUID,
@@ -49,8 +50,8 @@ function harness() {
 	};
 	let journal = create_pending_economy_actions(options);
 	const recovery = main.slice(main.indexOf('async function recover_paid_wish_actions()'), main.indexOf('\nfunction reconcile_economy_receipts(receipts)'));
-	const recover = new Function('get_instance_storage_item','state','run_pending_economy_action','session_generation','server_host', `${recovery}; return recover_paid_wish_actions;`)(options.read,state,
-		(key, endpoint, payload) => journal.run(`${state.chat_client_id}:${key}`,endpoint,payload),1,'test');
+	const recover = new Function('get_instance_storage_item','state','run_pending_economy_action','session_generation','server_host','economy_receipt_reviews','remove_instance_storage_item', `${recovery}; return recover_paid_wish_actions;`)(options.read,state,
+		(key, endpoint, payload) => journal.run(`${state.chat_client_id}:${key}`,endpoint,payload),1,'test',{ has: id => reviewed.has(id) },options.remove);
 	state.chat_client_id = 'character';
 	const runtime = { state, game, run_pending_economy_action: (key,endpoint,payload) => journal.run(`character:${key}`,endpoint,payload),
 		recover_paid_wish_actions: recover,
@@ -60,6 +61,7 @@ function harness() {
 	Object.assign(state, install_crucible_actions(runtime,rules));
 	return { state, game, storage, requests, receipts, errors, closed, refresh: () => state.refresh_crucible(true),
 		lose: () => { lose_response = true; }, reconnect: () => { online = true; journal = create_pending_economy_actions(options); },
+		review: id => reviewed.add(id),
 		capacity: value => { capacity = { ...capacity, ...value }; }, reject: value => { rejection = value; } };
 }
 
@@ -110,6 +112,17 @@ test('lost Make response recovers after reload with zero remaining EP and change
 	assert.equal(h.game.gp.amount,9_974_750);assert.equal(h.state.crucible.active_wish.qty,101);
 	for(const request of h.requests) assert.deepEqual(request,h.requests[0]);
 	await h.refresh();assert.equal(h.game.gp.amount,9_974_750);
+});
+
+test('automatic paid Wish recovery discards reviewed actions without recreating the purchase', async () => {
+	const h=harness();await h.refresh();h.lose();await h.state.crucible_make_wish();
+	const pending = [...h.storage.values()][0];
+	h.review(pending.payload.command_id);
+	const submissions = h.requests.length;
+	h.reconnect();await h.refresh();
+	assert.equal(h.storage.size,0);
+	assert.equal(h.requests.length,submissions);
+	assert.equal(h.game.gp.amount,10_000_000);
 });
 
 test('capacity purchase and renewal toggle use durable server-only receipts and recover exact purchase', async () => {

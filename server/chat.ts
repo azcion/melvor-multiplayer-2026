@@ -404,7 +404,7 @@ export function send_message(
 	idempotency_key: string,
 	content: string,
 	now = Date.now(),
-	parts?: ChatPart[]
+	parts?: ChatPart[], highlight_color: string | null = null
 ): ChatResult<{ message: ReturnType<typeof message_view>; budget: ChatBudget }> {
 	const trimmed = typeof content === 'string' ? content.trim() : '';
 	if ((conversation_id !== null && (!Number.isSafeInteger(conversation_id) || conversation_id < 1)) ||
@@ -419,7 +419,7 @@ export function send_message(
 		).get(client_id, idempotency_key);
 		if (duplicate !== null) {
 			const duplicate_conversation = participant_conversation(duplicate.conversation_id, client_id);
-			if (duplicate.content !== trimmed || !same_chat_parts('private', duplicate.id, parts) || duplicate_conversation === null ||
+			if (duplicate.content !== trimmed || !same_chat_parts('private', duplicate.id, parts, highlight_color) || duplicate_conversation === null ||
 				(conversation_id !== null && duplicate.conversation_id !== conversation_id) ||
 				(conversation_id === null && other_participant(duplicate_conversation, client_id) !== target_id))
 				return { status: 'bad_request' };
@@ -464,7 +464,7 @@ export function send_message(
 			'INSERT INTO `chat_messages` (`conversation_id`, `sender_id`, `idempotency_key`, `content`, `created_at`, `shadow_hidden`) ' +
 			'VALUES(?, ?, ?, ?, ?, ?)'
 		).run(conversation.id, client_id, idempotency_key, trimmed, now, is_chat_shadowbanned(client_id) ? 1 : 0);
-		save_chat_parts('private', Number(result.lastInsertRowid), parts);
+		save_chat_parts('private', Number(result.lastInsertRowid), parts, highlight_color);
 		if (CHAT_BUDGET_ENABLED) {
 			budget.credits--;
 			db.query('UPDATE `clients` SET `messaging_credits` = ? WHERE `id` = ?').run(budget.credits, client_id);

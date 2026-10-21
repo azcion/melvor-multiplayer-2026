@@ -21,7 +21,7 @@ import {
 	chat_people,
 	has_unread_person_tag
 } from '../chat_parts';
-import { get_dev_badge_labels, get_account_tags } from '../account_tags';
+import { get_dev_badge_labels, get_account_tags, get_dev_tag_visibility } from '../account_tags';
 import {
 	get_tester_chat_inbox,
 	list_tester_chat_messages,
@@ -145,6 +145,7 @@ function register_scoped_chat_routes(scope: ChatScope): void {
 
 	session_get_route('/api/chat/state', (req, url, client_id) => ({
 		dev_badge_labels: get_dev_badge_labels(),
+		can_highlight: get_dev_tag_visibility(client_id).eligible,
 		...(browser ? {} : { is_admin: is_admin(client_id) }),
 		...get_chat_state(client_id),
 		account_tags: get_account_tags(client_id)
@@ -361,33 +362,37 @@ function register_scoped_chat_routes(scope: ChatScope): void {
 		const parts = json.parts === undefined ? undefined : normalize_chat_parts(json.parts, client_id);
 		if (parts === null) return 400;
 
+		const highlight_color = json.highlight_color ?? null;
+		if (highlight_color !== null && (typeof highlight_color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(highlight_color))) return 400;
+		if (highlight_color !== null && !get_dev_tag_visibility(client_id).eligible) return 403;
+		const color = typeof highlight_color === 'string' ? highlight_color.toUpperCase() : null;
 		const content = parts ? parts_text(parts) : json.content;
-		const result = kind === 'alliance' ? send_alliance_chat_message(client_id, json.conversation_id as number, json.idempotency_key, content, Date.now(), parts)
-		: kind === 'petition-discussion' ? send_petition_discussion_message(client_id, json.conversation_id as number, json.idempotency_key, content, Date.now(), parts)
-		: kind === 'poll-discussion' ? send_poll_discussion_message(client_id, json.conversation_id as number, json.idempotency_key, content, Date.now(), parts
+		const result = kind === 'alliance' ? send_alliance_chat_message(client_id, json.conversation_id as number, json.idempotency_key, content, Date.now(), parts, color)
+		: kind === 'petition-discussion' ? send_petition_discussion_message(client_id, json.conversation_id as number, json.idempotency_key, content, Date.now(), parts, color)
+		: kind === 'poll-discussion' ? send_poll_discussion_message(client_id, json.conversation_id as number, json.idempotency_key, content, Date.now(), parts, color
 		) : kind === 'support' ? send_support_message(
 			client_id,
 			json.conversation_id,
 			typeof json.support_team_id === 'number' ? json.support_team_id : null,
 			json.idempotency_key,
-			content, Date.now(), parts
+			content, Date.now(), parts, color
 		) : kind === 'guild' ? send_guild_chat_message(
 			client_id,
 			json.conversation_id as number,
 			json.idempotency_key,
-			content, Date.now(), parts
+			content, Date.now(), parts, color
 		) : kind === 'global' ? send_global_chat_message(
 			client_id,
 			json.conversation_id as number,
 			json.idempotency_key,
-			content, Date.now(), parts
-		) : kind === 'testers' ? send_tester_chat_message(client_id, json.conversation_id as number, json.idempotency_key, content, Date.now(), parts
+			content, Date.now(), parts, color
+		) : kind === 'testers' ? send_tester_chat_message(client_id, json.conversation_id as number, json.idempotency_key, content, Date.now(), parts, color
 		) : send_message(
 			client_id,
 			json.conversation_id,
 			typeof json.client_id === 'number' ? json.client_id : null,
 			json.idempotency_key,
-			content, Date.now(), parts
+			content, Date.now(), parts, color
 		);
 		if (result.status === 'throttled')
 			return { success: false, retry_after_ms: result.retry_after_ms };

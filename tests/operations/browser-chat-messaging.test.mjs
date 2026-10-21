@@ -250,3 +250,22 @@ test('first Support reply reloads its materialized welcome without acknowledging
 		assert.equal(f.controller.view().entry.pending,null); assert.equal(f.controller.view().entry.draft,'');
 	}
 });
+
+test('Dev draft highlights survive unknown sends and reset after exact retry; ordinary accounts cannot set them', async () => {
+	let fail = true;
+	const f = fixture(path => {
+		if (path.endsWith('state')) return { client_id: 5, can_highlight: true };
+		if (path.endsWith('messages/send')) { if (fail) throw new Error('lost response'); return { message: message(42) }; }
+	});
+	await f.controller.set_identity(1, 'csrf'); await f.controller.select(global);
+	f.controller.highlight('#abc123'); f.controller.draft('highlighted'); await f.controller.send();
+	assert.equal(f.controller.view().entry.highlight_color, '#ABC123');
+	const original = f.calls.find(c => c.path.endsWith('messages/send')).body;
+	assert.equal(original.highlight_color, '#ABC123');
+	f.controller.highlight('#FFFFFF'); assert.equal(f.controller.view().entry.highlight_color, '#ABC123');
+	fail = false; await f.controller.send(true);
+	assert.deepEqual(f.calls.filter(c => c.path.endsWith('messages/send')).at(-1).body, original);
+	assert.equal(f.controller.view().entry.highlight_color, null);
+	const ordinary = fixture(); await ordinary.controller.set_identity(2, 'csrf'); await ordinary.controller.select(global);
+	ordinary.controller.highlight('#FFFFFF'); assert.equal(ordinary.controller.view().entry.highlight_color, null);
+});

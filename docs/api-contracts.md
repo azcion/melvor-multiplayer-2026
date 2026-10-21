@@ -1,23 +1,33 @@
 # Multiplayer API contracts
 
-The minimum supported mod version is 1.6.14. The hosted API exposes one current wire contract, API v2; backend deployment
-versions remain independent of mod releases.
+The compiled minimum supported mod version is 1.6.14. The API exposes one current wire contract, API v2;
+backend deployment versions remain independent of mod releases.
 
-The compiled support baseline is 1.6.14. The operator may raise the minimum supported version; clearing an override
-restores that baseline. Empty, malformed or older stored overrides cannot reopen retired request contracts. API
-discovery, major selection, explicit capability negotiation and update notices remain available for future releases.
+The operator may raise the minimum supported version; clearing an override restores the compiled baseline. Empty,
+malformed or older stored overrides cannot reopen retired request contracts. API discovery, major selection, explicit
+capability negotiation and update notices remain available for future releases.
 
 Authentication may include `social_mode_enforcement` as `identity`, `account`, or null. When non-null, the effective
 `social_mode` is `social`, Full-mode changes return `MOD_MP_SOCIAL_MODE_ENFORCED`, and every Social Only authorization
 gate remains authoritative. Clients use the enforcement source to explain the operator restriction and hide the
 unavailable Full Experience choice.
 
-Developer badges (1.6.13+) use server-owned plain-text labels. Registration, authentication, Chat state, and Events
+Developer badges use server-owned plain-text labels. Registration, authentication, Chat state, and Events
 (including unchanged Events) include `dev_badge_labels`, a map from stable Chat feature IDs to display labels.
 Guild roster and applicant entries include nullable `dev_badge_label`, already filtered by the character's visibility
 preference. Clients render the label using the existing pink developer badge style; `null` means no badge.
 Stable feature IDs preserve saved Chat tags when labels change. Structured feature, person and badge parts are returned
 directly for supported clients.
+
+## Dev message highlights
+
+Chat state includes `can_highlight`, true for the authenticated account's Dev, SAE Dev or OSRS Overhaul Dev
+eligibility regardless of public badge visibility. Game and browser Chat sends accept optional `highlight_color`
+as `#RRGGBB` (six hexadecimal digits, no alpha). Null or omission means no highlight; malformed values return
+400 and a non-Dev requesting a color receives 403. Accepted values normalize to uppercase. The color is immutable
+per Message, participates in idempotency matching, and appears as optional `highlight_color` on Messages in send,
+history and inbox responses. Highlighting grants no additional conversation access. Existing 1.6.15 clients
+may omit the field and ignore it on reads.
 
 ## Selection
 
@@ -29,7 +39,21 @@ Logical `/api/...` names are mapped to `/api/v2/...` by the current client/test 
 wire paths are not registered. Unknown majors return 404; invalid methods on known paths return 405. `/health` is
 independent of API versioning.
 
-## v2 differences
+## Service availability
+
+Maintenance rejects guarded API routes, including discovery and authentication, with HTTP 503,
+JSON `{ "error": "maintenance" }`, `Retry-After: 300`, and `Cache-Control: no-store`.
+CORS and OPTIONS remain available. `/health` remains independent of maintenance.
+A generic 503 does not establish maintenance; other service failures retain their own responses.
+
+The game client presents one local, read-only, localized Support conversation for maintenance,
+unreachable transport, or other server failures. Ordinary API traffic pauses while one foreground
+probe checks `/api/versions`, respecting Retry-After and bounded retry backoff. Recovery updates
+that same notice and resumes polling or retries login. Credentials and pending economy commands
+remain intact; the availability probe never replays a user mutation. Origin/character resets and
+session rejection cancel recovery; the unsupported-version gate takes precedence.
+
+## Economy and request contracts
 
 - Receipt-backed economy mutations require a lowercase, hyphenated UUID `command_id` before any domain mutation.
   Claim/acknowledgement protocols retain their existing identifiers.
@@ -149,7 +173,7 @@ conflicts remain intact. The currently connected identity is never used to guess
 ### Optional rollback protocol
 
 `GET /api/versions` advertises `capabilities: ["save-rollback-v1"]`. A supporting client sends
-`client_runtime.capabilities: ["save-rollback-v1"]`; release version alone is insufficient (1.6.10-B lacks support).
+`client_runtime.capabilities: ["save-rollback-v1"]`; release version alone is insufficient.
 Missing capability is ordinary compatibility metadata, never misconduct. Session persistence and cache reloads retain
 this promise separately from the latest Client runtime snapshot.
 
@@ -189,20 +213,19 @@ Text: **An older save seems to have been loaded. If you think this is an error, 
 Use the same text for all cases. `POST /api/v2/save-rollback/notice/acknowledge` with `{notice_id}` acknowledges delivery
 only (200 success or 404 for missing/wrong owner); it never dismisses an incident or releases a hold. Persisted notice
 identity survives restored saves/reconnects; retrying acknowledgement is idempotent. Fetch the next pending notice after
-acknowledgement. Client UI/journal/timing implementation and full integration acceptance remain the next slice.
+acknowledgement.
 
-## Profile registration and recovery (1.6.15)
+## Profile registration and recovery
 
 `GET /api/versions` advertises `identity-registration-v1`. `POST /api/register` optionally accepts a UUID
 `registration_id`, used as the new `client_identifier`. Clients persist and read-verify a pending UUID identifier plus
 `client_key` in origin/account-scoped character storage and require a verified native save before sending. Requests
 without this field retain the generated-identifier contract for older clients.
 
-The backend remains compatible with 1.6.14 authentication, registration and installation enrollment. That client can
-reconnect another device using the keeper profile's binding carried in a native save, including a cloud save. The
-target device authenticates with that proof and enrolls its own installation credential for the keeper identity;
+Clients can reconnect another device using the keeper profile's binding carried in a native save, including a cloud
+save. The target device authenticates with that proof and enrolls its own installation credential for the keeper identity;
 both installations can retain access when the duplicate identity is later disabled. This does not merge server data.
-The older client's automatic registration on missing proof remains unchanged until the client is upgraded.
+Clients without explicit profile recovery may still register automatically when proof is missing.
 
 The registration transaction checks for an existing identifier before insertion. Repeating the same identifier,
 save proof and exact account association returns HTTP 409 with `{identity_status: "registration_exists"}`;
@@ -211,7 +234,7 @@ A different proof/account, or a disabled/deleted existing profile, returns 401 w
 creates another registration audit event. Pending authentication uses that same saved proof after a lost response;
 registration replay is bounded to one authentication attempt per connection attempt. No schema migration is required.
 
-The 1.6.15 client offers explicit existing-profile recovery or confirmed creation when proof is absent or rejected. The
+The current client offers explicit existing-profile recovery or confirmed creation when proof is absent or rejected. The
 exception for valid legacy proof associated with a different active Melvor account still creates that account's own
 Client, as before. New clients refuse registration on servers lacking the capability; healthy authentication works.
 
@@ -225,7 +248,9 @@ warns against sharing codes or credential-bearing saves. Neither codes nor authe
 
 A logical command retains its original UUID, payload, command kind, and originating API major across retries and
 reloads. The client stores one unresolved outgoing command per identity within its server-origin storage namespace.
-It reconciles pending receipts before allowing new spending; the first event read requests a full snapshot.
+It reconciles pending receipts before allowing new spending; the first event read requests a full snapshot. In 1.6.16,
+blocked/invalid receipts and failed acknowledgements instead enter a durable server/Client-scoped review queue,
+allowing unrelated transactions to continue. Unknown command outcomes still require same-ID recovery.
 
 All retries share the same server journal. Owner-and-command-kind replay precedes domain input validation
 so a changed runtime report cannot prevent retrieval of an already committed result. Acknowledged replay returns no receipt effects. Upgrading does
@@ -233,11 +258,20 @@ not create new identity namespaces or discard processed IDs, pending Inbox/retur
 Existing saved Social Only commands without protocol metadata recover through v1. Automatic unavailable-item Gift
 declines and Charity confirmations also retain their pending action until a definitive outcome.
 
-Independent event summaries and Gift content reads continue while an Economy Receipt is blocked. A blocked receipt
-is never acknowledged or skipped, and the client does not advance its event revision past that receipt. Retrying a
-Charity confirmation reuses its saved snapshot rather than donating the current inventory again.
+The client saves and read-verifies review markers before releasing the affected journal or advancing the event
+revision. Markers survive reloads and suppress stale response effects, even if the Bank or Transfer Inventory later
+recovers. Background reports retry independently of transaction readiness. A failed local review write retains the
+original recovery gate; explicit rollback holds and retired-command protection still apply.
 
-Crucible Wish creation in 1.6.11+ uses the Economy Receipt journal (`crucible-wish-make`).
+`POST /api/v2/economy/receipts/review` accepts `{receipt_id,reason}`, with reason `blocked`, `invalid`, or
+`acknowledgement_failed`. It returns `{success:true}`, HTTP 400 for invalid input, or 404 for a receipt not owned by
+the authenticated Client. Reports are idempotent and retain the first reason/time in `economy_receipt_reviews`.
+They do not alter the original receipt, acknowledge its effects, forgive a debt, or reverse shared transactions.
+Flagged receipts are excluded before the pending-event page limit; command replay returns the original result with
+`receipt:null,receipt_review_pending:true`. Review dispositions require separate operator investigation. Deploy the
+supporting backend with 1.6.16 so local review queues can be recorded in the database.
+
+Crucible Wish creation uses the Economy Receipt journal (`crucible-wish-make`).
 Make submits `{command_id,item_id,qty,ep_micros,gp,gp_balance}`. The server validates the current integer quote,
 spends character EP, creates the Wish, and adds the upfront GP Offering atomically; its receipt deducts GP locally.
 Quantity is 1–1000. Below the active base, EP is rounded upward to 0.001; above it, each +100 increment
@@ -268,7 +302,7 @@ All receipt replays precede current domain validation, including changed Guild m
 Do not delete historical value queues or journal rows as part of API retirement. Marketplace legacy payouts and
 participant transfer protocol records are retained until a separate value-conservation reconciliation proves removal safe.
 
-## Chat item tags (1.5.12)
+## Chat item tags
 
 Chat sends optionally include `parts`, an ordered array of `{type: "text", text: "..."}` and
 `{type: "item", item_id: "melvorD:Bronze_Sword"}`. The server normalizes adjacent text and outer whitespace,
@@ -290,16 +324,15 @@ marker and no unexpected markup; marker order may change. The server decodes tex
 stores the result atomically. Failed validation follows bounded translation retries and falls back to original
 content. Item-only Messages skip the external request. HTML is never used as a client rendering payload.
 
-## Guild Alliances (private preview)
+## Guild Alliances
 
-Alliances remain a private preview in 1.6.2. Every Alliance operation requires an authenticated session reporting
-1.6.2 or later (or development), linked to the stored preview account selected in `server/alliances.ts`.
-The operator may disable the preview for every account, including the selected account, without deleting Alliance data.
-Identity startup and event snapshots return `alliance_access` for client visibility. Other accounts retain ordinary
-Council and same-Guild Marketplace access, with Alliance Petitions and Guild activity entries filtered out and
-Alliance Chat excluded from conversations and unread totals. Both participants must qualify for cross-Guild
+Alliance operations require an authenticated, supported Client. The operator can disable Alliance access through
+`alliance_preview_enabled` without deleting Alliance data.
+Identity startup and event snapshots return `alliance_access` for client visibility. When access is disabled, Clients
+retain ordinary Council and same-Guild Marketplace access, with Alliance Petitions and Guild activity entries filtered
+out and Alliance Chat excluded from conversations and unread totals. Both participants must qualify for cross-Guild
 Marketplace access. Runtime headers and character display names cannot bypass these gates. Ordinary Free Fellowship
-Council features remain available to every 1.6.2+ client.
+Council features remain available to supported clients.
 
 - `GET /api/alliances` returns current Guild summary, membership, affiliation-pending state, and bounded process history
   prioritizing unfinished processes. Collective tallies contain eligible/Aye/Nay totals and the viewer's own Guild ballot.
@@ -324,7 +357,7 @@ through existing claims. Terminal claims and original command replay remain reco
 reverses committed purchases. Player responses omit member-proposal initiators and other Guild ballot identities or
 timestamps; founding participants, applicants and removal targets remain named as subjects of their proposals.
 
-## Page snapshots (1.6.6)
+## Page snapshots
 
 `GET /api/versions` advertises `page_snapshots: true`. Clients without that capability continue using the individual
 reads. `GET /api/v2/pages/snapshot?page=transfers|guild|decisions` authenticates and charges one request, then returns
@@ -335,13 +368,14 @@ checks remain effective. Unavailable sections return `{ status: HTTP_STATUS }` o
 Transfers includes Inbox, Haggles and the first page of each of the three history feeds. Guild includes Guild state,
 Council, Alliance, initial Shadowed Members and Activity; Guildless Clients receive state and discovery instead.
 Decisions includes Guild state, Council and Alliance for background badge updates. Existing routes and pagination
-remain unchanged for 1.6.5 clients. Snapshots do not claim items, acknowledge receipts or replace mutation protocols.
+remain available to clients using individual reads. Snapshots do not claim items, acknowledge receipts or replace
+mutation protocols.
 
-The 1.6.6 client shares selected page reads for 15 seconds, invalidates affected reads after mutations and changed
+The client shares selected page reads for 15 seconds, invalidates affected reads after mutations and changed
 Events, and paces requests with acknowledgement priority. HTTP 429 applies a shared `Retry-After` cooldown; GETs retry
 once, while writes retain their existing explicit recovery protocol.
 
-## Transfers exchange history (1.6.9)
+## Transfers exchange history
 
 `GET /api/v2/transfers/history?pane=inbox|outbox|pending` may include an optional `exchange` object on a
 history entry: `{ label: "purchased" | "paid" | "sold" | "proceeds", item_id: string, qty: number }`.
@@ -351,7 +385,7 @@ and total, and Purchased and Sold use the actual exchanged quantity. Clients mus
 economy effect. Claim source breakdowns and receipt replay are unchanged. Older entries without reliable retained
 context omit the object. Transfers page snapshots reuse this same read model.
 
-### Standalone shell and demo definitions (unreleased 1.6.15)
+## Standalone shell and demo definitions
 
 `GET /chat` serves the browser shell; `/chat/` redirects to it. Only the explicitly registered
 `/chat/assets/chat.css`, `/chat/assets/chat.mjs`, `/chat/assets/transport.mjs`,
@@ -394,7 +428,7 @@ leave the inbox and composer usable. All Message/translated/tag text uses DOM te
 validated official demo CDN media. Private-only participant hiding is separate from host moderation, which this UI
 never exposes. Virtual Support welcomes have no durable Message actions before materialization.
 
-### Standalone shared Chat adapter (unreleased 1.6.15)
+## Standalone shared Chat adapter
 
 Every route below requires the browser cookie, `X-Chat-Link-ID`, and `X-Chat-CSRF`, including GET.
 POST also requires the configured Origin and JSON. Payloads and ordinary Chat read models match the

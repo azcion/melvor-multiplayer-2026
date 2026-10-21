@@ -59,7 +59,7 @@ test('creates missing transfers and invalidates loaded content when trade metada
 	]);
 });
 
-test('a blocked receipt still hydrates incoming Gifts without advancing the recovery revision', async () => {
+test('unreviewable receipts preserve recovery while a fully reviewed page releases the transaction gate', async () => {
 	const { readFile } = await import('node:fs/promises');
 	const { runInNewContext } = await import('node:vm');
 	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
@@ -68,7 +68,7 @@ test('a blocked receipt still hydrates incoming Gifts without advancing the reco
 	const state = { listing_filters: [], get_chat_notification_tagged: () => false, refresh_crucible: async () => {}, chat_notification_preferences: {}, events: {}, gifts: [], trades: [], resolved_trades: [], inbox_items: [] };
 	const context = {
 		crucible_page_hydrating: false,
-		rollback_client: null, server_host: 'https://test.invalid', guild_revision_scope: null, last_guild_revision: null, apply_dev_badge_labels() {},
+		economy_receipt_reviews: null, rollback_client: null, server_host: 'https://test.invalid', guild_revision_scope: null, last_guild_revision: null, apply_dev_badge_labels() {},
 		state, client_events_hydrated: true, economy_command_journal: null, session_generation: 1, client_event_revision: 4, CHAT_CAPABILITIES: '', chat_page_visible: false,
 		social_mode: { SOCIAL_MODE_FULL: 'full', SOCIAL_MODE_SOCIAL: 'social' },
 		polling: { has_pending_events: () => true }, event_snapshots: { reconcile_event_transfers },
@@ -86,4 +86,16 @@ test('a blocked receipt still hydrates incoming Gifts without advancing the reco
 	assert.equal(state.gifts[0].id, 42);
 	assert.equal(contents, 1);
 	assert.equal(context.client_event_revision, 4);
+	const reviewed = Array.from({ length: 64 }, (_, id) => ({ id: String(id) }));
+	Object.assign(context, {
+		api_get: async () => ({ revision: 6, gifts: [42], economy_receipts: reviewed }),
+		economy_receipt_reviews: { has: id => reviewed.some(receipt => receipt.id === id), flush() {} },
+		reconcile_economy_receipts: async () => true,
+		economy_receipts: await import('../../mod/economy-receipts.mjs'), ECONOMY_RECEIPT_PAGE_SIZE: 64,
+		remove_instance_storage_item() {}, legacy_market_payout_migration_started: true,
+		guild_page_visible: false, refresh_guild_state: async () => {}, update_guild_nav() {}, show_pending_banishment_notice() {}
+	});
+	await runInNewContext(source + '\nget_client_events_request(true, 1)', context);
+	assert.equal(context.client_event_revision, 6);
+	assert.equal(context.economy_commands_ready, true, '64 locally reviewed receipts cannot keep the page gate closed');
 });

@@ -14,6 +14,7 @@ import { change_display_name } from '../audit';
 import { get_dev_badge_labels, get_account_tags } from '../account_tags';
 import { get_tester_chat_unread_count } from '../tester_chat';
 import { release_campaign_refunds } from '../campaign-retirement';
+import { review_economy_receipt } from '../economy';
 
 const { acknowledge_economy_receipt, db, db_execute, db_exists, display_icon_cache, display_name_cache, friend_request_cache, get_campaign_progress, get_client_gifts, get_client_resolved_trades, get_client_social_mode, get_client_social_mode_enforcement, get_client_trades, get_friend_requests, get_global_chat_unread_count, get_guild_applicants, get_guild_chat_unread_count, get_guild_member_social_modes, get_market_completed, get_minimum_supported_mod_version, get_released_mod_version, get_support_unread_count, get_trade_offer_meta, get_unread_chat_count, has_deletion_returns, has_global_chat_capability, has_guild_chat_capability, is_valid_avatar_icon_id, parse_display_name, pending_economy_receipts, session_get_route, session_post_route } = runtime;
 
@@ -116,6 +117,11 @@ export function register_general_routes(): void {
 		if (acknowledged === null)
 			return 400;
 		return acknowledged ? { success: true } : 404;
+	});
+	session_post_route('/api/economy/receipts/review', async (_req, _url, client_id, json) => {
+		const reviewed = review_economy_receipt(client_id, json.receipt_id, json.reason);
+		if (reviewed === null) return 400;
+		return reviewed ? { success: true } : 404;
 	});
 
 	session_post_route('/api/client/set_icon', async (req, url, client_id, json) => {

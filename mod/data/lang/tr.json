@@ -1,4 +1,10 @@
 {
+	"MOD_MP_CHAT_HIGHLIGHT": "Vurgula",
+	"MOD_MP_CHAT_HIGHLIGHT_COLOR": "Onaltılık renk",
+	"MOD_MP_CHAT_HIGHLIGHT_HELP": "Altı onaltılık basamak girin (RGB, alfa yok).",
+	"MOD_MP_CHAT_HIGHLIGHT_PREVIEW": "Önizleme",
+	"MOD_MP_CHAT_HIGHLIGHT_CLEAR": "Vurguyu kaldır",
+	"MOD_MP_CHAT_HIGHLIGHT_APPLY": "Uygula",
 	"MOD_MP_ALLIANCE_REASON_MARKET_DISABLE": "Pazarı Kapat",
 	"MOD_MP_ALLIANCE_REASON_REMOVE": "Çıkarılmayı Öner",
 	"MOD_MP_ALLIANCE_REASON_LEAVE": "Ayrılmayı Öner",
@@ -1322,5 +1328,10 @@
 	"MOD_MP_BROWSER_LINK_CAPACITY": "Tarayıcı sınırına ulaşıldı. Başka bir tarayıcı bağlamadan önce bağlı tarayıcıları yenileyip birinin erişimini iptal edin.",
 	"MOD_MP_BROWSER_LINK_BROWSERS": "Bağlı tarayıcılar",
 	"MOD_MP_BROWSER_LINK_REFRESH": "Yenile",
-	"MOD_MP_BROWSER_LINK_BROWSER": "Tarayıcı"
+	"MOD_MP_BROWSER_LINK_BROWSER": "Tarayıcı",
+	"MOD_MP_SERVICE_TITLE": "Çok oyunculu bağlantısı",
+	"MOD_MP_SERVICE_MAINTENANCE": "Çok oyunculu mod bakım için ara verdi. Hazır olduğunda sizi otomatik olarak yeniden bağlayacağız.",
+	"MOD_MP_SERVICE_UNREACHABLE": "Şu anda çok oyunculu sunucusuna ulaşamıyoruz. Yeniden bağlanmayı denemeye devam edeceğiz.",
+	"MOD_MP_SERVICE_UNAVAILABLE": "Çok oyunculu modda şu anda bir sorun var. Yeniden bağlanmayı denemeye devam edeceğiz.",
+	"MOD_MP_SERVICE_RESOLVED": "Çok oyunculu mod yeniden kullanılabilir. Beklediğiniz için teşekkürler!"
 }

@@ -166,6 +166,7 @@ test('the transport prioritizes acknowledgements and treats POST read routes as 
 		request_scheduler: { run(priority, run, valid) { assert.equal(valid(), true); priorities.push(priority); return run(); }, observe() {} },
 		polling: { fetch_with_timeout: async (_fetch, _url, _options, request) => request.consume(Response.json({ success: true })) }
 	};
+	context.service_fetch = context.polling.fetch_with_timeout;
 	runInNewContext(source, context);
 	for (const [route, method] of [['market/catalog', 'POST'], ['market/search', 'POST'], ['transfers/get_contents', 'POST'],
 		['market/cancel', 'POST'], ['inbox/acknowledge', 'POST'], ['economy/receipts/acknowledge', 'POST'], ['pages/snapshot', 'GET']])
