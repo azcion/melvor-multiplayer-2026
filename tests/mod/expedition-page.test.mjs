@@ -132,8 +132,10 @@ test('renders phased Chamber work, accepted activities, and obscured passages', 
 	assert.match(chamber, /MOD_MP_EXPEDITION_UI_GATHERING_FOR_THE_EXPEDITION/);
 	assert.match(chamber, /<strong>\{\{ state\.expedition_state\?\.expedition\?\.registered_count \}\}<\/strong> <lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTERED"/);
 	assert.match(chamber, /MOD_MP_EXPEDITION_UI_YOU_ARE_REGISTERED/);
-	assert.match(chamber, /<h3><lang-string lang-id="MOD_MP_EXPEDITION_UI_EXPEDITION_STASH"/);
-	assert.match(chamber, /MOD_MP_EXPEDITION_UI_SUPPLIES_YOU_CONTRIBUTE_CAN_EARN_YOU_EXTRA_EP/);
+	assert.match(chamber, /MOD_MP_EXPEDITION_PREPARATIONS_HINT/);
+	assert.doesNotMatch(page, /expedition_supply|MOD_MP_EXPEDITION_UI_EXPEDITION_STASH|expedition-supply-modal/);
+	assert.match(page, /chamber\?\.preparation \? getLangString\('MOD_MP_EXPEDITION_PREPARATIONS'\)/);
+	assert.match(page, /mp-expedition-chamber-card" v-if="!state\.expedition_state\?\.expedition\?\.chamber\?\.preparation"/);
 	assert.doesNotMatch(chamber, /Registration open|Current chamber|The Rift opens after registration closes|The Rift Stash|Visited Chambers/);
 	assert.equal(page.match(/<h3><lang-string lang-id="MOD_MP_EXPEDITION_UI_VISITED_CHAMBERS"/g)?.length, 1);
 	assert.doesNotMatch(chamber, /Test controls|Complete task for test|Depth |Tracking side/);

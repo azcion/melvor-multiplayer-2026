@@ -66,8 +66,6 @@ ROUTES.add('/api/expedition/task/start');
 ROUTES.add('/api/expedition/task/check-in');
 ROUTES.add('/api/expedition/task/stop');
 ROUTES.add('/api/expedition/vote');
-ROUTES.add('/api/expedition/supply/catalog');
-ROUTES.add('/api/expedition/supply/donate');
 ROUTES.add('/api/market/claim-legacy-payouts');
 ROUTES.add('/api/versions');
 ROUTES.add('/api/chat/messages/reaction');

@@ -628,10 +628,6 @@ const state = ui.createStore({
 	expedition_check_in_cooldown_until: 0,
 	expedition_pending_report: null,
 	expedition_report_notice_visible: false,
-	expedition_catalog: null,
-	expedition_supply_item_id: '',
-	expedition_supply_qty: 1,
-	expedition_supply_filter: 'food',
 	expedition_mobile_tab: 'chamber',
 	expedition_snow: null,
 	expedition_snow_controls_enabled: false,
@@ -2004,11 +2000,6 @@ async function refresh_expedition_state(reconnect = false) {
 	const generation = session_generation;
 	state.expedition_loading = true;
 	try {
-		if (!tracking_only && state.expedition_catalog === null) {
-			const catalog = await api_get('/api/expedition/supply/catalog');
-			if (generation !== session_generation) return;
-			if (catalog?.version === 1) state.expedition_catalog = catalog.items;
-		}
 		const result = await read_expedition_state(false);
 		if (generation !== session_generation) return;
 		let hydrated = result?.contract_version === 1;
@@ -2040,89 +2031,6 @@ async function refresh_expedition_state(reconnect = false) {
 			update_expedition_nav();
 			if (tracking_only && expedition_page_visible) void refresh_expedition_state();
 		}
-	}
-}
-
-function expedition_supply_choices() {
-	const catalog = state.expedition_catalog ?? {};
-	return get_bank_item_ids()
-		.filter(id => catalog[id]?.kind === state.expedition_supply_filter)
-		.map(id => ({ id, qty: expedition_supply_owned(id), value: catalog[id].value_per_item,
-			name: game.items.getObjectByID(id)?.name ?? id }))
-		.filter(item => item.qty > 0)
-		.sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
-}
-
-function expedition_supply_owned(item_id) {
-	const item = game.items.getObjectByID(item_id);
-	return item ? game.bank.getQty(item) : 0;
-}
-
-function show_expedition_supply_modal() {
-	state.expedition_supply_filter = 'food';
-	state.expedition_supply_item_id = '';
-	state.expedition_supply_qty = 1;
-	queue_modal('MOD_MP_EXPEDITION_UI_CHOOSE_SUPPLIES', 'expedition-supply-modal', 'assets/multiplayer.svg', {
-		showConfirmButton: false,
-		customClass: { popup: 'mp-crucible-wish-modal-popup' }
-	});
-}
-
-function select_expedition_supply(item) {
-	state.expedition_supply_item_id = item.id;
-	state.expedition_supply_qty = 1;
-}
-
-function update_expedition_supply_qty(event) {
-	const input = event.target;
-	if (input.value === '') {
-		state.expedition_supply_qty = '';
-		return;
-	}
-	const max = expedition_supply_owned(state.expedition_supply_item_id);
-	const value = Number(input.value);
-	if (!Number.isFinite(value) || max < 1) return;
-	const qty = Math.max(1, Math.min(max, Math.trunc(value)));
-	state.expedition_supply_qty = qty;
-	input.value = String(qty);
-}
-
-function expedition_supply_estimate() {
-	const item = state.expedition_catalog?.[state.expedition_supply_item_id];
-	const qty = Number(state.expedition_supply_qty);
-	if (!item || !Number.isSafeInteger(qty) || qty < 1) return '0.000';
-	const each = item.value_currency_id === 'melvorD:GP' && item.value_per_item > 0
-		? item.value_per_item : 1;
-	const prior = state.expedition_state?.supply_score?.value_gp_equiv ?? 0;
-	return (10 * Math.log10(1 + (prior + each * qty) / 1000) -
-		10 * Math.log10(1 + prior / 1000)).toFixed(3);
-}
-
-async function donate_expedition_supply() {
-	if (state.expedition_action_pending || state.is_social_only) return;
-	const expedition = state.expedition_state?.expedition;
-	const item_id = state.expedition_supply_item_id;
-	const qty = Number(state.expedition_supply_qty);
-	if (expedition?.status !== 'registration' || !expedition.registered ||
-		!state.expedition_catalog?.[item_id] || !Number.isSafeInteger(qty) || qty < 1 ||
-		qty > expedition_supply_owned(item_id)) return;
-	state.expedition_action_pending = true;
-	try {
-		const result = await run_pending_economy_action('expedition_supply_donate',
-			'/api/expedition/supply/donate', {
-				expedition_id: expedition.id, item_id, qty, source: 'bank',
-				...get_offering_item_valuation(item_id)
-			});
-		if (result?.success) {
-			state.expedition_supply_qty = 1;
-			await close_modal_and_wait('expedition-supply-modal');
-			await refresh_expedition_state();
-			expedition_notify(expedition_text('MOD_MP_EXPEDITION_EP_ADDED', expedition_points(result.delta_micros)));
-		} else expedition_notify(result?.error === 'catalog_mismatch'
-			? getLangString('MOD_MP_EXPEDITION_CATALOG_MISMATCH')
-			: result?.error ?? getLangString('MOD_MP_EXPEDITION_SUPPLY_DONATION_FAILED'), 'danger');
-	} finally {
-		state.expedition_action_pending = false;
 	}
 }
 
@@ -4750,7 +4658,6 @@ function set_session_token(token) {
 	state.expedition_personal = null;
 	state.expedition_pending_report = null;
 	state.expedition_report_notice_visible = false;
-	state.expedition_catalog = null;
 	state.expedition_vote_cooldown_until = 0;
 	state.expedition_check_in_cooldown_until = 0;
 	last_expedition_state_refresh_at = 0;
@@ -5872,9 +5779,6 @@ export async function setup(ctx) {
 			debug_advance_expedition,
 			show_expedition_debug_confirmation,
 			confirm_expedition_debug_action,
-			expedition_supply_choices,
-			expedition_supply_owned,
-			expedition_supply_estimate,
 			expedition_points,
 			expedition_prompt_tasks,
 			expedition_prompt_activity_names,
@@ -5883,10 +5787,6 @@ export async function setup(ctx) {
 			expedition_available_points: task => expedition_points(expedition_tasks.task_available_points_micros(task)),
 			expedition_time_remaining,
 			expedition_time_since,
-			show_expedition_supply_modal,
-			select_expedition_supply,
-			update_expedition_supply_qty,
-			donate_expedition_supply,
 			expedition_hours,
 			expedition_contribution_time,
 			expedition_percent,
