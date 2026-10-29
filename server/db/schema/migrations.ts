@@ -384,4 +384,22 @@ export const migrations: Migration[] = [
 			CHECK(highlight_color IS NULL OR (length(highlight_color) = 7 AND
 				substr(highlight_color, 1, 1) = '#' AND substr(highlight_color, 2) NOT GLOB '*[^0-9a-fA-F]*'));
 	` },
+	{ version: 194, sql: `
+		-- Rift Preparations: one sticky skill roll per account, personal tasks per registration.
+		CREATE TABLE expedition_preparation_rolls (
+			owner_key TEXT PRIMARY KEY,
+			skill_ids TEXT NOT NULL CHECK (json_valid(skill_ids) AND json_array_length(skill_ids) = 3),
+			rolled_at INTEGER NOT NULL CHECK (rolled_at >= 0)
+		) STRICT;
+		CREATE TABLE expedition_preparation_tasks (
+			visit_id INTEGER NOT NULL,
+			task_id TEXT NOT NULL,
+			client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+			slot INTEGER NOT NULL CHECK (slot BETWEEN 1 AND 3),
+			skill_id TEXT NOT NULL,
+			PRIMARY KEY (visit_id, task_id),
+			UNIQUE (visit_id, client_id, slot),
+			FOREIGN KEY (visit_id, task_id) REFERENCES expedition_tasks(visit_id, task_id) ON DELETE CASCADE
+		) STRICT;
+	` },
 ];

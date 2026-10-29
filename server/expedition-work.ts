@@ -7,6 +7,7 @@ import { db } from './db';
 import { EXPEDITION_WORK_SKILLS, preview_task_available, parse_expedition_content, expedition_skill_id } from './expedition-content';
 import type { ExpeditionTask } from './expedition-content';
 import { RECENTLY_ACTIVE_AFTER } from './recent-activity';
+import { PREPARATION_CHAMBER_ID, preparation_definition, preparation_owner } from './expedition-preparations';
 import type { WorkStatistics } from './routes/expedition';
 import type { JsonObject } from './http';
 
@@ -69,6 +70,7 @@ function task_definition(expedition_id: number, visit_id: number, task_id: strin
 		'SELECT chamber_id FROM expedition_visits WHERE id = ? AND expedition_id = ?'
 	).get(visit_id, expedition_id);
 	if (!expedition || !visit) return null;
+	if (visit.chamber_id === PREPARATION_CHAMBER_ID) return preparation_definition(visit_id, task_id);
 	const content = parse_expedition_content(expedition.content_snapshot);
 	const chamber = content.chambers.find(chamber => chamber.id === visit.chamber_id);
 	const task = chamber?.tasks.find(entry => entry.id === task_id);
@@ -114,12 +116,13 @@ export function update_unlocks(expedition_id: number, visit_id: number, now: num
 
 function settle(session: Session, statistics: WorkStatistics, activities: Activity[], captured_at: number, now: number): JsonObject {
 	const definition = task_definition(session.expedition_id, session.visit_id, session.task_id);
-	const expedition = db.query<{ status: string; current_visit_id: number | null; ended_at: number | null }, [number]>(
-		'SELECT status, current_visit_id, ended_at FROM expeditions WHERE id = ?'
+	const expedition = db.query<{ status: string; current_visit_id: number | null; ended_at: number | null;
+		registration_ends_at: number }, [number]>(
+		'SELECT status, current_visit_id, ended_at, registration_ends_at FROM expeditions WHERE id = ?'
 	).get(session.expedition_id);
 	if (!definition || !expedition) return { success: false, error: 'expedition_unavailable' };
-	const visit = db.query<{ departed_at: number | null }, [number]>(
-		'SELECT departed_at FROM expedition_visits WHERE id = ?'
+	const visit = db.query<{ departed_at: number | null; chamber_id: string }, [number]>(
+		'SELECT departed_at, chamber_id FROM expedition_visits WHERE id = ?'
 	).get(session.visit_id);
 	const task = db.query<TaskRow, [number, string]>(
 		'SELECT * FROM expedition_tasks WHERE visit_id = ? AND task_id = ?'
@@ -147,15 +150,17 @@ function settle(session: Session, statistics: WorkStatistics, activities: Activi
 	const concurrency = elapsed_ms === 0 ? 1 : Math.max(1, total_ms / elapsed_ms);
 	const observed = eligible_activity(start_activities, definition.evidence.skill_ids);
 	const verified_ms = observed ? Math.min(elapsed_ms, Math.floor(target_ms / concurrency)) : 0;
+	const preparing = visit.chamber_id === PREPARATION_CHAMBER_ID;
 	const cutoff = Math.min(captured_at, visit.departed_at ?? captured_at,
-		tenure.ended_at ?? captured_at, expedition.ended_at ?? captured_at);
+		tenure.ended_at ?? captured_at, expedition.ended_at ?? captured_at,
+		preparing ? expedition.registration_ends_at : captured_at);
 	const eligible_elapsed_ms = Math.max(0, cutoff - session.started_at);
 	const observation_gap = Math.max(session.max_observation_gap_ms,
 		captured_at - (session.last_observed_at ?? session.started_at));
 	const overlong = observation_gap > RECENTLY_ACTIVE_AFTER;
 	const credited_ms = overlong ? 0 : Math.min(session.reward_remaining_ms ?? Number.MAX_SAFE_INTEGER, eligible_elapsed_ms,
 		Math.floor(verified_ms * eligible_elapsed_ms / Math.max(1, elapsed_ms)));
-	const guild_ms = expedition.status === 'active' && visit.departed_at === null &&
+	const guild_ms = expedition.status === (preparing ? 'registration' : 'active') && visit.departed_at === null &&
 		task.completed_at === null
 		? Math.min(credited_ms, Math.max(0, task.target_ms - task.player_ms - task.system_ms)) : 0;
 	const completed = guild_ms > 0 && task.player_ms + task.system_ms + guild_ms >= task.target_ms;
@@ -379,9 +384,13 @@ export function change_expedition_work(client_id: number, operation_id: string, 
 		if (task_id && source && !clock_reset && now - captured_at > EXPEDITION_FRESH_CAPTURE_MS)
 			fresh_snapshot_required = true;
 		if (task_id && !fresh_snapshot_required) {
-			const expedition = db.query<{ guild_id: number; status: string; current_visit_id: number | null }, [number]>(
-				'SELECT guild_id, status, current_visit_id FROM expeditions WHERE id = ?'
+			const expedition = db.query<{ guild_id: number; status: string; current_visit_id: number | null;
+				registration_ends_at: number }, [number]>(
+				'SELECT guild_id, status, current_visit_id, registration_ends_at FROM expeditions WHERE id = ?'
 			).get(request.expedition_id);
+			const preparation = db.query<{ found: number }, [number, number, string]>(
+				'SELECT 1 AS found FROM expedition_visits WHERE id = ? AND expedition_id = ? AND chamber_id = ? AND departed_at IS NULL'
+			).get(request.visit_id, request.expedition_id, PREPARATION_CHAMBER_ID) !== null;
 			const tenure = db.query<{ id: number }, [number, number, number]>(
 				'SELECT tenure.id FROM expedition_membership_tenures AS tenure JOIN guild_memberships AS membership ON membership.id = tenure.membership_id WHERE tenure.expedition_id = ? AND tenure.client_id = ? AND membership.guild_id = ? AND tenure.ended_at IS NULL ORDER BY tenure.id DESC LIMIT 1'
 			).get(request.expedition_id, client_id, expedition?.guild_id ?? -1);
@@ -392,8 +401,12 @@ export function change_expedition_work(client_id: number, operation_id: string, 
 				'SELECT * FROM expedition_tasks WHERE visit_id = ? AND task_id = ?'
 			).get(request.visit_id, task_id);
 			const definition = task_definition(request.expedition_id, request.visit_id, task_id, true);
-			const available = expedition?.status === 'active' && expedition.current_visit_id === request.visit_id &&
-				!!tenure && !!registered && !!task && task.unlocked_at !== null && task.completed_at === null && !!definition;
+			const open = preparation
+				? expedition?.status === 'registration' && now < expedition.registration_ends_at &&
+					preparation_owner(request.visit_id, task_id) === client_id
+				: expedition?.status === 'active' && expedition.current_visit_id === request.visit_id;
+			const available = open && !!tenure && !!registered && !!task && task.unlocked_at !== null &&
+				task.completed_at === null && !!definition;
 			if (!available && request.kind === 'start' && !existing)
 				return { success: false, error: 'task_unavailable' };
 			if (!available && request.kind === 'start') requested_unavailable = true;

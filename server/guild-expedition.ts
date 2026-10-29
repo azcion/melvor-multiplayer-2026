@@ -4,8 +4,11 @@ import { EXPEDITION_CONTENT_PREVIEW, preview_task_available, parse_expedition_co
 import type { ExpeditionChamber, ExpeditionContent } from './expedition-content';
 import { RECENTLY_ACTIVE_AFTER } from './recent-activity';
 import { createHash } from 'node:crypto';
+import type { JsonObject } from './http';
 import { update_unlocks } from './expedition-work';
 import { transfer_expedition_stash_to_crucible } from './crucible-actions';
+import { PREPARATION_CHAMBER_ID, close_preparations, consume_preparation_rolls, ensure_preparations,
+	get_preparation_chamber } from './expedition-preparations';
 
 export const EXPEDITION_REGISTRATION_MS = 20 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
@@ -88,6 +91,7 @@ export function debug_cancel_expedition(guild_id: number, expedition_id: number,
 		if (expedition.current_visit_id !== null)
 			db.query('UPDATE expedition_visits SET departed_at = ? WHERE id = ? AND departed_at IS NULL')
 				.run(now, expedition.current_visit_id);
+		close_preparations(expedition_id, now);
 		db.query("UPDATE expeditions SET status = 'inactive', ended_at = ?, current_visit_id = NULL, revision = revision + 1 WHERE id = ?")
 			.run(now, expedition_id);
 		return true;
@@ -198,6 +202,7 @@ function end_if_inactive(expedition: ExpeditionRow, now: number): boolean {
 	if (expedition.current_visit_id !== null)
 		db.query('UPDATE expedition_visits SET departed_at = ? WHERE id = ? AND departed_at IS NULL')
 			.run(now, expedition.current_visit_id);
+	close_preparations(expedition.id, now);
 	return true;
 }
 
@@ -280,6 +285,7 @@ function advance_registration(guild_id: number, now: number): void {
 	const content = parse_expedition_content(expedition.content_snapshot);
 	const entrance = content.chambers.find(chamber => chamber.id === 'entrance');
 	if (!entrance) throw new Error('Expedition snapshot lacks Entrance');
+	close_preparations(expedition.id, now);
 	begin_visit(expedition, content, entrance, participants, now);
 }
 
@@ -402,6 +408,7 @@ export function reconcile_expedition_visit(guild_id: number,
 				.run(now, visit.id);
 			db.query("UPDATE expeditions SET status = 'completed', ended_at = ?, current_visit_id = NULL, " +
 				'revision = revision + 1 WHERE id = ?').run(now, expedition.id);
+			consume_preparation_rolls(expedition.id);
 			return true;
 		}
 		if (!visit.chosen_exit_id) return false;
@@ -466,6 +473,7 @@ export function register_for_expedition(guild_id: number, client_id: number, ope
 		if (result.changes > 0)
 			db.query('UPDATE expeditions SET revision = revision + 1, last_qualifying_activity_at = ? WHERE id = ?')
 				.run(now, expedition.id);
+		ensure_preparations(expedition.id, client_id, now);
 		db.query('INSERT INTO expedition_operations (client_id, operation_id, kind, expedition_id, created_at) ' +
 			'VALUES (?, ?, \'register\', ?, ?)').run(client_id, operation_id, expedition.id, now);
 		record_economy_operation(db,{source_key:`expedition-register:${client_id}:${operation_id}`,client_id,
@@ -578,16 +586,20 @@ export function get_expedition_state(guild_id: number, client_id: number, now = 
 		const chamber_names = new Map(content.chambers.map(entry => [entry.id, entry.label]));
 		const history = tracking_only ? [] : db.query<{
 			chamber_id: string; entered_at: number; departed_at: number | null; chosen_exit_id: string | null;
-		}, [number]>(
+		}, [number, string]>(
 			'SELECT chamber_id, entered_at, departed_at, chosen_exit_id FROM expedition_visits ' +
-			'WHERE expedition_id = ? AND departed_at IS NOT NULL ORDER BY id'
-		).all(expedition.id).map(visit => {
+			'WHERE expedition_id = ? AND departed_at IS NOT NULL AND chamber_id <> ? ORDER BY id'
+		).all(expedition.id, PREPARATION_CHAMBER_ID).map(visit => {
 			const source = content.chambers.find(entry => entry.id === visit.chamber_id);
 			const target = source?.exits.find(edge => edge.id === visit.chosen_exit_id)?.target;
 			return { ...visit, label: chamber_names.get(visit.chamber_id) ?? visit.chamber_id,
 				chosen_exit_label: target ? chamber_names.get(target) ?? target : null };
 		});
-		let chamber = null;
+		let chamber: JsonObject | null = null;
+		if (registered && expedition.status === 'registration') {
+			ensure_preparations(expedition.id, client_id, now);
+			chamber = get_preparation_chamber(expedition.id, client_id);
+		}
 		if (expedition.current_visit_id !== null) {
 			const visit = db.query<{ id: number; chamber_id: string; participant_count: number; charted_on_arrival: number;
 				vote_opened_at: number | null; vote_deadline_at: number | null; vote_locked_at: number | null;

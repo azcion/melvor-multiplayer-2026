@@ -4,7 +4,6 @@ import { can_debug_expedition, debug_advance_expedition, debug_cancel_expedition
 import type { HandlerResult } from '../http';
 import { change_expedition_work, get_expedition_work } from '../expedition-work';
 import { parse_work_statistics } from './expedition';
-import { donate_expedition_supply, expedition_supply_catalog, get_expedition_supply_score } from '../expedition-supplies';
 
 const { get_client_guild_id, parse_player_status_activities, session_get_route, session_post_route } = runtime;
 const operation_uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -12,19 +11,18 @@ const operation_uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 export function register_guild_expedition_routes(): void {
 	session_get_route('/api/expedition/personal', async (req, url, client_id): Promise<HandlerResult> => {
 		const history = get_personal_expedition_history(client_id);
-		return { contract_version: 1, history, ...get_expedition_work(client_id),
-			supply_score: get_expedition_supply_score(client_id, history[0]?.expedition_id ?? null) };
+		return { contract_version: 1, history, ...get_expedition_work(client_id) };
 	});
+	// Supplies were removed; older clients receive an empty catalog and a clear donation error.
 	session_get_route('/api/expedition/supply/catalog', async (): Promise<HandlerResult> =>
-		expedition_supply_catalog());
+		({ version: 0, items: {} }));
 
 	session_get_route('/api/expedition/state', async (req, url, client_id): Promise<HandlerResult> => {
 		const guild_id = await get_client_guild_id(client_id);
 		if (guild_id === null) return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
 		reconcile_expedition_visit(guild_id);
 		const state = get_expedition_state(guild_id, client_id, Date.now(), url.searchParams.get('view') === 'tracking');
-		return { ...state, debug_enabled: can_debug_expedition(client_id), ...get_expedition_work(client_id),
-			supply_score: get_expedition_supply_score(client_id, state.expedition?.id ?? null) };
+		return { ...state, debug_enabled: can_debug_expedition(client_id), ...get_expedition_work(client_id) };
 	});
 
 	session_post_route('/api/expedition/debug/advance', async (req, url, client_id, json): Promise<HandlerResult> => {
@@ -105,6 +103,6 @@ export function register_guild_expedition_routes(): void {
 			json.visit_id as number, json.exit_id, json.operation_id);
 	});
 
-	session_post_route('/api/expedition/supply/donate', async (req, url, client_id, json): Promise<HandlerResult> =>
-		donate_expedition_supply(client_id, json.command_id, json) ?? 400);
+	session_post_route('/api/expedition/supply/donate', async (): Promise<HandlerResult> =>
+		({ success: false, error: 'supplies_removed' }));
 }
