@@ -828,9 +828,9 @@
 			</div>
 			<div class="mp-updates-layout">
 				<div class="mp-updates-column mp-updates-notices" :class="{ 'mp-updates-mobile-hidden': state.updates_mobile_tab !== 'updates' }">
-					<a class="mp-updates-panel mp-updates-wiki" href="https://melvor.azcn.io/wiki" @click.prevent="state.open_multiplayer_wiki()">
+					<a class="mp-updates-panel mp-updates-wiki" :href="state.wiki_url" @click.prevent="state.open_multiplayer_wiki()">
 						<div class="mp-updates-panel-header"><h3 class="mp-updates-panel-title">Wiki</h3></div>
-						<div class="mp-updates-panel-body">https://melvor.azcn.io/wiki</div>
+						<div class="mp-updates-panel-body">{{ state.wiki_url }}</div>
 					</a>
 					<div class="mp-updates-panel" v-if="state.updates_loading">
 						<div class="mp-updates-panel-body text-center">
@@ -1278,6 +1278,17 @@
 		<lang-string lang-id="MOD_MP_POLLS_DELETE"></lang-string>
 	</button>
 	<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
+</template>
+<template id="template-mp-page-guide-modal">
+	<div class="mp-modal-text mp-page-guide" v-if="state.page_guide" @touchmove="state.stop_icon_scroll_propagation($event)">
+		<div>{{ getLangString(state.page_guide.summary_lang) }}</div>
+		<div class="mp-page-guide-heading"><lang-string lang-id="MOD_MP_GUIDE_HOW_TO"></lang-string></div>
+		<div>{{ getLangString(state.page_guide.how_to_lang) }}</div>
+	</div>
+	<div class="mp-page-guide-actions">
+		<button v-if="state.page_guide?.wiki_slug" type="button" class="btn btn-primary" @click="state.open_page_guide_wiki()"><i class="fa fa-external-link-alt mr-1" aria-hidden="true"></i><lang-string lang-id="MOD_MP_GUIDE_OPEN_WIKI"></lang-string></button>
+		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
+	</div>
 </template>
 <template id="template-mp-chat-budget-info-modal">
 	<div class="mp-modal-text mp-chat-budget-info">

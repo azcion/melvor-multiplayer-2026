@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.2
+
+- Added localized in-game guides for Multiplayer pages, with links to the selected server’s wiki where available. Info also uses the wiki advertised by the selected server.
+
 ## 1.7.1
 
 - Added cosmetic pink Contributor badges in Guild rosters and applications, assigned by the backend without granting developer privileges or requiring a client update.

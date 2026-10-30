@@ -403,6 +403,7 @@ const state = ui.createStore({
 	changelog_loading: false,
 	changelog_loaded: false,
 	changelog_error: '',
+	wiki_url: 'https://melvor.azcn.io/wiki',
 	updates_sections: [],
 	updates_loading: false,
 	updates_loaded: false,
@@ -4380,11 +4381,13 @@ async function discover_api_contract() {
 	rollback_server_supported = false;
 	identity_registration_supported = false;
 	let minimum_supported_mod_version = null;
+	let discovered_wiki_url = null;
 	const major = await service_fetch(fetch, origin + '/api/versions', { method: 'GET' }, {
 		observe: entry => transport_diagnostics?.record(entry),
 		consume: async response => {
 			const body = response.status === 200 ? await response.json() : null;
 			minimum_supported_mod_version = body?.minimum_supported_mod_version ?? null;
+			discovered_wiki_url = body?.wiki_url;
 			page_snapshots_supported = body?.page_snapshots === true;
 			identity_registration_supported = Array.isArray(body?.capabilities) && body.capabilities.includes('identity-registration-v1');
 			rollback_server_supported = Array.isArray(body?.capabilities) && body.capabilities.includes('save-rollback-v1');
@@ -4394,6 +4397,7 @@ async function discover_api_contract() {
 	if (origin !== server_host || generation !== session_generation)
 		throw new Error('Stale API discovery');
 	selected_api_major = major;
+	state.wiki_url = api_contract.wiki_url(discovered_wiki_url);
 	enter_unsupported_multiplayer(minimum_supported_mod_version);
 }
 
@@ -6395,6 +6399,7 @@ export async function setup(ctx) {
 	const { install_common_actions } = await ctx.loadModule('client-actions-common.mjs');
 	const { install_chat_actions } = await ctx.loadModule('client-actions-chat.mjs');
 	const { install_browser_link_actions } = await ctx.loadModule('browser-links.mjs');
+	const { install_page_guide_actions, setup_page_guide_button } = await ctx.loadModule('page-guides.mjs');
 	chat_items = await ctx.loadModule('chat-items.mjs');
 	const { install_market_actions } = await ctx.loadModule('client-actions-market.mjs');
 	const { install_crucible_actions } = await ctx.loadModule('client-crucible.mjs');
@@ -6479,7 +6484,7 @@ export async function setup(ctx) {
 			get_guild_activity_arg_3,
 			format_guild_activity_time,
 			set_updates_mobile_tab,
-			open_multiplayer_wiki: () => openLink('https://melvor.azcn.io/wiki'),
+			open_multiplayer_wiki: () => openLink(state.wiki_url),
 			load_transfer_history: (pane, append = false) => load_transfer_history(pane, append),
 			toggle_transfer_history: pane => {
 				state.transfers_history_open[pane] = !state.transfers_history_open[pane];
@@ -6499,6 +6504,7 @@ export async function setup(ctx) {
 		install_chat_actions(action_runtime),
 		install_browser_link_actions({ state, api_get, api_post_response, getLangString,
 			get_scope: () => server_host + ':' + session_generation, get_origin: () => server_host }),
+		install_page_guide_actions({ state, queue_modal }),
 		install_market_actions(action_runtime),
 		install_crucible_actions(action_runtime, crucible_rules),
 		install_trading_actions(action_runtime),
@@ -6564,7 +6570,7 @@ export async function setup(ctx) {
 
 	raid_module.install_raid_attack_description_hook(ctx, customElements.get('special-attack-span'), game);
 
-	await patch_localization(ctx);
+	await patch_localization(ctx, setup_page_guide_button);
 
 	install_social_mode_setting(ctx);
 	connection_diagnostics.install_loading_report(ctx, {
@@ -6685,6 +6691,7 @@ export async function setup(ctx) {
 		const setup_interface = $main_container => {
 			const interface_started = performance.now();
 			setup_account_menu();
+			setup_page_guide_button({ document, state, getLangString });
 			watch_chat_nav();
 			setup_mobile_sidebar_unread();
 			update_chat_nav();
@@ -6860,6 +6867,7 @@ function apply_server_configuration() {
 		state.chat_conversations = state.chat_conversations.filter(entry => !entry.synthetic_service);
 		if (state.selected_chat_conversation?.synthetic_service) state.close_chat_conversation();
 		selected_api_major = null;
+		state.wiki_url = api_contract.wiki_url(null);
 		session_generation++;
 		expedition_leaderboard?.reset();
 		combat_arena?.close();
@@ -7162,7 +7170,7 @@ function patch_bank_actions() {
 /** Patches the global fetchLanguageJSON() fn so we can load and inject our own
  * translations. This is a hackfix because I couldn't find a way for mods to load
  * their own translations via data. */
-async function patch_localization(ctx) {
+async function patch_localization(ctx, setup_page_guide_button) {
 	const fetch_mod_localization = async (lang, language = loadedLangJson) => {
 		const fetch_lang = localization.resolve_multiplayer_language(lang);
 
@@ -7171,6 +7179,8 @@ async function patch_localization(ctx) {
 			for (const [key, value] of Object.entries(patch_lang))
 				language[key] = value;
 			localize_multiplayer_page_names();
+			if (document.getElementById('mp-page-guide-link'))
+				setup_page_guide_button({ document, state, getLangString: key => language[key] ?? getLangString(key) });
 			const notice = state.chat_conversations.find(entry => entry.synthetic_service);
 			if (notice) update_service_notice(notice.service_status, key => language[key] ?? getLangString(key));
 		} catch (e) {
