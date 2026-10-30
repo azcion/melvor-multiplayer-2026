@@ -137,6 +137,7 @@ let item_visibility = null;
 let crucible_rules = null;
 let client_runtime = null;
 let loaded_save_tracker = null;
+let offline_work_gate = null;
 let connection_diagnostics = null;
 let installation_store = null;
 let transport_diagnostics = null;
@@ -1651,7 +1652,8 @@ function capture_expedition_work_statistics() {
 		const tracker = game.stats?.[tracker_name];
 		if (typeof tracker?.get !== 'function')
 			continue;
-		const value = stat_ids.reduce((sum, stat_id) => sum + Number(tracker.get(stat_id) ?? 0), 0);
+		// Keep fractional native counters usable without changing the whole-millisecond wire contract.
+		const value = Math.floor(stat_ids.reduce((sum, stat_id) => sum + Number(tracker.get(stat_id) ?? 0), 0));
 		if (Number.isSafeInteger(value) && value >= 0)
 			time_ms[skill_id] = value;
 	}
@@ -1819,6 +1821,7 @@ async function start_prompted_expedition_task(task_id) {
 }
 
 async function maybe_prompt_expedition_work(activities) {
+	if (offline_work_gate?.pending()) return;
 	const mode = state.expedition_work_tracking_mode;
 	const automatic = mode === 'automatic';
 	expedition_work_prompt_gate ??= expedition_tasks.create_work_prompt_gate();
@@ -1885,12 +1888,20 @@ async function maybe_prompt_expedition_work(activities) {
 }
 
 function expedition_notify(message, theme = 'success') {
+	const generation = session_generation;
+	if (offline_work_gate?.defer_notice(() => {
+		if (generation === session_generation) expedition_notify(message, theme);
+	})) return;
 	notifyPlayer({ media: ctx.getResourceUrl('assets/multiplayer.svg') }, message, theme, 1);
 }
 
 let last_expedition_tracking_notice_session = null;
 
 function notify_expedition_tracking_ended(previous, next, message) {
+	const generation = session_generation;
+	if (offline_work_gate?.defer_notice(() => {
+		if (generation === session_generation) notify_expedition_tracking_ended(previous, next, message);
+	})) return;
 	const notice_session = previous ? `${session_generation}:${previous.session_id}` : null;
 	if (!previous || previous.pending_boundary_at ||
 		(next && !next.pending_boundary_at && next.expedition_id === previous.expedition_id &&
@@ -1986,6 +1997,7 @@ async function read_expedition_state(expand_on_open = true) {
 }
 
 async function refresh_expedition_state(reconnect = false) {
+	if (offline_work_gate?.blocked()) return false;
 	if (!state.is_connected || state.expedition_loading) return;
 	const tracking_only = !expedition_page_visible;
 	const phase_started = performance.now();
@@ -1999,13 +2011,16 @@ async function refresh_expedition_state(reconnect = false) {
 		}
 		const result = await read_expedition_state(false);
 		if (generation !== session_generation) return;
+		let hydrated = result?.contract_version === 1;
 		if (result?.error_lang) {
 			state.expedition_state = null;
 			expedition_notify(getLangString(result.error_lang), 'danger');
 			const personal = await api_get('/api/expedition/personal');
 			if (generation !== session_generation) return;
 			state.expedition_personal = personal;
+			hydrated = personal?.contract_version === 1;
 		}
+		if (!hydrated) return false;
 		const pending = get_instance_storage_item(EXPEDITION_PENDING_KEY);
 		state.expedition_pending_report = pending && typeof pending === 'object' ? pending : null;
 		if (state.expedition_pending_report) await retry_expedition_report(true);
@@ -2017,7 +2032,7 @@ async function refresh_expedition_state(reconnect = false) {
 			if (tracking && !tracking.pending_boundary_at && history?.status !== 'inactive' && result?.expedition?.status !== 'inactive')
 				await submit_expedition_work('check-in', tracking.task_id, true);
 		}
-		return result?.contract_version === 1;
+		return hydrated;
 	} finally {
 		if (generation === session_generation) {
 			state.expedition_loading = false;
@@ -2125,7 +2140,8 @@ async function register_expedition() {
 
 async function retry_expedition_report(automatic = false, quiet = false) {
 	const pending = state.expedition_pending_report;
-	if (!pending || state.expedition_action_pending) return;
+	if (!pending || state.expedition_action_pending || offline_work_gate?.blocked() ||
+		(!automatic && offline_work_gate?.pending())) return;
 	const report_generation = session_generation;
 	const previous_tracking = state.expedition_state?.tracking ?? state.expedition_personal?.tracking;
 	state.expedition_action_pending = true;
@@ -2140,7 +2156,7 @@ async function retry_expedition_report(automatic = false, quiet = false) {
 		let result = await api_post(pending.endpoint, pending.payload);
 		if (report_generation !== session_generation) return;
 		if (!result?.success && !result?.pending) state.expedition_report_notice_visible = true;
-		if (automatic && result === null) result = await api_post(pending.endpoint, pending.payload);
+		if (automatic && result === null && !offline_work_gate?.blocked()) result = await api_post(pending.endpoint, pending.payload);
 		if (report_generation !== session_generation) return;
 		if (result?.pending) {
 			last_expedition_check_in_at = Date.now();
@@ -2198,6 +2214,7 @@ async function retry_expedition_report(automatic = false, quiet = false) {
 }
 
 async function maybe_auto_check_in_expedition() {
+	if (offline_work_gate?.pending()) return;
 	if (!state.is_connected || !polling.is_foreground(document) || state.expedition_loading ||
 		state.expedition_action_pending || Date.now() - last_expedition_check_in_at < EXPEDITION_AUTO_CHECK_IN_INTERVAL)
 		return;
@@ -2210,6 +2227,7 @@ async function maybe_auto_check_in_expedition() {
 }
 
 async function submit_expedition_work(kind, task_id = null, automatic = false, quiet = false) {
+	if (offline_work_gate?.blocked() || (!automatic && offline_work_gate?.pending())) return;
 	if (state.expedition_action_pending || state.expedition_pending_report) return;
 	if (kind === 'check-in' && !automatic && Date.now() < state.expedition_check_in_cooldown_until) return;
 	const expedition = state.expedition_state?.expedition;
@@ -2319,7 +2337,7 @@ async function confirm_expedition_debug_action() {
 }
 
 async function begin_expedition_woodcutting_tracking() {
-	if (state.expedition_tracking_loading)
+	if (state.expedition_tracking_loading || offline_work_gate?.blocked())
 		return;
 	const activities = capture_status_activities();
 	state.expedition_debug_text = format_expedition_activities(activities);
@@ -2343,7 +2361,7 @@ async function begin_expedition_woodcutting_tracking() {
 }
 
 async function check_in_expedition_tracking() {
-	if (state.expedition_tracking_loading)
+	if (state.expedition_tracking_loading || offline_work_gate?.blocked())
 		return;
 	state.expedition_tracking_loading = true;
 	try {
@@ -2462,7 +2480,7 @@ function format_status_account_age(account_age, precision = 'minute') {
 }
 
 function status_sync_allowed() {
-	return true;
+	return !offline_work_gate?.pending();
 }
 
 function schedule_status_sync(delay = STATUS_SYNC_DELAY, enforce_minimum = true) {
@@ -2581,6 +2599,7 @@ async function flush_status_sync() {
 }
 
 function observe_status_changes() {
+	void offline_work_gate?.pump();
 	if (!state.is_connected || !status_sync_allowed() || !polling.is_foreground(document))
 		return;
 
@@ -4754,7 +4773,7 @@ function set_session_token(token) {
 	stop_gp_sampling();
 	invalidate_guild_state();
 	log('client session authenticated');
-	void refresh_expedition_state(true);
+	offline_work_gate?.request();
 }
 
 function apply_dev_badge_labels(labels) {
@@ -5717,6 +5736,23 @@ export async function setup(ctx) {
 	const loaded_save_module = await ctx.loadModule('loaded-save.mjs');
 	loaded_save_tracker = loaded_save_module.create_loaded_save_tracker({ uuid: () => crypto.randomUUID(), now: () => Date.now() });
 	loaded_save_module.install_loaded_save_capture(ctx, typeof Game === 'undefined' ? null : Game, loaded_save_tracker);
+	const { create_offline_work_gate } = await ctx.loadModule('offline-work-gate.mjs');
+	offline_work_gate = create_offline_work_gate({
+		is_loading: () => typeof loadingOfflineProgress !== 'undefined' && loadingOfflineProgress,
+		reconcile: async () => {
+			if (!state.is_connected || !polling.is_foreground(document) || state.expedition_loading ||
+				state.expedition_action_pending || status_sync_in_flight) return false;
+			const saved_report = get_instance_storage_item(EXPEDITION_PENDING_KEY);
+			const generation = session_generation;
+			let hydrated = await refresh_expedition_state(true);
+			if (generation !== session_generation || !state.is_connected || offline_work_gate.blocked()) return false;
+			// Replay saved reports byte-for-byte before capturing the completed offline counters.
+			if (hydrated && saved_report && !state.expedition_pending_report) hydrated = await refresh_expedition_state(true);
+			return hydrated && generation === session_generation && !state.expedition_pending_report && !offline_work_gate.blocked();
+		},
+		on_resumed: () => { schedule_status_sync(0); },
+		on_error: e => log('offline work reconciliation deferred (%s)', e)
+	});
 	const { create_asset_url_resolver } = await ctx.loadModule('asset-urls.mjs');
 	get_mod_asset_url = create_asset_url_resolver(await ctx.loadData('asset-urls.json'), media => ctx.getResourceUrl(media));
 	const { ModalQueueGuard, ModalComponentRegistry } = await ctx.loadModule('modal-queue.mjs');
@@ -6024,6 +6060,7 @@ export async function setup(ctx) {
 
 	ctx.onCharacterLoaded(() => {
 		state.clear_browser_links?.();
+		offline_work_gate.start(game);
 		service_availability.reset();
 		state.service_status = null;
 		state.chat_conversations = state.chat_conversations.filter(entry => !entry.synthetic_service);
@@ -6047,6 +6084,7 @@ export async function setup(ctx) {
 	});
 	ctx.onCharacterSelectionLoaded(() => {
 		state.clear_browser_links?.();
+		offline_work_gate.stop();
 		listing_filter_prompt?.stop();
 		set_crucible_page_visible(false);
 		loaded_save_tracker.clear();

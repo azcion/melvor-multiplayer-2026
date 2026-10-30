@@ -138,7 +138,7 @@ test('observes status changes without heartbeats and sends bounded partial snaps
 	assert.match(main, /payload\.total_skill_level = snapshot\.total_skill_level/);
 	assert.match(main, /const serialized_skills = JSON\.stringify\(snapshot\.skills\)/);
 	assert.match(main, /const serialized_statistics = serialize_status_statistics\(snapshot\)/);
-	assert.match(main, /function status_sync_allowed\(\)[\s\S]*return true/);
+	assert.match(main, /function status_sync_allowed\(\)[\s\S]*return !offline_work_gate\?\.pending\(\)/);
 	assert.doesNotMatch(main, /statistics_sync_allowed && serialized_statistics/);
 	assert.match(main, /serialized_statistics !== last_synced_status_statistics/);
 	assert.match(main, /serialized_skills !== last_synced_status_skills/);

@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { runInNewContext } from 'node:vm';
+import { runInNewContext as run_vm } from 'node:vm';
+
 import * as expedition_tasks from '../../mod/expedition-tasks.mjs';
 import { read_client_source } from './source.mjs';
 import { create_pending_economy_actions } from '../../mod/pending-economy-actions.mjs';
 import { apply_economy_receipt } from '../../mod/economy-receipts.mjs';
+
+function runInNewContext(source, context) {
+	context.offline_work_gate ??= null;
+	return run_vm(source, context);
+}
 
 const root = new URL('../../', import.meta.url);
 
@@ -138,7 +144,7 @@ test('renders phased Chamber work, accepted activities, and obscured passages', 
 	assert.match(main, /EXPEDITION_PENDING_KEY = 'expedition_pending_report'/);
 	assert.match(main, /set_instance_storage_item\(EXPEDITION_PENDING_KEY, pending\)/);
 	assert.match(main, /remove_instance_storage_item\(EXPEDITION_PENDING_KEY\)/);
-	assert.match(main, /refresh_expedition_state\(true\)/);
+	assert.match(main, /offline_work_gate\?\.request\(\)/);
 });
 
 test('continues capturing activities independently of profile sharing', async () => {
@@ -367,6 +373,41 @@ test('captures Magic time under the active skill ID and enables its Expedition r
 	assert.equal(statistics.time_ms['melvorD:AltMagic'], undefined);
 	assert.equal(expedition_tasks.can_track_task({ evidence: { skill_ids: ['melvorD:Magic'] } },
 		[{ type: 'skill', skill_id: 'melvorD:Magic', action_id: 'melvorD:Superheat' }]), true);
+});
+
+test('retains fractional Expedition time counters as whole milliseconds across snapshots', async () => {
+	const main = await read_client_source(root);
+	let smithing_ms = 100_000.75;
+	const capture = runInNewContext(main.slice(main.indexOf('function capture_expedition_work_statistics()'),
+		main.indexOf('function format_expedition_activities')) + '\ncapture_expedition_work_statistics;', {
+		game: { stats: {
+			Smithing: { get: () => smithing_ms },
+			Cartography: { get: () => 0.6 }
+		} }
+	});
+	const start = capture();
+	smithing_ms = 102_500.4;
+	const end = capture();
+	assert.equal(start.time_ms['melvorD:Smithing'], 100_000);
+	assert.equal(end.time_ms['melvorD:Smithing'], 102_500);
+	assert.equal(end.time_ms['melvorD:Smithing'] - start.time_ms['melvorD:Smithing'], 2_500);
+	assert.equal(start.time_ms['melvorAoD:Cartography'], 1);
+});
+
+test('keeps Expedition counter bounds when rounding fractional milliseconds', async () => {
+	const main = await read_client_source(root);
+	let smithing_ms = 0;
+	const capture = runInNewContext(main.slice(main.indexOf('function capture_expedition_work_statistics()'),
+		main.indexOf('function format_expedition_activities')) + '\ncapture_expedition_work_statistics;', {
+		game: { stats: { Smithing: { get: () => smithing_ms } } }
+	});
+	for (const [raw, expected] of [[0, 0], [0.9, 0], [42_000, 42_000],
+		[Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER], [-0.1, undefined], [-1, undefined],
+		[NaN, undefined], [Infinity, undefined], [-Infinity, undefined], [Number.MAX_SAFE_INTEGER + 1, undefined]]) {
+		smithing_ms = raw;
+		assert.equal(capture().time_ms['melvorD:Smithing'], expected, `counter ${raw}`);
+	}
+	assert.equal(capture().time_ms['melvorD:Woodcutting'], undefined);
 });
 
 test('automatic tracking starts eligible work through the saved-report path without a prompt', async () => {

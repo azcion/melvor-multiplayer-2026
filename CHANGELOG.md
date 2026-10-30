@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.17
+
+- Fixed Expedition check-ins during offline calculations; work now reports after offline progress finishes.
+- Fixed Expedition work tracking dropping skill time counters containing fractional milliseconds, preventing affected work from earning EP.
+
 ## 1.6.16
 
 - Accounts with any Dev badge can highlight individual Chat messages with eight preset colors or a custom RGB hex color. The composer previews the glow and clears it after sending; pink @mentions take priority. Composer tools wrap on small screens while the counter and Send stay together.
