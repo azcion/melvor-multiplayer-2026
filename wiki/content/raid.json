@@ -6,7 +6,7 @@
   "articles": [
     {
       "id": "raids",
-      "title": "Raid",
+      "title": "Raid (old)",
       "summary": "Take on a weekend boss with your Guild, one Assault at a time.",
       "aliases": [
         "assault",
@@ -22,6 +22,7 @@
           "id": "weekend",
           "title": "When can we Raid?",
           "paragraphs": [
+            "Raid (old) is the legacy Guild boss event. Its availability depends on the current game and server configuration.",
             "Raids run from Friday at 12:00 UTC to Monday at 12:00 UTC. Check the countdown on the Raid page for the current weekend.",
             "You need to be in an eligible Guild when the Raid opens. If you join a Guild during the weekend, you’ll need to wait for the next Raid. Guilds created after opening also wait until the next cycle."
           ]

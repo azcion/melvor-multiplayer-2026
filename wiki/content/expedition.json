@@ -25,7 +25,7 @@
           "title": "A journey you work on together",
           "paragraphs": [
             "The Expedition takes your Guild through a series of Chambers in the Rift. Each Chamber has tasks the group can work on together. Open Chamber to see what needs doing, or Journey to see where you’ve been and the passages ahead.",
-            "For now, the Expedition follows a fixed Preview route. You may see passages that aren’t available to choose yet; the route information in the game explains where you can go."
+            "Journey reveals visited Chambers and passages as the Expedition progresses. The choices shown in the game depend on the current journey."
           ]
         },
         {
@@ -65,9 +65,9 @@
           "id": "tracking",
           "title": "Making your activity count",
           "steps": [
-            "Choose an unlocked task and start one of the Melvor activities it lists.",
-            "Choose Track this task. If you use Prompt or Automatic tracking, follow that mode’s prompts or selection instead.",
-            "Use Check In to send your progress to the Guild. If there’s a verification or saved-report notice, follow it before switching to another task.",
+            "Open Chamber to see available tasks and the activities that count, then start one of those activities.",
+            "The game automatically selects eligible work and sends check-ins as you play. Follow any notice about work awaiting verification or a saved report.",
+            "If an eligible personal Equipment Project matches your activity, it takes priority over Chamber work. Project work unlocks equipment or food and does not earn EP.",
             "Check the shared task bar to see your contribution and your EP display to see the points you earned."
           ]
         },
@@ -76,8 +76,8 @@
           "title": "Points and the next passage",
           "paragraphs": [
             "Your accepted work earns Expedition Points, usually called EP. A task can only award points up to its remaining allowance. Its progress display separates your work from other players’ contributions and assistance.",
-            "When passage voting opens, eligible participants can vote from Journey. Some passages may be locked, and the Preview route limits which choices are available.",
-            "End-of-journey rewards are still being developed. Don’t plan around a final payout that isn’t shown as available in the game."
+            "When passage voting opens, eligible participants can vote from Journey. Some passages may be locked; check the available choices in the game.",
+            "A successful return can offer a claimable bonus of 20% of your earned EP when you opted in. Check the return summary for your reward."
           ]
         }
       ],

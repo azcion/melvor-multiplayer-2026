@@ -252,7 +252,7 @@ test('EP reference includes all five capacity columns without a donation calcula
 
 test('Raid guide explains shared HP scaling separately from Assault boss HP and fixed tier contributions', async () => {
 	const html = await readFile(join(output_root,'wiki/raids/index.html'),'utf8');
-	assert.match(html,/<title>Raid · Multiplayer Wiki<\/title>/);
+	assert.match(html,/<title>Raid \(old\) · Multiplayer Wiki<\/title>/);
 	assert.match(html,/ceil\(20 × √\(N ÷ 2\)\)/);
 	assert.match(html,/27,500 shared Raid HP/);
 	assert.match(html,/four days/);

@@ -623,6 +623,32 @@ mp-modal-component input.form-control[type="number"],
 	display: none;
 }
 
+#page-header:not(.mp-guild-bg, .mp-transfer-bg, .mp-market-bg,
+	.mp-expedition-bg, .mp-crucible-bg, .mp-raid-bg, .mp-combat-bg)
+	.mp-page-guide-link {
+	display: none !important;
+}
+
+.mp-page-guide {
+	gap: 12px;
+	max-height: min(40dvh, 320px);
+	overflow-y: scroll;
+	-webkit-overflow-scrolling: touch;
+	touch-action: pan-y;
+	overscroll-behavior-y: contain;
+}
+
+.mp-page-guide-heading {
+	font-weight: 600;
+}
+
+.mp-page-guide-actions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 10px;
+}
+
 .mp-guild-bg {
 	background: linear-gradient(135deg, #23628a, #2fae68) !important;
 }

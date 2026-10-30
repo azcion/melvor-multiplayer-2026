@@ -1,3 +1,4 @@
+import { PAGE_GUIDES } from '../../mod/page-guides.mjs';
 import assert from 'node:assert/strict';
 import { access, readFile, readdir } from 'node:fs/promises';
 import test from 'node:test';
@@ -396,7 +397,7 @@ test('localization inventory tracks runtime references and the unresolved baseli
 	const sources = client + '\n' + server;
 	const literals = new Set([...sources.matchAll(/['"](MOD_MP_[A-Z0-9_]+)['"]/g)].map(match => match[1]));
 	// These families are assembled at runtime, including inside HTML bindings.
-	const dynamic = new Set();
+	const dynamic = new Set(PAGE_GUIDES.flatMap(entry => [entry.summary_lang, entry.how_to_lang]));
 	for (const key of ['paused','resume','abandon','check','result','retention','restart','ending','maintenance','expired']) dynamic.add('MOD_MP_COMBAT_RECOVERY_' + key.toUpperCase());
 	// Combat names are built by state.combat_name from target IDs and error values.
 	for (const name of ['target_unavailable', 'golbin', 'golbin_scout', 'mind_golbin', 'golbins', 'plants', 'plant',
