@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.7.0
+
+- Replace Expedition supply donations with one optional personal Rift Preparations task during the shared 20-hour registration window. The fixed eight base-game activities earn up to 20 EP before multitasking penalties and existing limits. Late registrants get the remaining time; preparation never delays departure or changes participant scaling. Historical EP, donation records and committed receipt recovery remain. Held supplies are consumed at Expedition ending without refunds or new Crucible transfers.
+- Correct Expedition multitasking credit: simultaneous activities share verified work; sequential accepted activities retain full credit.
+
 ## 1.6.17
 
 - Fixed Expedition check-ins during offline calculations; work now reports after offline progress finishes.

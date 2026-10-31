@@ -44,6 +44,29 @@ function comparable_evidence(start_json: string, statistics: WorkStatistics, evi
 		statistics.time_ms[skill_id] !== undefined && statistics.time_ms[skill_id] >= start.time_ms[skill_id]);
 }
 
+// A task's skills are alternatives. Aggregate evidence cannot reconstruct offline overlap,
+// so cap accepted work at one wall-time stream before discounting all concurrent skill time.
+function verified_work(start_json: string, statistics: WorkStatistics, activities_json: string,
+	evidence: string[], elapsed_ms: number) {
+	const start = canonical_statistics(JSON.parse(start_json) as WorkStatistics);
+	statistics = canonical_statistics(statistics);
+	evidence = evidence.map(expedition_skill_id);
+	const tolerance = Math.max(30_000, Math.floor(elapsed_ms * 0.02));
+	let target_ms = 0;
+	let total_ms = 0;
+	for (const [skill_id, end_value] of Object.entries(statistics.time_ms)) {
+		const start_value = start.time_ms[skill_id];
+		if (start_value === undefined || end_value < start_value) continue;
+		const delta = Math.min(end_value - start_value, elapsed_ms + tolerance);
+		total_ms += delta;
+		if (evidence.includes(skill_id)) target_ms += delta;
+	}
+	const concurrency = elapsed_ms === 0 ? 1 : Math.max(1, total_ms / elapsed_ms);
+	const observed = eligible_activity(JSON.parse(activities_json) as Activity[], evidence);
+	const verified_ms = observed ? Math.floor(Math.min(elapsed_ms, target_ms) / concurrency) : 0;
+	return { target_ms, total_ms, concurrency, verified_ms };
+}
+
 function pending_response(boundary_at: number): JsonObject {
 	return { success: true, pending: true, boundary_at, settle_zero_at: boundary_at + UNVERIFIED_WAIT_MS,
 		reason: 'awaiting_boundary_snapshot' };
@@ -134,22 +157,8 @@ function settle(session: Session, statistics: WorkStatistics, activities: Activi
 	const captured_elapsed_ms = captured_at - session.started_at;
 	if (captured_elapsed_ms < 0 || captured_at > now) return { success: false, error: 'invalid_capture_time' };
 	const elapsed_ms = captured_elapsed_ms;
-	const start = canonical_statistics(JSON.parse(session.start_statistics) as WorkStatistics);
-	statistics = canonical_statistics(statistics);
-	const start_activities = JSON.parse(session.start_activities) as Activity[];
-	const tolerance = Math.max(30_000, Math.floor(elapsed_ms * 0.02));
-	let target_ms = 0;
-	let total_ms = 0;
-	for (const [skill_id, end_value] of Object.entries(statistics.time_ms)) {
-		const start_value = start.time_ms[skill_id];
-		if (start_value === undefined || end_value < start_value) continue;
-		const delta = Math.min(end_value - start_value, elapsed_ms + tolerance);
-		total_ms += delta;
-		if (definition.evidence.skill_ids.includes(skill_id)) target_ms += delta;
-	}
-	const concurrency = elapsed_ms === 0 ? 1 : Math.max(1, total_ms / elapsed_ms);
-	const observed = eligible_activity(start_activities, definition.evidence.skill_ids);
-	const verified_ms = observed ? Math.min(elapsed_ms, Math.floor(target_ms / concurrency)) : 0;
+	const { target_ms, total_ms, concurrency, verified_ms } = verified_work(session.start_statistics,
+		statistics, session.start_activities, definition.evidence.skill_ids, elapsed_ms);
 	const preparing = visit.chamber_id === PREPARATION_CHAMBER_ID;
 	const cutoff = Math.min(captured_at, visit.departed_at ?? captured_at,
 		tenure.ended_at ?? captured_at, expedition.ended_at ?? captured_at,
@@ -195,22 +204,8 @@ function settle_claim(claim: Claim, statistics: WorkStatistics, captured_at: num
 	if (captured_at < claim.started_at || captured_at > now)
 		return { success: false, error: 'invalid_capture_time' };
 	const elapsed_ms = captured_at - claim.started_at;
-	const start = canonical_statistics(JSON.parse(claim.start_statistics) as WorkStatistics);
-	statistics = canonical_statistics(statistics);
-	const evidence = (JSON.parse(claim.evidence_skill_ids) as string[]).map(expedition_skill_id);
-	const tolerance = Math.max(30_000, Math.floor(elapsed_ms * 0.02));
-	let target_ms = 0;
-	let total_ms = 0;
-	for (const [skill_id, end_value] of Object.entries(statistics.time_ms)) {
-		const start_value = start.time_ms[skill_id];
-		if (start_value === undefined || end_value < start_value) continue;
-		const delta = Math.min(end_value - start_value, elapsed_ms + tolerance);
-		total_ms += delta;
-		if (evidence.includes(skill_id)) target_ms += delta;
-	}
-	const concurrency = elapsed_ms === 0 ? 1 : Math.max(1, total_ms / elapsed_ms);
-	const observed = eligible_activity(JSON.parse(claim.start_activities) as Activity[], evidence);
-	const verified_ms = observed ? Math.min(elapsed_ms, Math.floor(target_ms / concurrency)) : 0;
+	const { target_ms, total_ms, concurrency, verified_ms } = verified_work(claim.start_statistics,
+		statistics, claim.start_activities, JSON.parse(claim.evidence_skill_ids) as string[], elapsed_ms);
 	const eligible_elapsed_ms = Math.max(0, Math.min(captured_at, claim.cutoff_at) - claim.started_at);
 	const overlong = Math.max(claim.max_observation_gap_ms,
 		captured_at - (claim.last_observed_at ?? claim.started_at)) > RECENTLY_ACTIVE_AFTER;

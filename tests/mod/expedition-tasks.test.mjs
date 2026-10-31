@@ -75,10 +75,12 @@ test('work prompts offer only unlocked unfinished matching tasks for registered 
 	assert.deepEqual(eligible_prompt_tasks({ expedition: { ...state.expedition, registered: false } }, activities), []);
 	assert.deepEqual(eligible_prompt_tasks({ expedition: { ...state.expedition, status: 'inactive' } }, activities), []);
 	assert.deepEqual(eligible_prompt_tasks(state, []), []);
-	const registration = { ...state.expedition, status: 'registration' };
+	const registration = { ...state.expedition, status: 'registration', registration_ends_at: Date.now() + 10000 };
 	assert.deepEqual(eligible_prompt_tasks({ expedition: registration }, activities), []);
 	assert.deepEqual(eligible_prompt_tasks({ expedition: { ...registration,
 		chamber: { ...registration.chamber, preparation: true } } }, activities).map(task => task.task_id), ['chart', 'hidden']);
+	assert.deepEqual(eligible_prompt_tasks({ expedition: { ...registration, registration_ends_at: Date.now() - 1,
+		chamber: { ...registration.chamber, preparation: true } } }, activities), []);
 });
 
 test('work prompts delay login, wait for modals and suppress repeated reminders until activity changes', () => {

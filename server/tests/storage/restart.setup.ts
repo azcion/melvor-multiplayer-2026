@@ -1,3 +1,4 @@
+import { setup_preparation_restart } from '../support/preparation-restart';
 import { setup_browser_chat_restart } from '../support/browser-chat-restart';
 import {setup_rollback_restart} from '../support/rollback-restart';
 import { enter_transition_raid, seed_transition_raid } from '../support/raid';
@@ -271,6 +272,7 @@ test('creates representative state before a server restart', async () => {
 		rollback: await setup_rollback_restart(),
 		alliance,
 		expedition_work,
+		preparation: await setup_preparation_restart(),
 		installation: { ...installed.json, installation_id, installation_key },
 		...pair,
 		gift_id,

@@ -1,14 +1,13 @@
+import type { JsonObject } from './http';
+import { PREPARATION_CHAMBER_ID, close_preparations, ensure_preparations, get_preparation_chamber } from './expedition-preparations';
 import { record_economy_operation } from './save-rollback';
 import { db } from './db';
 import { EXPEDITION_CONTENT_PREVIEW, preview_task_available, parse_expedition_content } from './expedition-content';
 import type { ExpeditionChamber, ExpeditionContent } from './expedition-content';
 import { RECENTLY_ACTIVE_AFTER } from './recent-activity';
 import { createHash } from 'node:crypto';
-import type { JsonObject } from './http';
 import { update_unlocks } from './expedition-work';
-import { transfer_expedition_stash_to_crucible } from './crucible-actions';
-import { PREPARATION_CHAMBER_ID, close_preparations, consume_preparation_rolls, ensure_preparations,
-	get_preparation_chamber } from './expedition-preparations';
+import { destroy_expedition_stash } from './crucible-actions';
 
 export const EXPEDITION_REGISTRATION_MS = 20 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
@@ -176,7 +175,7 @@ function dispose_stash(expedition: ExpeditionRow, now: number): void {
 			.run(expedition.id);
 		return;
 	}
-	const outcome = transfer_expedition_stash_to_crucible(expedition.guild_id, expedition.id, now);
+	const outcome = destroy_expedition_stash(expedition.guild_id, expedition.id, now);
 	db.query('INSERT INTO expedition_crucible_outcomes ' +
 		'(expedition_id, source_guild_id, outcome, disposed_at) VALUES (?, ?, ?, ?)')
 		.run(expedition.id, expedition.guild_id, outcome, now);
@@ -408,7 +407,6 @@ export function reconcile_expedition_visit(guild_id: number,
 				.run(now, visit.id);
 			db.query("UPDATE expeditions SET status = 'completed', ended_at = ?, current_visit_id = NULL, " +
 				'revision = revision + 1 WHERE id = ?').run(now, expedition.id);
-			consume_preparation_rolls(expedition.id);
 			return true;
 		}
 		if (!visit.chosen_exit_id) return false;
@@ -596,7 +594,8 @@ export function get_expedition_state(guild_id: number, client_id: number, now = 
 				chosen_exit_label: target ? chamber_names.get(target) ?? target : null };
 		});
 		let chamber: JsonObject | null = null;
-		if (registered && expedition.status === 'registration') {
+		// Past the deadline an idle Expedition can stay in registration, but preparation work is closed.
+		if (registered && expedition.status === 'registration' && now < expedition.registration_ends_at) {
 			ensure_preparations(expedition.id, client_id, now);
 			chamber = get_preparation_chamber(expedition.id, client_id);
 		}

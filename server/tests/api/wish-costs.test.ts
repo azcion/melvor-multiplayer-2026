@@ -1,3 +1,4 @@
+import { legacy_supply } from '../support/legacy-supply-fixture';
 import { expect, test } from 'bun:test';
 import { make_guildmates, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post_json, post } from '../support/http';
@@ -111,19 +112,11 @@ test('EP arriving after an unaffordable renewal does not silently revive it',asy
 	const registered=(await post_json<any>('/api/expedition/register',{operation_id:crypto.randomUUID()},player.session_token)).json;
 	await db_run('UPDATE expedition_ep_balances SET points_micros=0 WHERE client_id=?',[player.client_id]);
 	await db_run('INSERT INTO wish_capacities(client_id,base,expires_at,auto_renew) VALUES(?,200,?,1)',[player.client_id,Date.now()-1]);
-	// Earn EP through two verified hours of Rift Preparations work.
-	const chamber=(await get_json_with_session<any>('/api/expedition/state',player.session_token)).json.expedition.chamber;
-	const task_id=chamber.tasks[0].task_id;
-	await db_run('UPDATE expedition_preparation_tasks SET skill_id=? WHERE visit_id=? AND task_id=?',['melvorD:Woodcutting',chamber.visit_id,task_id]);
-	const report=(kind:string,value:number)=>post_json<any>(`/api/expedition/task/${kind}`,{operation_id:crypto.randomUUID(),
-		expedition_id:registered.expedition_id,visit_id:chamber.visit_id,task_id,statistics:{version:1,time_ms:{'melvorD:Woodcutting':value}},
-		activities:[{type:'skill',skill_id:'melvorD:Woodcutting',action_id:'melvorD:Normal_Tree'}],captured_at:Date.now()},player.session_token);
-	const started=(await report('start',0)).json;const started_at=Date.now()-2*3600000;
-	await db_run('UPDATE expedition_work_sessions SET started_at=?,last_observed_at=?,start_clock_offset_ms=0 WHERE id=?',[started_at,started_at,started.tracking.session_id]);
-	const earned=(await report('stop',2*3600000)).json.settlement;
-	expect(earned.points_micros).toBeGreaterThan(1900000);
+	const earned=(await legacy_supply('/api/expedition/supply/donate',{command_id:crypto.randomUUID(),expedition_id:registered.expedition_id,
+		item_id:'melvorD:Shrimp',qty:100000,source:'bank',value_currency_id:'melvorD:GP',value_per_item:2},player.session_token)).json;
+	expect(earned.success).toBe(true);expect(earned.delta_micros).toBeGreaterThan(10000000);
 	const state=(await get_json_with_session<any>('/api/crucible/contents',player.session_token)).json;
-	expect(state.capacity).toMatchObject({base:100,auto_renew:false,renewal_paused:true,points_micros:earned.points_micros});
+	expect(state.capacity).toMatchObject({base:100,auto_renew:false,renewal_paused:true,points_micros:earned.delta_micros});
 	expect(await db_all('SELECT id FROM wish_ep_spends WHERE client_id=?',[player.client_id])).toEqual([]);
 });
 

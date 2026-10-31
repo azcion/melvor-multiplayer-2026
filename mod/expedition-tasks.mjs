@@ -41,7 +41,8 @@ export function eligible_prompt_tasks(expedition_state, activities) {
 	const expedition = expedition_state?.expedition;
 	const chamber = expedition?.chamber;
 	// Rift Preparations are personal tasks offered while registration is open.
-	const open = expedition?.status === 'active' || (expedition?.status === 'registration' && chamber?.preparation === true);
+	const open = expedition?.status === 'active' || (expedition?.status === 'registration' && chamber?.preparation === true &&
+		Date.now() < expedition.registration_ends_at);
 	if (!open || !expedition.registered || expedition_state.tracking)
 		return [];
 	const discovered = new Set((chamber?.exits ?? []).filter(exit => exit.label !== '???').map(exit => exit.id));

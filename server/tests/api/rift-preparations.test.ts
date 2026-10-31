@@ -3,13 +3,13 @@ import { make_guildmates, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post_json } from '../support/http';
 import type { RegisteredClient } from '../support/http';
 import { db_all, db_run } from '../support/persistence';
-import { EXPEDITION_CONTENT_V1, EXPEDITION_WORK_SKILLS } from '../../expedition-content';
+import { PREPARATION_SKILLS } from '../../expedition-preparations';
 
 const HOUR_MS = 3_600_000;
 const woodcutting = { type: 'skill', skill_id: 'melvorD:Woodcutting', action_id: 'melvorD:Normal_Tree' };
 
 type Chamber = { id: string; visit_id: number; preparation?: boolean; tasks: {
-	task_id: string; slot: number; target_ms: number; player_ms: number; completed_at: number | null;
+	task_id: string; title: string; target_ms: number; player_ms: number; completed_at: number | null;
 	requirement: string; evidence: { skill_ids: string[] };
 }[] };
 type State = { expedition: { id: number; status: string; chamber: Chamber | null;
@@ -24,18 +24,10 @@ async function register(client: RegisteredClient) {
 		{ operation_id: crypto.randomUUID() }, client.session_token)).json.expedition_id;
 }
 
-async function account(ids: number[]) {
-	const key = crypto.randomUUID();
-	await db_run('INSERT INTO melvor_accounts(cloud_username,playfab_id,created_at) VALUES(?,?,?)', [key, key, Date.now()]);
-	const row = (await db_all<{ id: number }>('SELECT id FROM melvor_accounts WHERE playfab_id=?', [key]))[0]!;
-	for (const id of ids) await db_run('UPDATE clients SET melvor_account_id=? WHERE id=?', [row.id, id]);
-}
-
-// Works the first preparation slot as Woodcutting for the given verified duration.
+// Works the preparation task as Woodcutting for the given verified duration.
 async function work(client: RegisteredClient, expedition_id: number, chamber: Chamber, duration_ms: number) {
 	const task = chamber.tasks[0]!;
-	await db_run('UPDATE expedition_preparation_tasks SET skill_id = ? WHERE visit_id = ? AND task_id = ?',
-		['melvorD:Woodcutting', chamber.visit_id, task.task_id]);
+
 	const report = (kind: string, value: number, captured_at = Date.now()) => post_json<any>(`/api/expedition/task/${kind}`, {
 		operation_id: crypto.randomUUID(), expedition_id, visit_id: chamber.visit_id, task_id: task.task_id,
 		statistics: { version: 1, time_ms: { 'melvorD:Woodcutting': value } }, activities: [woodcutting], captured_at
@@ -49,17 +41,16 @@ async function work(client: RegisteredClient, expedition_id: number, chamber: Ch
 }
 
 describe('Rift Preparations', () => {
-	test('gives each registrant three distinct personal skills totalling 20 hours', async () => {
+	test('gives each registrant one optional 20 hour task over the fixed eight activities', async () => {
 		const guild = await make_guildmates('Prep One', 'Prep Two', 'Prep Guild');
 		await register(guild.first);
 		const expedition = await state(guild.first);
 		expect(expedition.status).toBe('registration');
 		expect(expedition.chamber?.preparation).toBe(true);
 		const tasks = expedition.chamber!.tasks;
-		expect(tasks.map(task => task.target_ms)).toEqual([8 * HOUR_MS, 6 * HOUR_MS, 6 * HOUR_MS]);
-		const skills = tasks.map(task => task.evidence.skill_ids[0]!);
-		expect(new Set(skills).size).toBe(3);
-		for (const skill of skills) expect(EXPEDITION_WORK_SKILLS.has(skill)).toBe(true);
+		expect(tasks.map(task => [task.title, task.target_ms])).toEqual([['Gather Rift Provisions', 20 * HOUR_MS]]);
+		const skills = tasks[0]!.evidence.skill_ids;
+		expect(skills).toEqual([...PREPARATION_SKILLS]);
 		expect(tasks.every(task => task.requirement === 'optional' && task.player_ms === 0)).toBe(true);
 		// Unregistered guildmates see no personal tasks and never anyone else's.
 		expect((await state(guild.second)).chamber).toBeNull();
@@ -69,7 +60,7 @@ describe('Rift Preparations', () => {
 		expect(second.tasks.map(task => task.task_id)).not.toContain(tasks[0]!.task_id);
 	});
 
-	test('credits one EP per verified hour and caps the slot at its target', async () => {
+	test('credits one EP per verified hour and caps the task at its target', async () => {
 		const guild = await make_guildmates('Prep Worker', 'Prep Witness', 'Prep Work Guild');
 		const expedition_id = await register(guild.first);
 		const chamber = (await state(guild.first)).chamber!;
@@ -81,13 +72,13 @@ describe('Rift Preparations', () => {
 		expect(after.tasks[0]!.player_ms).toBe(result.settlement.credited_ms);
 		expect(await db_all("SELECT points_micros FROM expedition_ep_ledger WHERE client_id = ? AND source_kind = 'work'",
 			[guild.first_id])).toEqual([{ points_micros: result.settlement.points_micros }]);
-		// Another start may only earn what remains of the 8 hour slot.
-		const rest = await work(guild.first, expedition_id, after, 7 * HOUR_MS);
-		expect(rest.settlement.credited_ms).toBe(8 * HOUR_MS - result.settlement.credited_ms);
+		// Another start may only earn what remains of the 20 hour task.
+		const rest = await work(guild.first, expedition_id, after, 19 * HOUR_MS);
+		expect(rest.settlement.credited_ms).toBe(20 * HOUR_MS - result.settlement.credited_ms);
 		expect((await state(guild.first)).chamber!.tasks[0]!.completed_at).toBeNumber();
 	});
 
-	test('rejects another player\'s slot and work after registration closes', async () => {
+	test('rejects another player\'s task and work after registration closes', async () => {
 		const guild = await make_guildmates('Prep Owner', 'Prep Intruder', 'Prep Owner Guild');
 		const expedition_id = await register(guild.first);
 		await register(guild.second);
@@ -109,57 +100,85 @@ describe('Rift Preparations', () => {
 			[chamber.visit_id])).toEqual([{ closed: 1 }]);
 	});
 
-	test('keeps the skill roll across Guild hops and alternate characters but resets progress', async () => {
-		const first = await register_guild_client('Prep Hopper', 'Prep Hop One');
-		const alt = await register_guild_client('Prep Hopper Alt', 'Prep Hop Alt');
-		await account([first.client_id, alt.client_id]);
-		const expedition_id = await register(first);
-		const original = (await state(first)).chamber!;
-		const skills = original.tasks.map(task => task.evidence.skill_ids[0]);
-		await work(first, expedition_id, original, HOUR_MS);
-		await post_json('/api/guilds/leave', {}, first.session_token);
-		await post_json('/api/guilds/create', { name: 'Prep Hop Two', icon_id: 'melvorD:Farmlands' }, first.session_token);
-		await register(first);
-		const hopped = (await state(first)).chamber!;
-		expect(hopped.visit_id).not.toBe(original.visit_id);
-		expect(hopped.tasks.map(task => task.evidence.skill_ids[0])).toEqual(skills);
-		expect(hopped.tasks.every(task => task.player_ms === 0)).toBe(true);
-		await register(alt);
-		expect((await state(alt)).chamber!.tasks.map(task => task.evidence.skill_ids[0])).toEqual(skills);
+	test('hides preparations once registration ends even while the Expedition waits for activity', async () => {
+		const guild = await make_guildmates('Prep Late', 'Prep Late Two', 'Prep Late Guild');
+		const expedition_id = await register(guild.first);
+		await db_run('UPDATE expeditions SET registered_at = 0, registration_ends_at = ?, last_qualifying_activity_at = ? WHERE id = ?',
+			[Date.now() - 1, Date.now(), expedition_id]);
+		await db_run('UPDATE clients SET last_multiplayer_active_at = 0 WHERE id IN (?, ?)', [guild.first_id, guild.second_id]);
+		const late = await state(guild.first);
+		expect(late.status).toBe('registration');
+		expect(late.chamber).toBeNull();
 	});
 
-	test('rolls new skills only after an Expedition the player registered for is completed', async () => {
-		const guild = await make_guildmates('Prep Finisher', 'Prep Partner', 'Prep Finish Guild');
+
+	test.each(['parallel accepted', 'parallel unaccepted', 'sequential accepted', 'solo', 'combat'])(
+		'uses corrected verification for %s activity and replays concurrent reports', async mode => {
+		const guild = await make_guildmates('Fixed Worker', 'Fixed Witness', 'Fixed Skills');
 		const expedition_id = await register(guild.first);
-		await db_run('UPDATE expedition_preparation_rolls SET skill_ids = ? WHERE owner_key = ?',
-			[JSON.stringify(['melvorD:Mining', 'melvorD:Fishing', 'melvorD:Cooking']), `client:${guild.first_id}`]);
-		await db_run('UPDATE expeditions SET registered_at = ?, registration_ends_at = ? WHERE id = ?',
-			[Date.now() - 20 * HOUR_MS - 1, Date.now() - 1, expedition_id]);
-		const visit_id = (await state(guild.first)).chamber!.visit_id;
-		const ending = EXPEDITION_CONTENT_V1.chambers.find(chamber => chamber.type === 'ending')!;
-		await db_run('DELETE FROM expedition_tasks WHERE visit_id = ?', [visit_id]);
-		await db_run('DELETE FROM expedition_exits WHERE visit_id = ?', [visit_id]);
-		await db_run('UPDATE expedition_visits SET chamber_id = ? WHERE id = ?', [ending.id, visit_id]);
-		for (const task of ending.tasks.filter(task => task.kind !== 'scout'))
-			await db_run('INSERT INTO expedition_tasks (visit_id, task_id, target_ms, player_ms, unlocked_at, completed_at) VALUES (?, ?, ?, ?, ?, ?)',
-				[visit_id, task.id, HOUR_MS, task.requirement === 'required' ? HOUR_MS : 0,
-					Date.now(), task.requirement === 'required' ? Date.now() : null]);
-		expect((await state(guild.first)).status).toBe('completed');
-		expect(await db_all('SELECT owner_key FROM expedition_preparation_rolls WHERE owner_key = ?',
-			[`client:${guild.first_id}`])).toEqual([]);
-		await register(guild.first);
-		expect((await state(guild.first)).chamber!.tasks).toHaveLength(3);
+		const chamber = (await state(guild.first)).chamber!;
+		const second = mode === 'parallel unaccepted' ? 'melvorD:Agility' : 'melvorD:Fishing';
+		const first = mode === 'combat' ? 'melvorD:Combat' : 'melvorD:Woodcutting';
+		const activities = mode === 'combat' ? [{ type: 'combat' }] : [woodcutting];
+		const statistics = { version: 1, time_ms: { [first]: 1000, [second]: 1000 } };
+		const base = { expedition_id, visit_id: chamber.visit_id, task_id: chamber.tasks[0]!.task_id, activities };
+		const start_payload = { ...base, operation_id: crypto.randomUUID(), statistics, captured_at: Date.now() };
+		const starts = await Promise.all([0, 1].map(() => post_json<any>('/api/expedition/task/start', start_payload, guild.first.session_token)));
+		expect(starts[0]!.json).toEqual(starts[1]!.json);
+		const session_id = starts[0]!.json.tracking.session_id;
+		const now = Date.now(), started = now - HOUR_MS;
+		await db_run('UPDATE expedition_work_sessions SET started_at=?,last_observed_at=?,start_clock_offset_ms=0 WHERE id=?', [started, started, session_id]);
+		const parallel = mode.startsWith('parallel');
+		const sequential = mode === 'sequential accepted';
+		const end = { version: 1, time_ms: { [first]: 1000 + (sequential ? HOUR_MS / 2 : HOUR_MS),
+			[second]: 1000 + (parallel ? HOUR_MS : sequential ? HOUR_MS / 2 : 0) } };
+		const payload = { ...base, operation_id: crypto.randomUUID(), statistics: end, captured_at: now };
+		const replies = await Promise.all([0, 1].map(() => post_json<any>('/api/expedition/task/stop', payload, guild.first.session_token)));
+		expect(replies[0]!.json).toEqual(replies[1]!.json);
+		expect(replies[0]!.json.settlement.credited_ms).toBe(parallel ? HOUR_MS / 2 : HOUR_MS);
+		expect(replies[0]!.json.settlement.points_micros).toBe(parallel ? 500000 : 1000000);
+		expect(await db_all("SELECT points_micros FROM expedition_ep_ledger WHERE source_kind='work' AND source_id=?", [session_id]))
+			.toEqual([{ points_micros: parallel ? 500000 : 1000000 }]);
 	});
 
-	test('keeps the roll when an Expedition ends without completing', async () => {
-		const guild = await make_guildmates('Prep Idle', 'Prep Idle Two', 'Prep Idle Guild');
-		const expedition_id = await register(guild.first);
-		const before = await db_all('SELECT skill_ids FROM expedition_preparation_rolls WHERE owner_key = ?', [`client:${guild.first_id}`]);
-		await db_run('UPDATE expeditions SET last_qualifying_activity_at = ? WHERE id = ?', [0, expedition_id]);
-		expect((await state(guild.first)).status).toBe('inactive');
-		expect(await db_all('SELECT skill_ids FROM expedition_preparation_rolls WHERE owner_key = ?', [`client:${guild.first_id}`]))
-			.toEqual(before);
+	test.each([false, true])('retains the deadline for late offline work, dissolved=%s', async dissolved => {
+		const player = await register_guild_client('Deadline Worker', 'Deadline Guild');
+		const expedition_id = await register(player);
+		const chamber = (await state(player)).chamber!;
+		const base = { expedition_id, visit_id: chamber.visit_id, task_id: chamber.tasks[0]!.task_id,
+			activities: [woodcutting] };
+		const start = await post_json<any>('/api/expedition/task/start', { ...base, operation_id: crypto.randomUUID(),
+			statistics: { version: 1, time_ms: { 'melvorD:Woodcutting': 0 } }, captured_at: Date.now() }, player.session_token);
+		const now = Date.now(), started = now - HOUR_MS, deadline = started + HOUR_MS / 2;
+		await db_run('UPDATE expedition_work_sessions SET started_at=?,last_observed_at=?,start_clock_offset_ms=0 WHERE id=?', [started, started, start.json.tracking.session_id]);
+		await db_run('UPDATE expeditions SET registered_at=?,registration_ends_at=? WHERE id=?', [started - 19 * HOUR_MS, deadline, expedition_id]);
+		if (dissolved) {
+			await post_json('/api/guilds/leave', {}, player.session_token);
+			const claim = await db_all<{ cutoff_at: number }>('SELECT cutoff_at FROM expedition_work_claims WHERE session_id=?', [start.json.tracking.session_id]);
+			expect(claim).toEqual([{ cutoff_at: deadline }]);
+		}
+		const payload = { ...base, operation_id: crypto.randomUUID(), statistics: { version: 1,
+			time_ms: { 'melvorD:Woodcutting': HOUR_MS } }, captured_at: now };
+		const result = await post_json<any>('/api/expedition/task/stop', payload, player.session_token);
+		expect(result.json.settlement.credited_ms).toBe(HOUR_MS / 2);
+		expect(result.json.settlement.points_micros).toBe(500000);
+		expect((await post_json<any>('/api/expedition/task/stop', payload, player.session_token)).json).toEqual(result.json);
 	});
+
+	test('late registrants share the original deadline and do not need to complete preparations to scale', async () => {
+		const guild = await make_guildmates('Early Prep', 'Late Prep', 'Late Registration');
+		const expedition_id = await register(guild.first);
+		const deadline = Date.now() + HOUR_MS;
+		await db_run('UPDATE expeditions SET registered_at=?,registration_ends_at=? WHERE id=?', [deadline - 20 * HOUR_MS, deadline, expedition_id]);
+		await register(guild.second);
+		expect(await db_all('SELECT registration_ends_at FROM expeditions WHERE id=?', [expedition_id])).toEqual([{ registration_ends_at: deadline }]);
+		expect((await state(guild.second)).chamber!.tasks[0]!.player_ms).toBe(0);
+		await db_run('UPDATE expeditions SET registration_ends_at=? WHERE id=?', [Date.now()-1, expedition_id]);
+		const departed = await state(guild.first);
+		expect(departed.status).toBe('active');
+		expect((departed.chamber as any).participant_count).toBe(2);
+	});
+
 });
 
 describe('Expedition supplies', () => {

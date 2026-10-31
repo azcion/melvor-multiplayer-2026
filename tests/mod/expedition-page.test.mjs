@@ -133,6 +133,7 @@ test('renders phased Chamber work, accepted activities, and obscured passages', 
 	assert.match(chamber, /<strong>\{\{ state\.expedition_state\?\.expedition\?\.registered_count \}\}<\/strong> <lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTERED"/);
 	assert.match(chamber, /MOD_MP_EXPEDITION_UI_YOU_ARE_REGISTERED/);
 	assert.match(chamber, /MOD_MP_EXPEDITION_PREPARATIONS_HINT/);
+	assert.match(page, /chamber\?\.preparation \? getLangString\('MOD_MP_EXPEDITION_PERSONAL'\)/);
 	assert.doesNotMatch(page, /expedition_supply|MOD_MP_EXPEDITION_UI_EXPEDITION_STASH|expedition-supply-modal/);
 	assert.match(page, /chamber\?\.preparation \? getLangString\('MOD_MP_EXPEDITION_PREPARATIONS'\)/);
 	assert.match(page, /mp-expedition-chamber-card" v-if="!state\.expedition_state\?\.expedition\?\.chamber\?\.preparation"/);

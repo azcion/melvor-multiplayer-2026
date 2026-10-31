@@ -113,7 +113,6 @@ describe('SQLite persistence probe', () => {
 			'expedition_membership_tenures',
 			'expedition_operations',
 			'expedition_personal_records',
-			'expedition_preparation_rolls',
 			'expedition_preparation_tasks',
 			'expedition_registrations',
 			'expedition_stash_disposals',
