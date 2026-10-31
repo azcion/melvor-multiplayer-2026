@@ -39,9 +39,12 @@ export function task_available_points_micros(task) {
 
 export function eligible_prompt_tasks(expedition_state, activities) {
 	const expedition = expedition_state?.expedition;
-	if (expedition?.status !== 'active' || !expedition.registered || expedition_state.tracking)
+	const chamber = expedition?.chamber;
+	// Rift Preparations are personal tasks offered while registration is open.
+	const open = expedition?.status === 'active' || (expedition?.status === 'registration' && chamber?.preparation === true &&
+		Date.now() < expedition.registration_ends_at);
+	if (!open || !expedition.registered || expedition_state.tracking)
 		return [];
-	const chamber = expedition.chamber;
 	const discovered = new Set((chamber?.exits ?? []).filter(exit => exit.label !== '???').map(exit => exit.id));
 	return (chamber?.tasks ?? []).filter(task => task.unlocked_at != null && task.completed_at == null &&
 		(task.requirement !== 'conditional' || discovered.has(task.exit_id)) && can_track_task(task, activities));

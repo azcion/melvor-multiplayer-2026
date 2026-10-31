@@ -170,7 +170,7 @@ async function client({ saved = null } = {}) {
 		schedule_status_sync: () => sent.push({ endpoint: 'status' }), log() {},
 		setTimeout: () => 1, clearTimeout() {},
 	};
-	const source = section(main, 'async function refresh_expedition_state(', 'function update_expedition_supply_qty') +
+	const source = section(main, 'async function refresh_expedition_state(', 'async function register_expedition(') +
 		section(main, 'async function retry_expedition_report(', 'async function vote_expedition_exit(') +
 		section(main, 'function status_sync_allowed()', 'function schedule_status_sync(') +
 		section(main, "\tconst { create_offline_work_gate }", "\tconst { create_asset_url_resolver }");

@@ -1,3 +1,4 @@
+import { legacy_supply } from '../support/legacy-supply-fixture';
 import { expect, test } from 'bun:test';
 import { make_guildmates, register_guild_client } from '../support/fixtures';
 import { get_json_with_session, post_json, post } from '../support/http';
@@ -111,7 +112,7 @@ test('EP arriving after an unaffordable renewal does not silently revive it',asy
 	const registered=(await post_json<any>('/api/expedition/register',{operation_id:crypto.randomUUID()},player.session_token)).json;
 	await db_run('UPDATE expedition_ep_balances SET points_micros=0 WHERE client_id=?',[player.client_id]);
 	await db_run('INSERT INTO wish_capacities(client_id,base,expires_at,auto_renew) VALUES(?,200,?,1)',[player.client_id,Date.now()-1]);
-	const earned=(await post_json<any>('/api/expedition/supply/donate',{command_id:crypto.randomUUID(),expedition_id:registered.expedition_id,
+	const earned=(await legacy_supply('/api/expedition/supply/donate',{command_id:crypto.randomUUID(),expedition_id:registered.expedition_id,
 		item_id:'melvorD:Shrimp',qty:100000,source:'bank',value_currency_id:'melvorD:GP',value_per_item:2},player.session_token)).json;
 	expect(earned.success).toBe(true);expect(earned.delta_micros).toBeGreaterThan(10000000);
 	const state=(await get_json_with_session<any>('/api/crucible/contents',player.session_token)).json;

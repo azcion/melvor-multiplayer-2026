@@ -384,4 +384,37 @@ export const migrations: Migration[] = [
 			CHECK(highlight_color IS NULL OR (length(highlight_color) = 7 AND
 				substr(highlight_color, 1, 1) = '#' AND substr(highlight_color, 2) NOT GLOB '*[^0-9a-fA-F]*'));
 	` },
+	{ version: 194, sql: `
+		CREATE TABLE expedition_preparation_tasks (
+			visit_id INTEGER NOT NULL,
+			task_id TEXT NOT NULL,
+			client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+			skill_ids TEXT NOT NULL CHECK (json_valid(skill_ids) AND json_array_length(skill_ids) = 8),
+			PRIMARY KEY (visit_id, task_id),
+			UNIQUE (visit_id, client_id),
+			FOREIGN KEY (visit_id, task_id) REFERENCES expedition_tasks(visit_id, task_id) ON DELETE CASCADE
+		) STRICT;
+		DROP TRIGGER expedition_claim_on_guild_delete;
+		CREATE TRIGGER expedition_claim_on_guild_delete BEFORE DELETE ON guilds BEGIN
+			INSERT OR IGNORE INTO expedition_work_claims
+				(session_id, client_id, expedition_id, visit_id, task_id, started_at, cutoff_at,
+				start_statistics, start_activities, evidence_skill_ids, last_observed_at, max_observation_gap_ms,
+				pending_boundary_at, pending_capture_at, start_clock_offset_ms, pending_reported_capture_at, reward_remaining_ms)
+			SELECT session.id, session.client_id, session.expedition_id, session.visit_id, session.task_id,
+				session.started_at,
+				MAX(session.started_at, MIN(COALESCE(tenure.ended_at, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)),
+					COALESCE(visit.departed_at, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)),
+					COALESCE(expedition.ended_at, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)),
+					CASE WHEN visit.chamber_id = 'rift_preparations' THEN expedition.registration_ends_at ELSE 9007199254740991 END,
+				CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER))),
+				session.start_statistics, session.start_activities, session.evidence_skill_ids,
+				session.last_observed_at, session.max_observation_gap_ms,
+				session.pending_boundary_at, session.pending_capture_at, session.start_clock_offset_ms, session.pending_reported_capture_at, session.reward_remaining_ms
+			FROM expedition_work_sessions AS session
+			JOIN expeditions AS expedition ON expedition.id = session.expedition_id
+			JOIN expedition_membership_tenures AS tenure ON tenure.id = session.tenure_id
+			JOIN expedition_visits AS visit ON visit.id = session.visit_id
+			WHERE expedition.guild_id = OLD.id AND session.ended_at IS NULL;
+		END;
+	` },
 ];

@@ -117,12 +117,7 @@
 							<p>{{ state.expedition_text('MOD_MP_EXPEDITION_REGISTRATION_CLOSES_IN', state.expedition_time_remaining(state.expedition_state?.expedition?.registration_ends_at)) }}</p>
 							<button type="button" class="mp-expedition-button" v-if="!state.expedition_state?.expedition?.registered" :disabled="state.expedition_action_pending" @click="state.register_expedition()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTER_FOR_THIS_EXPEDITION"></lang-string></button>
 							<p v-else><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOU_ARE_REGISTERED"></lang-string></p>
-						</div>
-						<div class="mp-expedition-panel" v-if="state.expedition_state?.expedition?.registered && !state.is_social_only">
-							<h3><lang-string lang-id="MOD_MP_EXPEDITION_UI_EXPEDITION_STASH"></lang-string></h3>
-							<p><lang-string lang-id="MOD_MP_EXPEDITION_UI_CONTRIBUTE_FOOD_OR_POTIONS_WHILE_REGISTRATION_IS_OPEN"></lang-string></p>
-							<p><lang-string lang-id="MOD_MP_EXPEDITION_UI_SUPPLIES_YOU_CONTRIBUTE_CAN_EARN_YOU_EXTRA_EP"></lang-string></p>
-							<button type="button" class="mp-expedition-button" @click="state.show_expedition_supply_modal()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CHOOSE_SUPPLIES"></lang-string></button>
+							<p v-if="state.expedition_state?.expedition?.registered"><lang-string lang-id="MOD_MP_EXPEDITION_PREPARATIONS_HINT"></lang-string></p>
 						</div>
 					</div>
 					<div class="mp-expedition-panel" v-if="['completed', 'inactive', 'dissolved'].includes(state.expedition_state?.expedition?.status)">
@@ -135,7 +130,7 @@
 						<button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending || state.expedition_pending_report || state.expedition_check_in_cooldown_until > 0" @click="state.submit_expedition_work('check-in')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CHECK_IN_PRIOR_WORK"></lang-string></button>
 					</div>
 					<div v-if="state.expedition_state?.expedition?.chamber">
-						<div class="mp-expedition-panel mp-expedition-chamber-card">
+						<div class="mp-expedition-panel mp-expedition-chamber-card" v-if="!state.expedition_state?.expedition?.chamber?.preparation">
 							<div class="mp-expedition-chamber-art-frame" :class="{ 'mp-expedition-rift-snow': state.expedition_state?.expedition?.chamber?.id === 'entrance' }" aria-hidden="true">
 								<img class="mp-expedition-chamber-art" :data-chamber-id="state.expedition_state?.expedition?.chamber?.id" :src="state.expedition_chamber_art_url(state.expedition_state?.expedition?.chamber?.id)" alt="" />
 								<mp-expedition-snow v-if="state.expedition_state?.expedition?.chamber?.id === 'entrance'"></mp-expedition-snow>
@@ -171,14 +166,14 @@
 								<section class="mp-expedition-panel mp-expedition-phase" v-for="phase in ['arrival', 'exploration', 'departure']" :key="phase" v-show="phase === 'arrival' || state.expedition_phase_tasks(state.expedition_state?.expedition?.chamber, phase).length">
 									<h3 class="mp-expedition-phase-heading"><button type="button" class="mp-expedition-phase-toggle" :aria-expanded="state.expedition_phase_open[phase]" :aria-controls="'mp-expedition-' + phase + '-body'" @click="state.toggle_expedition_phase(phase)">
 										<i class="fa" :class="state.expedition_phase_tasks(state.expedition_state?.expedition?.chamber, phase).every(task => task.completed_at != null) ? 'fa-check-circle mp-expedition-phase-done' : phase === 'exploration' ? 'fa-compass' : phase === 'departure' ? 'fa-door-open' : 'fa-map-marker'" aria-hidden="true"></i>
-										<span><strong>{{ phase === 'arrival' ? getLangString('MOD_MP_EXPEDITION_PHASE_ARRIVAL') : phase === 'exploration' ? getLangString('MOD_MP_EXPEDITION_PHASE_EXPLORATION') : getLangString('MOD_MP_EXPEDITION_PHASE_DEPARTURE') }}</strong><small>{{ state.expedition_phase_summary(state.expedition_state?.expedition?.chamber, phase) }}</small></span>
+										<span><strong>{{ state.expedition_state?.expedition?.chamber?.preparation ? getLangString('MOD_MP_EXPEDITION_PREPARATIONS') : phase === 'arrival' ? getLangString('MOD_MP_EXPEDITION_PHASE_ARRIVAL') : phase === 'exploration' ? getLangString('MOD_MP_EXPEDITION_PHASE_EXPLORATION') : getLangString('MOD_MP_EXPEDITION_PHASE_DEPARTURE') }}</strong><small>{{ state.expedition_phase_summary(state.expedition_state?.expedition?.chamber, phase) }}</small></span>
 										<i class="fa" :class="state.expedition_phase_open[phase] ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
 									</button></h3>
 									<div class="mp-expedition-phase-body" :id="'mp-expedition-' + phase + '-body'" v-show="state.expedition_phase_open[phase]">
 										<div class="mp-expedition-task-group" v-for="group in ['done', 'active', 'pending']" :key="group" v-show="state.expedition_phase_tasks(state.expedition_state?.expedition?.chamber, phase, group).length">
 											<h4>{{ group === 'done' ? getLangString('MOD_MP_EXPEDITION_GROUP_DONE') : group === 'active' ? getLangString('MOD_MP_EXPEDITION_GROUP_ACTIVE') : getLangString('MOD_MP_EXPEDITION_GROUP_PENDING') }}</h4>
 											<article class="mp-expedition-task" :class="{ 'mp-expedition-task-done': group === 'done', 'mp-expedition-task-self': state.expedition_state?.tracking?.visit_id === state.expedition_state?.expedition?.chamber?.visit_id && state.expedition_state?.tracking?.task_id === task.task_id }" v-for="task in state.expedition_phase_tasks(state.expedition_state?.expedition?.chamber, phase, group)" :key="task.task_id">
-													<div class="mp-expedition-task-heading"><i class="fa fa-check-circle" :aria-label="getLangString('MOD_MP_EXPEDITION_COMPLETE')" v-if="group === 'done'"></i><strong>{{ state.expedition_display_label(task.title, state.expedition_state?.expedition?.chamber?.exits?.length, state.expedition_state?.expedition?.chamber?.id) }}</strong><span class="mp-expedition-task-requirement" :class="{ 'mp-expedition-task-required': task.promoted_at || task.requirement === 'required' || (task.requirement === 'conditional' && task.exit_id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id) }" v-if="group !== 'done'">{{ task.promoted_at || task.requirement === 'required' || (task.requirement === 'conditional' && task.exit_id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id) ? getLangString('MOD_MP_EXPEDITION_REQUIRED') : getLangString('MOD_MP_EXPEDITION_OPTIONAL') }}</span></div>
+													<div class="mp-expedition-task-heading"><i class="fa fa-check-circle" :aria-label="getLangString('MOD_MP_EXPEDITION_COMPLETE')" v-if="group === 'done'"></i><strong>{{ state.expedition_display_label(task.title, state.expedition_state?.expedition?.chamber?.exits?.length, state.expedition_state?.expedition?.chamber?.id) }}</strong><span class="mp-expedition-task-requirement" :class="{ 'mp-expedition-task-required': task.promoted_at || task.requirement === 'required' || (task.requirement === 'conditional' && task.exit_id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id) }" v-if="group !== 'done'">{{ state.expedition_state?.expedition?.chamber?.preparation ? getLangString('MOD_MP_EXPEDITION_PERSONAL') : task.promoted_at || task.requirement === 'required' || (task.requirement === 'conditional' && task.exit_id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id) ? getLangString('MOD_MP_EXPEDITION_REQUIRED') : getLangString('MOD_MP_EXPEDITION_OPTIONAL') }}</span></div>
 													<span class="mp-expedition-task-tracking" v-if="group !== 'done' && state.expedition_state?.tracking?.visit_id === state.expedition_state?.expedition?.chamber?.visit_id && state.expedition_state?.tracking?.task_id === task.task_id"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOU_ARE_TRACKING_THIS"></lang-string></span>
 												<div class="mp-expedition-work-list" :class="{ 'mp-expedition-work-icons-only': group === 'done' }" :aria-label="group === 'done' ? getLangString('MOD_MP_EXPEDITION_ACCEPTED_ACTIVITIES') : getLangString('MOD_MP_EXPEDITION_CONTRIBUTE_ACTIVITIES')">
 													<span v-if="group !== 'done'"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CONTRIBUTE_WITH_ANY_OF_THESE"></lang-string></span>
@@ -218,7 +213,7 @@
 			<div id="mp-expedition-journey-view" :class="{ 'mp-expedition-mobile-hidden': state.expedition_mobile_tab !== 'journey' }" aria-labelledby="mp-expedition-journey-tab">
 				<div class="mp-expedition-mobile-passages" v-scope="{ $template: '#template-mp-expedition-passages' }"></div>
 				<p class="mp-expedition-message" v-if="!state.expedition_state?.expedition && !state.expedition_personal"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOUR_JOURNEY_WILL_APPEAR_HERE_AFTER_AN_EXPEDITION_BEGINS"></lang-string></p>
-				<div class="mp-expedition-panel" v-if="state.expedition_state?.expedition?.history?.length || state.expedition_state?.expedition?.chamber">
+				<div class="mp-expedition-panel" v-if="state.expedition_state?.expedition?.history?.length || (state.expedition_state?.expedition?.chamber && !state.expedition_state?.expedition?.chamber?.preparation)">
 					<h3><lang-string lang-id="MOD_MP_EXPEDITION_UI_VISITED_CHAMBERS"></lang-string></h3>
 					<ol><li v-for="visit in state.expedition_state?.expedition?.history || []" :key="visit.entered_at">{{ state.expedition_display_label(visit.label) }}<span v-if="visit.chosen_exit_label"> → {{ state.expedition_display_label(visit.chosen_exit_label) }}</span></li><li v-if="state.expedition_state?.expedition?.chamber">{{ state.expedition_display_label(state.expedition_state?.expedition?.chamber?.label) }} · {{ getLangString('MOD_MP_EXPEDITION_CURRENT') }}</li></ol>
 				</div>
@@ -2865,34 +2860,6 @@
 		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_BACK"></lang-string></button>
 	</div>
 </template>
-<template id="template-mp-expedition-supply-modal">
-	<div class="mp-expedition-supply-modal">
-		<div class="mp-expedition-actions mp-expedition-supply-filters" role="group" :aria-label="getLangString('MOD_MP_EXPEDITION_ITEM_TYPE')">
-			<button type="button" class="mp-expedition-button" :aria-pressed="state.expedition_supply_filter === 'food'" @click="state.expedition_supply_filter = 'food'; state.expedition_supply_item_id = ''; state.expedition_supply_qty = 1"><lang-string lang-id="MOD_MP_EXPEDITION_UI_FOOD"></lang-string></button>
-			<button type="button" class="mp-expedition-button" :aria-pressed="state.expedition_supply_filter === 'potion'" @click="state.expedition_supply_filter = 'potion'; state.expedition_supply_item_id = ''; state.expedition_supply_qty = 1"><lang-string lang-id="MOD_MP_EXPEDITION_UI_POTIONS"></lang-string></button>
-		</div>
-		<div class="mp-expedition-supply-grid" role="listbox" :aria-label="getLangString('MOD_MP_EXPEDITION_SUPPLIES')" @touchmove="state.stop_icon_scroll_propagation($event)">
-			<button type="button" class="mp-expedition-supply-tile" v-for="item in state.expedition_supply_choices()" :key="item.id" role="option" :aria-selected="state.expedition_supply_item_id === item.id" @click="state.select_expedition_supply(item)">
-				<img :src="state.get_item_icon(item.id)" :alt="item.name" draggable="false">
-				<span class="mp-expedition-supply-count">{{ numberWithCommas(item.qty) }}</span>
-				<span class="mp-expedition-supply-name">{{ item.name }}</span>
-			</button>
-		</div>
-		<p v-if="state.expedition_supply_choices().length === 0">{{ getLangString(state.expedition_supply_filter === 'food' ? 'MOD_MP_EXPEDITION_NO_FOOD' : 'MOD_MP_EXPEDITION_NO_POTIONS') }}</p>
-		<div class="mp-expedition-supply-quantity">
-			<label for="mp-expedition-supply-qty"><lang-string lang-id="MOD_MP_EXPEDITION_UI_QUANTITY"></lang-string></label>
-			<div class="mp-expedition-supply-quantity-row">
-				<input id="mp-expedition-supply-qty" class="mp-expedition-supply-quantity-input" type="number" min="1" step="1" inputmode="numeric" :max="state.expedition_supply_owned(state.expedition_supply_item_id)" :disabled="!state.expedition_supply_item_id" :value="state.expedition_supply_qty" @input="state.update_expedition_supply_qty($event)">
-				<button type="button" class="mp-expedition-button" :disabled="!state.expedition_supply_item_id" @click="state.expedition_supply_qty = state.expedition_supply_owned(state.expedition_supply_item_id)"><lang-string lang-id="MOD_MP_EXPEDITION_UI_MAX"></lang-string></button>
-			</div>
-		</div>
-		<p v-if="state.expedition_supply_item_id">{{ state.expedition_text('MOD_MP_EXPEDITION_ESTIMATED_GAIN', state.expedition_supply_estimate()) }}</p>
-	</div>
-	<div class="mp-button-tray">
-		<button type="button" class="btn btn-success" :disabled="state.expedition_action_pending || !state.expedition_supply_item_id" @click="state.donate_expedition_supply()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_DONATE_SUPPLIES"></lang-string></button>
-		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CANCEL"></lang-string></button>
-	</div>
-</template>
 <template id="template-mp-crucible-wish-modal">
 	<div class="mp-modal-text mp-crucible-wish-content">
 		<p class="mp-crucible-wish-intro"><lang-string lang-id="MOD_MP_CRUCIBLE_WISH_INTRO"></lang-string></p>
@@ -3037,7 +3004,7 @@
 	<p class="mp-modal-text">{{ state.expedition_text('MOD_MP_EXPEDITION_WORK_PROMPT_INFO', state.expedition_prompt_activity_names()) }}</p>
 	<div class="mp-expedition-prompt-tasks" @touchmove="state.stop_icon_scroll_propagation($event)">
 		<article class="mp-expedition-task" v-for="task in state.expedition_prompt_tasks()" :key="task.task_id">
-			<div class="mp-expedition-task-heading"><strong>{{ state.expedition_display_label(task.title, state.expedition_state?.expedition?.chamber?.exits?.length, state.expedition_state?.expedition?.chamber?.id) }}</strong><span class="mp-expedition-task-requirement" :class="{ 'mp-expedition-task-required': task.promoted_at || task.requirement === 'required' || (task.requirement === 'conditional' && task.exit_id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id) }">{{ task.promoted_at || task.requirement === 'required' || (task.requirement === 'conditional' && task.exit_id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id) ? getLangString('MOD_MP_EXPEDITION_REQUIRED') : getLangString('MOD_MP_EXPEDITION_OPTIONAL') }}</span></div>
+			<div class="mp-expedition-task-heading"><strong>{{ state.expedition_display_label(task.title, state.expedition_state?.expedition?.chamber?.exits?.length, state.expedition_state?.expedition?.chamber?.id) }}</strong><span class="mp-expedition-task-requirement" :class="{ 'mp-expedition-task-required': task.promoted_at || task.requirement === 'required' || (task.requirement === 'conditional' && task.exit_id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id) }">{{ state.expedition_state?.expedition?.chamber?.preparation ? getLangString('MOD_MP_EXPEDITION_PERSONAL') : task.promoted_at || task.requirement === 'required' || (task.requirement === 'conditional' && task.exit_id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id) ? getLangString('MOD_MP_EXPEDITION_REQUIRED') : getLangString('MOD_MP_EXPEDITION_OPTIONAL') }}</span></div>
 			<div class="mp-expedition-work-list" :aria-label="getLangString('MOD_MP_EXPEDITION_CONTRIBUTE_ACTIVITIES')">
 				<span><lang-string lang-id="MOD_MP_EXPEDITION_UI_CONTRIBUTE_WITH_ANY_OF_THESE"></lang-string></span>
 				<div class="mp-expedition-work" v-for="skill_id in task.evidence?.skill_ids || []" :key="skill_id" :title="state.expedition_work_name(skill_id)" :aria-label="state.expedition_work_name(skill_id)" role="img">

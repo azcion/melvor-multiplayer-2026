@@ -49,7 +49,9 @@ export const EXPEDITION_PREVIEW_LABEL_IDS = Object.freeze({
 	"Defend the star": "MOD_MP_EXPEDITION_CONTENT_DEFEND_THE_STAR",
 	"Complete The Hollow Star": "MOD_MP_EXPEDITION_CONTENT_COMPLETE_THE_HOLLOW_STAR",
 	"Vent the gases": "MOD_MP_EXPEDITION_CONTENT_VENT_THE_GASES",
-	"Melt the star": "MOD_MP_EXPEDITION_CONTENT_MELT_THE_STAR"
+	"Melt the star": "MOD_MP_EXPEDITION_CONTENT_MELT_THE_STAR",
+	"Rift Preparations": "MOD_MP_EXPEDITION_PREPARATIONS",
+	"Gather Rift Provisions": "MOD_MP_EXPEDITION_GATHER_RIFT_PROVISIONS"
 });
 
 export const EXPEDITION_PREVIEW_CHAMBER_IDS = Object.freeze([
@@ -59,7 +61,7 @@ export const EXPEDITION_PREVIEW_CHAMBER_IDS = Object.freeze([
 
 export const EXPEDITION_PREVIEW_CHAMBER_LABELS = Object.freeze([
 	'The Rift', 'Prismatic Descent', 'Glassroot Terraces', 'Buried Observatory',
-	'Prismatic Orrery', 'Voidwatch Threshold', 'The Hollow Star'
+	'Prismatic Orrery', 'Voidwatch Threshold', 'The Hollow Star', 'Rift Preparations', 'Gather Rift Provisions'
 ]);
 
 const PASSAGE_ORDINALS = ['First', 'Second', 'Third'];

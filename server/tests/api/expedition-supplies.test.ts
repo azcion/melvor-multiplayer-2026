@@ -1,3 +1,4 @@
+import { legacy_supply } from '../support/legacy-supply-fixture';
 import { describe, expect, test } from 'bun:test';
 import { make_guildmates } from '../support/fixtures';
 import { get_json_with_session, post, post_json } from '../support/http';
@@ -5,14 +6,14 @@ import { db_all, db_run } from '../support/persistence';
 
 const shrimp = { item_id: 'melvorD:Shrimp', value_currency_id: 'melvorD:GP', value_per_item: 2 };
 
-describe('Expedition Entrance supplies', () => {
-	test('accepts catalog-matched food once with an Economy Receipt and cumulative EP', async () => {
+describe('Historical Expedition supply upgrade fixtures', () => {
+	test('recovers a committed donation receipt before rejection, including after acknowledgement', async () => {
 		const guild = await make_guildmates('Supply One', 'Supply Two', 'Supply Guild');
 		const registered = await post_json<{ expedition_id: number }>(
 			'/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.first.session_token);
 		const command_id = crypto.randomUUID();
 		const payload = { command_id, expedition_id: registered.json.expedition_id, ...shrimp, qty: 1000, source: 'bank' };
-		const first = await post_json<any>('/api/expedition/supply/donate', payload, guild.first.session_token);
+		const first = await legacy_supply('/api/expedition/supply/donate', payload, guild.first.session_token);
 		expect(first.json.success).toBe(true);
 		expect(first.json.receipt.kind).toBe('expedition-supply-donate');
 		expect(first.json.receipt.effects).toEqual([{ storage: 'bank', item_id: shrimp.item_id, qty: -1000 }]);
@@ -50,19 +51,19 @@ describe('Expedition Entrance supplies', () => {
 			'/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.first.session_token);
 		const payload = { command_id: crypto.randomUUID(), expedition_id: registered.json.expedition_id,
 			...shrimp, qty: 5, source: 'transfer' };
-		const unregistered = await post_json<any>('/api/expedition/supply/donate', payload, guild.second.session_token);
+		const unregistered = await legacy_supply('/api/expedition/supply/donate', payload, guild.second.session_token);
 		expect(unregistered.json.error).toBe('not_registered');
-		const mismatch = await post_json<any>('/api/expedition/supply/donate',
+		const mismatch = await legacy_supply('/api/expedition/supply/donate',
 			{ ...payload, command_id: crypto.randomUUID(), value_per_item: 200 }, guild.first.session_token);
 		expect(mismatch.json.error).toBe('catalog_mismatch');
 		await db_run("UPDATE clients SET social_mode = 'social' WHERE id = ?", [guild.first_id]);
-		const social = await post_json<any>('/api/expedition/supply/donate',
+		const social = await legacy_supply('/api/expedition/supply/donate',
 			{ ...payload, command_id: crypto.randomUUID() }, guild.first.session_token);
 		expect(social.json.error).toBe('social_only');
 		await db_run("UPDATE clients SET social_mode = 'full' WHERE id = ?", [guild.first_id]);
 		await db_run('UPDATE expeditions SET registration_ends_at = ? WHERE id = ?',
 			[Date.now() - 1, registered.json.expedition_id]);
-		const late = await post_json<any>('/api/expedition/supply/donate',
+		const late = await legacy_supply('/api/expedition/supply/donate',
 			{ ...payload, command_id: crypto.randomUUID() }, guild.first.session_token);
 		expect(late.json.error).toBe('registration_closed');
 		expect(await db_all('SELECT * FROM expedition_supplies WHERE expedition_id = ?',
@@ -73,7 +74,7 @@ describe('Expedition Entrance supplies', () => {
 		const guild = await make_guildmates('Abyss Supply', 'Abyss Witness', 'Abyss Guild');
 		const registration = await post_json<{ expedition_id: number }>(
 			'/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.first.session_token);
-		const result = await post_json<any>('/api/expedition/supply/donate', {
+		const result = await legacy_supply('/api/expedition/supply/donate', {
 			command_id: crypto.randomUUID(), expedition_id: registration.json.expedition_id,
 			item_id: 'melvorItA:Crimson_Biter', qty: 100, source: 'transfer',
 			value_currency_id: 'melvorItA:AbyssalPieces', value_per_item: 20
@@ -89,7 +90,7 @@ describe('Expedition Entrance supplies', () => {
 		const guild = await make_guildmates('Repeat Supply', 'Repeat Witness', 'Repeat Guild');
 		const first_run = await post_json<{ expedition_id: number }>(
 			'/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.first.session_token);
-		const first = await post_json<any>('/api/expedition/supply/donate', {
+		const first = await legacy_supply('/api/expedition/supply/donate', {
 			command_id: crypto.randomUUID(), expedition_id: first_run.json.expedition_id,
 			...shrimp, qty: 1000, source: 'bank'
 		}, guild.first.session_token);
@@ -101,7 +102,7 @@ describe('Expedition Entrance supplies', () => {
 		expect(second_run.json.expedition_id).not.toBe(first_run.json.expedition_id);
 		const state_before = (await get_json_with_session<any>('/api/expedition/state', guild.first.session_token)).json;
 		expect(state_before.supply_score).toEqual({ value_gp_equiv: 0, score_micros: 0 });
-		const second = await post_json<any>('/api/expedition/supply/donate', {
+		const second = await legacy_supply('/api/expedition/supply/donate', {
 			command_id: crypto.randomUUID(), expedition_id: second_run.json.expedition_id,
 			...shrimp, qty: 1000, source: 'bank'
 		}, guild.first.session_token);
@@ -121,7 +122,7 @@ describe('Expedition personal rewards', () => {
 		const guild = await make_guildmates('Supply Five', 'Supply Six', 'Last Guild');
 		const registration = await post_json<{ expedition_id: number }>(
 			'/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.first.session_token);
-		const donated = await post_json<any>('/api/expedition/supply/donate', {
+		const donated = await legacy_supply('/api/expedition/supply/donate', {
 			command_id: crypto.randomUUID(), expedition_id: registration.json.expedition_id,
 			...shrimp, qty: 1000, source: 'bank'
 		}, guild.first.session_token);

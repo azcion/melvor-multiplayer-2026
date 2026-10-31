@@ -93,52 +93,27 @@ export function add_crucible_offering(guild_id: number, item: CastItem, now: num
 	return id;
 }
 
-export function transfer_expedition_stash_to_crucible(guild_id: number, expedition_id: number,
-	now = Date.now()): 'crucible' | 'destroyed' {
-	const state = db.query<{ is_open: number; processed_minute: number }, [number]>(
-		'SELECT is_open, processed_minute FROM crucible_guilds WHERE guild_id = ?').get(guild_id);
-	if (state === null) throw new Error('Crucible Guild state is missing');
-	reconcile_crucible(guild_id, now);
-	if (db.query<{ processed_minute: number }, [number]>(
-		'SELECT processed_minute FROM crucible_guilds WHERE guild_id = ?'
-	).get(guild_id)!.processed_minute < Math.floor(now / 60_000))
-		throw new Error('Crucible must catch up before Expedition disposal');
-	const outcome = state.is_open === 1 ? 'crucible' : 'destroyed';
-	const supplies = db.query<{ item_id: string; qty: number; value_currency_id: string | null;
-		value_per_item: number | null }, [number]>(
-		'SELECT item_id, qty, value_currency_id, value_per_item FROM expedition_supplies WHERE expedition_id = ?'
+// Historical transfers remain recorded; new endings consume supplies regardless of Crucible state.
+export function destroy_expedition_stash(guild_id: number, expedition_id: number,
+	now = Date.now()): 'destroyed' {
+	const supplies = db.query<{ item_id: string; qty: number }, [number]>(
+		'SELECT item_id, qty FROM expedition_supplies WHERE expedition_id = ?'
 	).all(expedition_id);
 	for (const supply of supplies) {
-		const lots = db.query<{ id: number; client_id: number; qty: number }, [number, string]>(
-			'SELECT id, client_id, qty FROM expedition_supply_lots WHERE expedition_id = ? AND item_id = ? ' +
-			'ORDER BY contributed_at, id'
+		const lots = db.query<{ id: number; qty: number }, [number, string]>(
+			'SELECT id, qty FROM expedition_supply_lots WHERE expedition_id = ? AND item_id = ? ORDER BY contributed_at, id'
 		).all(expedition_id, supply.item_id);
 		if (lots.reduce((sum, lot) => safe_crucible_add(sum, lot.qty), 0) !== supply.qty)
 			throw new Error('Expedition stash provenance does not match held quantity');
-		if (outcome === 'crucible')
-			for (const lot of lots) {
-				add_crucible_offering(guild_id, { id: supply.item_id, qty: lot.qty,
-					value_currency_id: supply.value_currency_id, value_per_item: supply.value_per_item }, now,
-					'expedition', `expedition:${expedition_id}:lot:${lot.id}`, lot.client_id,
-					now + 24 * 60 * 60_000);
-				const destination = db.query<{id:number},[string]>("SELECT id FROM crucible_contribution_lots WHERE source_kind='expedition' AND source_id=?")
-					.get(`expedition:${expedition_id}:lot:${lot.id}`)!;
-				move_location(db,`expedition-lot:${lot.id}`,`crucible-lot:${destination.id}`,now,'expedition-transfer');
-			}
-		else for (const lot of lots) move_location(db,`expedition-lot:${lot.id}`,'consumed:expedition-disposal',now,'sealed-crucible');
+		for (const lot of lots)
+			move_location(db, `expedition-lot:${lot.id}`, 'consumed:expedition-disposal', now, 'expedition-ending');
 	}
-	const transfer_event = record_audit_event({ event_type: outcome === 'crucible'
-		? 'crucible.expedition_transferred' : 'crucible.expedition_destroyed',
+	record_audit_event({ event_type: 'crucible.expedition_destroyed',
 		source_key: `crucible-expedition:${expedition_id}`, actor: { kind: 'system' },
 		guild_id, occurred_at: now, values: supplies.map(supply => ({ object_id: supply.item_id,
-			quantity: supply.qty, direction: outcome === 'crucible' ? 'in' as const : 'destroy' as const })),
-		details: { expedition_id, outcome } });
-	if (outcome === 'crucible')
-		for (const supply of supplies)
-			create_audit_lot(transfer_event, supply.item_id, supply.qty, 'crucible', String(guild_id));
-	crucible_heat_value(db.query<db_row.crucible_offerings, [number]>(
-		'SELECT * FROM crucible_offerings WHERE guild_id = ?').all(guild_id));
-	return outcome;
+			quantity: supply.qty, direction: 'destroy' as const })),
+		details: { expedition_id, outcome: 'destroyed' } });
+	return 'destroyed';
 }
 
 export function cast_crucible_items(actor: CrucibleActor, items: CastItem[], source_id: string,

@@ -455,3 +455,11 @@ Profile construction disables admin overrides before calculating private fields,
 Message details use ordinary reaction visibility and expose readers/reactors only for visible Messages.
 Browser dispatch updates its selected link's browser clock and normal Chat state, without game activity,
 runtime, save admission, Expedition catch-up, identity recovery, or economy operations.
+
+## Rift Preparations (1.7.0)
+
+Registered characters receive one optional, personal 20-hour `Gather Rift Provisions` task during the existing shared registration window. Combat, Cooking, Woodcutting, Fishing, Mining, Firemaking, Smithing and Crafting are always accepted; no account or DLC roll is required. State exposes only the caller's preparation task through the ordinary chamber shape. Existing task start/check-in/stop operations retain ownership, idempotency, recovery and offline verification rules. Preparation ends at the shared registration deadline, never delays departure, and does not determine participant scaling. Up to 20 EP is available before multitasking penalties and existing limits.
+
+New supply donation commands return `supplies_removed`; committed operation replay and receipt acknowledgement remain recoverable through the shared API wrapper. Historical donation rows, earned EP and terminal supply snapshots remain. Every Expedition ending consumes held supplies with custody provenance and per-item disposal records, without creating new Crucible Offerings. Ordinary Crucible operations and historical settled transfers are unchanged.
+
+Activate the donation replacement only with the mandatory 1.7.0 client upgrade. This source change does not itself raise the client floor or deploy a backend.

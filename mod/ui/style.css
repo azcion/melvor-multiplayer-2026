@@ -3533,19 +3533,6 @@ mp-chat-composer { display: block; min-width: 0; }
 .mp-expedition-field { display: flex; flex-direction: column; gap: .35rem; max-width: 420px; margin: .75rem 0; }
 .mp-expedition-field select, .mp-expedition-field input { min-height: 44px; padding: .45rem; border: 1px solid #6a8991; border-radius: .35rem; background: #f7fbfc; color: #14252d; }
 .mp-expedition-actions [aria-pressed="true"] { box-shadow: inset 0 0 0 2px #fff; }
-.mp-expedition-supply-modal { text-align: center; }
-.mp-expedition-supply-filters { justify-content: center; margin-bottom: .75rem; }
-.mp-expedition-supply-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; max-height: min(420px, 35vh); max-height: min(420px, 35dvh); padding: 6px; border: 1px solid #fff5; border-radius: .35rem; overflow-y: scroll; -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior-y: contain; }
-.mp-expedition-supply-tile { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; min-height: 78px; padding: 5px 2px; border: 1px solid #fff4; border-radius: .35rem; background: #182732; color: #fff; cursor: pointer; }
-.mp-expedition-supply-tile[aria-selected="true"] { border-color: #6adbac; box-shadow: inset 0 0 0 1px #6adbac; }
-.mp-expedition-supply-tile img { width: 32px; height: 32px; object-fit: contain; }
-.mp-expedition-supply-count { font-size: .8rem; font-weight: 600; }
-.mp-expedition-supply-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .72rem; }
-.mp-expedition-supply-quantity { margin: .75rem 0; }
-.mp-expedition-supply-quantity label { display: block; margin-bottom: .35rem; }
-.mp-expedition-supply-quantity-row { display: flex; gap: .5rem; align-items: stretch; }
-.mp-expedition-supply-modal .mp-expedition-supply-quantity-input { flex: 1; min-width: 0; min-height: 44px; padding: .45rem .6rem; border: 1px solid #6a8991; border-radius: .35rem; background: #182732; color: #fff; color-scheme: dark; }
-.mp-expedition-supply-quantity-input:focus-visible { outline: 2px solid #6adbac; outline-offset: 2px; }
 @media (max-width: 767.98px) {
 	.mp-expedition-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; margin: 0 0 1rem; }
 	.mp-expedition-tabs .mp-expedition-button { width: 100%; }
