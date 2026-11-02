@@ -4,6 +4,7 @@ services:
       context: .
     environment:
       SERVER_PORT: "3000"
+      COMBAT_TICKET_KEY_FILE: ${MELVOR_COMBAT_TICKET_KEY_FILE:-}
       CHAT_PUBLIC_ORIGIN: ${MELVOR_CHAT_PUBLIC_ORIGIN:-https://melvor.azcn.io}
       DB_PATH: /app/data/melvor-multiplayer.sqlite
       TRUST_PROXY: ${MELVOR_TRUST_PROXY:-0}
@@ -68,6 +69,29 @@ services:
       - test-state:/test-state
       - ./mod:/app/mod:ro
     command: ["bun", "run", "test"]
+
+  combat:
+    profiles: ["combat"]
+    build:
+      context: .
+      dockerfile: Dockerfile.combat
+    environment:
+      COMBAT_PORT: "3002"
+      COMBAT_AUTHORITY_URL: ws://server:3003/authority
+      COMBAT_TICKET_KEY_FILE: /app/config/combat-ticket.key
+    ports:
+      - "127.0.0.1:${MELVOR_COMBAT_PORT:-3002}:3002"
+    volumes:
+      - ./config/combat-ticket.key:/app/config/combat-ticket.key:ro
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:3002/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
 
 volumes:
   database-data:

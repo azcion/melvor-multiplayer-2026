@@ -1,7 +1,7 @@
 import { highlight_color } from '../../mod/chat-highlights.mjs';
 
 // All transient state belongs to an explicit link and logical conversation. Nothing is persisted.
-export const kinds = ['global', 'guild', 'alliance', 'private', 'support', 'testers'];
+export const kinds = ['global', 'guild', 'alliance', 'private', 'support'];
 export function conversation_key(c) {
 	const kind = c.conversation_kind ?? 'private';
 	return `${kind}:${kind === 'private' ? `person:${c.participant.client_id}` :
@@ -156,7 +156,7 @@ export function create_chat_controller({ transport, changed = () => {}, unauthor
 					e.reload = true; e.reaction_revision = 0;
 				}
 				e.conversation = { ...e.conversation, conversation_id: m.conversation_id ?? e.conversation.conversation_id };
-				e.messages = e.messages.filter(old => old.message_id > 0 && old.message_id !== m.message_id).concat(m).sort((a,b) => a.message_id - b.message_id);
+				e.messages = e.messages.filter(old => old.message_id > 0 && old.message_id !== m.message_id).concat(m.deleted ? [] : [m]).sort((a,b) => a.message_id - b.message_id);
 			}
 			if (current(s)) { notice = ''; await refresh_inbox(); if (current(s) && e.reload) await history('reload'); }
 		} catch (error) {
@@ -218,10 +218,10 @@ export function create_chat_controller({ transport, changed = () => {}, unauthor
 		},
 		preference(path, body) { return mutate(path, body); },
 		async hide(message_id) {
-			const e = entry(); if (!e || e.conversation.conversation_kind !== 'private' || e.pending) return;
-			const body = { conversation_kind: 'private', conversation_id: e.conversation.conversation_id, ...(message_id ? { message_id } : {}) };
+			const e = entry(); if (!e || (!message_id && e.conversation.conversation_kind !== 'private') || e.pending) return;
+			const body = { conversation_kind: e.conversation.conversation_kind, conversation_id: e.conversation.conversation_id, ...(message_id ? { message_id } : {}) };
 			return mutate(message_id ? 'messages/delete' : 'conversations/delete', body, () => {
-				e.messages = message_id ? e.messages.filter(m => m.message_id !== message_id) : []; if (!message_id) selected = null;
+				if (message_id) e.messages = e.messages.filter(m => m.message_id !== message_id); else e.messages = []; if (!message_id) selected = null;
 			});
 		},
 		has_pending: () => [...entries.values()].some(e => e.pending),

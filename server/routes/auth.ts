@@ -1,3 +1,4 @@
+import { get_chat_reaction_choices } from '../chat_reactions';
 import { listing_filter_prompt_pending } from '../listing-filters';
 import { admit_rollback_load } from '../rollback-admission';
 import { rollback_player_status } from '../rollback-policy';
@@ -112,6 +113,7 @@ export function register_auth_routes(): void {
 			dev_badge_labels: get_dev_badge_labels(),
 			dev_tag: get_dev_tag_visibility(client_row.id),
 			alliance_access: has_alliance_access(client_row.id),
+			chat_reaction_choices: get_chat_reaction_choices(),
 			chat: get_chat_state(client_row.id),
 			listing_filter_prompt_pending: listing_filter_prompt_pending(db, client_row.id),
 			account_tags: get_account_tags(client_row.id),
@@ -185,6 +187,7 @@ export function register_auth_routes(): void {
 			dev_badge_labels: get_dev_badge_labels(),
 			dev_tag: get_dev_tag_visibility(client_id),
 			alliance_access: has_alliance_access(client_id),
+			chat_reaction_choices: get_chat_reaction_choices(),
 			chat: get_chat_state(client_id),
 			listing_filter_prompt_pending: listing_filter_prompt_pending(db, client_id),
 			account_tags: get_account_tags(client_id),

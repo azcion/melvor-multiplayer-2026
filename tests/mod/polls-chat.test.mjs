@@ -18,10 +18,10 @@ test('wires quiet Polls below Global Chat with creator, voting, and discussion',
 	assert.match(common, /conversation_kind === 'polls'[\s\S]*assets\/polls-icon\.svg/);
 	assert.match(common, /conversation\?\.conversation_kind === 'polls' \|\| conversation\?\.conversation_kind === 'poll-discussion'[\s\S]*assets\/polls-icon\.svg/);
 	const global = templates.indexOf('state.global_chat_conversations');
-	const expedition = templates.indexOf('state.tester_chat_conversations');
+	const announcements = templates.indexOf('state.announcement_chat_conversations');
 	const polls = templates.indexOf('state.polls_chat_conversations');
 	const guild = templates.indexOf('state.guild_chat_conversations');
-	assert.ok(global >= 0 && expedition > global && polls > expedition && guild > polls);
+	assert.ok(global >= 0 && announcements > global && polls > announcements && guild > polls);
 	assert.match(templates, /class="mp-chat-conversations"[\s\S]*state\.polls_chat_conversations/);
 	assert.doesNotMatch(templates, /class="mp-chat-conversations" v-if="state\.polls\.length > 0"/);
 	const refresh_conversations = main.slice(main.indexOf('async function refresh_chat_conversations'), main.indexOf('function update_chat_nav'));

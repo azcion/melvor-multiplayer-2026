@@ -1,0 +1,144 @@
+{
+  "id": "getting-started",
+  "title": "Getting Started",
+  "description": "Get connected, find a Guild, and decide how you’d like to play.",
+  "icon": "multiplayer.svg",
+  "articles": [
+    {
+      "id": "first-steps",
+      "title": "Your first steps",
+      "summary": "Meet other players, find a Guild, and get started without losing your place.",
+      "aliases": [
+        "install",
+        "setup",
+        "new player",
+        "beginner",
+        "recovery code"
+      ],
+      "sections": [
+        {
+          "id": "a-shared-world",
+          "title": "Your character, with company",
+          "paragraphs": [
+            "Melvor Multiplayer gives you people to share the game with. Chat while you train, trade spare items, or help your Guild through a Raid or an Expedition. You still play your own Melvor Idle character, with your own skills, combat, and Bank.",
+            "You can use Global Chat before joining a Guild. When you’re ready to try the shared activities, finding a Guild is a good next step."
+          ]
+        },
+        {
+          "id": "begin",
+          "title": "Getting started",
+          "steps": [
+            "Enable Melvor Multiplayer Remastered in Melvor’s mod manager, then load the character you want to use.",
+            "Open Multiplayer. If you’ve played before, choose Connect existing profile to reconnect to your profile.",
+            "Open Guilds and have a look around. You can join an Open Guild straight away, apply to a private one, or join the Free Fellowship.",
+            "Say hello in Chat. Once you’ve joined a Guild, take a look at its Marketplace, Crucible, Raid, and Expedition pages. You don’t need to learn them all at once."
+          ]
+        },
+        {
+          "id": "keep-your-profile",
+          "title": "Coming back on another device?",
+          "paragraphs": [
+            "Your Recovery code lets you reconnect to your existing Multiplayer profile. You’ll find it in Multiplayer Options. Save it somewhere private so you can use the same profile on another device.",
+            "Browser Chat has its own linking code. That code only connects a browser to Chat; it won’t recover your Multiplayer profile.",
+            "If your game looks different from a guide, check your mod version and your Guild’s policies. Some features also depend on the server you use and the game content you own."
+          ]
+        }
+      ],
+      "related": [
+        "joining-a-guild",
+        "transfers",
+        "browser-chat"
+      ]
+    },
+    {
+      "id": "joining-a-guild",
+      "title": "Choose your Guild",
+      "summary": "Find a group to play with, whether you want to jump straight in or apply first.",
+      "aliases": [
+        "application",
+        "join",
+        "free fellowship",
+        "open guild",
+        "private guild"
+      ],
+      "sections": [
+        {
+          "id": "ways-in",
+          "title": "Where would you like to join?",
+          "paragraphs": [
+            "Open the Guilds page to browse. If you already know someone who plays, ask which Guild they’re in. Otherwise, choose one that looks like a good fit."
+          ],
+          "bullets": [
+            "An Open Guild lets you join straight away.",
+            "A private Guild asks you to apply first. Any current member can accept or decline your application.",
+            "The Free Fellowship is always there to join directly. Its name and identity stay fixed, and its Council has fewer decisions to make than an ordinary Guild’s."
+          ]
+        },
+        {
+          "id": "membership",
+          "title": "One Guild at a time",
+          "paragraphs": [
+            "Your character can belong to one Guild and have one pending application at a time. You can withdraw an application if you change your mind.",
+            "Joining gives you access to that Guild’s conversations and shared activities. Before joining, you’ll see a public overview to help you choose."
+          ]
+        },
+        {
+          "id": "before-leaving",
+          "title": "Moving to another Guild",
+          "paragraphs": [
+            "Read the leaving confirmation before you go. It will tell you if there’s anything you need to finish first. Your personal history and some earned rewards stay with you, but the Guild’s shared activities stay with the Guild.",
+            "If you’re the last member of an ordinary Guild, leaving dissolves it. The Free Fellowship stays around even when it’s empty."
+          ]
+        }
+      ],
+      "related": [
+        "guild-life",
+        "council",
+        "alliances"
+      ]
+    },
+    {
+      "id": "social-only",
+      "title": "Social Only mode",
+      "summary": "Keep the company without taking part in the shared economy.",
+      "aliases": [
+        "restrictions",
+        "interdict",
+        "heresy",
+        "cheats"
+      ],
+      "sections": [
+        {
+          "id": "what-it-means",
+          "title": "Just here for the company?",
+          "paragraphs": [
+            "Social Only mode lets you stay for the conversations while sitting out economic interactions such as Gifts and Trades. You can still play Raids, but you won’t receive Raid item rewards.",
+            "Check the mode shown in your game. You can choose Social Only yourself, but a server restriction or your Guild’s Interdict policy can also put you in this mode."
+          ]
+        },
+        {
+          "id": "changing-mode",
+          "title": "Before you switch",
+          "paragraphs": [
+            "Changing mode can cancel exchanges you already have open and affect rewards you haven’t received yet. The confirmation explains what will happen, so read it before switching.",
+            "If the server host has restricted your profile, changing your own setting won’t lift that restriction. Ask in Support if you’re unsure why Social Only is active."
+          ]
+        },
+        {
+          "id": "guild-policy",
+          "title": "Why does my Guild mention Interdict?",
+          "paragraphs": [
+            "Interdict is a Guild policy that applies Social Only restrictions to members with an active Item Cheats marking. The Council can reverse that policy through Heresy.",
+            "Other mod-category markings are informational. These markings come from what the client reports about installed mods; they don’t tell the whole story of how someone plays."
+          ]
+        }
+      ],
+      "related": [
+        "cheat-tags",
+        "guild-life",
+        "council",
+        "support"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,5689 @@
+{
+	"version": 1,
+	"source": "https://melvoridle.com/assets/data/melvorDemo.json",
+	"sha256": "ba3832348dc252c925c7ea5c7560d23bb58c1f49effe41cb0fc5ce229c0d1a06",
+	"hp_multiplier": 10,
+	"items": {
+		"melvorD:Normal_Logs": {
+			"name": "Normal Logs",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Oak_Logs": {
+			"name": "Oak Logs",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Willow_Logs": {
+			"name": "Willow Logs",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Teak_Logs": {
+			"name": "Teak Logs",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Maple_Logs": {
+			"name": "Maple Logs",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Mahogany_Logs": {
+			"name": "Mahogany Logs",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Yew_Logs": {
+			"name": "Yew Logs",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Magic_Logs": {
+			"name": "Magic Logs",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Redwood_Logs": {
+			"name": "Redwood Logs",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Raw_Shrimp": {
+			"name": "Raw Shrimp",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Raw_Sardine": {
+			"name": "Raw Sardine",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Raw_Herring": {
+			"name": "Raw Herring",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Raw_Trout": {
+			"name": "Raw Trout",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Raw_Salmon": {
+			"name": "Raw Salmon",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Raw_Lobster": {
+			"name": "Raw Lobster",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Raw_Swordfish": {
+			"name": "Raw Swordfish",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Raw_Crab": {
+			"name": "Raw Crab",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Raw_Shark": {
+			"name": "Raw Shark",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Raw_Cave_Fish": {
+			"name": "Raw Cave Fish",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Raw_Manta_Ray": {
+			"name": "Raw Manta Ray",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Raw_Whale": {
+			"name": "Raw Whale",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Shrimp": {
+			"name": "Shrimp",
+			"kind": "Food",
+			"supported": true,
+			"heal": 30
+		},
+		"melvorD:Sardine": {
+			"name": "Sardine",
+			"kind": "Food",
+			"supported": true,
+			"heal": 40
+		},
+		"melvorD:Herring": {
+			"name": "Herring",
+			"kind": "Food",
+			"supported": true,
+			"heal": 50
+		},
+		"melvorD:Trout": {
+			"name": "Trout",
+			"kind": "Food",
+			"supported": true,
+			"heal": 70
+		},
+		"melvorD:Salmon": {
+			"name": "Salmon",
+			"kind": "Food",
+			"supported": true,
+			"heal": 90
+		},
+		"melvorD:Lobster": {
+			"name": "Lobster",
+			"kind": "Food",
+			"supported": true,
+			"heal": 110
+		},
+		"melvorD:Swordfish": {
+			"name": "Swordfish",
+			"kind": "Food",
+			"supported": true,
+			"heal": 130
+		},
+		"melvorD:Crab": {
+			"name": "Crab",
+			"kind": "Food",
+			"supported": true,
+			"heal": 150
+		},
+		"melvorD:Shark": {
+			"name": "Shark",
+			"kind": "Food",
+			"supported": true,
+			"heal": 200
+		},
+		"melvorD:Cave_Fish": {
+			"name": "Cave Fish",
+			"kind": "Food",
+			"supported": true,
+			"heal": 220
+		},
+		"melvorD:Manta_Ray": {
+			"name": "Manta Ray",
+			"kind": "Food",
+			"supported": true,
+			"heal": 400
+		},
+		"melvorD:Whale": {
+			"name": "Whale",
+			"kind": "Food",
+			"supported": true,
+			"heal": 480
+		},
+		"melvorD:Burnt_Shrimp": {
+			"name": "Burnt Shrimp",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Burnt_Sardine": {
+			"name": "Burnt Sardine",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Burnt_Herring": {
+			"name": "Burnt Herring",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Burnt_Trout": {
+			"name": "Burnt Trout",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Burnt_Salmon": {
+			"name": "Burnt Salmon",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Burnt_Lobster": {
+			"name": "Burnt Lobster",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Burnt_Swordfish": {
+			"name": "Burnt Swordfish",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Burnt_Crab": {
+			"name": "Burnt Crab",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Burnt_Shark": {
+			"name": "Burnt Shark",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Burnt_Cave_Fish": {
+			"name": "Burnt Cave Fish",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Burnt_Manta_Ray": {
+			"name": "Burnt Manta Ray",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Burnt_Whale": {
+			"name": "Burnt Whale",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Copper_Ore": {
+			"name": "Copper Ore",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Tin_Ore": {
+			"name": "Tin Ore",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Iron_Ore": {
+			"name": "Iron Ore",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Coal_Ore": {
+			"name": "Coal Ore",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Silver_Ore": {
+			"name": "Silver Ore",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Gold_Ore": {
+			"name": "Gold Ore",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Mithril_Ore": {
+			"name": "Mithril Ore",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Adamantite_Ore": {
+			"name": "Adamantite Ore",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Runite_Ore": {
+			"name": "Runite Ore",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Dragonite_Ore": {
+			"name": "Dragonite Ore",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Bronze_Bar": {
+			"name": "Bronze Bar",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Iron_Bar": {
+			"name": "Iron Bar",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Steel_Bar": {
+			"name": "Steel Bar",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Gold_Bar": {
+			"name": "Gold Bar",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Mithril_Bar": {
+			"name": "Mithril Bar",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Adamantite_Bar": {
+			"name": "Adamantite Bar",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Runite_Bar": {
+			"name": "Runite Bar",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Dragonite_Bar": {
+			"name": "Dragonite Bar",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Bronze_Dagger": {
+			"name": "Bronze Dagger",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2200
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 2
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 3
+				}
+			]
+		},
+		"melvorD:Bronze_Sword": {
+			"name": "Bronze Sword",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 9
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 2
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 1
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 5
+				}
+			]
+		},
+		"melvorD:Bronze_Battleaxe": {
+			"name": "Bronze Battleaxe",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3100
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 3
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 3
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 16
+				}
+			]
+		},
+		"melvorD:Bronze_2H_Sword": {
+			"name": "Bronze 2H Sword",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [
+				"Shield"
+			],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3600
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -4
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 18
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 18
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 18
+				}
+			]
+		},
+		"melvorD:Bronze_Helmet": {
+			"name": "Bronze Helmet",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Helmet"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -6
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 4
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 4
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			]
+		},
+		"melvorD:Bronze_Boots": {
+			"name": "Bronze Boots",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Boots"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -1
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -3
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 1
+				}
+			]
+		},
+		"melvorD:Bronze_Platelegs": {
+			"name": "Bronze Platelegs",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Platelegs"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -7
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -21
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 8
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 7
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -4
+				}
+			]
+		},
+		"melvorD:Bronze_Platebody": {
+			"name": "Bronze Platebody",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Platebody"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -10
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -30
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 15
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 14
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -6
+				}
+			]
+		},
+		"melvorD:Iron_Dagger": {
+			"name": "Iron Dagger",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2200
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 8
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 3
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 8
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 4
+				}
+			]
+		},
+		"melvorD:Iron_Sword": {
+			"name": "Iron Sword",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 11
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 3
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 2
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 7
+				}
+			]
+		},
+		"melvorD:Iron_Battleaxe": {
+			"name": "Iron Battleaxe",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3100
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 4
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 4
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 23
+				}
+			]
+		},
+		"melvorD:Iron_2H_Sword": {
+			"name": "Iron 2H Sword",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [
+				"Shield"
+			],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3600
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -4
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 26
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 26
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 25
+				}
+			]
+		},
+		"melvorD:Iron_Helmet": {
+			"name": "Iron Helmet",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Helmet"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -6
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 6
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 6
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			]
+		},
+		"melvorD:Iron_Boots": {
+			"name": "Iron Boots",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Boots"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -1
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -3
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 2
+				}
+			]
+		},
+		"melvorD:Iron_Platelegs": {
+			"name": "Iron Platelegs",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Platelegs"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -7
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -21
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 11
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 10
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -4
+				}
+			]
+		},
+		"melvorD:Iron_Platebody": {
+			"name": "Iron Platebody",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Platebody"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -10
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -30
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 21
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 20
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -6
+				}
+			]
+		},
+		"melvorD:Steel_Dagger": {
+			"name": "Steel Dagger",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2200
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 13
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 4
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 13
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 7
+				}
+			]
+		},
+		"melvorD:Steel_Sword": {
+			"name": "Steel Sword",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 16
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 6
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 4
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 12
+				}
+			]
+		},
+		"melvorD:Steel_Battleaxe": {
+			"name": "Steel Battleaxe",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3100
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 8
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 8
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 35
+				}
+			]
+		},
+		"melvorD:Steel_2H_Sword": {
+			"name": "Steel 2H Sword",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [
+				"Shield"
+			],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3600
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -4
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 40
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 40
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 39
+				}
+			]
+		},
+		"melvorD:Steel_Helmet": {
+			"name": "Steel Helmet",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Helmet"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -6
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 9
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 9
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			]
+		},
+		"melvorD:Steel_Boots": {
+			"name": "Steel Boots",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Boots"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -1
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -3
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 5
+				}
+			]
+		},
+		"melvorD:Steel_Platelegs": {
+			"name": "Steel Platelegs",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Platelegs"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -7
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -21
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 17
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 16
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -4
+				}
+			]
+		},
+		"melvorD:Steel_Platebody": {
+			"name": "Steel Platebody",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Platebody"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -10
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -30
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 32
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 16
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -4
+				}
+			]
+		},
+		"melvorD:Mithril_Dagger": {
+			"name": "Mithril Dagger",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2200
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 18
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 5
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 18
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 10
+				}
+			]
+		},
+		"melvorD:Mithril_Sword": {
+			"name": "Mithril Sword",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 20
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 8
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 6
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 17
+				}
+			]
+		},
+		"melvorD:Mithril_Battleaxe": {
+			"name": "Mithril Battleaxe",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3100
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 11
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 11
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 51
+				}
+			]
+		},
+		"melvorD:Mithril_2H_Sword": {
+			"name": "Mithril 2H Sword",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [
+				"Shield"
+			],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3600
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -4
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 45
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 45
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 55
+				}
+			]
+		},
+		"melvorD:Mithril_Helmet": {
+			"name": "Mithril Helmet",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Helmet"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -6
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 13
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 13
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			]
+		},
+		"melvorD:Mithril_Boots": {
+			"name": "Mithril Boots",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Boots"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -1
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -3
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 8
+				}
+			]
+		},
+		"melvorD:Mithril_Platelegs": {
+			"name": "Mithril Platelegs",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Platelegs"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -7
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -21
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 24
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 22
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -4
+				}
+			]
+		},
+		"melvorD:Mithril_Platebody": {
+			"name": "Mithril Platebody",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Platebody"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -10
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -30
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 46
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 44
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -6
+				}
+			]
+		},
+		"melvorD:Adamant_Dagger": {
+			"name": "Adamant Dagger",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2200
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 22
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 8
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 22
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 14
+				}
+			]
+		},
+		"melvorD:Adamant_Sword": {
+			"name": "Adamant Sword",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 27
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 13
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 9
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 24
+				}
+			]
+		},
+		"melvorD:Adamant_Battleaxe": {
+			"name": "Adamant Battleaxe",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3100
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 16
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 16
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 72
+				}
+			]
+		},
+		"melvorD:Adamant_2H_Sword": {
+			"name": "Adamant 2H Sword",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [
+				"Shield"
+			],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3600
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -4
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 64
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 64
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 79
+				}
+			]
+		},
+		"melvorD:Adamant_Helmet": {
+			"name": "Adamant Helmet",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Helmet"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -6
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 19
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 19
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			]
+		},
+		"melvorD:Adamant_Boots": {
+			"name": "Adamant Boots",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Boots"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -1
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -3
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 10
+				}
+			]
+		},
+		"melvorD:Adamant_Platelegs": {
+			"name": "Adamant Platelegs",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Platelegs"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -7
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -21
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 33
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 31
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -4
+				}
+			]
+		},
+		"melvorD:Adamant_Platebody": {
+			"name": "Adamant Platebody",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Platebody"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -10
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -30
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 65
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 63
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -6
+				}
+			]
+		},
+		"melvorD:Rune_Dagger": {
+			"name": "Rune Dagger",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2200
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 35
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 12
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 35
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 24
+				}
+			]
+		},
+		"melvorD:Rune_Sword": {
+			"name": "Rune Sword",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 40
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 19
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 15
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 39
+				}
+			]
+		},
+		"melvorD:Rune_Battleaxe": {
+			"name": "Rune Battleaxe",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3100
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 24
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 24
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 112
+				}
+			]
+		},
+		"melvorD:Rune_2H_Sword": {
+			"name": "Rune 2H Sword",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [
+				"Shield"
+			],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3600
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -4
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 86
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 86
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 126
+				}
+			]
+		},
+		"melvorD:Rune_Helmet": {
+			"name": "Rune Helmet",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Helmet"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -6
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 30
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 30
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			]
+		},
+		"melvorD:Rune_Boots": {
+			"name": "Rune Boots",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Boots"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -1
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -3
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 12
+				}
+			]
+		},
+		"melvorD:Rune_Platelegs": {
+			"name": "Rune Platelegs",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Platelegs"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -7
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -21
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 51
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 49
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -4
+				}
+			]
+		},
+		"melvorD:Rune_Platebody": {
+			"name": "Rune Platebody",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Platebody"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -10
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -30
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 82
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 80
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -6
+				}
+			]
+		},
+		"melvorD:Dragon_Dagger": {
+			"name": "Dragon Dagger",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Dragon_Sword": {
+			"name": "Dragon Sword",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Dragon_Battleaxe": {
+			"name": "Dragon Battleaxe",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Dragon_2H_Sword": {
+			"name": "Dragon 2H Sword",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Dragon_Helmet": {
+			"name": "Dragon Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Dragon_Boots": {
+			"name": "Dragon Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Dragon_Platelegs": {
+			"name": "Dragon Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Dragon_Platebody": {
+			"name": "Dragon Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Bronze_Shield": {
+			"name": "Bronze Shield",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Shield"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -8
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 5
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 6
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			]
+		},
+		"melvorD:Iron_Shield": {
+			"name": "Iron Shield",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Shield"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -8
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 8
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 9
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			]
+		},
+		"melvorD:Steel_Shield": {
+			"name": "Steel Shield",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Shield"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -8
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 13
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 14
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			]
+		},
+		"melvorD:Mithril_Shield": {
+			"name": "Mithril Shield",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Shield"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -8
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 18
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 20
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			]
+		},
+		"melvorD:Adamant_Shield": {
+			"name": "Adamant Shield",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Shield"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -8
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 27
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 29
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			]
+		},
+		"melvorD:Rune_Shield": {
+			"name": "Rune Shield",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Shield"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -8
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 44
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 46
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			]
+		},
+		"melvorD:Dragon_Shield": {
+			"name": "Dragon Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Topaz": {
+			"name": "Topaz",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Sapphire": {
+			"name": "Sapphire",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Ruby": {
+			"name": "Ruby",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Emerald": {
+			"name": "Emerald",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Diamond": {
+			"name": "Diamond",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Silver_Bar": {
+			"name": "Silver Bar",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Black_Dagger": {
+			"name": "Black Dagger",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Black_Sword": {
+			"name": "Black Sword",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Black_Battleaxe": {
+			"name": "Black Battleaxe",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Black_2H_Sword": {
+			"name": "Black 2H Sword",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Black_Helmet": {
+			"name": "Black Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Boots": {
+			"name": "Black Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Platelegs": {
+			"name": "Black Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Platebody": {
+			"name": "Black Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Shield": {
+			"name": "Black Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Potato_Seed": {
+			"name": "Potato Seeds",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Onion_Seed": {
+			"name": "Onion Seeds",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Cabbage_Seed": {
+			"name": "Cabbage Seeds",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Tomato_Seed": {
+			"name": "Tomato Seeds",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Sweetcorn_Seed": {
+			"name": "Sweetcorn Seeds",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Strawberry_Seed": {
+			"name": "Strawberry Seeds",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Watermelon_Seed": {
+			"name": "Watermelon Seeds",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Snape_Grass_Seed": {
+			"name": "Snape Grass Seeds",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Potatoes": {
+			"name": "Potatoes",
+			"kind": "Food",
+			"supported": true,
+			"heal": 3
+		},
+		"melvorD:Onions": {
+			"name": "Onions",
+			"kind": "Food",
+			"supported": true,
+			"heal": 6
+		},
+		"melvorD:Cabbage": {
+			"name": "Cabbage",
+			"kind": "Food",
+			"supported": true,
+			"heal": 9
+		},
+		"melvorD:Tomatoes": {
+			"name": "Tomatoes",
+			"kind": "Food",
+			"supported": true,
+			"heal": 13
+		},
+		"melvorD:Sweetcorn": {
+			"name": "Sweetcorn",
+			"kind": "Food",
+			"supported": true,
+			"heal": 16
+		},
+		"melvorD:Strawberries": {
+			"name": "Strawberries",
+			"kind": "Food",
+			"supported": true,
+			"heal": 20
+		},
+		"melvorD:Watermelon": {
+			"name": "Watermelons",
+			"kind": "Food",
+			"supported": true,
+			"heal": 36
+		},
+		"melvorD:Snape_Grass": {
+			"name": "Snape Grass",
+			"kind": "Food",
+			"supported": true,
+			"heal": 40
+		},
+		"melvorD:Compost": {
+			"name": "Compost",
+			"kind": "Compost",
+			"supported": false
+		},
+		"melvorD:Oak_Tree_Seed": {
+			"name": "Oak Tree Seeds",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Willow_Tree_Seed": {
+			"name": "Willow Tree Seeds",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Maple_Tree_Seed": {
+			"name": "Maple Tree Seeds",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Yew_Tree_Seed": {
+			"name": "Yew Tree Seeds",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Magic_Tree_Seed": {
+			"name": "Magic Tree Seeds",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Bronze_Helmet_T_S": {
+			"name": "(S) Bronze Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Bronze_Boots_T_S": {
+			"name": "(S) Bronze Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Bronze_Platelegs_T_S": {
+			"name": "(S) Bronze Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Bronze_Platebody_T_S": {
+			"name": "(S) Bronze Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Bronze_Shield_T_S": {
+			"name": "(S) Bronze Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Iron_Helmet_T_S": {
+			"name": "(S) Iron Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Iron_Boots_T_S": {
+			"name": "(S) Iron Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Iron_Platelegs_T_S": {
+			"name": "(S) Iron Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Iron_Platebody_T_S": {
+			"name": "(S) Iron Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Iron_Shield_T_S": {
+			"name": "(S) Iron Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Steel_Helmet_T_S": {
+			"name": "(S) Steel Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Steel_Boots_T_S": {
+			"name": "(S) Steel Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Steel_Platelegs_T_S": {
+			"name": "(S) Steel Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Steel_Platebody_T_S": {
+			"name": "(S) Steel Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Steel_Shield_T_S": {
+			"name": "(S) Steel Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Helmet_T_S": {
+			"name": "(S) Black Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Boots_T_S": {
+			"name": "(S) Black Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Platelegs_T_S": {
+			"name": "(S) Black Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Platebody_T_S": {
+			"name": "(S) Black Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Shield_T_S": {
+			"name": "(S) Black Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Mithril_Helmet_T_S": {
+			"name": "(S) Mithril Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Mithril_Boots_T_S": {
+			"name": "(S) Mithril Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Mithril_Platelegs_T_S": {
+			"name": "(S) Mithril Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Mithril_Platebody_T_S": {
+			"name": "(S) Mithril Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Mithril_Shield_T_S": {
+			"name": "(S) Mithril Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Adamant_Helmet_T_S": {
+			"name": "(S) Adamant Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Adamant_Boots_T_S": {
+			"name": "(S) Adamant Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Adamant_Platelegs_T_S": {
+			"name": "(S) Adamant Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Adamant_Platebody_T_S": {
+			"name": "(S) Adamant Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Adamant_Shield_T_S": {
+			"name": "(S) Adamant Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Rune_Helmet_T_S": {
+			"name": "(S) Rune Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Rune_Boots_T_S": {
+			"name": "(S) Rune Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Rune_Platelegs_T_S": {
+			"name": "(S) Rune Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Rune_Platebody_T_S": {
+			"name": "(S) Rune Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Rune_Shield_T_S": {
+			"name": "(S) Rune Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Dragon_Helmet_T_S": {
+			"name": "(S) Dragon Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Dragon_Boots_T_S": {
+			"name": "(S) Dragon Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Dragon_Platelegs_T_S": {
+			"name": "(S) Dragon Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Dragon_Platebody_T_S": {
+			"name": "(S) Dragon Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Dragon_Shield_T_S": {
+			"name": "(S) Dragon Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Bronze_Helmet_T_G": {
+			"name": "(G) Bronze Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Bronze_Boots_T_G": {
+			"name": "(G) Bronze Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Bronze_Platelegs_T_G": {
+			"name": "(G) Bronze Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Bronze_Platebody_T_G": {
+			"name": "(G) Bronze Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Bronze_Shield_T_G": {
+			"name": "(G) Bronze Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Iron_Helmet_T_G": {
+			"name": "(G) Iron Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Iron_Boots_T_G": {
+			"name": "(G) Iron Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Iron_Platelegs_T_G": {
+			"name": "(G) Iron Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Iron_Platebody_T_G": {
+			"name": "(G) Iron Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Iron_Shield_T_G": {
+			"name": "(G) Iron Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Steel_Helmet_T_G": {
+			"name": "(G) Steel Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Steel_Boots_T_G": {
+			"name": "(G) Steel Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Steel_Platelegs_T_G": {
+			"name": "(G) Steel Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Steel_Platebody_T_G": {
+			"name": "(G) Steel Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Steel_Shield_T_G": {
+			"name": "(G) Steel Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Helmet_T_G": {
+			"name": "(G) Black Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Boots_T_G": {
+			"name": "(G) Black Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Platelegs_T_G": {
+			"name": "(G) Black Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Platebody_T_G": {
+			"name": "(G) Black Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Shield_T_G": {
+			"name": "(G) Black Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Mithril_Helmet_T_G": {
+			"name": "(G) Mithril Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Mithril_Boots_T_G": {
+			"name": "(G) Mithril Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Mithril_Platelegs_T_G": {
+			"name": "(G) Mithril Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Mithril_Platebody_T_G": {
+			"name": "(G) Mithril Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Mithril_Shield_T_G": {
+			"name": "(G) Mithril Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Adamant_Helmet_T_G": {
+			"name": "(G) Adamant Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Adamant_Boots_T_G": {
+			"name": "(G) Adamant Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Adamant_Platelegs_T_G": {
+			"name": "(G) Adamant Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Adamant_Platebody_T_G": {
+			"name": "(G) Adamant Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Adamant_Shield_T_G": {
+			"name": "(G) Adamant Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Rune_Helmet_T_G": {
+			"name": "(G) Rune Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Rune_Boots_T_G": {
+			"name": "(G) Rune Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Rune_Platelegs_T_G": {
+			"name": "(G) Rune Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Rune_Platebody_T_G": {
+			"name": "(G) Rune Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Rune_Shield_T_G": {
+			"name": "(G) Rune Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Dragon_Helmet_T_G": {
+			"name": "(G) Dragon Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Dragon_Boots_T_G": {
+			"name": "(G) Dragon Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Dragon_Platelegs_T_G": {
+			"name": "(G) Dragon Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Dragon_Platebody_T_G": {
+			"name": "(G) Dragon Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Dragon_Shield_T_G": {
+			"name": "(G) Dragon Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Amulet_of_Fishing": {
+			"name": "Amulet of Fishing",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Amulet_of_Strength": {
+			"name": "Amulet of Strength",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Amulet_of_Accuracy": {
+			"name": "Amulet of Accuracy",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Amulet_of_Defence": {
+			"name": "Amulet of Defence",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Amulet_of_Glory": {
+			"name": "Amulet of Glory",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Normal_Shortbow": {
+			"name": "Normal Shortbow",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Oak_Shortbow": {
+			"name": "Oak Shortbow",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Maple_Shortbow": {
+			"name": "Maple Shortbow",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Yew_Shortbow": {
+			"name": "Yew Shortbow",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Magic_Shortbow": {
+			"name": "Magic Shortbow",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Maple_Longbow": {
+			"name": "Maple Longbow",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Magic_Longbow": {
+			"name": "Magic Longbow",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Bronze_Arrows": {
+			"name": "Bronze Arrows",
+			"kind": "Equipment",
+			"supported": false,
+			"project_supported": true,
+			"slots": [
+				"Quiver"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Ranged",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedStrengthBonus",
+					"value": 7
+				}
+			]
+		},
+		"melvorD:Iron_Arrows": {
+			"name": "Iron Arrows",
+			"kind": "Equipment",
+			"supported": false,
+			"project_supported": true,
+			"slots": [
+				"Quiver"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Ranged",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedStrengthBonus",
+					"value": 10
+				}
+			]
+		},
+		"melvorD:Steel_Arrows": {
+			"name": "Steel Arrows",
+			"kind": "Equipment",
+			"supported": false,
+			"project_supported": true,
+			"slots": [
+				"Quiver"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Ranged",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedStrengthBonus",
+					"value": 16
+				}
+			]
+		},
+		"melvorD:Mithril_Arrows": {
+			"name": "Mithril Arrows",
+			"kind": "Equipment",
+			"supported": false,
+			"project_supported": true,
+			"slots": [
+				"Quiver"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Ranged",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedStrengthBonus",
+					"value": 22
+				}
+			]
+		},
+		"melvorD:Adamant_Arrows": {
+			"name": "Adamant Arrows",
+			"kind": "Equipment",
+			"supported": false,
+			"project_supported": true,
+			"slots": [
+				"Quiver"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Ranged",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedStrengthBonus",
+					"value": 31
+				}
+			]
+		},
+		"melvorD:Rune_Arrows": {
+			"name": "Rune Arrows",
+			"kind": "Equipment",
+			"supported": false,
+			"project_supported": true,
+			"slots": [
+				"Quiver"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Ranged",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedStrengthBonus",
+					"value": 49
+				}
+			]
+		},
+		"melvorD:Dragon_Arrows": {
+			"name": "Dragon Arrows",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Bronze_Arrowtips": {
+			"name": "Bronze Arrowtips",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Iron_Arrowtips": {
+			"name": "Iron Arrowtips",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Steel_Arrowtips": {
+			"name": "Steel Arrowtips",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Mithril_Arrowtips": {
+			"name": "Mithril Arrowtips",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Adamant_Arrowtips": {
+			"name": "Adamant Arrowtips",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Rune_Arrowtips": {
+			"name": "Rune Arrowtips",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Dragon_Arrowtips": {
+			"name": "Dragon Arrowtips",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Headless_Arrows": {
+			"name": "Headless Arrows",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Feathers": {
+			"name": "Feathers",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Bowstring": {
+			"name": "Bowstring",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Leather": {
+			"name": "Leather",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Green_Dragonhide": {
+			"name": "Green Dragonhide",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Blue_Dragonhide": {
+			"name": "Blue Dragonhide",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Red_Dragonhide": {
+			"name": "Red Dragonhide",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Black_Dragonhide": {
+			"name": "Black Dragonhide",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Leather_Boots": {
+			"name": "Leather Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Leather_Cowl": {
+			"name": "Leather Cowl",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Leather_Vambraces": {
+			"name": "Leather Vambraces",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Leather_Chaps": {
+			"name": "Leather Chaps",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Green_Dhide_Vambraces": {
+			"name": "Green D-hide Vambraces",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Green_Dhide_Chaps": {
+			"name": "Green D-hide Chaps",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Green_Dhide_Body": {
+			"name": "Green D-hide Body",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Blue_Dhide_Vambraces": {
+			"name": "Blue D-hide Vambraces",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Blue_Dhide_Chaps": {
+			"name": "Blue D-hide Chaps",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Blue_Dhide_Body": {
+			"name": "Blue D-hide Body",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Red_Dhide_Vambraces": {
+			"name": "Red D-hide Vambraces",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Red_Dhide_Chaps": {
+			"name": "Red D-hide Chaps",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Red_Dhide_Body": {
+			"name": "Red D-hide Body",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Dhide_Vambraces": {
+			"name": "Black D-hide Vambraces",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Dhide_Chaps": {
+			"name": "Black D-hide Chaps",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Dhide_Body": {
+			"name": "Black D-hide Body",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Gold_Topaz_Ring": {
+			"name": "Gold Topaz Ring",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Cooking_Gloves": {
+			"name": "Cooking Gloves",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Mining_Gloves": {
+			"name": "Mining Gloves",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Smithing_Gloves": {
+			"name": "Smithing Gloves",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Gem_Gloves": {
+			"name": "Gem Gloves",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Cape_Of_Prat": {
+			"name": "Cape of Prat",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Obsidian_Cape": {
+			"name": "Obsidian Cape",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Elite_Amulet_of_Strength": {
+			"name": "Elite Amulet of Strength",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Elite_Amulet_of_Accuracy": {
+			"name": "Elite Amulet of Accuracy",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Elite_Amulet_of_Defence": {
+			"name": "Elite Amulet of Defence",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Elite_Amulet_of_Glory": {
+			"name": "Elite Amulet of Glory",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ancient_Sword": {
+			"name": "Ancient Sword",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Ancient_Helmet": {
+			"name": "Ancient Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ancient_Platelegs": {
+			"name": "Ancient Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ancient_Platebody": {
+			"name": "Ancient Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ancient_Shield": {
+			"name": "Ancient Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ancient_Helmet_T_S": {
+			"name": "(S) Ancient Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ancient_Platelegs_T_S": {
+			"name": "(S) Ancient Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ancient_Platebody_T_S": {
+			"name": "(S) Ancient Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ancient_Shield_T_S": {
+			"name": "(S) Ancient Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ancient_Helmet_T_G": {
+			"name": "(G) Ancient Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ancient_Platelegs_T_G": {
+			"name": "(G) Ancient Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ancient_Platebody_T_G": {
+			"name": "(G) Ancient Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ancient_Shield_T_G": {
+			"name": "(G) Ancient Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Fire_Cape": {
+			"name": "Fire Cape",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Rangers_Hat": {
+			"name": "Ranger Hat",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ranger_Boots": {
+			"name": "Ranger Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Amulet_of_Fury": {
+			"name": "Amulet of Fury",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Amulet_of_Torture": {
+			"name": "Amulet of Torture",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Amulet_of_Ranged": {
+			"name": "Amulet of Ranged",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ice_Dagger": {
+			"name": "Ice Dagger",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Ice_Sword": {
+			"name": "Ice Sword",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Ice_Battleaxe": {
+			"name": "Ice Battleaxe",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Ice_2h_Sword": {
+			"name": "Ice 2H Sword",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Ice_Helmet": {
+			"name": "Ice Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ice_Boots": {
+			"name": "Ice Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ice_Platelegs": {
+			"name": "Ice Platelegs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ice_Platebody": {
+			"name": "Ice Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ice_Shield": {
+			"name": "Ice Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ice_Arrows": {
+			"name": "Ice Arrows",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ice_Shortbow": {
+			"name": "Ice Shortbow",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Ice_Longbow": {
+			"name": "Ice Longbow",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Frozen_Chest": {
+			"name": "Frozen Chest",
+			"kind": "Openable",
+			"supported": false
+		},
+		"melvorD:Amulet_of_Looting": {
+			"name": "Amulet of Looting",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Redwood_Longbow": {
+			"name": "Redwood Longbow",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Rune_Essence": {
+			"name": "Rune Essence",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Air_Rune": {
+			"name": "Air Rune",
+			"kind": "Rune",
+			"supported": false
+		},
+		"melvorD:Mind_Rune": {
+			"name": "Mind Rune",
+			"kind": "Rune",
+			"supported": false
+		},
+		"melvorD:Water_Rune": {
+			"name": "Water Rune",
+			"kind": "Rune",
+			"supported": false
+		},
+		"melvorD:Earth_Rune": {
+			"name": "Earth Rune",
+			"kind": "Rune",
+			"supported": false
+		},
+		"melvorD:Fire_Rune": {
+			"name": "Fire Rune",
+			"kind": "Rune",
+			"supported": false
+		},
+		"melvorD:Body_Rune": {
+			"name": "Body Rune",
+			"kind": "Rune",
+			"supported": false
+		},
+		"melvorD:Chaos_Rune": {
+			"name": "Chaos Rune",
+			"kind": "Rune",
+			"supported": false
+		},
+		"melvorD:Death_Rune": {
+			"name": "Death Rune",
+			"kind": "Rune",
+			"supported": false
+		},
+		"melvorD:Blood_Rune": {
+			"name": "Blood Rune",
+			"kind": "Rune",
+			"supported": false
+		},
+		"melvorD:Ancient_Rune": {
+			"name": "Ancient Rune",
+			"kind": "Rune",
+			"supported": false
+		},
+		"melvorD:Air_Battlestaff": {
+			"name": "Air Battlestaff",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Water_Battlestaff": {
+			"name": "Water Battlestaff",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Earth_Battlestaff": {
+			"name": "Earth Battlestaff",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Fire_Battlestaff": {
+			"name": "Fire Battlestaff",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Mystic_Air_Staff": {
+			"name": "Mystic Air Staff",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Green_Wizard_Hat": {
+			"name": "Green Wizard Hat",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Green_Wizard_Robes": {
+			"name": "Green Wizard Robes",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Green_Wizard_Bottoms": {
+			"name": "Green Wizard Bottoms",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Green_Wizard_Boots": {
+			"name": "Green Wizard Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Blue_Wizard_Hat": {
+			"name": "Blue Wizard Hat",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Blue_Wizard_Robes": {
+			"name": "Blue Wizard Robes",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Blue_Wizard_Bottoms": {
+			"name": "Blue Wizard Bottoms",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Blue_Wizard_Boots": {
+			"name": "Blue Wizard Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Red_Wizard_Hat": {
+			"name": "Red Wizard Hat",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Red_Wizard_Robes": {
+			"name": "Red Wizard Robes",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Red_Wizard_Bottoms": {
+			"name": "Red Wizard Bottoms",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Red_Wizard_Boots": {
+			"name": "Red Wizard Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Wizard_Hat": {
+			"name": "Black Wizard Hat",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Wizard_Robes": {
+			"name": "Black Wizard Robes",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Wizard_Bottoms": {
+			"name": "Black Wizard Bottoms",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Wizard_Boots": {
+			"name": "Black Wizard Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ancient_Wizard_Hat": {
+			"name": "Ancient Wizard Hat",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ancient_Wizard_Robes": {
+			"name": "Ancient Wizard Robes",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ancient_Wizard_Bottoms": {
+			"name": "Ancient Wizard Bottoms",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ancient_Wizard_Boots": {
+			"name": "Ancient Wizard Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Bronze_Scimitar": {
+			"name": "Bronze Scimitar",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 1
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 1
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 6
+				}
+			]
+		},
+		"melvorD:Iron_Scimitar": {
+			"name": "Iron Scimitar",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 2
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 10
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 2
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 9
+				}
+			]
+		},
+		"melvorD:Steel_Scimitar": {
+			"name": "Steel Scimitar",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 3
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 15
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 3
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 14
+				}
+			]
+		},
+		"melvorD:Black_Scimitar": {
+			"name": "Black Scimitar",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Mithril_Scimitar": {
+			"name": "Mithril Scimitar",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 5
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 21
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 5
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 20
+				}
+			]
+		},
+		"melvorD:Adamant_Scimitar": {
+			"name": "Adamant Scimitar",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 6
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 29
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 6
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 28
+				}
+			]
+		},
+		"melvorD:Rune_Scimitar": {
+			"name": "Rune Scimitar",
+			"kind": "Weapon",
+			"supported": true,
+			"slots": [
+				"Weapon"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 45
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 44
+				}
+			]
+		},
+		"melvorD:Dragon_Scimitar": {
+			"name": "Dragon Scimitar",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Bones": {
+			"name": "Bones",
+			"kind": "Bone",
+			"supported": false
+		},
+		"melvorD:Dragon_Bones": {
+			"name": "Dragon Bones",
+			"kind": "Bone",
+			"supported": false
+		},
+		"melvorD:Magic_Bones": {
+			"name": "Magic Bones",
+			"kind": "Bone",
+			"supported": false
+		},
+		"melvorD:Ancient_Longbow": {
+			"name": "Ancient Longbow",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Attack_Skillcape": {
+			"name": "Attack Skillcape",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Cooking_Skillcape": {
+			"name": "Cooking Skillcape",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Defence_Skillcape": {
+			"name": "Defence Skillcape",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Farming_Skillcape": {
+			"name": "Farming Skillcape",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Firemaking_Skillcape": {
+			"name": "Firemaking Skillcape",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Fishing_Skillcape": {
+			"name": "Fishing Skillcape",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Hitpoints_Skillcape": {
+			"name": "HP Skillcape",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Mining_Skillcape": {
+			"name": "Mining Skillcape",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Smithing_Skillcape": {
+			"name": "Smithing Skillcape",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Strength_Skillcape": {
+			"name": "Strength Skillcape",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Woodcutting_Skillcape": {
+			"name": "Woodcutting Skillcape",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Bronze_Gloves": {
+			"name": "Bronze Gloves",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Gloves"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "stabAttackBonus",
+					"value": 2
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 2
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 2
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 2
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 2
+				}
+			]
+		},
+		"melvorD:Iron_Gloves": {
+			"name": "Iron Gloves",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Gloves"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "stabAttackBonus",
+					"value": 3
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 3
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 3
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 3
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 3
+				}
+			]
+		},
+		"melvorD:Steel_Gloves": {
+			"name": "Steel Gloves",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Gloves"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "stabAttackBonus",
+					"value": 4
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 4
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 4
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 4
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 4
+				}
+			]
+		},
+		"melvorD:Mithril_Gloves": {
+			"name": "Mithril Gloves",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Gloves"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "stabAttackBonus",
+					"value": 5
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 5
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 5
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 5
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 5
+				}
+			]
+		},
+		"melvorD:Adamant_Gloves": {
+			"name": "Adamant Gloves",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Gloves"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "stabAttackBonus",
+					"value": 6
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 6
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 6
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 6
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 6
+				}
+			]
+		},
+		"melvorD:Rune_Gloves": {
+			"name": "Rune Gloves",
+			"kind": "Equipment",
+			"supported": true,
+			"slots": [
+				"Gloves"
+			],
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "stabAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 7
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 7
+				}
+			]
+		},
+		"melvorD:Dragon_Gloves": {
+			"name": "Dragon Gloves",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Carrot_Seeds": {
+			"name": "Carrot Seeds",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Carrot": {
+			"name": "Carrot",
+			"kind": "Food",
+			"supported": true,
+			"heal": 28
+		},
+		"melvorD:Mastery_Token_Cooking": {
+			"name": "Mastery Token (Cooking)",
+			"kind": "MasteryToken",
+			"supported": false
+		},
+		"melvorD:Mastery_Token_Farming": {
+			"name": "Mastery Token (Farming)",
+			"kind": "MasteryToken",
+			"supported": false
+		},
+		"melvorD:Mastery_Token_Firemaking": {
+			"name": "Mastery Token (Firemaking)",
+			"kind": "MasteryToken",
+			"supported": false
+		},
+		"melvorD:Mastery_Token_Fishing": {
+			"name": "Mastery Token (Fishing)",
+			"kind": "MasteryToken",
+			"supported": false
+		},
+		"melvorD:Mastery_Token_Mining": {
+			"name": "Mastery Token (Mining)",
+			"kind": "MasteryToken",
+			"supported": false
+		},
+		"melvorD:Mastery_Token_Smithing": {
+			"name": "Mastery Token (Smithing)",
+			"kind": "MasteryToken",
+			"supported": false
+		},
+		"melvorD:Mastery_Token_Woodcutting": {
+			"name": "Mastery Token (Woodcutting)",
+			"kind": "MasteryToken",
+			"supported": false
+		},
+		"melvorD:Magic_Wand_Basic": {
+			"name": "Magic Wand (Basic)",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Magic_Wand_Powerful": {
+			"name": "Magic Wand (Powerful)",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Magic_Wand_Elite": {
+			"name": "Magic Wand (Elite)",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Big_Bones": {
+			"name": "Big Bones",
+			"kind": "Bone",
+			"supported": false
+		},
+		"melvorD:Garum_Herb": {
+			"name": "Garum Herb",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Sourweed_Herb": {
+			"name": "Sourweed Herb",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Mantalyme_Herb": {
+			"name": "Mantalyme Herb",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Lemontyle_Herb": {
+			"name": "Lemontyle Herb",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Oxilyme_Herb": {
+			"name": "Oxilyme Herb",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Garum_Seed": {
+			"name": "Garum Seeds",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Sourweed_Seed": {
+			"name": "Sourweed Seeds",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Mantalyme_Seed": {
+			"name": "Mantalyme Seeds",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Lemontyle_Seed": {
+			"name": "Lemontyle Seeds",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Oxilyme_Seed": {
+			"name": "Oxilyme Seeds",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Sunset_Rapier": {
+			"name": "Sunset Rapier",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Chest_of_Witwix": {
+			"name": "Chest of Witwix",
+			"kind": "Openable",
+			"supported": false
+		},
+		"melvorD:Amulet_of_Calculated_Promotion": {
+			"name": "Amulet of Calculated Promotion",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Signet_Ring_Half_A": {
+			"name": "Signet Ring Half (a)",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Signet_Ring_Half_B": {
+			"name": "Signet Ring Half (b)",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Aorpheats_Signet_Ring": {
+			"name": "Aorpheat's Signet Ring",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Old_Boot": {
+			"name": "Old Boot",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Old_Hat": {
+			"name": "Old Hat",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Seaweed": {
+			"name": "Seaweed",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Rusty_Key": {
+			"name": "Rusty Key",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Shell": {
+			"name": "Shell",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Rope": {
+			"name": "Rope",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Glass_Bottle": {
+			"name": "Glass Bottle",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Rubber_Ducky": {
+			"name": "Rubber Ducky",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Raw_Blowfish": {
+			"name": "Raw Blowfish",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Raw_Poison_Fish": {
+			"name": "Raw Poison Fish",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Leaping_Trout": {
+			"name": "Leaping Trout",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Leaping_Salmon": {
+			"name": "Leaping Salmon",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Leaping_Broad_Fish": {
+			"name": "Leaping Broad Fish",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Raw_Magic_Fish": {
+			"name": "Raw Magic Fish",
+			"kind": "Food",
+			"supported": true,
+			"heal": 140
+		},
+		"melvorD:Raw_Anglerfish": {
+			"name": "Raw Anglerfish",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Raw_Fanfish": {
+			"name": "Raw Fanfish",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Raw_Seahorse": {
+			"name": "Raw Seahorse",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Raw_Carp": {
+			"name": "Raw Carp",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Raw_Skeleton_Fish": {
+			"name": "Raw Skeleton Fish",
+			"kind": "Bone",
+			"supported": false
+		},
+		"melvorD:Pirates_Lost_Ring": {
+			"name": "Pirates Lost Ring",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Message_In_A_Bottle": {
+			"name": "Message in a Bottle",
+			"kind": "Readable",
+			"supported": false
+		},
+		"melvorD:Barbarian_Gloves": {
+			"name": "Barbarian Gloves",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ancient_Ring_Of_Skills": {
+			"name": "Ancient Ring of Skills",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Anglerfish": {
+			"name": "Anglerfish",
+			"kind": "Food",
+			"supported": true,
+			"heal": 120
+		},
+		"melvorD:Fanfish": {
+			"name": "Fanfish",
+			"kind": "Food",
+			"supported": true,
+			"heal": 140
+		},
+		"melvorD:Seahorse": {
+			"name": "Seahorse",
+			"kind": "Food",
+			"supported": true,
+			"heal": 120
+		},
+		"melvorD:Carp": {
+			"name": "Carp",
+			"kind": "Food",
+			"supported": true,
+			"heal": 180
+		},
+		"melvorD:Burnt_Anglerfish": {
+			"name": "Burnt Anglerfish",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Burnt_Fanfish": {
+			"name": "Burnt Fanfish",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Burnt_Seahorse": {
+			"name": "Burnt Seahorse",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Burnt_Carp": {
+			"name": "Burnt Carp",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Weird_Gloop": {
+			"name": "Weird Gloop",
+			"kind": "Compost",
+			"supported": false
+		},
+		"melvorD:Clue_Chasers_Insignia": {
+			"name": "Clue Chasers Insignia",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Lemon": {
+			"name": "Lemon",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Lemons": {
+			"name": "Lemons",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Lemonade": {
+			"name": "Lemonade",
+			"kind": "Food",
+			"supported": true,
+			"heal": 1
+		},
+		"melvorD:Bronze_Throwing_Knife": {
+			"name": "Bronze Throwing Knife",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Iron_Throwing_Knife": {
+			"name": "Iron Throwing Knife",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Steel_Throwing_Knife": {
+			"name": "Steel Throwing Knife",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Mithril_Throwing_Knife": {
+			"name": "Mithril Throwing Knife",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Adamant_Throwing_Knife": {
+			"name": "Adamant Throwing Knife",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Rune_Throwing_Knife": {
+			"name": "Rune Throwing Knife",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Dragon_Throwing_Knife": {
+			"name": "Dragon Throwing Knife",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Headless_Bolts": {
+			"name": "Headless Bolts",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Bronze_Crossbow_Head": {
+			"name": "Bronze Crossbow Head",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Iron_Crossbow_Head": {
+			"name": "Iron Crossbow Head",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Steel_Crossbow_Head": {
+			"name": "Steel Crossbow Head",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Mithril_Crossbow_Head": {
+			"name": "Mithril Crossbow Head",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Adamant_Crossbow_Head": {
+			"name": "Adamant Crossbow Head",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Rune_Crossbow_Head": {
+			"name": "Rune Crossbow Head",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Dragon_Crossbow_Head": {
+			"name": "Dragon Crossbow Head",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Bronze_Javelin_Heads": {
+			"name": "Bronze Javelin Heads",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Iron_Javelin_Heads": {
+			"name": "Iron Javelin Heads",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Steel_Javelin_Heads": {
+			"name": "Steel Javelin Heads",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Mithril_Javelin_Heads": {
+			"name": "Mithril Javelin Heads",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Adamant_Javelin_Heads": {
+			"name": "Adamant Javelin Heads",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Rune_Javelin_Heads": {
+			"name": "Rune Javelin Heads",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Dragon_Javelin_Heads": {
+			"name": "Dragon Javelin Heads",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Green_Dhide_Vambraces_U": {
+			"name": "(U) Green D-hide Vambraces",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Green_Dhide_Chaps_U": {
+			"name": "(U) Green D-hide Chaps",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Green_Dhide_Body_U": {
+			"name": "(U) Green D-hide Body",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Blue_Dhide_Vambraces_U": {
+			"name": "(U) Blue D-hide Vambraces",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Blue_Dhide_Chaps_U": {
+			"name": "(U) Blue D-hide Chaps",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Blue_Dhide_Body_U": {
+			"name": "(U) Blue D-hide Body",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Red_Dhide_Vambraces_U": {
+			"name": "(U) Red D-hide Vambraces",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Red_Dhide_Chaps_U": {
+			"name": "(U) Red D-hide Chaps",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Red_Dhide_Body_U": {
+			"name": "(U) Red D-hide Body",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Dhide_Vambraces_U": {
+			"name": "(U) Black D-hide Vambraces",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Dhide_Chaps_U": {
+			"name": "(U) Black D-hide Chaps",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Black_Dhide_Body_U": {
+			"name": "(U) Black D-hide Body",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Elite_Amulet_of_Ranged": {
+			"name": "Elite Amulet of Ranged",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Eight": {
+			"name": "8",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Bobs_Rake": {
+			"name": "Bob's Rake",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Amulet_of_Magic": {
+			"name": "Amulet of Magic",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Elite_Amulet_of_Magic": {
+			"name": "Elite Amulet of Magic",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Bone_Necklace": {
+			"name": "Bone Necklace",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Fury_of_the_Elemental_Zodiac": {
+			"name": "Fury of the Elemental Zodiacs",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Light_Rune": {
+			"name": "Light Rune",
+			"kind": "Rune",
+			"supported": false
+		},
+		"melvorD:Mist_Rune": {
+			"name": "Mist Rune",
+			"kind": "Rune",
+			"supported": false
+		},
+		"melvorD:Dust_Rune": {
+			"name": "Dust Rune",
+			"kind": "Rune",
+			"supported": false
+		},
+		"melvorD:Smoke_Rune": {
+			"name": "Smoke Rune",
+			"kind": "Rune",
+			"supported": false
+		},
+		"melvorD:Red_Party_Hat": {
+			"name": "Red Party Hat",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Dragonfire_Shield": {
+			"name": "Dragonfire Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Circlet_of_Rhaelyx": {
+			"name": "Circlet of Rhaelyx",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Jewel_of_Rhaelyx": {
+			"name": "Jewel of Rhaelyx",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Charge_Stone_of_Rhaelyx": {
+			"name": "Charge Stone of Rhaelyx",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Crown_of_Rhaelyx": {
+			"name": "Crown of Rhaelyx",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Enchanted_Cape": {
+			"name": "Enchanted Cape",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Enchanted_Shield": {
+			"name": "Enchanted Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Mysterious_Stone": {
+			"name": "Mysterious Stone",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Event_Clue_1": {
+			"name": "Event Clue #1",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Event_Clue_2": {
+			"name": "Event Clue #2",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Event_Clue_3": {
+			"name": "Event Clue #3",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Event_Clue_4": {
+			"name": "Event Clue #4",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Cake_Base": {
+			"name": "Cake Base",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Candle": {
+			"name": "Candle",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Magical_Icing": {
+			"name": "Magical Icing",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Magical_Flavouring": {
+			"name": "Magical Flavouring",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Birthday_Cake": {
+			"name": "Birthday Cake",
+			"kind": "Food",
+			"supported": true,
+			"heal": 1
+		},
+		"melvorD:Birthday_Token": {
+			"name": "Birthday Token",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Purple_Party_Hat": {
+			"name": "Purple Party Hat",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ancient_Ring_Of_Mastery": {
+			"name": "Ancient Ring of Mastery",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Futures_Prophecy": {
+			"name": "A Tale of the Past, a future's prophecy",
+			"kind": "Readable",
+			"supported": false
+		},
+		"melvorD:Santa_Hat": {
+			"name": "Santa Hat",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Christmas_Cracker": {
+			"name": "Christmas Cracker",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Friendship_Bracelet": {
+			"name": "Friendship Bracelet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Candy_Cane": {
+			"name": "Candy Cane",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Christmas_Coal": {
+			"name": "Christmas Coal",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Christmas_Sweater": {
+			"name": "Christmas Sweater",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Christmas_Wreath": {
+			"name": "Christmas Wreath",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Yellow_Party_Hat": {
+			"name": "Yellow Party Hat",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Easter_Egg": {
+			"name": "Easter Egg",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Red_Herring": {
+			"name": "Red Herring",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Cool_Glasses": {
+			"name": "Cool Glasses",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Bag_of_Flour": {
+			"name": "Bag of Flour",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Bread": {
+			"name": "Bread",
+			"kind": "Food",
+			"supported": true,
+			"heal": 10
+		},
+		"melvorD:Raw_Beef": {
+			"name": "Raw Beef",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Beef": {
+			"name": "Beef",
+			"kind": "Food",
+			"supported": true,
+			"heal": 50
+		},
+		"melvorD:Raw_Chicken": {
+			"name": "Raw Chicken",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Chicken": {
+			"name": "Chicken",
+			"kind": "Food",
+			"supported": true,
+			"heal": 90
+		},
+		"melvorD:Plain_Pizza_Slice": {
+			"name": "Plain Pizza Slice",
+			"kind": "Food",
+			"supported": true,
+			"heal": 14
+		},
+		"melvorD:Beef_Pie": {
+			"name": "Beef Pie",
+			"kind": "Food",
+			"supported": true,
+			"heal": 240
+		},
+		"melvorD:Meat_Pizza_Slice": {
+			"name": "Meat Pizza Slice",
+			"kind": "Food",
+			"supported": true,
+			"heal": 32
+		},
+		"melvorD:Basic_Soup": {
+			"name": "Basic Soup",
+			"kind": "Food",
+			"supported": true,
+			"heal": 36
+		},
+		"melvorD:Strawberry_Cupcake": {
+			"name": "Strawberry Cupcake",
+			"kind": "Food",
+			"supported": true,
+			"heal": 80
+		},
+		"melvorD:Hearty_Soup": {
+			"name": "Hearty Soup",
+			"kind": "Food",
+			"supported": true,
+			"heal": 40
+		},
+		"melvorD:Cherry_Cupcake": {
+			"name": "Cherry Cupcake",
+			"kind": "Food",
+			"supported": true,
+			"heal": 100
+		},
+		"melvorD:Cream_Corn_Soup": {
+			"name": "Cream Corn Soup",
+			"kind": "Food",
+			"supported": true,
+			"heal": 58
+		},
+		"melvorD:Chicken_Soup": {
+			"name": "Chicken Soup",
+			"kind": "Food",
+			"supported": true,
+			"heal": 110
+		},
+		"melvorD:Strawberry_Cake": {
+			"name": "Strawberry Cake",
+			"kind": "Food",
+			"supported": true,
+			"heal": 270
+		},
+		"melvorD:Carrot_Cake": {
+			"name": "Carrot Cake",
+			"kind": "Food",
+			"supported": true,
+			"heal": 300
+		},
+		"melvorD:Shrimp_Perfect": {
+			"name": "Shrimp (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 33
+		},
+		"melvorD:Sardine_Perfect": {
+			"name": "Sardine (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 44
+		},
+		"melvorD:Herring_Perfect": {
+			"name": "Herring (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 55
+		},
+		"melvorD:Seahorse_Perfect": {
+			"name": "Seahorse (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 132
+		},
+		"melvorD:Trout_Perfect": {
+			"name": "Trout (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 77
+		},
+		"melvorD:Salmon_Perfect": {
+			"name": "Salmon (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 99
+		},
+		"melvorD:Lobster_Perfect": {
+			"name": "Lobster (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 121
+		},
+		"melvorD:Swordfish_Perfect": {
+			"name": "Swordfish (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 143
+		},
+		"melvorD:Anglerfish_Perfect": {
+			"name": "Anglerfish (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 132
+		},
+		"melvorD:Fanfish_Perfect": {
+			"name": "Fanfish (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 154
+		},
+		"melvorD:Crab_Perfect": {
+			"name": "Crab (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 165
+		},
+		"melvorD:Carp_Perfect": {
+			"name": "Carp (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 198
+		},
+		"melvorD:Shark_Perfect": {
+			"name": "Shark (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 220
+		},
+		"melvorD:Cave_Fish_Perfect": {
+			"name": "Cave Fish (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 242
+		},
+		"melvorD:Manta_Ray_Perfect": {
+			"name": "Manta Ray (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 440
+		},
+		"melvorD:Whale_Perfect": {
+			"name": "Whale (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 528
+		},
+		"melvorD:Bread_Perfect": {
+			"name": "Bread (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 11
+		},
+		"melvorD:Beef_Perfect": {
+			"name": "Beef (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 55
+		},
+		"melvorD:Chicken_Perfect": {
+			"name": "Chicken (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 99
+		},
+		"melvorD:Plain_Pizza_Slice_Perfect": {
+			"name": "Plain Pizza Slice (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 15
+		},
+		"melvorD:Beef_Pie_Perfect": {
+			"name": "Beef Pie (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 264
+		},
+		"melvorD:Meat_Pizza_Slice_Perfect": {
+			"name": "Meat Pizza Slice (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 35
+		},
+		"melvorD:Basic_Soup_Perfect": {
+			"name": "Basic Soup (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 39
+		},
+		"melvorD:Strawberry_Cupcake_Perfect": {
+			"name": "Strawberry Cupcake (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 88
+		},
+		"melvorD:Hearty_Soup_Perfect": {
+			"name": "Hearty Soup (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 44
+		},
+		"melvorD:Cherry_Cupcake_Perfect": {
+			"name": "Cherry Cupcake (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 110
+		},
+		"melvorD:Cream_Corn_Soup_Perfect": {
+			"name": "Cream Corn Soup (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 63
+		},
+		"melvorD:Chicken_Soup_Perfect": {
+			"name": "Chicken Soup (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 121
+		},
+		"melvorD:Strawberry_Cake_Perfect": {
+			"name": "Strawberry Cake (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 297
+		},
+		"melvorD:Carrot_Cake_Perfect": {
+			"name": "Carrot Cake (Perfect)",
+			"kind": "Food",
+			"supported": true,
+			"heal": 330
+		},
+		"melvorD:Cherry_Seeds": {
+			"name": "Cherry Seeds",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Cherry": {
+			"name": "Cherry",
+			"kind": "Food",
+			"supported": true,
+			"heal": 24
+		},
+		"melvorD:Cheese": {
+			"name": "Cheese",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Cream": {
+			"name": "Cream",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Natures_Call_Staff_Top": {
+			"name": "Nature's Call Staff Top",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Slingshot": {
+			"name": "Slingshot",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Elerine_Longbow": {
+			"name": "Elerine Longbow",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Elerine_Spear": {
+			"name": "Elerine Spear",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Event_Token": {
+			"name": "Event Token - Holiday 2021",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Christmas_Scarf": {
+			"name": "Holiday Scarf",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Gingerbread_House": {
+			"name": "Gingerbread House",
+			"kind": "Food",
+			"supported": true,
+			"heal": 480
+		},
+		"melvorD:Gingerbread_Man": {
+			"name": "Gingerbread Man",
+			"kind": "Food",
+			"supported": true,
+			"heal": 220
+		},
+		"melvorD:Edible_Candy_Cane": {
+			"name": "Edible Candy Cane",
+			"kind": "Food",
+			"supported": true,
+			"heal": 110
+		},
+		"melvorD:Locked_Chest_Key": {
+			"name": "Locked Chest Key",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Event_Token_Christmas2021": {
+			"name": "Event Token (Holiday 2021)",
+			"kind": "Item",
+			"supported": false
+		},
+		"melvorD:Enchanted_Topaz_Bolts": {
+			"name": "Enchanted Topaz Bolts",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Enchanted_Sapphire_Bolts": {
+			"name": "Enchanted Sapphire Bolts",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Enchanted_Ruby_Bolts": {
+			"name": "Enchanted Ruby Bolts",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Enchanted_Emerald_Bolts": {
+			"name": "Enchanted Emerald Bolts",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Enchanted_Diamond_Bolts": {
+			"name": "Enchanted Diamond Bolts",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Enchanted_Jadestone_Bolts": {
+			"name": "Enchanted Jadestone Bolts",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Poison_Ring": {
+			"name": "Poison Ring",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Burning_Ring": {
+			"name": "Burning Ring",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Frostburn_Ring": {
+			"name": "Frostburn Ring",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Mystery_Wand": {
+			"name": "Mystery Wand",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Poison_Arrows": {
+			"name": "Poison Arrows",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Fire_Arrows": {
+			"name": "Fire Arrows",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Frost_Arrows": {
+			"name": "Frostburn Arrows",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Burning_Wand": {
+			"name": "Burning Wand",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Frostburn_Wand": {
+			"name": "Frostburn Wand",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Ring_Of_Balance": {
+			"name": "Ring of Balance",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Flying_Cape": {
+			"name": "Flying Cape",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Amulet_Of_Healing": {
+			"name": "Amulet of Healing",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Sword_Of_Some_Reliability": {
+			"name": "Sword of Some Reliability",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:One_Layer_Shield": {
+			"name": "One Layer Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Warding_Shield": {
+			"name": "Warding Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Tilted_Crossbow": {
+			"name": "Tilted Crossbow",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Ultimate_Speed_Boots": {
+			"name": "Ultimate Speed Boots",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:I_Cant_See_Helmet": {
+			"name": "I Can't See Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Almighty_Ring": {
+			"name": "Almighty Ring",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Punching_Bag_Platebody": {
+			"name": "Punching Bag Platebody",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Precision_Gloves": {
+			"name": "Precision Gloves",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Heavy_Gloves": {
+			"name": "Heavy Gloves",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Ultimate_Slapping_Gloves": {
+			"name": "Ultimate Slapping Gloves",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Amulet_Of_Burning_Leech": {
+			"name": "Amulet of Burning Leech",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Amulet_Of_Poison_Leech": {
+			"name": "Amulet of Poison Leech",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Magic_Crit_Amulet": {
+			"name": "Magic Critical Amulet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Melee_Crit_Amulet": {
+			"name": "Melee Critical Amulet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Bloodthirst_Amulet": {
+			"name": "Bloodthirst Amulet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Dragon_Head_Helmet": {
+			"name": "Dragon Head Helmet",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Stonewall_Shield": {
+			"name": "Stonewall Shield",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Impossible_Longbow": {
+			"name": "Impossible Longbow",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Throwing_Dragon_Sword": {
+			"name": "Throwing Dragon Sword",
+			"kind": "Weapon",
+			"supported": false
+		},
+		"melvorD:Bird_Nest": {
+			"name": "Bird Nest",
+			"kind": "Openable",
+			"supported": false
+		},
+		"melvorD:Treasure_Chest": {
+			"name": "Treasure Chest",
+			"kind": "Openable",
+			"supported": false
+		},
+		"melvorD:Egg_Chest": {
+			"name": "Egg Chest",
+			"kind": "Openable",
+			"supported": false
+		},
+		"melvorD:Pirate_Booty": {
+			"name": "Pirate Booty",
+			"kind": "Openable",
+			"supported": false
+		},
+		"melvorD:Elite_Chest": {
+			"name": "Elite Chest",
+			"kind": "Openable",
+			"supported": false
+		},
+		"melvorD:Spider_Chest": {
+			"name": "Spider Chest",
+			"kind": "Openable",
+			"supported": false
+		},
+		"melvorD:Standard_Chest": {
+			"name": "Standard Chest",
+			"kind": "Openable",
+			"supported": false
+		},
+		"melvorD:Bandit_Chest": {
+			"name": "Bandit Chest",
+			"kind": "Openable",
+			"supported": false
+		},
+		"melvorD:Book_of_Eli": {
+			"name": "Book of Eli",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Christmas_Present_Yellow": {
+			"name": "Christmas Present (Yellow)",
+			"kind": "Openable",
+			"supported": false
+		},
+		"melvorD:Christmas_Present_Blue": {
+			"name": "Christmas Present (Blue)",
+			"kind": "Openable",
+			"supported": false
+		},
+		"melvorD:Christmas_Present_Green": {
+			"name": "Christmas Present (Green)",
+			"kind": "Openable",
+			"supported": false
+		},
+		"melvorD:Christmas_Present_White": {
+			"name": "Christmas Present (White)",
+			"kind": "Openable",
+			"supported": false
+		},
+		"melvorD:Christmas_Present_Purple": {
+			"name": "Christmas Present (Purple)",
+			"kind": "Openable",
+			"supported": false
+		},
+		"melvorD:Christmas_Present_General": {
+			"name": "Christmas Present (Standard)",
+			"kind": "Openable",
+			"supported": false
+		},
+		"melvorD:Locked_Chest": {
+			"name": "Locked Chest",
+			"kind": "Openable",
+			"supported": false
+		},
+		"melvorD:Magic_Chest": {
+			"name": "Magic Chest",
+			"kind": "Openable",
+			"supported": false
+		},
+		"melvorD:Burning_Amulet_of_Gold": {
+			"name": "Burning Amulet of Gold",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Burning_Amulet_of_Stardust": {
+			"name": "Burning Amulet of Stardust",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Burning_Amulet_of_Ash": {
+			"name": "Burning Amulet of Ash",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Burning_Amulet_of_XP": {
+			"name": "Burning Amulet of XP",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:Generous_Fire_Spirit": {
+			"name": "Generous Fire Spirit",
+			"kind": "Openable",
+			"supported": false
+		},
+		"melvorD:DEBUG_ITEM": {
+			"name": "DEBUG ITEM",
+			"kind": "Equipment",
+			"supported": false
+		},
+		"melvorD:DEBUG_STICK": {
+			"name": "DEBUG Stick",
+			"kind": "Weapon",
+			"supported": false
+		}
+	}
+}

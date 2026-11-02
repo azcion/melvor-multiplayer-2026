@@ -1,3 +1,5 @@
+import { restore_work_reply, store_work_reply } from './expedition-work-replies';
+import { equipment_tracking, equipment_project_state } from './equipment-projects';
 import { settle_wish_capacity } from './wish-capacity';
 import { record_economy_operation } from './save-rollback';
 import { expedition_capture_time, EXPEDITION_BOUNDARY_TOLERANCE_MS, EXPEDITION_FRESH_CAPTURE_MS } from './expedition-clock';
@@ -126,7 +128,10 @@ export function update_unlocks(expedition_id: number, visit_id: number, now: num
 	const arrival = visit.charted_on_arrival ? 'arrival_scout' : 'arrival_chart';
 	for (const task of chamber.tasks.filter(task => preview_task_available(content, chamber, task))) {
 		if (!progress.has(task.id)) continue;
-		const ready = task.depends_on.every(dependency => progress.get(dependency === 'arrival' ? arrival : dependency)?.completed_at != null);
+		const ready = task.depends_on.every(dependency => dependency === 'arrival' && content.version >= 3
+			? chamber.tasks.filter(entry => entry.phase === 'arrival' && entry.requirement === 'required' &&
+				entry.kind !== (visit.charted_on_arrival ? 'chart' : 'scout')).every(entry => progress.get(entry.id)?.completed_at != null)
+			: progress.get(dependency === 'arrival' ? arrival : dependency)?.completed_at != null);
 		if (ready) db.query('UPDATE expedition_tasks SET unlocked_at = ? WHERE visit_id = ? AND task_id = ? AND unlocked_at IS NULL')
 			.run(now, visit_id, task.id);
 	}
@@ -256,20 +261,21 @@ export function get_expedition_work(client_id: number) {
 				reward_remaining_ms: claim.reward_remaining_ms,
 				claim: true, ...(claim.pending_boundary_at !== null ? { pending_boundary_at: claim.pending_boundary_at,
 					settle_zero_at: claim.pending_boundary_at + UNVERIFIED_WAIT_MS } : {}) } : null;
-		return { tracking, points_micros: balance, points_display: Math.floor(balance / MICROS_PER_HOUR) };
+		return { equipment_projects: equipment_project_state(db, client_id), tracking: tracking ?? equipment_tracking(db, client_id), points_micros: balance, points_display: Math.floor(balance / MICROS_PER_HOUR) };
 	}).immediate();
 }
 
 export function change_expedition_work(client_id: number, operation_id: string, request: {
 	expedition_id: number; visit_id: number; task_id?: string | null; statistics: WorkStatistics | null;
 	activities: Activity[]; captured_at: number; kind: 'start' | 'check-in' | 'stop';
-}, now = Date.now()) {
+}, now = Date.now()): JsonObject {
 	const request_hash = createHash('sha256').update(JSON.stringify(request)).digest('hex');
 	return db.transaction(() => {
-		const replay = db.query<{ request_hash: string; response: string }, [number, string]>(
-			'SELECT request_hash, response FROM expedition_work_operations WHERE client_id = ? AND operation_id = ?'
+		const replay = db.query<{ request_hash: string; response: string; catalog_hash: string | null }, [number, string]>(
+			'SELECT request_hash, response, catalog_hash FROM expedition_work_operations WHERE client_id = ? AND operation_id = ?'
 		).get(client_id, operation_id);
-		if (replay) return replay.request_hash === request_hash ? JSON.parse(replay.response) : { success: false, error: 'operation_conflict' };
+		if (replay) return replay.request_hash === request_hash ? restore_work_reply(db, replay.response, replay.catalog_hash) : { success: false, error: 'operation_conflict' };
+		if (equipment_tracking(db, client_id)) return { success: false, error: 'tracking_busy' };
 		get_expedition_work(client_id);
 		const existing = active_session(client_id);
 		const claim = existing ? null : active_claim(client_id);
@@ -307,8 +313,7 @@ export function change_expedition_work(client_id: number, operation_id: string, 
 				if (now >= captured_at + UNVERIFIED_WAIT_MS) {
 					const settlement = settle_claim(claim, { version: 1, time_ms: {} }, captured_at, now);
 					const response = { success: true, clock, settlement, ...get_expedition_work(client_id) };
-					db.query('INSERT INTO expedition_work_operations (client_id, operation_id, request_hash, response, created_at) VALUES (?, ?, ?, ?, ?)')
-						.run(client_id, operation_id, request_hash, JSON.stringify(response), now);
+					store_work_reply(db, client_id, operation_id, request_hash, response, now);
 			record_economy_operation(db,{ source_key:`expedition-work:${client_id}:${operation_id}`,client_id,
 				kind:'expedition-work',local_effect:'server_only',committed_at:now,evidence:{ operation_id } });
 					return response;
@@ -317,8 +322,7 @@ export function change_expedition_work(client_id: number, operation_id: string, 
 					'UPDATE expedition_work_claims SET pending_boundary_at = ?, pending_capture_at = ?, pending_reported_capture_at = ? WHERE session_id = ?'
 				).run(captured_at, captured_at, request.captured_at, claim.session_id);
 				const response = { clock, ...pending_response(claim.pending_boundary_at ?? captured_at), ...get_expedition_work(client_id) };
-				db.query('INSERT INTO expedition_work_operations (client_id, operation_id, request_hash, response, created_at) VALUES (?, ?, ?, ?, ?)')
-					.run(client_id, operation_id, request_hash, JSON.stringify(response), now);
+				store_work_reply(db, client_id, operation_id, request_hash, response, now);
 			record_economy_operation(db,{ source_key:`expedition-work:${client_id}:${operation_id}`,client_id,
 				kind:'expedition-work',local_effect:'server_only',committed_at:now,evidence:{ operation_id } });
 				return response;
@@ -326,8 +330,7 @@ export function change_expedition_work(client_id: number, operation_id: string, 
 			const settlement = settle_claim(claim, request.statistics, captured_at, now);
 			if (settlement.success !== true) return settlement;
 			const response = { success: true, clock, settlement, ...get_expedition_work(client_id) };
-			db.query('INSERT INTO expedition_work_operations (client_id, operation_id, request_hash, response, created_at) VALUES (?, ?, ?, ?, ?)')
-				.run(client_id, operation_id, request_hash, JSON.stringify(response), now);
+			store_work_reply(db, client_id, operation_id, request_hash, response, now);
 			record_economy_operation(db,{ source_key:`expedition-work:${client_id}:${operation_id}`,client_id,
 				kind:'expedition-work',local_effect:'server_only',committed_at:now,evidence:{ operation_id } });
 			return response;
@@ -350,8 +353,7 @@ export function change_expedition_work(client_id: number, operation_id: string, 
 				if (now >= captured_at + UNVERIFIED_WAIT_MS) {
 					settlement = settle(existing, { version: 1, time_ms: {} }, request.activities, captured_at, now);
 					const response = { success: true, clock, settlement, ...get_expedition_work(client_id) };
-					db.query('INSERT INTO expedition_work_operations (client_id, operation_id, request_hash, response, created_at) VALUES (?, ?, ?, ?, ?)')
-						.run(client_id, operation_id, request_hash, JSON.stringify(response), now);
+					store_work_reply(db, client_id, operation_id, request_hash, response, now);
 			record_economy_operation(db,{ source_key:`expedition-work:${client_id}:${operation_id}`,client_id,
 				kind:'expedition-work',local_effect:'server_only',committed_at:now,evidence:{ operation_id } });
 					return response;
@@ -360,8 +362,7 @@ export function change_expedition_work(client_id: number, operation_id: string, 
 					'UPDATE expedition_work_sessions SET pending_boundary_at = ?, pending_capture_at = ?, pending_reported_capture_at = ? WHERE id = ?'
 				).run(captured_at, captured_at, request.captured_at, existing.id);
 				const response = { clock, ...pending_response(existing.pending_boundary_at ?? captured_at), ...get_expedition_work(client_id) };
-				db.query('INSERT INTO expedition_work_operations (client_id, operation_id, request_hash, response, created_at) VALUES (?, ?, ?, ?, ?)')
-					.run(client_id, operation_id, request_hash, JSON.stringify(response), now);
+				store_work_reply(db, client_id, operation_id, request_hash, response, now);
 			record_economy_operation(db,{ source_key:`expedition-work:${client_id}:${operation_id}`,client_id,
 				kind:'expedition-work',local_effect:'server_only',committed_at:now,evidence:{ operation_id } });
 				return response;
@@ -420,8 +421,7 @@ export function change_expedition_work(client_id: number, operation_id: string, 
 		const response = { success: true, clock, settlement, ...get_expedition_work(client_id),
 			...(requested_unavailable ? { warning: 'task_unavailable' } : {}),
 			...(fresh_snapshot_required ? { warning: 'fresh_snapshot_required' } : {}) };
-		db.query('INSERT INTO expedition_work_operations (client_id, operation_id, request_hash, response, created_at) VALUES (?, ?, ?, ?, ?)')
-			.run(client_id, operation_id, request_hash, JSON.stringify(response), now);
+		store_work_reply(db, client_id, operation_id, request_hash, response, now);
 			record_economy_operation(db,{ source_key:`expedition-work:${client_id}:${operation_id}`,client_id,
 				kind:'expedition-work',local_effect:'server_only',committed_at:now,evidence:{ operation_id } });
 		return response;

@@ -163,10 +163,9 @@ export function create_hollow_star_renderer({get_settings=()=>DEFAULT_HOLLOW_STA
 			c.save();c.lineCap='round';c.lineJoin='round';
 			// Clip bases to the far side of the foreground rim; tips can reach into the chamber.
 			c.beginPath();c.moveTo(.10*w,.20*h);c.lineTo(w,.20*h);
-			c.lineTo(w,.878*h);c.lineTo(.90*w,.91*h);c.lineTo(.58*w,.922*h);
-			c.lineTo(.575*w,.89*h);c.lineTo(.45*w,.848*h);c.lineTo(.35*w,.813*h);
-			c.lineTo(.26*w,.774*h);c.lineTo(.17*w,.737*h);c.lineTo(.275*w,.69*h);
-			c.lineTo(.42*w,.64*h);c.lineTo(.53*w,.568*h);c.lineTo(.10*w,.568*h);c.closePath();c.clip();
+			c.lineTo(w,.878*h);c.lineTo(.90*w,.91*h);c.lineTo(.58*w,.99*h);
+			c.lineTo(.565*w,.87*h);c.lineTo(.45*w,.82*h);c.lineTo(.24*w,.75*h);c.lineTo(.29*w,.69*h);
+			c.lineTo(.39*w,.63*h);c.lineTo(.52*w,.55*h);c.lineTo(.10*w,.568*h);c.closePath();c.clip();
 			for(let i=0;i<s.tendril_count;i++){
 				const p=tendrils[i],time=tendril_time*p.speed+p.phase;
 				const reach=p.height*s.tendril_height*(.82+.18*Math.sin(time*.6));
@@ -208,7 +207,7 @@ export function create_hollow_star_renderer({get_settings=()=>DEFAULT_HOLLOW_STA
 		}
 		const lit=state.light, melt=state.melt*lit, finish=state.complete;
 		if(lit<.001)return;
-		const cx=.637*w,cy=.253*h;
+		const cx=.631*w,cy=.239*h;
 		const radius=w*(.014+.027*lit+.030*melt)*s.blob_size;
 		const agitation=s.turbulence*(.4+.5*melt+active*.9)*(1-finish*.75);
 		const pulse=1+Math.sin(motion*1.5)*(.025+.018*active)*(1-finish*.7);

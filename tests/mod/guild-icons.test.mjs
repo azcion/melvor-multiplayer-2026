@@ -55,5 +55,4 @@ test('Council modal scrollers use the native touch contract and avoid an outer s
 	assert.match(templates, /class="mp-council-target-list" @touchmove="state\.stop_icon_scroll_propagation\(\$event\)"/);
 	assert.match(main, /customClass: \{ popup: \['heraldry', 'banishment'\]\.includes\(type\) \? 'mp-native-scroll-modal-popup'/);
 	assert.match(styles, /\.mp-native-scroll-modal-popup \.swal2-html-container,[^{]*\{\s*overflow: visible;/);
-	assert.match(styles, /\.mp-expedition-work-prompt-popup \.swal2-html-container,[^{]*\{\s*overflow: visible;/);
 });

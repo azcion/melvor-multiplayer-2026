@@ -1,3 +1,5 @@
+import { rift_preparations_enabled } from './expedition-preparations';
+import { grant_combat_resets, combat_reset_balance } from './combat-progression';
 import { rollback_policy, preview_rollback_policy, set_rollback_policy, set_rollback_hold, rollback_admission_revision, type RollbackPolicy } from './rollback-policy';
 import { decide_rollback_incident } from './rollback-admission';
 import { inspect_rollback_benefits, release_rollback_benefit } from './rollback-benefits';
@@ -48,6 +50,7 @@ function usage(output: AdminOutput): number {
   bun run admin.ts status
   bun run admin.ts registrations open|close
   bun run admin.ts maintenance on|off
+  bun run admin.ts expedition-preparations status|enable confirm
   bun run admin.ts alliance-preview on|off
   bun run admin.ts icon-collection on|off
   bun run admin.ts icon-collection-limit icon-bytes|manifest-items|catalog-bytes|observations VALUE
@@ -60,6 +63,7 @@ function usage(output: AdminOutput): number {
   bun run admin.ts alliance inspect ALLIANCE_ID
   bun run admin.ts alliance-process inspect PROCESS_ID
   bun run admin.ts guild inspect GUILD_ID
+  bun run admin.ts combat-resets grant CLIENT_ID QUANTITY COMMAND_UUID
   bun run admin.ts identity find DISPLAY_NAME
   bun run admin.ts identity inspect CLIENT_ID
   bun run admin.ts identity enable|disable CLIENT_ID
@@ -756,6 +760,7 @@ function run_admin_command(args: string[], output: AdminOutput = console_output)
 			).get()?.count ?? 0;
 
 			output.log(`registrations=${get_service_setting('registrations_open') === '1' ? 'open' : 'closed'}`);
+			output.log(`expedition_preparations=${rift_preparations_enabled() ? 'on' : 'off'}`);
 			output.log(`alliance_preview=${get_service_setting('alliance_preview_enabled') === '0' ? 'off' : 'on'}`);
 			output.log(`maintenance=${get_service_setting('maintenance') === '1' ? 'on' : 'off'}`);
 			output.log(`icon_collection=${get_service_setting('icon_collection_enabled') === '1' ? 'on' : 'off'}`);
@@ -788,6 +793,22 @@ function run_admin_command(args: string[], output: AdminOutput = console_output)
 				return usage(output);
 			set_setting('registrations_open', action === 'open' ? '1' : '0');
 			output.log(`Registrations ${action}.`);
+			return 0;
+		case 'expedition-preparations':
+			if (action === 'status' && args.length === 2) {
+				output.log(`expedition_preparations=${rift_preparations_enabled() ? 'on' : 'off'}`);
+				return 0;
+			}
+			if (action !== 'enable' || args.length !== 3 || args[2] !== 'confirm') return usage(output);
+			db.transaction(() => {
+				if (rift_preparations_enabled()) return;
+				db.query('INSERT INTO service_settings (key, value) VALUES (?, ?) ' +
+					'ON CONFLICT (key) DO UPDATE SET value = excluded.value')
+					.run('expedition_preparations_enabled', '1');
+				db.query('UPDATE expeditions SET revision = revision + 1 WHERE status = ?').run('registration');
+				db.query('UPDATE clients SET event_revision = event_revision + 1').run();
+			}).immediate();
+			output.log('Rift Preparations enabled; new supply donations are closed.');
 			return 0;
 		case 'alliance-preview':
 			if (args.length !== 2 || (action !== 'on' && action !== 'off'))
@@ -879,6 +900,14 @@ function run_admin_command(args: string[], output: AdminOutput = console_output)
 			if (action !== 'inspect' || args.length !== 3 || message_id === null)
 				return usage(output);
 			return inspect_support_message(message_id, output);
+		}
+		case 'combat-resets': {
+			const client = parse_positive_integer(argument);
+			const quantity = parse_positive_integer(args[3]);
+			if (action !== 'grant' || args.length !== 5 || client === null || quantity === null) return usage(output);
+			if (!grant_combat_resets(db, client, quantity, args[4]!)) { output.error('Combat reset grant rejected.'); return 1; }
+			output.log(`client_id=${client} banked_resets=${combat_reset_balance(db, client)}`);
+			return 0;
 		}
 		case 'identity': {
 			if (args.length !== 3 || !['find', 'inspect', 'enable', 'disable'].includes(action ?? ''))

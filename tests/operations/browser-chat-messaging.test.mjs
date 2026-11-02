@@ -120,7 +120,7 @@ test('single-flight mutations and immutable throttled send require explicit retr
 });
 test('rendering uses text nodes for hostile originals, translations and typed parts; only validated demo media renders', () => {
 	class Element { constructor(tag){this.tag=tag;this.children=[];} set textContent(v){this.text=v;} append(...nodes){this.children.push(...nodes);} addEventListener(){} }
-	const document={createElement:tag=>new Element(tag)}, target=new Element('div');
+	const document={createTextNode:text=>{const node=new Element(); node.textContent=text; return node;},createElement:tag=>new Element(tag)}, target=new Element('div');
 	const hostile='<img src=x onerror=alert(1)>';
 	render_parts(document,target,[{type:'text',text:hostile},{type:'person',client_id:3,display_name:hostile},{type:'item',item_id:'melvorItA:Unknown_Item'},{type:'feature',feature_id:'multiplayer:Badge_New_Member'}],'',[]);
 	assert.equal(target.children[0].text,hostile); assert.equal(target.children[1].children[0].text,hostile);

@@ -86,7 +86,8 @@ export function validate_expedition_content(content: ExpeditionContent): void {
 			fail(`invalid exit count at ${chamber.id}`);
 		const tasks = new Map<string, ExpeditionTask>();
 		for (const [index, edge] of chamber.exits.entries()) {
-			if (edge.slot !== index + 1 || edge.id !== `${chamber.id}:exit_${edge.slot}` || edge_ids.has(edge.id))
+			if ((content.version < 3 ? edge.slot !== index + 1 : !Number.isSafeInteger(edge.slot) || edge.slot < 1 || edge.slot > 3 ||
+				(index > 0 && edge.slot <= chamber.exits[index - 1].slot)) || edge.id !== `${chamber.id}:exit_${edge.slot}` || edge_ids.has(edge.id))
 				fail(`invalid exit slot at ${chamber.id}`);
 			edge_ids.add(edge.id);
 			const target = chambers.get(edge.target);
@@ -222,3 +223,9 @@ export const EXPEDITION_CONTENT_PREVIEW: ExpeditionContent = {
 	}))
 };
 validate_expedition_content(EXPEDITION_CONTENT_PREVIEW);
+
+// Opt-in catalog for new 1.7.0 runs. Never replace persisted snapshots or the legacy preview definition.
+export const EXPEDITION_CONTENT_V3 = JSON.parse(readFileSync(
+	new URL('./expedition-content-v3.json', import.meta.url), 'utf8'
+)) as ExpeditionContent;
+validate_expedition_content(EXPEDITION_CONTENT_V3);

@@ -1,6 +1,7 @@
 import { stored_active_mods, matches_active_mod, known_mod_by_name } from './active-mods';
 import { save_chat_parts, same_chat_parts, type ChatPart } from './chat_parts';
 import { db } from './db';
+import { is_admin } from './admin_identity';
 import type { Database } from 'bun:sqlite';
 import { CHAT_MESSAGE_MAX_LENGTH, CHAT_MESSAGE_PAGE_SIZE } from './chat';
 
@@ -409,8 +410,8 @@ export function list_support_messages(client_id: number, conversation_id: number
 	else if (after !== null) { cursor = ' AND `id` > ?'; values.push(after); order = 'ASC'; limit = MAX_INCREMENTAL_MESSAGES + 1; }
 	const rows = db.query<Message, number[]>(
 		'SELECT message.* FROM `support_messages` AS message ' +
-		'WHERE `conversation_id` = ? AND NOT EXISTS ' +
-		'(SELECT 1 FROM `support_message_moderation` AS moderation WHERE moderation.`message_id` = message.`id`)' +
+		`WHERE conversation_id = ? AND (${is_admin(client_id) ? 1 : 0} OR NOT EXISTS ` +
+		'(SELECT 1 FROM support_message_moderation AS moderation WHERE moderation.message_id = message.id))' +
 		cursor.replaceAll('`id`', 'message.`id`') + ` ORDER BY message.\`id\` ${order} LIMIT ${limit}`
 	).all(...values);
 	const page_limit = after === null ? CHAT_MESSAGE_PAGE_SIZE : MAX_INCREMENTAL_MESSAGES;

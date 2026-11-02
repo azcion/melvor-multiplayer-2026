@@ -26,6 +26,17 @@ const ECONOMY_RECEIPT_PAGE_SIZE = 64;
 const GIFT_FLAG_RETURNED = 1 << 0;
 
 const CRUCIBLE_CLOCK_INTERVAL = 30 * 1000; // 30 seconds
+const CRUCIBLE_GUIDE_STEPS = [
+	['06-meld-flow', 'MOD_MP_CRUCIBLE_GUIDE_MELD_TITLE', 'MOD_MP_CRUCIBLE_GUIDE_MELD_DESCRIPTION'],
+	['01-cast-menu', 'MOD_MP_CRUCIBLE_GUIDE_OFFER_TITLE', 'MOD_MP_CRUCIBLE_GUIDE_OFFER_DESCRIPTION'],
+	['02-cast-quantity', 'MOD_MP_CRUCIBLE_GUIDE_CAST_TITLE', 'MOD_MP_CRUCIBLE_GUIDE_CAST_DESCRIPTION'],
+	['03-offering', 'MOD_MP_CRUCIBLE_GUIDE_HEAT_TITLE', 'MOD_MP_CRUCIBLE_GUIDE_HEAT_DESCRIPTION'],
+	['04-choose-wish', 'MOD_MP_CRUCIBLE_GUIDE_CHOOSE_TITLE', 'MOD_MP_CRUCIBLE_GUIDE_CHOOSE_DESCRIPTION'],
+	['05-wish-quantity', 'MOD_MP_CRUCIBLE_GUIDE_QUANTITY_TITLE', 'MOD_MP_CRUCIBLE_GUIDE_QUANTITY_DESCRIPTION'],
+	['07-forming', 'MOD_MP_CRUCIBLE_GUIDE_WAIT_TITLE', 'MOD_MP_CRUCIBLE_GUIDE_WAIT_DESCRIPTION'],
+	['08-claim-wish', 'MOD_MP_CRUCIBLE_GUIDE_CLAIM_TITLE', 'MOD_MP_CRUCIBLE_GUIDE_CLAIM_DESCRIPTION'],
+	['09-collect', 'MOD_MP_CRUCIBLE_GUIDE_COLLECT_TITLE', 'MOD_MP_CRUCIBLE_GUIDE_COLLECT_DESCRIPTION']
+];
 const EXPEDITION_CLOCK_INTERVAL = 30 * 1000;
 const EXPEDITION_STATE_REFRESH_INTERVAL = 30 * 1000;
 const EXPEDITION_AUTO_CHECK_IN_INTERVAL = 10 * 60_000;
@@ -126,6 +137,10 @@ let get_market_page_window = null;
 let sort_market_filter_items = null;
 let apply_banishment_claim = null;
 let apply_inbox_claim = null;
+let combat_arena = null;
+let combat_inventory = null;
+let equipment_evidence = null;
+let combat_page_visible = false;
 let load_inbox_delivery_state = null;
 let forget_inbox_claim = null;
 let get_inbox_existing_item_ids = null;
@@ -136,6 +151,7 @@ let transfer_inventory = null;
 let item_visibility = null;
 let crucible_rules = null;
 let client_runtime = null;
+let equipment_catalog_cache = null;
 let loaded_save_tracker = null;
 let offline_work_gate = null;
 let connection_diagnostics = null;
@@ -148,6 +164,7 @@ let localization = null;
 let status_activities = null;
 let expedition_tasks = null;
 let expedition_view = null;
+let expedition_leaderboard = null;
 let status_statistics = null;
 let icon_catalog_discovery = null;
 let icon_catalog_collection = null;
@@ -433,7 +450,8 @@ const state = ui.createStore({
 	crucible_capacity_base: 200,
 	crucible_capacity_auto_renew: false,
 	crucible_wish_search: '',
-	crucible_panels_open: { heat: false, wishes: true, clearing: true, offerings: true },
+	crucible_panels_open: { heat: true, wishes: true, clearing: true, offerings: true },
+	crucible_guide_index: 0,
 	crucible_clear_offers: [],
 	crucible_clear_max: false,
 	crucible_clear_totals: [],
@@ -617,18 +635,20 @@ const state = ui.createStore({
 	expedition_tracking_loading: false,
 	expedition_debug_text: '',
 	expedition_debug_action: '',
+	expedition_leaderboard: null,
+	expedition_leaderboard_loading: false,
+	expedition_leaderboard_error: false,
 	expedition_state: null,
 	expedition_personal: null,
 	expedition_loading: false,
 	expedition_clock_time: Date.now(),
 	expedition_active_activities: [],
-	expedition_work_tracking_mode: 'prompt',
 	expedition_action_pending: false,
 	expedition_vote_cooldown_until: 0,
 	expedition_check_in_cooldown_until: 0,
 	expedition_pending_report: null,
 	expedition_report_notice_visible: false,
-	expedition_mobile_tab: 'chamber',
+	expedition_work_tab: 'chamber',
 	expedition_snow: null,
 	expedition_snow_controls_enabled: false,
 	expedition_snow_stats: null,
@@ -1000,7 +1020,7 @@ const state = ui.createStore({
 	get chat_can_send() {
 		const kind = this.selected_chat_conversation?.conversation_kind ?? 'private';
 		return (kind !== 'private' || (this.messaging_enabled && (!this.chat_budget_enabled || this.chat_budget.credits > 0))) &&
-			(kind !== 'testers' || this.selected_chat_conversation?.can_send === true) &&
+			(!['announcements', 'announcement-discussion'].includes(kind) || this.selected_chat_conversation?.can_send === true) &&
 			(kind !== 'global' || !this.global_chat_cooling_down) &&
 			(kind !== 'testers' || !this.tester_chat_cooling_down) &&
 			this.chat_draft.trim().length > 0 &&
@@ -1043,8 +1063,8 @@ const state = ui.createStore({
 		return this.chat_conversations.filter(conversation => conversation.conversation_kind === 'global');
 	},
 
-	get tester_chat_conversations() {
-		return this.chat_conversations.filter(conversation => conversation.conversation_kind === 'testers');
+	get announcement_chat_conversations() {
+		return this.chat_conversations.filter(conversation => conversation.conversation_kind === 'announcements');
 	},
 
 	get polls_chat_conversations() {
@@ -1139,6 +1159,17 @@ const state = ui.createStore({
 		return thresholds.map((value, index) => ({ tier: index + 1, value, rate: rates[index],
 			current: this.crucible?.heat?.tier === index + 1 }));
 	},
+	load_crucible_heat_preference() {
+		this.crucible_panels_open.heat = get_instance_storage_item('crucible_heat_expanded') !== false;
+	},
+	toggle_crucible_heat() {
+		this.crucible_panels_open.heat = !this.crucible_panels_open.heat;
+		set_instance_storage_item('crucible_heat_expanded', this.crucible_panels_open.heat);
+	},
+	get crucible_guide_length() { return CRUCIBLE_GUIDE_STEPS.length; },
+	get crucible_guide_title_id() { return CRUCIBLE_GUIDE_STEPS[this.crucible_guide_index][1]; },
+	get crucible_guide_description_id() { return CRUCIBLE_GUIDE_STEPS[this.crucible_guide_index][2]; },
+	get crucible_guide_image() { return get_mod_asset_url(`assets/crucible-guide/${CRUCIBLE_GUIDE_STEPS[this.crucible_guide_index][0]}.png`); },
 	get crucible_wish_item_name() {
 		return this.eligible_crucible_wish_items.find(item => item.id === this.crucible_wish_item_id)?.name ?? '';
 	},
@@ -1704,15 +1735,31 @@ async function refresh_expedition_tracking() {
 
 const EXPEDITION_PENDING_KEY = 'expedition_pending_report';
 const EXPEDITION_CHAMBER_ART = {
-	entrance: 'entrance', prismatic_descent: 'prismatic-descent',
-	glassroot_terraces: 'glassroot-terraces', buried_observatory: 'buried-observatory',
-	prismatic_orrery: 'prismatic-orrery', voidwatch_threshold: 'voidwatch-threshold',
-	hollow_star: 'hollow-star'
+	"entrance": "entrance",
+	"prismatic_descent": "1.7.0/prismatic-descent",
+	"drowned_cloister": "1.7.0/drowned-cloister",
+	"rootforge_passage": "1.7.0/rootforge-passage",
+	"glassroot_terraces": "1.7.0/glassroot-terraces",
+	"tideworn_crypts": "1.7.0/tideworn-crypts",
+	"embervein_machinery": "1.7.0/embervein-machinery",
+	"mossbound_reliquary": "1.7.0/mossbound-reliquary",
+	"buried_observatory": "1.7.0/buried-observatory",
+	"prismatic_orrery": "1.7.0/prismatic-orrery",
+	"voidwatch_threshold": "1.7.0/voidwatch-threshold",
+	"hollow_star": "1.7.0/hollow-star"
 };
 const EXPEDITION_EXIT_ART = {
-	'Prismatic Descent': 'prismatic-descent', 'Glassroot Terraces': 'glassroot-terraces',
-	'Buried Observatory': 'buried-observatory', 'Prismatic Orrery': 'prismatic-orrery',
-	'Voidwatch Threshold': 'voidwatch-threshold', 'The Hollow Star': 'hollow-star'
+	"Prismatic Descent": "1.7.0/prismatic-descent",
+	"Drowned Cloister": "1.7.0/drowned-cloister",
+	"Rootforge Passage": "1.7.0/rootforge-passage",
+	"Glassroot Terraces": "1.7.0/glassroot-terraces",
+	"Tideworn Crypts": "1.7.0/tideworn-crypts",
+	"Embervein Machinery": "1.7.0/embervein-machinery",
+	"Mossbound Reliquary": "1.7.0/mossbound-reliquary",
+	"Buried Observatory": "1.7.0/buried-observatory",
+	"Prismatic Orrery": "1.7.0/prismatic-orrery",
+	"Voidwatch Threshold": "1.7.0/voidwatch-threshold",
+	"The Hollow Star": "1.7.0/hollow-star"
 };
 let last_expedition_work_observed_at = 0;
 let last_expedition_check_in_at = 0;
@@ -1721,14 +1768,46 @@ function expedition_hours(milliseconds) {
 	return (Math.max(0, Number(milliseconds) || 0) / 3_600_000).toFixed(2);
 }
 
-function expedition_points(points_micros) {
-	return new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 })
-		.format(Math.max(0, Number(points_micros) || 0) / 1_000_000);
+// Display only: balances, quotes, affordability and payments retain exact micro-EP.
+function format_ep(points_micros, { round_up = false } = {}) {
+	const value = Number(points_micros);
+	const micros = Number.isFinite(value) ? Math.max(0, value) : 0;
+	const points = round_up ? Math.ceil(micros / 10_000) / 100 : micros / 1_000_000;
+	return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(points);
 }
 
 function expedition_text(key, ...values) {
 	let index = 0;
 	return getLangString(key).replace(/%s/g, () => String(values[index++] ?? ''));
+}
+
+function expedition_return_story(summary) {
+	if (!summary) return '';
+	const { weeks, days } = expedition_view.return_duration(summary.registered_at, summary.ended_at);
+	const units = {
+		HOURS: ['MOD_MP_EXPEDITION_RETURN_HOURS_ONE', 'MOD_MP_EXPEDITION_RETURN_HOURS_MANY'],
+		CHAMBERS: ['MOD_MP_EXPEDITION_RETURN_CHAMBERS_ONE', 'MOD_MP_EXPEDITION_RETURN_CHAMBERS_MANY'],
+		WEEKS: ['MOD_MP_EXPEDITION_RETURN_WEEKS_ONE', 'MOD_MP_EXPEDITION_RETURN_WEEKS_MANY'],
+		DAYS: ['MOD_MP_EXPEDITION_RETURN_DAYS_ONE', 'MOD_MP_EXPEDITION_RETURN_DAYS_MANY']
+	};
+	const quantity = (kind, value) => expedition_text(units[kind][value === 1 ? 0 : 1], value);
+	return expedition_text('MOD_MP_EXPEDITION_RETURN_STORY',
+		quantity('HOURS', Math.floor(summary.contributed_ms / 3_600_000)),
+		quantity('CHAMBERS', summary.chamber_count), quantity('WEEKS', weeks), quantity('DAYS', days));
+}
+
+async function claim_expedition_bonus(expedition_id) {
+	if (state.expedition_action_pending || !state.is_connected) return;
+	const generation = session_generation;
+	state.expedition_action_pending = true;
+	try {
+		const result = await api_post('/api/expedition/ending/claim', { expedition_id });
+		if (generation !== session_generation) return;
+		if (!result?.success) expedition_notify(getLangString(result?.error_lang ?? 'MOD_MP_EXPEDITION_RETURN_CLAIM_FAILED'), 'danger');
+		await refresh_expedition_state();
+	} finally {
+		if (generation === session_generation) state.expedition_action_pending = false;
+	}
 }
 
 function expedition_status(kind, value) {
@@ -1772,112 +1851,54 @@ function set_expedition_page_visible(is_visible) {
 	if (!is_visible) return;
 	state.expedition_clock_time = Date.now();
 	state.expedition_active_activities = capture_status_activities();
-	expedition_clock_timer = setInterval(() => { state.expedition_clock_time = Date.now(); }, EXPEDITION_CLOCK_INTERVAL);
+	expedition_clock_timer = setInterval(() => {
+		state.expedition_clock_time = Date.now();
+		void expedition_leaderboard?.refresh();
+	}, EXPEDITION_CLOCK_INTERVAL);
+	void expedition_leaderboard?.refresh();
 	void refresh_expedition_state();
+	if (is_visible) void combat_inventory?.refresh();
 }
 
 let expedition_work_prompt_gate = null;
 let expedition_work_prompt_loading = false;
 
-function expedition_prompt_tasks() {
-	if (state.expedition_work_tracking_mode === 'manual' || !state.is_connected || !state.is_guild_member ||
-		state.expedition_personal?.tracking)
-		return [];
-	return expedition_tasks.eligible_prompt_tasks(state.expedition_state, state.expedition_active_activities);
-}
-
-function expedition_prompt_activity_names() {
-	const accepted = new Set(expedition_prompt_tasks().flatMap(task => task.evidence.skill_ids));
-	return [...new Set(state.expedition_active_activities.map(activity => activity.type === 'combat'
-		? 'melvorD:Combat' : activity.skill_id))].filter(id => accepted.has(id)).map(expedition_work_name).join(', ');
-}
-
-function close_expedition_work_prompt() {
-	if (document.querySelector('mp-modal-component[data-template-id="expedition-work-prompt-modal"]')) Swal.close();
-}
-
-function set_expedition_work_tracking_mode(event) {
-	const mode = event.target.value;
-	if (!['manual', 'prompt', 'automatic'].includes(mode)) return;
-	state.expedition_work_tracking_mode = mode;
-	set_instance_storage_item('expedition_work_tracking_mode', mode);
-	expedition_work_prompt_gate?.reset();
-	if (mode !== 'prompt') close_expedition_work_prompt();
-}
-
-async function start_prompted_expedition_task(task_id) {
-	if (state.expedition_action_pending || state.expedition_pending_report) return;
-	const generation = session_generation;
-	if (state.expedition_work_tracking_mode !== 'prompt' ||
-		!expedition_prompt_tasks().some(task => task.task_id === task_id)) return;
-	await submit_expedition_work('start', task_id);
-	if (generation === session_generation && state.expedition_state?.tracking?.task_id === task_id &&
-		document.querySelector('mp-modal-component[data-template-id="expedition-work-prompt-modal"]'))
-		await close_modal_and_wait('expedition-work-prompt-modal');
-}
-
-async function maybe_prompt_expedition_work(activities) {
-	if (offline_work_gate?.pending()) return;
-	const mode = state.expedition_work_tracking_mode;
-	const automatic = mode === 'automatic';
+async function maybe_start_expedition_work(activities) {
+	if (offline_work_gate?.pending() || !state.is_connected) return;
+	const tutorial_project = model => !!state.combat?.tutorial && !state.combat.tutorial.complete &&
+		model?.equipment_projects?.project?.item_id === state.combat.tutorial.trial?.item;
+	const current_model = state.expedition_state ?? state.expedition_personal;
+	const current_tracking = state.expedition_state?.tracking ?? state.expedition_personal?.tracking;
 	expedition_work_prompt_gate ??= expedition_tasks.create_work_prompt_gate();
 	const due = expedition_work_prompt_gate.observe({ session: session_generation, activities,
-		enabled: mode !== 'manual', automatic,
-		tracking: !!(state.expedition_state?.tracking || state.expedition_personal?.tracking || state.expedition_pending_report),
+		enabled: true, automatic: true,
+		tracking: !!state.expedition_pending_report || !!current_tracking &&
+			!(tutorial_project(current_model) && current_tracking.source !== 'equipment'),
 		now: Date.now() });
 	if (!due || expedition_work_prompt_loading || state.expedition_loading || state.expedition_action_pending) return;
-	if (!state.is_guild_member || mode === 'manual') {
-		expedition_work_prompt_gate.consume();
-		return;
-	}
-	if (!automatic && (Swal.isVisible() || modal_queue_guard.pending_templates.size > 0)) {
-		expedition_work_prompt_gate.defer(Date.now());
-		return;
-	}
 	const generation = session_generation;
 	const activity_key = expedition_tasks.work_activity_key(activities);
 	expedition_work_prompt_loading = true;
 	try {
 		const refreshed = await refresh_expedition_state();
-		if (generation !== session_generation || mode !== state.expedition_work_tracking_mode ||
-			!state.is_connected || !polling.is_foreground(document) ||
+		if (generation !== session_generation || !state.is_connected || !polling.is_foreground(document) ||
 			activity_key !== expedition_tasks.work_activity_key(capture_status_activities())) return;
-		if (!refreshed || !state.expedition_state) {
-			if (automatic) expedition_work_prompt_gate.defer(Date.now(), 30_000);
-			else expedition_work_prompt_gate.consume();
+		// Retry unavailable work without replacing active tracking or a saved report.
+		expedition_work_prompt_gate.defer(Date.now(), 30_000);
+		if (!refreshed || state.expedition_action_pending || state.expedition_pending_report) return;
+		const model = state.expedition_state ?? state.expedition_personal;
+		const equipment_only = tutorial_project(model);
+		const tracking = state.expedition_state?.tracking ?? state.expedition_personal?.tracking;
+		if (tracking) {
+			// Settle competing chamber work before the mandatory project takes over. Never bypass a pending claim.
+			if (equipment_only && tracking.source !== 'equipment' && !tracking.pending_boundary_at && !tracking.claim) {
+				await submit_expedition_work('stop', null, true, true);
+				expedition_work_prompt_gate.defer(Date.now(), 2500);
+			}
 			return;
 		}
-		if (expedition_prompt_tasks().length === 0) {
-			if (automatic) expedition_work_prompt_gate.defer(Date.now(), 30_000);
-			else expedition_work_prompt_gate.consume();
-			return;
-		}
-		if (automatic) {
-			if (state.expedition_action_pending || state.expedition_pending_report || state.expedition_personal?.tracking) return;
-			const task = expedition_tasks.best_eligible_task(state.expedition_state, activities);
-			// Retry later when the chamber changes or a request is rejected; never replace a saved report.
-			expedition_work_prompt_gate.defer(Date.now(), 30_000);
-			if (task) await submit_expedition_work('start', task.task_id, true);
-			return;
-		}
-		if (Swal.isVisible() || modal_queue_guard.pending_templates.size > 0) {
-			expedition_work_prompt_gate.defer(Date.now());
-			return;
-		}
-		const queued = queue_modal('MOD_MP_EXPEDITION_WORK_PROMPT_TITLE', 'expedition-work-prompt-modal',
-			'assets/multiplayer.svg', {
-				showConfirmButton: true,
-				confirmButtonText: getLangString('MOD_MP_EXPEDITION_NOT_NOW'),
-				buttonsStyling: false,
-				customClass: { popup: 'mp-expedition-work-prompt-popup',
-					confirmButton: 'mp-expedition-button mp-expedition-button-secondary' },
-				didOpen: () => {
-					if (generation !== session_generation || state.expedition_work_tracking_mode !== 'prompt' ||
-						expedition_prompt_tasks().length === 0 ||
-						activity_key !== expedition_tasks.work_activity_key(capture_status_activities())) Swal.close();
-				}
-			});
-		if (queued) expedition_work_prompt_gate.consume();
+		const task = expedition_tasks.best_eligible_task(model, activities, { equipment_only });
+		if (task) await submit_expedition_work('start', task.task_id, true);
 	} finally {
 		expedition_work_prompt_loading = false;
 	}
@@ -1977,6 +1998,17 @@ function toggle_expedition_phase(phase) {
 async function read_expedition_state(expand_on_open = true) {
 	const generation = session_generation;
 	const tracking_only = !expedition_page_visible;
+	if (state.is_guild_member === false) {
+		state.expedition_state = null;
+		const personal = await api_get('/api/expedition/personal');
+		if (generation !== session_generation) return null;
+		if (personal?.contract_version === 1) {
+			equipment_evidence.configure(personal.equipment_projects?.project ? [personal.equipment_projects.project] : []);
+			if (state.combat) state.combat.equipment_projects = personal.equipment_projects;
+			state.expedition_personal = personal; last_expedition_state_refresh_at = Date.now();
+		}
+		return personal;
+	}
 	let result = await api_get('/api/expedition/state' + (tracking_only ? '?view=tracking' : ''));
 	if (generation !== session_generation) return null;
 	// Opening the page while a recovery read is in flight needs the full model too.
@@ -1985,9 +2017,16 @@ async function read_expedition_state(expand_on_open = true) {
 		if (generation !== session_generation) return null;
 	}
 	if (result?.contract_version === 1) {
+		equipment_evidence.configure(result.equipment_projects?.project ? [result.equipment_projects.project] : []);
+		if (state.combat) state.combat.equipment_projects = result.equipment_projects;
 		last_expedition_state_refresh_at = Date.now();
 		expedition_view.sync_phase_state(state, result.expedition?.chamber);
 		state.expedition_state = result;
+		if (state.expedition_personal) {
+			state.expedition_personal.points_micros = result.points_micros;
+			state.expedition_personal.tracking = result.tracking;
+			state.expedition_personal.equipment_projects = result.equipment_projects;
+		}
 	}
 	return result;
 }
@@ -1996,10 +2035,12 @@ async function refresh_expedition_state(reconnect = false) {
 	if (offline_work_gate?.blocked()) return false;
 	if (!state.is_connected || state.expedition_loading) return;
 	const tracking_only = !expedition_page_visible;
+	const guildless_at_start = state.is_guild_member === false;
 	const phase_started = performance.now();
 	const generation = session_generation;
 	state.expedition_loading = true;
 	try {
+
 		const result = await read_expedition_state(false);
 		if (generation !== session_generation) return;
 		let hydrated = result?.contract_version === 1;
@@ -2029,7 +2070,8 @@ async function refresh_expedition_state(reconnect = false) {
 			state.expedition_loading = false;
 			transport_diagnostics?.phase('expedition', performance.now() - phase_started);
 			update_expedition_nav();
-			if (tracking_only && expedition_page_visible) void refresh_expedition_state();
+			if ((tracking_only && expedition_page_visible) || (guildless_at_start && state.is_guild_member === true))
+				void refresh_expedition_state();
 		}
 	}
 }
@@ -2038,7 +2080,7 @@ async function register_expedition() {
 	if (state.expedition_action_pending) return;
 	state.expedition_action_pending = true;
 	try {
-		const result = await api_post('/api/expedition/register', { operation_id: crypto.randomUUID() });
+		const result = await api_post('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 3 });
 		if (result?.success) await refresh_expedition_state();
 		else expedition_notify(result?.error_lang ? getLangString(result.error_lang) : getLangString('MOD_MP_EXPEDITION_REGISTRATION_FAILED'), 'danger');
 	} finally {
@@ -2074,11 +2116,23 @@ async function retry_expedition_report(automatic = false, quiet = false) {
 			state.expedition_pending_report = null;
 			const personal = await api_get('/api/expedition/personal');
 			if (report_generation !== session_generation) return;
-			if (personal?.contract_version === 1) state.expedition_personal = personal;
+			if (personal?.contract_version === 1) {
+				equipment_evidence.configure(personal.equipment_projects?.project ? [personal.equipment_projects.project] : []);
+				state.expedition_personal = personal;
+			}
 			if (!personal?.tracking || personal.tracking.session_id !== result.tracking?.session_id) {
 				expedition_notify(getLangString('MOD_MP_EXPEDITION_WORK_UNVERIFIED'), 'danger');
 			} else expedition_notify(getLangString('MOD_MP_EXPEDITION_WORK_ZERO_AFTER_BOUNDARY'), 'danger');
 		} else if (result?.success) {
+			const model = state.expedition_state ?? state.expedition_personal;
+			if (pending.payload.source === 'equipment' && model) {
+				equipment_evidence.configure(result.equipment_projects?.project ? [result.equipment_projects.project] : []);
+				if (state.combat) state.combat.equipment_projects = result.equipment_projects;
+				for (const target of [state.expedition_state, state.expedition_personal]) if (target) {
+					target.tracking = result.tracking; target.equipment_projects = result.equipment_projects;
+				}
+				if (!result.equipment_projects?.project) void combat_inventory?.refresh();
+			}
 			last_expedition_check_in_at = Date.now();
 			remove_instance_storage_item(EXPEDITION_PENDING_KEY);
 			state.expedition_pending_report = null;
@@ -2092,7 +2146,11 @@ async function retry_expedition_report(automatic = false, quiet = false) {
 				notice += getLangString('MOD_MP_EXPEDITION_FRESH_SNAPSHOT');
 			if (!quiet || !result.tracking || credited === 0 || result.warning) expedition_notify(notice);
 			notify_expedition_tracking_ended(previous_tracking, result.tracking, notice);
-			const refreshed = await read_expedition_state();
+			// Personal work leaves chamber state unchanged; its independent refresh clock still runs.
+			// Replays, older servers and boundary recovery retain an authoritative refresh.
+			const current_equipment = pending.payload.source === 'equipment' && model && result.equipment_projects &&
+				result.equipment_work_current === true && !result.warning;
+			const refreshed = current_equipment ? { contract_version: 1 } : await read_expedition_state();
 			if (report_generation !== session_generation) return;
 			if (refreshed?.contract_version !== 1) {
 				const personal = await api_get('/api/expedition/personal');
@@ -2102,14 +2160,16 @@ async function retry_expedition_report(automatic = false, quiet = false) {
 		} else {
 			const terminal = new Set(['task_unavailable', 'activity_required', 'expedition_unavailable', 'work_source_unavailable',
 				'invalid_capture_time', 'boundary_capture_mismatch', 'tracking_identity_mismatch', 'no_active_tracking', 'operation_conflict',
-				'claim_pending']);
+				'claim_pending', 'tracking_busy']);
 			if (terminal.has(result?.error)) {
 				remove_instance_storage_item(EXPEDITION_PENDING_KEY);
 				state.expedition_pending_report = null;
+				await read_expedition_state();
 			}
 			expedition_notify(result?.error === 'activity_required'
 				? getLangString('MOD_MP_EXPEDITION_ACTIVITY_REQUIRED')
-				: result?.error ?? getLangString('MOD_MP_EXPEDITION_WORK_REPORT_FAILED'), 'danger');
+				: result?.error === 'tracking_busy' ? getLangString('MOD_MP_EQUIPMENT_TRACKING_BUSY')
+				: getLangString('MOD_MP_EXPEDITION_WORK_REPORT_FAILED'), 'danger');
 		}
 	} finally {
 		clearTimeout(notice_timer);
@@ -2134,6 +2194,17 @@ async function maybe_auto_check_in_expedition() {
 	else await submit_expedition_work('check-in', tracking.task_id, true, true);
 }
 
+function save_expedition_report(pending) {
+	try {
+		set_instance_storage_item(EXPEDITION_PENDING_KEY, pending);
+		if (get_instance_storage_item(EXPEDITION_PENDING_KEY)?.payload?.operation_id === pending.payload.operation_id) return true;
+	} catch (e) {
+		log('work report persistence failed (%s)', e);
+	}
+	expedition_notify(getLangString('MOD_MP_EXPEDITION_WORK_STORAGE_FAILED'), 'danger');
+	return false;
+}
+
 async function submit_expedition_work(kind, task_id = null, automatic = false, quiet = false) {
 	if (offline_work_gate?.blocked() || (!automatic && offline_work_gate?.pending())) return;
 	if (state.expedition_action_pending || state.expedition_pending_report) return;
@@ -2142,6 +2213,24 @@ async function submit_expedition_work(kind, task_id = null, automatic = false, q
 	const tracking = state.expedition_state?.tracking ?? state.expedition_personal?.tracking;
 	if (tracking?.pending_boundary_at) return;
 	const activities = capture_status_activities();
+	const model = state.expedition_state ?? state.expedition_personal;
+	const personal_task = model?.equipment_projects?.project?.stages?.flat().find(task => task.task_id === task_id);
+	const equipment = kind === 'start' ? !!personal_task : tracking?.source === 'equipment';
+	if (equipment) {
+		if (state.is_social_only || (kind === 'start' && (tracking || !personal_task?.available || !activities.some(activity =>
+			expedition_tasks.equipment_activity_matches(personal_task, activity))))) return;
+		const actions = equipment_evidence.snapshot(kind === 'start' ? task_id : tracking.task_id);
+		if (!actions) return;
+		const payload = { source: 'equipment', operation_id: crypto.randomUUID(), project_id: kind === 'start' ? model.equipment_projects.project.id : tracking.project_id,
+			task_id: kind === 'start' ? task_id : tracking.task_id, captured_at: Date.now(), activities,
+			statistics: capture_expedition_work_statistics(), actions };
+		const pending = { endpoint: `/api/expedition/task/${kind}`, payload };
+		if (!save_expedition_report(pending)) return;
+		state.expedition_pending_report = pending; state.expedition_report_notice_visible = false;
+		await retry_expedition_report(automatic, quiet);
+		return;
+	}
+	if (tracking?.source === 'equipment') return;
 	if (kind === 'start') {
 		state.expedition_active_activities = activities;
 		const task = expedition?.chamber?.tasks?.find(entry => entry.task_id === task_id);
@@ -2159,7 +2248,7 @@ async function submit_expedition_work(kind, task_id = null, automatic = false, q
 		activities, statistics: capture_expedition_work_statistics()
 	};
 	const pending = { endpoint: `/api/expedition/task/${kind}`, payload };
-	set_instance_storage_item(EXPEDITION_PENDING_KEY, pending);
+	if (!save_expedition_report(pending)) return;
 	state.expedition_report_notice_visible = false;
 	state.expedition_pending_report = pending;
 	if (kind === 'check-in' && !automatic)
@@ -2182,7 +2271,10 @@ async function vote_expedition_exit(exit_id) {
 			expedition_notify(getLangString('MOD_MP_EXPEDITION_VOTE_RECORDED'));
 			const refreshed = await api_get('/api/expedition/state');
 			if (refreshed?.contract_version === 1) state.expedition_state = refreshed;
-		} else expedition_notify(result?.error ?? getLangString('MOD_MP_EXPEDITION_VOTE_FAILED'), 'danger');
+		} else {
+			const error_lang_id = localization.expedition_vote_error_lang_id(result?.error, result?.error_lang);
+			expedition_notify(getLangString(error_lang_id ?? 'MOD_MP_EXPEDITION_VOTE_FAILED'), 'danger');
+		}
 	} finally {
 		state.expedition_action_pending = false;
 		update_expedition_nav();
@@ -2201,9 +2293,9 @@ async function debug_advance_expedition(action, task_id = null) {
 		});
 		if (result?.success) {
 			expedition_notify(getLangString('MOD_MP_EXPEDITION_TEST_ADVANCE_APPLIED'));
-			const refreshed = await api_get('/api/expedition/state');
-			if (refreshed?.contract_version === 1) state.expedition_state = refreshed;
 		} else expedition_notify(result?.error ?? getLangString('MOD_MP_EXPEDITION_TEST_ADVANCE_FAILED'), 'danger');
+		const refreshed = await api_get('/api/expedition/state');
+		if (refreshed?.contract_version === 1) state.expedition_state = refreshed;
 	} finally {
 		state.expedition_action_pending = false;
 		update_expedition_nav();
@@ -2514,12 +2606,13 @@ function observe_status_changes() {
 	const snapshot = capture_status_snapshot();
 	const serialized_activities = serialize_status_activities(snapshot.activities);
 	const serialized_statistics = serialize_status_statistics(snapshot);
-	if (serialized_activities !== last_observed_status_activities)
-		state.expedition_active_activities = snapshot.activities;
+	state.expedition_active_activities = snapshot.activities;
 	update_expedition_nav(snapshot.activities);
-	if (!state.expedition_action_pending && !state.expedition_pending_report && expedition_prompt_tasks().length === 0)
-		close_expedition_work_prompt();
-	void maybe_prompt_expedition_work(snapshot.activities);
+	const tracking = (state.expedition_state ?? state.expedition_personal)?.tracking;
+	if (tracking?.source === 'equipment' && !state.expedition_action_pending && !state.expedition_pending_report &&
+		(!snapshot.activities.some(activity => expedition_tasks.equipment_activity_matches({ skill_id: tracking.task_id.split('|')[0], action_id: tracking.task_id.split('|')[1] }, activity)) || Date.now() - last_expedition_check_in_at >= 30000))
+		void submit_expedition_work('check-in', tracking.task_id, true, true);
+	void maybe_start_expedition_work(snapshot.activities);
 	if (serialized_activities === last_observed_status_activities &&
 		serialized_statistics === last_observed_status_statistics)
 		return;
@@ -3254,11 +3347,10 @@ function update_raid_nav() {
 	if (!aside)
 		return;
 
-	const active = state.raid?.active === true;
 	set_nav_ready(aside, true);
-	aside.textContent = active ? getLangString('MOD_MP_SIDEBAR_RAID_ACTIVE') : '';
-	aside.hidden = !active;
-	aside.classList.toggle('mp-raid-active', active);
+	aside.textContent = '';
+	aside.hidden = true;
+	aside.classList.toggle('mp-raid-active', false);
 }
 
 function update_expedition_nav(activities = capture_status_activities()) {
@@ -3270,23 +3362,34 @@ function update_expedition_nav(activities = capture_status_activities()) {
 		aside.className = 'mp-expedition-nav';
 		item.append(aside);
 	}
-	const skill_ids = state.is_connected && !state.multiplayer_unsupported
-		? expedition_tasks.tracked_skill_ids(state.expedition_state, activities) : [];
-	aside.hidden = skill_ids.length === 0;
+	const ready = state.is_connected && !state.multiplayer_unsupported;
+	set_nav_ready(aside, ready);
+	const needs_vote = ready && expedition_view.needs_passage_vote(state.expedition_state);
+	const skill_ids = ready
+		? expedition_tasks.tracked_skill_ids(state.expedition_state ?? state.expedition_personal, activities) : [];
+	aside.hidden = !needs_vote && skill_ids.length === 0;
 	const icons = skill_ids.map(id => ({
 		media: id === 'melvorD:Combat' ? assets.getURI(expedition_work_icon(id)) : expedition_work_icon(id),
 		name: expedition_work_name(id)
 	}));
-	const signature = JSON.stringify(icons);
+	const vote_label = needs_vote ? getLangString('MOD_MP_VOTE_BADGE') : '';
+	const signature = JSON.stringify({ icons, vote_label });
 	if (aside.dataset.icons === signature) return;
 	aside.dataset.icons = signature;
-	aside.replaceChildren(...icons.map(({ media, name }) => {
+	const children = icons.map(({ media, name }) => {
 		const image = document.createElement('img');
 		image.src = media;
 		image.alt = name;
 		image.title = expedition_text('MOD_MP_EXPEDITION_TRACKING_TITLE', name);
 		return image;
-	}));
+	});
+	if (needs_vote) {
+		const badge = document.createElement('span');
+		badge.className = 'badge mp-expedition-nav-vote';
+		badge.textContent = vote_label;
+		children.push(badge);
+	}
+	aside.replaceChildren(...children);
 }
 
 async function refresh_changelog() {
@@ -3356,12 +3459,12 @@ let chat_header_resize_observer = null;
 
 function update_chat_header_offset() {
 	const header = document.getElementById('page-header');
-	const page = document.getElementById('mp-chat-page');
-	if (!header || !page) return;
+	if (!header) return;
 	const style = getComputedStyle(header);
 	const pinned = style.position === 'fixed' || style.position === 'sticky';
 	const offset = pinned ? header.getBoundingClientRect().height + (parseFloat(style.top) || 0) : 0;
-	page.style.setProperty('--mp-chat-header-top', `${offset}px`);
+	for (const id of ['mp-chat-page', 'mp-combat-page'])
+		document.getElementById(id)?.style.setProperty('--mp-chat-header-top', `${offset}px`);
 }
 
 function setup_chat_sticky_header() {
@@ -3418,7 +3521,17 @@ function update_guild_nav() {
 	aside.hidden = !ready || (state.is_guild_member && applicants === 0 && !needs_vote && !(discussion?.count > 0));
 }
 
+function update_combat_nav() {
+	const aside = document.querySelector('.mp-combat-nav');
+	if (!aside) return;
+	const active = state.combat?.status === 'ready' && state.combat?.arena?.status === 'active';
+	set_nav_ready(aside, true);
+	aside.textContent = active ? getLangString('MOD_MP_SIDEBAR_RAID_ACTIVE') : '';
+	aside.hidden = !active;
+}
+
 function update_multiplayer_nav() {
+	update_combat_nav();
 	const multiplayer_category = sidebar.category('Multiplayer');
 	for (const page_id of ['Guild', 'Transfer_Items', 'Crucible', 'Multiplayer_Market', 'Expedition', 'Guild_Raid'])
 		multiplayer_category.item('multiplayer:' + page_id).rootEl?.classList.toggle('mp-nav-unavailable', state.multiplayer_unsupported);
@@ -3432,7 +3545,7 @@ function update_multiplayer_nav() {
 
 	for (const page_id of ['Multiplayer_Market', 'Expedition', 'Guild_Raid']) {
 		const nav_item = multiplayer_category.item('multiplayer:' + page_id);
-		nav_item.rootEl?.classList.toggle('mp-nav-unavailable', state.multiplayer_unsupported || !state.is_guild_member ||
+		nav_item.rootEl?.classList.toggle('mp-nav-unavailable', state.multiplayer_unsupported || (!state.is_guild_member && page_id !== 'Expedition') ||
 			(state.is_social_only && page_id === 'Multiplayer_Market'));
 	}
 
@@ -4371,7 +4484,8 @@ async function api_get_request(endpoint, is_current = () => true, retry_throttle
 	let throttled = false;
 	try {
 		if (selected_api_major === null) await discover_api_contract();
-		const result = await coordinated_request(server_host + cache_bust_api_endpoint(resolve_api_endpoint(endpoint)), {
+		const catalog_request = equipment_catalog_cache?.prepare(endpoint);
+		const result = await coordinated_request(server_host + cache_bust_api_endpoint(resolve_api_endpoint(catalog_request?.endpoint ?? endpoint)), {
 			method: 'GET',
 			headers: {
 				'X-Session-Token': session_token ?? undefined
@@ -4387,7 +4501,7 @@ async function api_get_request(endpoint, is_current = () => true, retry_throttle
 					enter_unsupported_multiplayer(json?.minimum_supported_mod_version);
 				if (res.status === 404 && endpoint.startsWith('/api/alliances/guild-preview?') &&
 					request_generation === session_generation && is_current()) return { guild: null };
-				return res.status === 200 && request_generation === session_generation ? json : null;
+				return res.status === 200 && request_generation === session_generation ? (catalog_request ? catalog_request.hydrate(json) : json) : null;
 			}
 		});
 		if (throttled && retry_throttled && is_current())
@@ -4415,7 +4529,8 @@ async function api_post_response_raw(endpoint, payload, request_session_token = 
 		return { response: null, json: { success:false,error:'economy_review_pending' } };
 	const request_generation = session_generation;
 	try {
-		return await coordinated_request(server_host + resolve_api_endpoint(endpoint, major), {
+		const catalog_request = equipment_catalog_cache?.prepare(endpoint);
+		return await coordinated_request(server_host + resolve_api_endpoint(catalog_request?.endpoint ?? endpoint, major), {
 			method: 'POST',
 			body: JSON.stringify(payload),
 			headers: {
@@ -4432,6 +4547,7 @@ async function api_post_response_raw(endpoint, payload, request_session_token = 
 				if (res.status === 426)
 					enter_unsupported_multiplayer(json?.minimum_supported_mod_version);
 				if (request_generation !== session_generation) return { response: null, json: null };
+				if (catalog_request) json = catalog_request.hydrate(json);
 				if (rollback_module?.transient_rollback_failure(json)) { rollback_client?.block(); economy_commands_ready = false; }
 				const retired_id = rollback_module?.retired_rollback_command(json);
 				if (retired_id) rollback_client?.retire(retired_id);
@@ -4642,7 +4758,10 @@ function set_session_token(token) {
 	state.transfer_history = transfer_history_module.create_transfer_history_state();
 	session_token = token;
 	session_generation++;
+	expedition_leaderboard?.reset();
+	combat_arena?.close();
 	state.clear_browser_links?.();
+	combat_inventory?.reset();
 	events_refreshed_at = 0;
 	last_events_result = null;
 	state.is_connected = true;
@@ -4651,9 +4770,6 @@ function set_session_token(token) {
 		? state.listing_filter_categories.filter(id => saved_listing_filters.includes(id)) : ['items'];
 	state.expedition_state = null;
 	state.expedition_loading = false;
-	state.expedition_work_tracking_mode = expedition_tasks.work_tracking_mode(
-		get_instance_storage_item('expedition_work_tracking_mode'),
-		get_instance_storage_item('expedition_work_prompts_enabled'));
 	expedition_work_prompt_gate?.reset();
 	state.expedition_personal = null;
 	state.expedition_pending_report = null;
@@ -4743,7 +4859,7 @@ async function refresh_chat_conversations() {
 		);
 		if (current) {
 			const moderation_changed = (current.conversation_kind === 'alliance' || current.conversation_kind === 'guild' || current.conversation_kind === 'global' ||
-				current.conversation_kind === 'testers') &&
+				current.conversation_kind === 'announcements') &&
 				Number.isSafeInteger(selected.moderation_count) &&
 				Number.isSafeInteger(current.moderation_count) &&
 				current.moderation_count !== selected.moderation_count;
@@ -4754,7 +4870,7 @@ async function refresh_chat_conversations() {
 				await state.open_chat_conversation(current);
 			}
 		} else if (selected.conversation_kind === 'alliance' || selected.conversation_kind === 'guild' || selected.conversation_kind === 'global' ||
-			selected.conversation_kind === 'testers') {
+			selected.conversation_kind === 'announcements') {
 			state.close_chat_conversation();
 		}
 	}
@@ -4868,7 +4984,7 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 			state.selected_chat_conversation?.conversation_id !== conversation_id ||
 			state.selected_chat_conversation?.support_team_id !== conversation.support_team_id)
 			return false;
-		if (kind === 'petition-discussion' && res?.error_lang === 'MOD_MP_CHAT_CONVERSATION_MISSING') {
+		if ((kind === 'petition-discussion' || kind === 'announcement-discussion') && res?.error_lang === 'MOD_MP_CHAT_CONVERSATION_MISSING') {
 			state.close_chat_conversation();
 			return false;
 		}
@@ -4884,6 +5000,10 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 					Math.max(latest, message.message_id), state.chat_message_cursor ?? 0);
 			if (Number.isSafeInteger(res.moderation_count)) conversation.message_moderation_count = res.moderation_count;
 			if (kind === 'petition-discussion') conversation.petition_votes_visible = res.petition_votes_visible;
+			if (kind === 'announcement-discussion') {
+				conversation.can_send = res.can_send === true;
+				if (conversation.announcement) conversation.announcement.deleted = !conversation.can_send;
+			}
 			if (kind === 'petition-discussion' && !prepend) {
 				const id = res.discussion_id ?? conversation_id;
 				for (const entry of [...(state.council_petitions ?? []), ...(state.alliance_state?.processes ?? []), ...(state.events?.petition_discussions ?? [])])
@@ -4897,11 +5017,16 @@ async function refresh_chat_messages(cursor = '', prepend = false, quiet = false
 				const poll = state.polls.find(poll => poll.poll_id === conversation_id);
 				if (poll) poll.discussion_unread_count = 0;
 			}
+			if (kind === 'announcements' && res.discussion_unread_counts)
+				for (const message of state.chat_messages) message.discussion_unread_count = res.discussion_unread_counts[message.message_id] ?? 0;
 			const known = new Set(state.chat_messages.map(message => message.message_id));
 			const additions = res.messages.filter(message => !known.has(message.message_id));
 			for (const incoming of res.messages) {
 				const existing = state.chat_messages.find(message => message.message_id === incoming.message_id);
 				if (existing) {
+					existing.deleted = incoming.deleted === true;
+					existing.can_delete = incoming.can_delete === true;
+					if (incoming.discussion_unread_count !== undefined) existing.discussion_unread_count = incoming.discussion_unread_count;
 					existing.translations = incoming.translations ?? {};
 					existing.parts = incoming.parts;
 					existing.translation_parts = incoming.translation_parts;
@@ -5097,6 +5222,8 @@ async function refresh_guild_state_request() {
 		state.guild_applicants = res.applicants ?? [];
 		state.events.guild_applicants = state.guild_applicants;
 		update_multiplayer_nav();
+		if (res.affiliation === 'member' && !state.expedition_state && !state.expedition_loading)
+			void refresh_expedition_state();
 
 		if (res.affiliation !== 'member') {
 			state.shadowed_member_count = 0;
@@ -5460,11 +5587,12 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 			void recover_paid_wish_actions();
 			if (crucible_page_visible && !crucible_page_hydrating) void state.refresh_crucible();
 		} else if (!crucible_page_hydrating) void state.refresh_crucible();
+		void expedition_leaderboard?.refresh();
 		void maybe_auto_check_in_expedition();
 		if (state.expedition_state?.tracking && !state.expedition_pending_report &&
 			Date.now() - last_expedition_work_observed_at >= 15 * 60_000)
 			schedule_status_sync(0);
-		if (state.expedition_state?.tracking && !state.expedition_pending_report && !state.expedition_action_pending &&
+		if ((state.is_guild_member === true || state.expedition_state?.tracking) && !state.expedition_pending_report && !state.expedition_action_pending &&
 			Date.now() - last_expedition_state_refresh_at >= EXPEDITION_STATE_REFRESH_INTERVAL)
 			void refresh_expedition_state();
 		apply_dev_badge_labels(res.dev_badge_labels);
@@ -5621,6 +5749,7 @@ async function poll_client_events(poll_id, scheduled_check = true) {
 
 function handle_runtime_visibility_change() {
 	if (!polling.is_foreground(document)) {
+		combat_arena?.forfeit();
 		client_event_poll_id++;
 		stop_chat_polling();
 		stop_gp_sampling();
@@ -5666,6 +5795,526 @@ export async function setup(ctx) {
 	listing_filter_prompt_module = await ctx.loadModule('listing-filter-prompt.mjs');
 	changelog_loader = await ctx.loadModule('changelog.mjs');
 	updates_loader = await ctx.loadModule('updates.mjs');
+	const combat_module = await ctx.loadModule('combat-arena.mjs');
+	const tutorial_module = await ctx.loadModule('combat-tutorial.mjs');
+	const practice_module = await ctx.loadModule('combat-practice.mjs');
+	const combat_localized = (id, fallback) => { const value = getLangString(id); return !value || value === id ? fallback : value; };
+	const combat_localized_text = (id, fallback, values = {}) => combat_localized(id, fallback).replace(/\{([a-z_]+)\}/gi, (_, key) => String(values[key] ?? `{${key}}`));
+	const combat_inventory_module = await ctx.loadModule('combat-inventory.mjs');
+	const equipment_module = await ctx.loadModule('equipment-projects.mjs');
+	status_activities = await ctx.loadModule('status-activities.mjs');
+	equipment_evidence = equipment_module.create_equipment_evidence({
+		action_id: status_activities.native_work_action_id,
+		read: () => get_instance_storage_item('equipment_action_evidence'),
+		write: value => set_instance_storage_item('equipment_action_evidence', value),
+		scope: () => server_instance_storage_prefix,
+		on_error: () => expedition_notify(getLangString('MOD_MP_EXPEDITION_WORK_STORAGE_FAILED'), 'danger')
+	});
+	state.equipment_tasks = () => expedition_tasks.equipment_tasks(state.expedition_state ?? state.expedition_personal);
+	state.equipment_model = () => state.combat?.equipment_projects ?? (state.expedition_state ?? state.expedition_personal)?.equipment_projects;
+	state.equipment_tracking = () => (state.expedition_state ?? state.expedition_personal)?.tracking;
+	state.equipment_discovered = id => { const item = game.items.getObjectByID(id); return !!item && game.stats.itemFindCount(item) > 0; };
+	state.equipment_slot = slot => state.equipment_model()?.slots?.find(entry => entry.slot === slot) ?? null;
+	state.equipment_access = slot => state.equipment_model()?.access?.find(entry => entry.slot === slot) ?? null;
+	state.equipment_tier_name = (tier, slot = null) => equipment_module.is_food_slot(slot) ? state.get_item_name(state.equipment_model()?.catalog?.find(item => item.slot === 'Food' && item.tier === tier)?.item_id ?? '') : getLangString(['MOD_MP_EQUIPMENT_TIER_BRONZE', 'MOD_MP_EQUIPMENT_TIER_IRON', 'MOD_MP_EQUIPMENT_TIER_STEEL', 'MOD_MP_EQUIPMENT_TIER_MITHRIL', 'MOD_MP_EQUIPMENT_TIER_ADAMANT', 'MOD_MP_EQUIPMENT_TIER_RUNE'][tier - 1] ?? 'MOD_MP_EQUIPMENT_TIER_UNKNOWN');
+	state.equipment_slot_name = slot => {
+		if (equipment_module.is_food_slot(slot)) return `${state.combat_name('food')} ${slot === 'Food' ? 1 : 2}`;
+		const native = get_registered_game_objects(game.equipmentSlots).find(entry => entry.id === slot || entry.localID === slot || entry.id?.endsWith(':' + slot));
+		return native?.name ?? native?.localID ?? String(slot);
+	};
+	state.equipment_stage_name = index => state.equipment_project_stage_name(
+		state.equipment_model()?.catalog?.find(item => item.item_id === state.equipment_model()?.project?.item_id) ?? {}, index);
+	state.equipment_project_stage_name = (item, index) => {
+		if (item.slot === 'Food') return state.combat_name(index === 0 ? 'fishing' : 'cooking');
+		if (item.item_id?.endsWith('_Arrows')) return getLangString('MOD_MP_EQUIPMENT_ARROW_STAGE_' + index);
+		return getLangString(['MOD_MP_EQUIPMENT_GATHER', 'MOD_MP_EQUIPMENT_SMELT', 'MOD_MP_EQUIPMENT_CRAFT'][index] ?? 'MOD_MP_EQUIPMENT_STAGE');
+	};
+	state.equipment_project_started = id => state.equipment_model()?.project?.item_id === id;
+	state.equipment_project_completed = id => state.equipment_model()?.unlocked?.includes(id) === true;
+	state.equipment_item_slot = item => item.slot === 'Food' && equipment_module.is_food_slot(state.equipment_modal_slot) ? state.equipment_modal_slot : item.slot;
+	state.equipment_item_unlocked = item => item.slot === 'Food' && !equipment_module.is_food_slot(state.equipment_modal_slot) ? ['Food', 'Food2'].some(slot => (state.equipment_slot(slot)?.tier ?? 0) >= item.tier) : (state.equipment_slot(state.equipment_item_slot(item))?.tier ?? 0) >= item.tier;
+	state.equipment_project_categories = () => {
+		const model = state.equipment_model();
+		const visible = (model?.catalog ?? []).filter(item => item.tier > 0 && equipment_module.equipment_project_visible(model, item));
+		return [
+			{ id: 'weapons', name: getLangString('MOD_MP_EQUIPMENT_WEAPONS'), items: visible.filter(item => item.slot === 'Weapon') },
+			{ id: 'armor', name: getLangString('MOD_MP_EQUIPMENT_ARMOR'), items: visible.filter(item => item.slot !== 'Weapon' && item.slot !== 'Quiver' && item.slot !== 'Food') },
+			{ id: 'arrows', name: getLangString('MOD_MP_EQUIPMENT_ARROWS'), items: visible.filter(item => item.slot === 'Quiver') },
+			{ id: 'food', name: state.combat_name('food'), items: visible.filter(item => item.slot === 'Food') }
+		].filter(category => category.items.length);
+	};
+	state.equipment_project_can_start = item => state.combat_tutorial_access('project', item.item_id) && state.equipment_can_mutate() && !state.equipment_model()?.project &&
+		!state.equipment_project_completed(item.item_id) && state.equipment_discovered(item.item_id) &&
+		equipment_module.equipment_project_visible(state.equipment_model(), item);
+	state.equipment_project_title = item => `${state.equipment_project_name(item)} · ${getLangString(
+		!state.combat_tutorial_access('project', item.item_id) ? 'MOD_MP_EQUIPMENT_SLOT_LOCKED' :
+		state.equipment_project_completed(item.item_id) ? 'MOD_MP_EQUIPMENT_UNLOCKED' :
+		state.equipment_project_started(item.item_id) ? 'MOD_MP_EQUIPMENT_IN_PROGRESS' :
+		state.equipment_discovered(item.item_id) ? 'MOD_MP_EQUIPMENT_BEGIN' : 'MOD_MP_EQUIPMENT_DISCOVER_FIRST')}`;
+	state.equipment_grid = (group = state.combat.equipment_set ?? 'melee') => {
+		const model = state.equipment_model();
+		const native_slots = get_registered_game_objects(game.equipmentSlots);
+		const access_slots = (model?.access ?? []).filter(access => !equipment_module.is_food_slot(access.slot) && (group === 'all' || group === 'ranged' || (group === 'melee' && access.slot !== 'Quiver')));
+		const positions = native_slots.filter(slot => access_slots.some(access => slot.localID === access.slot || slot.id?.endsWith(':' + access.slot))).map(slot => slot.gridPosition).filter(Boolean);
+		const min_col = Math.min(...positions.map(position => position.col), 1);
+		const rows = [...new Set(positions.map(position => position.row))].sort((a, b) => a - b);
+		const fallback = { Helmet: [2, 1], Platebody: [2, 2], Platelegs: [2, 3], Boots: [2, 4], Weapon: [1, 2], Shield: [3, 2], Gloves: [1, 3], Quiver: [1, 1] };
+		return access_slots.map(access => {
+			const owned = state.equipment_slot(access.slot);
+			const native = native_slots.find(slot => slot.localID === access.slot || slot.id?.endsWith(':' + access.slot));
+			const purchase = equipment_module.equipment_slot_purchase(model, access.slot, state.combat.ep_micros);
+			const available = (group !== 'ranged' || access.slot === 'Quiver') && state.combat_tutorial_access('slot', access.slot);
+			const item_id = available ? owned?.equipped_item ?? null : null;
+			const weapon_id = state.equipment_slot('Weapon')?.equipped_item;
+			const blocked = access.slot === 'Shield' && (model?.catalog ?? []).some(item => item.item_id === weapon_id && item.occupies?.includes('Shield'));
+			let action = '';
+			if (!available) action = state.combat_name('unavailable');
+			else if (purchase && !state.combat_tutorial_access('purchase', access.slot)) action = state.combat_name('unavailable');
+			else if (purchase && !purchase.eligible) action = getLangString('MOD_MP_EQUIPMENT_EQUIP_CURRENT');
+			else if (purchase) action = `${getLangString(purchase.action === 'unlock-slot' ? 'MOD_MP_EQUIPMENT_UNLOCK_SLOT' : 'MOD_MP_EQUIPMENT_UNLOCK_TIER')} ${purchase.tier ? state.equipment_tier_name(purchase.tier) : ''} · ${state.format_ep(purchase.cost_micros)} EP`;
+			return { slot: access.slot, col: native?.gridPosition ? native.gridPosition.col - min_col + 1 : fallback[access.slot]?.[0] ?? 1,
+				row: native?.gridPosition ? rows.indexOf(native.gridPosition.row) + 1 : fallback[access.slot]?.[1] ?? 1,
+				item_id, blocked, available, tier: available ? owned?.tier ?? -1 : -1, media: item_id ? state.get_item_icon(item_id) : native?.emptyMedia ?? '', locked: !owned || !available,
+				upgrade: state.combat_tutorial_access('purchase', access.slot) && !!purchase?.affordable && purchase.eligible && available, can_purchase: state.combat_tutorial_access('purchase', access.slot) && !!purchase?.affordable && purchase.eligible && available && state.equipment_can_mutate(),
+				title: [state.equipment_slot_name(access.slot), owned?.tier > 0 && available ? state.equipment_tier_name(owned.tier) : '', item_id ? state.get_item_name(item_id) : '', action].filter(Boolean).join(' · ') };
+		});
+	};
+	state.consumable_grid = () => ['Food', 'Food2', 'Potion1', 'Potion2'].map((slot, index) => {
+		const available = slot === 'Food' && state.combat_tutorial_access('slot', slot);
+		const owned = available ? state.equipment_slot(slot) : null;
+		const purchase = available ? equipment_module.equipment_slot_purchase(state.equipment_model(), slot, state.combat.ep_micros) : null;
+		const can_purchase = state.combat_tutorial_access('purchase', slot) && available && !!purchase?.affordable && purchase.eligible && state.equipment_can_mutate();
+		const item_id = owned?.equipped_item ?? null;
+		return { slot, available, item_id, tier: owned?.tier ?? -1, col: index % 2 + 1, row: Math.floor(index / 2) + 1,
+			locked: !owned, upgrade: !!purchase && !!owned && can_purchase, can_purchase,
+			title: available ? [state.equipment_slot_name(slot), owned ? `${getLangString('MOD_MP_EQUIPMENT_CURRENT_TIER')}: ${owned.tier}` : getLangString('MOD_MP_EQUIPMENT_SLOT_LOCKED'), item_id ? state.get_item_name(item_id) : ''].filter(Boolean).join(' · ') : `${equipment_module.is_food_slot(slot) ? state.equipment_slot_name(slot) : state.combat_name('potion') + ' ' + (index - 1)} · ${state.combat_name('unavailable')}` };
+	});
+	state.consumable_unlocked_items = () => (state.equipment_model()?.catalog ?? []).filter(item => item.slot === 'Food' && state.equipment_project_completed(item.item_id));
+	state.consumable_is_equipped = item => state.equipment_slot('Food')?.equipped_item === item.item_id;
+	state.consumable_select_item = item => {
+		state.equipment_select('combat', 'slot', 'Food');
+		state.equipment_modal_choose(item);
+	};
+	state.equipment_selected = { combat: null, project: null };
+	state.equipment_modal_kind = 'combat';
+	state.equipment_modal_tiers = false;
+	state.equipment_modal_slot = null;
+	state.equipment_select = (kind, type, id, tiers = false) => {
+		if (type === 'project' && !state.combat_tutorial_access('project', id)) return;
+		if (type === 'slot' && (id === 'Food2' || !state.combat_tutorial_access('slot', id))) return;
+		state.equipment_modal_tiers = tiers;
+		state.equipment_selected[kind] = { type, id, scope: `${server_host}:${session_generation}` };
+		state.equipment_modal_scope = `${server_host}:${session_generation}`;
+		state.equipment_modal_kind = kind;
+		state.equipment_modal_slot = type === 'slot' ? id : null;
+		queue_modal(type === 'slot' ? state.equipment_slot_name(id) : getLangString('MOD_MP_COMBAT_EQUIPMENT'), 'equipment-modal', '', {
+			imageUrl: undefined, showConfirmButton: false, showCloseButton: true, width: '440px',
+			showClass: { popup: '' }, hideClass: { popup: '' },
+			customClass: { popup: 'mp-equipment-modal-popup' }
+		}, false, false);
+	};
+	state.equipment_modal_open_tiers = async () => {
+		const slot = state.equipment_modal_slot;
+		const scope = state.equipment_modal_scope;
+		await close_modal_and_wait('equipment-modal');
+		if (scope !== `${server_host}:${session_generation}`) return;
+		state.equipment_select('combat', 'slot', slot, true);
+	};
+	state.equipment_modal_unlocked_tiers = () => (state.equipment_access(state.equipment_modal_slot)?.tiers ?? []).filter(tier => tier.tier <= (state.equipment_slot(state.equipment_modal_slot)?.tier ?? 0));
+	state.equipment_modal_next_tiers = () => (state.equipment_access(state.equipment_modal_slot)?.tiers ?? []).filter(tier => tier.tier === (state.equipment_slot(state.equipment_modal_slot)?.tier ?? (equipment_module.is_food_slot(state.equipment_modal_slot) ? 0 : -1)) + 1);
+	state.equipment_modal_needs_item = () => (state.equipment_slot(state.equipment_modal_slot)?.tier ?? 0) > 0 && state.equipment_slot(state.equipment_modal_slot)?.upgrade_ready !== true;
+	state.equipment_modal_items = () => state.equipment_modal_scope !== `${server_host}:${session_generation}` ? [] : equipment_module.equipment_slot_items(state.equipment_model(), state.equipment_modal_slot);
+	state.equipment_modal_choose = item => {
+		if (state.equipment_modal_scope !== `${server_host}:${session_generation}`) return;
+		state.equipment_selected.combat = { type: 'item', id: item.item_id, scope: `${server_host}:${session_generation}` };
+	};
+	state.equipment_modal_upgrade = async () => {
+		if (!state.equipment_modal_slot || state.equipment_modal_scope !== `${server_host}:${session_generation}`) return;
+		await state.equipment_confirm('combat', state.equipment_modal_slot);
+	};
+	state.equipment_modal_current_tier = () => {
+		const slot = state.equipment_slot(state.equipment_modal_slot);
+		return !slot ? getLangString('MOD_MP_EQUIPMENT_SLOT_LOCKED') : slot.tier ? state.equipment_tier_name(slot.tier, state.equipment_modal_slot) : getLangString('MOD_MP_EQUIPMENT_NO_MATERIAL');
+	};
+	state.equipment_item_stats = item => equipment_module.equipment_stat_groups(item, key => getLangString('MOD_MP_EQUIPMENT_STAT_' + key));
+	state.equipment_item_requirements = item => (item.requirements ?? []).map(requirement => {
+		const skill = game.skills?.getObjectByID?.(requirement.skillID);
+		const skill_id = requirement.skillID?.split(':').at(-1)?.toLowerCase();
+		return { name: skill?.name ?? requirement.skillID?.split(':').at(-1) ?? '', media: skill?.media ?? '', level: requirement.level,
+			met: requirement.type === 'SkillLevel' && (state.combat.character?.levels?.[skill_id] ?? 0) >= requirement.level };
+	});
+	state.equipment_slot_action = slot_id => {
+		const tile = (equipment_module.is_food_slot(slot_id) ? state.consumable_grid() : state.equipment_grid()).find(tile => tile.slot === slot_id);
+		if (!tile) return [];
+		const purchase = equipment_module.equipment_slot_purchase(state.equipment_model(), slot_id, state.combat.ep_micros);
+		return [{ title: purchase && !purchase.eligible ? getLangString('MOD_MP_EQUIPMENT_EQUIP_CURRENT') : purchase && !purchase.affordable ? state.combat_name('insufficient_ep') : state.equipment_slot_name(slot_id), cost: purchase?.cost_micros ?? null,
+			label: purchase ? (purchase.action === 'unlock-slot' ? getLangString('MOD_MP_EQUIPMENT_UNLOCK_SLOT') : getLangString('MOD_MP_EQUIPMENT_UNLOCK_TIER') + ' · ' + state.equipment_tier_name(purchase.tier, slot_id)) : '',
+			can_confirm: state.combat_tutorial_access('purchase', slot_id) && !!purchase?.affordable && purchase.eligible && tile.available !== false && state.equipment_can_mutate(), action: purchase?.action, slot: slot_id }];
+	};
+	state.equipment_modal_slot_actions = () => state.equipment_modal_slot && state.equipment_modal_scope === `${server_host}:${session_generation}` ? state.equipment_slot_action(state.equipment_modal_slot) : [];
+	state.equipment_selection = kind => {
+		const selected = state.equipment_selected[kind];
+		if (!selected || selected.scope !== `${server_host}:${session_generation}`) return [];
+		const model = state.equipment_model();
+		if (selected.type === 'slot') return state.equipment_slot_action(selected.id);
+		const item = model?.catalog?.find(item => item.item_id === selected.id);
+		if (!item) return [];
+		if (selected.type === 'project') return [{ title: state.equipment_project_title(item), cost: 0,
+			label: getLangString('MOD_MP_EQUIPMENT_BEGIN'), can_confirm: state.equipment_project_can_start(item), action: 'start-project', item }];
+		return [{ title: [state.equipment_project_name(item), state.equipment_requirement_text(item)].filter(Boolean).join(' · '), cost: 0,
+			label: item.unlock_only ? getLangString('MOD_MP_EQUIPMENT_ARROWS_DEFERRED') : getLangString(state.equipment_is_equipped(item) ? 'MOD_MP_EQUIPMENT_UNEQUIP' : 'MOD_MP_EQUIPMENT_EQUIP'),
+			can_confirm: state.equipment_can_mutate() && !item.unlock_only && (state.equipment_is_equipped(item) || state.equipment_meets_requirements(item)), action: 'equip', item }];
+	};
+	state.equipment_confirm = async (kind, slot_id = null) => {
+		const selection = state.equipment_selected[kind];
+		if (selection?.scope !== `${server_host}:${session_generation}`) return;
+		const resolve = () => slot_id ? state.equipment_slot_action(slot_id)[0] : state.equipment_selection(kind)[0];
+		const action = resolve();
+		if (!action?.can_confirm) return;
+		await close_modal_and_wait('equipment-modal');
+		const current = resolve();
+		if (selection.scope !== `${server_host}:${session_generation}` || state.equipment_selected[kind] !== selection || !current?.can_confirm || current.cost !== action.cost || current.label !== action.label) return;
+		const success = action.action === 'start-project' ? await state.equipment_start(action.item.item_id) :
+			action.action === 'equip' ? await state.equipment_toggle(action.item) : await state.equipment_purchase(action.action, action.slot);
+		if (success && state.equipment_selected[kind] === selection) state.equipment_selected[kind] = null;
+	};
+	state.equipment_unlocked_items = () => (state.equipment_model()?.catalog ?? []).filter(item => item.slot !== 'Food' && state.equipment_project_completed(item.item_id) && (state.combat.equipment_set === 'ranged' ? item.slot === 'Quiver' : item.slot !== 'Quiver'));
+	state.equipment_is_equipped = item => state.equipment_slot(state.equipment_item_slot(item))?.equipped_item === item.item_id;
+	state.equipment_meets_requirements = item => !item.unlock_only && (state.equipment_slot(state.equipment_item_slot(item))?.tier ?? -1) >= item.tier && (item.requirements ?? []).every(requirement => {
+		if (requirement.type !== 'SkillLevel' || !Number.isSafeInteger(requirement.level)) return false;
+		const skill_id = requirement.skillID?.split(':').at(-1)?.toLowerCase();
+		return !!skill_id && (state.combat.character?.levels?.[skill_id] ?? 0) >= requirement.level;
+	});
+	state.equipment_requirement_text = item => [
+		...((state.equipment_slot(state.equipment_item_slot(item))?.tier ?? -1) < item.tier ? [getLangString('MOD_MP_EQUIPMENT_ACCESS_REQUIRED')] : []),
+		...(item.requirements ?? []).map(requirement => {
+		const skill = game.skills?.getObjectByID?.(requirement.skillID);
+		return `${skill?.name ?? requirement.skillID?.split(':').at(-1) ?? ''} ${requirement.level}`;
+		})
+	].join(', ');
+	state.equipment_toggle = async item => {
+		if (!await combat_inventory.equipment('equip', { slot: state.equipment_item_slot(item), item_id: state.equipment_is_equipped(item) ? null : item.item_id })) return false;
+		await refresh_expedition_state();
+		return true;
+	};
+	state.equipment_cancel_ready = () => state.equipment_can_mutate() && !state.expedition_pending_report && !!state.equipment_model()?.project;
+	state.equipment_cancel_preview = () => {
+		if (!state.equipment_cancel_ready()) return;
+		state.equipment_cancel_selection = { id: state.equipment_model().project.id, scope: `${server_host}:${session_generation}` };
+		queue_modal('MOD_MP_EQUIPMENT_CANCEL_PROJECT', 'equipment-cancel-modal', '', { showConfirmButton: false, width: '440px', customClass: { popup: 'mp-equipment-modal-popup' } }, true, false);
+	};
+	state.equipment_cancel_confirm = async () => {
+		const selected = state.equipment_cancel_selection;
+		const ready = () => selected?.scope === `${server_host}:${session_generation}` && selected.id === state.equipment_model()?.project?.id && state.equipment_cancel_ready();
+		if (!ready()) return;
+		await close_modal_and_wait('equipment-cancel-modal');
+		if (!ready()) return;
+		if (await combat_inventory.equipment('cancel-project', { project_id: selected.id })) await refresh_expedition_state();
+	};
+	state.equipment_start = async id => {
+		if (!await combat_inventory.equipment('start-project', { item_id: id, discovered: state.equipment_discovered(id) })) return false;
+		await refresh_expedition_state();
+		return true;
+	};
+	state.equipment_set_available = type => tutorial_module.equipment_set_available(state.combat, type, state.chat_is_admin);
+	state.equipment_set_select = type => {
+		if (!state.equipment_set_available(type)) return;
+		state.combat.equipment_set = type;
+		state.equipment_selected.combat = null;
+	};
+	state.combat_slot_reset_quote = group => state.equipment_model()?.resets?.[group];
+	state.reset_combat_equipment = async (group = 'equipment') => {
+		if (!state.combat[group + '_reset_confirm'] || !state.equipment_can_mutate()) return false;
+		if (!await combat_inventory.reset_equipment(group)) return false;
+		state.equipment_selected.combat = null;
+		await refresh_expedition_state();
+		return true;
+	};
+	state.equipment_purchase = async (action, slot) => {
+		if (!await combat_inventory.equipment(action, { slot })) return false;
+		await refresh_expedition_state();
+		return true;
+	};
+	state.equipment_equip = (slot, id) => combat_inventory.equipment('equip', { slot, item_id: id });
+	state.open_equipment_projects = () => { state.expedition_work_tab = 'equipment'; navigate_page(game.pages.getObjectByID('multiplayer:Expedition')); };
+	state.equipment_refresh = async () => { await combat_inventory.refresh(); await refresh_expedition_state(); };
+	state.equipment_debug_selection = null;
+	state.equipment_debug_preview = task => {
+		if (!state.combat.debug_enabled || !state.equipment_debug_ready()) return;
+		const project = state.equipment_model()?.project;
+		state.equipment_debug_selection = { scope: `${server_host}:${session_generation}`, project_id: project.id, revision: state.combat.character.revision,
+			task_id: task?.task_id ?? null, name: task ? state.equipment_task_name(task) : state.equipment_project_name(project) };
+	};
+	state.equipment_debug_ready = () => state.combat.debug_enabled && !!state.equipment_model()?.project &&
+		state.equipment_can_mutate() && !state.expedition_pending_report && !state.equipment_tracking();
+	state.equipment_debug_confirm = async () => {
+		const preview = state.equipment_debug_selection;
+		if (!preview || preview.scope !== `${server_host}:${session_generation}` ||
+			preview.project_id !== state.equipment_model()?.project?.id || !state.equipment_debug_ready()) return false;
+		state.equipment_debug_selection = null;
+		if (!await combat_inventory.debug_equipment(preview)) return false;
+		await refresh_expedition_state();
+		return true;
+	};
+	state.equipment_task_name = task => task?.action_id === 'multiplayer:Any_Woodcutting' ? getLangString('MOD_MP_EQUIPMENT_ANY_WOODCUTTING') : task?.action_id ? (game.fletching?.actions?.getObjectByID?.(task.action_id)?.name ?? state.get_item_name(task.action_id)) : '';
+	state.equipment_project_name = project => project ? state.get_item_name(project.item_id) : '';
+	state.equipment_duration = ms => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
+	state.equipment_matches = task => capture_status_activities().some(activity => expedition_tasks.equipment_activity_matches(task, activity));
+	state.equipment_can_mutate = () => state.is_connected && !state.is_social_only && !state.expedition_loading && !state.expedition_action_pending && !state.combat.inventory_busy && state.combat.arena?.status !== 'active';
+	state.equipment_action = kind => submit_expedition_work(kind);
+
+	state.combat = combat_module.create_combat_view();
+	const combat_animation = combat_module.create_combat_animator({ get_root: () => document.getElementById('mp-combat-page') });
+	let combat_start_caps = null, combat_start_unlocks = null;
+	combat_arena = combat_module.create_combat_controller({
+		view: state.combat,
+		on_result: async arena => {
+			const scope = `${server_host}:${session_generation}`, before = combat_start_caps, before_unlocks = combat_start_unlocks;
+			const settled = await combat_inventory.settle(arena);
+			if (scope !== `${server_host}:${session_generation}` || state.combat.arena?.id !== arena.id) return;
+			state.combat.result = combat_module.combat_result_details(arena, before, settled ? state.combat.unlocks?.skill_caps : null);
+			state.combat.result.materials = combat_module.combat_material_gains(before_unlocks, settled ? state.combat.unlocks : null);
+			queue_modal(getLangString(`MOD_MP_COMBAT_${arena.status === 'fled' ? 'FORFEIT' : arena.status.toUpperCase()}`).toUpperCase(), 'combat-result-modal', 'assets/colosseum.png', {
+				showConfirmButton: false, showCloseButton: true, allowOutsideClick: true, allowEscapeKey: false,
+				customClass: { popup: 'mp-combat-result-popup' }
+			}, false);
+		},
+		on_start: () => {
+			// Copy scalar cap maps explicitly: Petite Vue proxies cannot be structured-cloned.
+			combat_start_unlocks = state.combat.unlocks ? { material_caps: { ...state.combat.unlocks.material_caps } } : null;
+			combat_start_caps = state.combat.unlocks?.skill_caps ? { ...state.combat.unlocks.skill_caps } : null;
+			if (combat_page_visible) requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+		},
+		on_state: arena => {
+			combat_animation.update(combat_page_visible ? arena : null);
+			update_combat_nav();
+			void combat_inventory?.settle(arena);
+		},
+		get_scope: () => `${server_host}:${session_generation}`,
+		get_origin: () => server_host,
+		can_connect: () => state.is_connected && !state.is_social_only && document.visibilityState !== 'hidden',
+		ticket: () => api_post('/api/combat/ticket', {})
+	});
+	combat_inventory = combat_inventory_module.create_combat_inventory({ view: state.combat, access: tutorial_module.tutorial_access,
+		practice_sync: practice_module.practice_sync,
+		scope: () => `${server_host}:${session_generation}`, can_mutate: () => economy_commands_ready && !economy_command_journal?.has_pending(),
+		request: (path,payload) => payload ? api_post(path,payload) : api_get(path), reconcile: reconcile_economy_receipts
+	});
+	state.refresh_combat_inventory = () => combat_inventory.refresh();
+	state.prepare_combat = () => combat_inventory.prepare();
+	state.combat_skill_available = skill => (!state.combat.tutorial || state.combat.tutorial.complete) && combat_inventory_module.available_combat_skills.includes(skill);
+	state.combat_level_quote = skill => combat_inventory_module.combat_level_quote(state.combat.character, skill, state.combat.level_quantities[skill]);
+	state.set_combat_level_quantity = (skill, quantity) => { state.combat.level_quantities[skill] = combat_inventory_module.combat_level_quote(state.combat.character, skill, quantity).count; };
+	state.combat_skill_icon = skill => game.skills.getObjectByID(`melvorD:${skill[0].toUpperCase()}${skill.slice(1)}`)?.media ?? assets.getURI('assets/media/main/question.png');
+	state.combat_levels_quote = () => combat_inventory_module.combat_levels_quote(state.combat.character, state.combat.level_quantities);
+	state.purchase_combat_level = skill => combat_inventory.level(skill);
+	state.reset_combat_levels = () => combat_inventory.reset_levels();
+	state.combat_style_name = id => game.attackStyles.getObjectByID('melvorD:' + ({ accurate: 'Stab', aggressive: 'Slash', defensive: 'Block' }[id] ?? 'Stab'))?.name ?? state.combat_name(id);
+
+	state.start_combat = async () => {
+		if (!['test_combat', 'raid'].includes(state.combat.page_tab) || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character || !state.is_connected || state.is_social_only || state.combat.arena?.status === 'active') return;
+		if (state.combat.page_tab === 'test_combat' && !state.combat_choices().some(choice => choice.id === state.combat.encounter)) return;
+		if (state.combat.page_tab === 'test_combat' && state.combat.tutorial?.complete && !state.combat_practice_tier()?.available) return;
+		const scope = `${server_host}:${session_generation}`;
+		state.combat.starting = true;
+		try {
+			// Refresh the server-owned food selection and access before admission.
+			if (await combat_inventory.refresh({ fresh: true }) && scope === `${server_host}:${session_generation}` && ['test_combat', 'raid'].includes(state.combat.page_tab) &&
+				(state.combat.page_tab === 'raid' || state.combat_choices().some(choice => choice.id === state.combat.encounter))) await combat_arena.connect(true);
+		} finally {
+			if (scope === `${server_host}:${session_generation}` && state.combat.status !== 'connecting' && !state.combat.pending) state.combat.starting = false;
+		}
+	};
+	state.combat_action = (action, target) => combat_arena.act(action, target);
+	state.combat_cycle_opponents_view = () => combat_arena.cycle_opponents_view();
+	state.combat_opponents_compact = () => combat_module.combat_opponents_compact(state.combat);
+	state.combat_run_icon = () => assets.getURI('assets/media/skills/combat/run.png');
+	state.combat_inventory_error = () => state.combat.inventory_error === 'cap_locked' ? combat_localized('MOD_MP_COMBAT_PRACTICE_LOCKED', 'Clear Dungeon tiers to unlock the recommended skill caps.') : state.combat.inventory_error === 'tutorial_required' ? combat_localized('MOD_MP_COMBAT_TUTORIAL_REQUIRED', 'Complete training to unlock this action.') : state.combat_name(['food_locked', 'quote_changed', 'max_level', 'insufficient_ep', 'nothing_to_reset', 'active', 'discovery_required', 'project_unavailable', 'requirements_unmet', 'equip_current_tier', 'slot_locked', 'slot_conflict'].includes(state.combat.inventory_error) ? state.combat.inventory_error : 'inventory_rejected');
+	state.combat_run_copy = key => key === 'start' || key === 'stop' ? getLangString('MOD_MP_COMBAT_BATTLE_' + key.toUpperCase()) : combat_localized('MOD_MP_COMBAT_RUN_' + String(key).toUpperCase(), combat_module.COMBAT_RUN_COPY[key] ?? key);
+	tutorial_module.install_tutorial_review_actions(state, getLangString, state.get_item_name, state.equipment_slot_name);
+	state.combat_dungeon_debug_select = target_id => {
+		const target = state.combat.dungeon_debug_options?.targets.find(target => target.id === target_id);
+		if (!target) return;
+		state.combat.dungeon_debug_target = target.id;
+		state.combat.dungeon_debug_confirm = false;
+		state.combat.dungeon_debug_levels = Object.fromEntries(['attack','strength','defence','hitpoints'].map(skill => [skill,Math.max(target.level,skill === 'hitpoints' ? 3 : 1)]));
+		const material = target.material >= 3 ? 'Steel' : 'Iron';
+		state.combat.dungeon_debug_gear = target.level >= 5 ? { Weapon:`melvorD:${material}_Sword`,Shield:`melvorD:${material}_Shield`,Helmet:`melvorD:${material}_Helmet` } : {Weapon:'melvorD:Bronze_Sword',Shield:'melvorD:Bronze_Shield',Helmet:'melvorD:Bronze_Helmet'};
+		state.combat.dungeon_debug_food = target.food_tier >= 2 ? 'melvorD:Herring' : 'melvorD:Shrimp';
+	};
+	state.combat_dungeon_debug_ready = () => state.chat_is_admin && !!state.combat.dungeon_debug_options && state.equipment_can_mutate() &&
+		!state.combat.pending && !state.combat.starting && !state.equipment_tracking() && !state.expedition_pending_report;
+	state.combat_dungeon_debug_apply = async () => {
+		if (!state.combat.dungeon_debug_confirm || !state.combat_dungeon_debug_ready()) return false;
+		const target = state.combat.dungeon_debug_options.targets.find(target => target.id === state.combat.dungeon_debug_target);
+		const payload = { target:target.id, confirm:true, levels:{...state.combat.dungeon_debug_levels},
+			gear:Object.fromEntries(Object.entries(state.combat.dungeon_debug_gear).filter(([,id]) => id)), food:state.combat.dungeon_debug_food };
+		state.combat.dungeon_debug_confirm = false;
+		if (!await combat_inventory.debug_dungeon(payload)) return false;
+		combat_arena.close('idle');
+		state.combat.level_quantities = {};
+		state.combat.raid_selection = target.dungeon;
+		state.combat.page_tab = 'raid';
+		state.combat.mode = 'raid';
+		state.combat.encounter = target.dungeon;
+		state.combat.raid_tab = 'details';
+		state.equipment_selected.combat = null;
+		return true;
+	};
+	state.combat_tutorial_debug_ready = () => state.chat_is_admin && state.equipment_can_mutate() &&
+		!state.combat.pending && !state.combat.starting && !state.equipment_tracking() && !state.expedition_pending_report &&
+		state.combat.tutorial_debug_targets.some(target => target.id === state.combat.tutorial_debug_target);
+	state.combat_tutorial_debug_apply = async (target = state.combat.tutorial_debug_target) => {
+		if (!state.combat.tutorial_debug_confirm || !state.combat_tutorial_debug_ready()) return false;
+		state.combat.tutorial_debug_confirm = false;
+		if (!await combat_inventory.debug_tutorial({ target })) return false;
+		combat_arena.close('idle');
+		state.combat.level_quantities = {};
+		state.combat.equipment_set = 'melee';
+		state.combat.page_tab = 'character';
+		state.combat.preparation_tab = state.combat.character ? (state.combat.tutorial?.trial?.slot === 'Food' ? 'consumables' : 'equipment') : 'levels';
+		state.equipment_selected.combat = null;
+		await refresh_expedition_state();
+		return true;
+	};
+	state.combat_tutorial_guide = () => {
+		const guide = tutorial_module.tutorial_guide(state.combat.tutorial, state.equipment_model(), getLangString, state.get_item_name, state.equipment_slot_name);
+		if (guide && !state.combat.character) return { ...guide, action: 'prepare', tab: 'levels', text: getLangString('MOD_MP_COMBAT_TUTORIAL_PREPARE') };
+		return guide && state.combat.arena?.status === 'active' ? { ...guide, text: tutorial_module.tutorial_lesson(state.combat.tutorial.victories, getLangString) } : guide;
+	};
+	state.combat_tutorial_access = (kind, id) => tutorial_module.tutorial_access(state.combat, kind, id);
+	state.combat_select_page = tab => {
+		if (!state.combat_tutorial_access('page', tab)) return;
+		state.combat.page_tab = tab;
+		if (tab === 'raid') { state.combat.mode = 'raid'; state.combat.encounter = state.combat.raid_selection; }
+		else if (tab === 'test_combat' && state.combat.mode === 'raid') { state.combat.mode = 'once'; state.combat.encounter = state.combat_choices()[0]?.id ?? ''; practice_module.practice_sync(state.combat); }
+	};
+	state.combat_select_preparation = tab => { if (state.combat_tutorial_access('tab', tab)) state.combat.preparation_tab = tab; };
+	state.combat_tutorial_heading = () => {
+		const number = (state.combat.tutorial?.victories ?? 0) + 1;
+		const name = tutorial_module.tutorial_name(state.combat.tutorial?.trial?.id, getLangString) ?? state.combat.tutorial?.trial?.name ?? '';
+		return combat_localized_text('MOD_MP_COMBAT_TUTORIAL_HEADING', 'Training {number} / 7 · {name}', { number, name });
+	};
+	state.combat_tutorial_highlight = (kind, id = null) => {
+		const guide = state.combat_tutorial_guide();
+		if (!guide) return false;
+		if (kind === 'page') return state.combat_tutorial_access('page', id) && id === (guide.action === 'battle' ? 'test_combat' : 'character');
+		if (kind === 'eat') return state.combat.arena?.status === 'active' && state.combat.tutorial.victories === 4;
+		if (kind === 'slot') return guide.trial.slot === id && ['unlock-slot', 'unlock-tier', 'equip'].includes(guide.action);
+		if (kind === 'slot-action') return guide.trial.slot === id && ['unlock-slot', 'unlock-tier'].includes(guide.action);
+		if (kind === 'item') return id === guide.trial.item && guide.action === 'equip';
+		if (kind === 'project') return id === guide.trial.item && ['start-project', 'work'].includes(guide.action);
+		if (kind === 'tab') return id === guide.tab && guide.action !== 'battle';
+		return kind === guide.action;
+	};
+	state.combat_choices = () => state.combat.tutorial && !state.combat.tutorial.complete ? [{ id: state.combat.tutorial.trial.id, name: tutorial_module.tutorial_name(state.combat.tutorial.trial.id, getLangString) ?? state.combat.tutorial.trial.name, actors: [state.combat.tutorial.trial.id], description: combat_localized_text('MOD_MP_COMBAT_TUTORIAL_PROGRESS', 'Training · {number} / 7', { number: state.combat.tutorial.victories + 1 }) }] : practice_module.practice_choices(state.combat, getLangString);
+	state.combat_practice_choices = () => state.combat.tutorial?.complete === true ? practice_module.practice_choices(state.combat, getLangString) : [];
+	state.combat_practice_cleared = entry => entry.tiers.filter(tier => tier.complete).length;
+	state.combat_practice_categories = practice_module.PRACTICE_CATEGORIES;
+	state.combat_practice_copy = key => practice_module.practice_copy(key, getLangString);
+	state.combat_practice_selected = () => practice_module.localize_practice_entry(practice_module.practice_selected(state.combat), getLangString);
+	state.combat_practice_material = material => combat_localized(`MOD_MP_EQUIPMENT_TIER_${String(material).toUpperCase()}`, material);
+	state.combat_practice_tier_label = tier => `${combat_localized('MOD_MP_COMBAT_PRACTICE_TIER', 'Tier')} ${practice_module.roman(tier.tier)}${!tier.available ? ' · ' + combat_localized('MOD_MP_COMBAT_PRACTICE_LOCKED_SHORT', 'Locked') : tier.complete ? ' · ' + combat_localized('MOD_MP_COMBAT_PRACTICE_CLEARED', 'Cleared') : ''}`;
+	state.combat_tutorial_copy = key => combat_localized(`MOD_MP_COMBAT_TUTORIAL_${key}`, key);
+	state.combat_tutorial_target_name = target => {
+		if (target?.id === 'start') return state.combat_tutorial_copy('REVIEW_TARGET_START');
+		if (target?.id === 'complete') return state.combat_tutorial_copy('REVIEW_TARGET_COMPLETE');
+		const match = /^(\d+):([a-z-]+)(?::(\d+))?$/.exec(String(target?.id ?? ''));
+		if (!match) return target?.title ?? '';
+		const phase_keys = { 'unlock-slot':'REVIEW_UNLOCK_SLOT', 'unlock-tier':'REVIEW_UPGRADE', 'start-project':'REVIEW_START_PROJECT', work:'REVIEW_PROJECT_STAGE', equip:'REVIEW_EQUIP', battle:'REVIEW_READY_FOR_BATTLE' };
+		const phase_key = phase_keys[match[2]];
+		const phase = phase_key ? state.combat_tutorial_copy(phase_key) : target.title.split(' · ').at(-1);
+		const labeled_phase = match[2] === 'work' ? combat_localized_text(`MOD_MP_COMBAT_TUTORIAL_${phase_key}`, 'Project stage {stage}', { stage: Number(match[3]) + 1 }) : phase;
+		const number = Number(match[1]) + 1;
+		const trial_name = tutorial_module.tutorial_name(`tutorial_${number}`, getLangString) ?? '';
+		return `${number} · ${trial_name} · ${labeled_phase}`;
+	};
+	state.combat_practice_tier = () => state.combat_practice_selected()?.tiers?.find(tier => tier.tier === state.combat.practice_tier) ?? null;
+	state.combat_practice_select = (kind,value) => practice_module.practice_select(state.combat,kind,value);
+	state.combat_practice_effects = () => [...new Map((state.combat_practice_tier()?.waves.flat() ?? []).filter(actor => actor.effect).map(actor => [actor.effect,actor])).values()];
+	state.combat_encounter_name = () => practice_module.practice_title(state.combat, state.combat.arena, getLangString) ?? tutorial_module.tutorial_name(state.combat.arena?.encounter, getLangString) ?? combat_module.combat_run_title(state.combat.arena);
+	state.combat_respawning = () => state.combat.arena?.status === 'active' && state.combat.arena?.run?.phase === 'respawning';
+	state.combat_name = id => practice_module.practice_actor(state.combat,id,getLangString)?.name ?? (/^(saltwing|reefbreaker|undertide_tendril|blob|bittertoad|bogmaw|drowned_root|cinder_snail|kiln_wisp|embercoil|slagheart)_\d+$/.test(id) ? state.combat_name(String(id).replace(/_\d+$/, '')) : null) ?? tutorial_module.tutorial_name(id,getLangString) ?? (/^(golbin|golbin_scout|mind_golbin)_\d+$/.test(id) ? state.combat_name(id.replace(/_\d+$/, '')) : null) ?? (String(id).startsWith('plant_') ? state.combat_name('plant') : getLangString('MOD_MP_COMBAT_' + String(id).toUpperCase()));
+	state.combat_cap = skill => state.combat.character?.caps?.[skill] ?? 1;
+	state.combat_local_date = combat_module.combat_local_date;
+	state.combat_raid_page = page => combat_inventory.raid_page(page);
+	state.combat_raids = () => combat_module.combat_choices('raid').map(dungeon => ({...dungeon, name: state.combat_name(dungeon.id === 'golbins' ? 'horde' : dungeon.id)}));
+	state.combat_dungeon_art = id => get_mod_asset_url(`assets/combat-dungeons/${id}.png`);
+	state.combat_selected_raid = () => state.combat_raids().find(raid => raid.id === state.combat.raid_selection) ?? state.combat_raids()[0];
+	state.combat_select_raid = id => { state.combat.raid_selection = id; state.combat.encounter = id; state.combat.raid_page = 0; state.combat.raid_tab = 'details'; combat_inventory.refresh(); };
+	state.combat_dungeon = (id = state.combat.raid_selection) => state.combat.dungeons?.find(dungeon => dungeon.id === id) ?? (id === 'golbins' ? state.combat.raid : null);
+	state.combat_raid_tiers = id => combat_module.combat_raid_tiers(state.combat.unlocks, state.combat_dungeon(id)?.endpoint ?? 1, state.combat_dungeon(id), state.equipment_model()?.catalog ?? []);
+	state.combat_raid_copy = (key, dungeon = state.combat.raid_selection) => {
+		const localized = ({start:'dungeon_start',entry:dungeon === 'quarry' ? 'quarry_entry' : dungeon === 'mire' ? 'mire_entry' : 'dungeon_entry',herring:'dungeon_herring',raids:'tab_raid',description:dungeon === 'quarry' ? 'quarry_description' : dungeon === 'mire' ? 'mire_description' : dungeon === 'tidal' ? 'tidal_description' : 'dungeon_description'})[key];
+		return localized ? state.combat_name(localized) : combat_localized('MOD_MP_COMBAT_DUNGEON_' + String(key).toUpperCase(), combat_module.COMBAT_RAID_COPY[key] ?? key);
+	};
+	state.combat_roman = practice_module.roman;
+	state.combat_time = combat_module.combat_time;
+	state.combat_duration = ticks => combat_module.combat_duration(ticks, state.combat.arena);
+	state.combat_interval = combat_module.combat_time;
+	state.combat_attack_icon = type => assets.getURI(({ melee: 'assets/media/skills/combat/attack.png',
+		ranged: 'assets/media/skills/ranged/ranged.png', magic: 'assets/media/skills/magic/magic.png' })[type] ?? 'assets/media/skills/combat/attack.png');
+	state.combat_eat_remaining = combat_module.combat_eat_remaining;
+	state.combat_eat_overlay = combat_module.combat_eat_overlay;
+	state.combat_eat_opacity = combat_module.combat_eat_opacity;
+	state.combat_tick = combat_module.combat_tick;
+	state.combat_effect_space = combat_module.combat_effect_space;
+	state.combat_effect_remaining = combat_module.combat_effect_remaining;
+	state.combat_effect_info = effect => effect.lifetime === 'persistent'
+		? state.combat_name(effect.id === 'slow' ? 'slow_persistent_info' : 'persistent_info')
+		: state.combat_name(effect.id + '_info');
+	state.combat_effect_label = effect => effect.lifetime === 'persistent' ? state.combat_name('chamber')
+		: effect.remaining_attacks === null ? state.combat_duration(state.combat_effect_remaining(effect, state.combat.arena))
+		: effect.remaining_attacks + ' ' + state.combat_name('attacks');
+	state.combat_chamber_description = definition => {
+		const condition = definition.equipment;
+		const template = state.combat_name(condition ? 'chamber_equipment' : 'chamber_unconditional');
+		return template.replace('{effect}',state.combat_name(definition.effect))
+			.replace('{material}',condition ? getLangString('MOD_MP_EQUIPMENT_TIER_' + condition.material.toUpperCase()) : '')
+			.replace('{slots}',condition?.slots.map(state.equipment_slot_name).join(', ') ?? '');
+	};
+	state.combat_material_access = tier => state.combat_name('material_access').replace('{material}',state.equipment_tier_name(tier));
+	state.combat_effect_icon = combat_module.combat_effect_icon;
+	// Native paths verified in melvorDemo combat-effect templates (including Bleed100).
+	const combat_effect_media = Object.fromEntries(Object.entries({ poison: 'status/poison.png', bleed: 'misc/blood.png',
+		burn: 'main/burn.png', slow: 'status/slowed.png', freeze: 'status/frozen.png' }).map(([id,path]) => [id, assets.getURI('assets/media/' + path)]));
+	state.combat_effect_image = id => combat_effect_media[id] ?? '';
+	state.combat_quarry_notice = () => state.combat_name('quarry_slow_notice').replace('{slow}', '<img class="mp-combat-raid-skill-icon" src="' + state.combat_effect_image('slow') + '" alt="">' + state.combat_name('slow')).replace('{material}', '<strong>' + state.equipment_tier_name(2) + '</strong>');
+	state.combat_role_effects = id => {
+		const actor = state.combat.arena?.enemies?.find(enemy => enemy.id === id);
+		if (actor?.on_hit_effects) return actor.on_hit_effects.map(entry => entry.effect);
+		const effect = actor?.on_hit_effect;
+		return effect ? [effect] : ({ vine: ['poison'], tendril: ['bleed'], root: ['slow'] })[id] ?? [];
+	};
+	state.combat_food_image = () => state.get_item_icon(state.combat.arena ? state.combat.arena.food_id : state.combat.food_id);
+	state.combat_food_name = () => (state.combat.arena ? state.combat.arena.food_id ? state.get_item_name(state.combat.arena.food_id) : state.combat_name('no_food') : state.combat.food_id ? state.get_item_name(state.combat.food_id) : state.combat_name('no_food'));
+	state.combat_feedback = actor => combat_module.combat_feedback(state.combat.arena, actor);
+	state.combat_feedback_attack_type = event => combat_module.combat_feedback_attack_type(state.combat.arena, event);
+	state.combat_effect_ids = combat_module.COMBAT_EFFECTS;
+	state.combat_stances = combat_module.COMBAT_STANCES;
+	state.combat_actor_image_style = combat_module.combat_actor_image_style;
+	state.combat_actor_image = id => {
+		const human = practice_module.practice_actor(state.combat,id);
+		if (human) return game.thieving?.actions?.getObjectByID?.('melvorF:' + human.portrait)?.media ?? assets.getURI('assets/media/main/question.png');
+		const actor = String(id).replace(/_\d+$/, '');
+		const monster = ({saltwing:'melvorD:Seagull',reefbreaker:'melvorD:GiantCrab'})[actor];
+		if (monster) return game.monsters.getObjectByID(monster)?.media ?? assets.getURI('assets/media/main/question.png');
+		const quarry_media = {cinder_snail:'pets/harry.png',kiln_wisp:'monsters/fire_spirit.png',embercoil:'monsters/burning_snake.png',slagheart:'monsters/Lava_Golem.png'}[actor];
+		if (quarry_media) return assets.getURI('assets/media/' + quarry_media);
+		const mire_media = {blob:'GreenSlime',bittertoad:'poison_toad',bogmaw:'hungry_plant',drowned_root:'Grumpy_Willow'}[actor];
+		if (mire_media) return assets.getURI('assets/media/monsters/' + mire_media + '.png');
+		if (actor === 'undertide' || actor === 'undertide_tendril') return assets.getURI('assets/media/monsters/' + (actor === 'undertide' ? 'kraken' : 'tentacle') + '.png');
+		return tutorial_module.tutorial_portrait(id, game.thieving?.actions) ?? (id === 'player' ? ctx.getResourceUrl('assets/colosseum.png') : String(id).startsWith('plant_') ? (game.monsters.getObjectByID('melvorD:Plant')?.media ?? assets.getURI('assets/media/main/question.png')) :
+		 /^(golbin|golbin_scout|mind_golbin)(?:_\d+)?$/.test(id) ? assets.getURI('assets/media/monsters/goblin.png') :
+		ctx.getResourceUrl(['vine', 'tendril', 'root'].includes(id) ? `assets/combat-${id}.svg` : 'assets/combat.svg'));
+	};
+	state.combat_gear = () => Object.entries(state.combat.arena?.registration?.gear ?? state.combat.registration?.gear ?? {});
+	state.combat_role = id => ['vine', 'tendril', 'root'].includes(id) ? state.combat_name(id + '_role') : '';
+	state.combat_event_name = kind => state.combat_name(kind.startsWith('apply_') ? kind.slice(6) : kind);
+	state.combat_percent = fraction => (fraction * 100).toFixed(1);
+	state.combat_max_hit_marker = combat_module.combat_max_hit_marker;
+	state.combat_opponent_max_hit = enemy => combat_module.combat_opponent_max_hit(state.combat.arena, enemy);
+	state.combat_player_thresholds = combat_module.combat_player_thresholds;
 	const raid_module = await ctx.loadModule('raid-combat.mjs');
 	const transfer_page = await ctx.loadModule('transfer-page.mjs');
 	transfer_history_module = await ctx.loadModule('transfer-history.mjs');
@@ -5703,6 +6352,8 @@ export async function setup(ctx) {
 	request_scheduler = requests.create_request_scheduler({ observe: entry => transport_diagnostics?.measure(entry) });
 	read_cache = requests.create_read_cache({ scope: () => server_host + ':' + session_generation, observe: entry => transport_diagnostics?.measure(entry) });
 	api_contract = await ctx.loadModule('api-contract.mjs');
+	const catalog_module = await ctx.loadModule('equipment-catalog.mjs');
+	equipment_catalog_cache = catalog_module.create_equipment_catalog_cache(() => server_host + ':' + session_generation);
 	economy_command_module = await ctx.loadModule('economy-command-journal.mjs');
 	identity_bindings = await ctx.loadModule('identity-bindings.mjs');
 	identity_bootstrap = await ctx.loadModule('identity-bootstrap.mjs');
@@ -5722,17 +6373,27 @@ export async function setup(ctx) {
 	installation_credentials = credentials_module.create_installation_credentials(installation_local_storage);
 	game_mode_sharing = await ctx.loadModule('game-mode-sharing.mjs');
 	localization = await ctx.loadModule('localization.mjs');
-	status_activities = await ctx.loadModule('status-activities.mjs');
 	expedition_tasks = await ctx.loadModule('expedition-tasks.mjs');
 	expedition_view = await ctx.loadModule('expedition-view.mjs');
+	const [journey_module, journey_graph, journey_topology] = await Promise.all([
+		ctx.loadModule('expedition-journey.mjs'), ctx.loadModule('expedition-journey-graph.mjs'),
+		ctx.loadModule('expedition-journey-topology.mjs')
+	]);
+	const journey = journey_module.create_journey_runtime({ ...journey_graph, ...journey_topology });
+	journey.register_journey_element({ label: value => state.expedition_display_label(value), getLangString });
+	expedition_leaderboard = expedition_view.create_leaderboard({ state,
+		fetch_page: page => api_get('/api/expedition/leaderboard?page=' + page),
+		visible: () => state.is_connected && expedition_page_visible && polling.is_foreground(document),
+		generation: () => session_generation });
+	state.expedition_leaderboard_page = page => expedition_leaderboard.refresh(page);
 	// Independent renderer modules: load together after save capture and core runtime setup.
 	const [image_particles, crucible_heat, expedition_crystals, expedition_haze, expedition_observatory,
-		expedition_orrery, expedition_voidwatch, expedition_hollow_star, expedition_snow] = await Promise.all([
+		expedition_orrery, expedition_voidwatch, expedition_hollow_star, expedition_snow, expedition_branches] = await Promise.all([
 		ctx.loadModule('image-particles.mjs'), ctx.loadModule('crucible-heat.mjs'),
 		ctx.loadModule('expedition-crystals.mjs'), ctx.loadModule('expedition-haze.mjs'),
 		ctx.loadModule('expedition-observatory.mjs'), ctx.loadModule('expedition-orrery.mjs'),
 		ctx.loadModule('expedition-voidwatch.mjs'), ctx.loadModule('expedition-hollow-star.mjs'),
-		ctx.loadModule('expedition-snow.mjs')
+		ctx.loadModule('expedition-snow.mjs'), ctx.loadModule('expedition-branches.mjs')
 	]);
 	state.expedition_snow = { ...expedition_snow.DEFAULT_SNOW_SETTINGS };
 	status_statistics = await ctx.loadModule('status-statistics.mjs');
@@ -5779,12 +6440,8 @@ export async function setup(ctx) {
 			debug_advance_expedition,
 			show_expedition_debug_confirmation,
 			confirm_expedition_debug_action,
-			expedition_points,
-			expedition_prompt_tasks,
-			expedition_prompt_activity_names,
-			set_expedition_work_tracking_mode,
-			start_prompted_expedition_task,
-			expedition_available_points: task => expedition_points(expedition_tasks.task_available_points_micros(task)),
+			format_ep,
+			expedition_available_points: task => format_ep(expedition_tasks.task_available_points_micros(task)),
 			expedition_time_remaining,
 			expedition_time_since,
 			expedition_hours,
@@ -5807,6 +6464,10 @@ export async function setup(ctx) {
 					tasks.filter(task => task.completed_at != null).length, tasks.length);
 			},
 			expedition_text,
+			expedition_has_ended: expedition_view.expedition_has_ended,
+			expedition_return_story,
+			expedition_journey_flavor: () => expedition_view.journey_flavor(state.expedition_state?.expedition, getLangString),
+			claim_expedition_bonus,
 			expedition_status,
 			expedition_display_label: (label, count, chamber_id) =>
 				expedition_view.display_expedition_label(label, count, getLangString, chamber_id),
@@ -5839,6 +6500,7 @@ export async function setup(ctx) {
 			get_guild_activity_arg_3,
 			format_guild_activity_time,
 			set_updates_mobile_tab,
+			open_multiplayer_wiki: () => openLink('https://melvor.azcn.io/wiki'),
 			load_transfer_history: (pane, append = false) => load_transfer_history(pane, append),
 			toggle_transfer_history: pane => {
 				state.transfers_history_open[pane] = !state.transfers_history_open[pane];
@@ -5952,6 +6614,7 @@ export async function setup(ctx) {
 
 	await ctx.loadTemplates('ui/templates.html');
 	document.addEventListener('visibilitychange', handle_runtime_visibility_change);
+	globalThis.addEventListener('pagehide', () => combat_arena?.close());
 
 	await load_pets(ctx);
 	await ctx.gameData.addPackage('data.json');
@@ -5975,7 +6638,9 @@ export async function setup(ctx) {
 		state.last_seen_mod_version = get_character_storage_item(UPDATES_LAST_SEEN_MOD_VERSION_KEY) ?? '';
 		state.updates_new = updates_loader.has_unseen_mod_version(MOD_VERSION, state.last_seen_mod_version);
 		apply_server_configuration();
+		state.load_crucible_heat_preference();
 		state.load_chat_notification_preferences();
+		equipment_evidence.start(game);
 		load_social_mode();
 		update_multiplayer_nav();
 		start_multiplayer_session();
@@ -5984,7 +6649,11 @@ export async function setup(ctx) {
 	});
 	ctx.onCharacterSelectionLoaded(() => {
 		state.clear_browser_links?.();
+		equipment_evidence.stop();
 		offline_work_gate.stop();
+		combat_page_visible = false;
+		combat_arena?.close();
+		combat_inventory?.reset();
 		listing_filter_prompt?.stop();
 		set_crucible_page_visible(false);
 		loaded_save_tracker.clear();
@@ -6025,6 +6694,12 @@ export async function setup(ctx) {
 			image_particles.create_image_particle_element({ create_renderer: expedition_orrery.create_orrery_renderer }));
 		if (!customElements.get('mp-expedition-voidwatch')) customElements.define('mp-expedition-voidwatch',
 			image_particles.create_image_particle_element({ create_renderer: expedition_voidwatch.create_voidwatch_renderer }));
+		for (const id of ['drowned_cloister', 'rootforge_passage', 'tideworn_crypts', 'embervein_machinery', 'mossbound_reliquary']) {
+			const tag = `mp-expedition-${id.replaceAll('_', '-')}`;
+			if (!customElements.get(tag)) customElements.define(tag, image_particles.create_image_particle_element({
+				create_renderer: () => expedition_branches.create_branch_renderer(id)
+			}));
+		}
 		if (!customElements.get('mp-expedition-hollow-star')) customElements.define('mp-expedition-hollow-star',
 			image_particles.create_image_particle_element({ create_renderer: () => expedition_hollow_star.create_hollow_star_renderer({
 				get_tasks: () => expedition_hollow_star.hollow_star_tasks(state.expedition_state)
@@ -6039,7 +6714,7 @@ export async function setup(ctx) {
 			update_multiplayer_nav();
 			update_raid_nav();
 
-			for (const page of ['guild', 'raid', 'expedition', 'chat', 'transfer', 'crucible', 'market', 'updates']) {
+			for (const page of ['guild', 'raid', 'combat', 'expedition', 'chat', 'transfer', 'crucible', 'market', 'updates']) {
 				make_scoped_template(page + '-page', $main_container);
 			}
 			transport_diagnostics.phase('interface', performance.now() - interface_started);
@@ -6055,6 +6730,14 @@ export async function setup(ctx) {
 
 			on_page_toggle('mp-guild-page', set_guild_page_visible);
 			on_page_toggle('mp-raid-page', set_raid_page_visible);
+			on_page_toggle('mp-combat-page', visible => {
+				combat_page_visible = visible;
+				combat_animation.update(visible ? state.combat.arena : null);
+				if (visible) {
+					void combat_inventory.refresh();
+					void refresh_chat_state();
+				}
+			});
 			on_page_toggle('mp-expedition-page', set_expedition_page_visible);
 			on_page_toggle('mp-chat-page', is_visible => {
 				chat_page_visible = is_visible;
@@ -6200,7 +6883,10 @@ function apply_server_configuration() {
 		if (state.selected_chat_conversation?.synthetic_service) state.close_chat_conversation();
 		selected_api_major = null;
 		session_generation++;
+		expedition_leaderboard?.reset();
+		combat_arena?.close();
 		state.clear_browser_links?.();
+		combat_inventory?.reset();
 		events_refreshed_at = 0;
 		last_events_result = null;
 		page_snapshots_supported = false;
@@ -6534,13 +7220,15 @@ async function start_multiplayer_session(options = {}) {
 	is_connecting = true;
 	active_identity_credentials = null;
 	listing_filter_prompt?.stop();
-	close_expedition_work_prompt();
 	state.is_connected = false;
 	state.pending_preview = null;
 	state.multiplayer_unsupported = false;
 	state.minimum_supported_mod_version = '';
 	session_generation++;
+	expedition_leaderboard?.reset();
+	combat_arena?.close();
 	state.clear_browser_links?.();
+	combat_inventory?.reset();
 	events_refreshed_at = 0;
 	last_events_result = null;
 	state.transfer_history = transfer_history_module.create_transfer_history_state();
@@ -6752,6 +7440,8 @@ async function enroll_current_installation(response, client_identifier) {
 }
 
 function activate_multiplayer_identity(response, timing) {
+	if (Array.isArray(response.chat_reaction_choices) && response.chat_reaction_choices.length === 18 && response.chat_reaction_choices.every(value => typeof value === 'string'))
+		state.chat_reaction_choices = [...response.chat_reaction_choices];
 	if (enter_unsupported_multiplayer(response.minimum_supported_mod_version))
 		return;
 	const handshake_generation = session_generation;

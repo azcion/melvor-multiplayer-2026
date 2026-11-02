@@ -1,3 +1,4 @@
+import { expedition_work_catalogs_migration } from './migrations/expedition-work-catalogs';
 import { browser_chat_auth_migration } from './migrations/browser-chat-auth';
 import { receipt_reviews_migration } from './migrations/receipt-reviews';
 import { browser_chat_identities_migration } from './migrations/browser-chat-identities';
@@ -385,6 +386,215 @@ export const migrations: Migration[] = [
 				substr(highlight_color, 1, 1) = '#' AND substr(highlight_color, 2) NOT GLOB '*[^0-9a-fA-F]*'));
 	` },
 	{ version: 194, sql: `
+		CREATE TABLE combat_registrations(client_id INTEGER PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
+			registration_json TEXT NOT NULL,updated_at INTEGER NOT NULL);
+		CREATE TABLE combat_encounters(id TEXT PRIMARY KEY,client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+			controller TEXT NOT NULL,food_id TEXT NOT NULL,budget INTEGER NOT NULL CHECK(budget BETWEEN 0 AND 1000),
+			used INTEGER NOT NULL CHECK(used BETWEEN 0 AND budget),status TEXT NOT NULL CHECK(status IN ('active','victory','defeat','fled','expired','interrupted')),
+			registration_json TEXT NOT NULL,created_at INTEGER NOT NULL,refunded_at INTEGER,refund_admin INTEGER,refund_reason TEXT);
+		CREATE UNIQUE INDEX combat_one_active ON combat_encounters(client_id) WHERE status='active';
+	` },
+	{ version: 195, sql: `
+		CREATE TABLE combat_rollback_enrollments(
+			client_id INTEGER PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
+			first_operation_id INTEGER NOT NULL CHECK(first_operation_id BETWEEN 1 AND 9007199254740991),
+			created_at INTEGER NOT NULL);
+	` },
+	{ version: 196, foreign_keys_disabled: true, sql: `
+		CREATE TABLE combat_encounters_new(id TEXT PRIMARY KEY,client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+			controller TEXT NOT NULL,food_id TEXT NOT NULL,budget INTEGER NOT NULL CHECK(budget BETWEEN 0 AND 9007199254740991),
+			used INTEGER NOT NULL CHECK(used BETWEEN 0 AND budget),status TEXT NOT NULL CHECK(status IN ('active','victory','defeat','fled','expired','interrupted')),
+			registration_json TEXT NOT NULL,created_at INTEGER NOT NULL,refunded_at INTEGER,refund_admin INTEGER,refund_reason TEXT);
+		INSERT INTO combat_encounters_new(id,client_id,controller,food_id,budget,used,status,registration_json,created_at,refunded_at,refund_admin,refund_reason)
+			SELECT id,client_id,controller,food_id,budget,used,status,registration_json,created_at,refunded_at,refund_admin,refund_reason FROM combat_encounters;
+		DROP TABLE combat_encounters;
+		ALTER TABLE combat_encounters_new RENAME TO combat_encounters;
+		CREATE UNIQUE INDEX combat_one_active ON combat_encounters(client_id) WHERE status='active';
+	` },
+	{ version: 197, sql: `
+		-- Test-only native registration is deliberately discarded. Shared economy data is untouched.
+		DROP TABLE combat_registrations;
+		CREATE TABLE combat_characters (
+			client_id INTEGER PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
+			attack INTEGER NOT NULL DEFAULT 1 CHECK(attack BETWEEN 1 AND 99),
+			strength INTEGER NOT NULL DEFAULT 1 CHECK(strength BETWEEN 1 AND 99),
+			defence INTEGER NOT NULL DEFAULT 1 CHECK(defence BETWEEN 1 AND 99),
+			hitpoints INTEGER NOT NULL DEFAULT 1 CHECK(hitpoints BETWEEN 1 AND 99),
+			ranged INTEGER NOT NULL DEFAULT 1 CHECK(ranged BETWEEN 1 AND 99),
+			magic INTEGER NOT NULL DEFAULT 1 CHECK(magic BETWEEN 1 AND 99),
+			invested_micros INTEGER NOT NULL DEFAULT 0 CHECK(invested_micros BETWEEN 0 AND 3288000000),
+			revision INTEGER NOT NULL DEFAULT 0 CHECK(revision BETWEEN 0 AND 9007199254740991)
+		) STRICT;
+		CREATE TABLE combat_ep_ledger (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			client_id INTEGER NOT NULL REFERENCES clients(id),
+			command_id TEXT NOT NULL UNIQUE,
+			amount_micros INTEGER NOT NULL CHECK(amount_micros BETWEEN -3288000000 AND 3288000000 AND amount_micros!=0),
+			created_at INTEGER NOT NULL
+		) STRICT;
+		CREATE INDEX combat_ep_owner ON combat_ep_ledger(client_id);
+	` },
+	{ version: 198, sql: `
+		CREATE TABLE combat_reset_balances (
+			client_id INTEGER PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
+			resets INTEGER NOT NULL DEFAULT 0 CHECK(resets BETWEEN 0 AND 1000000)
+		) STRICT;
+		CREATE TABLE combat_reset_grants (
+			command_id TEXT PRIMARY KEY,
+			client_id INTEGER NOT NULL REFERENCES clients(id),
+			quantity INTEGER NOT NULL CHECK(quantity BETWEEN 1 AND 1000000),
+			created_at INTEGER NOT NULL
+		) STRICT;
+	` },
+	{ version: 199, sql: `
+		CREATE TABLE combat_equipment_slots(client_id INTEGER NOT NULL REFERENCES combat_characters(client_id) ON DELETE CASCADE,
+			slot TEXT NOT NULL CHECK(slot='Weapon'),tier INTEGER NOT NULL CHECK(tier BETWEEN 0 AND 1),equipped_item TEXT,
+			PRIMARY KEY(client_id,slot)) STRICT;
+		CREATE TABLE combat_equipment_projects(id INTEGER PRIMARY KEY AUTOINCREMENT,
+			client_id INTEGER NOT NULL REFERENCES combat_characters(client_id) ON DELETE CASCADE,item_id TEXT NOT NULL,
+			progress_json TEXT NOT NULL,created_at INTEGER NOT NULL,completed_at INTEGER,UNIQUE(client_id,item_id)) STRICT;
+		CREATE UNIQUE INDEX combat_one_project ON combat_equipment_projects(client_id) WHERE completed_at IS NULL;
+		CREATE TABLE combat_project_tracking(client_id INTEGER PRIMARY KEY REFERENCES combat_characters(client_id) ON DELETE CASCADE,
+			project_id INTEGER NOT NULL REFERENCES combat_equipment_projects(id) ON DELETE CASCADE,task_id TEXT NOT NULL,
+			started_at INTEGER NOT NULL,start_clock_offset_ms INTEGER NOT NULL,epoch TEXT NOT NULL,
+			counter_ms INTEGER NOT NULL CHECK(counter_ms>=0),statistics_json TEXT NOT NULL) STRICT;
+		CREATE TABLE combat_project_reports(client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+			operation_id TEXT NOT NULL,request_hash TEXT NOT NULL,response TEXT NOT NULL,PRIMARY KEY(client_id,operation_id)) STRICT;
+	` },
+	{ version: 200, foreign_keys_disabled: true, sql: `
+		-- Preserve the original Weapon slot and expand the equipment table's slot and tier vocabulary.
+		CREATE TABLE combat_equipment_slots_new(client_id INTEGER NOT NULL REFERENCES combat_characters(client_id) ON DELETE CASCADE,
+			slot TEXT NOT NULL CHECK(slot IN ('Weapon','Shield','Helmet','Boots','Platelegs','Platebody','Gloves')),
+			tier INTEGER NOT NULL CHECK(tier BETWEEN 0 AND 6),equipped_item TEXT,
+			PRIMARY KEY(client_id,slot)) STRICT;
+		INSERT INTO combat_equipment_slots_new(client_id,slot,tier,equipped_item)
+			SELECT client_id,slot,tier,equipped_item FROM combat_equipment_slots;
+		DROP TABLE combat_equipment_slots;
+		ALTER TABLE combat_equipment_slots_new RENAME TO combat_equipment_slots;
+	` },
+	{ version: 201, foreign_keys_disabled: true, sql: `
+		-- Preserve all equipment access and equipped items while adding arrow project access.
+		CREATE TABLE combat_equipment_slots_new(client_id INTEGER NOT NULL REFERENCES combat_characters(client_id) ON DELETE CASCADE,
+			slot TEXT NOT NULL CHECK(slot IN ('Weapon','Shield','Helmet','Boots','Platelegs','Platebody','Gloves','Quiver')),
+			tier INTEGER NOT NULL CHECK(tier BETWEEN 0 AND 6),equipped_item TEXT,
+			PRIMARY KEY(client_id,slot)) STRICT;
+		INSERT INTO combat_equipment_slots_new(client_id,slot,tier,equipped_item)
+			SELECT client_id,slot,tier,equipped_item FROM combat_equipment_slots;
+		DROP TABLE combat_equipment_slots;
+		ALTER TABLE combat_equipment_slots_new RENAME TO combat_equipment_slots;
+	` },
+	{ version: 202, sql: `CREATE INDEX idx_expedition_ep_ledger_recent ON expedition_ep_ledger(created_at, client_id, points_micros);` },
+	{ version: 203, sql: `
+		CREATE TABLE combat_food_access(client_id INTEGER PRIMARY KEY REFERENCES combat_characters(client_id) ON DELETE CASCADE,
+			tier INTEGER NOT NULL CHECK(tier BETWEEN 1 AND 8),equipped_item TEXT) STRICT;
+		-- Authorized disposal of test food. Preserve custody conservation and audit ancestry.
+		INSERT INTO economy_custody_movements(root_key,from_location,to_location,quantity,occurred_at,reason)
+			SELECT root_key,location,'consumed:combat-food-retired',quantity,unixepoch()*1000,'retire-combat-food'
+			FROM economy_custody_balances WHERE location LIKE 'combat-online:%' OR location LIKE 'combat-reserved:%';
+		DROP TABLE combat_encounters;
+		CREATE TABLE combat_encounters(id TEXT PRIMARY KEY,client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+			controller TEXT NOT NULL,food_id TEXT NOT NULL,used INTEGER NOT NULL CHECK(used BETWEEN 0 AND 9007199254740991),
+			status TEXT NOT NULL CHECK(status IN ('active','victory','defeat','fled','expired','interrupted')),
+			registration_json TEXT NOT NULL,created_at INTEGER NOT NULL) STRICT;
+		CREATE UNIQUE INDEX combat_one_active ON combat_encounters(client_id) WHERE status='active';
+	` },
+	{ version: 204, sql: `
+		CREATE TABLE combat_food_access_new(client_id INTEGER NOT NULL REFERENCES combat_characters(client_id) ON DELETE CASCADE,
+			slot TEXT NOT NULL DEFAULT 'Food' CHECK(slot IN ('Food','Food2')),
+			tier INTEGER NOT NULL CHECK(tier BETWEEN 1 AND 8),equipped_item TEXT,PRIMARY KEY(client_id,slot)) STRICT;
+		INSERT INTO combat_food_access_new(client_id,slot,tier,equipped_item)
+			SELECT client_id,'Food',tier,equipped_item FROM combat_food_access;
+		DROP TABLE combat_food_access;
+		ALTER TABLE combat_food_access_new RENAME TO combat_food_access;
+	` },
+	{ version: 205, sql: `
+		ALTER TABLE polls ADD COLUMN announcement INTEGER NOT NULL DEFAULT 0 CHECK(announcement IN (0,1));
+		ALTER TABLE polls ADD COLUMN deleted_at INTEGER CHECK(deleted_at IS NULL OR deleted_at BETWEEN 0 AND 9007199254740991);
+		CREATE TABLE announcement_read_state (
+			client_id INTEGER PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
+			last_read_message_id INTEGER NOT NULL DEFAULT 0 CHECK(last_read_message_id BETWEEN 0 AND 9007199254740991)
+		) STRICT;
+		CREATE TABLE announcement_reactions (
+			message_id INTEGER NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+			client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+			reaction TEXT NOT NULL, created_at INTEGER NOT NULL,
+			PRIMARY KEY(message_id,client_id,reaction)
+		) STRICT;
+		CREATE TABLE chat_message_moderation (
+			message_id INTEGER PRIMARY KEY REFERENCES chat_messages(id) ON DELETE CASCADE,
+			deleted_at INTEGER NOT NULL CHECK(deleted_at BETWEEN 0 AND 9007199254740991)
+		) STRICT;
+		CREATE TRIGGER event_private_message_moderation AFTER INSERT ON chat_message_moderation BEGIN
+			UPDATE clients SET event_revision=event_revision+1 WHERE id IN
+				(SELECT client_id FROM chat_participants WHERE conversation_id=
+					(SELECT conversation_id FROM chat_messages WHERE id=NEW.message_id));
+		END;
+		CREATE TRIGGER event_announcement_delete AFTER UPDATE OF deleted_at ON polls
+		WHEN NEW.announcement=1 AND NEW.deleted_at IS NOT OLD.deleted_at BEGIN
+			UPDATE clients SET event_revision=event_revision+1 WHERE deleted_at IS NULL;
+		END;
+		CREATE TRIGGER event_announcement_read_insert AFTER INSERT ON announcement_read_state BEGIN
+			UPDATE clients SET event_revision=event_revision+1 WHERE id=NEW.client_id;
+		END;
+		CREATE TRIGGER event_announcement_read_update AFTER UPDATE OF last_read_message_id ON announcement_read_state
+		WHEN NEW.last_read_message_id!=OLD.last_read_message_id BEGIN
+			UPDATE clients SET event_revision=event_revision+1 WHERE id=NEW.client_id;
+		END;
+	` },
+	{ version: 206, sql: `
+		ALTER TABLE poll_translation_jobs ADD COLUMN highlight_color TEXT;
+		CREATE TABLE poll_message_bodies (
+			job_id INTEGER PRIMARY KEY REFERENCES poll_translation_jobs(id) ON DELETE CASCADE,
+			parts TEXT NOT NULL,
+			translations TEXT NOT NULL DEFAULT '{}'
+		) STRICT;
+	` },
+	{ version: 207, sql: `
+		CREATE TABLE combat_tutorial (
+			client_id INTEGER PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
+			victories INTEGER NOT NULL DEFAULT 0 CHECK(victories BETWEEN 0 AND 7)
+		) STRICT;
+		ALTER TABLE combat_encounters ADD COLUMN tutorial_trial INTEGER;
+	` },
+	{ version: 208, sql: `
+		-- No tables reference combat_encounters; preserve all encounter history and its active index.
+		CREATE TABLE combat_encounters_new(id TEXT PRIMARY KEY,client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+			controller TEXT NOT NULL,food_id TEXT NOT NULL,used INTEGER NOT NULL CHECK(used BETWEEN 0 AND 9007199254740991),
+			status TEXT NOT NULL CHECK(status IN ('active','victory','defeat','draw','fled','expired','interrupted')),
+			registration_json TEXT NOT NULL,created_at INTEGER NOT NULL,tutorial_trial INTEGER) STRICT;
+		INSERT INTO combat_encounters_new(id,client_id,controller,food_id,used,status,registration_json,created_at,tutorial_trial)
+			SELECT id,client_id,controller,food_id,used,status,registration_json,created_at,tutorial_trial FROM combat_encounters;
+		DROP TABLE combat_encounters;
+		ALTER TABLE combat_encounters_new RENAME TO combat_encounters;
+		CREATE UNIQUE INDEX combat_one_active ON combat_encounters(client_id) WHERE status='active';
+	` },
+	{ version: 209, sql: `
+		CREATE TABLE combat_unlocks (
+			client_id INTEGER PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
+			skill_caps_json TEXT NOT NULL DEFAULT '{}',
+			material_caps_json TEXT NOT NULL DEFAULT '{}',
+			food_cap INTEGER NOT NULL DEFAULT 1 CHECK(food_cap BETWEEN 1 AND 8),
+			auto_eat INTEGER NOT NULL DEFAULT 0 CHECK(auto_eat IN (0,1))
+		) STRICT;
+		CREATE TABLE combat_raid_progress (
+			client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+			raid TEXT NOT NULL, tier INTEGER NOT NULL CHECK(tier BETWEEN 1 AND 3),
+			wins INTEGER NOT NULL CHECK(wins BETWEEN 1 AND 9007199254740991),
+			PRIMARY KEY(client_id,raid,tier)
+		) STRICT;
+		CREATE TABLE combat_raid_records (
+			client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+			raid TEXT NOT NULL, ruleset TEXT NOT NULL,
+			elapsed_ms INTEGER NOT NULL CHECK(elapsed_ms BETWEEN 1 AND 9007199254740991),
+			achieved_at INTEGER NOT NULL CHECK(achieved_at BETWEEN 0 AND 9007199254740991),
+			PRIMARY KEY(client_id,raid,ruleset)
+		) STRICT;
+		ALTER TABLE combat_encounters ADD COLUMN raid_endpoint INTEGER CHECK(raid_endpoint BETWEEN 1 AND 3);
+		ALTER TABLE combat_encounters ADD COLUMN raid_completed INTEGER NOT NULL DEFAULT 0 CHECK(raid_completed BETWEEN 0 AND 11);
+		ALTER TABLE combat_encounters ADD COLUMN raid_ruleset TEXT;
+	` },
+	expedition_work_catalogs_migration,
+	{ version: 211, sql: `
 		CREATE TABLE expedition_preparation_tasks (
 			visit_id INTEGER NOT NULL,
 			task_id TEXT NOT NULL,
@@ -416,5 +626,58 @@ export const migrations: Migration[] = [
 			JOIN expedition_visits AS visit ON visit.id = session.visit_id
 			WHERE expedition.guild_id = OLD.id AND session.ended_at IS NULL;
 		END;
+	` },
+	{ version: 212, sql: `
+		ALTER TABLE combat_encounters ADD COLUMN practice_id TEXT;
+		ALTER TABLE combat_encounters ADD COLUMN practice_tier INTEGER CHECK(practice_tier BETWEEN 1 AND 12);
+		ALTER TABLE combat_encounters ADD COLUMN practice_completed INTEGER NOT NULL DEFAULT 0 CHECK(practice_completed BETWEEN 0 AND 4);
+		CREATE TABLE combat_practice_completions (
+			client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+			practice_id TEXT NOT NULL,
+			tier INTEGER NOT NULL CHECK(tier BETWEEN 1 AND 12),
+			ruleset TEXT NOT NULL,
+			PRIMARY KEY(client_id, practice_id, tier, ruleset)
+		) STRICT;
+	` },
+	{ version: 213, sql: `
+		ALTER TABLE expedition_personal_records ADD COLUMN ending_bonus_eligible INTEGER NOT NULL DEFAULT 0 CHECK(ending_bonus_eligible IN (0,1));
+		CREATE TABLE expedition_ending_claims (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+			expedition_id INTEGER NOT NULL,
+			points_micros INTEGER NOT NULL CHECK(points_micros > 0),
+			created_at INTEGER NOT NULL
+		) STRICT;
+		CREATE INDEX idx_expedition_ending_claims_owner ON expedition_ending_claims(client_id, expedition_id);
+		CREATE INDEX idx_expedition_work_owner_run ON expedition_work_sessions(client_id, expedition_id);
+		CREATE TABLE expedition_ep_ledger_new (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+			source_kind TEXT NOT NULL CHECK(source_kind IN ('work','supply','ending')),
+			source_id INTEGER NOT NULL,
+			points_micros INTEGER NOT NULL CHECK(points_micros >= 0),
+			created_at INTEGER NOT NULL CHECK(created_at >= 0),
+			expedition_id INTEGER CHECK(expedition_id IS NULL OR expedition_id > 0),
+			UNIQUE(source_kind, source_id)
+		) STRICT;
+		INSERT INTO expedition_ep_ledger_new SELECT * FROM expedition_ep_ledger;
+		INSERT INTO sqlite_sequence(name,seq)
+		SELECT 'expedition_ep_ledger_new',seq FROM sqlite_sequence WHERE name='expedition_ep_ledger'
+		AND NOT EXISTS(SELECT 1 FROM sqlite_sequence WHERE name='expedition_ep_ledger_new');
+		UPDATE sqlite_sequence SET seq=MAX(seq,COALESCE((SELECT seq FROM sqlite_sequence WHERE name='expedition_ep_ledger'),0))
+		WHERE name='expedition_ep_ledger_new';
+		DROP TABLE expedition_ep_ledger;
+		ALTER TABLE expedition_ep_ledger_new RENAME TO expedition_ep_ledger;
+		CREATE INDEX idx_expedition_ep_ledger_history ON expedition_ep_ledger(client_id, expedition_id);
+		CREATE INDEX idx_expedition_ep_ledger_recent ON expedition_ep_ledger(created_at, client_id, points_micros);
+	` },
+	{ version: 214, sql: `
+		CREATE TABLE combat_test_profiles (
+			client_id INTEGER PRIMARY KEY REFERENCES combat_characters(client_id) ON DELETE CASCADE
+		) STRICT;
+	` },
+	{ version: 215, sql: `
+		CREATE INDEX combat_encounters_history ON combat_encounters(client_id, created_at DESC);
+		CREATE INDEX combat_raid_ranking ON combat_raid_records(raid, ruleset, elapsed_ms, achieved_at, client_id);
 	` },
 ];

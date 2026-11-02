@@ -1,5 +1,6 @@
 import { Database } from 'bun:sqlite';
-import { chmodSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
+import { backup as copy_database, DatabaseSync } from 'node:sqlite';
+import { chmodSync, closeSync, fsyncSync, openSync, renameSync, unlinkSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
 const database_path = process.env.DB_PATH;
@@ -25,6 +26,9 @@ function verify(path: string): void {
 	});
 
 	try {
+		backup.run('PRAGMA cache_size = -2048');
+		backup.run('PRAGMA mmap_size = 0');
+		backup.run('PRAGMA temp_store = FILE');
 		const integrity = backup.query<{ integrity_check: string }, []>('PRAGMA integrity_check').get()?.integrity_check;
 		if (integrity !== 'ok')
 			throw new Error(`Backup integrity check failed: ${integrity ?? 'no result'}`);
@@ -55,24 +59,34 @@ if (command === 'verify') {
 if (command !== 'create')
 	throw new Error('Usage: bun run backup.ts create|verify BACKUP_FILENAME');
 
-const source = new Database(database_path, {
-	readonly: true,
-	strict: true
-});
+const source = new DatabaseSync(database_path, { readOnly: true });
 const temporary_path = `${path}.tmp-${process.pid}`;
+let temporary_created = false;
 
 try {
-	const contents = source.serialize();
-	writeFileSync(temporary_path, contents, {
-		flag: 'wx',
-		mode: 0o600
-	});
+	// Copy pages directly to disk with a small SQLite cache; never serialize
+	// the whole database into a JavaScript Buffer.
+	source.exec('PRAGMA busy_timeout = 5000; PRAGMA cache_size = -2048; PRAGMA mmap_size = 0; PRAGMA temp_store = FILE');
+	// Pin a WAL read snapshot so other connections' writes cannot restart
+	// the page copy indefinitely on a busy live server.
+	source.exec('BEGIN');
+	source.prepare('SELECT count(*) FROM sqlite_schema').get();
+	closeSync(openSync(temporary_path, 'wx', 0o600));
+	temporary_created = true;
+	await copy_database(source, temporary_path, { rate: 256 });
+	source.exec('ROLLBACK');
+	const descriptor = openSync(temporary_path, 'r+');
+	try {
+		fsyncSync(descriptor);
+	} finally {
+		closeSync(descriptor);
+	}
 	verify(temporary_path);
 	renameSync(temporary_path, path);
 	chmodSync(path, 0o600);
 } catch (error) {
 	try {
-		unlinkSync(temporary_path);
+		if (temporary_created) unlinkSync(temporary_path);
 	} catch {}
 	throw error;
 } finally {

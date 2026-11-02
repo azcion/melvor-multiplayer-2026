@@ -1,3 +1,9 @@
+import { interrupt_combats } from './combat-inventory';
+import { start_combat_authority } from './combat-authority';
+import { read_combat_key } from './combat/tickets';
+import { db } from './db';
+import { is_social_only_client } from './app-runtime';
+import { rollback_held } from './rollback-policy';
 import { register_browser_chat_shell_routes } from './routes/browser-chat-shell';
 import { register_browser_chat_auth_routes } from './routes/browser-chat-auth';
 import { register_alliance_routes } from './routes/alliances';
@@ -11,6 +17,7 @@ import { register_trade_routes } from './routes/trade';
 import { register_gifting_routes } from './routes/gifting';
 import { register_guilds_routes } from './routes/guilds';
 import { register_raids_routes } from './routes/raids';
+import { register_combat_routes } from './routes/combat';
 import { register_equipment_routes } from './routes/equipment';
 import { register_player_status_routes } from './routes/player_status';
 import { register_icon_catalog_routes } from './routes/icon_catalog';
@@ -43,6 +50,7 @@ register_gifting_routes();
 register_guilds_routes();
 register_alliance_routes();
 register_raids_routes();
+register_combat_routes();
 register_equipment_routes();
 register_player_status_routes();
 register_icon_catalog_routes();
@@ -92,9 +100,13 @@ server.error((err: Error) => {
 
 server.default((req, status_code) => default_handler(status_code));
 
+interrupt_combats(db);
+const combat_key = read_combat_key();
+const combat_authority = combat_key ? start_combat_authority({ database: db, key: combat_key, admitted: client => !is_social_only_client(client) && !rollback_held(db,client) && !!db.query('SELECT 1 FROM clients WHERE id=? AND disabled=0 AND deleted_at IS NULL').get(client) }) : null;
 server.start();
 const shutdown = create_shutdown_handler(
 	() => {
+		combat_authority?.stop();
 		clearInterval(expedition_maintenance_timer);
 		clearInterval(raid_maintenance_timer);
 		chat_translation_worker.stop();

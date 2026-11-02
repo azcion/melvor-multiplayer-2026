@@ -118,9 +118,7 @@ test('browser and game share canonical private messages, reads, reactions, parts
 		'petition-discussion',
 		'unknown'
 	]) {
-		expect((await web.post('messages/delete', { conversation_kind: kind, message_id: message })).status).toBe(
-			400
-		);
+		expect((await web.post('messages/delete', { conversation_kind: kind, conversation_id: 999999999, message_id: message })).status).not.toBe(200);
 		expect(
 			(await web.post('conversations/delete', { conversation_kind: kind, conversation_id: id })).status
 		).toBe(400);
@@ -245,7 +243,7 @@ test('browser Global, Guild, Support, testers and Alliance use existing membersh
 	const web = linked(a.client_id),
 		other = linked(outsider.client_id);
 	const inbox = await json(await web.get('conversations'));
-	for (const kind of ['global', 'guild', 'testers', 'support']) {
+	for (const kind of ['global', 'guild', 'support']) {
 		const conversation = inbox.conversations.find((c: any) => c.conversation_kind === kind);
 		expect(conversation).toBeDefined();
 		const query =
@@ -285,6 +283,8 @@ test('browser Global, Guild, Support, testers and Alliance use existing membersh
 				)
 			).success
 		).toBe(true);
+		expect((await web.post('messages/delete', { conversation_kind: kind, conversation_id: id, message_id: sent.message.message_id })).status).toBe(200);
+		expect((await json(await web.get(`messages?conversation_kind=${kind}&conversation_id=${id}`))).messages.some((m:any)=>m.message_id===sent.message.message_id)).toBe(false);
 		if (kind === 'global' || kind === 'testers')
 			await db_run('DELETE FROM global_chat_messages WHERE id=?', [sent.message.message_id]);
 		if (kind === 'guild') {

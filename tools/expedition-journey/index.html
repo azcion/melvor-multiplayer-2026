@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Expedition · Journey studio</title><link rel="stylesheet" href="studio.css"></head>
+<body>
+<header><span class="eyebrow">EXPEDITION / DESIGN HARNESS</span><h1>Journey studio</h1><p>A fixed map. A shared path. Every Chamber has its place.</p></header>
+<main>
+<aside aria-label="Design controls">
+<h2>Simulation</h2>
+<p class="hint">Full graph fixes the layout. Player view shows only Guild discoveries.</p>
+<label>Test scenario <select id="scenario"><option value="one">One revealed passage</option><option value="none">Arrival · nothing revealed</option><option value="several">Several revealed passages</option><option value="shared">Shared destination · hide other incoming edges</option><option value="deep">Deep journey</option></select></label>
+<label>Jump to Chamber <select id="destination"></select></label>
+<p class="hint">Jump chooses a shortest route. Use the passage buttons to test other routes through shared Chambers.</p>
+<div class="buttons"><button id="back">Step back</button><button id="reset">Start over</button><button id="empty">No journey</button></div>
+<h2>Reveal tasks</h2><p class="hint">Check a passage to complete its reveal task. Only passages from visited Chambers can appear. Traversed passages stay revealed.</p><div id="reveal-controls"></div>
+<label class="check"><input id="all-known" type="checkbox"> Everything known (full authored graph)</label>
+<label class="check"><input id="ghosts" type="checkbox"> Show hidden layout (debug only)</label>
+<h2>Layout</h2>
+<label>Depth spacing <input id="column-gap" type="range" min="0" max="240" value="45"></label>
+<label>Branch spacing <input id="row-gap" type="range" min="0" max="190" value="35"></label>
+<label>Circle radius <input id="radius" type="range" min="8" max="22" value="17"></label>
+<p class="hint">Vertical layout, no names. Spacing is the clear gap between circles, down to zero. Ordering automatically reduces crossings.</p>
+<label class="check"><input id="mobile" type="checkbox"> 390px mobile preview</label>
+<button id="export">Download scenario</button>
+<p class="hint">Read-only content. No game, account, server connection, or saved player state.</p>
+</aside>
+<section class="preview" aria-label="Journey preview">
+<div class="journey-shell">
+<div class="tabs"><span>Chamber</span><strong>Journey</strong><span>Projects</span></div>
+<section class="panel"><div class="panel-heading"><div><span class="eyebrow">GUILD EXPEDITION</span><h2>Your journey</h2></div><span id="count"></span></div>
+<div class="legend"><span class="key current">Current</span><span class="key visited">Visited</span><span class="key unknown">Revealed destination</span><span class="route-key">Travelled path</span></div>
+<div class="viewport" aria-label="Chamber map"><svg id="graph" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="Chamber map"></svg><div id="node-detail" class="node-detail" role="tooltip" hidden></div></div>
+<div class="location"><span class="eyebrow">CURRENT CHAMBER</span><h3 id="current"></h3><p id="route"></p><div id="exits" class="buttons"></div></div>
+</section>
+<p id="status" role="status">Loading Chamber data…</p>
+</div>
+</section>
+</main><script type="module" src="studio.mjs"></script>
+</body></html>

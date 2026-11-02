@@ -10,7 +10,7 @@ test('item parts survive sends, retries, history and inboxes across every Chat k
 	try {
 		const inbox = await get_json_with_session<{ conversations: any[] }>('/api/chat/conversations', first.session_token);
 		const support = inbox.json.conversations.find(conversation => conversation.conversation_kind === 'support');
-		await db_run('UPDATE clients SET client_identifier = ? WHERE id = ?', ['11111111-1111-4111-8111-111111111111', first.client_id]);
+		await db_run('UPDATE clients SET client_identifier = ? WHERE id = ?', ['44444444-4444-4444-8444-444444444444', first.client_id]);
 		const poll = await post_json<{ poll: { poll_id: number } }>('/api/polls/create?capabilities=polls-v1', {
 			idempotency_key: crypto.randomUUID(), content: 'Tagged discussion', options: ['Yes']
 		}, first.session_token);
@@ -155,7 +155,7 @@ test('unread person tags survive later untagged replies and clear after reading 
 	const capabilities = 'global-chat-v1,guild-chat-v1';
 	const inbox = (client: typeof first) => get_json_with_session<any>('/api/chat/conversations?capabilities=' + capabilities, client.session_token);
 	try {
-		for (const kind of ['private', 'guild', 'global', 'testers']) {
+		for (const kind of ['private', 'guild', 'global']) {
 			// Initialize join-time read boundaries before any tagged Message is sent.
 			await inbox(second);
 			const send = (parts: unknown[]) => post_json<any>('/api/chat/messages/send?capabilities=' + capabilities, {

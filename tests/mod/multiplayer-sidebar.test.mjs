@@ -76,7 +76,8 @@ test('updates guild-dependent Multiplayer sidebar entries without rebuilding the
 
 	update_multiplayer_nav();
 	assert.equal(sidebar.guild_aside.textContent, 'start here');
-	for (const page_id of ['Multiplayer_Market', 'Expedition', 'Guild_Raid', 'Transfer_Items'])
+	assert.equal(sidebar.is_hidden('multiplayer:Expedition'), false);
+	for (const page_id of ['Multiplayer_Market', 'Guild_Raid', 'Transfer_Items'])
 		assert.equal(sidebar.is_hidden('multiplayer:' + page_id), true);
 	assert.equal(charitree_updates, 1);
 
@@ -113,7 +114,7 @@ test('keeps Expedition and Raid visible but hides exchange sections in Social On
 	assert.equal(sidebar.is_hidden('multiplayer:Transfer_Items'), true);
 });
 
-test('opens the 1.6.2 Expedition preview regardless of tester tags while preserving Guild and support gates', async () => {
+test('opens personal Expedition work without a Guild while preserving support gates', async () => {
 	const sidebar = make_sidebar();
 	const state = { is_guild_member: true, is_social_only: false, has_transfer_access: true, account_tags: [] };
 	const update = load_nav_updater(await read_client_source(root))(
@@ -129,7 +130,7 @@ test('opens the 1.6.2 Expedition preview regardless of tester tags while preserv
 	assert.equal(sidebar.is_hidden('multiplayer:Expedition'), false);
 	state.is_guild_member = false;
 	update();
-	assert.equal(sidebar.is_hidden('multiplayer:Expedition'), true);
+	assert.equal(sidebar.is_hidden('multiplayer:Expedition'), false);
 	state.is_guild_member = true;
 	state.multiplayer_unsupported = true;
 	update();
@@ -226,7 +227,7 @@ test('retains native content bottom padding on every Multiplayer page', async ()
 	]);
 	const multiplayer_pages = data.data.pages.filter(page => page.containerID?.startsWith('mp-'));
 
-	assert.equal(multiplayer_pages.length, 8);
+	assert.equal(multiplayer_pages.length, 9);
 	for (const page of multiplayer_pages) {
 		const page_id = page.containerID;
 		assert.match(templates, new RegExp(`<div class="content d-none" id="${page_id}">`));

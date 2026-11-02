@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import { attach_to_free_fellowship, get_events, make_guildmates, register_guild_client } from '../support/fixtures';
-import { get_json_with_session, post, post_json, register_client } from '../support/http';
-import { clear_global_chat_throttle, db_count, db_run } from '../support/persistence';
+import { get_json_with_session, get_with_session, post, post_json, register_client } from '../support/http';
+import { clear_global_chat_throttle, db_all, db_count, db_run } from '../support/persistence';
 
 type Conversation = {
 	conversation_kind?: 'private' | 'global' | 'guild' | 'support';
@@ -494,9 +494,7 @@ describe('Private Chat API', () => {
 		await start_chat(pair.first.session_token, pair.second_id);
 		const original = await send_chat(pair.first.session_token, null, 'Original', undefined, pair.second_id);
 		const conversation_id = original.json.message?.conversation_id as number;
-		await post_json('/api/chat/messages/delete', {
-			message_id: original.json.message?.message_id
-		}, pair.first.session_token);
+		await db_run('INSERT INTO chat_message_deletions(message_id,client_id,deleted_at) VALUES(?,?,?)', [original.json.message!.message_id, pair.first_id, Date.now()]);
 		expect((await messages(pair.first.session_token, conversation_id)).json.messages).toEqual([]);
 		expect((await messages(pair.second.session_token, conversation_id)).json.messages).toHaveLength(1);
 
@@ -1301,34 +1299,14 @@ describe('Support Chat API', () => {
 	});
 });
 
-describe('Expedition Chat participation', () => {
-	const inbox = async (token: string) => {
-		const { json } = await get_json_with_session<{ conversations: Array<{
-			conversation_kind: string; can_send: boolean; contributes_unread: boolean; unread_count: number
-		}> }>('/api/chat/conversations', token);
-		return json.conversations.find(conversation => conversation.conversation_kind === 'testers')!;
-	};
-	const send = (token: string, extra = {}) => post_json<{ message: { message_id: number } }>(
-		'/api/chat/messages/send', { conversation_kind: 'testers', conversation_id: 1,
-			idempotency_key: crypto.randomUUID(), content: 'Expedition preview discussion', ...extra }, token);
-	const react = (token: string, message_id: number) => post_json<{ success?: boolean; error_lang?: string }>('/api/chat/messages/reaction', {
-		conversation_kind: 'testers', conversation_id: 1, message_id, reaction: '👍', reacted: true
-	}, token);
-
-	test('untagged players can send, react and receive normal unread counts', async () => {
-		const newer = await register_client('Expedition New', undefined, '1.6.14');
-		const future = await register_client('Expedition Future', undefined, '1.6.14');
-		for (const client of [newer, future]) {
-			const conversation = await inbox(client.session_token);
-			expect(conversation.can_send).toBe(true);
-			expect(conversation.contributes_unread).toBe(true);
-		}
-		const baseline_new = await get_events(newer);
-		const message = await send(future.session_token);
-		expect(message.response.status).toBe(200);
-		expect((await react(newer.session_token, message.json.message.message_id)).json.success).toBe(true);
-		expect((await inbox(newer.session_token)).unread_count).toBeGreaterThan(0);
-		expect((await get_events(newer)).chat_unread).toBe(baseline_new.chat_unread + 1);
-	});
-
+test('retires Expedition Chat for old and current clients while retaining backend history', async () => {
+ for (const version of ['1.6.14','1.7.0']) {
+  const client = await register_client('Retired Expedition', undefined, version);
+  await db_run("INSERT INTO global_chat_messages(channel,sender_id,idempotency_key,content,created_at) VALUES('testers',?,?,?,?)", [client.client_id,crypto.randomUUID(),'Retained history',Date.now()]);
+  const inbox = await get_json_with_session<any>('/api/chat/conversations',client.session_token);
+  expect(inbox.json.conversations.some((c:any)=>c.conversation_kind==='testers')).toBe(false);
+  expect((await get_with_session('/api/chat/messages?conversation_kind=testers&conversation_id=1',client.session_token)).status).toBe(404);
+  expect((await post('/api/chat/messages/send',{conversation_kind:'testers',conversation_id:1,content:'Closed',idempotency_key:crypto.randomUUID()},client.session_token)).status).toBe(404);
+ }
+ expect((await db_all("SELECT id FROM global_chat_messages WHERE channel='testers' AND content='Retained history'")).length).toBe(2);
 });

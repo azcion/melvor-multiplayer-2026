@@ -7,6 +7,7 @@ import { chinese_term_ranges } from '../../translation_terms';
 function translation_database(): Database {
 	const database = new Database(':memory:', { strict: true });
 	database.run(`
+		CREATE TABLE poll_message_bodies (job_id INTEGER PRIMARY KEY, parts TEXT, translations TEXT);
 		CREATE TABLE chat_message_bodies (job_id INTEGER PRIMARY KEY, parts TEXT, translations TEXT);
 		CREATE TABLE chat_translation_jobs (
 			id INTEGER PRIMARY KEY,
@@ -88,6 +89,29 @@ describe('Chat translation worker', () => {
 			{ language: 'zh-CN', content: '投票问题' }
 		]);
 		expect(database.query('SELECT * FROM chat_message_translations').all()).toEqual([]);
+	});
+
+	test('preserves announcement tags in the Poll translation queue', async () => {
+		const database = translation_database();
+		const parts: ChatPart[] = [{ type: 'text', text: 'News ' },
+			{ type: 'item', item_id: 'melvorD:Bronze_Sword' },
+			{ type: 'feature', feature_id: 'multiplayer:Chat' },
+			{ type: 'person', client_id: 2, display_name: 'Reader', icon_id: 'multiplayer' }];
+		database.query("INSERT INTO poll_translation_jobs VALUES (1, ?, NULL, 'queued', 0, 1000, 1000, NULL, NULL, NULL)").run(parts_text(parts));
+		database.query('INSERT INTO poll_message_bodies VALUES (1, ?, NULL)').run(JSON.stringify(parts));
+		const doc = translation_document(parts);
+		const worker = new ChatTranslationWorker({ key: 'test-key', database, now: () => 1000, set_timer: inert_timer,
+			fetcher: async (_input, init) => {
+				expect(JSON.parse(init!.body as string)).toEqual([{ Text: doc.html }]);
+				return Response.json([{ detectedLanguage: { language: 'en' },
+					translations: [{ to: 'zh-Hans', text: doc.html.replace('News', '消息') }] }]);
+			} });
+		worker.start(); await worker.run_once(); worker.stop();
+		const body = database.query<{ translations: string }, []>('SELECT translations FROM poll_message_bodies').get()!;
+		const translated = JSON.parse(body.translations)['zh-CN'] as ChatPart[];
+		expect(translated.filter(part => part.type !== 'text')).toEqual(parts.filter(part => part.type !== 'text'));
+		expect(database.query('SELECT state FROM poll_translation_jobs').get()).toEqual({ state: 'complete' });
+		database.close();
 	});
 
 	test('auto-detects once, requests both presets, and omits the detected source translation', async () => {

@@ -98,7 +98,7 @@ test('authorizes hidden Dev accounts, persists per-message colors and retains 1.
 	const [other_guild] = await db_all<{ id: number }>('SELECT id FROM guilds WHERE id <> ? LIMIT 1', [pair.guild_id]);
 	await db_run('INSERT INTO alliance_memberships(guild_id,alliance_id,joined_at) VALUES(?,?,?)', [other_guild!.id, alliance!.id, Date.now()]);
 	const petition = await post_json<any>('/api/guilds/petitions/raise', { type: 'appellation', name: 'Highlight Renamed' }, pair.first.session_token);
-	for (const kind of ['private', 'guild', 'alliance', 'global', 'testers', 'support', 'poll-discussion', 'petition-discussion']) {
+	for (const kind of ['private', 'guild', 'alliance', 'global', 'support', 'poll-discussion', 'petition-discussion']) {
 		const capability = kind === 'global' ? 'global-chat-v1' : kind === 'poll-discussion' ? 'polls-v1' : 'guild-chat-v1';
 		const endpoint = '/api/chat/messages/send?capabilities=' + capability;
 		const payload = { ...base, conversation_kind: kind, idempotency_key: crypto.randomUUID(),

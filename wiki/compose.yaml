@@ -1,0 +1,21 @@
+# Independent project: never merge into the backend Compose deployment.
+services:
+  wiki:
+    image: nginx:stable-alpine@sha256:970364228b1e4f932abc22d321932816782cca8a20b85a77552a7cfe9acfb3b5
+    ports:
+      - "127.0.0.1:${WIKI_PORT:-3080}:8080"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Mount the parent, so atomically switching current changes files immediately.
+      - ${WIKI_SITE_ROOT:-./site}:/srv:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/wiki/revision.txt"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: local
+      options:
+        max-size: "5m"
+        max-file: "2"

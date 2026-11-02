@@ -145,7 +145,7 @@ test('UI wires selectable code, timestamps and controls; every scope reset clear
 	for (const field of ['created_at', 'expires_at', 'last_browser_seen_at']) assert.ok(templates.includes('browser.' + field));
 	assert.match(templates, /readonly :value="state.browser_link_code"[^>]+@click="\$event.target.select\(\)"/);
 	assert.match(main, /get_scope: \(\) => server_host \+ ':' \+ session_generation, get_origin: \(\) => server_host/);
-	for (const match of main.matchAll(/session_generation\+\+;/g)) assert.match(main.slice(match.index, match.index + 100), /state.clear_browser_links\?\.\(\)/);
+	for (const match of main.matchAll(/session_generation\+\+;/g)) assert.match(main.slice(match.index, main.indexOf('\n}', match.index)), /state.clear_browser_links\?\.\(\)/);
 	for (const hook of ['onCharacterLoaded', 'onCharacterSelectionLoaded']) assert.ok(main.includes(`ctx.${hook}(() => {\n\t\tstate.clear_browser_links?.();`));
 	assert.doesNotMatch(module, /(?:localStorage|characterStorage|set_instance_storage|session_token|console\.|fetch\()/);
 });

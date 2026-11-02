@@ -326,7 +326,9 @@
 				"canBeDefault": false,
 				"sidebarItem": {
 					"categoryID": "Multiplayer",
-					"icon": "assets/expedition-nav.png"
+					"icon": "assets/expedition-nav.png",
+					"asideClass": "mp-expedition-nav",
+					"aside": "0"
 				}
 			},
 			{
@@ -345,16 +347,26 @@
 				}
 			},
 			{
+				"id": "Combat",
+				"customName": "MOD_MP_PAGE_COMBAT",
+				"media": "assets/colosseum.png",
+				"containerID": "mp-combat-page",
+				"headerBgClass": "mp-combat-bg",
+				"hasGameGuide": false,
+				"canBeDefault": false,
+				"sidebarItem": { "categoryID": "Multiplayer", "icon": "assets/colosseum.png", "asideClass": "badge mp-combat-nav", "aside": "0" }
+			},
+			{
 				"id": "Updates",
 				"customName": "MOD_MP_PAGE_UPDATES",
-				"media": "https://cdn2-main.melvor.net/assets/media/main/announcement.png",
+				"media": "assets/info-nav.png",
 				"containerID": "mp-updates-page",
 				"headerBgClass": "mp-updates-bg",
 				"hasGameGuide": false,
 				"canBeDefault": false,
 				"sidebarItem": {
 					"categoryID": "Multiplayer",
-					"icon": "https://cdn2-main.melvor.net/assets/media/main/announcement.png",
+					"icon": "assets/info-nav.png",
 					"asideClass": "badge mp-updates-nav",
 					"aside": "new",
 					"asideLangID": "MOD_MP_SIDEBAR_NEW"

@@ -52,3 +52,12 @@ classifications. Changes to the current Item Cheats set are flagged for policy r
 General category descriptions are omitted; only per-mod explanations are editable.
 
 Run focused editor checks with `node --test tests/operations/cheat-catalog-editor.test.mjs`.
+
+## Colosseum opponent viewer
+
+Open [colosseum-opponents.html](colosseum-opponents.html) from this checkout. It shows individual tutorial, practice,
+dungeon and other opponent artwork in full and compact combat cards and standalone. Search the roster, select an
+opponent, and edit its CSS image filter; reset restores the current in-game filter. The card values are illustrative.
+Edits last until the page is reloaded and do not change the mod. The viewer uses the mod's stylesheet and local assets,
+plus Melvor's hosted artwork, so an internet connection is needed for native images. Its roster and native asset paths
+are a snapshot; update them when opponent definitions or game artwork change.

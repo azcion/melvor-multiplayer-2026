@@ -19,7 +19,7 @@ export function create_orrery_renderer({ random = Math.random, get_settings = ()
 	const colors = ['#b7f2ff', '#ded0ff', '#f5dfb0'];
 	const stars = Array.from({ length: 120 }, (_, index) => ({
 		angle: random() * Math.PI * 2, radius: 0.19 + random() * 0.16,
-		inclination: 0.46 + random() * 0.32, lift: (random() - 0.5) * 0.12,
+		inclination: 0.36 + random() * 0.16, lift: (random() - 0.5) * 0.12,
 		speed: 0.032 + random() * 0.027, phase: random() * Math.PI * 2,
 		size: 0.75 + random() * 0.75, color: colors[index % colors.length],
 		x: 0, y: 0, depth: 0
@@ -33,8 +33,8 @@ export function create_orrery_renderer({ random = Math.random, get_settings = ()
 			const p = stars[index], angle = p.angle + orbit_time * p.speed;
 			p.depth = Math.sin(angle);
 			const perspective = 1 + p.depth * 0.10;
-			p.x = 0.565 + Math.cos(angle) * p.radius * perspective;
-			p.y = 0.31 + p.lift + Math.sin(angle) * p.radius * p.inclination * perspective;
+			p.x = 0.550 + Math.cos(angle) * p.radius * perspective;
+			p.y = 0.265 + p.lift + Math.sin(angle) * p.radius * p.inclination * perspective;
 		}
 		degrees.fill(0); edges.fill(0);
 		c.strokeStyle = '#b4d8ff'; c.lineWidth = Math.max(0.55, width / 1400);

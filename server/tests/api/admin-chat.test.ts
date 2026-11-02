@@ -35,8 +35,8 @@ test('admin details respect conversation access, include readers and reactors, a
 	expect((await post('/api/chat/messages/delete-for-all', outside, admin.session_token)).status).toBe(404);
 	for (let attempt = 0; attempt < 2; attempt++)
 		expect((await post_json<any>('/api/chat/messages/delete-for-all', body, admin.session_token)).json.success).toBe(true);
-	for (const client of [admin, reader])
-		expect((await get_json_with_session<any>(`/api/chat/messages?conversation_id=${conversation_id}`, client.session_token)).json).toMatchObject({ messages: [], moderation_count: 1 });
+	expect((await get_json_with_session<any>(`/api/chat/messages?conversation_id=${conversation_id}`, reader.session_token)).json).toMatchObject({ messages: [], moderation_count: 1 });
+	expect((await get_json_with_session<any>(`/api/chat/messages?conversation_id=${conversation_id}`, admin.session_token)).json.messages).toContainEqual(expect.objectContaining({ message_id, deleted: true, can_delete: false, content: 'Own admin Message' }));
 	const replay = await post_json<any>('/api/chat/messages/send', { conversation_id, idempotency_key: key, content: 'Own admin Message' }, admin.session_token);
 	expect(replay.json.message.message_id).toBe(message_id);
 	expect(await db_all('SELECT id FROM chat_messages WHERE id = ?', [message_id])).toHaveLength(1);
@@ -104,10 +104,10 @@ test('Support admin details resolve member readers and delete every author kind 
 	expect((await get_json_with_session<any>(page, player.session_token)).json.messages).toEqual([]);
 });
 
-test('shared Chat admin details resolve Global, Expedition, and Guild read watermarks', async () => {
+test('shared Chat admin details resolve Global and Guild read watermarks', async () => {
 	const pair = await make_guildmates('Shared Details Admin', 'Shared Details Reader', 'Shared Details Guild', { first: '1.6.14', second: '1.6.14' });
 	await db_run('UPDATE clients SET client_identifier = ? WHERE id = ?', ['TEST-ADMIN-SHARED-DETAILS', pair.first_id]);
-	for (const kind of ['global', 'testers', 'guild']) {
+	for (const kind of ['global', 'guild']) {
 		const conversation_id = kind === 'guild' ? pair.guild_id : 1;
 		if (kind === 'guild') await db_run('INSERT INTO guild_chat_messages(guild_id, sender_id, idempotency_key, content, created_at) VALUES(?, ?, ?, ?, ?)',
 			[conversation_id, pair.first_id, crypto.randomUUID(), 'Shared details', Date.now()]);

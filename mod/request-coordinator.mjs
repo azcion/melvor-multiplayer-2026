@@ -59,7 +59,13 @@ export function create_read_cache({ scope, now = () => Date.now(), ttl = 15_000,
 	const copy = value => structuredClone(value);
 	return {
 		read,
-		prime(key, value) { check_scope(); values.set(key, { value: copy(value), at: now() }); },
+		prime(key, value) {
+			check_scope();
+			const primed = { value: copy(value), at: now() };
+			const entry = pending.get(key);
+			if (entry) { entry.invalidated = true; pending.delete(key); }
+			values.set(key, primed);
+		},
 		invalidate(predicate = () => true) {
 			observe({ kind: 'invalidation' });
 			check_scope();

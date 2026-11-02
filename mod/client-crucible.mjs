@@ -197,16 +197,14 @@ export function install_crucible_actions(runtime, rules) {
 			} finally { if (button) hide_button_spinner(button); }
 		},
 		crucible_exact(value) { return Number.isSafeInteger(value) ? value.toLocaleString() : '0'; },
-		crucible_capacity_ep(value) { return Math.floor((value ?? 0) / 1_000_000).toLocaleString(); },
 		crucible_capacity_price(tier) { return (tier / 100 - 1) * (tier / 100) / 2 * 10_000_000; },
-		crucible_ep(value) { return ((value ?? 0) / 1_000_000).toFixed(3); },
 		crucible_expiry(value) { return Number.isSafeInteger(value) ? new Date(value).toLocaleString() : '—'; },
 		crucible_capacity_summary() {
 			const capacity = state.crucible_capacity;
 			return getLangString('MOD_MP_WISH_CAPACITY_STATUS')
 				.replace('%base%', capacity.base ?? 100).replace('%expiry%', this.crucible_expiry(capacity.expires_at))
-				.replace('%ep%', this.crucible_capacity_ep(capacity.renewal_micros))
-				.replace('%balance%', this.expedition_points(state.crucible?.capacity?.points_micros))
+				.replace('%ep%', this.format_ep(capacity.renewal_micros))
+				.replace('%balance%', this.format_ep(state.crucible?.capacity?.points_micros))
 				.replace('%renew%', getLangString(capacity.auto_renew ? 'MOD_MP_WISH_RENEW_ON' : 'MOD_MP_WISH_RENEW_OFF'));
 		},
 		async show_crucible_capacity_modal() {
@@ -225,7 +223,7 @@ export function install_crucible_actions(runtime, rules) {
 			if (tier === 100) return getLangString('MOD_MP_WISH_FREE');
 			if (tier < current) return '—';
 			if (tier === current) return getLangString('MOD_MP_WISH_ACTIVE');
-			return `${this.crucible_capacity_ep(this.crucible_capacity_price(tier) - this.crucible_capacity_price(current))} EP`;
+			return `${this.format_ep(this.crucible_capacity_price(tier) - this.crucible_capacity_price(current))} EP`;
 		},
 		async crucible_buy_capacity() {
 			if (state.crucible_busy || state.crucible_capacity_base <= (state.crucible_capacity.base ?? 100) ||

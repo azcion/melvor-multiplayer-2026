@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
 	EXPEDITION_PREVIEW_CHAMBER_IDS, EXPEDITION_PREVIEW_LABEL_IDS,
-	arrival_complete, display_expedition_label, passage_gateway, passage_name, phase_tasks, phase_summary,
+	return_duration, expedition_has_ended, arrival_complete, display_expedition_label, passage_gateway, passage_name, phase_tasks, phase_summary,
 	needs_passage_vote, sync_phase_state, tracked_task_ended, tracking_task_title, visible_tasks, work_skill_icon, work_skill_name
 } from '../../mod/expedition-view.mjs';
 
@@ -42,13 +42,14 @@ test('each Chamber opens all phases and preserves manual toggles during the same
 	assert.deepEqual(state.expedition_phase_open, { arrival: true, exploration: true, departure: true });
 });
 
-test('resolves Expedition skill names and icons, including Magic from the skill registry', () => {
+test('resolves Expedition skill names and icons, including Alt. Magic', () => {
 	const game = {
 		skills: { getObjectByID: id => id === 'melvorD:Woodcutting'
 			? { name: 'Woodcutting', media: 'woodcutting.png' } : id === 'melvorD:Magic'
 				? { name: 'Magic', media: 'magic.png' } : undefined }
 	};
-	assert.equal(work_skill_name(game, 'melvorD:Magic'), 'Magic');
+	assert.equal(work_skill_name(game, 'melvorD:Magic'), 'Alt. Magic');
+	assert.equal(work_skill_name({ pages: { getObjectByID: id => id === 'melvorD:AltMagic' ? { name: '非战斗魔法' } : undefined } }, 'melvorD:Magic'), '非战斗魔法');
 	assert.equal(work_skill_icon(game, 'melvorD:Magic'), 'magic.png');
 	assert.equal(work_skill_name(game, 'melvorD:Combat'), 'Combat');
 	assert.equal(work_skill_name(game, 'melvorD:Woodcutting'), 'Woodcutting');
@@ -89,29 +90,23 @@ test('display names change without changing server task identity or evidence', (
 	assert.equal(passage_name(3, 3), 'Third Passage');
 });
 
-test('localizes only Preview route chamber and task labels from persisted English content', async () => {
+test('localizes supported chamber and task labels from persisted English content', async () => {
 	const english = key => key;
 	assert.equal(display_expedition_label('Prismatic Descent', 0, english),
 		'MOD_MP_EXPEDITION_CONTENT_PRISMATIC_DESCENT');
 	assert.equal(display_expedition_label('Explore the chamber', 3, english, 'entrance'),
 		'MOD_MP_EXPEDITION_CONTENT_EXPLORE_THE_CHAMBER');
 	assert.equal(display_expedition_label('Explore the chamber', 3, english, 'drowned_cloister'),
-		'Explore the chamber');
+		'MOD_MP_EXPEDITION_CONTENT_EXPLORE_THE_CHAMBER');
 	assert.equal(display_expedition_label('Untranslated task', 3, english, 'entrance'),
 		'Untranslated task');
 	const [content, chinese] = await Promise.all([
-		readFile(new URL('../../server/expedition-content-v1.json', import.meta.url), 'utf8').then(JSON.parse),
+		readFile(new URL('../../server/expedition-content-v3.json', import.meta.url), 'utf8').then(JSON.parse),
 		readFile(new URL('../../mod/data/lang/zh-CN.json', import.meta.url), 'utf8').then(JSON.parse)
 	]);
-	const route = { entrance: 1, prismatic_descent: 1, glassroot_terraces: 3,
-		buried_observatory: 1, prismatic_orrery: 3, voidwatch_threshold: 1 };
-	assert.equal(EXPEDITION_PREVIEW_CHAMBER_IDS.length, 7);
+	assert.equal(EXPEDITION_PREVIEW_CHAMBER_IDS.length, 12);
 	for (const chamber of content.chambers.filter(value => EXPEDITION_PREVIEW_CHAMBER_IDS.includes(value.id))) {
-		const labels = [chamber.label, ...chamber.tasks.filter(task => {
-			const selected_exit = `${chamber.id}:exit_${route[chamber.id]}`;
-			return (!task.discovery_target || task.discovery_target === selected_exit) &&
-				(!task.exit_id || task.exit_id === selected_exit);
-		}).map(task => task.title)];
+		const labels = [chamber.label, ...chamber.tasks.map(task => task.title)];
 		for (const label of labels) {
 			const key = EXPEDITION_PREVIEW_LABEL_IDS[label];
 			assert.ok(key, `${chamber.id}: ${label}`);
@@ -167,4 +162,12 @@ test('Journey vote badge follows participation, open voting, and the current Cha
 	assert.equal(needs_passage_vote(snapshot), false);
 	snapshot.expedition.chamber = { ...chamber, visit_id: 2, vote: { ...chamber.vote, ballot: null } };
 	assert.equal(needs_passage_vote(snapshot), true);
+});
+
+test('return duration uses local calendar dates with complete weeks and remaining days', () => {
+	assert.deepEqual(return_duration(new Date(2026, 9, 23, 23).getTime(), new Date(2026, 10, 1, 1).getTime()), { weeks: 1, days: 2 });
+	assert.deepEqual(return_duration(new Date(2026, 10, 1, 1).getTime(), new Date(2026, 10, 1, 23).getTime()), { weeks: 0, days: 0 });
+	assert.deepEqual(return_duration(500, 100), { weeks: 0, days: 0 });
+	assert.equal(expedition_has_ended({ status: 'completed' }), true);
+	assert.equal(expedition_has_ended({ status: 'registration' }), false);
 });

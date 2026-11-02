@@ -8,7 +8,7 @@ import { record_character_save_load } from '../../character-save-loads';
 import { record_load_clock,record_economy_operation } from '../../save-rollback';
 import { make_audit_context,run_with_audit_context,instrument_audited_database,install_database_write_guard } from '../../audit-context';
 import { create_custody_source } from '../../economy-custody';
-import { rollback_admission_revision,rollback_policy,set_rollback_policy,set_rollback_hold,rollback_held,rollback_player_status,acknowledge_rollback_notice } from '../../rollback-policy';
+import { enroll_combat_rollback,rollback_client_policy,rollback_admission_revision,rollback_policy,set_rollback_policy,set_rollback_hold,rollback_held,rollback_player_status,acknowledge_rollback_notice } from '../../rollback-policy';
 import { admit_rollback_load,evaluate_rollback_admission,decide_rollback_incident } from '../../rollback-admission';
 import { guard_rollback_write,related_rollback_gate,rollback_request_clients } from '../../rollback-gate';
 import { release_rollback_benefit } from '../../rollback-benefits';
@@ -210,5 +210,49 @@ test('unresolved correction review permits new actions on the same and later loa
   set_rollback_hold(db,crypto.randomUUID(),101,0,true,'Explicit hold still applies');
   expect(rollback_player_status(db,101,restored,true).economy_review_pending).toBe(true);
   expect(related_rollback_gate(db,[101],101,true)).not.toBeNull();
+ } finally {db.close();}
+});
+
+
+test('combat enrollment is prospective, idempotent and leaves nonparticipants and host policy unchanged',()=>{
+ const db=fixture();try {
+  expect(enroll_combat_rollback(db,102)).toBe(false);
+  enable(db);
+  const old=load(db,10,100);outgoing(db,old,'before-combat');
+  const original=rollback_policy(db);
+  expect(rollback_client_policy(db,102).config.client_ids).toEqual([]);
+  db.query('UPDATE client_sessions SET rollback_capable=0 WHERE client_id=102').run();
+  expect(enroll_combat_rollback(db,102)).toBe(false);
+  db.query('UPDATE client_sessions SET rollback_capable=1 WHERE client_id=102').run();
+  expect(enroll_combat_rollback(db,102)).toBe(true);
+  const boundary=rollback_client_policy(db,102).config.first_operation_id;
+  expect(boundary).toBe(2);
+  outgoing(db,old,'after-combat');
+  expect(enroll_combat_rollback(db,102)).toBe(true);
+  expect(rollback_client_policy(db,102).config.first_operation_id).toBe(boundary);
+  expect(rollback_policy(db)).toEqual(original);
+  expect(rollback_client_policy(db,101).config.first_operation_id).toBe(1);
+  const next=record_character_save_load(db,102,{load_id:crypto.randomUUID(),save_timestamp:20,client_loaded_at:280,capture_source:'decode'},300,device)!;
+  admit_rollback_load(db,102,next,true,300);
+  expect(rollback_player_status(db,102,next,true).admission).toBe('waiting');
+  expect(record_load_clock(db,102,next,{server_admitted_at:300,client_sent_at:290,client_received_at:310,elapsed_ms:20},320)).toBe(true);
+  evaluate_rollback_admission(db,102,next,true,320);
+  expect(rollback_player_status(db,102,next,true).admission).toBe('ready');
+ } finally {db.close();}
+});
+
+
+test('automatically enrolled combat character corrects only operations after enrollment',()=>{
+ const db=fixture();try {
+  set_rollback_policy(db,crypto.randomUUID(),0,{enabled:true,first_operation_id:1,policy_version:1,client_ids:[102]},'Fixture host activation',true);
+  const old=load(db,10,100);clock(db,old,100);
+  outgoing(db,old,'pre-enrollment');
+  expect(enroll_combat_rollback(db,101)).toBe(true);
+  const operation=outgoing(db,old,'combat-deposit');
+  create_custody_source(db,{root_key:'combat-root',operation_key:'combat-deposit',client_id:101,object_id:'melvorD:Logs',quantity:4,created_at:200,snapshot:{}},'consumed:valid');
+  const restored=load(db,150,300);admit_rollback_load(db,101,restored,true,300);clock(db,restored,300);
+  expect(evaluate_rollback_admission(db,101,restored,true,330)).toEqual(['combat-deposit']);
+  expect(db.query('SELECT operation_id FROM economy_corrections').all()).toEqual([{operation_id:operation}]);
+  expect(rollback_policy(db).config.client_ids).toEqual([102]);
  } finally {db.close();}
 });

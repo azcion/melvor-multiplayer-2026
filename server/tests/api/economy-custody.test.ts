@@ -217,11 +217,13 @@ async function race_market_correction(input:ReturnType<typeof approved_market_co
 	const child=Bun.spawn({cmd:['bun','--eval',script],cwd:process.cwd(),env:{...process.env,MARKET_RACE_INPUT:JSON.stringify(input)},stdin:'pipe',stdout:'pipe',stderr:'pipe'});
 	const reader=child.stdout.getReader();let output='';
 	while(!output.includes('ready\n')) {const part=await reader.read();if(part.done) throw new Error(await new Response(child.stderr).text());output+=new TextDecoder().decode(part.value);}
-	const response=request();child.stdin.write('go\n');child.stdin.end();
+	const response=request().then(value=>({value}),error=>({error}));child.stdin.write('go\n');child.stdin.end();
 	while(true){const part=await reader.read();if(part.done)break;output+=new TextDecoder().decode(part.value);}
 	expect(await child.exited,await new Response(child.stderr).text()).toBe(0);
 	expect(JSON.parse(output.split('\n')[1]!).applied).toBe(true);
-	return response;
+	const outcome=await response;
+	if('error' in outcome) throw outcome.error;
+	return outcome.value;
 }
 
 test('independent Marketplace correction serializes against HTTP purchase and reservation without stock reuse',async()=>{
@@ -399,17 +401,24 @@ test('Trade valid cancellation and Social Only duplicate returns preserve custod
 
 test('independent Trade correction serializes against accept, cancel and decline without invalid principal refunds',async()=>{
 	for(const action of ['accept','cancel','decline']) {
-		const {pair,item,trade,command}=await trade_pair();const reward=item+'Counter';
-		await post_json('/api/trade/counter',{command_id:crypto.randomUUID(),trade_id:trade,items:[{id:reward,qty:11}]},pair.second.session_token);
-		const approval=approved_market_correction(pair.first_id,command);
-		const reply=await race_market_correction(approval,()=>post_json<any>(`/api/trade/${action}`,{trade_id:trade,command_id:crypto.randomUUID()},action==='cancel'?pair.second.session_token:pair.first.session_token)) as {json:{success?:boolean}};
-		const settled=action==='accept' && reply.json.success===true;
-		expect(await db_all('SELECT * FROM trade_offers WHERE trade_id=?',[trade])).toEqual([]);
-		expect(await db_all('SELECT qty FROM inbox_items WHERE client_id=? AND item_id=?',[pair.first_id,item])).toEqual([]);
-		expect(await db_all('SELECT qty FROM inbox_items WHERE client_id=? AND item_id=?',[pair.first_id,reward])).toEqual([]);
-		expect(await db_all('SELECT qty FROM inbox_items WHERE client_id=? AND item_id=?',[pair.second_id,item])).toEqual(settled?[{qty:5}]:[]);
-		expect(await db_all('SELECT qty FROM inbox_items WHERE client_id=? AND item_id=?',[pair.second_id,reward])).toEqual(settled?[]:[{qty:11}]);
-		expect(apply_market_correction(approval).applied).toBe(false);
+		let phase='setup';
+		try {
+			const {pair,item,trade,command}=await trade_pair();const reward=item+'Counter';
+			phase='counteroffer';
+			await post_json('/api/trade/counter',{command_id:crypto.randomUUID(),trade_id:trade,items:[{id:reward,qty:11}]},pair.second.session_token);
+			const approval=approved_market_correction(pair.first_id,command);
+			phase='correction race';
+			const reply=await race_market_correction(approval,()=>post_json<any>(`/api/trade/${action}`,{trade_id:trade,command_id:crypto.randomUUID()},action==='cancel'?pair.second.session_token:pair.first.session_token)) as {json:{success?:boolean}};
+			const settled=action==='accept' && reply.json.success===true;
+			expect(await db_all('SELECT * FROM trade_offers WHERE trade_id=?',[trade])).toEqual([]);
+			expect(await db_all('SELECT qty FROM inbox_items WHERE client_id=? AND item_id=?',[pair.first_id,item])).toEqual([]);
+			expect(await db_all('SELECT qty FROM inbox_items WHERE client_id=? AND item_id=?',[pair.first_id,reward])).toEqual([]);
+			expect(await db_all('SELECT qty FROM inbox_items WHERE client_id=? AND item_id=?',[pair.second_id,item])).toEqual(settled?[{qty:5}]:[]);
+			expect(await db_all('SELECT qty FROM inbox_items WHERE client_id=? AND item_id=?',[pair.second_id,reward])).toEqual(settled?[]:[{qty:11}]);
+			expect(apply_market_correction(approval).applied).toBe(false);
+		} catch(error) {
+			throw new Error(`Trade ${action} ${phase} failed`,{cause:error});
+		}
 	}
 },15000);
 

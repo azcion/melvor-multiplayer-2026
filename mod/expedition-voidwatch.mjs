@@ -1,5 +1,5 @@
 // Normalized anchors follow the uncropped 16:9 artwork. The leftmost pillar top is offscreen.
-const FLAMES = [[0.372, 0.069, 0.85], [0.518, 0.205, 0.63], [0.618, 0.287, 0.43]];
+const FLAMES = [[0.350, 0.067, 0.85], [0.518, 0.205, 0.63], [0.618, 0.287, 0.43]];
 const MAX_EMBERS = 120;
 export const DEFAULT_VOIDWATCH_SETTINGS = Object.freeze({
 	color: '#9c8dff', flame_height: 0.25, flame_intensity: 1, flame_speed: 1.5,

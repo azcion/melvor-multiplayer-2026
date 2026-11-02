@@ -1,4 +1,4 @@
-import { db } from './db';
+import { db, get_service_setting } from './db';
 import type { ExpeditionTask } from './expedition-content';
 
 // Rift Preparations: personal tasks worked while an Expedition waits for registrants.
@@ -12,6 +12,11 @@ export const PREPARATION_SKILLS = Object.freeze([
 	'melvorD:Mining', 'melvorD:Firemaking', 'melvorD:Smithing', 'melvorD:Crafting'
 ]);
 const HOUR_MS = 3_600_000;
+
+// Deploying code never activates the release cutover. Only the host admin command does.
+export function rift_preparations_enabled(): boolean {
+	return get_service_setting('expedition_preparations_enabled') === '1';
+}
 
 type PreparationRow = { task_id: string; client_id: number; skill_ids: string };
 
@@ -29,6 +34,7 @@ export function preparation_visit_id(expedition_id: number): number | null {
 
 // Idempotent: creates the registration visit and this registrant's task.
 export function ensure_preparations(expedition_id: number, client_id: number, now: number): void {
+	if (!rift_preparations_enabled()) return;
 	const expedition = db.query<{ status: string; registration_ends_at: number }, [number]>(
 		'SELECT status, registration_ends_at FROM expeditions WHERE id = ?'
 	).get(expedition_id);
@@ -65,6 +71,7 @@ export function preparation_owner(visit_id: number, task_id: string): number | n
 }
 
 export function preparation_definition(visit_id: number, task_id: string): ExpeditionTask | null {
+	if (!rift_preparations_enabled()) return null;
 	const row = preparation_row(visit_id, task_id);
 	if (!row) return null;
 	return { id: row.task_id, title: PREPARATION_TITLE, phase: 'arrival', kind: 'work', requirement: 'optional',
@@ -74,6 +81,7 @@ export function preparation_definition(visit_id: number, task_id: string): Exped
 
 // Shaped like a chamber so clients reuse task tracking, prompts and automatic selection.
 export function get_preparation_chamber(expedition_id: number, client_id: number) {
+	if (!rift_preparations_enabled()) return null;
 	const visit_id = preparation_visit_id(expedition_id);
 	if (visit_id === null) return null;
 	const task = db.query<{ task_id: string; skill_ids: string; target_ms: number; player_ms: number;

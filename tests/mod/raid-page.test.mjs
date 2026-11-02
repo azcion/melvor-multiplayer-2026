@@ -66,8 +66,8 @@ test('registers and mounts the Guild Raid page as a first-class multiplayer view
 	const crucible = data.data.pages.find(entry => entry.id === 'Crucible');
 	assert.equal(page.customName, 'MOD_MP_PAGE_RAID');
 	assert.equal(language.MOD_MP_PAGE_CRUCIBLE, 'Crucible');
-	assert.equal(language.MOD_MP_PAGE_RAID, 'Raid');
-	assert.equal(language.MOD_MP_PAGE_RAID_HEADER, 'Raid (beta)');
+	assert.equal(language.MOD_MP_PAGE_RAID, 'Raid (old)');
+	assert.equal(language.MOD_MP_PAGE_RAID_HEADER, 'Raid (old)');
 	assert.equal(language.MOD_MP_RAID_TITLE, 'Raid (preview)');
 	assert.equal(language.MOD_MP_RAID_READY_TITLE, "It's time.");
 	assert.equal(page.containerID, 'mp-raid-page');
@@ -77,7 +77,7 @@ test('registers and mounts the Guild Raid page as a first-class multiplayer view
 	assert.equal(page.media, 'assets/raid-nav.png');
 	assert.equal(page.sidebarItem.icon, 'assets/raid-nav.png');
 	assert.equal(page.sidebarItem.asideLangID, undefined);
-	assert.equal(data.data.pages[data.data.pages.findIndex(entry => entry.id === 'Guild_Raid') + 1].id, 'Updates');
+	assert.equal(data.data.pages[data.data.pages.findIndex(entry => entry.id === 'Guild_Raid') + 1].id, 'Combat');
 	assert.match(style, /\.mp-raid-nav[\s\S]*background-color: #5b4aa1/);
 	assert.match(style, /\.mp-raid-nav:empty[\s\S]*display: none/);
 	assert.match(style, /\.mp-raid-nav\.mp-raid-active[\s\S]*background-color: #8f3030/);
@@ -89,12 +89,11 @@ test('registers and mounts the Guild Raid page as a first-class multiplayer view
 	assert.doesNotMatch(templates, /MOD_MP_RAID_FELLOWSHIP_EXCLUDED/);
 	assert.match(main, /on_page_toggle\('mp-raid-page', set_raid_page_visible\)/);
 	assert.match(main, /function set_raid_page_visible[\s\S]*Promise\.all\(\[get_client_events\(\), refresh_raid_state\(\)\]\)/);
-	assert.match(main, /aside\.textContent = active \? getLangString\('MOD_MP_SIDEBAR_RAID_ACTIVE'\) : ''/);
-	assert.match(main, /aside\.hidden = !active/);
+
 	assert.match(main, /update_raid_nav\(\)/);
 });
 
-test('keeps the Raid aside element mounted while hiding inactive state', async () => {
+test('keeps the old Raid badge hidden for inactive and active Raids', async () => {
 	const function_start = main.indexOf('function update_raid_nav');
 	const function_source = main.slice(function_start, main.indexOf('\nasync function refresh_changelog', function_start));
 	const aside = { textContent: '0', hidden: false, classList: {
@@ -123,9 +122,9 @@ test('keeps the Raid aside element mounted while hiding inactive state', async (
 
 	state.raid = { active: true };
 	update_raid_nav();
-	assert.equal(aside.textContent, 'active');
-	assert.equal(aside.hidden, false);
-	assert.equal(aside.classList['mp-raid-active'], true);
+	assert.equal(aside.textContent, '');
+	assert.equal(aside.hidden, true);
+	assert.equal(aside.classList['mp-raid-active'], false);
 });
 
 test('namespaces the formatted-language custom element', () => {

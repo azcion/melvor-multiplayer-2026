@@ -254,10 +254,13 @@ test('opens message actions from timestamps with copy and confirmed deletion', a
 	);
 
 	assert.match(chat_view, /class="mp-chat-message-timestamp"[^>]*@click="state\.show_chat_message_actions\(message\)"/);
-	assert.doesNotMatch(chat_view, /class="[^\"]*mp-chat-message-delete/);
+	assert.doesNotMatch(chat_view, /class="[^\"]*mp-chat-message-delete(?:\s|")/);
 	assert.match(templates, /template-mp-chat-message-actions-modal/);
 	assert.match(templates, /state\.copy_chat_message\(\)/);
-	assert.match(templates, /state\.show_chat_message_delete_confirmation\(\)/);
+	assert.doesNotMatch(templates, /@click="state\.show_chat_message_delete_confirmation\(\)"/);
+	assert.match(templates, /state\.show_chat_message_delete_for_all_confirmation\(\)/);
+	assert.match(templates, /message.deleted/);
+	assert.match(style, /2px dashed/);
 	assert.match(templates, /template-mp-chat-message-delete-confirm-modal/);
 	assert.match(main, /selected_chat_message: null/);
 	assert.match(main, /queue_modal\('MOD_MP_CHAT_MESSAGE_ACTIONS', 'chat-message-actions-modal'/);
@@ -352,6 +355,54 @@ test('keeps translation client-only, per conversation, and never translates the 
 		translations: { 'zh-CN': '问题' }, translation_status: 'complete' }), '问题');
 	assert.equal(context.get_chat_message_content({ sender_id: 8, content: 'Option',
 		translations: { 'zh-CN': '选项' }, translation_status: 'complete' }), '选项');
+});
+
+test('message translation actions toggle original text and typed parts independently of automatic translation', async () => {
+	const state = { chat_client_id: 7, selected_chat_conversation: { conversation_kind: 'global', conversation_id: 1 },
+		chat_translation_preferences: { 'global:1': 'zh-CN' } };
+	const context = Object.assign(state, install_chat_actions({ state, document: null,
+		get_chat_conversation_key: () => 'global:1', now: () => 1000 }), { close_modal() {} });
+	const original = [{ type: 'feature', feature_id: 'multiplayer:Guild' }, { type: 'text', text: ' Hello' }];
+	const translated = [{ type: 'feature', feature_id: 'multiplayer:Guild' }, { type: 'text', text: ' 你好' }];
+	const message = { sender_id: 8, content: '$Guild Hello', parts: original,
+		translations: { 'zh-CN': '$Guild 你好' }, translation_parts: { 'zh-CN': translated } };
+	assert.equal(context.get_chat_message_translation_action_lang_id(message), 'MOD_MP_CHAT_SHOW_ORIGINAL');
+	assert.deepEqual(context.get_chat_message_parts(message), translated);
+	context.selected_chat_message = message;
+	context.translate_selected_chat_message();
+	assert.equal(context.selected_chat_message, null);
+	assert.equal(context.get_chat_message_content(message), '$Guild Hello');
+	assert.deepEqual(context.get_chat_message_parts(message), original);
+	assert.equal(context.is_chat_message_translation_pending(message), false);
+	assert.equal(context.get_chat_message_translation_action_lang_id(message), 'MOD_MP_CHAT_SHOW_TRANSLATION');
+	context.selected_chat_message = message;
+	context.translate_selected_chat_message();
+	assert.equal(context.get_chat_message_content(message), '$Guild 你好');
+	assert.deepEqual(context.get_chat_message_parts(message), translated);
+	assert.deepEqual(state.chat_translation_preferences, { 'global:1': 'zh-CN' });
+	state.chat_translation_preferences = { 'global:1': false };
+	const manual = { sender_id: 8, content: 'Hello', translations: { 'zh-CN': '你好' } };
+	assert.equal(context.get_chat_message_translation_action_lang_id(manual), 'MOD_MP_CHAT_SHOW_TRANSLATION');
+	context.selected_chat_message = manual;
+	context.translate_selected_chat_message();
+	assert.equal(context.get_chat_message_content(manual), '你好');
+	context.selected_chat_message = manual;
+	context.translate_selected_chat_message();
+	assert.equal(context.get_chat_message_content(manual), 'Hello');
+	const identical = { sender_id: 8, content: 'OK', translations: { en: 'OK' }, manual_translation_language: 'en' };
+	assert.equal(context.get_chat_message_translation_action_lang_id(identical), 'MOD_MP_CHAT_SHOW_ORIGINAL');
+	for (const own of [{ sender_id: 7 }, { sender_id: 8, sent_by_viewer: true }]) {
+		context.selected_chat_message = { ...own, content: 'Mine', translations: { en: 'Other' } };
+		context.translate_selected_chat_message();
+		assert.equal(context.selected_chat_message.manual_translation_language, undefined);
+	}
+	const { templates } = await sources();
+	assert.match(templates, /getLangString\(state.get_chat_message_translation_action_lang_id\(state.selected_chat_message\)\)/);
+	for (const locale of ['en','de','es','fr','it','ja','ko','pt','pt-br','ru','tr','zh-CN','zh-TW']) {
+		const language = JSON.parse(await readFile(new URL(`mod/data/lang/${locale}.json`, root), 'utf8'));
+		assert.ok(language.MOD_MP_CHAT_SHOW_TRANSLATION?.length, locale);
+		assert.ok(language.MOD_MP_CHAT_SHOW_ORIGINAL?.length, locale);
+	}
 });
 
 test('defaults zh-CN Global and Guild Chat translation on while preserving explicit opt-out and English', () => {
@@ -624,7 +675,7 @@ test('disables Message capacity while preserving its dormant UI and rollback com
 	assert.match(chat_template, /maxlength="1000"/);
 	assert.match(chat_template, /<mp-chat-message-body :parts="state\.get_chat_message_document\(message\)"/);
 	assert.doesNotMatch(chat_template, /v-html|innerHTML/);
-	assert.doesNotMatch(chat_template, /chat_draft\.length/);
+	assert.match(chat_template, /state\.get_chat_item_count_label\(\)/);
 	assert.match(main, /chat_budget_enabled: true/);
 	assert.match(main, /!this\.chat_budget_enabled \|\| this\.chat_budget\.credits > 0/);
 	assert.match(main, /state\.chat_budget_enabled = res\.budget_enabled !== false/);
@@ -681,7 +732,7 @@ test('keeps drafts and send completion scoped to the originating conversation', 
 	assert.match(send, /this\.chat_pending_sends\[conversation_key\]/);
 	assert.match(send, /view_generation === runtime\.chat_view_generation/);
 	assert.match(send, /get_chat_conversation_key\(this\.selected_chat_conversation\) === conversation_key/);
-	assert.match(send, /if \(is_current_view\(\) && !this\.chat_messages\.some/);
+	assert.match(send, /if \(is_current_view\(\) && \(!res.message.deleted \|\| this.chat_is_admin\) && !this\.chat_messages\.some/);
 	assert.match(send, /this\.chat_drafts\[conversation_key\] = ''/);
 	assert.doesNotMatch(send, /this\.chat_draft = ''/);
 });
@@ -847,7 +898,11 @@ test('notification bell renders the current enabled state and locks while thrott
 	assert.match(bell, /state.is_chat_notifications_enabled\(\) \? 'fa-bell' : 'fa-bell-slash'/);
 	assert.match(bell, /:disabled="state.chat_notifications_busy"/);
 	assert.doesNotMatch(bell, /aria-haspopup|modal/);
-	assert.match(main, /apply_server_configuration\(\);\s*state.load_chat_notification_preferences\(\)/);
+	const configuration = main.indexOf('apply_server_configuration();');
+	const notifications = main.indexOf('state.load_chat_notification_preferences();', configuration);
+	const session = main.indexOf('start_multiplayer_session();', configuration);
+	assert.ok(configuration >= 0 && notifications > configuration && session > notifications,
+		'load server-scoped notification preferences after configuration and before starting the session');
 	assert.match(main, /if \(!has_muted_chats\)\s*state.chat_unread = \(res.chat_unread/);
 	assert.match(main, /if \(chat_page_visible \|\| has_muted_chats \|\| state.chat_unread > 0 \|\| state.get_chat_notification_tagged\(\)\)\s*await refresh_chat_conversations/);
 });

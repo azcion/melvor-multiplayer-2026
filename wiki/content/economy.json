@@ -1,0 +1,124 @@
+{
+  "id": "economy",
+  "title": "Economy & Transfers",
+  "description": "Send a Gift, arrange a Trade, or find a buyer for your spare items.",
+  "icon": "market.svg",
+  "articles": [
+    {
+      "id": "transfers",
+      "title": "Transfers & your Inbox",
+      "summary": "Send items to Guildmates and find the things waiting for you in your Inbox.",
+      "aliases": [
+        "bank",
+        "gift",
+        "trade",
+        "escrow",
+        "claim",
+        "receipt",
+        "inventory"
+      ],
+      "sections": [
+        {
+          "id": "two-places",
+          "title": "Where did my items go?",
+          "paragraphs": [
+            "Multiplayer uses two places alongside your Bank. Once you know what each one is for, it’s much easier to follow a transfer."
+          ],
+          "bullets": [
+            "Transfer Inventory is where you prepare items to send out as Gifts, Trades, or Crucible Casts. Putting something here doesn’t send it to another player yet.",
+            "Inbox is where incoming items and currency wait for you. It groups them by where they came from. Claim them to move them into your character’s Bank."
+          ]
+        },
+        {
+          "id": "gifts-trades",
+          "title": "Sending a Gift or making a Trade",
+          "paragraphs": [
+            "A Gift offers something to another member of your Guild. A Trade lets the two of you agree on what each person will give. Check the items, quantities, and currencies before you confirm.",
+            "While an exchange is open, the items or currency you’ve offered are held for it. If it’s cancelled or declined, check your Inbox and exchange history for the return. They may be waiting there rather than back in your Bank."
+          ]
+        },
+        {
+          "id": "claiming",
+          "title": "Collecting what’s yours",
+          "paragraphs": [
+            "Your Inbox can hold items even when your Bank is full. Claiming moves whole stacks that fit, leaving the rest for later. Currency doesn’t take up an ordinary Bank slot.",
+            "An item from an expansion or mod you don’t have may be unavailable to claim. Check the explanation first. Discarding an item is permanent; you don’t need to throw it away just because you can’t claim it right now."
+          ]
+        },
+        {
+          "id": "interrupted",
+          "title": "Lost connection halfway through?",
+          "paragraphs": [
+            "Give Multiplayer time to reconnect and check what happened to the original action. A missing reply doesn’t necessarily mean the transfer failed, so don’t create another offer to replace it while its outcome is still unclear.",
+            "If a recovery notice asks you to contact Support, include the notice, what you were doing, and roughly when it happened. Keep your Recovery code and Browser Chat linking codes private."
+          ]
+        }
+      ],
+      "related": [
+        "marketplace",
+        "crucible",
+        "support"
+      ]
+    },
+    {
+      "id": "marketplace",
+      "title": "The Marketplace",
+      "summary": "Buy what you need, sell what you can spare, or make someone an offer.",
+      "aliases": [
+        "sell listing",
+        "buy order",
+        "haggle",
+        "gp",
+        "slayer coins",
+        "abyssal pieces",
+        "ap",
+        "sc",
+        "asc",
+        "filters"
+      ],
+      "sections": [
+        {
+          "id": "orders",
+          "title": "Buying and selling",
+          "paragraphs": [
+            "The Marketplace gives your Guild two ways to trade:"
+          ],
+          "bullets": [
+            "A Sell Listing puts items up for sale at a price per item. The seller supplies the items when creating the listing.",
+            "A Buy Order says “I’m looking for these items.” The buyer pays the GP up front, and other members can fill part or all of the order."
+          ]
+        },
+        {
+          "id": "prices",
+          "title": "Check the price and the currency",
+          "paragraphs": [
+            "Sell Listings can ask for GP, Slayer Coins, Abyssal Pieces, or Abyssal Slayer Coins. Buy Orders use GP. Check both the currency and the quantity; the displayed price is per item.",
+            "A seller may allow Haggles, limit how much each buyer can purchase, or set a separate price for Alliance members. Purchase limits can count your linked characters together and include quantities already reserved in Haggles."
+          ]
+        },
+        {
+          "id": "haggles",
+          "title": "Want to make an offer?",
+          "paragraphs": [
+            "If a listing allows Haggles, you can negotiate an exchange with the seller. Check the latest proposal before accepting, especially if either of you has made a counteroffer.",
+            "The listing may have changed since you first opened it. Look at the current price, quantity, and reservation rather than relying on an earlier offer."
+          ]
+        },
+        {
+          "id": "returns",
+          "title": "Finding your proceeds or a missing listing",
+          "paragraphs": [
+            "Items you buy, sale proceeds, and returned items or currency arrive in your Inbox. Look under the source of the exchange to find them.",
+            "An order expires after 14 days without a change to the listing. Anything left in it returns through Inbox.",
+            "Can’t find something another member can see? Check your Listing Filters, which can hide listings based on reported mod categories. Your Guild’s Temperance policy can also require you to discover an item before buying it. The game will show whether the content is available to your character."
+          ]
+        }
+      ],
+      "related": [
+        "transfers",
+        "alliances",
+        "council"
+      ]
+    }
+  ]
+}

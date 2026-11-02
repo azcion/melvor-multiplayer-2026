@@ -1,4 +1,4 @@
-import { verify_preparation_restart } from '../support/preparation-restart';
+import { verify_expanded_restart, verify_preparation_restart } from '../support/expedition-restart';
 import { verify_browser_chat_restart } from '../support/browser-chat-restart';
 import {verify_rollback_restart} from '../support/rollback-restart';
 import { expect, test } from 'bun:test';
@@ -10,6 +10,10 @@ import { db_all } from '../support/persistence';
 test('rebuilds caches and preserves API state after a server restart', async () => {
 	await verify_browser_chat_restart();
 	const state = await read_restart_state();
+	const practice = await get_json_with_session<any>('/api/combat/inventory', state.first.session_token);
+	expect(practice.json.practice.find((entry:any) => entry.id === 'recruit').tiers[0].complete).toBe(true);
+	expect(practice.json.practice.find((entry:any) => entry.id === 'recruit').tiers[1].complete).toBe(false);
+	await verify_expanded_restart(state.expedition_expansion);
 	await verify_preparation_restart(state.preparation);
 	await verify_rollback_restart(state.rollback);
 	const alliance = await get_json_with_session<any>('/api/alliances', state.alliance.client.session_token);

@@ -12,7 +12,7 @@ const unsafe_paths = new Set([
 ]);
 export function unsafe_rollback_request(path:string,method:string):boolean {
  if(method!=='POST') return false;
- return unsafe_paths.has(path) || path.startsWith('/api/gift/') || path.startsWith('/api/trade/') ||
+ return path.startsWith('/api/combat/') || unsafe_paths.has(path) || path.startsWith('/api/gift/') || path.startsWith('/api/trade/') ||
   path.startsWith('/api/crucible/') || path.startsWith('/api/social-mode/') || path.startsWith('/api/campaign/') ||
   path.startsWith('/api/expedition/debug/') || (path.startsWith('/api/market/') && !['/api/market/catalog','/api/market/search'].includes(path));
 }

@@ -52,10 +52,10 @@ test('Voidwatch reuses seamless mist and emits fire and embers only at the three
 				arcs = []; centers = []; draws = [];
 				render({ context, width, height, seconds: 0.05 });
 				assert.equal(arcs.length, 120); assert.equal(centers.length, 4);
-				for (const [index, expected] of [0.372, 0.518, 0.618].entries()) {
+				for (const [index, expected] of [0.350, 0.518, 0.618].entries()) {
 					assert.ok(Math.abs(centers[index + 1][0] / width - expected) < 1e-12);
 				}
-				assert.ok(arcs.every(([x]) => x / width > 0.35), 'removed left source emits no embers');
+				assert.ok(arcs.every(([x]) => x / width > 0.32), 'removed left source emits no embers');
 				assert.equal(draws.length, 6); assert.equal(stack.length, 0);
 				for (let i = 0; i < 6; i += 2) assert.ok(Math.abs(draws[i + 1][0] - draws[i][0] - width) < 1e-8);
 			}

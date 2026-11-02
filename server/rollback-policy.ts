@@ -6,6 +6,26 @@ export function rollback_policy(database:Database): {revision:number;config:Roll
  const row=database.query<{id:number;config_json:string},[]>('SELECT id,config_json FROM economy_policy_changes ORDER BY id DESC LIMIT 1').get();
  return row ? {revision:row.id,config:JSON.parse(row.config_json)} : {revision:0,config:{...DEFAULT_ROLLBACK_POLICY,client_ids:[]}};
 }
+/** Combat registration opts a capable character in prospectively, without changing host policy. */
+export function enroll_combat_rollback(database:Database,client:number):boolean {
+ const policy=rollback_policy(database);
+ if(!policy.config.enabled || policy.config.first_operation_id===null) return false;
+ if(!database.query('SELECT 1 FROM client_sessions WHERE client_id=? AND rollback_capable=1').get(client) ||
+  database.query('SELECT 1 FROM client_sessions WHERE client_id=? AND rollback_capable=0').get(client)) return false;
+ if(!policy.config.client_ids.includes(client)) database.query(`INSERT INTO combat_rollback_enrollments(client_id,first_operation_id,created_at)
+  SELECT ?,COALESCE(MAX(id),0)+1,? FROM economy_operations WHERE 1 ON CONFLICT(client_id) DO NOTHING`).run(client,Date.now());
+ return true;
+}
+export function rollback_client_boundary(database:Database,client:number,config:RollbackPolicy):number|null {
+ if(config.client_ids.includes(client)) return config.first_operation_id;
+ const enrollment=database.query<{first_operation_id:number},[number]>('SELECT first_operation_id FROM combat_rollback_enrollments WHERE client_id=?').get(client);
+ return enrollment && config.first_operation_id!==null ? Math.max(config.first_operation_id,enrollment.first_operation_id) : null;
+}
+export function rollback_client_policy(database:Database,client:number) {
+ const policy=rollback_policy(database);
+ const boundary=rollback_client_boundary(database,client,policy.config);
+ return {...policy,config:{...policy.config,first_operation_id:boundary,client_ids:boundary===null?[]:[client]}};
+}
 // Only explicit holds and unfinished calibration suspend character-wide economy actions.
 export function rollback_held(database:Database,client:number): boolean {
  const manual=database.query<{held:number},[number]>('SELECT held FROM economy_client_holds WHERE client_id=? ORDER BY id DESC LIMIT 1').get(client);

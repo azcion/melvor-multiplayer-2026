@@ -1,3 +1,5 @@
+import { CHAT_REACTION_DEFAULT_CHOICES, sample_chat_reactions } from '/mod/client-actions-chat.mjs';
+let reaction_choices = [...CHAT_REACTION_DEFAULT_CHOICES];
 import { create_chat_controller, conversation_key } from './controller.mjs';
 import { node, kind_labels, presentation, render_parts, avatar_node, conversation_image, conversation_label } from './render.mjs';
 import { create_transport, create_selection, pair_serialized } from './transport.mjs';
@@ -51,6 +53,7 @@ function render_identity() {
 async function bootstrap(preferred) {
 	const data = await transport.request('/chat/api/session');
 	links = data.links;
+	if (Array.isArray(data.chat_reaction_choices) && data.chat_reaction_choices.length === 18) reaction_choices = [...data.chat_reaction_choices];
 	csrf = data.csrf_token;
 	selected = links.some(link => link.link_id === preferred) ? preferred : selection.read(links);
 	selection.write(selected);
@@ -253,7 +256,7 @@ function render_chat(view) {
 	$('mobile-inbox-unread').setAttribute('aria-label', `${other_unread} unread messages in other conversations`);
 	$('inbox-status').textContent = view.loading ? 'Loading conversations…' : view.inbox.length ? '' : 'No conversations available. Manage Chat participation in Melvor.';
 	const next_inbox = JSON.stringify([view.link,view.selected,view.inbox,items,avatars]);
-	if (inbox_signature !== next_inbox) { inbox_signature = next_inbox; $('inbox').replaceChildren(...[['Global',['global','testers']],['Guild',['alliance','guild']],['Private',['private']],['Support',['support']]].flatMap(([label,kinds]) => {
+	if (inbox_signature !== next_inbox) { inbox_signature = next_inbox; $('inbox').replaceChildren(...[['Global',['global']],['Guild',['alliance','guild']],['Private',['private']],['Support',['support']]].flatMap(([label,kinds]) => {
 		const conversations = kinds.flatMap(kind => view.inbox.filter(c => (c.conversation_kind ?? 'private') === kind));
 		if (!conversations.length) return [];
 		const heading = node(document,'h3',label);
@@ -301,6 +304,7 @@ function render_chat(view) {
 		// Synthetic welcomes have no durable message actions.
 		if (m.message_id > 0) header.append(timestamp);
 		else header.append(node(document,'time',new Date(m.created_at).toLocaleString()));
+		if (m.deleted) { row.classList.add('message-deleted'); header.append(node(document,'strong','Deleted','deleted-label')); }
 		row.append(header);
 		const display = presentation(m,locale,own_message(m,view) || originals.has(`${selected}/${view.selected}/${m.message_id}`));
 		const bubble = node(document,'div',undefined,'message-bubble'); row.append(bubble);
@@ -311,10 +315,10 @@ function render_chat(view) {
 		render_parts(document,body,display.parts,display.text,items,id => void show_profile(id),avatars); bubble.append(body);
 		const reactions = node(document,'div',undefined,'message-reactions');
 		if (m.message_id > 0) for (const r of m.reactions ?? []) {
-			const summary = button(`${r.reaction} ${r.count}`, () => void chat.reaction(m.message_id,r.reaction,!r.reacted),e.denied);
+			const summary = button(`${r.reaction} ${r.count}`, () => void chat.reaction(m.message_id,r.reaction,!r.reacted),e.denied || m.deleted);
 			summary.setAttribute('aria-pressed',String(Boolean(r.reacted))); reactions.append(summary);
 		}
-		if (m.message_id > 0) { if (!reactions.children.length) reactions.className += ' reactions-empty';
+		if (m.message_id > 0 && !m.deleted) { if (!reactions.children.length) reactions.className += ' reactions-empty';
 		const add = button('☺+', event => show_reactions(m,event?.currentTarget),e.denied); add.setAttribute('aria-label','Add reaction'); reactions.append(add); }
 		if (reactions.children.length) bubble.append(reactions);
 		for (const element of [...header.children,...reactions.children,...body.children]) if (element.tagName === 'BUTTON') element.chatFocus = `message/${selected}/${view.selected}/${m.message_id}/${element === timestamp ? 'timestamp' : element.textContent}`;
@@ -365,7 +369,7 @@ function show_message_actions(m, view) {
 		}));
 	}
 	$('dialog-content').append(button('Show Seen', () => void show_details(m,'seen')),button('View Reactions', () => void show_details(m,'reactions')));
-	if (e.conversation.conversation_kind === 'private') $('dialog-content').append(button('Hide for me', () => confirm_action('Hide message','Hide this message for this identity?', () => chat.hide(m.message_id)),view.mutating || Boolean(e.pending)));
+	if (m.can_delete && !m.deleted) $('dialog-content').append(button('Delete for everyone', () => confirm_action('Delete message','Remove this message from everyone’s view? Administrators can still read it.', async () => { await chat.hide(m.message_id); await chat.history('reload'); }),view.mutating || Boolean(e.pending)));
 }
 async function show_profile(id) {
 	const generation = show_dialog('Character profile'); $('dialog-content').append(node(document,'p','Loading profile…'));
@@ -394,7 +398,7 @@ function show_reactions(m, anchor) {
 	const anchored = anchor && popup.showPopover;
 	if (!anchored) { show_dialog('Add a reaction'); $('dialog-content').className = 'dialog-scroll reaction-picker'; }
 	const target = anchored ? popup : $('dialog-content'); target.replaceChildren();
-	for (const reaction of ['👍','👎','❤️','😂','😭','💀','👀','🔥','💯','🎉','🤔','😮','😬','😡','🗿','👋','👏','😎','🐠','🚽','🐬','🍕','🛸','⌛']) target.append(button(reaction, () => {
+	for (const reaction of [...reaction_choices, ...sample_chat_reactions(reaction_choices)]) target.append(button(reaction, () => {
 		close_dialog(); void chat.reaction(m.message_id,reaction,!m.reactions?.some(r => r.reaction === reaction && r.reacted));
 	}));
 	if (anchored) {

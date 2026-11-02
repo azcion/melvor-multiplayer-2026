@@ -823,3 +823,6 @@ button:hover:not(:disabled) {
 .highlight-hex { display: flex; align-items: center; gap: .5rem; }
 .highlight-hex input { min-width: 0; width: 100%; font-size: 16px; }
 .highlight-sample { padding: .75rem; margin: 1rem 4px; border-radius: 4px; }
+
+.message-deleted .message-bubble { border: 2px dashed #e6a34a; }
+.deleted-label { color: #ffd08a; font-weight: 700; }

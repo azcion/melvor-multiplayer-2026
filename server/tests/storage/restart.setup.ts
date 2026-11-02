@@ -1,4 +1,4 @@
-import { setup_preparation_restart } from '../support/preparation-restart';
+import { setup_expanded_restart, setup_preparation_restart } from '../support/expedition-restart';
 import { setup_browser_chat_restart } from '../support/browser-chat-restart';
 import {setup_rollback_restart} from '../support/rollback-restart';
 import { enter_transition_raid, seed_transition_raid } from '../support/raid';
@@ -13,6 +13,9 @@ import { wait_for } from '../support/wait';
 test('creates representative state before a server restart', async () => {
 	await setup_browser_chat_restart();
 	const pair = await make_guildmates('Restart First', 'Restart Second');
+	expect((await post_json<{success:boolean}>('/api/combat/prepare', { command_id: crypto.randomUUID() }, pair.first.session_token)).json.success).toBe(true);
+	await db_run('UPDATE combat_tutorial SET victories=7 WHERE client_id=?', [pair.first_id]);
+	await db_run("INSERT INTO combat_practice_completions(client_id,practice_id,tier,ruleset) VALUES(?,'recruit',1,'practice-1')", [pair.first_id]);
 	await post_json('/api/gift/send', {
 		recipient_id: pair.second_id,
 		items: [{ id: 'melvorD:Restart_Gift', qty: 7 }]
@@ -272,6 +275,7 @@ test('creates representative state before a server restart', async () => {
 		rollback: await setup_rollback_restart(),
 		alliance,
 		expedition_work,
+		expedition_expansion: await setup_expanded_restart(),
 		preparation: await setup_preparation_restart(),
 		installation: { ...installed.json, installation_id, installation_key },
 		...pair,

@@ -440,10 +440,9 @@ corresponding `/api/v2/chat/` routes; there is no game credential or cookie fall
 | POST | `conversations/start`, `messages/send`, `messages/reaction`, `global-participation`, `guild-participation`, `alliance-participation`, `block`, `privacy`, `messages/delete`, `conversations/delete` |
 
 The server supplies only `global-chat-v1,guild-chat-v1` capabilities, ignoring browser capability parameters.
-Supported `conversation_kind` values are `private`, `global`, `guild`, `alliance`, `support`, and `testers`
-(Expedition Chat). Poll/Petition discussions and unknown kinds return 400 before domain dispatch on every
-exposed path, including people queries. Participant deletion accepts only omitted/`private` kind, preventing
-numeric ID collisions from deleting another domain's Private history. Delete-for-all and other game actions
+Supported `conversation_kind` values are `private`, `global`, `guild`, `alliance`, `support`. Expedition Chat (`testers`) is retired and returns 404. Poll/Petition discussions and unknown kinds return 400 before domain dispatch on every
+exposed path, including people queries. Message deletion accepts every supported kind and validates that domain's conversation access and author/admin
+authority. Conversation deletion still accepts only omitted/`private` kind. Delete-for-all and other game actions
 are unregistered (404); known wrong methods return 405.
 
 Shared synchronous handlers run inside selected-link authorization's SQLite transaction. They retain canonical
@@ -456,10 +455,94 @@ Message details use ordinary reaction visibility and expose readers/reactors onl
 Browser dispatch updates its selected link's browser clock and normal Chat state, without game activity,
 runtime, save admission, Expedition catch-up, identity recovery, or economy operations.
 
-## Rift Preparations (1.7.0)
+## Expedition operator test controls
 
-Registered characters receive one optional, personal 20-hour `Gather Rift Provisions` task during the existing shared registration window. Combat, Cooking, Woodcutting, Fishing, Mining, Firemaking, Smithing and Crafting are always accepted; no account or DLC roll is required. State exposes only the caller's preparation task through the ordinary chamber shape. Existing task start/check-in/stop operations retain ownership, idempotency, recovery and offline verification rules. Preparation ends at the shared registration deadline, never delays departure, and does not determine participant scaling. Up to 20 EP is available before multitasking penalties and existing limits.
+Configured debug Clients receive `debug_enabled` and a `debug_chambers: [{ id, label }]` picker in Expedition state.
+`POST /api/v2/expedition/debug/advance` accepts `{ expedition_id, visit_id, action, task_id }`.
+Actions are `registration`, `vote`, `task`, `phase`, `chamber`, and `jump`. Phase uses `task_id` as
+`arrival`, `exploration` or `departure`; jump uses a supported Chamber ID from the run's immutable snapshot.
+Other actions use a task ID for `task`, otherwise null. Unauthorized Clients receive 403; stale run/visit or
+inapplicable actions receive 409. Jump also accepts the registration preparation visit ID or null during registration.
 
-New supply donation commands return `supplies_removed`; committed operation replay and receipt acknowledgement remain recoverable through the shared API wrapper. Historical donation rows, earned EP and terminal supply snapshots remain. Every Expedition ending consumes held supplies with custody provenance and per-item disposal records, without creating new Crucible Offerings. Ordinary Crucible operations and historical settled transfers are unchanged.
+Phase completion includes earlier phases and optional work. Whole-Chamber completion applies all saved tasks in one
+batch before reconciling; neither shortcut grants personal work credit or EP. Passage voting remains separate.
+Repeating completion within the same current visit succeeds. Jump closes the previous visit, preserving work-report
+settlement boundaries, and starts a fresh visit without completing tasks or fabricating passage votes. Preview runs
+can jump only within their saved supported route. Cancel and guarded wipe retain their separate endpoints.
 
-Activate the donation replacement only with the mandatory 1.7.0 client upgrade. This source change does not itself raise the client floor or deploy a backend.
+## Expedition work alternatives
+
+Chamber task evidence skills are alternatives. Each work segment caps combined accepted statistic time at elapsed
+wall time before applying the concurrency penalty from all skill-time deltas, including unaccepted skills. One hour
+of two simultaneous accepted skills earns 30 minutes of credit and 0.5 EP; sequential accepted half-hours earn 1 EP.
+The same rule covers retained dissolution claims. Existing activity eligibility, clock, offline, cutoff and reward
+allowance limits still apply. Aggregate offline statistics cannot reconstruct exact activity overlap.
+
+This correction needs only a backend update: the 1.6.17 request fields and response contract remain supported.
+Already settled operations replay unchanged; open segments use the corrected rule at settlement.
+
+## Expedition EP leaderboard
+
+`GET /api/v2/expedition/leaderboard?page=0` requires a session and is available without Guild membership.
+It returns `{page, total, players, since, as_of}`. Each player has `client_id`, `display_name`, `icon_id` and
+`guild_name` (current Guild name or null) and `points_micros` earned from settled work and supplies in the rolling seven-day window (inclusive boundaries).
+Only positive totals from enabled, non-deleted identities appear, across every Guild. Spending and refunds do
+not change earned totals. Results sort by earned EP descending, then Client ID ascending, with ten per page.
+`page` is a non-negative safe integer; invalid values return 400 and out-of-range pages clamp to the last page.
+The 1.7.0 client refreshes the visible leaderboard every five minutes and requests page changes immediately.
+
+### Announcements and retained Message deletion
+
+Game clients from 1.7.0 receive `announcements` (conversation ID 1) through the existing Chat inbox/history/send,
+reaction and details endpoints. `announcement-discussion` uses its announcement ID as the conversation ID.
+These kinds are unavailable to older authenticated sessions and browser links, and cannot be accessed through Poll
+APIs. Announcement publication and account-wide author deletion require Highlight eligibility; admins retain deletion
+authority. Announcements cannot be opted out of or muted. History responses include independent
+`discussion_unread_counts`; discussion replies never contribute to the aggregate Chat unread count.
+
+`messages/delete` and the compatible game `messages/delete-for-all` action now retain the original row and hide
+an ordinary Message for everyone except authorized admins. Authors may delete their own Messages in every Chat
+domain; admins can delete any Message they can access. Histories expose `deleted` and viewer-scoped `can_delete`.
+Deleted content is read-only. Existing personal-hide records keep their original audience and are not converted.
+
+## Equipment catalog transport
+
+`combat/inventory`, `expedition/state` (including `view=tracking`), `expedition/personal` and equipment
+`expedition/task/start|check-in|stop` responses include `equipment_projects.catalog_revision`, a content hash of
+static `catalog` and `access` definitions. An optional `equipment_catalog=HASH` query omits those two fields only
+when the hash matches. Missing or outdated hashes return the complete definitions; all dynamic player fields remain.
+Clients cache only definitions in memory per selected server/session and hydrate each response against the hash
+advertised by that request. `equipment_catalog=full` requests the complete initial model. Existing 1.6.17 callers
+need no changes and retain full responses.
+
+Equipment work requests with this query also receive `equipment_work_current`: true for a newly executed operation,
+false for an idempotent replay. The marker is transport-only and is not persisted in the replay record. Updated clients
+apply fresh equipment results without an immediate Expedition GET; replay, unknown/older servers and chamber work
+retain their refresh. The independent chamber refresh clock remains active. Query negotiation never changes the
+saved work payload, operation identity, settlement, or replay hash.
+
+## Practice preview transport
+
+`combat/inventory` includes `practice_catalog_revision`, a content hash of the process-local Practice
+names, tiers and enemy-wave definitions. Clients may send `practice_catalog=HASH` after receiving the full model.
+A matching hash omits only each Practice tier's `waves`; encounter IDs, availability and completion flags remain
+fresh on every response. Missing/outdated hashes receive the complete model, preserving older clients.
+Clients retain plain wave definitions in memory per selected server/session, hydrate by encounter ID only when
+response and requested revisions match, and clear the cache on reset. No player progression is cached.
+This query composes with `equipment_catalog` and `raid_page`; it does not change admission or settlement.
+
+## Expedition return and claimed bonus
+
+Full Expedition state reads add `expedition.return_summary` for terminal runs when the viewer registered, including
+personal join/end timestamps, credited milliseconds, distinct Chambers with positive Guild work (excluding
+preparations), base earned EP and completion-bonus totals/claimed/available micro-EP. Compact tracking reads omit
+the summary. Full state and personal reads also include owner-scoped `ending_rewards` with outstanding bonuses,
+including older runs after registration or Guild changes.
+
+`POST /api/v2/expedition/ending/claim` accepts `{ expedition_id }` for the authenticated owner's eligible successful
+completion. New successful endings become eligible; historical completions, inactivity and dissolution do not.
+An immediate transaction credits the unclaimed difference between 20% of total work/supply earnings (rounded down
+to integer micro-EP) and prior ending awards. It returns `{ success: true, claimed_points_micros }`; repeated or
+concurrent claims return zero after the first credit. Late verified work can create another positive difference.
+Invalid IDs return 400; foreign, missing or ineligible records return 409. All value stays in server-owned EP,
+without local item/GP effects. Bonus awards appear in the EP leaderboard when claimed.

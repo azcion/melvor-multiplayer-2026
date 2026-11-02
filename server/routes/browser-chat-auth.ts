@@ -1,3 +1,4 @@
+import { get_chat_reaction_choices } from '../chat_reactions';
 import * as runtime from '../app-runtime';
 import {
 	browser_csrf,
@@ -151,6 +152,7 @@ export function register_browser_chat_auth_routes(): void {
 				links: list_browser_identities(runtime.db, browser.id).map(link => ({
 					link_id: link.id, client_id: link.client_id, display_name: link.display_name, expires_at: link.expires_at
 				})),
+				chat_reaction_choices: get_chat_reaction_choices(),
 				csrf_token: browser_csrf(token)
 			};
 		}),

@@ -10,6 +10,7 @@ import {
 	load_config,
 	asset_inventory,
 	prepare_assets,
+	check_assets,
 	upload_assets,
 	verify_remote_object
 } from '../../scripts/asset-hosting.mjs';
@@ -56,6 +57,8 @@ test('rejects inconsistent mode, unsafe paths, duplicate assets, and non-HTTPS h
 	for (const change of [
 		{ mode: 'oops' },
 		{ assets: ['assets/../secret.png'] },
+		{ assets: ['assets/1.7.0/../secret.png'] },
+		{ assets: ['assets/1.7.0./secret.png'] },
 		{ assets: [...base.assets, ...base.assets] },
 		{ prefix: '../outside' },
 		{ mode: 'remote', base_url: '' },
@@ -64,6 +67,13 @@ test('rejects inconsistent mode, unsafe paths, duplicate assets, and non-HTTPS h
 		{ mystery: true }
 	])
 		assert.throws(() => validate_config({ ...base, ...change }));
+});
+
+test('committed inventory supports versioned artwork without allowing traversal', async () => {
+	const config = await load_config(undefined, {});
+	assert.ok(config.assets.includes('assets/expedition-chambers/1.7.0/prismatic-descent.png'));
+	const inventory = await asset_inventory(new URL('../../mod/', import.meta.url).pathname, config);
+	assert.equal(inventory.length, config.assets.length);
 });
 
 test('explicit overrides inherit inventory; missing explicit configs fail', async t => {
@@ -182,4 +192,24 @@ test('upload dry-run makes no network calls; verified objects are skipped; failu
 		upload_assets(dir, remote, { verify: async () => false, run: () => ({ status: 1 }) }),
 		/upload failed/
 	);
+});
+
+
+test('read-only preflight lists every missing object without changing source files', async t => {
+	const dir = await fixture(t);
+	const config = { ...remote, assets: [...base.assets, 'assets/crucible.png'] };
+	let checks = 0;
+	await assert.rejects(check_assets(dir, config, async () => { checks++; return false; }), error => {
+		assert.match(error.message, /HTTP 404/);
+		assert.match(error.message, /raid-boss-t1.png/);
+		assert.match(error.message, /crucible.png/);
+		assert.match(error.message, /MELVOR_ASSET_CONFIG/);
+		return true;
+	});
+	assert.equal(checks, 2);
+	assert.deepEqual(await readFile(join(dir, base.assets[0])), png);
+	await assert.rejects(readFile(join(dir, 'asset-urls.json')), /ENOENT/);
+	const [entry] = await asset_inventory(dir, remote);
+	await assert.rejects(verify_remote_object(entry, async () => { throw new Error('fetch failed'); }),
+		/could not reach.*does not establish that the object is missing/);
 });

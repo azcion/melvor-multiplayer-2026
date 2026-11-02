@@ -24,10 +24,17 @@ function is_status_action_id(id) {
 	return typeof id === 'string' && /^[A-Za-z0-9_.:-]+$/.test(id);
 }
 
+// Food work is identified by its recipe product, independently of native recipe ID spelling.
+export function native_work_action_id(skill, action) {
+	if (skill?.id === 'melvorD:Fishing' || skill?.id === 'melvorD:Cooking')
+		return get_game_object_id(action?.product) ?? get_game_object_id(action);
+	return get_game_object_id(action);
+}
+
 function capture_skill_action_id(skill) {
 	let action_id = null;
 	try {
-		action_id = get_game_object_id(skill.masteryAction);
+		action_id = native_work_action_id(skill, skill.masteryAction);
 	} catch (e) {
 		// Some skills throw while their current selection is incomplete.
 	}
@@ -44,7 +51,7 @@ function capture_skill_action_id(skill) {
 		} catch (e) {
 			// Some skills throw while their current selection is incomplete.
 		}
-		action_id = get_game_object_id(action);
+		action_id = native_work_action_id(skill, action);
 		if (is_status_action_id(action_id))
 			return action_id;
 	}

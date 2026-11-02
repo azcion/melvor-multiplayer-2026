@@ -45,7 +45,7 @@ test('loads changelog history directly from mod.io', async () => {
 	assert.deepEqual(entries.map(entry => entry.version), ['1.0.0']);
 });
 
-test('wires the Updates page to the bottom of the Multiplayer sidebar', async () => {
+test('wires the Info page to the bottom of the Multiplayer sidebar', async () => {
 	const [data, main, templates, localization, english] = await Promise.all([
 		readFile(new URL('mod/data.json', root), 'utf8').then(JSON.parse),
 		readFile(new URL('mod/main.mjs', root), 'utf8'),
@@ -58,14 +58,14 @@ test('wires the Updates page to the bottom of the Multiplayer sidebar', async ()
 	const updates_index = data.data.pages.findIndex(entry => entry.id === 'Updates');
 
 	assert.equal(page.sidebarItem.categoryID, 'Multiplayer');
-	assert.equal(page.sidebarItem.icon, 'https://cdn2-main.melvor.net/assets/media/main/announcement.png');
-	assert.equal(updates_index, raid_index + 1);
+	assert.equal(page.sidebarItem.icon, 'assets/info-nav.png');
+	assert.equal(updates_index, raid_index + 2);
 	assert.match(templates, /template-mp-updates-page/);
 	const state_actions = main.slice(main.indexOf('Object.assign('), main.indexOf('modal_queue_guard =', main.indexOf('Object.assign(')));
 	assert.match(state_actions, /format_guild_activity_time,\s*set_updates_mobile_tab/);
 	assert.match(templates, /state\.changelog_entries/);
 	assert.match(templates, /state\.updates_sections/);
 	assert.match(localization, /Updates: 'MOD_MP_PAGE_UPDATES'/);
-	assert.equal(english.MOD_MP_PAGE_UPDATES, 'Updates');
+	assert.equal(english.MOD_MP_PAGE_UPDATES, 'Info');
 	assert.equal(english.MOD_MP_UPDATES_CHANGELOG, 'Changelog');
 });

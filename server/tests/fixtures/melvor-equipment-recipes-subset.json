@@ -1,0 +1,849 @@
+{
+	"skillData": [
+		{
+			"skillID": "melvorD:Smithing",
+			"data": {
+				"recipes": [
+					{
+						"id": "Bronze_2H_Sword",
+						"level": 14,
+						"productID": "melvorD:Bronze_2H_Sword",
+						"baseQuantity": 1,
+						"baseExperience": 30,
+						"categoryID": "melvorD:BronzeGear",
+						"itemCosts": [
+							{
+								"id": "melvorD:Bronze_Bar",
+								"quantity": 3
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Bronze_Bar",
+						"level": 1,
+						"productID": "melvorD:Bronze_Bar",
+						"baseQuantity": 1,
+						"baseExperience": 5,
+						"categoryID": "melvorD:Bars",
+						"itemCosts": [
+							{
+								"id": "melvorD:Copper_Ore",
+								"quantity": 1
+							},
+							{
+								"id": "melvorD:Tin_Ore",
+								"quantity": 1
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Bronze_Dagger",
+						"level": 1,
+						"productID": "melvorD:Bronze_Dagger",
+						"baseQuantity": 1,
+						"baseExperience": 10,
+						"categoryID": "melvorD:BronzeGear",
+						"itemCosts": [
+							{
+								"id": "melvorD:Bronze_Bar",
+								"quantity": 1
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Rune_Gloves",
+						"level": 74,
+						"productID": "melvorD:Rune_Gloves",
+						"baseQuantity": 1,
+						"baseExperience": 150,
+						"categoryID": "melvorD:RuneGear",
+						"itemCosts": [
+							{
+								"id": "melvorD:Runite_Bar",
+								"quantity": 2
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Runite_Bar",
+						"level": 70,
+						"productID": "melvorD:Runite_Bar",
+						"baseQuantity": 1,
+						"baseExperience": 50,
+						"categoryID": "melvorD:Bars",
+						"itemCosts": [
+							{
+								"id": "melvorD:Runite_Ore",
+								"quantity": 1
+							},
+							{
+								"id": "melvorD:Coal_Ore",
+								"quantity": 8
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Iron_Bar",
+						"level": 10,
+						"productID": "melvorD:Iron_Bar",
+						"baseQuantity": 1,
+						"baseExperience": 8,
+						"categoryID": "melvorD:Bars",
+						"itemCosts": [
+							{
+								"id": "melvorD:Iron_Ore",
+								"quantity": 1
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Steel_Bar",
+						"level": 25,
+						"productID": "melvorD:Steel_Bar",
+						"baseQuantity": 1,
+						"baseExperience": 12,
+						"categoryID": "melvorD:Bars",
+						"itemCosts": [
+							{
+								"id": "melvorD:Iron_Ore",
+								"quantity": 1
+							},
+							{
+								"id": "melvorD:Coal_Ore",
+								"quantity": 2
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Gold_Bar",
+						"level": 40,
+						"productID": "melvorD:Gold_Bar",
+						"baseQuantity": 1,
+						"baseExperience": 20,
+						"categoryID": "melvorD:Bars",
+						"itemCosts": [
+							{
+								"id": "melvorD:Gold_Ore",
+								"quantity": 1
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Mithril_Bar",
+						"level": 40,
+						"productID": "melvorD:Mithril_Bar",
+						"baseQuantity": 1,
+						"baseExperience": 35,
+						"categoryID": "melvorD:Bars",
+						"itemCosts": [
+							{
+								"id": "melvorD:Mithril_Ore",
+								"quantity": 1
+							},
+							{
+								"id": "melvorD:Coal_Ore",
+								"quantity": 4
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Adamantite_Bar",
+						"level": 55,
+						"productID": "melvorD:Adamantite_Bar",
+						"baseQuantity": 1,
+						"baseExperience": 42,
+						"categoryID": "melvorD:Bars",
+						"itemCosts": [
+							{
+								"id": "melvorD:Adamantite_Ore",
+								"quantity": 1
+							},
+							{
+								"id": "melvorD:Coal_Ore",
+								"quantity": 6
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Dragonite_Bar",
+						"level": 85,
+						"productID": "melvorD:Dragonite_Bar",
+						"baseQuantity": 1,
+						"baseExperience": 60,
+						"categoryID": "melvorD:Bars",
+						"itemCosts": [
+							{
+								"id": "melvorD:Dragonite_Ore",
+								"quantity": 1
+							},
+							{
+								"id": "melvorD:Runite_Ore",
+								"quantity": 2
+							},
+							{
+								"id": "melvorD:Coal_Ore",
+								"quantity": 12
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Silver_Bar",
+						"level": 30,
+						"productID": "melvorD:Silver_Bar",
+						"baseQuantity": 1,
+						"baseExperience": 15,
+						"categoryID": "melvorD:Bars",
+						"itemCosts": [
+							{
+								"id": "melvorD:Silver_Ore",
+								"quantity": 1
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Bronze_Arrowtips",
+						"level": 1,
+						"productID": "melvorD:Bronze_Arrowtips",
+						"baseQuantity": 15,
+						"baseExperience": 10,
+						"categoryID": "melvorD:BronzeGear",
+						"subcategoryID": "melvorD:Arrowtips",
+						"itemCosts": [
+							{
+								"id": "melvorD:Bronze_Bar",
+								"quantity": 1
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Iron_Arrowtips",
+						"level": 13,
+						"productID": "melvorD:Iron_Arrowtips",
+						"baseQuantity": 15,
+						"baseExperience": 20,
+						"categoryID": "melvorD:IronGear",
+						"subcategoryID": "melvorD:Arrowtips",
+						"itemCosts": [
+							{
+								"id": "melvorD:Iron_Bar",
+								"quantity": 1
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Steel_Arrowtips",
+						"level": 28,
+						"productID": "melvorD:Steel_Arrowtips",
+						"baseQuantity": 15,
+						"baseExperience": 30,
+						"categoryID": "melvorD:SteelGear",
+						"subcategoryID": "melvorD:Arrowtips",
+						"itemCosts": [
+							{
+								"id": "melvorD:Steel_Bar",
+								"quantity": 1
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Mithril_Arrowtips",
+						"level": 43,
+						"productID": "melvorD:Mithril_Arrowtips",
+						"baseQuantity": 15,
+						"baseExperience": 50,
+						"categoryID": "melvorD:MithrilGear",
+						"subcategoryID": "melvorD:Arrowtips",
+						"itemCosts": [
+							{
+								"id": "melvorD:Mithril_Bar",
+								"quantity": 1
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Adamant_Arrowtips",
+						"level": 58,
+						"productID": "melvorD:Adamant_Arrowtips",
+						"baseQuantity": 15,
+						"baseExperience": 60,
+						"categoryID": "melvorD:AdamantGear",
+						"subcategoryID": "melvorD:Arrowtips",
+						"itemCosts": [
+							{
+								"id": "melvorD:Adamantite_Bar",
+								"quantity": 1
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Rune_Arrowtips",
+						"level": 73,
+						"productID": "melvorD:Rune_Arrowtips",
+						"baseQuantity": 15,
+						"baseExperience": 75,
+						"categoryID": "melvorD:RuneGear",
+						"subcategoryID": "melvorD:Arrowtips",
+						"itemCosts": [
+							{
+								"id": "melvorD:Runite_Bar",
+								"quantity": 1
+							}
+						],
+						"currencyCosts": []
+					}
+				]
+			}
+		},
+		{
+			"skillID": "melvorD:Fletching",
+			"data": {
+				"recipes": [
+					{
+						"id": "Arrow_Shafts",
+						"level": 1,
+						"productID": "melvorF:Arrow_Shafts",
+						"baseQuantity": 15,
+						"baseExperience": 5,
+						"categoryID": "melvorF:Arrows",
+						"itemCosts": [],
+						"alternativeCosts": [
+							{
+								"itemCosts": [
+									{
+										"id": "melvorD:Normal_Logs",
+										"quantity": 1
+									}
+								],
+								"quantityMultiplier": 1
+							},
+							{
+								"itemCosts": [
+									{
+										"id": "melvorD:Oak_Logs",
+										"quantity": 1
+									}
+								],
+								"quantityMultiplier": 2
+							},
+							{
+								"itemCosts": [
+									{
+										"id": "melvorD:Willow_Logs",
+										"quantity": 1
+									}
+								],
+								"quantityMultiplier": 3
+							},
+							{
+								"itemCosts": [
+									{
+										"id": "melvorD:Teak_Logs",
+										"quantity": 1
+									}
+								],
+								"quantityMultiplier": 4
+							},
+							{
+								"itemCosts": [
+									{
+										"id": "melvorD:Maple_Logs",
+										"quantity": 1
+									}
+								],
+								"quantityMultiplier": 5
+							},
+							{
+								"itemCosts": [
+									{
+										"id": "melvorD:Mahogany_Logs",
+										"quantity": 1
+									}
+								],
+								"quantityMultiplier": 6
+							},
+							{
+								"itemCosts": [
+									{
+										"id": "melvorD:Yew_Logs",
+										"quantity": 1
+									}
+								],
+								"quantityMultiplier": 7
+							},
+							{
+								"itemCosts": [
+									{
+										"id": "melvorD:Magic_Logs",
+										"quantity": 1
+									}
+								],
+								"quantityMultiplier": 8
+							},
+							{
+								"itemCosts": [
+									{
+										"id": "melvorD:Redwood_Logs",
+										"quantity": 1
+									}
+								],
+								"quantityMultiplier": 9
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Headless_Arrows",
+						"level": 1,
+						"productID": "melvorD:Headless_Arrows",
+						"baseQuantity": 15,
+						"baseExperience": 15,
+						"categoryID": "melvorF:Arrows",
+						"itemCosts": [
+							{
+								"id": "melvorF:Arrow_Shafts",
+								"quantity": 15
+							},
+							{
+								"id": "melvorD:Feathers",
+								"quantity": 15
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Bronze_Arrows",
+						"level": 1,
+						"productID": "melvorD:Bronze_Arrows",
+						"baseQuantity": 15,
+						"baseExperience": 18,
+						"categoryID": "melvorF:Arrows",
+						"itemCosts": [
+							{
+								"id": "melvorD:Bronze_Arrowtips",
+								"quantity": 15
+							},
+							{
+								"id": "melvorD:Headless_Arrows",
+								"quantity": 15
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Iron_Arrows",
+						"level": 15,
+						"productID": "melvorD:Iron_Arrows",
+						"baseQuantity": 15,
+						"baseExperience": 35,
+						"categoryID": "melvorF:Arrows",
+						"itemCosts": [
+							{
+								"id": "melvorD:Iron_Arrowtips",
+								"quantity": 15
+							},
+							{
+								"id": "melvorD:Headless_Arrows",
+								"quantity": 15
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Steel_Arrows",
+						"level": 30,
+						"productID": "melvorD:Steel_Arrows",
+						"baseQuantity": 15,
+						"baseExperience": 70,
+						"categoryID": "melvorF:Arrows",
+						"itemCosts": [
+							{
+								"id": "melvorD:Steel_Arrowtips",
+								"quantity": 15
+							},
+							{
+								"id": "melvorD:Headless_Arrows",
+								"quantity": 15
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Mithril_Arrows",
+						"level": 45,
+						"productID": "melvorD:Mithril_Arrows",
+						"baseQuantity": 15,
+						"baseExperience": 110,
+						"categoryID": "melvorF:Arrows",
+						"itemCosts": [
+							{
+								"id": "melvorD:Mithril_Arrowtips",
+								"quantity": 15
+							},
+							{
+								"id": "melvorD:Headless_Arrows",
+								"quantity": 15
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Adamant_Arrows",
+						"level": 60,
+						"productID": "melvorD:Adamant_Arrows",
+						"baseQuantity": 15,
+						"baseExperience": 140,
+						"categoryID": "melvorF:Arrows",
+						"itemCosts": [
+							{
+								"id": "melvorD:Adamant_Arrowtips",
+								"quantity": 15
+							},
+							{
+								"id": "melvorD:Headless_Arrows",
+								"quantity": 15
+							}
+						],
+						"currencyCosts": []
+					},
+					{
+						"id": "Rune_Arrows",
+						"level": 75,
+						"productID": "melvorD:Rune_Arrows",
+						"baseQuantity": 15,
+						"baseExperience": 180,
+						"categoryID": "melvorF:Arrows",
+						"itemCosts": [
+							{
+								"id": "melvorD:Rune_Arrowtips",
+								"quantity": 15
+							},
+							{
+								"id": "melvorD:Headless_Arrows",
+								"quantity": 15
+							}
+						],
+						"currencyCosts": []
+					}
+				]
+			}
+		}
+	],
+	"items": [
+		{
+			"id": "Bronze_Dagger",
+			"name": "Bronze Dagger",
+			"validSlots": [
+				"Weapon"
+			],
+			"occupiesSlots": [],
+			"equipRequirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"equipmentStats": [
+				{
+					"key": "attackSpeed",
+					"value": 2200
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 2
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 3
+				}
+			]
+		},
+		{
+			"id": "Bronze_2H_Sword",
+			"name": "Bronze 2H Sword",
+			"validSlots": [
+				"Weapon"
+			],
+			"occupiesSlots": [
+				"Shield"
+			],
+			"equipRequirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"equipmentStats": [
+				{
+					"key": "attackSpeed",
+					"value": 3600
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -4
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 18
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 18
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 18
+				}
+			]
+		},
+		{
+			"id": "Rune_Gloves",
+			"name": "Rune Gloves",
+			"validSlots": [
+				"Gloves"
+			],
+			"occupiesSlots": [],
+			"equipRequirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 40
+				}
+			],
+			"equipmentStats": [
+				{
+					"key": "stabAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 7
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 7
+				}
+			]
+		},
+		{
+			"itemType": "Equipment",
+			"id": "Bronze_Arrows",
+			"name": "Bronze Arrows",
+			"category": "Combat",
+			"type": "Ammo",
+			"media": "assets/media/bank/ammo_arrow_bronze.png",
+			"ignoreCompletion": false,
+			"obtainFromItemLog": false,
+			"golbinRaidExclusive": false,
+			"sellsFor": 1,
+			"tier": "none",
+			"validSlots": [
+				"Quiver"
+			],
+			"occupiesSlots": [],
+			"equipRequirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Ranged",
+					"level": 1
+				}
+			],
+			"equipmentStats": [
+				{
+					"key": "rangedStrengthBonus",
+					"value": 7
+				}
+			],
+			"ammoType": "Arrows"
+		},
+		{
+			"itemType": "Equipment",
+			"id": "Iron_Arrows",
+			"name": "Iron Arrows",
+			"category": "Combat",
+			"type": "Ammo",
+			"media": "assets/media/bank/ammo_arrow_iron.png",
+			"ignoreCompletion": false,
+			"obtainFromItemLog": false,
+			"golbinRaidExclusive": false,
+			"sellsFor": 2,
+			"tier": "none",
+			"validSlots": [
+				"Quiver"
+			],
+			"occupiesSlots": [],
+			"equipRequirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Ranged",
+					"level": 1
+				}
+			],
+			"equipmentStats": [
+				{
+					"key": "rangedStrengthBonus",
+					"value": 10
+				}
+			],
+			"ammoType": "Arrows"
+		},
+		{
+			"itemType": "Equipment",
+			"id": "Steel_Arrows",
+			"name": "Steel Arrows",
+			"category": "Combat",
+			"type": "Ammo",
+			"media": "assets/media/bank/ammo_arrow_steel.png",
+			"ignoreCompletion": false,
+			"obtainFromItemLog": false,
+			"golbinRaidExclusive": false,
+			"sellsFor": 3,
+			"tier": "none",
+			"validSlots": [
+				"Quiver"
+			],
+			"occupiesSlots": [],
+			"equipRequirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Ranged",
+					"level": 5
+				}
+			],
+			"equipmentStats": [
+				{
+					"key": "rangedStrengthBonus",
+					"value": 16
+				}
+			],
+			"ammoType": "Arrows"
+		},
+		{
+			"itemType": "Equipment",
+			"id": "Mithril_Arrows",
+			"name": "Mithril Arrows",
+			"category": "Combat",
+			"type": "Ammo",
+			"media": "assets/media/bank/ammo_arrow_mithril.png",
+			"ignoreCompletion": false,
+			"obtainFromItemLog": false,
+			"golbinRaidExclusive": false,
+			"sellsFor": 8,
+			"tier": "none",
+			"validSlots": [
+				"Quiver"
+			],
+			"occupiesSlots": [],
+			"equipRequirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Ranged",
+					"level": 20
+				}
+			],
+			"equipmentStats": [
+				{
+					"key": "rangedStrengthBonus",
+					"value": 22
+				}
+			],
+			"ammoType": "Arrows"
+		},
+		{
+			"itemType": "Equipment",
+			"id": "Adamant_Arrows",
+			"name": "Adamant Arrows",
+			"category": "Combat",
+			"type": "Ammo",
+			"media": "assets/media/bank/ammo_arrow_adamant.png",
+			"ignoreCompletion": false,
+			"obtainFromItemLog": false,
+			"golbinRaidExclusive": false,
+			"sellsFor": 10,
+			"tier": "none",
+			"validSlots": [
+				"Quiver"
+			],
+			"occupiesSlots": [],
+			"equipRequirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Ranged",
+					"level": 30
+				}
+			],
+			"equipmentStats": [
+				{
+					"key": "rangedStrengthBonus",
+					"value": 31
+				}
+			],
+			"ammoType": "Arrows"
+		},
+		{
+			"itemType": "Equipment",
+			"id": "Rune_Arrows",
+			"name": "Rune Arrows",
+			"category": "Combat",
+			"type": "Ammo",
+			"media": "assets/media/bank/ammo_arrow_rune.png",
+			"ignoreCompletion": false,
+			"obtainFromItemLog": false,
+			"golbinRaidExclusive": false,
+			"sellsFor": 30,
+			"tier": "none",
+			"validSlots": [
+				"Quiver"
+			],
+			"occupiesSlots": [],
+			"equipRequirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Ranged",
+					"level": 40
+				}
+			],
+			"equipmentStats": [
+				{
+					"key": "rangedStrengthBonus",
+					"value": 49
+				}
+			],
+			"ammoType": "Arrows"
+		}
+	]
+}

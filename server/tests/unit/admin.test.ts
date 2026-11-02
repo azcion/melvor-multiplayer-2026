@@ -509,3 +509,35 @@ test('rollback host controls require explicit activation, guarded revisions and 
  expect(inspected.holds).toHaveLength(2);expect(inspected.policy.config.enabled).toBe(false);
  expect((await run_admin(filename,'save-rollback','benefit-release','missing','1',crypto.randomUUID(),'Review')).exit_code).toBe(2);
 });
+
+test('combat reset grants use an exact identity and idempotent command UUID', async () => {
+	const path=fixture_database(), command=crypto.randomUUID();
+	const first=await run_admin(path,'combat-resets','grant','1','9',command);
+	expect(first.exit_code).toBe(0);expect(first.stdout).toContain('banked_resets=9');
+	expect((await run_admin(path,'combat-resets','grant','1','9',command)).stdout).toContain('banked_resets=9');
+	expect((await run_admin(path,'combat-resets','grant','1','8',command)).exit_code).toBe(1);
+	for(const args of [['999','9',crypto.randomUUID()],['1','0',crypto.randomUUID()],['1','9','invalid']]) expect((await run_admin(path,'combat-resets','grant',...args)).exit_code).not.toBe(0);
+});
+
+
+test('Rift Preparations activation is explicit, persistent and idempotent', async () => {
+	const database_path = fixture_database();
+	const initial = await run_admin(database_path, 'expedition-preparations', 'status');
+	expect(initial.exit_code).toBe(0);
+	expect(initial.stdout).toContain('expedition_preparations=off');
+	const refused = await run_admin(database_path, 'expedition-preparations', 'enable');
+	expect(refused.exit_code).toBe(2);
+	expect((await run_admin(database_path, 'expedition-preparations', 'status')).stdout).toContain('=off');
+	const enabled = await run_admin(database_path, 'expedition-preparations', 'enable', 'confirm');
+	expect(enabled.exit_code).toBe(0);
+	expect(enabled.stdout).toContain('new supply donations are closed');
+	expect((await run_admin(database_path, 'expedition-preparations', 'status')).stdout).toContain('=on');
+	let database = new Database(database_path);
+	const first = database.query('SELECT event_revision FROM clients ORDER BY id').all();
+	database.close();
+	expect((await run_admin(database_path, 'expedition-preparations', 'enable', 'confirm')).exit_code).toBe(0);
+	database = new Database(database_path);
+	expect(database.query('SELECT event_revision FROM clients ORDER BY id').all()).toEqual(first);
+	expect(database.query("SELECT value FROM service_settings WHERE key = 'expedition_preparations_enabled'").get()).toEqual({ value: '1' });
+	database.close();
+});

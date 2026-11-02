@@ -1,0 +1,92 @@
+{
+  "id": "expedition",
+  "title": "Expedition",
+  "description": "Help your Guild explore the Rift while you train your Melvor skills.",
+  "icon": "expedition-nav.png",
+  "articles": [
+    {
+      "id": "expedition",
+      "title": "The Expedition",
+      "summary": "Help your Guild explore the Rift while you train your Melvor skills.",
+      "aliases": [
+        "rift",
+        "chamber",
+        "journey",
+        "ep",
+        "track",
+        "check in",
+        "arrival",
+        "departure",
+        "preview"
+      ],
+      "sections": [
+        {
+          "id": "journey",
+          "title": "A journey you work on together",
+          "paragraphs": [
+            "The Expedition takes your Guild through a series of Chambers in the Rift. Each Chamber has tasks the group can work on together. Open Chamber to see what needs doing, or Journey to see where you’ve been and the passages ahead.",
+            "For now, the Expedition follows a fixed Preview route. You may see passages that aren’t available to choose yet; the route information in the game explains where you can go."
+          ]
+        },
+        {
+          "id": "rift-supplies",
+          "title": "Personal Rift Preparations (1.7.0)",
+          "paragraphs": [
+            "During the shared 20-hour registration window, each registrant has one optional personal task: Gather Rift Provisions. Combat, Cooking, Woodcutting, Fishing, Mining, Firemaking, Smithing and Crafting all count.",
+            "Work earns 1 EP per verified hour, up to 20 EP before multitasking penalties and existing limits. Two simultaneous activities earn 0.5 EP per real hour even when both are accepted. Sequential accepted activities retain the normal rate.",
+            "Late registrants have only the time remaining before the shared deadline. Preparation never delays departure and does not determine participant scaling. Progress belongs to your character, not the Guild.",
+            "Supply donations end with the mandatory 1.7.0 upgrade. Previously earned EP and donation history remain, and committed donations can still be recovered. Held supplies are consumed at Expedition ending without refunds or a transfer to Crucible."
+          ]
+        },
+        {
+          "id": "supply-ep",
+          "title": "Previously earned supply EP",
+          "paragraphs": [
+            "EP earned from historical supply donations remains yours after the 1.7.0 upgrade. There is no refund or clawback. New EP during registration comes from personal Rift Preparations."
+          ]
+        },
+        {
+          "id": "supply-examples",
+          "title": "Historical donations and recovery",
+          "paragraphs": [
+            "Committed donation receipts remain recoverable and donation history remains available. Held supplies are consumed at Expedition ending; they do not become new Crucible Offerings."
+          ]
+        },
+        {
+          "id": "phases",
+          "title": "What should I work on?",
+          "paragraphs": [
+            "Each Chamber groups its tasks into Arrival, Exploration, and Departure. Start with the required Arrival tasks to open up the later phases.",
+            "Open a task to see which Melvor activities count toward it and whether it’s required or optional. Optional tasks can stay available after the required work is done, so there may still be something useful to do while the Guild prepares to move on.",
+            "Completed tasks show who contributed and how much assistance the Guild received."
+          ]
+        },
+        {
+          "id": "tracking",
+          "title": "Making your activity count",
+          "steps": [
+            "Choose an unlocked task and start one of the Melvor activities it lists.",
+            "Choose Track this task. If you use Prompt or Automatic tracking, follow that mode’s prompts or selection instead.",
+            "Use Check In to send your progress to the Guild. If there’s a verification or saved-report notice, follow it before switching to another task.",
+            "Check the shared task bar to see your contribution and your EP display to see the points you earned."
+          ]
+        },
+        {
+          "id": "ep-and-passages",
+          "title": "Points and the next passage",
+          "paragraphs": [
+            "Your accepted work earns Expedition Points, usually called EP. A task can only award points up to its remaining allowance. Its progress display separates your work from other players’ contributions and assistance.",
+            "When passage voting opens, eligible participants can vote from Journey. Some passages may be locked, and the Preview route limits which choices are available.",
+            "End-of-journey rewards are still being developed. Don’t plan around a final payout that isn’t shown as available in the game."
+          ]
+        }
+      ],
+      "related": [
+        "crucible",
+        "raids",
+        "guild-life",
+        "chat"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,5444 @@
+{
+	"source": {
+		"snapshot": "Official Melvor Demo 12097",
+		"sha256": "ba3832348dc252c925c7ea5c7560d23bb58c1f49effe41cb0fc5ce229c0d1a06"
+	},
+	"items": [
+		{
+			"item_id": "melvorD:Bronze_Dagger",
+			"name": "Bronze Dagger",
+			"slot": "Weapon",
+			"tier": 1,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2200
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 2
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 3
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Copper_Ore",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Tin_Ore",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Bar",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Dagger",
+						"target_ms": 300000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Bronze_Sword",
+			"name": "Bronze Sword",
+			"slot": "Weapon",
+			"tier": 1,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 9
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 2
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 1
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 5
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Copper_Ore",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Tin_Ore",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Bar",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Sword",
+						"target_ms": 300000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Bronze_Battleaxe",
+			"name": "Bronze Battleaxe",
+			"slot": "Weapon",
+			"tier": 1,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3100
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 3
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 3
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 16
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Copper_Ore",
+						"target_ms": 900000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Tin_Ore",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Battleaxe",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Bronze_2H_Sword",
+			"name": "Bronze 2H Sword",
+			"slot": "Weapon",
+			"tier": 1,
+			"occupies": [
+				"Shield"
+			],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3600
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -4
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 18
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 18
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 18
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Copper_Ore",
+						"target_ms": 900000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Tin_Ore",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_2H_Sword",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Bronze_Helmet",
+			"name": "Bronze Helmet",
+			"slot": "Helmet",
+			"tier": 1,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -6
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 4
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 4
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Copper_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Tin_Ore",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Helmet",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Bronze_Boots",
+			"name": "Bronze Boots",
+			"slot": "Boots",
+			"tier": 1,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -1
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -3
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 1
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Copper_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Tin_Ore",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Boots",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Bronze_Platelegs",
+			"name": "Bronze Platelegs",
+			"slot": "Platelegs",
+			"tier": 1,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -7
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -21
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 8
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 7
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -4
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Copper_Ore",
+						"target_ms": 900000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Tin_Ore",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Platelegs",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Bronze_Platebody",
+			"name": "Bronze Platebody",
+			"slot": "Platebody",
+			"tier": 1,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -10
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -30
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 15
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 14
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -6
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Copper_Ore",
+						"target_ms": 1500000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Tin_Ore",
+						"target_ms": 1500000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Bar",
+						"target_ms": 1500000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Platebody",
+						"target_ms": 1500000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Bronze_Shield",
+			"name": "Bronze Shield",
+			"slot": "Shield",
+			"tier": 1,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -8
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 5
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 6
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Copper_Ore",
+						"target_ms": 900000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Tin_Ore",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Shield",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Bronze_Scimitar",
+			"name": "Bronze Scimitar",
+			"slot": "Weapon",
+			"tier": 1,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 1
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 1
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 6
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Copper_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Tin_Ore",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Scimitar",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Bronze_Gloves",
+			"name": "Bronze Gloves",
+			"slot": "Gloves",
+			"tier": 1,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "stabAttackBonus",
+					"value": 2
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 2
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 2
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 2
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 2
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Copper_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Tin_Ore",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Gloves",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Iron_Dagger",
+			"name": "Iron Dagger",
+			"slot": "Weapon",
+			"tier": 2,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2200
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 8
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 3
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 8
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 4
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Bar",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Dagger",
+						"target_ms": 300000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Iron_Sword",
+			"name": "Iron Sword",
+			"slot": "Weapon",
+			"tier": 2,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 11
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 3
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 2
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 7
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Bar",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Sword",
+						"target_ms": 300000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Iron_Battleaxe",
+			"name": "Iron Battleaxe",
+			"slot": "Weapon",
+			"tier": 2,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3100
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 4
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 4
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 23
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Battleaxe",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Iron_2H_Sword",
+			"name": "Iron 2H Sword",
+			"slot": "Weapon",
+			"tier": 2,
+			"occupies": [
+				"Shield"
+			],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3600
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -4
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 26
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 26
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 25
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_2H_Sword",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Iron_Helmet",
+			"name": "Iron Helmet",
+			"slot": "Helmet",
+			"tier": 2,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -6
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 6
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 6
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Helmet",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Iron_Boots",
+			"name": "Iron Boots",
+			"slot": "Boots",
+			"tier": 2,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -1
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -3
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 2
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Boots",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Iron_Platelegs",
+			"name": "Iron Platelegs",
+			"slot": "Platelegs",
+			"tier": 2,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -7
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -21
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 11
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 10
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -4
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Platelegs",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Iron_Platebody",
+			"name": "Iron Platebody",
+			"slot": "Platebody",
+			"tier": 2,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -10
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -30
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 21
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 20
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -6
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 1500000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Bar",
+						"target_ms": 1500000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Platebody",
+						"target_ms": 1500000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Iron_Shield",
+			"name": "Iron Shield",
+			"slot": "Shield",
+			"tier": 2,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -8
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 8
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 9
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Shield",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Iron_Scimitar",
+			"name": "Iron Scimitar",
+			"slot": "Weapon",
+			"tier": 2,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 2
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 10
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 2
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 9
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Scimitar",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Iron_Gloves",
+			"name": "Iron Gloves",
+			"slot": "Gloves",
+			"tier": 2,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "stabAttackBonus",
+					"value": 3
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 3
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 3
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 3
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 3
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Gloves",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Steel_Dagger",
+			"name": "Steel Dagger",
+			"slot": "Weapon",
+			"tier": 3,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2200
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 13
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 4
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 13
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 7
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Bar",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Dagger",
+						"target_ms": 300000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Steel_Sword",
+			"name": "Steel Sword",
+			"slot": "Weapon",
+			"tier": 3,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 16
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 6
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 4
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 12
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Bar",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Sword",
+						"target_ms": 300000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Steel_Battleaxe",
+			"name": "Steel Battleaxe",
+			"slot": "Weapon",
+			"tier": 3,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3100
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 8
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 8
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 35
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 900000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 1800000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Battleaxe",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Steel_2H_Sword",
+			"name": "Steel 2H Sword",
+			"slot": "Weapon",
+			"tier": 3,
+			"occupies": [
+				"Shield"
+			],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3600
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -4
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 40
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 40
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 39
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 900000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 1800000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_2H_Sword",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Steel_Helmet",
+			"name": "Steel Helmet",
+			"slot": "Helmet",
+			"tier": 3,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -6
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 9
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 9
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 1200000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Helmet",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Steel_Boots",
+			"name": "Steel Boots",
+			"slot": "Boots",
+			"tier": 3,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -1
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -3
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 5
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 1200000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Boots",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Steel_Platelegs",
+			"name": "Steel Platelegs",
+			"slot": "Platelegs",
+			"tier": 3,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -7
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -21
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 17
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 16
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -4
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 900000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 1800000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Platelegs",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Steel_Platebody",
+			"name": "Steel Platebody",
+			"slot": "Platebody",
+			"tier": 3,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -10
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -30
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 32
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 16
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -4
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 1500000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 3000000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Bar",
+						"target_ms": 1500000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Platebody",
+						"target_ms": 1500000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Steel_Shield",
+			"name": "Steel Shield",
+			"slot": "Shield",
+			"tier": 3,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -8
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 13
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 14
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 900000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 1800000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Shield",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Steel_Scimitar",
+			"name": "Steel Scimitar",
+			"slot": "Weapon",
+			"tier": 3,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 3
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 15
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 3
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 14
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 1200000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Scimitar",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Steel_Gloves",
+			"name": "Steel Gloves",
+			"slot": "Gloves",
+			"tier": 3,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "stabAttackBonus",
+					"value": 4
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 4
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 4
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 4
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 4
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 1200000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Gloves",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Mithril_Dagger",
+			"name": "Mithril Dagger",
+			"slot": "Weapon",
+			"tier": 4,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2200
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 18
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 5
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 18
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 10
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Mithril_Ore",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 1200000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Bar",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Dagger",
+						"target_ms": 300000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Mithril_Sword",
+			"name": "Mithril Sword",
+			"slot": "Weapon",
+			"tier": 4,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 20
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 8
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 6
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 17
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Mithril_Ore",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 1200000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Bar",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Sword",
+						"target_ms": 300000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Mithril_Battleaxe",
+			"name": "Mithril Battleaxe",
+			"slot": "Weapon",
+			"tier": 4,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3100
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 11
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 11
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 51
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Mithril_Ore",
+						"target_ms": 900000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 3600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Battleaxe",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Mithril_2H_Sword",
+			"name": "Mithril 2H Sword",
+			"slot": "Weapon",
+			"tier": 4,
+			"occupies": [
+				"Shield"
+			],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3600
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -4
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 45
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 45
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 55
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Mithril_Ore",
+						"target_ms": 900000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 3600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_2H_Sword",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Mithril_Helmet",
+			"name": "Mithril Helmet",
+			"slot": "Helmet",
+			"tier": 4,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -6
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 13
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 13
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Mithril_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 2400000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Helmet",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Mithril_Boots",
+			"name": "Mithril Boots",
+			"slot": "Boots",
+			"tier": 4,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -1
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -3
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 8
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Mithril_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 2400000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Boots",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Mithril_Platelegs",
+			"name": "Mithril Platelegs",
+			"slot": "Platelegs",
+			"tier": 4,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -7
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -21
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 24
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 22
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -4
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Mithril_Ore",
+						"target_ms": 900000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 3600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Platelegs",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Mithril_Platebody",
+			"name": "Mithril Platebody",
+			"slot": "Platebody",
+			"tier": 4,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -10
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -30
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 46
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 44
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -6
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Mithril_Ore",
+						"target_ms": 1500000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 6000000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Bar",
+						"target_ms": 1500000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Platebody",
+						"target_ms": 1500000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Mithril_Shield",
+			"name": "Mithril Shield",
+			"slot": "Shield",
+			"tier": 4,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -8
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 18
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 20
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Mithril_Ore",
+						"target_ms": 900000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 3600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Shield",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Mithril_Scimitar",
+			"name": "Mithril Scimitar",
+			"slot": "Weapon",
+			"tier": 4,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 5
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 21
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 5
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 20
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Mithril_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 2400000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Scimitar",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Mithril_Gloves",
+			"name": "Mithril Gloves",
+			"slot": "Gloves",
+			"tier": 4,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "stabAttackBonus",
+					"value": 5
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 5
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 5
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 5
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 5
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Mithril_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 2400000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Gloves",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Adamant_Dagger",
+			"name": "Adamant Dagger",
+			"slot": "Weapon",
+			"tier": 5,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2200
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 22
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 8
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 22
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 14
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Adamantite_Ore",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 1800000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamantite_Bar",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamant_Dagger",
+						"target_ms": 300000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Adamant_Sword",
+			"name": "Adamant Sword",
+			"slot": "Weapon",
+			"tier": 5,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 27
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 13
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 9
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 24
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Adamantite_Ore",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 1800000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamantite_Bar",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamant_Sword",
+						"target_ms": 300000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Adamant_Battleaxe",
+			"name": "Adamant Battleaxe",
+			"slot": "Weapon",
+			"tier": 5,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3100
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 16
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 16
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 72
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Adamantite_Ore",
+						"target_ms": 900000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 5400000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamantite_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamant_Battleaxe",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Adamant_2H_Sword",
+			"name": "Adamant 2H Sword",
+			"slot": "Weapon",
+			"tier": 5,
+			"occupies": [
+				"Shield"
+			],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3600
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -4
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 64
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 64
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 79
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Adamantite_Ore",
+						"target_ms": 900000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 5400000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamantite_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamant_2H_Sword",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Adamant_Helmet",
+			"name": "Adamant Helmet",
+			"slot": "Helmet",
+			"tier": 5,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -6
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 19
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 19
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Adamantite_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 3600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamantite_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamant_Helmet",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Adamant_Boots",
+			"name": "Adamant Boots",
+			"slot": "Boots",
+			"tier": 5,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -1
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -3
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 10
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Adamantite_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 3600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamantite_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamant_Boots",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Adamant_Platelegs",
+			"name": "Adamant Platelegs",
+			"slot": "Platelegs",
+			"tier": 5,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -7
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -21
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 33
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 31
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -4
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Adamantite_Ore",
+						"target_ms": 900000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 5400000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamantite_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamant_Platelegs",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Adamant_Platebody",
+			"name": "Adamant Platebody",
+			"slot": "Platebody",
+			"tier": 5,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -10
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -30
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 65
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 63
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -6
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Adamantite_Ore",
+						"target_ms": 1500000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 9000000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamantite_Bar",
+						"target_ms": 1500000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamant_Platebody",
+						"target_ms": 1500000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Adamant_Shield",
+			"name": "Adamant Shield",
+			"slot": "Shield",
+			"tier": 5,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -8
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 27
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 29
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Adamantite_Ore",
+						"target_ms": 900000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 5400000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamantite_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamant_Shield",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Adamant_Scimitar",
+			"name": "Adamant Scimitar",
+			"slot": "Weapon",
+			"tier": 5,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 6
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 29
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 6
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 28
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Adamantite_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 3600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamantite_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamant_Scimitar",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Adamant_Gloves",
+			"name": "Adamant Gloves",
+			"slot": "Gloves",
+			"tier": 5,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "stabAttackBonus",
+					"value": 6
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 6
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 6
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 6
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 6
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Adamantite_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 3600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamantite_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamant_Gloves",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Rune_Dagger",
+			"name": "Rune Dagger",
+			"slot": "Weapon",
+			"tier": 6,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2200
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 35
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 12
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 35
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 24
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Runite_Ore",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 2400000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Runite_Bar",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Rune_Dagger",
+						"target_ms": 300000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Rune_Sword",
+			"name": "Rune Sword",
+			"slot": "Weapon",
+			"tier": 6,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 40
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 19
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 15
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 39
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Runite_Ore",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 2400000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Runite_Bar",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Rune_Sword",
+						"target_ms": 300000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Rune_Battleaxe",
+			"name": "Rune Battleaxe",
+			"slot": "Weapon",
+			"tier": 6,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3100
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 24
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 24
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 112
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Runite_Ore",
+						"target_ms": 900000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 7200000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Runite_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Rune_Battleaxe",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Rune_2H_Sword",
+			"name": "Rune 2H Sword",
+			"slot": "Weapon",
+			"tier": 6,
+			"occupies": [
+				"Shield"
+			],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 3600
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": -4
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 86
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 86
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 126
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Runite_Ore",
+						"target_ms": 900000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 7200000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Runite_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Rune_2H_Sword",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Rune_Helmet",
+			"name": "Rune Helmet",
+			"slot": "Helmet",
+			"tier": 6,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -6
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 30
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 30
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Runite_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 4800000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Runite_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Rune_Helmet",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Rune_Boots",
+			"name": "Rune Boots",
+			"slot": "Boots",
+			"tier": 6,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -1
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -3
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 12
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Runite_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 4800000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Runite_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Rune_Boots",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Rune_Platelegs",
+			"name": "Rune Platelegs",
+			"slot": "Platelegs",
+			"tier": 6,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -7
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -21
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 51
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 49
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -4
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Runite_Ore",
+						"target_ms": 900000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 7200000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Runite_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Rune_Platelegs",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Rune_Platebody",
+			"name": "Rune Platebody",
+			"slot": "Platebody",
+			"tier": 6,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -10
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -30
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 82
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 80
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -6
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Runite_Ore",
+						"target_ms": 1500000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 12000000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Runite_Bar",
+						"target_ms": 1500000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Rune_Platebody",
+						"target_ms": 1500000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Rune_Shield",
+			"name": "Rune Shield",
+			"slot": "Shield",
+			"tier": 6,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedAttackBonus",
+					"value": -2
+				},
+				{
+					"key": "magicAttackBonus",
+					"value": -8
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 44
+				},
+				{
+					"key": "rangedDefenceBonus",
+					"value": 46
+				},
+				{
+					"key": "magicDefenceBonus",
+					"value": -1
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Runite_Ore",
+						"target_ms": 900000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 7200000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Runite_Bar",
+						"target_ms": 900000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Rune_Shield",
+						"target_ms": 900000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Rune_Scimitar",
+			"name": "Rune Scimitar",
+			"slot": "Weapon",
+			"tier": 6,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Attack",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "attackSpeed",
+					"value": 2400
+				},
+				{
+					"key": "stabAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 45
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 44
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Runite_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 4800000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Runite_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Rune_Scimitar",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Rune_Gloves",
+			"name": "Rune Gloves",
+			"slot": "Gloves",
+			"tier": 6,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Defence",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "stabAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "slashAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "blockAttackBonus",
+					"value": 7
+				},
+				{
+					"key": "meleeStrengthBonus",
+					"value": 7
+				},
+				{
+					"key": "meleeDefenceBonus",
+					"value": 7
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Runite_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 4800000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Runite_Bar",
+						"target_ms": 600000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Rune_Gloves",
+						"target_ms": 600000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Bronze_Arrows",
+			"name": "Bronze Arrows",
+			"slot": "Quiver",
+			"tier": 1,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Ranged",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedStrengthBonus",
+					"value": 7
+				}
+			],
+			"unlock_only": true,
+			"native_recipes": [
+				{
+					"action_id": "melvorD:Bronze_Bar",
+					"product_id": "melvorD:Bronze_Bar",
+					"quantity": 1,
+					"costs": [
+						{
+							"id": "melvorD:Copper_Ore",
+							"quantity": 1
+						},
+						{
+							"id": "melvorD:Tin_Ore",
+							"quantity": 1
+						}
+					]
+				},
+				{
+					"action_id": "melvorD:Bronze_Arrowtips",
+					"product_id": "melvorD:Bronze_Arrowtips",
+					"quantity": 15,
+					"costs": [
+						{
+							"id": "melvorD:Bronze_Bar",
+							"quantity": 1
+						}
+					]
+				},
+				{
+					"action_id": "melvorF:Arrow_Shafts",
+					"product_id": "melvorF:Arrow_Shafts",
+					"quantity": 15,
+					"costs": [],
+					"alternative_costs": [
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Normal_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 1
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Oak_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 2
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Willow_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 3
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Teak_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 4
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Maple_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 5
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Mahogany_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 6
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Yew_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 7
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Magic_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 8
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Redwood_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 9
+						}
+					]
+				},
+				{
+					"action_id": "melvorF:Headless_Arrows",
+					"product_id": "melvorD:Headless_Arrows",
+					"quantity": 15,
+					"costs": [
+						{
+							"id": "melvorF:Arrow_Shafts",
+							"quantity": 15
+						},
+						{
+							"id": "melvorD:Feathers",
+							"quantity": 15
+						}
+					]
+				},
+				{
+					"action_id": "melvorF:Bronze_Arrows",
+					"product_id": "melvorD:Bronze_Arrows",
+					"quantity": 15,
+					"costs": [
+						{
+							"id": "melvorD:Bronze_Arrowtips",
+							"quantity": 15
+						},
+						{
+							"id": "melvorD:Headless_Arrows",
+							"quantity": 15
+						}
+					]
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Copper_Ore",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Tin_Ore",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Woodcutting",
+						"action_id": "multiplayer:Any_Woodcutting",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Bar",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Fletching",
+						"action_id": "melvorF:Arrow_Shafts",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Bronze_Arrowtips",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Fletching",
+						"action_id": "melvorF:Headless_Arrows",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Fletching",
+						"action_id": "melvorF:Bronze_Arrows",
+						"target_ms": 4500000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Iron_Arrows",
+			"name": "Iron Arrows",
+			"slot": "Quiver",
+			"tier": 2,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Ranged",
+					"level": 1
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedStrengthBonus",
+					"value": 10
+				}
+			],
+			"unlock_only": true,
+			"native_recipes": [
+				{
+					"action_id": "melvorD:Iron_Bar",
+					"product_id": "melvorD:Iron_Bar",
+					"quantity": 1,
+					"costs": [
+						{
+							"id": "melvorD:Iron_Ore",
+							"quantity": 1
+						}
+					]
+				},
+				{
+					"action_id": "melvorD:Iron_Arrowtips",
+					"product_id": "melvorD:Iron_Arrowtips",
+					"quantity": 15,
+					"costs": [
+						{
+							"id": "melvorD:Iron_Bar",
+							"quantity": 1
+						}
+					]
+				},
+				{
+					"action_id": "melvorF:Arrow_Shafts",
+					"product_id": "melvorF:Arrow_Shafts",
+					"quantity": 15,
+					"costs": [],
+					"alternative_costs": [
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Normal_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 1
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Oak_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 2
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Willow_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 3
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Teak_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 4
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Maple_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 5
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Mahogany_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 6
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Yew_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 7
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Magic_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 8
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Redwood_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 9
+						}
+					]
+				},
+				{
+					"action_id": "melvorF:Headless_Arrows",
+					"product_id": "melvorD:Headless_Arrows",
+					"quantity": 15,
+					"costs": [
+						{
+							"id": "melvorF:Arrow_Shafts",
+							"quantity": 15
+						},
+						{
+							"id": "melvorD:Feathers",
+							"quantity": 15
+						}
+					]
+				},
+				{
+					"action_id": "melvorF:Iron_Arrows",
+					"product_id": "melvorD:Iron_Arrows",
+					"quantity": 15,
+					"costs": [
+						{
+							"id": "melvorD:Iron_Arrowtips",
+							"quantity": 15
+						},
+						{
+							"id": "melvorD:Headless_Arrows",
+							"quantity": 15
+						}
+					]
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Woodcutting",
+						"action_id": "multiplayer:Any_Woodcutting",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Bar",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Fletching",
+						"action_id": "melvorF:Arrow_Shafts",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Iron_Arrowtips",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Fletching",
+						"action_id": "melvorF:Headless_Arrows",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Fletching",
+						"action_id": "melvorF:Iron_Arrows",
+						"target_ms": 4500000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Steel_Arrows",
+			"name": "Steel Arrows",
+			"slot": "Quiver",
+			"tier": 3,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Ranged",
+					"level": 5
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedStrengthBonus",
+					"value": 16
+				}
+			],
+			"unlock_only": true,
+			"native_recipes": [
+				{
+					"action_id": "melvorD:Steel_Bar",
+					"product_id": "melvorD:Steel_Bar",
+					"quantity": 1,
+					"costs": [
+						{
+							"id": "melvorD:Iron_Ore",
+							"quantity": 1
+						},
+						{
+							"id": "melvorD:Coal_Ore",
+							"quantity": 2
+						}
+					]
+				},
+				{
+					"action_id": "melvorD:Steel_Arrowtips",
+					"product_id": "melvorD:Steel_Arrowtips",
+					"quantity": 15,
+					"costs": [
+						{
+							"id": "melvorD:Steel_Bar",
+							"quantity": 1
+						}
+					]
+				},
+				{
+					"action_id": "melvorF:Arrow_Shafts",
+					"product_id": "melvorF:Arrow_Shafts",
+					"quantity": 15,
+					"costs": [],
+					"alternative_costs": [
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Normal_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 1
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Oak_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 2
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Willow_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 3
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Teak_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 4
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Maple_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 5
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Mahogany_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 6
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Yew_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 7
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Magic_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 8
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Redwood_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 9
+						}
+					]
+				},
+				{
+					"action_id": "melvorF:Headless_Arrows",
+					"product_id": "melvorD:Headless_Arrows",
+					"quantity": 15,
+					"costs": [
+						{
+							"id": "melvorF:Arrow_Shafts",
+							"quantity": 15
+						},
+						{
+							"id": "melvorD:Feathers",
+							"quantity": 15
+						}
+					]
+				},
+				{
+					"action_id": "melvorF:Steel_Arrows",
+					"product_id": "melvorD:Steel_Arrows",
+					"quantity": 15,
+					"costs": [
+						{
+							"id": "melvorD:Steel_Arrowtips",
+							"quantity": 15
+						},
+						{
+							"id": "melvorD:Headless_Arrows",
+							"quantity": 15
+						}
+					]
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Iron_Ore",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 600000
+					},
+					{
+						"skill_id": "melvorD:Woodcutting",
+						"action_id": "multiplayer:Any_Woodcutting",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Bar",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Fletching",
+						"action_id": "melvorF:Arrow_Shafts",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Steel_Arrowtips",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Fletching",
+						"action_id": "melvorF:Headless_Arrows",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Fletching",
+						"action_id": "melvorF:Steel_Arrows",
+						"target_ms": 4500000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Mithril_Arrows",
+			"name": "Mithril Arrows",
+			"slot": "Quiver",
+			"tier": 4,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Ranged",
+					"level": 20
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedStrengthBonus",
+					"value": 22
+				}
+			],
+			"unlock_only": true,
+			"native_recipes": [
+				{
+					"action_id": "melvorD:Mithril_Bar",
+					"product_id": "melvorD:Mithril_Bar",
+					"quantity": 1,
+					"costs": [
+						{
+							"id": "melvorD:Mithril_Ore",
+							"quantity": 1
+						},
+						{
+							"id": "melvorD:Coal_Ore",
+							"quantity": 4
+						}
+					]
+				},
+				{
+					"action_id": "melvorD:Mithril_Arrowtips",
+					"product_id": "melvorD:Mithril_Arrowtips",
+					"quantity": 15,
+					"costs": [
+						{
+							"id": "melvorD:Mithril_Bar",
+							"quantity": 1
+						}
+					]
+				},
+				{
+					"action_id": "melvorF:Arrow_Shafts",
+					"product_id": "melvorF:Arrow_Shafts",
+					"quantity": 15,
+					"costs": [],
+					"alternative_costs": [
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Normal_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 1
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Oak_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 2
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Willow_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 3
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Teak_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 4
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Maple_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 5
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Mahogany_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 6
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Yew_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 7
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Magic_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 8
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Redwood_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 9
+						}
+					]
+				},
+				{
+					"action_id": "melvorF:Headless_Arrows",
+					"product_id": "melvorD:Headless_Arrows",
+					"quantity": 15,
+					"costs": [
+						{
+							"id": "melvorF:Arrow_Shafts",
+							"quantity": 15
+						},
+						{
+							"id": "melvorD:Feathers",
+							"quantity": 15
+						}
+					]
+				},
+				{
+					"action_id": "melvorF:Mithril_Arrows",
+					"product_id": "melvorD:Mithril_Arrows",
+					"quantity": 15,
+					"costs": [
+						{
+							"id": "melvorD:Mithril_Arrowtips",
+							"quantity": 15
+						},
+						{
+							"id": "melvorD:Headless_Arrows",
+							"quantity": 15
+						}
+					]
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Mithril_Ore",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 1200000
+					},
+					{
+						"skill_id": "melvorD:Woodcutting",
+						"action_id": "multiplayer:Any_Woodcutting",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Bar",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Fletching",
+						"action_id": "melvorF:Arrow_Shafts",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Mithril_Arrowtips",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Fletching",
+						"action_id": "melvorF:Headless_Arrows",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Fletching",
+						"action_id": "melvorF:Mithril_Arrows",
+						"target_ms": 4500000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Adamant_Arrows",
+			"name": "Adamant Arrows",
+			"slot": "Quiver",
+			"tier": 5,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Ranged",
+					"level": 30
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedStrengthBonus",
+					"value": 31
+				}
+			],
+			"unlock_only": true,
+			"native_recipes": [
+				{
+					"action_id": "melvorD:Adamantite_Bar",
+					"product_id": "melvorD:Adamantite_Bar",
+					"quantity": 1,
+					"costs": [
+						{
+							"id": "melvorD:Adamantite_Ore",
+							"quantity": 1
+						},
+						{
+							"id": "melvorD:Coal_Ore",
+							"quantity": 6
+						}
+					]
+				},
+				{
+					"action_id": "melvorD:Adamant_Arrowtips",
+					"product_id": "melvorD:Adamant_Arrowtips",
+					"quantity": 15,
+					"costs": [
+						{
+							"id": "melvorD:Adamantite_Bar",
+							"quantity": 1
+						}
+					]
+				},
+				{
+					"action_id": "melvorF:Arrow_Shafts",
+					"product_id": "melvorF:Arrow_Shafts",
+					"quantity": 15,
+					"costs": [],
+					"alternative_costs": [
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Normal_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 1
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Oak_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 2
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Willow_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 3
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Teak_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 4
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Maple_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 5
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Mahogany_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 6
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Yew_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 7
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Magic_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 8
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Redwood_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 9
+						}
+					]
+				},
+				{
+					"action_id": "melvorF:Headless_Arrows",
+					"product_id": "melvorD:Headless_Arrows",
+					"quantity": 15,
+					"costs": [
+						{
+							"id": "melvorF:Arrow_Shafts",
+							"quantity": 15
+						},
+						{
+							"id": "melvorD:Feathers",
+							"quantity": 15
+						}
+					]
+				},
+				{
+					"action_id": "melvorF:Adamant_Arrows",
+					"product_id": "melvorD:Adamant_Arrows",
+					"quantity": 15,
+					"costs": [
+						{
+							"id": "melvorD:Adamant_Arrowtips",
+							"quantity": 15
+						},
+						{
+							"id": "melvorD:Headless_Arrows",
+							"quantity": 15
+						}
+					]
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Adamantite_Ore",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 1800000
+					},
+					{
+						"skill_id": "melvorD:Woodcutting",
+						"action_id": "multiplayer:Any_Woodcutting",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamantite_Bar",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Fletching",
+						"action_id": "melvorF:Arrow_Shafts",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Adamant_Arrowtips",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Fletching",
+						"action_id": "melvorF:Headless_Arrows",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Fletching",
+						"action_id": "melvorF:Adamant_Arrows",
+						"target_ms": 4500000
+					}
+				]
+			]
+		},
+		{
+			"item_id": "melvorD:Rune_Arrows",
+			"name": "Rune Arrows",
+			"slot": "Quiver",
+			"tier": 6,
+			"occupies": [],
+			"requirements": [
+				{
+					"type": "SkillLevel",
+					"skillID": "melvorD:Ranged",
+					"level": 40
+				}
+			],
+			"stats": [
+				{
+					"key": "rangedStrengthBonus",
+					"value": 49
+				}
+			],
+			"unlock_only": true,
+			"native_recipes": [
+				{
+					"action_id": "melvorD:Runite_Bar",
+					"product_id": "melvorD:Runite_Bar",
+					"quantity": 1,
+					"costs": [
+						{
+							"id": "melvorD:Runite_Ore",
+							"quantity": 1
+						},
+						{
+							"id": "melvorD:Coal_Ore",
+							"quantity": 8
+						}
+					]
+				},
+				{
+					"action_id": "melvorD:Rune_Arrowtips",
+					"product_id": "melvorD:Rune_Arrowtips",
+					"quantity": 15,
+					"costs": [
+						{
+							"id": "melvorD:Runite_Bar",
+							"quantity": 1
+						}
+					]
+				},
+				{
+					"action_id": "melvorF:Arrow_Shafts",
+					"product_id": "melvorF:Arrow_Shafts",
+					"quantity": 15,
+					"costs": [],
+					"alternative_costs": [
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Normal_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 1
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Oak_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 2
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Willow_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 3
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Teak_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 4
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Maple_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 5
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Mahogany_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 6
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Yew_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 7
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Magic_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 8
+						},
+						{
+							"itemCosts": [
+								{
+									"id": "melvorD:Redwood_Logs",
+									"quantity": 1
+								}
+							],
+							"quantityMultiplier": 9
+						}
+					]
+				},
+				{
+					"action_id": "melvorF:Headless_Arrows",
+					"product_id": "melvorD:Headless_Arrows",
+					"quantity": 15,
+					"costs": [
+						{
+							"id": "melvorF:Arrow_Shafts",
+							"quantity": 15
+						},
+						{
+							"id": "melvorD:Feathers",
+							"quantity": 15
+						}
+					]
+				},
+				{
+					"action_id": "melvorF:Rune_Arrows",
+					"product_id": "melvorD:Rune_Arrows",
+					"quantity": 15,
+					"costs": [
+						{
+							"id": "melvorD:Rune_Arrowtips",
+							"quantity": 15
+						},
+						{
+							"id": "melvorD:Headless_Arrows",
+							"quantity": 15
+						}
+					]
+				}
+			],
+			"stages": [
+				[
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Runite_Ore",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Mining",
+						"action_id": "melvorD:Coal_Ore",
+						"target_ms": 2400000
+					},
+					{
+						"skill_id": "melvorD:Woodcutting",
+						"action_id": "multiplayer:Any_Woodcutting",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Runite_Bar",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Fletching",
+						"action_id": "melvorF:Arrow_Shafts",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Smithing",
+						"action_id": "melvorD:Rune_Arrowtips",
+						"target_ms": 300000
+					},
+					{
+						"skill_id": "melvorD:Fletching",
+						"action_id": "melvorF:Headless_Arrows",
+						"target_ms": 300000
+					}
+				],
+				[
+					{
+						"skill_id": "melvorD:Fletching",
+						"action_id": "melvorF:Rune_Arrows",
+						"target_ms": 4500000
+					}
+				]
+			]
+		}
+	],
+	"arrow_source": {
+		"snapshot": "Official Melvor Full 12097",
+		"sha256": "aa3d0babaaa5ef1bde4f0c0d6b5c50ae5d5db88b042684762cc97f50f24263f8"
+	}
+}

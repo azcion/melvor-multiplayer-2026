@@ -6,10 +6,27 @@ export const MULTIPLAYER_PAGE_LANG_IDS = Object.freeze({
 	Crucible: 'MOD_MP_PAGE_CRUCIBLE',
 	Expedition: 'MOD_MP_PAGE_EXPEDITION',
 	Guild_Raid: 'MOD_MP_PAGE_RAID',
+	Combat: 'MOD_MP_PAGE_COMBAT',
 	Updates: 'MOD_MP_PAGE_UPDATES'
 });
 
 export const MULTIPLAYER_SUPPORTED_LANGUAGES = Object.freeze(['en', 'zh-CN', 'zh-TW', 'fr', 'de', 'pt', 'pt-br', 'it', 'ko', 'ja', 'es', 'ru', 'tr']);
+
+const EXPEDITION_VOTE_ERROR_LANG_IDS = Object.freeze({
+	operation_conflict: 'MOD_MP_EXPEDITION_VOTE_ERROR_OPERATION_CONFLICT',
+	stale_visit: 'MOD_MP_EXPEDITION_VOTE_ERROR_STALE_VISIT',
+	not_registered: 'MOD_MP_EXPEDITION_VOTE_ERROR_NOT_REGISTERED',
+	vote_closed: 'MOD_MP_EXPEDITION_VOTE_ERROR_VOTE_CLOSED',
+	invalid_exit: 'MOD_MP_EXPEDITION_VOTE_ERROR_INVALID_EXIT',
+	preview_exit_restricted: 'MOD_MP_EXPEDITION_VOTE_ERROR_PREVIEW_EXIT_RESTRICTED',
+	vote_expired: 'MOD_MP_EXPEDITION_VOTE_ERROR_VOTE_EXPIRED'
+});
+
+export function expedition_vote_error_lang_id(error, error_lang_id = null) {
+	if (typeof error_lang_id === 'string' && error_lang_id.startsWith('MOD_MP_'))
+		return error_lang_id;
+	return Object.hasOwn(EXPEDITION_VOTE_ERROR_LANG_IDS, error) ? EXPEDITION_VOTE_ERROR_LANG_IDS[error] : null;
+}
 
 const MULTIPLAYER_PAGE_HEADER_LANG_IDS = Object.freeze({
 	Expedition: 'MOD_MP_PAGE_EXPEDITION_HEADER',

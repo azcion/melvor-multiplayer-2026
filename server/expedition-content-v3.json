@@ -1,0 +1,1979 @@
+{
+  "version": 3,
+  "status": "authored_placeholder",
+  "chambers": [
+    {
+      "id": "entrance",
+      "label": "The Rift",
+      "depth": 0,
+      "type": "start",
+      "theme": "entry",
+      "exits": [
+        {
+          "id": "entrance:exit_1",
+          "slot": 1,
+          "target": "prismatic_descent"
+        },
+        {
+          "id": "entrance:exit_2",
+          "slot": 2,
+          "target": "drowned_cloister"
+        },
+        {
+          "id": "entrance:exit_3",
+          "slot": 3,
+          "target": "rootforge_passage"
+        }
+      ],
+      "tasks": [
+        {
+          "id": "arrival_chart",
+          "title": "Chart The Rift",
+          "phase": "arrival",
+          "kind": "chart",
+          "requirement": "required",
+          "depends_on": [],
+          "baseline_hours": 20,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Summoning",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "arrival_scout",
+          "title": "Scout The Rift",
+          "phase": "arrival",
+          "kind": "scout",
+          "requirement": "required",
+          "depends_on": [],
+          "baseline_hours": 8,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Summoning",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "groundwork",
+          "title": "Build a camp",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "required",
+          "depends_on": [
+            "arrival"
+          ],
+          "baseline_hours": 10,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Firemaking",
+              "melvorD:Smithing",
+              "melvorD:Crafting"
+            ]
+          }
+        },
+        {
+          "id": "exploration",
+          "title": "Explore the chamber",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "optional",
+          "depends_on": [
+            "arrival"
+          ],
+          "baseline_hours": 20,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Thieving",
+              "melvorD:Agility",
+              "melvorD:Combat"
+            ]
+          }
+        },
+        {
+          "id": "reveal_1",
+          "title": "Scout a passage",
+          "phase": "exploration",
+          "kind": "discovery",
+          "requirement": "optional",
+          "depends_on": [
+            "groundwork"
+          ],
+          "baseline_hours": 4,
+          "discovery_target": "entrance:exit_1",
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Woodcutting",
+              "melvorD:Mining",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "prepare_1",
+          "title": "Clear the first passage",
+          "phase": "departure",
+          "kind": "exit_preparation",
+          "requirement": "conditional",
+          "depends_on": [
+            "reveal_1"
+          ],
+          "baseline_hours": 4,
+          "exit_id": "entrance:exit_1",
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Woodcutting",
+              "melvorD:Mining",
+              "melvorD:Crafting"
+            ]
+          }
+        },
+        {
+          "id": "reveal_2",
+          "title": "Scout a passage",
+          "phase": "exploration",
+          "kind": "discovery",
+          "requirement": "optional",
+          "depends_on": [
+            "exploration"
+          ],
+          "baseline_hours": 8,
+          "discovery_target": "entrance:exit_2",
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Fishing",
+              "melvorD:Herblore",
+              "melvorAoD:Archaeology"
+            ]
+          }
+        },
+        {
+          "id": "prepare_2",
+          "title": "Clear the second passage",
+          "phase": "departure",
+          "kind": "exit_preparation",
+          "requirement": "conditional",
+          "depends_on": [
+            "reveal_2"
+          ],
+          "baseline_hours": 8,
+          "exit_id": "entrance:exit_2",
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Woodcutting",
+              "melvorD:Mining",
+              "melvorD:Smithing"
+            ]
+          }
+        },
+        {
+          "id": "reveal_3",
+          "title": "Scout a passage",
+          "phase": "exploration",
+          "kind": "discovery",
+          "requirement": "optional",
+          "depends_on": [
+            "exploration"
+          ],
+          "baseline_hours": 16,
+          "discovery_target": "entrance:exit_3",
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Runecrafting",
+              "melvorD:Magic",
+              "melvorItA:Harvesting"
+            ]
+          }
+        },
+        {
+          "id": "prepare_3",
+          "title": "Clear the third passage",
+          "phase": "departure",
+          "kind": "exit_preparation",
+          "requirement": "conditional",
+          "depends_on": [
+            "reveal_3"
+          ],
+          "baseline_hours": 16,
+          "exit_id": "entrance:exit_3",
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Woodcutting",
+              "melvorD:Mining",
+              "melvorD:Agility"
+            ]
+          }
+        },
+        {
+          "id": "arrival_support",
+          "title": "Gather supplies",
+          "phase": "arrival",
+          "kind": "work",
+          "requirement": "optional",
+          "depends_on": [],
+          "baseline_hours": 20,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Woodcutting",
+              "melvorD:Fishing",
+              "melvorD:Mining"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "prismatic_descent",
+      "label": "Prismatic Descent",
+      "depth": 1,
+      "type": "chamber",
+      "theme": "crystal",
+      "exits": [
+        {
+          "id": "prismatic_descent:exit_1",
+          "slot": 1,
+          "target": "glassroot_terraces"
+        },
+        {
+          "id": "prismatic_descent:exit_2",
+          "slot": 2,
+          "target": "tideworn_crypts"
+        },
+        {
+          "id": "prismatic_descent:exit_3",
+          "slot": 3,
+          "target": "embervein_machinery"
+        }
+      ],
+      "tasks": [
+        {
+          "id": "arrival_chart",
+          "title": "Chart Prismatic Descent",
+          "phase": "arrival",
+          "kind": "chart",
+          "requirement": "required",
+          "depends_on": [],
+          "baseline_hours": 20,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Summoning",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "arrival_scout",
+          "title": "Scout Prismatic Descent",
+          "phase": "arrival",
+          "kind": "scout",
+          "requirement": "required",
+          "depends_on": [],
+          "baseline_hours": 8,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Summoning",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "groundwork",
+          "title": "Construct a hoist",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "required",
+          "depends_on": [
+            "arrival"
+          ],
+          "baseline_hours": 20,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Smithing",
+              "melvorD:Fletching",
+              "melvorD:Crafting"
+            ]
+          }
+        },
+        {
+          "id": "exploration",
+          "title": "Explore the chamber",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "optional",
+          "depends_on": [
+            "arrival"
+          ],
+          "baseline_hours": 12,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Agility",
+              "melvorAoD:Archaeology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "reveal_1",
+          "title": "Trace the first passage",
+          "phase": "exploration",
+          "kind": "discovery",
+          "requirement": "optional",
+          "depends_on": [
+            "groundwork"
+          ],
+          "baseline_hours": 6,
+          "discovery_target": "prismatic_descent:exit_1",
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Firemaking",
+              "melvorD:Runecrafting",
+              "melvorD:Magic"
+            ]
+          }
+        },
+        {
+          "id": "prepare_1",
+          "title": "Clear the first passage",
+          "phase": "departure",
+          "kind": "exit_preparation",
+          "requirement": "conditional",
+          "depends_on": [
+            "reveal_1"
+          ],
+          "baseline_hours": 4,
+          "exit_id": "prismatic_descent:exit_1",
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Woodcutting",
+              "melvorD:Magic",
+              "melvorD:Crafting"
+            ]
+          }
+        },
+        {
+          "id": "reveal_2",
+          "title": "Trace the second passage",
+          "phase": "exploration",
+          "kind": "discovery",
+          "requirement": "optional",
+          "depends_on": [
+            "exploration"
+          ],
+          "baseline_hours": 12,
+          "discovery_target": "prismatic_descent:exit_2",
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Firemaking",
+              "melvorD:Runecrafting",
+              "melvorD:Astrology"
+            ]
+          }
+        },
+        {
+          "id": "prepare_2",
+          "title": "Clear the second passage",
+          "phase": "departure",
+          "kind": "exit_preparation",
+          "requirement": "conditional",
+          "depends_on": [
+            "reveal_2"
+          ],
+          "baseline_hours": 8,
+          "exit_id": "prismatic_descent:exit_2",
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Woodcutting",
+              "melvorD:Mining",
+              "melvorItA:Harvesting"
+            ]
+          }
+        },
+        {
+          "id": "reveal_3",
+          "title": "Trace the third passage",
+          "phase": "exploration",
+          "kind": "discovery",
+          "requirement": "optional",
+          "depends_on": [
+            "exploration"
+          ],
+          "baseline_hours": 24,
+          "discovery_target": "prismatic_descent:exit_3",
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Firemaking",
+              "melvorD:Runecrafting",
+              "melvorD:Summoning"
+            ]
+          }
+        },
+        {
+          "id": "prepare_3",
+          "title": "Clear the third passage",
+          "phase": "departure",
+          "kind": "exit_preparation",
+          "requirement": "conditional",
+          "depends_on": [
+            "reveal_3"
+          ],
+          "baseline_hours": 16,
+          "exit_id": "prismatic_descent:exit_3",
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Summoning",
+              "melvorD:Smithing",
+              "melvorItA:Harvesting"
+            ]
+          }
+        },
+        {
+          "id": "arrival_support",
+          "title": "Attune crystals",
+          "phase": "arrival",
+          "kind": "work",
+          "requirement": "optional",
+          "depends_on": [],
+          "baseline_hours": 20,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Smithing",
+              "melvorD:Runecrafting",
+              "melvorD:Magic"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "drowned_cloister",
+      "label": "Drowned Cloister",
+      "depth": 1,
+      "type": "chamber",
+      "theme": "water_ruins",
+      "exits": [
+        {
+          "id": "drowned_cloister:exit_1",
+          "slot": 1,
+          "target": "tideworn_crypts"
+        },
+        {
+          "id": "drowned_cloister:exit_2",
+          "slot": 2,
+          "target": "mossbound_reliquary"
+        }
+      ],
+      "tasks": [
+        {
+          "id": "arrival_chart",
+          "title": "Chart Drowned Cloister",
+          "phase": "arrival",
+          "kind": "chart",
+          "requirement": "required",
+          "baseline_hours": 20,
+          "depends_on": [],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Summoning",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "arrival_scout",
+          "title": "Scout Drowned Cloister",
+          "phase": "arrival",
+          "kind": "scout",
+          "requirement": "required",
+          "baseline_hours": 8,
+          "depends_on": [],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Summoning",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "arrival_support",
+          "title": "Establish dry footing",
+          "phase": "arrival",
+          "kind": "work",
+          "requirement": "required",
+          "baseline_hours": 4,
+          "depends_on": [],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Crafting",
+              "melvorD:Smithing",
+              "melvorD:Agility"
+            ]
+          }
+        },
+        {
+          "id": "groundwork",
+          "title": "Restore the crossing",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "required",
+          "baseline_hours": 12,
+          "depends_on": [
+            "arrival"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Crafting",
+              "melvorD:Smithing",
+              "melvorD:Fletching"
+            ]
+          }
+        },
+        {
+          "id": "exploration",
+          "title": "Study the flooded galleries",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "optional",
+          "baseline_hours": 8,
+          "depends_on": [
+            "arrival"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Thieving",
+              "melvorD:Runecrafting",
+              "melvorD:Astrology"
+            ]
+          }
+        },
+        {
+          "id": "reveal_1",
+          "title": "Sound the lower galleries",
+          "phase": "exploration",
+          "kind": "discovery",
+          "requirement": "optional",
+          "baseline_hours": 4,
+          "depends_on": [
+            "groundwork"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Fishing",
+              "melvorD:Astrology",
+              "melvorD:Agility"
+            ]
+          },
+          "discovery_target": "drowned_cloister:exit_1"
+        },
+        {
+          "id": "prepare_1",
+          "title": "Secure the lower crossing",
+          "phase": "departure",
+          "kind": "exit_preparation",
+          "requirement": "conditional",
+          "baseline_hours": 4,
+          "depends_on": [
+            "reveal_1"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Crafting",
+              "melvorD:Smithing",
+              "melvorD:Fletching"
+            ]
+          },
+          "exit_id": "drowned_cloister:exit_1"
+        },
+        {
+          "id": "reveal_2",
+          "title": "Trace the vinebound stair",
+          "phase": "exploration",
+          "kind": "discovery",
+          "requirement": "optional",
+          "baseline_hours": 8,
+          "depends_on": [
+            "exploration"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Fishing",
+              "melvorD:Astrology",
+              "melvorD:Agility"
+            ]
+          },
+          "discovery_target": "drowned_cloister:exit_2"
+        },
+        {
+          "id": "prepare_2",
+          "title": "Brace the vinebound stair",
+          "phase": "departure",
+          "kind": "exit_preparation",
+          "requirement": "conditional",
+          "baseline_hours": 6,
+          "depends_on": [
+            "reveal_2"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Crafting",
+              "melvorD:Smithing",
+              "melvorD:Fletching"
+            ]
+          },
+          "exit_id": "drowned_cloister:exit_2"
+        }
+      ]
+    },
+    {
+      "id": "rootforge_passage",
+      "label": "Rootforge Passage",
+      "depth": 1,
+      "type": "chamber",
+      "theme": "roots_fire",
+      "exits": [
+        {
+          "id": "rootforge_passage:exit_1",
+          "slot": 1,
+          "target": "glassroot_terraces"
+        }
+      ],
+      "tasks": [
+        {
+          "id": "arrival_chart",
+          "title": "Chart Rootforge Passage",
+          "phase": "arrival",
+          "kind": "chart",
+          "requirement": "required",
+          "baseline_hours": 20,
+          "depends_on": [],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Summoning",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "arrival_scout",
+          "title": "Scout Rootforge Passage",
+          "phase": "arrival",
+          "kind": "scout",
+          "requirement": "required",
+          "baseline_hours": 8,
+          "depends_on": [],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Summoning",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "arrival_support",
+          "title": "Inspect the rootbound forge",
+          "phase": "arrival",
+          "kind": "work",
+          "requirement": "required",
+          "baseline_hours": 4,
+          "depends_on": [],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Mining",
+              "melvorD:Smithing",
+              "melvorD:Firemaking"
+            ]
+          }
+        },
+        {
+          "id": "groundwork",
+          "title": "Clear the root-choked causeway",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "required",
+          "baseline_hours": 12,
+          "depends_on": [
+            "arrival"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Woodcutting",
+              "melvorD:Firemaking",
+              "melvorD:Mining"
+            ]
+          }
+        },
+        {
+          "id": "exploration",
+          "title": "Study the buried furnaces",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "optional",
+          "baseline_hours": 8,
+          "depends_on": [
+            "arrival"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Smithing",
+              "melvorD:Runecrafting",
+              "melvorD:Firemaking"
+            ]
+          }
+        },
+        {
+          "id": "reveal_1",
+          "title": "Trace the roots into the terraces",
+          "phase": "exploration",
+          "kind": "discovery",
+          "requirement": "optional",
+          "baseline_hours": 4,
+          "depends_on": [
+            "groundwork"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Woodcutting",
+              "melvorD:Astrology",
+              "melvorD:Herblore"
+            ]
+          },
+          "discovery_target": "rootforge_passage:exit_1"
+        },
+        {
+          "id": "prepare_1",
+          "title": "Brace the causeway",
+          "phase": "departure",
+          "kind": "exit_preparation",
+          "requirement": "conditional",
+          "baseline_hours": 4,
+          "depends_on": [
+            "reveal_1"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Crafting",
+              "melvorD:Smithing",
+              "melvorD:Fletching"
+            ]
+          },
+          "exit_id": "rootforge_passage:exit_1"
+        }
+      ]
+    },
+    {
+      "id": "glassroot_terraces",
+      "label": "Glassroot Terraces",
+      "depth": 2,
+      "type": "chamber",
+      "theme": "crystal_roots",
+      "exits": [
+        {
+          "id": "glassroot_terraces:exit_3",
+          "slot": 3,
+          "target": "buried_observatory"
+        }
+      ],
+      "tasks": [
+        {
+          "id": "arrival_chart",
+          "title": "Chart Glassroot Terraces",
+          "phase": "arrival",
+          "kind": "chart",
+          "requirement": "required",
+          "depends_on": [],
+          "baseline_hours": 20,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Woodcutting",
+              "melvorD:Runecrafting",
+              "melvorD:Herblore"
+            ]
+          }
+        },
+        {
+          "id": "arrival_scout",
+          "title": "Scout Glassroot Terraces",
+          "phase": "arrival",
+          "kind": "scout",
+          "requirement": "required",
+          "depends_on": [],
+          "baseline_hours": 8,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Woodcutting",
+              "melvorD:Runecrafting",
+              "melvorD:Herblore"
+            ]
+          }
+        },
+        {
+          "id": "groundwork",
+          "title": "Clear the path",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "required",
+          "depends_on": [
+            "arrival"
+          ],
+          "baseline_hours": 12,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Woodcutting",
+              "melvorD:Mining",
+              "melvorD:Agility"
+            ]
+          }
+        },
+        {
+          "id": "exploration",
+          "title": "Explore the chamber",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "optional",
+          "depends_on": [
+            "arrival"
+          ],
+          "baseline_hours": 16,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Firemaking",
+              "melvorD:Herblore",
+              "melvorD:Summoning"
+            ]
+          }
+        },
+        {
+          "id": "reveal_3",
+          "title": "Reveal the third passage",
+          "phase": "exploration",
+          "kind": "discovery",
+          "requirement": "optional",
+          "depends_on": [
+            "exploration"
+          ],
+          "baseline_hours": 8,
+          "discovery_target": "glassroot_terraces:exit_3",
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Firemaking",
+              "melvorD:Runecrafting",
+              "melvorD:Herblore"
+            ]
+          }
+        },
+        {
+          "id": "prepare_3",
+          "title": "Clear the third passage",
+          "phase": "departure",
+          "kind": "exit_preparation",
+          "requirement": "conditional",
+          "depends_on": [
+            "reveal_3"
+          ],
+          "baseline_hours": 4,
+          "exit_id": "glassroot_terraces:exit_3",
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Firemaking",
+              "melvorD:Herblore",
+              "melvorD:Magic"
+            ]
+          }
+        },
+        {
+          "id": "arrival_support",
+          "title": "Study root crystal formations",
+          "phase": "arrival",
+          "kind": "work",
+          "requirement": "optional",
+          "depends_on": [],
+          "baseline_hours": 20,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Cooking",
+              "melvorD:Herblore",
+              "melvorItA:Harvesting"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "tideworn_crypts",
+      "label": "Tideworn Crypts",
+      "depth": 2,
+      "type": "ending",
+      "theme": "water_bone",
+      "exits": [],
+      "tasks": [
+        {
+          "id": "arrival_chart",
+          "title": "Chart Tideworn Crypts",
+          "phase": "arrival",
+          "kind": "chart",
+          "requirement": "required",
+          "baseline_hours": 20,
+          "depends_on": [],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Summoning",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "arrival_scout",
+          "title": "Scout Tideworn Crypts",
+          "phase": "arrival",
+          "kind": "scout",
+          "requirement": "required",
+          "baseline_hours": 8,
+          "depends_on": [],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Summoning",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "arrival_support",
+          "title": "Mark the old waterlines",
+          "phase": "arrival",
+          "kind": "work",
+          "requirement": "required",
+          "baseline_hours": 4,
+          "depends_on": [],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Fishing",
+              "melvorD:Astrology",
+              "melvorD:Agility"
+            ]
+          }
+        },
+        {
+          "id": "groundwork",
+          "title": "Restore the upper walkways",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "required",
+          "baseline_hours": 12,
+          "depends_on": [
+            "arrival"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Crafting",
+              "melvorD:Smithing",
+              "melvorD:Fletching"
+            ]
+          }
+        },
+        {
+          "id": "exploration",
+          "title": "Read the burial inscriptions",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "optional",
+          "baseline_hours": 8,
+          "depends_on": [
+            "arrival"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Runecrafting",
+              "melvorD:Astrology",
+              "melvorD:Thieving"
+            ]
+          }
+        },
+        {
+          "id": "frontier_survey",
+          "title": "Trace the high-water passage",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "required",
+          "baseline_hours": 6,
+          "depends_on": [
+            "groundwork"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Thieving",
+              "melvorD:Mining",
+              "melvorD:Agility"
+            ]
+          }
+        },
+        {
+          "id": "ending_departure",
+          "title": "Secure the elevated route",
+          "phase": "departure",
+          "kind": "completion",
+          "requirement": "required",
+          "baseline_hours": 4,
+          "depends_on": [
+            "frontier_survey"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Crafting",
+              "melvorD:Smithing",
+              "melvorD:Agility"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "embervein_machinery",
+      "label": "Embervein Machinery",
+      "depth": 2,
+      "type": "ending",
+      "theme": "fire_mechanical",
+      "exits": [],
+      "tasks": [
+        {
+          "id": "arrival_chart",
+          "title": "Chart Embervein Machinery",
+          "phase": "arrival",
+          "kind": "chart",
+          "requirement": "required",
+          "baseline_hours": 20,
+          "depends_on": [],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Summoning",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "arrival_scout",
+          "title": "Scout Embervein Machinery",
+          "phase": "arrival",
+          "kind": "scout",
+          "requirement": "required",
+          "baseline_hours": 8,
+          "depends_on": [],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Summoning",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "arrival_support",
+          "title": "Inspect the broken drive",
+          "phase": "arrival",
+          "kind": "work",
+          "requirement": "required",
+          "baseline_hours": 4,
+          "depends_on": [],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Smithing",
+              "melvorD:Mining",
+              "melvorD:Crafting"
+            ]
+          }
+        },
+        {
+          "id": "groundwork",
+          "title": "Repair the lift assembly",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "required",
+          "baseline_hours": 12,
+          "depends_on": [
+            "arrival"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Smithing",
+              "melvorD:Crafting",
+              "melvorD:Fletching"
+            ]
+          }
+        },
+        {
+          "id": "exploration",
+          "title": "Study the furnace controls",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "optional",
+          "baseline_hours": 8,
+          "depends_on": [
+            "arrival"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Firemaking",
+              "melvorD:Runecrafting",
+              "melvorD:Astrology"
+            ]
+          }
+        },
+        {
+          "id": "frontier_survey",
+          "title": "Trace the service shafts",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "required",
+          "baseline_hours": 6,
+          "depends_on": [
+            "groundwork"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Mining",
+              "melvorD:Thieving",
+              "melvorD:Agility"
+            ]
+          }
+        },
+        {
+          "id": "ending_departure",
+          "title": "Secure the passage lift",
+          "phase": "departure",
+          "kind": "completion",
+          "requirement": "required",
+          "baseline_hours": 4,
+          "depends_on": [
+            "frontier_survey"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Smithing",
+              "melvorD:Crafting",
+              "melvorD:Agility"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "mossbound_reliquary",
+      "label": "Mossbound Reliquary",
+      "depth": 2,
+      "type": "ending",
+      "theme": "roots_ruins",
+      "exits": [],
+      "tasks": [
+        {
+          "id": "arrival_chart",
+          "title": "Chart Mossbound Reliquary",
+          "phase": "arrival",
+          "kind": "chart",
+          "requirement": "required",
+          "baseline_hours": 20,
+          "depends_on": [],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Summoning",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "arrival_scout",
+          "title": "Scout Mossbound Reliquary",
+          "phase": "arrival",
+          "kind": "scout",
+          "requirement": "required",
+          "baseline_hours": 8,
+          "depends_on": [],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Summoning",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "arrival_support",
+          "title": "Survey the fallen sanctuary",
+          "phase": "arrival",
+          "kind": "work",
+          "requirement": "required",
+          "baseline_hours": 4,
+          "depends_on": [],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Astrology",
+              "melvorD:Summoning",
+              "melvorD:Runecrafting"
+            ]
+          }
+        },
+        {
+          "id": "groundwork",
+          "title": "Clear the shrine steps",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "required",
+          "baseline_hours": 12,
+          "depends_on": [
+            "arrival"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Mining",
+              "melvorD:Woodcutting",
+              "melvorD:Agility"
+            ]
+          }
+        },
+        {
+          "id": "exploration",
+          "title": "Decipher the shrine markings",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "optional",
+          "baseline_hours": 8,
+          "depends_on": [
+            "arrival"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Runecrafting",
+              "melvorD:Astrology",
+              "melvorD:Thieving"
+            ]
+          }
+        },
+        {
+          "id": "frontier_survey",
+          "title": "Uncover the concealed passages",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "required",
+          "baseline_hours": 6,
+          "depends_on": [
+            "groundwork"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Thieving",
+              "melvorD:Woodcutting",
+              "melvorD:Herblore"
+            ]
+          }
+        },
+        {
+          "id": "ending_departure",
+          "title": "Support the uncovered archway",
+          "phase": "departure",
+          "kind": "completion",
+          "requirement": "required",
+          "baseline_hours": 4,
+          "depends_on": [
+            "frontier_survey"
+          ],
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Crafting",
+              "melvorD:Smithing",
+              "melvorD:Fletching"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "buried_observatory",
+      "label": "Buried Observatory",
+      "depth": 3,
+      "type": "chamber",
+      "theme": "celestial_ruins",
+      "exits": [
+        {
+          "id": "buried_observatory:exit_1",
+          "slot": 1,
+          "target": "prismatic_orrery"
+        }
+      ],
+      "tasks": [
+        {
+          "id": "arrival_chart",
+          "title": "Chart Buried Observatory",
+          "phase": "arrival",
+          "kind": "chart",
+          "requirement": "required",
+          "depends_on": [],
+          "baseline_hours": 20,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Astrology",
+              "melvorD:Summoning",
+              "melvorAoD:Archaeology"
+            ]
+          }
+        },
+        {
+          "id": "arrival_scout",
+          "title": "Scout Buried Observatory",
+          "phase": "arrival",
+          "kind": "scout",
+          "requirement": "required",
+          "depends_on": [],
+          "baseline_hours": 8,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Astrology",
+              "melvorD:Summoning",
+              "melvorAoD:Archaeology"
+            ]
+          }
+        },
+        {
+          "id": "groundwork",
+          "title": "Study and align the monument",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "required",
+          "depends_on": [
+            "arrival"
+          ],
+          "baseline_hours": 30,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Crafting",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "exploration",
+          "title": "Explore the chamber",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "optional",
+          "depends_on": [
+            "arrival"
+          ],
+          "baseline_hours": 10,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Agility",
+              "melvorD:Magic",
+              "melvorAoD:Archaeology"
+            ]
+          }
+        },
+        {
+          "id": "reveal_1",
+          "title": "Reveal the passage",
+          "phase": "exploration",
+          "kind": "discovery",
+          "requirement": "optional",
+          "depends_on": [
+            "groundwork"
+          ],
+          "baseline_hours": 2,
+          "discovery_target": "buried_observatory:exit_1",
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Runecrafting",
+              "melvorD:Summoning",
+              "melvorAoD:Archaeology"
+            ]
+          }
+        },
+        {
+          "id": "prepare_1",
+          "title": "Clear the passage",
+          "phase": "departure",
+          "kind": "exit_preparation",
+          "requirement": "conditional",
+          "depends_on": [
+            "reveal_1"
+          ],
+          "baseline_hours": 2,
+          "exit_id": "buried_observatory:exit_1",
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Magic",
+              "melvorAoD:Archaeology",
+              "melvorItA:Harvesting"
+            ]
+          }
+        },
+        {
+          "id": "arrival_support",
+          "title": "Clear the rubble",
+          "phase": "arrival",
+          "kind": "work",
+          "requirement": "optional",
+          "depends_on": [],
+          "baseline_hours": 30,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Mining",
+              "melvorD:Thieving",
+              "melvorAoD:Archaeology"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "prismatic_orrery",
+      "label": "Prismatic Orrery",
+      "depth": 4,
+      "type": "chamber",
+      "theme": "crystal_celestial",
+      "exits": [
+        {
+          "id": "prismatic_orrery:exit_3",
+          "slot": 3,
+          "target": "voidwatch_threshold"
+        }
+      ],
+      "tasks": [
+        {
+          "id": "arrival_chart",
+          "title": "Chart Prismatic Orrery",
+          "phase": "arrival",
+          "kind": "chart",
+          "requirement": "required",
+          "depends_on": [],
+          "baseline_hours": 20,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Runecrafting",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "arrival_scout",
+          "title": "Scout Prismatic Orrery",
+          "phase": "arrival",
+          "kind": "scout",
+          "requirement": "required",
+          "depends_on": [],
+          "baseline_hours": 8,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Runecrafting",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "groundwork",
+          "title": "Repair the mechanism",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "required",
+          "depends_on": [
+            "arrival"
+          ],
+          "baseline_hours": 20,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Smithing",
+              "melvorD:Fletching",
+              "melvorD:Crafting"
+            ]
+          }
+        },
+        {
+          "id": "exploration",
+          "title": "Explore the chamber",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "optional",
+          "depends_on": [
+            "arrival"
+          ],
+          "baseline_hours": 20,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Mining",
+              "melvorD:Agility",
+              "melvorAoD:Archaeology"
+            ]
+          }
+        },
+        {
+          "id": "reveal_3",
+          "title": "Locate the third passage",
+          "phase": "exploration",
+          "kind": "discovery",
+          "requirement": "optional",
+          "depends_on": [
+            "exploration"
+          ],
+          "baseline_hours": 20,
+          "discovery_target": "prismatic_orrery:exit_3",
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Runecrafting",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "prepare_3",
+          "title": "Prepare the third passage",
+          "phase": "departure",
+          "kind": "exit_preparation",
+          "requirement": "conditional",
+          "depends_on": [
+            "reveal_3"
+          ],
+          "baseline_hours": 12,
+          "exit_id": "prismatic_orrery:exit_3",
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Woodcutting",
+              "melvorD:Firemaking",
+              "melvorD:Smithing"
+            ]
+          }
+        },
+        {
+          "id": "arrival_support",
+          "title": "Secure the chamber",
+          "phase": "arrival",
+          "kind": "work",
+          "requirement": "optional",
+          "depends_on": [],
+          "baseline_hours": 20,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Agility",
+              "melvorD:Summoning",
+              "melvorD:Crafting"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "voidwatch_threshold",
+      "label": "Voidwatch Threshold",
+      "depth": 5,
+      "type": "chamber",
+      "theme": "void_celestial",
+      "exits": [
+        {
+          "id": "voidwatch_threshold:exit_1",
+          "slot": 1,
+          "target": "hollow_star"
+        }
+      ],
+      "tasks": [
+        {
+          "id": "arrival_chart",
+          "title": "Chart Voidwatch Threshold",
+          "phase": "arrival",
+          "kind": "chart",
+          "requirement": "required",
+          "depends_on": [],
+          "baseline_hours": 20,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Firemaking",
+              "melvorD:Combat",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "arrival_scout",
+          "title": "Scout Voidwatch Threshold",
+          "phase": "arrival",
+          "kind": "scout",
+          "requirement": "required",
+          "depends_on": [],
+          "baseline_hours": 8,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Firemaking",
+              "melvorD:Combat",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "groundwork",
+          "title": "Construct a bridge",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "required",
+          "depends_on": [
+            "arrival"
+          ],
+          "baseline_hours": 20,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Smithing",
+              "melvorD:Fletching",
+              "melvorD:Crafting"
+            ]
+          }
+        },
+        {
+          "id": "exploration",
+          "title": "Explore the chamber",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "optional",
+          "depends_on": [
+            "arrival"
+          ],
+          "baseline_hours": 10,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Agility",
+              "melvorD:Combat",
+              "melvorAoD:Archaeology"
+            ]
+          }
+        },
+        {
+          "id": "reveal_1",
+          "title": "Discover the passage",
+          "phase": "exploration",
+          "kind": "discovery",
+          "requirement": "optional",
+          "depends_on": [
+            "groundwork"
+          ],
+          "baseline_hours": 20,
+          "discovery_target": "voidwatch_threshold:exit_1",
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Thieving",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "prepare_1",
+          "title": "Prepare the passage",
+          "phase": "departure",
+          "kind": "exit_preparation",
+          "requirement": "conditional",
+          "depends_on": [
+            "reveal_1"
+          ],
+          "baseline_hours": 8,
+          "exit_id": "voidwatch_threshold:exit_1",
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Mining",
+              "melvorD:Crafting",
+              "melvorD:Runecrafting"
+            ]
+          }
+        },
+        {
+          "id": "light_braziers",
+          "title": "Light braziers",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "optional",
+          "depends_on": [
+            "groundwork"
+          ],
+          "baseline_hours": 10,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Firemaking",
+              "melvorD:Fletching",
+              "melvorD:Magic"
+            ]
+          }
+        },
+        {
+          "id": "passage_defense",
+          "title": "Defend the passage",
+          "phase": "departure",
+          "kind": "work",
+          "requirement": "optional",
+          "depends_on": [
+            "reveal_1"
+          ],
+          "baseline_hours": 8,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Firemaking",
+              "melvorD:Combat"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "hollow_star",
+      "label": "The Hollow Star",
+      "depth": 6,
+      "type": "ending",
+      "theme": "void_celestial",
+      "exits": [],
+      "tasks": [
+        {
+          "id": "arrival_chart",
+          "title": "Chart The Hollow Star",
+          "phase": "arrival",
+          "kind": "chart",
+          "requirement": "required",
+          "depends_on": [],
+          "baseline_hours": 20,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Firemaking",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "arrival_scout",
+          "title": "Scout The Hollow Star",
+          "phase": "arrival",
+          "kind": "scout",
+          "requirement": "required",
+          "depends_on": [],
+          "baseline_hours": 8,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Firemaking",
+              "melvorD:Astrology",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "groundwork",
+          "title": "Light up the star",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "required",
+          "depends_on": [
+            "arrival"
+          ],
+          "baseline_hours": 10,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Firemaking",
+              "melvorD:Summoning",
+              "melvorD:Magic"
+            ]
+          }
+        },
+        {
+          "id": "initial_defense",
+          "title": "Defend the star",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "required",
+          "depends_on": [
+            "groundwork"
+          ],
+          "baseline_hours": 10,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Combat"
+            ]
+          }
+        },
+        {
+          "id": "ending_departure",
+          "title": "Complete The Hollow Star",
+          "phase": "departure",
+          "kind": "completion",
+          "requirement": "required",
+          "depends_on": [
+            "melt_star",
+            "continued_defense"
+          ],
+          "baseline_hours": 6,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Woodcutting",
+              "melvorD:Firemaking",
+              "melvorD:Mining",
+              "melvorD:Agility",
+              "melvorD:Astrology",
+              "melvorD:Combat",
+              "melvorAoD:Cartography"
+            ]
+          }
+        },
+        {
+          "id": "arrival_support",
+          "title": "Vent the gases",
+          "phase": "arrival",
+          "kind": "work",
+          "requirement": "optional",
+          "depends_on": [],
+          "baseline_hours": 20,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Agility",
+              "melvorD:Summoning",
+              "melvorD:Magic"
+            ]
+          }
+        },
+        {
+          "id": "melt_star",
+          "title": "Melt the star",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "required",
+          "depends_on": [
+            "initial_defense"
+          ],
+          "baseline_hours": 16,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Firemaking",
+              "melvorD:Summoning",
+              "melvorD:Magic"
+            ]
+          }
+        },
+        {
+          "id": "continued_defense",
+          "title": "Defend the star",
+          "phase": "exploration",
+          "kind": "work",
+          "requirement": "required",
+          "depends_on": [
+            "initial_defense"
+          ],
+          "baseline_hours": 16,
+          "evidence": {
+            "type": "skill_time",
+            "skill_ids": [
+              "melvorD:Combat"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

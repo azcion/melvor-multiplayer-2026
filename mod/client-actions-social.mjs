@@ -1,3 +1,23 @@
+const alliance_error_lang_ids = Object.freeze({
+	'This Guild already has an Alliance or a pending affiliation process.': 'MOD_MP_ALLIANCE_ERROR_ALREADY_AFFILIATED',
+	'Founding Guild is unavailable.': 'MOD_MP_ALLIANCE_ERROR_FOUNDING_GUILD_UNAVAILABLE',
+	'Alliance is unavailable.': 'MOD_MP_ALLIANCE_ERROR_ALLIANCE_UNAVAILABLE',
+	'Alliance membership is required.': 'MOD_MP_ALLIANCE_ERROR_MEMBERSHIP_REQUIRED',
+	'Remove Guild requires at least three Member Guilds and a current target.': 'MOD_MP_ALLIANCE_ERROR_REMOVE_REQUIREMENTS',
+	'That policy is already in effect.': 'MOD_MP_ALLIANCE_ERROR_POLICY_ALREADY_IN_EFFECT',
+	'A proposal on this subject is already pending.': 'MOD_MP_ALLIANCE_ERROR_SUBJECT_PENDING',
+	'Proposal is unavailable.': 'MOD_MP_ALLIANCE_ERROR_PROPOSAL_UNAVAILABLE',
+	'Submitted proposal is unavailable.': 'MOD_MP_ALLIANCE_ERROR_SUBMITTED_PROPOSAL_UNAVAILABLE',
+	'Withdrawal is already pending.': 'MOD_MP_ALLIANCE_ERROR_WITHDRAWAL_PENDING',
+	'This Founding Proposal cannot be considered now.': 'MOD_MP_ALLIANCE_ERROR_FOUNDING_PROPOSAL_CANNOT_BE_CONSIDERED'
+});
+
+export function resolve_alliance_error(result, get_lang_string) {
+	const error_lang = Object.hasOwn(alliance_error_lang_ids, result?.error) ? alliance_error_lang_ids[result.error] : null;
+	if (error_lang) return get_lang_string(error_lang);
+	return result?.error ?? get_lang_string(result?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+}
+
 export function install_social_actions(runtime) {
 	const {
 		state,
@@ -70,7 +90,7 @@ export function install_social_actions(runtime) {
 			try {
 				const res = await api_get('/api/alliances');
 				if (res && !res.error && !res.error_lang) { this.alliance_state = res; this.alliance_error = ''; }
-				else this.alliance_error = res?.error ?? getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR');
+				else this.alliance_error = resolve_alliance_error(res, getLangString);
 			} finally { this.alliance_loading = false; runtime.update_guild_nav(); }
 		},
 		async show_alliance_confirmation(kind, target_id = null, process_id = null, picker = false) {
@@ -252,7 +272,7 @@ export function install_social_actions(runtime) {
 			try {
 				const res = await api_post('/api/alliances/' + (process_id === null ? 'propose' : kind),
 					process_id === null ? { kind, ...(target_id === null ? {} : {target_id}), ...(kind === 'found' ? {name:alliance_name} : {}), ...(reason === null ? {} : {reason}) } : {process_id});
-				if (!res?.success) { this.alliance_error = res?.error ?? getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR'); return; }
+				if (!res?.success) { this.alliance_error = resolve_alliance_error(res, getLangString); return; }
 				if (this.alliance_modal) await close_modal_and_wait(this.alliance_modal);
 				this.alliance_modal = null;
 				await Promise.all([this.refresh_alliance(), refresh_council()]);

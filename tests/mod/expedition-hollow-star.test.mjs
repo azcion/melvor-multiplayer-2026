@@ -109,7 +109,7 @@ test('pit tendrils retain geometry across depth while batching calls and reusing
 	for (const width of [390, 1100]) {
 		const height = width * 9 / 16;
 		reset(); draw({ context: c, width, height, seconds: .05 });
-		assert.equal(log.strokes, 384); assert.equal(log.lines.length, 13 + 80 * 24);
+		assert.equal(log.strokes, 384); assert.equal(log.lines.length, 11 + 80 * 24);
 		const ys = log.moves.slice(1).map(xy => xy[1] / height);
 		assert.ok(Math.min(...ys) < .65); assert.ok(Math.max(...ys) > 1);
 		settings = normalize_hollow_star_settings(Object.fromEntries(Object.entries(HOLLOW_STAR_LIMITS).map(([key, bounds]) => [key, bounds[1]])));

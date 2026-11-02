@@ -1,6 +1,7 @@
 import { save_chat_parts, same_chat_parts, type ChatPart } from './chat_parts';
 import { chat_shadow_visibility, is_chat_shadowbanned } from './chat_shadowban';
 import { db } from './db';
+import { is_admin } from './admin_identity';
 
 export const CHAT_MESSAGE_PAGE_SIZE = 20;
 export const CHAT_MESSAGE_MAX_LENGTH = 1000;
@@ -202,7 +203,7 @@ export function get_unread_chat_count(client_id: number): number {
 		'SELECT COUNT(*) AS `count` FROM `chat_messages` AS m ' +
 		'JOIN `chat_participants` AS p ON p.`conversation_id` = m.`conversation_id` AND p.`client_id` = ? ' +
 		'JOIN `clients` AS sender ON sender.`id` = m.`sender_id` ' +
-		'WHERE m.`sender_id` != p.`client_id` ' +
+		'WHERE m.`sender_id` != p.`client_id` AND NOT EXISTS(SELECT 1 FROM chat_message_moderation WHERE message_id=m.id) ' +
 		`AND ${chat_shadow_visibility('m')} ` +
 		'AND m.`id` > p.`hidden_through_message_id` ' +
 		'AND NOT EXISTS(SELECT 1 FROM `chat_message_reads` AS r ' +
@@ -243,6 +244,7 @@ export function list_conversations(client_id: number) {
 			JOIN participant_conversations AS c ON c.id = m.conversation_id
 			JOIN clients AS sender ON sender.id = m.sender_id
 			WHERE m.id > c.hidden_through_message_id
+			AND NOT EXISTS(SELECT 1 FROM chat_message_moderation WHERE message_id=m.id)
 			AND (m.shadow_hidden = 0 OR sender.melvor_account_id =
 				(SELECT melvor_account_id FROM clients WHERE id = ?1)
 				OR EXISTS (SELECT 1 FROM chat_shadow_observers
@@ -377,7 +379,7 @@ export function list_messages(
 	const rows = db.query<MessageRow, number[]>(
 		'SELECT m.*, sender.`display_name`, sender.`icon_id` FROM `chat_messages` AS m ' +
 		'JOIN `clients` AS sender ON sender.`id` = m.`sender_id` ' +
-		'WHERE m.`conversation_id` = ? AND m.`id` > ? ' +
+		`WHERE m.conversation_id = ? AND m.id > ? AND (${is_admin(client_id) ? 1 : 0} OR NOT EXISTS(SELECT 1 FROM chat_message_moderation WHERE message_id=m.id)) ` +
 		'AND NOT EXISTS(SELECT 1 FROM `chat_message_deletions` AS d WHERE d.`message_id` = m.`id` AND d.`client_id` = ?) ' +
 		`AND ${chat_shadow_visibility('m')} ` +
 		cursor + ` ORDER BY m.\`id\` ${order} LIMIT ${limit}`
@@ -486,14 +488,13 @@ export function delete_message(client_id: number, message_id: number): ChatResul
 		return { status: 'bad_request' };
 	const message = db.query<{ id: number }, [number, number]>(
 		'SELECT m.`id` FROM `chat_messages` AS m JOIN `chat_participants` AS p ' +
-		'ON p.`conversation_id` = m.`conversation_id` WHERE m.`id` = ? AND p.`client_id` = ? LIMIT 1'
+		'ON p.`conversation_id` = m.`conversation_id` WHERE m.`id` = ? AND p.`client_id` = ? AND m.sender_id = p.client_id LIMIT 1'
 	).get(message_id, client_id);
 	if (message === null)
 		return { status: 'missing' };
 	db.query(
-		'INSERT INTO `chat_message_deletions` (`message_id`, `client_id`, `deleted_at`) VALUES(?, ?, ?) ' +
-		'ON CONFLICT DO NOTHING'
-	).run(message_id, client_id, Date.now());
+		'INSERT INTO chat_message_moderation (message_id, deleted_at) VALUES(?, ?) ON CONFLICT DO NOTHING'
+	).run(message_id, Date.now());
 	return { status: 'ok', value: { deleted: true } };
 }
 

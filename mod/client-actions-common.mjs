@@ -1,3 +1,8 @@
+const ONLINE_STARTER_ITEMS = Object.freeze({
+	'multiplayer:Wooden_Sword': { name: 'Wooden Sword', asset: 'wooden-sword.svg' },
+	'multiplayer:Wooden_Shield': { name: 'Wooden Shield', asset: 'wooden-shield.svg' }
+});
+
 const BUNDLED_SKILL_ICON_ASSETS = Object.freeze({
 	'adventuring:Adventuring': 'skill_adventuring.svg',
 	'enchanting:Enchanting': 'skill_enchanting.png',
@@ -43,6 +48,7 @@ export function install_common_actions(runtime) {
 		},
 
 		get_item_icon(id) {
+			if (ONLINE_STARTER_ITEMS[id]) return ctx.getResourceUrl('assets/' + ONLINE_STARTER_ITEMS[id].asset);
 			const currency = game.currencies?.getObjectByID(id);
 			if (currency !== undefined)
 				return currency.media;
@@ -52,6 +58,7 @@ export function install_common_actions(runtime) {
 		},
 
 		get_item_name(id) {
+			if (ONLINE_STARTER_ITEMS[id]) return ONLINE_STARTER_ITEMS[id].name;
 			const currency = game.currencies?.getObjectByID(id);
 			if (currency !== undefined)
 				return currency.name;
@@ -220,11 +227,14 @@ export function install_common_actions(runtime) {
 		},
 
 		get_chat_compose_placeholder() {
+			if (this.selected_chat_conversation?.conversation_kind === 'announcements') return getLangString('MOD_MP_ANNOUNCEMENTS_COMPOSE');
 			return getLangString((this.selected_chat_conversation?.conversation_kind ?? 'private') !== 'private' || this.messaging_enabled
 				? 'MOD_MP_CHAT_COMPOSE_PLACEHOLDER' : 'MOD_MP_CHAT_DISABLED');
 		},
 
 		get_chat_participant_icon(conversation = this.selected_chat_conversation) {
+			if (conversation?.conversation_kind === 'announcements' || conversation?.conversation_kind === 'announcement-discussion')
+				return 'https://cdn2-main.melvor.net/assets/media/main/announcement.png';
 			if (conversation?.conversation_kind === 'global' || conversation?.conversation_kind === 'alliance' || conversation?.conversation_kind === 'petition-discussion')
 				return ctx.getResourceUrl('assets/multiplayer.svg');
 			if (conversation?.conversation_kind === 'testers')
@@ -248,7 +258,9 @@ export function install_common_actions(runtime) {
 		},
 
 		get_chat_participant_name(conversation = this.selected_chat_conversation) {
-			return conversation?.conversation_kind === 'global'
+			return conversation?.conversation_kind === 'announcements' || conversation?.conversation_kind === 'announcement-discussion'
+				? getLangString('MOD_MP_ANNOUNCEMENTS_TITLE')
+				: conversation?.conversation_kind === 'global'
 				? getLangString('MOD_MP_CHAT_CATEGORY_GLOBAL')
 				: conversation?.conversation_kind === 'testers'
 					? getLangString('MOD_MP_TESTER_CHAT_TITLE')
@@ -265,7 +277,7 @@ export function install_common_actions(runtime) {
 		},
 
 		can_moderate_chat_messages() {
-			return (this.chat_is_admin || this.selected_chat_conversation?.can_moderate === true) &&
+			return this.selected_chat_message?.deleted !== true && this.selected_chat_message?.can_delete === true &&
 				Number.isSafeInteger(this.selected_chat_message?.message_id) && this.selected_chat_message.message_id > 0;
 		},
 

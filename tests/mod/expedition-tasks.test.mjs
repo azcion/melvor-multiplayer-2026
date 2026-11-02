@@ -121,16 +121,6 @@ test('tracking, opt-out and session changes cancel pending work prompts', () => 
 	assert.equal(gate.observe({ ...input, now: 38001 }), true);
 });
 
-test('tracking modes preserve the legacy opt-out and prefer a valid saved mode', async () => {
-	const { work_tracking_mode } = await import('../../mod/expedition-tasks.mjs');
-	assert.equal(work_tracking_mode(undefined, undefined), 'prompt');
-	assert.equal(work_tracking_mode(undefined, true), 'prompt');
-	assert.equal(work_tracking_mode(undefined, false), 'manual');
-	assert.equal(work_tracking_mode('invalid', false), 'manual');
-	for (const mode of ['manual', 'prompt', 'automatic'])
-		assert.equal(work_tracking_mode(mode, false), mode);
-});
-
 test('automatic tracking ranks Required work before remaining EP and preserves ties', async () => {
 	const { best_eligible_task } = await import('../../mod/expedition-tasks.mjs');
 	const hour = 3_600_000;

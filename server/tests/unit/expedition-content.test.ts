@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { EXPEDITION_CONTENT_PREVIEW, EXPEDITION_CONTENT_V1, validate_expedition_content } from '../../expedition-content';
+import { EXPEDITION_CONTENT_PREVIEW, EXPEDITION_CONTENT_V1, EXPEDITION_CONTENT_V3, validate_expedition_content } from '../../expedition-content';
 import type { ExpeditionContent } from '../../expedition-content';
 
 function changed(change: (copy: ExpeditionContent) => void): ExpeditionContent {
@@ -126,4 +126,21 @@ describe('Expedition content v1', () => {
 		expect(ending.tasks.find(task => task.id === 'ending_departure')?.depends_on)
 			.toEqual(['melt_star', 'continued_defense']);
 	});
+});
+
+test('expanded catalog exposes only finished routes, preserves exit IDs and ends at three frontiers', () => {
+	const c = EXPEDITION_CONTENT_V3;
+	expect(() => validate_expedition_content(c)).not.toThrow();
+	expect(c.preview_route).toBeUndefined();
+	expect(c.chambers).toHaveLength(12);
+	expect(c.chambers.filter(ch => ch.type === 'ending').map(ch => ch.id)).toEqual([
+		'tideworn_crypts', 'embervein_machinery', 'mossbound_reliquary', 'hollow_star']);
+	for (const chamber of c.chambers) {
+		const original = EXPEDITION_CONTENT_V1.chambers.find(ch => ch.id === chamber.id)!;
+		for (const edge of chamber.exits) expect(original.exits).toContainEqual(edge);
+		if (!['voidwatch_threshold', 'hollow_star'].includes(chamber.id))
+			for (const task of chamber.tasks) expect(task.evidence.skill_ids).toHaveLength(3);
+	}
+	expect(c.chambers.find(ch => ch.id === 'glassroot_terraces')!.exits[0].id).toBe('glassroot_terraces:exit_3');
+	expect(c.chambers.find(ch => ch.id === 'prismatic_orrery')!.exits[0].id).toBe('prismatic_orrery:exit_3');
 });

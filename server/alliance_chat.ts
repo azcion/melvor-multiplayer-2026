@@ -169,8 +169,9 @@ export function list_alliance_chat_messages(
 		'SELECT message.*, sender.`display_name`, sender.`icon_id` FROM `alliance_chat_messages` AS message ' +
 		'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` ' +
 		'WHERE message.`alliance_id` = ? ' +
-		'AND NOT EXISTS (SELECT 1 FROM `alliance_chat_message_moderation` AS moderation ' +
-		'WHERE moderation.`message_id` = message.`id`) AND ' + chat_shadow_visibility() + cursor +
+		`AND (${is_admin(client_id) ? 1 : 0} OR NOT EXISTS (SELECT 1 FROM ` +
+		'`alliance_chat_message_moderation` AS moderation ' +
+		'WHERE moderation.`message_id` = message.`id`)) AND ' + chat_shadow_visibility() + cursor +
 		` ORDER BY message.\`id\` ${order} LIMIT ${limit}`
 	).all(...values);
 	const page_limit = after === null ? CHAT_MESSAGE_PAGE_SIZE : MAX_INCREMENTAL_MESSAGES;

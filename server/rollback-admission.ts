@@ -1,7 +1,7 @@
 import type { Database } from 'bun:sqlite';
 import { correct_custody_operation } from './economy-correction';
 import { detect_save_rollback } from './save-rollback';
-import { rollback_policy, rollback_operator_command } from './rollback-policy';
+import { rollback_client_policy, rollback_client_boundary, rollback_operator_command } from './rollback-policy';
 
 type Admission = {save_load_id:number;policy_id:number;state:string};
 function append_admission(database:Database,admission:Admission,state:string,reason:string,now:number) {
@@ -9,7 +9,7 @@ function append_admission(database:Database,admission:Admission,state:string,rea
 }
 /** Caller commits load observation and this gate before returning a session/recovery response. */
 export function admit_rollback_load(database:Database,client:number,load:number|null,capable:boolean,now=Date.now()):void {
- const policy=rollback_policy(database);
+ const policy=rollback_client_policy(database,client);
  if(!policy.config.enabled||!policy.config.client_ids.includes(client)) return;
  if(load===null) {
   if(database.query<{held:number},[number]>('SELECT held FROM economy_client_holds WHERE client_id=? ORDER BY id DESC LIMIT 1').get(client)?.held!==1)
@@ -26,11 +26,12 @@ export function evaluate_rollback_admission(database:Database,client:number,load
  return database.transaction(()=>{
   const admission=database.query<Admission,[number]>('SELECT * FROM economy_admissions WHERE save_load_id=? ORDER BY id DESC LIMIT 1').get(load);
   if(!admission||admission.state==='released'||admission.state==='ready') return [];
-  const current=rollback_policy(database);
+  const current=rollback_client_policy(database,client);
   // Turning off never removes explicit holds or reverses any existing disposition.
   if(!current.config.enabled||!current.config.client_ids.includes(client)||!capable) return [];
   const policy=database.query<{config_json:string},[number]>('SELECT config_json FROM economy_policy_changes WHERE id=?').get(admission.policy_id)!;
   const config=JSON.parse(policy.config_json) as typeof current.config;
+  config.first_operation_id=rollback_client_boundary(database,client,config);
   if(config.first_operation_id===null) throw new Error('Admission lacks prospective boundary');
   const incident=detect_save_rollback(database,load,now);
   const clock=database.query<{quality:string},[number]>('SELECT quality FROM economy_clock_evidence WHERE save_load_id=?').get(load);

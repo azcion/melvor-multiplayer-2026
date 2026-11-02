@@ -19,7 +19,7 @@ export function validate_config(config) {
 		throw new Error('assets must be a non-empty exact-path list.');
 	if (new Set(config.assets).size !== config.assets.length) throw new Error('Duplicate managed asset paths.');
 	for (const asset of config.assets) {
-		if (typeof asset !== 'string' || !/^assets\/(?:[a-z0-9_-]+\/)*[a-z0-9_-]+\.png$/.test(asset))
+		if (typeof asset !== 'string' || !/^assets\/(?:(?:[a-z0-9_-]+|[0-9]+\.[0-9]+\.[0-9]+)\/)*[a-z0-9_-]+\.png$/.test(asset))
 			throw new Error(`Unsafe managed PNG path: ${asset}`);
 	}
 	if (typeof config.prefix !== 'string' || !/^[a-z0-9_-]+(?:\/[a-z0-9_-]+)*$/.test(config.prefix))
@@ -101,7 +101,12 @@ export async function verify_remote_object(entry, fetch_object = fetch) {
 	// Avoid a cached 404 from the pre-upload check hiding a newly created object.
 	const check_url = new URL(entry.url);
 	check_url.searchParams.set('verify', randomUUID());
-	const response = await fetch_object(check_url, { signal: AbortSignal.timeout(30_000), redirect: 'error' });
+	let response;
+	try {
+		response = await fetch_object(check_url, { signal: AbortSignal.timeout(30_000), redirect: 'error' });
+	} catch (error) {
+		throw new Error(`Hosted asset verification could not reach ${entry.url}: ${error.message}. This does not establish that the object is missing.`);
+	}
 	if (response.status === 404) return false;
 	if (!response.ok) throw new Error(`Hosted asset HTTP ${response.status}: ${entry.url}`);
 	const bytes = Buffer.from(await response.arrayBuffer());
@@ -113,12 +118,27 @@ export async function verify_remote_object(entry, fetch_object = fetch) {
 	return true;
 }
 
-export async function prepare_assets(mod_dir, config, verify = verify_remote_object) {
+export async function check_assets(mod_dir, config, verify = verify_remote_object) {
 	const inventory = await asset_inventory(mod_dir, config);
+	const missing = [];
+	if (config.mode === 'remote') {
+		for (const entry of inventory) {
+			if (!(await verify(entry))) missing.push(entry);
+		}
+	}
+	if (missing.length) throw new Error(
+		`Hosted assets are missing (HTTP 404):\n${missing.map(entry => `${entry.asset} -> ${entry.url}`).join('\n')}\n` +
+		'Run node scripts/asset-hosting.mjs upload after reviewing upload --dry-run, then rerun check. ' +
+		'For a bundled test build, use the committed asset-hosting.json through MELVOR_ASSET_CONFIG; see docs/asset-hosting.md.'
+	);
+	return inventory;
+}
+
+export async function prepare_assets(mod_dir, config, verify = verify_remote_object) {
+	const inventory = await check_assets(mod_dir, config, verify);
 	const urls = {};
 	if (config.mode === 'remote') {
 		for (const entry of inventory) {
-			if (!(await verify(entry))) throw new Error(`Hosted asset is missing; run the uploader first: ${entry.url}`);
 			urls[entry.asset] = entry.url;
 		}
 	}
@@ -195,10 +215,15 @@ async function main() {
 		console.log(
 			`Assets: ${config.mode}; ${inventory.length} managed PNGs (${inventory.reduce((n, entry) => n + entry.size, 0)} bytes).`
 		);
+	} else if (command === 'check' && args.length === 0) {
+		const config = await load_config();
+		console.log(`Asset preflight: ${config.mode}; override: ${process.env.MELVOR_ASSET_CONFIG ?? (existsSync(resolve(repo_root, 'asset-hosting.local.json')) ? 'asset-hosting.local.json' : 'none')}.`);
+		const inventory = await check_assets(resolve(repo_root, 'mod'), config);
+		console.log(`Verified ${inventory.length} managed PNGs; no files changed or uploaded.`);
 	} else if (command === 'upload' && (args.length === 0 || (args.length === 1 && args[0] === '--dry-run'))) {
 		await upload_assets(resolve(repo_root, 'mod'), await load_config(), { dry_run: args[0] === '--dry-run' });
 	} else {
-		throw new Error('Usage: node scripts/asset-hosting.mjs prepare MOD_DIR [DEFAULT_CONFIG] | upload [--dry-run]');
+		throw new Error('Usage: node scripts/asset-hosting.mjs prepare MOD_DIR [DEFAULT_CONFIG] | check | upload [--dry-run]');
 	}
 }
 

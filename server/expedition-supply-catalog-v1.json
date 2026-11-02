@@ -1,0 +1,2517 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "url": "https://melvoridle.com/assets/data/melvorDemo.json",
+      "sha256": "ba3832348dc252c925c7ea5c7560d23bb58c1f49effe41cb0fc5ce229c0d1a06"
+    },
+    {
+      "url": "https://melvoridle.com/assets/data/melvorFull.json",
+      "sha256": "aa3d0babaaa5ef1bde4f0c0d6b5c50ae5d5db88b042684762cc97f50f24263f8"
+    },
+    {
+      "url": "https://melvoridle.com/assets/data/melvorTotH.json",
+      "sha256": "48db245f3e41010cae7903e6030fd49b982455098e4619c0c0fe169c9f24062f"
+    },
+    {
+      "url": "https://melvoridle.com/assets/data/melvorExpansion2.json",
+      "sha256": "ce577cfed388c4460cd6a40acbf951dd7fbb656e92beb485a171e5c2a40722c5"
+    },
+    {
+      "url": "https://melvoridle.com/assets/data/melvorItA.json",
+      "sha256": "5738029b8c3dc6aa087ceafbc3c015879419ad531198f34f7a685c9d2c3b5f78"
+    }
+  ],
+  "items": {
+    "melvorAoD:Ancient_Carrot": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 28
+    },
+    "melvorAoD:Ancient_Corn": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 28
+    },
+    "melvorAoD:Ancient_Wildberry": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 28
+    },
+    "melvorAoD:Barrier_Igniter_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 100
+    },
+    "melvorAoD:Barrier_Igniter_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 150
+    },
+    "melvorAoD:Barrier_Igniter_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 200
+    },
+    "melvorAoD:Barrier_Igniter_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 250
+    },
+    "melvorAoD:Barrier_Touch_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 5
+    },
+    "melvorAoD:Barrier_Touch_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 10
+    },
+    "melvorAoD:Barrier_Touch_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 15
+    },
+    "melvorAoD:Barrier_Touch_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 20
+    },
+    "melvorAoD:Crystal_Sanction_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 250
+    },
+    "melvorAoD:Crystal_Sanction_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 295
+    },
+    "melvorAoD:Crystal_Sanction_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 350
+    },
+    "melvorAoD:Crystal_Sanction_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 415
+    },
+    "melvorAoD:Crystallization_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 250
+    },
+    "melvorAoD:Crystallization_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 295
+    },
+    "melvorAoD:Crystallization_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 350
+    },
+    "melvorAoD:Crystallization_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 415
+    },
+    "melvorAoD:Cursed_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 250
+    },
+    "melvorAoD:Cursed_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 295
+    },
+    "melvorAoD:Cursed_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 350
+    },
+    "melvorAoD:Cursed_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 415
+    },
+    "melvorAoD:Halibut": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 129
+    },
+    "melvorAoD:Halibut_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 194
+    },
+    "melvorAoD:Harming_Potion": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 50
+    },
+    "melvorAoD:Mackerel": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 32
+    },
+    "melvorAoD:Mackerel_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 49
+    },
+    "melvorAoD:Stale_Bread": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1
+    },
+    "melvorAoD:Tilapia": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 645
+    },
+    "melvorAoD:Tilapia_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 968
+    },
+    "melvorAoD:Unholy_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 55
+    },
+    "melvorAoD:Unholy_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 83
+    },
+    "melvorAoD:Unholy_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 109
+    },
+    "melvorAoD:Unholy_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 132
+    },
+    "melvorD:Anglerfish": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 209
+    },
+    "melvorD:Anglerfish_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 314
+    },
+    "melvorD:Basic_Soup": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 8
+    },
+    "melvorD:Basic_Soup_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 12
+    },
+    "melvorD:Beef": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 5
+    },
+    "melvorD:Beef_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 8
+    },
+    "melvorD:Beef_Pie": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 37
+    },
+    "melvorD:Beef_Pie_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 56
+    },
+    "melvorD:Birthday_Cake": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 0
+    },
+    "melvorD:Bread": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 5
+    },
+    "melvorD:Bread_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 8
+    },
+    "melvorD:Cabbage": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 5
+    },
+    "melvorD:Carp": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 395
+    },
+    "melvorD:Carp_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 593
+    },
+    "melvorD:Carrot": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 28
+    },
+    "melvorD:Carrot_Cake": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 751
+    },
+    "melvorD:Carrot_Cake_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1127
+    },
+    "melvorD:Cave_Fish": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 538
+    },
+    "melvorD:Cave_Fish_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 807
+    },
+    "melvorD:Cherry": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 12
+    },
+    "melvorD:Cherry_Cupcake": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 78
+    },
+    "melvorD:Cherry_Cupcake_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 117
+    },
+    "melvorD:Chicken": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 8
+    },
+    "melvorD:Chicken_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 12
+    },
+    "melvorD:Chicken_Soup": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 96
+    },
+    "melvorD:Chicken_Soup_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 144
+    },
+    "melvorD:Crab": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 280
+    },
+    "melvorD:Crab_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 420
+    },
+    "melvorD:Cream_Corn_Soup": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 42
+    },
+    "melvorD:Cream_Corn_Soup_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 63
+    },
+    "melvorD:Edible_Candy_Cane": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 25
+    },
+    "melvorD:Fanfish": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 250
+    },
+    "melvorD:Fanfish_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 375
+    },
+    "melvorD:Gingerbread_House": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 50
+    },
+    "melvorD:Gingerbread_Man": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 25
+    },
+    "melvorD:Hearty_Soup": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 22
+    },
+    "melvorD:Hearty_Soup_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 33
+    },
+    "melvorD:Herring": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 10
+    },
+    "melvorD:Herring_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 15
+    },
+    "melvorD:Lemonade": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 0
+    },
+    "melvorD:Lobster": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 108
+    },
+    "melvorD:Lobster_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 162
+    },
+    "melvorD:Manta_Ray": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1624
+    },
+    "melvorD:Manta_Ray_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 2436
+    },
+    "melvorD:Meat_Pizza_Slice": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 4
+    },
+    "melvorD:Meat_Pizza_Slice_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 6
+    },
+    "melvorD:Onions": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 2
+    },
+    "melvorD:Plain_Pizza_Slice": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 2
+    },
+    "melvorD:Plain_Pizza_Slice_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 3
+    },
+    "melvorD:Potatoes": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1
+    },
+    "melvorD:Raw_Magic_Fish": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 960
+    },
+    "melvorD:Salmon": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 58
+    },
+    "melvorD:Salmon_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 87
+    },
+    "melvorD:Sardine": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 5
+    },
+    "melvorD:Sardine_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 8
+    },
+    "melvorD:Seahorse": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 65
+    },
+    "melvorD:Seahorse_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 98
+    },
+    "melvorD:Shark": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 674
+    },
+    "melvorD:Shark_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1011
+    },
+    "melvorD:Shrimp": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 2
+    },
+    "melvorD:Shrimp_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 3
+    },
+    "melvorD:Snape_Grass": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 23
+    },
+    "melvorD:Strawberries": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 10
+    },
+    "melvorD:Strawberry_Cake": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 378
+    },
+    "melvorD:Strawberry_Cake_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 567
+    },
+    "melvorD:Strawberry_Cupcake": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 42
+    },
+    "melvorD:Strawberry_Cupcake_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 63
+    },
+    "melvorD:Sweetcorn": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 8
+    },
+    "melvorD:Swordfish": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 134
+    },
+    "melvorD:Swordfish_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 201
+    },
+    "melvorD:Tomatoes": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1
+    },
+    "melvorD:Trout": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 27
+    },
+    "melvorD:Trout_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 41
+    },
+    "melvorD:Watermelon": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 15
+    },
+    "melvorD:Whale": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 2048
+    },
+    "melvorD:Whale_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 3072
+    },
+    "melvorF:Apple": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1
+    },
+    "melvorF:Apple_Pie": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 253
+    },
+    "melvorF:Apple_Pie_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 380
+    },
+    "melvorF:Bird_Nest_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1
+    },
+    "melvorF:Bird_Nest_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 2
+    },
+    "melvorF:Bird_Nest_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 3
+    },
+    "melvorF:Bird_Nest_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 4
+    },
+    "melvorF:Birthday_Cake_2023": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 69
+    },
+    "melvorF:Birthday_Cake_Slice": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 69
+    },
+    "melvorF:Controlled_Heat_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 38
+    },
+    "melvorF:Controlled_Heat_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 48
+    },
+    "melvorF:Controlled_Heat_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 58
+    },
+    "melvorF:Controlled_Heat_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 68
+    },
+    "melvorF:Crafting_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 50
+    },
+    "melvorF:Crafting_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 100
+    },
+    "melvorF:Crafting_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 150
+    },
+    "melvorF:Crafting_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 200
+    },
+    "melvorF:Damage_Reduction_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 850
+    },
+    "melvorF:Damage_Reduction_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 950
+    },
+    "melvorF:Damage_Reduction_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1150
+    },
+    "melvorF:Damage_Reduction_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1500
+    },
+    "melvorF:Diamond_Luck_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 2200
+    },
+    "melvorF:Diamond_Luck_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 2300
+    },
+    "melvorF:Diamond_Luck_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 2500
+    },
+    "melvorF:Diamond_Luck_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 2700
+    },
+    "melvorF:Divine_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 87
+    },
+    "melvorF:Divine_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 89
+    },
+    "melvorF:Divine_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 93
+    },
+    "melvorF:Divine_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 99
+    },
+    "melvorF:Elemental_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 140
+    },
+    "melvorF:Elemental_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 155
+    },
+    "melvorF:Elemental_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 170
+    },
+    "melvorF:Elemental_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 200
+    },
+    "melvorF:Famished_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 42
+    },
+    "melvorF:Famished_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 64
+    },
+    "melvorF:Famished_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 85
+    },
+    "melvorF:Famished_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 102
+    },
+    "melvorF:Farming_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 312
+    },
+    "melvorF:Farming_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 330
+    },
+    "melvorF:Farming_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 345
+    },
+    "melvorF:Farming_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 390
+    },
+    "melvorF:Fishermans_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 60
+    },
+    "melvorF:Fishermans_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 75
+    },
+    "melvorF:Fishermans_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 90
+    },
+    "melvorF:Fishermans_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 122
+    },
+    "melvorF:Fletching_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 67
+    },
+    "melvorF:Fletching_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 78
+    },
+    "melvorF:Fletching_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 90
+    },
+    "melvorF:Fletching_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 100
+    },
+    "melvorF:Generous_Cook_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 58
+    },
+    "melvorF:Generous_Cook_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 64
+    },
+    "melvorF:Generous_Cook_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 78
+    },
+    "melvorF:Generous_Cook_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 94
+    },
+    "melvorF:Gentle_Hands_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 57
+    },
+    "melvorF:Gentle_Hands_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 73
+    },
+    "melvorF:Gentle_Hands_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 84
+    },
+    "melvorF:Gentle_Hands_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 92
+    },
+    "melvorF:Herblore_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 450
+    },
+    "melvorF:Herblore_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 480
+    },
+    "melvorF:Herblore_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 500
+    },
+    "melvorF:Herblore_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 530
+    },
+    "melvorF:Hinder_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 19
+    },
+    "melvorF:Hinder_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 29
+    },
+    "melvorF:Hinder_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 39
+    },
+    "melvorF:Hinder_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 42
+    },
+    "melvorF:Lemon_Cake": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 69
+    },
+    "melvorF:Lemon_Cake_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 104
+    },
+    "melvorF:Lethal_Toxins_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 190
+    },
+    "melvorF:Lethal_Toxins_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 285
+    },
+    "melvorF:Lethal_Toxins_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 380
+    },
+    "melvorF:Lethal_Toxins_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 510
+    },
+    "melvorF:Lucky_Herb_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 69
+    },
+    "melvorF:Lucky_Herb_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 69
+    },
+    "melvorF:Lucky_Herb_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 69
+    },
+    "melvorF:Lucky_Herb_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 69
+    },
+    "melvorF:Magic_Assistance_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 30
+    },
+    "melvorF:Magic_Assistance_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 40
+    },
+    "melvorF:Magic_Assistance_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 50
+    },
+    "melvorF:Magic_Assistance_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 60
+    },
+    "melvorF:Magic_Damage_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 140
+    },
+    "melvorF:Magic_Damage_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 180
+    },
+    "melvorF:Magic_Damage_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 210
+    },
+    "melvorF:Magic_Damage_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 235
+    },
+    "melvorF:Melee_Accuracy_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 2
+    },
+    "melvorF:Melee_Accuracy_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 3
+    },
+    "melvorF:Melee_Accuracy_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 4
+    },
+    "melvorF:Melee_Accuracy_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 5
+    },
+    "melvorF:Melee_Evasion_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 5
+    },
+    "melvorF:Melee_Evasion_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 10
+    },
+    "melvorF:Melee_Evasion_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 15
+    },
+    "melvorF:Melee_Evasion_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 20
+    },
+    "melvorF:Melee_Strength_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 130
+    },
+    "melvorF:Melee_Strength_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 190
+    },
+    "melvorF:Melee_Strength_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 260
+    },
+    "melvorF:Melee_Strength_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 320
+    },
+    "melvorF:Necromancer_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 225
+    },
+    "melvorF:Necromancer_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 240
+    },
+    "melvorF:Necromancer_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 250
+    },
+    "melvorF:Necromancer_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 265
+    },
+    "melvorF:Perfect_Swing_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 102
+    },
+    "melvorF:Perfect_Swing_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 113
+    },
+    "melvorF:Perfect_Swing_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 136
+    },
+    "melvorF:Perfect_Swing_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 150
+    },
+    "melvorF:Performance_Enhancing_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 225
+    },
+    "melvorF:Performance_Enhancing_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 240
+    },
+    "melvorF:Performance_Enhancing_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 250
+    },
+    "melvorF:Performance_Enhancing_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 265
+    },
+    "melvorF:Ranged_Assistance_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 6
+    },
+    "melvorF:Ranged_Assistance_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 12
+    },
+    "melvorF:Ranged_Assistance_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 18
+    },
+    "melvorF:Ranged_Assistance_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 29
+    },
+    "melvorF:Ranged_Strength_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 120
+    },
+    "melvorF:Ranged_Strength_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 135
+    },
+    "melvorF:Ranged_Strength_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 147
+    },
+    "melvorF:Ranged_Strength_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 158
+    },
+    "melvorF:Regeneration_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 400
+    },
+    "melvorF:Regeneration_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 490
+    },
+    "melvorF:Regeneration_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 590
+    },
+    "melvorF:Regeneration_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 640
+    },
+    "melvorF:Secret_Stardust_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 50
+    },
+    "melvorF:Secret_Stardust_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 100
+    },
+    "melvorF:Secret_Stardust_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 120
+    },
+    "melvorF:Secret_Stardust_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 150
+    },
+    "melvorF:Seeing_Gold_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 40
+    },
+    "melvorF:Seeing_Gold_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 53
+    },
+    "melvorF:Seeing_Gold_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 63
+    },
+    "melvorF:Seeing_Gold_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 73
+    },
+    "melvorItA:Abyssal_Combination_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 281
+    },
+    "melvorItA:Abyssal_Combination_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 563
+    },
+    "melvorItA:Abyssal_Combination_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 1125
+    },
+    "melvorItA:Abyssal_Combination_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 2250
+    },
+    "melvorItA:Abyssal_Consumable_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 475
+    },
+    "melvorItA:Abyssal_Consumable_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 950
+    },
+    "melvorItA:Abyssal_Consumable_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 1900
+    },
+    "melvorItA:Abyssal_Consumable_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 3800
+    },
+    "melvorItA:Abyssal_Miner_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 63
+    },
+    "melvorItA:Abyssal_Miner_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 125
+    },
+    "melvorItA:Abyssal_Miner_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 250
+    },
+    "melvorItA:Abyssal_Miner_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 500
+    },
+    "melvorItA:Abyssal_Potato": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 1
+    },
+    "melvorItA:Abyssal_Pumpkin": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 3
+    },
+    "melvorItA:Abyssal_Pumpkin_Pie": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 45
+    },
+    "melvorItA:Abyssal_Pumpkin_Pie_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 90
+    },
+    "melvorItA:Baked_Biter_Pie": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 26
+    },
+    "melvorItA:Baked_Biter_Pie_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 52
+    },
+    "melvorItA:Blighted_Touch_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 250
+    },
+    "melvorItA:Blighted_Touch_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 500
+    },
+    "melvorItA:Blighted_Touch_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 1000
+    },
+    "melvorItA:Blighted_Touch_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 2000
+    },
+    "melvorItA:Celestial_Ray": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 1
+    },
+    "melvorItA:Celestial_Ray_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 1
+    },
+    "melvorItA:Corrupted_Fighter_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 18
+    },
+    "melvorItA:Corrupted_Fighter_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 35
+    },
+    "melvorItA:Corrupted_Fighter_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 70
+    },
+    "melvorItA:Corrupted_Fighter_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 140
+    },
+    "melvorItA:Crimson_Biter": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 20
+    },
+    "melvorItA:Crimson_Biter_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 41
+    },
+    "melvorItA:Crimson_Bream": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 51
+    },
+    "melvorItA:Crimson_Bream_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 102
+    },
+    "melvorItA:Crimson_Bream_Soup": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 6
+    },
+    "melvorItA:Crimson_Bream_Soup_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 12
+    },
+    "melvorItA:Dark_Ritual_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 1
+    },
+    "melvorItA:Dark_Ritual_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 1
+    },
+    "melvorItA:Dark_Ritual_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 1
+    },
+    "melvorItA:Dark_Ritual_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 1
+    },
+    "melvorItA:Deep_Squid": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 1600
+    },
+    "melvorItA:Deep_Squid_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 3200
+    },
+    "melvorItA:Depthlurker": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 625
+    },
+    "melvorItA:Depthlurker_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 1250
+    },
+    "melvorItA:Echoing_Lure_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 5000
+    },
+    "melvorItA:Echoing_Lure_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 10000
+    },
+    "melvorItA:Echoing_Lure_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 20000
+    },
+    "melvorItA:Echoing_Lure_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 40000
+    },
+    "melvorItA:Eldraberry": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 13
+    },
+    "melvorItA:Eldraberry_Pie": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 370
+    },
+    "melvorItA:Eldraberry_Pie_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 740
+    },
+    "melvorItA:Eldritch_Curse_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 15625
+    },
+    "melvorItA:Eldritch_Curse_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 31250
+    },
+    "melvorItA:Eldritch_Curse_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 62500
+    },
+    "melvorItA:Eldritch_Curse_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 125000
+    },
+    "melvorItA:Fear_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 2063
+    },
+    "melvorItA:Fear_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 4125
+    },
+    "melvorItA:Fear_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 8250
+    },
+    "melvorItA:Fear_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 16500
+    },
+    "melvorItA:Gloomgrowth_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 106
+    },
+    "melvorItA:Gloomgrowth_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 213
+    },
+    "melvorItA:Gloomgrowth_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 425
+    },
+    "melvorItA:Gloomgrowth_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 850
+    },
+    "melvorItA:Gloompepper": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 5
+    },
+    "melvorItA:Harvesters_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 9
+    },
+    "melvorItA:Harvesters_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 17
+    },
+    "melvorItA:Harvesters_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 35
+    },
+    "melvorItA:Harvesters_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 69
+    },
+    "melvorItA:Hushscale": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 1025
+    },
+    "melvorItA:Hushscale_Pepper": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 165
+    },
+    "melvorItA:Hushscale_Pepper_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 350
+    },
+    "melvorItA:Hushscale_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 2050
+    },
+    "melvorItA:Laceration_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 115
+    },
+    "melvorItA:Laceration_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 230
+    },
+    "melvorItA:Laceration_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 460
+    },
+    "melvorItA:Laceration_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 920
+    },
+    "melvorItA:Murmurclaw": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 425
+    },
+    "melvorItA:Murmurclaw_Cream_Soup": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 32
+    },
+    "melvorItA:Murmurclaw_Cream_Soup_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 65
+    },
+    "melvorItA:Murmurclaw_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 850
+    },
+    "melvorItA:Piece_Finder_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 125
+    },
+    "melvorItA:Piece_Finder_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 250
+    },
+    "melvorItA:Piece_Finder_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 500
+    },
+    "melvorItA:Piece_Finder_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 1000
+    },
+    "melvorItA:Shadenut": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 7
+    },
+    "melvorItA:Shadenut_Cookie": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 17
+    },
+    "melvorItA:Shadenut_Cookie_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 35
+    },
+    "melvorItA:Shadeveil_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 625
+    },
+    "melvorItA:Shadeveil_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 1250
+    },
+    "melvorItA:Shadeveil_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 2500
+    },
+    "melvorItA:Shadeveil_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 5000
+    },
+    "melvorItA:Silence_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 1938
+    },
+    "melvorItA:Silence_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 3875
+    },
+    "melvorItA:Silence_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 7750
+    },
+    "melvorItA:Silence_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 15500
+    },
+    "melvorItA:Silent_Thief_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 1225
+    },
+    "melvorItA:Silent_Thief_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 2450
+    },
+    "melvorItA:Silent_Thief_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 4900
+    },
+    "melvorItA:Silent_Thief_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 9800
+    },
+    "melvorItA:Soulsnap_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 1500
+    },
+    "melvorItA:Soulsnap_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 3000
+    },
+    "melvorItA:Soulsnap_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 6000
+    },
+    "melvorItA:Soulsnap_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 12000
+    },
+    "melvorItA:Steamswimmer": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 97
+    },
+    "melvorItA:Steamswimmer_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 195
+    },
+    "melvorItA:Steamswimmer_Soup": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 12
+    },
+    "melvorItA:Steamswimmer_Soup_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 25
+    },
+    "melvorItA:Stoneskin_Pepper": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 20
+    },
+    "melvorItA:Stoneskin_Pepper_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 40
+    },
+    "melvorItA:Stoneskin_Pike": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 195
+    },
+    "melvorItA:Stoneskin_Pike_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 390
+    },
+    "melvorItA:Toxic_Crab": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 60
+    },
+    "melvorItA:Toxic_Crab_Cream_Soup": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 17
+    },
+    "melvorItA:Toxic_Crab_Cream_Soup_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 35
+    },
+    "melvorItA:Toxic_Crab_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 120
+    },
+    "melvorItA:Toxic_Octopus": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 345
+    },
+    "melvorItA:Toxic_Octopus_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 690
+    },
+    "melvorItA:Toxic_Octopus_Stew": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 32
+    },
+    "melvorItA:Toxic_Octopus_Stew_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 65
+    },
+    "melvorItA:Veilhunter": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 64
+    },
+    "melvorItA:Veilhunter_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 129
+    },
+    "melvorItA:Void_Ray": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 3000
+    },
+    "melvorItA:Void_Ray_Cream_Stew": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 175
+    },
+    "melvorItA:Void_Ray_Cream_Stew_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 350
+    },
+    "melvorItA:Void_Ray_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 6000
+    },
+    "melvorItA:Void_Stabilisation_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 7500
+    },
+    "melvorItA:Void_Stabilisation_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 15000
+    },
+    "melvorItA:Void_Stabilisation_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 30000
+    },
+    "melvorItA:Void_Stabilisation_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 60000
+    },
+    "melvorItA:Voidburst_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 18750
+    },
+    "melvorItA:Voidburst_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 37500
+    },
+    "melvorItA:Voidburst_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 75000
+    },
+    "melvorItA:Voidburst_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 150000
+    },
+    "melvorItA:Voidfish": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 1900
+    },
+    "melvorItA:Voidfish_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 3800
+    },
+    "melvorItA:Voidfish_Soup": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 325
+    },
+    "melvorItA:Voidfish_Soup_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 650
+    },
+    "melvorItA:Whisperfish": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 300
+    },
+    "melvorItA:Whisperfish_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 600
+    },
+    "melvorItA:Whisperfish_Pizza": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 25
+    },
+    "melvorItA:Whisperfish_Pizza_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 50
+    },
+    "melvorItA:Whisperradish": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 11
+    },
+    "melvorItA:Whisperradish_Soup": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 160
+    },
+    "melvorItA:Whisperradish_Soup_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 320
+    },
+    "melvorItA:Withering_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 625
+    },
+    "melvorItA:Withering_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 1250
+    },
+    "melvorItA:Withering_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 2500
+    },
+    "melvorItA:Withering_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 5000
+    },
+    "melvorItA:Withermelon": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 9
+    },
+    "melvorItA:Withermelon_Tart": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 105
+    },
+    "melvorItA:Withermelon_Tart_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorItA:AbyssalPieces",
+      "value_per_item": 210
+    },
+    "melvorTotH:Adaptive_Accuracy_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 488
+    },
+    "melvorTotH:Adaptive_Accuracy_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 536
+    },
+    "melvorTotH:Adaptive_Accuracy_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 590
+    },
+    "melvorTotH:Adaptive_Accuracy_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 649
+    },
+    "melvorTotH:Adaptive_Defence_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1254
+    },
+    "melvorTotH:Adaptive_Defence_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1379
+    },
+    "melvorTotH:Adaptive_Defence_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1517
+    },
+    "melvorTotH:Adaptive_Defence_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1669
+    },
+    "melvorTotH:Alchemic_Practice_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 58
+    },
+    "melvorTotH:Alchemic_Practice_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 63
+    },
+    "melvorTotH:Alchemic_Practice_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 70
+    },
+    "melvorTotH:Alchemic_Practice_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 77
+    },
+    "melvorTotH:Alt_Magic_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 75
+    },
+    "melvorTotH:Alt_Magic_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 82
+    },
+    "melvorTotH:Alt_Magic_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 90
+    },
+    "melvorTotH:Alt_Magic_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 99
+    },
+    "melvorTotH:Area_Control_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 628
+    },
+    "melvorTotH:Area_Control_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 690
+    },
+    "melvorTotH:Area_Control_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 759
+    },
+    "melvorTotH:Area_Control_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 835
+    },
+    "melvorTotH:Banana_Bread": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 120
+    },
+    "melvorTotH:Banana_Bread_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 180
+    },
+    "melvorTotH:Bananas": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 350
+    },
+    "melvorTotH:Beef_Mushroom_Stew": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 50
+    },
+    "melvorTotH:Beef_Mushroom_Stew_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 75
+    },
+    "melvorTotH:Blacksmith_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1020
+    },
+    "melvorTotH:Blacksmith_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1122
+    },
+    "melvorTotH:Blacksmith_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1234
+    },
+    "melvorTotH:Blacksmith_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1357
+    },
+    "melvorTotH:Blue_Crab": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1461
+    },
+    "melvorTotH:Blue_Crab_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 2192
+    },
+    "melvorTotH:Chicken_Cream_Mushroom_Soup": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 600
+    },
+    "melvorTotH:Chicken_Cream_Mushroom_Soup_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 900
+    },
+    "melvorTotH:Chilli": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 45
+    },
+    "melvorTotH:Chilli_Frost_Crab": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1155
+    },
+    "melvorTotH:Chilli_Frost_Crab_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1733
+    },
+    "melvorTotH:Critical_Strike_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 7950
+    },
+    "melvorTotH:Critical_Strike_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 8745
+    },
+    "melvorTotH:Critical_Strike_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 9619
+    },
+    "melvorTotH:Critical_Strike_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 10581
+    },
+    "melvorTotH:Deadly_Toxins_Potion": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 650
+    },
+    "melvorTotH:Enkindled_Yields_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 408
+    },
+    "melvorTotH:Enkindled_Yields_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 448
+    },
+    "melvorTotH:Enkindled_Yields_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 493
+    },
+    "melvorTotH:Enkindled_Yields_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 543
+    },
+    "melvorTotH:Fancy_Meat_Pizza": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 60
+    },
+    "melvorTotH:Fancy_Meat_Pizza_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 90
+    },
+    "melvorTotH:Frost_Crab": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1234
+    },
+    "melvorTotH:Frost_Crab_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1851
+    },
+    "melvorTotH:Frozen_Manta_Ray": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 2222
+    },
+    "melvorTotH:Frozen_Manta_Ray_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 3333
+    },
+    "melvorTotH:Gem_Detector_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 2752
+    },
+    "melvorTotH:Gem_Detector_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 3027
+    },
+    "melvorTotH:Gem_Detector_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 3329
+    },
+    "melvorTotH:Gem_Detector_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 3622
+    },
+    "melvorTotH:Holy_Bulwark_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 256
+    },
+    "melvorTotH:Holy_Bulwark_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 281
+    },
+    "melvorTotH:Holy_Bulwark_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 309
+    },
+    "melvorTotH:Holy_Bulwark_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 340
+    },
+    "melvorTotH:Lava_Fish": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1200
+    },
+    "melvorTotH:Lava_Fish_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1800
+    },
+    "melvorTotH:Lemonade_Full": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 0
+    },
+    "melvorTotH:Magma_Eel": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 5000
+    },
+    "melvorTotH:Magma_Eel_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 7500
+    },
+    "melvorTotH:Magma_Fish": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 2323
+    },
+    "melvorTotH:Magma_Fish_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 3485
+    },
+    "melvorTotH:Multicooker_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 375
+    },
+    "melvorTotH:Multicooker_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 412
+    },
+    "melvorTotH:Multicooker_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 453
+    },
+    "melvorTotH:Multicooker_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 499
+    },
+    "melvorTotH:Mushroom_Soup": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 150
+    },
+    "melvorTotH:Mushroom_Soup_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 225
+    },
+    "melvorTotH:Mushrooms": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 75
+    },
+    "melvorTotH:Mystic_Shark": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 7500
+    },
+    "melvorTotH:Mystic_Shark_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 11250
+    },
+    "melvorTotH:Penetration_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1275
+    },
+    "melvorTotH:Penetration_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1402
+    },
+    "melvorTotH:Penetration_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1542
+    },
+    "melvorTotH:Penetration_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1697
+    },
+    "melvorTotH:Pumpkin": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 33
+    },
+    "melvorTotH:Pumpkin_Soup": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 175
+    },
+    "melvorTotH:Pumpkin_Soup_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 263
+    },
+    "melvorTotH:Reaper_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1270
+    },
+    "melvorTotH:Reaper_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1397
+    },
+    "melvorTotH:Reaper_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1536
+    },
+    "melvorTotH:Reaper_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1690
+    },
+    "melvorTotH:Sandwich": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 605
+    },
+    "melvorTotH:Sandwich_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 908
+    },
+    "melvorTotH:Slayer_Bounty_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1430
+    },
+    "melvorTotH:Slayer_Bounty_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1573
+    },
+    "melvorTotH:Slayer_Bounty_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1730
+    },
+    "melvorTotH:Slayer_Bounty_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1903
+    },
+    "melvorTotH:Spicy_Chicken_Pizza": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 30
+    },
+    "melvorTotH:Spicy_Chicken_Pizza_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 45
+    },
+    "melvorTotH:Spicy_Shrimp_Soup": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 500
+    },
+    "melvorTotH:Spicy_Shrimp_Soup_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 750
+    },
+    "melvorTotH:Star_Seeker_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 931
+    },
+    "melvorTotH:Star_Seeker_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1024
+    },
+    "melvorTotH:Star_Seeker_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1126
+    },
+    "melvorTotH:Star_Seeker_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1239
+    },
+    "melvorTotH:Starfruit": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 110
+    },
+    "melvorTotH:Starfruit_Cake": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1350
+    },
+    "melvorTotH:Starfruit_Cake_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 2025
+    },
+    "melvorTotH:Static_Jellyfish": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 4500
+    },
+    "melvorTotH:Static_Jellyfish_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 6750
+    },
+    "melvorTotH:Terrorfish": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 3000
+    },
+    "melvorTotH:Terrorfish_Perfect": {
+      "kind": "food",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 4500
+    },
+    "melvorTotH:Traps_Potion_I": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1052
+    },
+    "melvorTotH:Traps_Potion_II": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1157
+    },
+    "melvorTotH:Traps_Potion_III": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1272
+    },
+    "melvorTotH:Traps_Potion_IV": {
+      "kind": "potion",
+      "value_currency_id": "melvorD:GP",
+      "value_per_item": 1400
+    }
+  }
+}

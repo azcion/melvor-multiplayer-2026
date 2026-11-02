@@ -14,7 +14,7 @@ type State = { expedition: { id: number; chamber: { visit_id: number; tasks: {
 }[] } } };
 
 async function entrance() {
-	const guild = await make_guildmates('Expedition Worker', 'Expedition Witness', 'Work Guild');
+	const guild = await make_guildmates('Expedition Worker', 'Expedition Witness', 'Work Guild', { first: '1.6.17', second: '1.6.17' });
 	const registered = await post_json<{ expedition_id: number }>(
 		'/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.first.session_token);
 	await db_run('UPDATE expeditions SET registered_at = ?, registration_ends_at = ? WHERE id = ?',
@@ -42,6 +42,50 @@ async function restore_v1_content(expedition_id: number, visit_id: number) {
 }
 
 describe('Expedition verified work', () => {
+	for (const dissolve of [false, true]) {
+		for (const [label, activities, woodcutting_ms, fishing_ms, expected_ms] of [
+			['two accepted skills', [woodcutting, fishing], 3_600_000, 3_600_000, 1_800_000],
+			['one accepted and one unaccepted skill', [woodcutting, firemaking], 3_600_000, 0, 1_800_000],
+			['one accepted skill', [woodcutting], 3_600_000, 0, 3_600_000],
+			['sequential accepted half-hours', [woodcutting], 1_800_000, 1_800_000, 3_600_000],
+			['accepted work capped before division with counter tolerance', [woodcutting, fishing], 3_672_000, 3_672_000, 1_764_705]
+		] as const) {
+			test(`1.6.17 reports credit ${label}, dissolution=${dissolve}`, async () => {
+				const { guild, expedition_id, visit_id, task } = await entrance();
+				const hour = 3_600_000;
+				const content = structuredClone(EXPEDITION_CONTENT_PREVIEW);
+				content.chambers.find(chamber => chamber.id === 'entrance')!.tasks
+					.find(entry => entry.id === task)!.evidence.skill_ids = [woodcutting.skill_id, fishing.skill_id];
+				await db_run('UPDATE expeditions SET content_snapshot = ? WHERE id = ?',
+					[JSON.stringify(content), expedition_id]);
+				await db_run('UPDATE expedition_tasks SET target_ms = ?, player_ms = 0, system_ms = 0 WHERE visit_id = ? AND task_id = ?',
+					[10 * hour, visit_id, task]);
+				// Exact 1.6.17 request fields: no new client capability or evidence format.
+				const report = (amount: number) => ({ operation_id: crypto.randomUUID(), expedition_id, visit_id,
+					task_id: task, captured_at: Date.now(), activities: [...activities],
+					statistics: { version: 1, time_ms: { [woodcutting.skill_id]: amount ? woodcutting_ms : 0,
+						[fishing.skill_id]: amount ? fishing_ms : 0,
+						[firemaking.skill_id]: amount && activities.some(a => a.skill_id === firemaking.skill_id) ? hour : 0 } } });
+				const started = await post_json<any>('/api/expedition/task/start', report(0), guild.first.session_token);
+				const start_at = Date.now() - hour;
+				await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
+					[start_at, start_at, started.json.tracking.session_id]);
+				if (dissolve) {
+					await post_json('/api/guilds/leave', {}, guild.first.session_token);
+					await post_json('/api/guilds/leave', {}, guild.second.session_token);
+				}
+				const stop = { ...report(hour), captured_at: start_at + hour };
+				const settled = await post_json<any>('/api/expedition/task/stop', stop, guild.first.session_token);
+				expect(settled.json.settlement).toMatchObject({ credited_ms: expected_ms,
+					guild_ms: dissolve ? 0 : expected_ms, points_micros: Math.floor(expected_ms / hour * 1_000_000),
+					concurrency_factor: Math.max(1, (woodcutting_ms + fishing_ms + (activities.some(a => a.skill_id === firemaking.skill_id) ? hour : 0)) / hour) });
+				expect((await post_json<any>('/api/expedition/task/stop', stop, guild.first.session_token)).json).toEqual(settled.json);
+				expect((await db_all<{ points_micros: number }>('SELECT points_micros FROM expedition_ep_ledger WHERE client_id = ? AND source_kind = ?',
+					[guild.first_id, 'work'])).map(row => row.points_micros)).toEqual([Math.floor(expected_ms / hour * 1_000_000)]);
+			});
+		}
+	}
+
 	for (const [start_key, end_key, dissolve] of [
 		['melvorD:AltMagic', 'melvorD:AltMagic', false],
 		['melvorD:AltMagic', 'melvorD:Magic', false],
@@ -334,6 +378,13 @@ describe('Expedition verified work', () => {
 		expect(settled.json.settlement.guild_ms).toBe(settled.json.settlement.credited_ms);
 		const replay = await post_json('/api/expedition/task/check-in', check, guild.first.session_token);
 		expect(replay.json).toEqual(settled.json);
+		const persisted = await db_all<{ response: string; catalog_hash: string }>(
+			'SELECT response, catalog_hash FROM expedition_work_operations WHERE client_id=? AND operation_id=?',
+			[guild.first.client_id, check.operation_id]);
+		expect(persisted[0].catalog_hash).toHaveLength(64);
+		expect(JSON.parse(persisted[0].response).equipment_projects.catalog).toBeUndefined();
+		expect((replay.json as any).equipment_projects.catalog.length).toBeGreaterThan(0);
+
 		const progress = await db_all<{ player_ms: number }>(
 			'SELECT player_ms FROM expedition_tasks WHERE visit_id = ? AND task_id = ?', [visit_id, task]);
 		expect(progress[0].player_ms).toBe(settled.json.settlement.guild_ms);
@@ -782,4 +833,48 @@ describe('Expedition status observations', () => {
 		expect((await db_all('SELECT player_ms FROM expedition_tasks WHERE visit_id = ? AND task_id = ?',
 			[visit_id, task]))[0].player_ms).toBe(0);
 	});
+});
+
+test('Chamber and personal equipment starts serialize into one tracked target without altering shared work', async () => {
+	const { guild, expedition_id, visit_id, task } = await entrance();
+	const owner = guild.first;
+	await db_run('INSERT INTO expedition_ep_balances(client_id,points_micros) VALUES(?,5000000)', [owner.client_id]);
+	await post_json('/api/combat/prepare', { command_id: crypto.randomUUID() }, owner.session_token);
+	for (const [revision, action] of ['unlock-slot','unlock-tier','start-project'].entries()) {
+		expect((await post_json<any>(`/api/combat/${action}`, { command_id: crypto.randomUUID(), revision, slot:'Weapon', item_id:'melvorD:Bronze_Dagger', discovered:true }, owner.session_token)).json.success).toBe(true);
+	}
+	const personal = (await get_json_with_session<any>('/api/expedition/personal', owner.session_token)).json;
+	const mining = { type:'skill', skill_id:'melvorD:Mining', action_id:'melvorD:Copper_Ore' };
+	const project = () => ({ source:'equipment', project_id:personal.equipment_projects.project.id, task_id:'melvorD:Mining|melvorD:Copper_Ore',
+		operation_id:crypto.randomUUID(), captured_at:Date.now(), actions:{ epoch:crypto.randomUUID(), time_ms:{'melvorD:Mining|melvorD:Copper_Ore':0} },
+		activities:[mining], statistics:{ version:1, time_ms:{'melvorD:Mining':0} } });
+	const chamber = request(expedition_id,visit_id,'start',task);
+	const [a,b] = await Promise.all([
+		post_json<any>('/api/expedition/task/start',chamber,owner.session_token),
+		post_json<any>('/api/expedition/task/start',project(),owner.session_token)
+	]);
+	expect([a.json.success,b.json.success].filter(Boolean)).toHaveLength(1);
+	expect((a.json.success?b:a).json.error).toBe('tracking_busy');
+	const active = (await get_json_with_session<any>('/api/expedition/personal',owner.session_token)).json.tracking;
+	const stop = active.source==='equipment' ? { ...project(), actions:{epoch:active.epoch,time_ms:{[active.task_id]:0}} }
+		: request(expedition_id,visit_id,'stop',task);
+	expect((await post_json<any>('/api/expedition/task/stop',stop,owner.session_token)).json.success).toBe(true);
+	// The other source can start once the first target has been settled and released.
+	const next = active.source==='equipment' ? request(expedition_id,visit_id,'start',task) : project();
+	expect((await post_json<any>('/api/expedition/task/start',next,owner.session_token)).json.success).toBe(true);
+	expect(await db_all('SELECT points_micros FROM expedition_ep_balances WHERE client_id=?',[owner.client_id])).toEqual([{points_micros:4000000}]);
+});
+
+test('return summary totals verified work and counts a contributed Chamber only once', async () => {
+	const { guild, expedition_id, visit_id, task } = await entrance();
+	const [tenure] = await db_all<{ id: number }>('SELECT id FROM expedition_membership_tenures WHERE expedition_id=? AND client_id=?', [expedition_id,guild.first.client_id]);
+	const now = Date.now();
+	for (const hours of [1,2]) await db_run(`INSERT INTO expedition_work_sessions
+		(expedition_id,visit_id,client_id,tenure_id,task_id,started_at,start_statistics,start_activities,ended_at,credited_ms,guild_ms,end_reason)
+		VALUES(?,?,?,?,?,?,?, ?,?,?,?,'settled')`, [expedition_id,visit_id,guild.first.client_id,tenure!.id,task,now-4*3600000,JSON.stringify(stats(0)),JSON.stringify([woodcutting]),now,hours*3600000,hours*3600000]);
+	await db_run("UPDATE expeditions SET status='inactive',ended_at=?,current_visit_id=NULL WHERE id=?", [now,expedition_id]);
+	const ended = (await get_json_with_session<any>('/api/expedition/state',guild.first.session_token)).json;
+	expect(ended.expedition.return_summary).toMatchObject({contributed_ms:10800000,chamber_count:1,ending_bonus_eligible:0});
+	const outsider = (await get_json_with_session<any>('/api/expedition/state',guild.second.session_token)).json;
+	expect(outsider.expedition.return_summary).toBeNull();
 });

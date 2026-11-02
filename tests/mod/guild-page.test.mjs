@@ -217,7 +217,7 @@ test('cache-busts authenticated GETs without using the Android-sensitive Fetch c
 		cache_bust_api_endpoint('/api/events?after=42'),
 		'/api/events?after=42&_mp_cache=runtime-nonce-2'
 	);
-	assert.match(api_get, /coordinated_request\(server_host \+ cache_bust_api_endpoint\(resolve_api_endpoint\(endpoint\)\)/);
+	assert.match(api_get, /coordinated_request\(server_host \+ cache_bust_api_endpoint\(resolve_api_endpoint\(catalog_request\?\.endpoint \?\? endpoint\)\)/);
 	assert.match(api_get, /const json = res\.headers\.get\('Content-Type'\)\?\.includes\('application\/json'\) \? await res\.json\(\) : null/);
 	assert.match(api_get, /if \(res\.status === 426\)\s*enter_unsupported_multiplayer\(json\?\.minimum_supported_mod_version\)/);
 	assert.doesNotMatch(api_get, /cache\s*:/);

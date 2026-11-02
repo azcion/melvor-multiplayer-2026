@@ -1,0 +1,6 @@
+FROM oven/bun:1.4.4
+WORKDIR /app
+COPY server/combat/ ./combat/
+USER bun
+EXPOSE 3002
+CMD ["bun", "run", "combat/index.ts"]

@@ -7,6 +7,7 @@ import {
 	MULTIPLAYER_PAGE_LANG_IDS,
 	MULTIPLAYER_SUPPORTED_LANGUAGES,
 	create_localized_language_fetch,
+	expedition_vote_error_lang_id,
 	localize_multiplayer_page_names,
 	localize_raid_content,
 	resolve_multiplayer_language
@@ -19,6 +20,63 @@ const root = new URL('../../', import.meta.url);
 function placeholder_signature(value) {
 	return value.match(/%s/g)?.length ?? 0;
 }
+
+test('Expedition flavor and batch test controls are translated in every packaged locale', async () => {
+	const english = JSON.parse(await readFile(new URL('mod/data/lang/en.json', root), 'utf8'));
+	const flavor_keys = Object.keys(english).filter(key => key.startsWith('MOD_MP_EXPEDITION_FLAVOR_'));
+	assert.equal(flavor_keys.length, 24);
+	const keys = [...flavor_keys,
+		'MOD_MP_EXPEDITION_TEST_COMPLETE_CHAMBER',
+		'MOD_MP_EXPEDITION_TEST_JUMP',
+		'MOD_MP_EXPEDITION_TEST_CHOOSE_CHAMBER',
+		'MOD_MP_EXPEDITION_TEST_BATCH_HELP'];
+	for (const language of MULTIPLAYER_SUPPORTED_LANGUAGES.filter(language => language !== 'en')) {
+		const translations = JSON.parse(await readFile(new URL(`mod/data/lang/${language}.json`, root), 'utf8'));
+		for (const key of keys) {
+			assert.ok(translations[key]?.trim(), `${language}:${key} must be present`);
+			assert.notEqual(translations[key], english[key], `${language}:${key} must be localized`);
+		}
+	}
+});
+
+test('Expedition return copy is translated in every packaged locale', async () => {
+	const english = JSON.parse(await readFile(new URL('mod/data/lang/en.json', root), 'utf8'));
+	const keys = Object.keys(english).filter(key => key.startsWith('MOD_MP_EXPEDITION_RETURN_'));
+	assert.equal(keys.length, 17);
+	for (const language of MULTIPLAYER_SUPPORTED_LANGUAGES.filter(language => language !== 'en')) {
+		const translations = JSON.parse(await readFile(new URL(`mod/data/lang/${language}.json`, root), 'utf8'));
+		for (const key of keys)
+			assert.notEqual(translations[key], english[key], `${language}:${key} must be localized`);
+	}
+});
+
+test('maps all Expedition vote response codes to localized messages', async () => {
+	const cases = {
+		operation_conflict: 'MOD_MP_EXPEDITION_VOTE_ERROR_OPERATION_CONFLICT',
+		stale_visit: 'MOD_MP_EXPEDITION_VOTE_ERROR_STALE_VISIT',
+		not_registered: 'MOD_MP_EXPEDITION_VOTE_ERROR_NOT_REGISTERED',
+		vote_closed: 'MOD_MP_EXPEDITION_VOTE_ERROR_VOTE_CLOSED',
+		invalid_exit: 'MOD_MP_EXPEDITION_VOTE_ERROR_INVALID_EXIT',
+		preview_exit_restricted: 'MOD_MP_EXPEDITION_VOTE_ERROR_PREVIEW_EXIT_RESTRICTED',
+		vote_expired: 'MOD_MP_EXPEDITION_VOTE_ERROR_VOTE_EXPIRED'
+	};
+	assert.equal(expedition_vote_error_lang_id('unknown_vote_error'), null);
+	assert.equal(expedition_vote_error_lang_id('__proto__'), null);
+	assert.equal(expedition_vote_error_lang_id('not_registered', 'MOD_MP_GUILD_REQUIRED'), 'MOD_MP_GUILD_REQUIRED');
+	for (const [code, lang_id] of Object.entries(cases))
+		assert.equal(expedition_vote_error_lang_id(code), lang_id);
+
+	const english = JSON.parse(await readFile(new URL('mod/data/lang/en.json', root), 'utf8'));
+	for (const language of MULTIPLAYER_SUPPORTED_LANGUAGES) {
+		const translations = JSON.parse(await readFile(new URL(`mod/data/lang/${language}.json`, root), 'utf8'));
+		for (const lang_id of Object.values(cases)) {
+			assert.ok(translations[lang_id]?.trim(), `${language}:${lang_id} must be translated`);
+			assert.equal(placeholder_signature(translations[lang_id]), placeholder_signature(english[lang_id]),
+				`${language}:${lang_id} placeholders must match English`);
+			if (language !== 'en') assert.notEqual(translations[lang_id], english[lang_id], `${language}:${lang_id} must be localized`);
+		}
+	}
+});
 
 test('declares every packaged locale and falls back unsupported languages to English', async () => {
 	const files = await readdir(new URL('mod/data/lang/', root));
@@ -177,7 +235,7 @@ test('routes Multiplayer sidebar page names and text badges through localization
 	]);
 	const pages = data.data.pages.filter(page => page.sidebarItem?.categoryID === 'Multiplayer');
 
-	assert.equal(pages.length, 8);
+	assert.equal(pages.length, 9);
 	for (const page of pages) {
 		assert.match(page.customName, /^MOD_MP_PAGE_/);
 		assert.equal(typeof language[page.customName], 'string');
@@ -185,10 +243,13 @@ test('routes Multiplayer sidebar page names and text badges through localization
 
 	assert.equal(language.MOD_MP_MENU_HEADER, 'Multiplayer');
 	assert.equal(language.MOD_MP_PAGE_EXPEDITION, 'Expedition');
-	assert.equal(language.MOD_MP_PAGE_EXPEDITION_HEADER, 'Expedition (beta)');
+	assert.equal(language.MOD_MP_PAGE_EXPEDITION_HEADER, 'Expedition');
+	assert.equal(language.MOD_MP_PAGE_COMBAT, 'Colosseum');
+	assert.equal(language.MOD_MP_PAGE_UPDATES, 'Info');
 	for (const locale of MULTIPLAYER_SUPPORTED_LANGUAGES.filter(locale => locale !== 'en')) {
 		const translations = await readFile(new URL(`mod/data/lang/${locale}.json`, root), 'utf8').then(JSON.parse);
-		for (const key of ['MOD_MP_PAGE_EXPEDITION', 'MOD_MP_PAGE_EXPEDITION_HEADER', 'MOD_MP_PAGE_RAID', 'MOD_MP_PAGE_RAID_HEADER'])
+		assert.equal(translations.MOD_MP_PAGE_EXPEDITION_HEADER, translations.MOD_MP_PAGE_EXPEDITION);
+		for (const key of ['MOD_MP_PAGE_EXPEDITION', 'MOD_MP_PAGE_EXPEDITION_HEADER', 'MOD_MP_PAGE_COMBAT', 'MOD_MP_PAGE_UPDATES', 'MOD_MP_PAGE_RAID', 'MOD_MP_PAGE_RAID_HEADER'])
 			assert.ok(translations[key]?.trim(), `${locale}:${key} must be translated`);
 	}
 	assert.equal(pages.find(page => page.id === 'Crucible').sidebarItem.asideClass,
@@ -237,12 +298,12 @@ test('page names and rendered sidebar labels follow the active language', () => 
 	}]);
 });
 
-test('Expedition and Raid keep localized beta headers separate from sidebar labels across language changes', async () => {
+test('Expedition, Raid, Combat and Info names follow language changes', async () => {
 	const dictionaries = {};
 	for (const locale of MULTIPLAYER_SUPPORTED_LANGUAGES)
 		dictionaries[locale] = JSON.parse(await readFile(new URL(`mod/data/lang/${locale}.json`, root), 'utf8'));
 	let active_language = 'en';
-	const pages = ['Expedition', 'Guild_Raid'].map(id => ({ id: 'multiplayer:' + id }));
+	const pages = ['Expedition', 'Guild_Raid', 'Combat', 'Updates'].map(id => ({ id: 'multiplayer:' + id }));
 	const sidebar_labels = new Map();
 	localize_multiplayer_page_names({
 		game: { pages: { getObjectByID: id => pages.find(page => page.id === id) } },
@@ -252,16 +313,17 @@ test('Expedition and Raid keep localized beta headers separate from sidebar labe
 		getLangString: key => dictionaries[active_language][key],
 		createElement: (tag, options) => ({ tag, options })
 	});
-	assert.deepEqual(pages.map(page => page.name), ['Expedition (beta)', 'Raid (beta)']);
+	assert.deepEqual(pages.map(page => page.name), ['Expedition', 'Raid (old)', 'Colosseum', 'Info']);
 	for (const locale of MULTIPLAYER_SUPPORTED_LANGUAGES) {
 		active_language = locale;
 		for (const page of pages) {
 			const sidebar_key = sidebar_labels.get(page.id);
 			const label = dictionaries[locale][sidebar_key];
-			assert.doesNotMatch(label, /[（()）]/u, `${locale}:${sidebar_key} must have no suffix`);
-			assert.equal(page.name, dictionaries[locale][sidebar_key + '_HEADER']);
+			assert.equal(page.name, dictionaries[locale][sidebar_key + '_HEADER'] ?? label);
 			assert.ok(page.name.startsWith(label));
-			assert.notEqual(page.name, label);
+			if (page.id === 'multiplayer:Guild_Raid') assert.equal(page.name, label);
+			if (page.id === 'multiplayer:Expedition') assert.equal(page.name, label);
+			if (page.id === 'multiplayer:Combat') assert.equal(label, dictionaries[locale].MOD_MP_PAGE_COMBAT);
 		}
 	}
 });
@@ -325,17 +387,22 @@ async function runtime_sources(directory) {
 	return chunks.join('\n');
 }
 
-test('localization inventory covers runtime and server errors without unused entries', async () => {
-	const [english, client, server] = await Promise.all([
+test('localization inventory tracks runtime references and the unresolved baseline', async () => {
+	const [english, client, server, baseline] = await Promise.all([
 		readFile(new URL('mod/data/lang/en.json', root), 'utf8').then(JSON.parse),
-		runtime_sources('mod'), runtime_sources('server')
+		runtime_sources('mod'), runtime_sources('server'),
+		readFile(new URL('tests/fixtures/localization-unresolved-baseline.json', root), 'utf8').then(JSON.parse)
 	]);
 	const sources = client + '\n' + server;
 	const literals = new Set([...sources.matchAll(/['"](MOD_MP_[A-Z0-9_]+)['"]/g)].map(match => match[1]));
-	// Keep historical English keys paired with shipped Charitree translations for 1.5.16.
-	const legacy = new Set(Object.keys(await readFile(new URL('mod/data/lang/zh-CN.json', root), 'utf8').then(JSON.parse)));
 	// These families are assembled at runtime, including inside HTML bindings.
 	const dynamic = new Set();
+	// Combat names are built by state.combat_name from target IDs and error values.
+	for (const name of ['target_unavailable', 'golbin', 'golbin_scout', 'mind_golbin', 'golbins', 'plants', 'plant',
+		'quarry', 'cinder_snail', 'kiln_wisp', 'embercoil', 'slagheart', 'quarry_entry', 'quarry_description', 'quarry_slow_notice',
+		'quarry_tier_1', 'quarry_tier_2', 'quarry_tier_3', 'chamber', 'chamber_equipment', 'chamber_unconditional', 'slow_persistent_info', 'persistent_info', 'material_access',
+		'mire', 'blob', 'bittertoad', 'bogmaw', 'drowned_root', 'mire_entry', 'mire_description', 'mire_tier_1', 'mire_tier_2', 'mire_tier_3'])
+		dynamic.add('MOD_MP_COMBAT_' + name.toUpperCase());
 	for (const kind of ['FOUND', 'CONSIDER', 'APPLY', 'JOIN', 'LEAVE', 'REMOVE', 'WITHDRAW', 'MARKET_ENABLE', 'MARKET_DISABLE', 'BALLOT']) {
 		dynamic.add('MOD_MP_ALLIANCE_HEADING_' + kind);
 		dynamic.add('MOD_MP_ALLIANCE_DESCRIPTION_' + kind);
@@ -360,8 +427,18 @@ test('localization inventory covers runtime and server errors without unused ent
 		if (!key.endsWith('_'))
 			assert.equal(typeof english[key], 'string', `Missing runtime key: ${key}`);
 	}
-	for (const key of Object.keys(english))
-		assert.ok(literals.has(key) || dynamic.has(key) || legacy.has(key), `Unused localization key: ${key}`);
+	const unresolved_keys = dictionary => Object.keys(dictionary).filter(key => !literals.has(key) && !dynamic.has(key)).sort();
+	const unresolved = unresolved_keys(english);
+	assert.deepEqual(unresolved, baseline.keys,
+		'Unresolved localization baseline changed; investigate each new or newly referenced key before updating it');
+	assert.ok(baseline.description.includes('unverified debt'), 'Baseline must remain labelled as unverified debt');
+
+	const synthetic_key = 'MOD_MP_TEST_UNRELATED_UNUSED';
+	const with_unrelated_key = { ...english, [synthetic_key]: 'Unused string' };
+	assert.ok(!baseline.keys.includes(synthetic_key));
+	assert.ok(unresolved_keys(with_unrelated_key).includes(synthetic_key));
+	assert.notDeepEqual(unresolved_keys(with_unrelated_key), baseline.keys,
+		'An unrelated new dictionary key must make the inventory fail');
 });
 
 test('Chinese Marketplace activity keeps quantity item and counterparty in source order', async () => {

@@ -1,6 +1,7 @@
 import { petition_discussion_visibility } from './petition-discussion-visibility';
 import { has_alliance_access } from './alliances';
 import { db } from './db';
+import { is_admin } from './admin_identity';
 import { chat_shadow_visibility, is_chat_shadowbanned } from './chat_shadowban';
 import { save_chat_parts, same_chat_parts, type ChatPart } from './chat_parts';
 
@@ -63,7 +64,7 @@ export function list_petition_discussion_messages(client_id: number, petition_id
 	const rows = db.query<Message, number[]>(`SELECT message.*,sender.display_name,sender.icon_id
 		FROM petition_discussion_messages message JOIN clients sender ON sender.id=message.sender_id
 		WHERE message.petition_id=? AND ${petition_discussion_visibility(client_id)} AND ${chat_shadow_visibility()}
-		AND NOT EXISTS(SELECT 1 FROM petition_discussion_message_moderation WHERE message_id=message.id)
+		AND (${is_admin(client_id) ? 1 : 0} OR NOT EXISTS(SELECT 1 FROM petition_discussion_message_moderation WHERE message_id=message.id))
 		${cursor === null ? '' : `AND message.id ${before !== null ? '<' : '>'} ?`}
 		ORDER BY message.id ${after === null ? 'DESC' : 'ASC'} LIMIT 21`).all(petition_id, client_id, client_id, ...(cursor === null ? [] : [cursor]));
 	const delivered = rows.slice(0, 20);

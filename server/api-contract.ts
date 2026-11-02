@@ -11,6 +11,18 @@ export function api_context(req: Request): RouteContext {
 }
 
 export const ECONOMY_COMMAND_KINDS: Readonly<Record<string, string>> = {
+	'/api/combat/debug-dungeon': 'combat-debug-dungeon',
+	'/api/combat/debug-tutorial': 'combat-debug-tutorial',
+	'/api/combat/debug-project': 'combat-debug-project',
+	'/api/combat/unlock-slot': 'combat-unlock-slot',
+	'/api/combat/unlock-tier': 'combat-unlock-tier',
+	'/api/combat/start-project': 'combat-start-project',
+	'/api/combat/cancel-project': 'combat-cancel-project',
+	'/api/combat/equip': 'combat-equip',
+	'/api/combat/prepare': 'combat-prepare',
+	'/api/combat/level': 'combat-level',
+	'/api/combat/reset-equipment': 'combat-reset-equipment',
+	'/api/combat/reset-levels': 'combat-reset-levels',
 	'/api/campaign/claim': 'campaign-claim',
 	'/api/campaign/contribute': 'campaign-contribute',
 	'/api/crucible/cast': 'crucible-cast',

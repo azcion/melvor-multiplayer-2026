@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Expedition · Chamber art collection</title>
+<meta name="robots" content="noindex, nofollow"><link rel="stylesheet" href="/wiki/assets/expedition-art-preview.css"></head><body>
+<header><div class="eyebrow">Expedition / 1.7.0 planning study</div><h1>Chamber art collection</h1><p class="muted">The first two depths and the entire existing preview path, in one cohesive art direction.</p></header>
+<div class="layout"><aside aria-label="Chambers by depth" id="rooms"></aside><main>
+<div class="hero" id="hero"><img id="art" alt=""></div>
+<div class="title-row"><div><div class="eyebrow" id="depth"></div><h2 id="name"></h2></div><span class="badge" id="status"></span></div>
+<h3 id="tagline"></h3><p class="muted" id="desc"></p>
+<div class="controls"><button class="btn" id="previous">← Previous chamber</button><button class="btn" id="next">Next chamber →</button><button class="btn" id="compare" aria-pressed="false">Show original artwork</button><button class="btn" id="full">View artwork full screen</button></div>
+<div class="tabs" role="tablist" aria-label="Preview sections"><button class="tab" role="tab" id="tab-design" aria-controls="design" aria-selected="true">Chamber design</button><button class="tab" role="tab" id="tab-map" aria-controls="map" aria-selected="false">Connections & scope</button></div>
+<section id="design" role="tabpanel" aria-labelledby="tab-design"><div class="callout"><strong id="task-label"></strong><p class="muted" id="task-note"></p></div><div class="phases" id="tasks"></div><div class="callout"><h3>Ambient effects</h3><p id="effects"></p></div><h3>Onward passages</h3><div class="passages" id="passages"></div><p class="muted passage-note">Enabled passages link to artwork included in this collection. Other destinations are shown for context; preview availability does not change game routing.</p></section>
+<section id="map" role="tabpanel" aria-labelledby="tab-map" hidden><p class="muted">Select a chamber to inspect it. Connections come from the authored chamber catalog.</p><div id="map-content"></div><div class="callout"><h3>Release intent</h3><p>Open the fixed preview route so players can choose any supported passage. Complete the first two depths first, retain the already-supported deeper preview path, then add more branches in follow-up updates.</p><p class="muted">This planning view does not define the behavior of unsupported exits. It does not change existing Guild visits or route history.</p></div></section>
+<footer>Standalone planning preview · No backend connection · No changes to game content<br>Updated direction: richly architectural, angular painted stone, atmospheric depth and distinct chamber palettes. Effects are not rendered here; alignment notes describe integration work still to verify.</footer>
+<div id="announcement" aria-live="polite" class="muted"></div>
+</main></div>
+<script type="module" src="/wiki/assets/expedition-art-preview.mjs"></script></body></html>

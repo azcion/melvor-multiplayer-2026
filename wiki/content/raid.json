@@ -1,0 +1,94 @@
+{
+  "id": "raid",
+  "title": "Raid",
+  "description": "Take on a weekend boss with your Guild, one Assault at a time.",
+  "icon": "raid-nav.png",
+  "articles": [
+    {
+      "id": "raids",
+      "title": "Raid",
+      "summary": "Take on a weekend boss with your Guild, one Assault at a time.",
+      "aliases": [
+        "assault",
+        "victory cache",
+        "boss",
+        "weekend",
+        "tier",
+        "raid rewards",
+        "Guild Raid"
+      ],
+      "sections": [
+        {
+          "id": "weekend",
+          "title": "When can we Raid?",
+          "paragraphs": [
+            "Raids run from Friday at 12:00 UTC to Monday at 12:00 UTC. Check the countdown on the Raid page for the current weekend.",
+            "You need to be in an eligible Guild when the Raid opens. If you join a Guild during the weekend, you’ll need to wait for the next Raid. Guilds created after opening also wait until the next cycle."
+          ]
+        },
+        {
+          "id": "boss-hp",
+          "title": "How the Raid boss’s HP is calculated",
+          "paragraphs": [
+            "Your Guild’s shared Raid HP is set when the weekend’s Raid is created. It scales with N: the number of eligible Guild members who were active in Multiplayer during the four days before the Raid opened. The calculation uses at least one member. This count is saved for that Raid; members coming and going during the weekend do not resize its HP bar.",
+            "For one active member, the Raid has 7,500 HP. For two, it has 10,000 HP. For three or more, use the formula below. The square root keeps the target from rising in direct proportion to Guild size. “ceil” means round up to the next whole number; do this before multiplying by 500.",
+            "For example, with 10 active members: 20 × √(10 ÷ 2) ≈ 44.7214; round up to 45, add 10, then multiply by 500. Your Guild starts with 27,500 shared Raid HP."
+          ],
+          "formulas": [
+            "If N = 1: shared Raid HP = 7,500",
+            "If N = 2: shared Raid HP = 10,000",
+            "If N ≥ 3: shared Raid HP = (ceil(20 × √(N ÷ 2)) + N) × 500"
+          ],
+          "bullets": [
+            "3 active members → 14,000 HP.",
+            "4 active members → 16,500 HP.",
+            "20 active members → 42,000 HP.",
+            "50 active members → 75,000 HP."
+          ]
+        },
+        {
+          "id": "assault-hp",
+          "title": "Assault HP and damage to the shared bar",
+          "paragraphs": [
+            "The monster you fight in an Assault has its own HP. This is separate from the Guild’s shared Raid HP. Its base HP comes from its Hitpoints level multiplied by the game’s number multiplier. With the standard 10× multiplier, the four bosses have the HP listed below; game modes or combat modifiers can change what you see in combat.",
+            "Winning an Assault removes a fixed amount from the shared Raid bar for that tier. It does not send each individual combat hit to the shared bar. A failed Assault removes none. Shared HP cannot drop below zero.",
+            "For example, defeating the tier 2 boss removes 1,800 shared Raid HP, even though the monster’s standard base HP is 1,500. Ten tier 2 wins remove 18,000 shared HP, up to whatever the Raid has left."
+          ],
+          "formulas": [
+            "Assault monster base HP = Hitpoints level × game number multiplier",
+            "Shared HP after a win = max(0, shared HP before the win − tier contribution)"
+          ],
+          "bullets": [
+            "Tier 1 · The Mossbound Hollow: Hitpoints level 50 → 500 base HP at 10×. A win removes 1,000 shared Raid HP.",
+            "Tier 2 · The Entwined Hollow: Hitpoints level 150 → 1,500 base HP at 10×. A win removes 1,800 shared Raid HP.",
+            "Tier 3 · The Lithic Hollow: Hitpoints level 900 → 9,000 base HP at 10×. A win removes 3,000 shared Raid HP.",
+            "Tier 4 · The Reliquary Hollow: Hitpoints level 1,500 → 15,000 base HP at 10×. A win removes 4,500 shared Raid HP."
+          ]
+        },
+        {
+          "id": "assaults",
+          "title": "Getting ready for an Assault",
+          "paragraphs": [
+            "Your Guild works down a shared Raid HP bar, but you fight your own Assaults. Prepare your equipment and supplies, restore your HP to full, then open the Raid page and choose an available Monster tier.",
+            "Starting an Assault spends one of your available attempts. Winning finishes it; dying, fleeing, switching activities or characters, reloading, closing the game, or running past the fight’s time limit forfeits it. Make sure you’re ready before entering.",
+            "To unlock higher tiers, you need the qualifying wins against the preceding boss. An old defeat total on its own doesn’t unlock them."
+          ]
+        },
+        {
+          "id": "rewards",
+          "title": "Where are my rewards?",
+          "paragraphs": [
+            "A successful Assault can send a tier reward to your Inbox. If your Guild secures the Raid and you meet its participation requirements, you also earn a personal Victory Cache.",
+            "Rewards take account of the expansions your client reports that you own. Check your Inbox to see what you received. Social Only mode lets you fight, but disables item rewards.",
+            "A personal Victory Cache you’ve already earned can stay with you when you leave a Guild. You’ll still need to meet the entry requirements for the next Raid."
+          ]
+        }
+      ],
+      "related": [
+        "transfers",
+        "expedition",
+        "social-only"
+      ]
+    }
+  ]
+}

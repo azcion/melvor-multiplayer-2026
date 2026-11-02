@@ -50,7 +50,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 async function shell_fixture(fetcher, messaging = false, touch = false, storage = { getItem() { return null; }, setItem() { }, removeItem() { } }, search = '') {
 	class Element {
-		constructor(id = '', tag = '') { this.tagName = tag.toUpperCase(); this.id = id; this.value = ''; this.scrollTop = 0; this.clientHeight = 100; this.hidden = false; this.children = []; this.listeners = {}; this.style = {}; this.textContent = ''; }
+		constructor(id = '', tag = '') { this.tagName = tag.toUpperCase(); this.id = id; this.value = ''; this.scrollTop = 0; this.clientHeight = 100; this.hidden = false; this.children = []; this.listeners = {}; this.style = {}; this.textContent = ''; this.classList = { add: name => { this.className = [this.className, name].filter(Boolean).join(' '); } }; }
 		get textContent() { return this.ownText + this.children.map(child => child.textContent).join(''); }
 		set textContent(value) { this.ownText = value; this.children = []; }
 		get scrollHeight() { return this.id === 'messages' ? (elements.get('message-rows')?.children.length ?? 0) * 100 + (elements.get('older')?.hidden ? 0 : 40) : 0; }
@@ -67,7 +67,7 @@ async function shell_fixture(fetcher, messaging = false, touch = false, storage 
 		addEventListener(event, fn) { this.listeners[event] = fn; }
 	}
 	const elements = new Map();
-	const document = { getElementById: id => { if (!elements.has(id))
+	const document = { createTextNode: text => { const node = new Element(); node.textContent = text; return node; }, getElementById: id => { if (!elements.has(id))
 			elements.set(id, new Element(id)); return elements.get(id); }, createElement: tag => new Element('',tag), querySelectorAll: () => { const found = new Set(); const visit = element => { found.add(element); for (const child of element.children) visit(child); }; for (const element of elements.values()) visit(element); return [...found]; }, addEventListener() { } };
 	const source = (await readFile(new URL('../../server/chat-assets/chat.mjs', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '');
 	const context = { CHAT_HIGHLIGHT_PRESETS, highlight_input, highlight_color, document, navigator: { maxTouchPoints: touch === true ? 1 : 0, locks: { request: async (_name, callback) => callback() } }, sessionStorage: storage,
@@ -235,16 +235,18 @@ test('actual shell keeps inbox keyboard focus across changed poll data and route
 });
 
 const descendants = element => [element,...element.children.flatMap(descendants)];
-async function message_shell(touch = false, id = 7, kind = 'global', send_response) {
+async function message_shell(touch = false, id = 7, kind = 'global', send_response, message_fields = {}) {
  const calls = [];
+ let deleted = false;
  const {elements,settle,document} = await shell_fixture(async(path,options) => {
   calls.push({path,options});
   if(path === '/chat/api/session') return Response.json({links:[link(1,'A'),link(2,'B')],csrf_token:'csrf'});
   if(path === '/chat/api/state') return Response.json({client_id:101,messaging_enabled:true});
   if(path === '/chat/api/conversations') return Response.json({conversations:[{conversation_kind:kind,conversation_id:1,participant:{client_id:4,display_name:'Other'},unread_count:0},{conversation_kind:'guild',conversation_id:2,participant:{display_name:'Guild'}}]});
   if(path.startsWith('/chat/api/messages/details?')) return Response.json({seen:[{display_name:'Reader',client_id:9}],reactions:[]});
-  if(path === '/chat/api/messages/delete' || path === '/chat/api/messages/reaction' || path === '/chat/api/conversations/delete') return Response.json({success:true});
-  if(path.startsWith('/chat/api/messages?')) return Response.json({messages:[{message_id:id,sender_id:4,sender:{display_name:'Other'},created_at:1,content:'original',translations:{en:'translated'},reactions:[{reaction:'👍',count:2,reacted:true}]}],has_more:false});
+  if(path === '/chat/api/messages/delete') { deleted = true; return Response.json({success:true}); }
+  if(path === '/chat/api/messages/reaction' || path === '/chat/api/conversations/delete') return Response.json({success:true});
+  if(path.startsWith('/chat/api/messages?')) return Response.json({messages:deleted ? [] : [{message_id:id,sender_id:4,sender:{display_name:'Other'},created_at:1,content:'original',translations:{en:'translated'},reactions:[{reaction:'👍',count:2,reacted:true}],...message_fields}],has_more:false});
   if(path === '/chat/api/messages/send') return send_response ? send_response() : Response.json({message:{message_id:8,created_at:2,content:'sent'}});
   return Response.json(demo_data);
  },true,touch);
@@ -330,8 +332,8 @@ test('identity and conversation switching dismiss timestamp and conversation men
  assert.equal(elements.get('dialog').open,false);
  assert.equal(elements.get('dialog-content').children.length,0);
 });
-test('timestamp reaction, details and confirmed Private hide route the selected identity and message', async () => {
- const {elements,calls,settle} = await message_shell(false,7,'private');
+test('timestamp reaction, details and confirmed own-message deletion route the selected identity and message', async () => {
+ const {elements,calls,settle} = await message_shell(false,7,'private',undefined,{sender_id:101,can_delete:true});
  descendants(elements.get('message-rows')).find(e => e['aria-label'] === 'Add reaction').listeners.click();
  action(elements,'🔥').listeners.click(); await settle();
  const reaction = calls.find(c=>c.path === '/chat/api/messages/reaction');
@@ -342,11 +344,22 @@ test('timestamp reaction, details and confirmed Private hide route the selected 
  const details = calls.find(c=>c.path.startsWith('/chat/api/messages/details?'));
  assert.ok(details.path.includes('message_id=7')); assert.equal(details.options.headers['X-Chat-Link-ID'],'1');
  assert.ok(action(elements,'Reader'));
- timestamp(elements).listeners.click(); action(elements,'Hide for me').listeners.click();
+ timestamp(elements).listeners.click(); action(elements,'Delete for everyone').listeners.click();
  assert.equal(calls.some(c=>c.path === '/chat/api/messages/delete'),false);
  elements.get('dialog-actions').children[0].listeners.click(); await settle();
  const hidden = calls.find(c=>c.path === '/chat/api/messages/delete');
- assert.equal(hidden.options.headers['X-Chat-Link-ID'],'1'); assert.equal(JSON.parse(hidden.options.body).message_id,7);
+ assert.equal(hidden.options.headers['X-Chat-Link-ID'],'1');
+ assert.deepEqual(JSON.parse(hidden.options.body),{conversation_kind:'private',conversation_id:1,message_id:7});
+ assert.equal(descendants(elements.get('message-rows')).some(e=>e.className === 'message-timestamp'),false);
+});
+
+test('message deletion is absent without eligibility or for an already deleted message', async () => {
+ for (const fields of [{can_delete:false},{can_delete:true,deleted:true}]) {
+  const {elements,calls} = await message_shell(false,7,'private',undefined,fields);
+  timestamp(elements).listeners.click();
+  assert.equal(action(elements,'Delete for everyone'),undefined);
+  assert.equal(calls.some(c=>c.path === '/chat/api/messages/delete'),false);
+ }
 });
 
 async function inbox_shell({ conversations, storage, messages = () => [{message_id:10,sender_id:4,content:'original',translations:{en:'English text','zh-CN':'Chinese text'},created_at:1}], history = null } = {}) {
@@ -370,10 +383,10 @@ const channels = [
  {conversation_kind:'alliance',conversation_id:5,participant:{display_name:'Alliance'}},
  {conversation_kind:'global',conversation_id:1,participant:{display_name:'World'}}
 ];
-test('shell groups six domain kinds in four ordered categories and uses plain conversation titles', async () => {
+test('shell excludes retired Expedition Chat and groups supported conversations in four ordered categories', async () => {
  const {elements,choose} = await inbox_shell({conversations:channels});
  assert.deepEqual(elements.get('inbox').children.map(e=>e.tagName === 'H3' ? e.textContent : e.children.find(child => child.className === 'conversation-copy')?.children[0].textContent),
-  ['Global','World','Expedition','Guild','Alliance','Oak','Private','Other','Support','Help']);
+  ['Global','World','Guild','Alliance','Oak','Private','Other','Support','Help']);
  await choose('Alliance'); assert.equal(elements.get('thread-title').textContent,'Alliance');
  const empty = await inbox_shell({conversations:[]}); assert.equal(empty.elements.get('inbox').children.length,0);
  const partial = await inbox_shell({conversations:[channels[0]]});

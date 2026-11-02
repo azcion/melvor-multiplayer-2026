@@ -1,0 +1,70 @@
+{
+  "id": "cheat-tags",
+  "title": "Cheat Tags & Mods",
+  "description": "Understand the tags and look up the mods that can trigger them.",
+  "icon": "shield",
+  "articles": [
+    {
+      "id": "cheat-tags",
+      "title": "Cheat tags & mod lookup",
+      "summary": "Know what each tag means, and check a mod before you load it.",
+      "aliases": [
+        "cheats",
+        "mod list",
+        "mod checker",
+        "mod.io",
+        "Interdict",
+        "Time Cheats",
+        "Item Cheats",
+        "Resource Cheats",
+        "Multitasking",
+        "Shop Cheats",
+        "Loot Cheats"
+      ],
+      "sections": [
+        {
+          "id": "what-tags-mean",
+          "title": "What does a cheat tag actually tell you?",
+          "paragraphs": [
+            "A cheat tag means Multiplayer has seen a listed mod loaded on a character within the last seven days. It doesn’t prove which features that player turned on or used. Some mods offer several different features, and one mod can give more than one tag.",
+            "You can open a tag in the Guild roster or an application to see the mods behind it. These details are separate from a player’s choice to share their full active-mod list."
+          ]
+        },
+        {
+          "id": "the-six-tags",
+          "title": "The six tags",
+          "bullets": [
+            "Time Cheats: speeds up game or action ticks, or adds extra simulated time.",
+            "Item Cheats: marks a reviewed set of mods that make adding items easy. Check the individual entries below for their published explanations. This is the tag used by Interdict.",
+            "Resource Cheats: increases resources, reduces or removes costs, or guarantees that consumables are preserved.",
+            "Multitasking: lets a character do more activities at once than the game normally allows.",
+            "Shop Cheats: adds ways to buy things or expands what shops sell.",
+            "Loot Cheats: changes the odds, adds rerolls or rare rolls, or lets a player choose an outcome."
+          ]
+        },
+        {
+          "id": "before-you-load",
+          "title": "Before you load a mod",
+          "paragraphs": [
+            "Search the list below by name or mod.io ID. If two mods have similar names, check their IDs in the mod manager. You can also choose a tag to see every listed mod in that category.",
+            "Item Cheats deserves a closer look before you load one. In a Guild with Interdict active, an active Item Cheats marking puts you in Social Only mode. The other five tags are informational; they do not trigger Interdict. Your Guild can change its policy through the Council.",
+            "Removing a mod doesn’t immediately clear its tag. Each report can keep a marking active for seven days, and a later report of the same mod starts that clock again. A report supporting a different tag doesn’t renew this one."
+          ],
+          "note": "No search result means “not on this list,” not “approved” or “safe.” This is a published catalog snapshot, not a check of every mod or your character. Your server may use a different catalog version. If you’re unsure, ask in Support before loading the mod."
+        },
+        {
+          "id": "find-a-mod",
+          "title": "Check a mod",
+          "paragraphs": [
+            "These are the mods with approved tags in this wiki’s catalog snapshot. Each entry shows the tags it can trigger and any published explanation. Without JavaScript, the complete list is still readable below."
+          ]
+        }
+      ],
+      "related": [
+        "social-only",
+        "council",
+        "support"
+      ]
+    }
+  ]
+}

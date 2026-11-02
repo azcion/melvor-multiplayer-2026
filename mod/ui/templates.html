@@ -60,10 +60,6 @@
 <template id="template-mp-expedition-page">
 	<div class="content d-none" id="mp-expedition-page">
 		<section class="mp-expedition-shell" :aria-label="getLangString('MOD_MP_PAGE_EXPEDITION')">
-			<div class="mp-expedition-tabs" role="tablist" :aria-label="getLangString('MOD_MP_EXPEDITION_VIEWS')">
-				<button type="button" class="mp-expedition-button" role="tab" id="mp-expedition-chamber-tab" aria-controls="mp-expedition-chamber-view" :aria-selected="state.expedition_mobile_tab === 'chamber'" :class="{ 'mp-expedition-button-secondary': state.expedition_mobile_tab !== 'chamber' }" @click="state.expedition_mobile_tab = 'chamber'"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CHAMBER"></lang-string></button>
-				<button type="button" class="mp-expedition-button" role="tab" id="mp-expedition-journey-tab" aria-controls="mp-expedition-journey-view" :aria-selected="state.expedition_mobile_tab === 'journey'" :class="{ 'mp-expedition-button-secondary': state.expedition_mobile_tab !== 'journey' }" @click="state.expedition_mobile_tab = 'journey'"><lang-string lang-id="MOD_MP_EXPEDITION_UI_JOURNEY"></lang-string><span class="badge mp-expedition-vote-badge" v-if="state.expedition_needs_vote()"><lang-string lang-id="MOD_MP_VOTE_BADGE"></lang-string></span></button>
-			</div>
 			<p class="mp-expedition-message" v-if="state.expedition_loading && !state.expedition_state && !state.expedition_personal"><lang-string lang-id="MOD_MP_EXPEDITION_UI_LOADING_EXPEDITION"></lang-string></p>
 			<div class="mp-expedition-panel mp-expedition-notice" v-if="state.expedition_pending_report && state.expedition_report_notice_visible">
 				<p><lang-string lang-id="MOD_MP_EXPEDITION_UI_A_WORK_REPORT_IS_WAITING_FOR_SERVER_CONFIRMATION_THE_EXACT_CAPTURED_REPORT_"></lang-string></p>
@@ -72,172 +68,263 @@
 			<div class="mp-expedition-panel mp-expedition-notice" v-if="!state.expedition_pending_report && (state.expedition_state?.tracking?.pending_boundary_at || state.expedition_personal?.tracking?.pending_boundary_at)">
 				<p><lang-string lang-id="MOD_MP_EXPEDITION_UI_THE_ORIGINAL_WORK_INTERVAL_IS_AWAITING_A_BOUNDARY_SNAPSHOT_TRACKING_ACTIONS"></lang-string></p>
 			</div>
-			<div id="mp-expedition-chamber-view" :class="{ 'mp-expedition-mobile-hidden': state.expedition_mobile_tab !== 'chamber' }" aria-labelledby="mp-expedition-chamber-tab">
-				<div class="mp-expedition-panel" v-if="state.expedition_state && !state.expedition_state?.expedition">
-					<p><lang-string lang-id="MOD_MP_EXPEDITION_UI_NO_EXPEDITION_IS_ACTIVE_IN_THIS_GUILD"></lang-string></p>
-					<button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending" @click="state.register_expedition()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_START_AND_REGISTER"></lang-string></button>
+			<div id="mp-expedition-hero" v-show="!state.expedition_has_ended(state.expedition_state?.expedition)">
+				<div class="mp-expedition-panel" :class="{ 'mp-expedition-chamber-card': state.expedition_state?.expedition?.status === 'registration' || state.expedition_state?.expedition?.chamber }">
+					<div class="mp-expedition-chamber-art-frame" v-if="state.expedition_state?.expedition?.status === 'registration' || state.expedition_state?.expedition?.chamber" :class="{ 'mp-expedition-rift-snow': ((state.expedition_state?.expedition?.chamber?.preparation ? 'entrance' : state.expedition_state?.expedition?.chamber?.id) ?? 'entrance') === 'entrance' }" aria-hidden="true">
+						<img class="mp-expedition-chamber-art" :data-chamber-id="(state.expedition_state?.expedition?.chamber?.preparation ? 'entrance' : state.expedition_state?.expedition?.chamber?.id) ?? 'entrance'" :src="state.expedition_chamber_art_url((state.expedition_state?.expedition?.chamber?.preparation ? 'entrance' : state.expedition_state?.expedition?.chamber?.id) ?? 'entrance')" alt="" />
+						<mp-expedition-snow v-if="((state.expedition_state?.expedition?.chamber?.preparation ? 'entrance' : state.expedition_state?.expedition?.chamber?.id) ?? 'entrance') === 'entrance'"></mp-expedition-snow>
+						<mp-expedition-crystals v-if="state.expedition_state?.expedition?.chamber?.id === 'prismatic_descent'"></mp-expedition-crystals>
+						<mp-expedition-haze v-if="state.expedition_state?.expedition?.chamber?.id === 'glassroot_terraces'"></mp-expedition-haze>
+						<mp-expedition-observatory v-if="state.expedition_state?.expedition?.chamber?.id === 'buried_observatory'"></mp-expedition-observatory>
+						<mp-expedition-orrery v-if="state.expedition_state?.expedition?.chamber?.id === 'prismatic_orrery'"></mp-expedition-orrery>
+						<mp-expedition-voidwatch v-if="state.expedition_state?.expedition?.chamber?.id === 'voidwatch_threshold'"></mp-expedition-voidwatch>
+						<mp-expedition-drowned-cloister v-if="state.expedition_state?.expedition?.chamber?.id === 'drowned_cloister'"></mp-expedition-drowned-cloister>
+						<mp-expedition-rootforge-passage v-if="state.expedition_state?.expedition?.chamber?.id === 'rootforge_passage'"></mp-expedition-rootforge-passage>
+						<mp-expedition-tideworn-crypts v-if="state.expedition_state?.expedition?.chamber?.id === 'tideworn_crypts'"></mp-expedition-tideworn-crypts>
+						<mp-expedition-embervein-machinery v-if="state.expedition_state?.expedition?.chamber?.id === 'embervein_machinery'"></mp-expedition-embervein-machinery>
+						<mp-expedition-mossbound-reliquary v-if="state.expedition_state?.expedition?.chamber?.id === 'mossbound_reliquary'"></mp-expedition-mossbound-reliquary>
+						<mp-expedition-hollow-star v-if="state.expedition_state?.expedition?.chamber?.id === 'hollow_star'"></mp-expedition-hollow-star>
+					</div>
+					<div class="mp-expedition-chamber-copy">
+						<h2 v-if="state.expedition_state?.expedition?.status === 'registration' || state.expedition_state?.expedition?.chamber" :class="{ 'mp-expedition-chamber-title': ((state.expedition_state?.expedition?.chamber?.preparation ? 'entrance' : state.expedition_state?.expedition?.chamber?.id) ?? 'entrance') === 'entrance' }">{{ state.expedition_state?.expedition?.status === 'registration' ? getLangString('MOD_MP_EXPEDITION_UI_THE_RIFT') : state.expedition_display_label(state.expedition_state?.expedition?.chamber?.label) }}</h2>
+						<p v-if="state.expedition_state?.expedition?.status === 'registration'"><lang-string lang-id="MOD_MP_EXPEDITION_UI_GATHERING_FOR_THE_EXPEDITION"></lang-string></p>
+						<p v-if="state.expedition_state?.expedition?.status === 'registration'"><strong>{{ state.expedition_state?.expedition?.registered_count }}</strong> <lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTERED"></lang-string></p>
+						<p v-if="state.expedition_state?.expedition?.chamber && !state.expedition_state?.expedition?.chamber?.preparation">{{ state.expedition_text(state.expedition_state?.expedition?.chamber?.participant_count === 1 ? 'MOD_MP_EXPEDITION_PARTICIPANT_AT_ARRIVAL' : 'MOD_MP_EXPEDITION_PARTICIPANTS_AT_ARRIVAL', state.expedition_state?.expedition?.chamber?.participant_count) }}</p>
+						<p class="mp-expedition-points"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOUR_EP"></lang-string> <strong>{{ state.format_ep(state.expedition_state?.points_micros ?? state.expedition_personal?.points_micros) }}</strong></p>
+						<button type="button" class="mp-expedition-button" v-if="state.expedition_state?.expedition?.chamber && !state.expedition_state?.expedition?.registered" :disabled="state.expedition_action_pending" @click="state.register_expedition()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTER_TO_WORK"></lang-string></button>
+					</div>
 				</div>
-				<div v-if="state.expedition_state?.expedition">
-					<details class="mp-expedition-panel mp-expedition-snow-controls" v-if="state.expedition_snow_controls_enabled && (state.expedition_state?.expedition?.status === 'registration' || state.expedition_state?.expedition?.chamber?.id === 'entrance')">
-						<summary><lang-string lang-id="MOD_MP_EXPEDITION_UI_RIFT_SNOW_SETTINGS"></lang-string></summary>
-						<div class="mp-expedition-snow-fields">
-							<label><lang-string lang-id="MOD_MP_EXPEDITION_UI_FLAKES"></lang-string> <output>{{ state.expedition_snow.count }}</output><input type="range" min="0" max="120" step="1" v-model.number="state.expedition_snow.count"></label>
-							<label><lang-string lang-id="MOD_MP_EXPEDITION_UI_SPEED"></lang-string> <output>{{ state.expedition_snow.speed }} px/s</output><input type="range" min="0" max="150" step="5" v-model.number="state.expedition_snow.speed"></label>
-							<label><lang-string lang-id="MOD_MP_EXPEDITION_UI_OPACITY"></lang-string> <output>{{ state.expedition_snow.opacity }}%</output><input type="range" min="0" max="100" step="1" v-model.number="state.expedition_snow.opacity"></label>
-							<label><lang-string lang-id="MOD_MP_EXPEDITION_UI_SMALLEST"></lang-string> <output>{{ state.expedition_snow.min_size }} px</output><input type="range" min="0.5" :max="state.expedition_snow.max_size" step="0.5" v-model.number="state.expedition_snow.min_size"></label>
-							<label><lang-string lang-id="MOD_MP_EXPEDITION_UI_LARGEST"></lang-string> <output>{{ state.expedition_snow.max_size }} px</output><input type="range" :min="state.expedition_snow.min_size" max="8" step="0.5" v-model.number="state.expedition_snow.max_size"></label>
-							<label><lang-string lang-id="MOD_MP_EXPEDITION_UI_ANGLE"></lang-string> <output>{{ state.expedition_snow.angle }}°</output><input type="range" min="-60" max="60" step="5" v-model.number="state.expedition_snow.angle"></label>
-						</div>
-						<div class="mp-expedition-snow-meter" v-if="state.expedition_snow_stats">{{ state.expedition_text('MOD_MP_EXPEDITION_SNOW_FRAME_STATS', state.expedition_snow_stats.fps, state.expedition_snow_stats.draw_ms.toFixed(2)) }}</div>
-						<div class="mp-expedition-snow-meter" v-else><lang-string lang-id="MOD_MP_EXPEDITION_UI_SNOW_PAUSED"></lang-string></div>
-						<p><lang-string lang-id="MOD_MP_EXPEDITION_UI_FPS_MEASURES_THE_WHOLE_GAME_SNOW_DRAW_TIME_MEASURES_THIS_OVERLAY_COMPARE_SE"></lang-string></p>
-						<button type="button" class="mp-expedition-button mp-expedition-button-secondary" @click="state.reset_expedition_snow()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_RESET_SNOW"></lang-string></button>
-					</details>
-					<div class="mp-expedition-panel mp-expedition-chamber-card" v-if="state.expedition_state?.expedition?.status === 'registration'">
-						<div class="mp-expedition-chamber-art-frame mp-expedition-rift-snow" aria-hidden="true">
-							<img class="mp-expedition-chamber-art" data-chamber-id="entrance" :src="state.expedition_chamber_art_url('entrance')" alt="" />
-							<mp-expedition-snow></mp-expedition-snow>
-						</div>
-						<h1 class="mp-expedition-chamber-title"><lang-string lang-id="MOD_MP_EXPEDITION_UI_THE_RIFT"></lang-string></h1>
-						<div class="mp-expedition-chamber-copy">
-							<p><lang-string lang-id="MOD_MP_EXPEDITION_UI_GATHERING_FOR_THE_EXPEDITION"></lang-string></p>
-							<p><strong>{{ state.expedition_state?.expedition?.registered_count }}</strong> <lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTERED"></lang-string></p>
-							<p class="mp-expedition-points"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOUR_EP"></lang-string> <strong>{{ state.expedition_points(state.expedition_state?.points_micros) }}</strong></p>
-							<fieldset class="mp-expedition-work-modes">
-								<legend><lang-string lang-id="MOD_MP_EXPEDITION_WORK_TRACKING_MODE"></lang-string></legend>
-								<label class="mp-poll-option mp-expedition-work-mode" :class="{ 'mp-poll-option-selected': state.expedition_work_tracking_mode === 'manual' }"><input type="radio" name="mp-expedition-work-mode-entrance" value="manual" :checked="state.expedition_work_tracking_mode === 'manual'" @change="state.set_expedition_work_tracking_mode($event)"><lang-string lang-id="MOD_MP_EXPEDITION_WORK_MODE_MANUAL"></lang-string></label>
-								<label class="mp-poll-option mp-expedition-work-mode" :class="{ 'mp-poll-option-selected': state.expedition_work_tracking_mode === 'prompt' }"><input type="radio" name="mp-expedition-work-mode-entrance" value="prompt" :checked="state.expedition_work_tracking_mode === 'prompt'" @change="state.set_expedition_work_tracking_mode($event)"><lang-string lang-id="MOD_MP_EXPEDITION_WORK_MODE_PROMPT"></lang-string></label>
-								<label class="mp-poll-option mp-expedition-work-mode" :class="{ 'mp-poll-option-selected': state.expedition_work_tracking_mode === 'automatic' }"><input type="radio" name="mp-expedition-work-mode-entrance" value="automatic" :checked="state.expedition_work_tracking_mode === 'automatic'" @change="state.set_expedition_work_tracking_mode($event)"><lang-string lang-id="MOD_MP_EXPEDITION_WORK_MODE_AUTOMATIC"></lang-string></label>
-							</fieldset>
-						</div>
+				<div class="mp-expedition-panel mp-expedition-tracking" v-if="state.expedition_state?.tracking && state.expedition_state?.tracking?.source !== 'equipment' && state.expedition_state?.tracking?.visit_id === state.expedition_state?.expedition?.chamber?.visit_id">
+					<div class="mp-expedition-tracking-copy">
+						<i class="fa fa-crosshairs" aria-hidden="true"></i>
+						<div><strong>{{ state.expedition_text('MOD_MP_EXPEDITION_TRACKING_TITLE', state.expedition_tracking_title(state.expedition_state?.expedition?.chamber, state.expedition_state?.tracking)) }}</strong><small>{{ state.expedition_text('MOD_MP_EXPEDITION_STARTED_AGO', state.expedition_time_since(state.expedition_state?.tracking?.started_at)) }}</small></div>
 					</div>
-					<div class="mp-expedition-registration" v-if="state.expedition_state?.expedition?.status === 'registration'">
-						<div class="mp-expedition-panel">
-							<h3><lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTRATION"></lang-string></h3>
-							<p>{{ state.expedition_text('MOD_MP_EXPEDITION_REGISTRATION_CLOSES_IN', state.expedition_time_remaining(state.expedition_state?.expedition?.registration_ends_at)) }}</p>
-							<button type="button" class="mp-expedition-button" v-if="!state.expedition_state?.expedition?.registered" :disabled="state.expedition_action_pending" @click="state.register_expedition()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTER_FOR_THIS_EXPEDITION"></lang-string></button>
-							<p v-else><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOU_ARE_REGISTERED"></lang-string></p>
-							<p v-if="state.expedition_state?.expedition?.registered"><lang-string lang-id="MOD_MP_EXPEDITION_PREPARATIONS_HINT"></lang-string></p>
-						</div>
-					</div>
-					<div class="mp-expedition-panel" v-if="['completed', 'inactive', 'dissolved'].includes(state.expedition_state?.expedition?.status)">
-						<h3><lang-string lang-id="MOD_MP_EXPEDITION_UI_EXPEDITION_ENDED"></lang-string></h3>
-						<p>{{ state.expedition_text('MOD_MP_EXPEDITION_STASH_OUTCOME', state.expedition_status('STASH', state.expedition_state?.expedition?.stash_outcome)) }}</p>
-						<button type="button" class="mp-expedition-button" @click="state.register_expedition()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTER_FOR_A_NEW_EXPEDITION"></lang-string></button>
-					</div>
-					<div class="mp-expedition-panel mp-expedition-notice" v-if="state.expedition_state?.tracking && state.expedition_state?.tracking?.visit_id !== state.expedition_state?.expedition?.chamber?.visit_id">
-						<p><lang-string lang-id="MOD_MP_EXPEDITION_UI_WORK_FROM_A_DEPARTED_CHAMBER_IS_AWAITING_CHECK_IN_ONLY_VERIFIED_WORK_BEFORE"></lang-string></p>
-						<button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending || state.expedition_pending_report || state.expedition_check_in_cooldown_until > 0" @click="state.submit_expedition_work('check-in')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CHECK_IN_PRIOR_WORK"></lang-string></button>
-					</div>
-					<div v-if="state.expedition_state?.expedition?.chamber">
-						<div class="mp-expedition-panel mp-expedition-chamber-card" v-if="!state.expedition_state?.expedition?.chamber?.preparation">
-							<div class="mp-expedition-chamber-art-frame" :class="{ 'mp-expedition-rift-snow': state.expedition_state?.expedition?.chamber?.id === 'entrance' }" aria-hidden="true">
-								<img class="mp-expedition-chamber-art" :data-chamber-id="state.expedition_state?.expedition?.chamber?.id" :src="state.expedition_chamber_art_url(state.expedition_state?.expedition?.chamber?.id)" alt="" />
-								<mp-expedition-snow v-if="state.expedition_state?.expedition?.chamber?.id === 'entrance'"></mp-expedition-snow>
-								<mp-expedition-crystals v-if="state.expedition_state?.expedition?.chamber?.id === 'prismatic_descent'"></mp-expedition-crystals>
-								<mp-expedition-haze v-if="state.expedition_state?.expedition?.chamber?.id === 'glassroot_terraces'"></mp-expedition-haze>
-								<mp-expedition-observatory v-if="state.expedition_state?.expedition?.chamber?.id === 'buried_observatory'"></mp-expedition-observatory>
-								<mp-expedition-orrery v-if="state.expedition_state?.expedition?.chamber?.id === 'prismatic_orrery'"></mp-expedition-orrery>
-								<mp-expedition-voidwatch v-if="state.expedition_state?.expedition?.chamber?.id === 'voidwatch_threshold'"></mp-expedition-voidwatch>
-								<mp-expedition-hollow-star v-if="state.expedition_state?.expedition?.chamber?.id === 'hollow_star'"></mp-expedition-hollow-star>
-							</div>
-							<div class="mp-expedition-chamber-copy">
-								<h2 :class="{ 'mp-expedition-chamber-title': state.expedition_state?.expedition?.chamber?.id === 'entrance' }">{{ state.expedition_display_label(state.expedition_state?.expedition?.chamber?.label) }}</h2>
-								<p>{{ state.expedition_text(state.expedition_state?.expedition?.chamber?.participant_count === 1 ? 'MOD_MP_EXPEDITION_PARTICIPANT_AT_ARRIVAL' : 'MOD_MP_EXPEDITION_PARTICIPANTS_AT_ARRIVAL', state.expedition_state?.expedition?.chamber?.participant_count) }}</p>
-								<p class="mp-expedition-points"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOUR_EP"></lang-string> <strong>{{ state.expedition_points(state.expedition_state?.points_micros) }}</strong></p>
-								<fieldset class="mp-expedition-work-modes">
-									<legend><lang-string lang-id="MOD_MP_EXPEDITION_WORK_TRACKING_MODE"></lang-string></legend>
-									<label class="mp-poll-option mp-expedition-work-mode" :class="{ 'mp-poll-option-selected': state.expedition_work_tracking_mode === 'manual' }"><input type="radio" name="mp-expedition-work-mode-chamber" value="manual" :checked="state.expedition_work_tracking_mode === 'manual'" @change="state.set_expedition_work_tracking_mode($event)"><lang-string lang-id="MOD_MP_EXPEDITION_WORK_MODE_MANUAL"></lang-string></label>
-									<label class="mp-poll-option mp-expedition-work-mode" :class="{ 'mp-poll-option-selected': state.expedition_work_tracking_mode === 'prompt' }"><input type="radio" name="mp-expedition-work-mode-chamber" value="prompt" :checked="state.expedition_work_tracking_mode === 'prompt'" @change="state.set_expedition_work_tracking_mode($event)"><lang-string lang-id="MOD_MP_EXPEDITION_WORK_MODE_PROMPT"></lang-string></label>
-									<label class="mp-poll-option mp-expedition-work-mode" :class="{ 'mp-poll-option-selected': state.expedition_work_tracking_mode === 'automatic' }"><input type="radio" name="mp-expedition-work-mode-chamber" value="automatic" :checked="state.expedition_work_tracking_mode === 'automatic'" @change="state.set_expedition_work_tracking_mode($event)"><lang-string lang-id="MOD_MP_EXPEDITION_WORK_MODE_AUTOMATIC"></lang-string></label>
-								</fieldset>
-								<button type="button" class="mp-expedition-button" v-if="!state.expedition_state?.expedition?.registered" :disabled="state.expedition_action_pending" @click="state.register_expedition()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTER_TO_WORK"></lang-string></button>
-							</div>
-						</div>
-						<div class="mp-expedition-panel mp-expedition-tracking" v-if="state.expedition_state?.tracking && state.expedition_state?.tracking?.visit_id === state.expedition_state?.expedition?.chamber?.visit_id">
-							<div class="mp-expedition-tracking-copy">
-								<i class="fa fa-crosshairs" aria-hidden="true"></i>
-								<div><strong>{{ state.expedition_text('MOD_MP_EXPEDITION_TRACKING_TITLE', state.expedition_tracking_title(state.expedition_state?.expedition?.chamber, state.expedition_state?.tracking)) }}</strong><small>{{ state.expedition_text('MOD_MP_EXPEDITION_STARTED_AGO', state.expedition_time_since(state.expedition_state?.tracking?.started_at)) }}</small></div>
-							</div>
-							<div class="mp-expedition-actions"><div class="mp-expedition-available" v-if="state.expedition_state?.tracking?.reward_remaining_ms != null"><lang-string lang-id="MOD_MP_EXPEDITION_AVAILABLE_TO_EARN"></lang-string><strong>{{ state.expedition_points(Math.floor((state.expedition_state?.tracking?.reward_remaining_ms ?? 0) * 1000000 / 3600000)) }} EP</strong></div><button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending || state.expedition_pending_report || state.expedition_check_in_cooldown_until > 0" @click="state.submit_expedition_work('check-in')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CHECK_IN"></lang-string></button><button type="button" class="mp-expedition-button mp-expedition-button-secondary" :disabled="state.expedition_action_pending || state.expedition_pending_report" @click="state.submit_expedition_work('stop')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_STOP_TRACKING"></lang-string></button></div>
-						</div>
-						<div class="mp-expedition-layout">
-							<div class="mp-expedition-work-column">
-								<section class="mp-expedition-panel mp-expedition-phase" v-for="phase in ['arrival', 'exploration', 'departure']" :key="phase" v-show="phase === 'arrival' || state.expedition_phase_tasks(state.expedition_state?.expedition?.chamber, phase).length">
-									<h3 class="mp-expedition-phase-heading"><button type="button" class="mp-expedition-phase-toggle" :aria-expanded="state.expedition_phase_open[phase]" :aria-controls="'mp-expedition-' + phase + '-body'" @click="state.toggle_expedition_phase(phase)">
-										<i class="fa" :class="state.expedition_phase_tasks(state.expedition_state?.expedition?.chamber, phase).every(task => task.completed_at != null) ? 'fa-check-circle mp-expedition-phase-done' : phase === 'exploration' ? 'fa-compass' : phase === 'departure' ? 'fa-door-open' : 'fa-map-marker'" aria-hidden="true"></i>
-										<span><strong>{{ state.expedition_state?.expedition?.chamber?.preparation ? getLangString('MOD_MP_EXPEDITION_PREPARATIONS') : phase === 'arrival' ? getLangString('MOD_MP_EXPEDITION_PHASE_ARRIVAL') : phase === 'exploration' ? getLangString('MOD_MP_EXPEDITION_PHASE_EXPLORATION') : getLangString('MOD_MP_EXPEDITION_PHASE_DEPARTURE') }}</strong><small>{{ state.expedition_phase_summary(state.expedition_state?.expedition?.chamber, phase) }}</small></span>
-										<i class="fa" :class="state.expedition_phase_open[phase] ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
-									</button></h3>
-									<div class="mp-expedition-phase-body" :id="'mp-expedition-' + phase + '-body'" v-show="state.expedition_phase_open[phase]">
-										<div class="mp-expedition-task-group" v-for="group in ['done', 'active', 'pending']" :key="group" v-show="state.expedition_phase_tasks(state.expedition_state?.expedition?.chamber, phase, group).length">
-											<h4>{{ group === 'done' ? getLangString('MOD_MP_EXPEDITION_GROUP_DONE') : group === 'active' ? getLangString('MOD_MP_EXPEDITION_GROUP_ACTIVE') : getLangString('MOD_MP_EXPEDITION_GROUP_PENDING') }}</h4>
-											<article class="mp-expedition-task" :class="{ 'mp-expedition-task-done': group === 'done', 'mp-expedition-task-self': state.expedition_state?.tracking?.visit_id === state.expedition_state?.expedition?.chamber?.visit_id && state.expedition_state?.tracking?.task_id === task.task_id }" v-for="task in state.expedition_phase_tasks(state.expedition_state?.expedition?.chamber, phase, group)" :key="task.task_id">
-													<div class="mp-expedition-task-heading"><i class="fa fa-check-circle" :aria-label="getLangString('MOD_MP_EXPEDITION_COMPLETE')" v-if="group === 'done'"></i><strong>{{ state.expedition_display_label(task.title, state.expedition_state?.expedition?.chamber?.exits?.length, state.expedition_state?.expedition?.chamber?.id) }}</strong><span class="mp-expedition-task-requirement" :class="{ 'mp-expedition-task-required': task.promoted_at || task.requirement === 'required' || (task.requirement === 'conditional' && task.exit_id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id) }" v-if="group !== 'done'">{{ state.expedition_state?.expedition?.chamber?.preparation ? getLangString('MOD_MP_EXPEDITION_PERSONAL') : task.promoted_at || task.requirement === 'required' || (task.requirement === 'conditional' && task.exit_id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id) ? getLangString('MOD_MP_EXPEDITION_REQUIRED') : getLangString('MOD_MP_EXPEDITION_OPTIONAL') }}</span></div>
-													<span class="mp-expedition-task-tracking" v-if="group !== 'done' && state.expedition_state?.tracking?.visit_id === state.expedition_state?.expedition?.chamber?.visit_id && state.expedition_state?.tracking?.task_id === task.task_id"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOU_ARE_TRACKING_THIS"></lang-string></span>
-												<div class="mp-expedition-work-list" :class="{ 'mp-expedition-work-icons-only': group === 'done' }" :aria-label="group === 'done' ? getLangString('MOD_MP_EXPEDITION_ACCEPTED_ACTIVITIES') : getLangString('MOD_MP_EXPEDITION_CONTRIBUTE_ACTIVITIES')">
-													<span v-if="group !== 'done'"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CONTRIBUTE_WITH_ANY_OF_THESE"></lang-string></span>
-													<div class="mp-expedition-work" v-for="skill_id in task.evidence?.skill_ids || []" :key="skill_id" :title="state.expedition_work_name(skill_id)" :aria-label="state.expedition_work_name(skill_id)" role="img">
-														<img :src="state.expedition_work_icon(skill_id)" alt="" draggable="false"><span v-if="group !== 'done'">{{ state.expedition_work_name(skill_id) }}</span>
-													</div>
-												</div>
-												<div class="mp-expedition-progress-wrap" :class="{ 'mp-expedition-progress-done': group === 'done' }" tabindex="0" :aria-label="state.expedition_display_label(task.title, state.expedition_state?.expedition?.chamber?.exits?.length, state.expedition_state?.expedition?.chamber?.id) + ': ' + state.expedition_progress_description(task)">
-													<div class="mp-expedition-progress" role="progressbar" :aria-valuenow="state.expedition_percent(task)" aria-valuemin="0" aria-valuemax="100" :aria-label="state.expedition_display_label(task.title, state.expedition_state?.expedition?.chamber?.exits?.length, state.expedition_state?.expedition?.chamber?.id)" :aria-valuetext="state.expedition_progress_description(task)">
-															<span class="mp-expedition-progress-own" :style="{ width: state.expedition_progress_width(task.personal_ms, task) }"></span><span class="mp-expedition-progress-others" :style="{ width: state.expedition_progress_width(state.expedition_other_player_ms(task), task) }"></span><span class="mp-expedition-progress-assistance" :style="{ width: state.expedition_progress_width(task.system_ms, task) }"></span>
-														</div>
-													<div class="mp-expedition-progress-detail" role="tooltip" v-if="state.expedition_contribution_time(task.personal_ms) || state.expedition_contribution_time(state.expedition_other_player_ms(task)) || state.expedition_contribution_time(task.system_ms)">
-															<span v-if="state.expedition_contribution_time(task.personal_ms)"><i class="mp-expedition-progress-key mp-expedition-progress-own"></i>{{ state.expedition_text('MOD_MP_EXPEDITION_YOUR_WORK_TIME', state.expedition_contribution_time(task.personal_ms)) }}</span><span v-if="state.expedition_contribution_time(state.expedition_other_player_ms(task))"><i class="mp-expedition-progress-key mp-expedition-progress-others"></i>{{ state.expedition_text('MOD_MP_EXPEDITION_OTHER_WORK_TIME', state.expedition_contribution_time(state.expedition_other_player_ms(task))) }}</span><span v-if="state.expedition_contribution_time(task.system_ms)"><i class="mp-expedition-progress-key mp-expedition-progress-assistance"></i>{{ state.expedition_text('MOD_MP_EXPEDITION_ASSISTANCE_TIME', state.expedition_contribution_time(task.system_ms)) }}</span>
-													</div>
-												</div>
-												<div v-if="group !== 'done'">
-													<p class="mp-expedition-progress-percent"><strong>{{ state.expedition_remaining(task) }}</strong> · {{ state.expedition_text('MOD_MP_EXPEDITION_PERCENT_COMPLETE', state.expedition_percent(task)) }}</p>
-													<p v-if="task.trackers?.length">{{ state.expedition_text('MOD_MP_EXPEDITION_TRACKERS', task.trackers.map(member => member.display_name).join(', ')) }}</p>
-													<div class="mp-expedition-task-actions" v-if="state.expedition_state?.expedition?.registered && (state.expedition_state?.tracking?.visit_id !== state.expedition_state?.expedition?.chamber?.visit_id || state.expedition_state?.tracking?.task_id !== task.task_id)">
-														<button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending || state.expedition_pending_report || !state.expedition_can_track(task) || (state.expedition_state?.tracking && state.expedition_state?.tracking?.visit_id !== state.expedition_state?.expedition?.chamber?.visit_id)" @click="state.submit_expedition_work('start', task.task_id)"><lang-string lang-id="MOD_MP_EXPEDITION_UI_TRACK_THIS_TASK"></lang-string></button>
-														<div class="mp-expedition-available"><lang-string lang-id="MOD_MP_EXPEDITION_AVAILABLE_TO_EARN"></lang-string><strong>{{ state.expedition_available_points(task) }} EP</strong></div>
-													</div>
-													<p class="mp-expedition-work-hint" v-if="state.expedition_state?.expedition?.registered && !state.expedition_can_track(task)"><lang-string lang-id="MOD_MP_EXPEDITION_UI_START_ONE_OF_THE_LISTED_ACTIVITIES_TO_TRACK_THIS_TASK"></lang-string></p>
-												</div>
-											</article>
-										</div>
-									</div>
-								</section>
-							</div>
-							<div class="mp-expedition-side-column">
-								<div class="mp-expedition-desktop-passages" v-scope="{ $template: '#template-mp-expedition-passages' }"></div>
-							</div>
-						</div>
-					</div>
+					<div class="mp-expedition-actions"><div class="mp-expedition-available" v-if="state.expedition_state?.tracking?.reward_remaining_ms != null"><lang-string lang-id="MOD_MP_EXPEDITION_AVAILABLE_TO_EARN"></lang-string><strong>{{ state.format_ep(Math.floor((state.expedition_state?.tracking?.reward_remaining_ms ?? 0) * 1000000 / 3600000)) }} EP</strong></div><button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending || state.expedition_pending_report || state.expedition_check_in_cooldown_until > 0" @click="state.submit_expedition_work('check-in')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CHECK_IN"></lang-string></button></div>
+				</div>
+				<div v-show="state.equipment_tracking()?.source === 'equipment'" class="mp-expedition-panel mp-equipment-tracking">
+					<strong>{{ state.equipment_task_name({ action_id: state.equipment_tracking()?.task_id?.split('|')[1] }) }}</strong>
+					<div class="mp-expedition-actions"><button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending || state.expedition_pending_report" @click="state.equipment_action('check-in')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CHECK_IN"></lang-string></button></div>
 				</div>
 			</div>
-			<div id="mp-expedition-journey-view" :class="{ 'mp-expedition-mobile-hidden': state.expedition_mobile_tab !== 'journey' }" aria-labelledby="mp-expedition-journey-tab">
-				<div class="mp-expedition-mobile-passages" v-scope="{ $template: '#template-mp-expedition-passages' }"></div>
-				<p class="mp-expedition-message" v-if="!state.expedition_state?.expedition && !state.expedition_personal"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOUR_JOURNEY_WILL_APPEAR_HERE_AFTER_AN_EXPEDITION_BEGINS"></lang-string></p>
-				<div class="mp-expedition-panel" v-if="state.expedition_state?.expedition?.history?.length || (state.expedition_state?.expedition?.chamber && !state.expedition_state?.expedition?.chamber?.preparation)">
-					<h3><lang-string lang-id="MOD_MP_EXPEDITION_UI_VISITED_CHAMBERS"></lang-string></h3>
-					<ol><li v-for="visit in state.expedition_state?.expedition?.history || []" :key="visit.entered_at">{{ state.expedition_display_label(visit.label) }}<span v-if="visit.chosen_exit_label"> → {{ state.expedition_display_label(visit.chosen_exit_label) }}</span></li><li v-if="state.expedition_state?.expedition?.chamber">{{ state.expedition_display_label(state.expedition_state?.expedition?.chamber?.label) }} · {{ getLangString('MOD_MP_EXPEDITION_CURRENT') }}</li></ol>
+			<div id="mp-expedition-chamber-view">
+				<div class="mp-equipment-tabs mp-combat-page-tabs mp-expedition-page-tabs" role="tablist" :aria-label="getLangString('MOD_MP_EQUIPMENT_WORK_VIEWS')">
+					<button type="button" class="btn mp-expedition-button" role="tab" id="mp-chamber-work-tab" aria-controls="mp-chamber-work" :aria-selected="state.expedition_work_tab === 'chamber'" @click="state.expedition_work_tab = 'chamber'"><lang-string lang-id="MOD_MP_EQUIPMENT_CHAMBER_TASKS"></lang-string></button>
+					<button type="button" class="btn mp-expedition-button" role="tab" id="mp-expedition-journey-tab" aria-controls="mp-expedition-journey-view" :aria-selected="state.expedition_work_tab === 'journey'" @click="state.expedition_work_tab = 'journey'"><lang-string lang-id="MOD_MP_EXPEDITION_UI_JOURNEY"></lang-string><span class="badge mp-expedition-vote-badge" v-if="state.expedition_needs_vote()"><lang-string lang-id="MOD_MP_VOTE_BADGE"></lang-string></span></button>
+					<button type="button" class="btn mp-expedition-button" role="tab" id="mp-equipment-work-tab" aria-controls="mp-equipment-work" :aria-selected="state.expedition_work_tab === 'equipment'" @click="state.expedition_work_tab = 'equipment'"><lang-string lang-id="MOD_MP_EQUIPMENT_PROJECTS"></lang-string></button>
 				</div>
-				<div class="mp-expedition-panel" v-if="state.expedition_personal?.history?.length || state.expedition_personal?.tracking">
-					<h3><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOUR_EXPEDITION_RECORD"></lang-string></h3>
-					<p>{{ state.expedition_text('MOD_MP_EXPEDITION_EP_AVAILABLE', state.expedition_points(state.expedition_personal?.points_micros ?? state.expedition_state?.points_micros)) }}</p>
-					<div v-if="state.expedition_personal?.tracking"><p><lang-string lang-id="MOD_MP_EXPEDITION_UI_EARLIER_GUILD_WORK_IS_AWAITING_A_VERIFIED_CHECK_IN"></lang-string></p><button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending || state.expedition_pending_report || state.expedition_check_in_cooldown_until > 0" @click="state.submit_expedition_work('check-in')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CHECK_IN_EARLIER_WORK"></lang-string></button></div>
-					<ol><li v-for="record in state.expedition_personal?.history || []" :key="record.expedition_id">{{ state.expedition_text('MOD_MP_EXPEDITION_HISTORY_RECORD', record.source_guild_name, state.expedition_status('RUN', record.status), (record.earned_points_micros / 1000000).toFixed(3), state.expedition_status('STASH', record.stash_outcome)) }}</li></ol>
-				</div>
-				<details class="mp-expedition-panel mp-expedition-debug-controls" v-if="state.expedition_state?.debug_enabled">
-					<summary><lang-string lang-id="MOD_MP_EXPEDITION_UI_TEST_CONTROLS"></lang-string></summary><p><lang-string lang-id="MOD_MP_EXPEDITION_UI_THESE_SHORTCUTS_AFFECT_THIS_GUILD_S_EXPEDITION_TEST_TASK_COMPLETION_GRANTS_"></lang-string></p>
-					<div class="mp-expedition-actions">
-						<button type="button" class="mp-expedition-button" :disabled="state.expedition_loading" @click="state.refresh_expedition_state()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_REFRESH"></lang-string></button>
-						<button type="button" class="mp-expedition-button" v-if="state.expedition_state?.expedition?.status === 'registration'" :disabled="state.expedition_action_pending" @click="state.debug_advance_expedition('registration')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CLOSE_REGISTRATION_NOW"></lang-string></button>
-						<button type="button" class="mp-expedition-button" v-if="state.expedition_state?.expedition?.chamber?.exits?.length > 1 && state.expedition_state?.expedition?.chamber?.vote?.deadline_at && !state.expedition_state?.expedition?.chamber?.vote?.locked_at" :disabled="state.expedition_action_pending" @click="state.debug_advance_expedition('vote')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CLOSE_VOTE_NOW"></lang-string></button>
-						<button type="button" class="mp-expedition-button mp-expedition-button-secondary" v-if="['registration', 'active'].includes(state.expedition_state?.expedition?.status)" :disabled="state.expedition_action_pending" @click="state.show_expedition_debug_confirmation('cancel')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CANCEL_EXPEDITION"></lang-string></button>
-						<button type="button" class="mp-expedition-button mp-expedition-button-secondary" :disabled="state.expedition_action_pending" @click="state.show_expedition_debug_confirmation('wipe')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_WIPE_DATA"></lang-string></button>
-						<button type="button" class="mp-expedition-button mp-expedition-button-secondary" v-for="task in (state.expedition_state?.expedition?.chamber?.tasks || []).filter(task => task.unlocked_at !== null && task.completed_at === null && (task.requirement === 'required' || task.promoted_at !== null || (task.requirement === 'conditional' && (state.expedition_state?.expedition?.chamber?.exits || []).some(edge => edge.id === task.exit_id && edge.label !== '???'))))" :key="task.task_id" :disabled="state.expedition_action_pending" @click="state.debug_advance_expedition('task', task.task_id)">{{ state.expedition_text('MOD_MP_EXPEDITION_COMPLETE_FOR_TEST', state.expedition_display_label(task.title, state.expedition_state?.expedition?.chamber?.exits?.length, state.expedition_state?.expedition?.chamber?.id)) }}</button>
+				<div id="mp-equipment-work" role="tabpanel" aria-labelledby="mp-equipment-work-tab" v-show="state.expedition_work_tab === 'equipment'">
+					<p v-show="!state.combat.character"><lang-string lang-id="MOD_MP_EQUIPMENT_CREATE_FIRST"></lang-string></p>
+					<div class="mp-project-grid" v-show="state.combat.character">
+						<section class="mp-expedition-panel">
+							<h3><lang-string lang-id="MOD_MP_EQUIPMENT_CATALOG"></lang-string></h3>
+							<div v-for="category in state.equipment_project_categories()" :key="category.id" class="mp-equipment-category">
+								<h4>{{ category.name }}</h4>
+								<div class="mp-equipment-project-icons" role="group" :aria-label="category.name">
+									<button v-for="project in category.items" :key="project.item_id" type="button" class="mp-equipment-project-icon" :disabled="!state.combat_tutorial_access('project', project.item_id)" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('project', project.item_id), 'mp-equipment-project-ready': state.equipment_project_can_start(project), 'mp-equipment-project-undiscovered': !state.equipment_discovered(project.item_id), 'mp-equipment-project-complete': state.equipment_project_completed(project.item_id), 'mp-equipment-project-active': state.equipment_project_started(project.item_id) }" :title="state.equipment_project_title(project)" :aria-label="state.equipment_project_title(project)" :aria-pressed="state.equipment_selected.project?.id === project.item_id" @click="state.equipment_select('project', 'project', project.item_id)">
+										<img :src="state.get_item_icon(project.item_id)" alt="" width="40" height="40">
+										<i v-if="!state.combat_tutorial_access('project', project.item_id) || !state.equipment_discovered(project.item_id)" class="fa fa-lock mp-equipment-project-lock" aria-hidden="true"></i>
+										<i v-else-if="state.equipment_project_completed(project.item_id)" class="fa fa-check mp-equipment-project-status" aria-hidden="true"></i>
+										<i v-else-if="state.equipment_project_started(project.item_id)" class="fa fa-hourglass-half mp-equipment-project-status" aria-hidden="true"></i>
+									</button>
+								</div>
+							</div>
+						</section>
+						<section class="mp-expedition-panel">
+							<h3><lang-string lang-id="MOD_MP_EQUIPMENT_PERSONAL_WORK"></lang-string></h3>
+			<section class="mp-combat-panel mp-tutorial-guide" v-if="state.combat_tutorial_guide()" :aria-label="state.combat_tutorial_heading()">
+				<div class="mp-combat-panel-body"><strong>{{ state.combat_tutorial_heading() }}</strong>
+				<p role="status">{{ state.combat_tutorial_guide()?.text }}</p></div>
+			</section>
+							<p v-show="!state.equipment_model()?.project"><lang-string lang-id="MOD_MP_EQUIPMENT_NO_PROJECT"></lang-string></p>
+							<header class="mp-equipment-item-heading" v-for="project in [state.equipment_model()?.project].filter(Boolean)" :key="project.item_id"><img :src="state.get_item_icon(project.item_id)" alt="" width="80" height="80"><div><h4>{{ state.equipment_project_name(project) }}</h4><button type="button" class="btn btn-sm btn-outline-danger mb-3" v-show="state.equipment_model()?.project" :disabled="!state.equipment_cancel_ready()" @click="state.equipment_cancel_preview()"><lang-string lang-id="MOD_MP_EQUIPMENT_CANCEL_PROJECT"></lang-string></button></div></header>
+							<div v-for="(tasks, index) in state.equipment_model()?.project?.stages || []" :key="index" class="mp-equipment-stage">
+								<h4>{{ state.equipment_stage_name(index) }}</h4>
+								<article v-for="task in tasks" :key="task.task_id" class="mp-expedition-task" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('work') && task.available && task.player_ms < task.target_ms, 'mp-equipment-locked': !task.available && task.player_ms < task.target_ms }">
+									<div class="mp-equipment-item"><img :src="state.expedition_work_icon(task.skill_id)" alt="" width="24" height="24"><strong>{{ state.equipment_task_name(task) }}</strong></div>
+									<progress :value="task.player_ms" :max="task.target_ms" :aria-label="state.equipment_task_name(task)"></progress><small>{{ state.equipment_duration(task.player_ms) }} / {{ state.equipment_duration(task.target_ms) }}</small>
+
+								</article>
+							</div>
+						</section>
 					</div>
-				</details>
+					<details class="mp-expedition-panel mp-expedition-debug-controls" v-if="state.combat.debug_enabled || state.expedition_state?.debug_enabled">
+						<summary><lang-string lang-id="MOD_MP_EXPEDITION_UI_TEST_CONTROLS"></lang-string></summary>
+						<p><lang-string lang-id="MOD_MP_EQUIPMENT_TEST_CONTROLS_INFO"></lang-string></p>
+						<button type="button" class="mp-expedition-button" :disabled="state.combat.inventory_busy || state.expedition_loading" @click="state.equipment_refresh()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_REFRESH"></lang-string></button>
+						<div v-if="state.combat.debug_enabled && state.equipment_model()?.project">
+							<button type="button" class="mp-expedition-button" v-for="task in (state.equipment_model()?.project?.stages || []).flat().filter(task => task.available && task.player_ms < task.target_ms)" :key="task.task_id" :disabled="!state.equipment_debug_ready()" @click="state.equipment_debug_preview(task)">{{ state.expedition_text('MOD_MP_EXPEDITION_COMPLETE_FOR_TEST', state.equipment_task_name(task)) }}</button>
+							<button type="button" class="mp-expedition-button" :disabled="!state.equipment_debug_ready()" @click="state.equipment_debug_preview(null)">{{ state.expedition_text('MOD_MP_EXPEDITION_COMPLETE_FOR_TEST', state.equipment_project_name(state.equipment_model().project)) }}</button>
+							<div v-if="state.equipment_debug_selection"><strong>{{ state.equipment_debug_selection?.name }}</strong><button type="button" class="btn btn-sm btn-warning" :disabled="!state.equipment_debug_ready()" @click="state.equipment_debug_confirm()">{{ state.combat_name('confirm') }}</button><button type="button" class="btn btn-sm btn-outline-secondary" :disabled="state.combat.inventory_busy" @click="state.equipment_debug_selection = null"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button></div>
+						</div>
+					</details>
+					<p class="text-warning" v-show="state.combat.inventory_error">{{ state.combat_inventory_error() }}</p>
+				</div>
+				<div id="mp-chamber-work" role="tabpanel" aria-labelledby="mp-chamber-work-tab" v-show="state.expedition_work_tab === 'chamber'">
+					<p v-show="!state.is_guild_member"><lang-string lang-id="MOD_MP_EQUIPMENT_GUILD_CHAMBER"></lang-string></p>
+					<div class="mp-expedition-panel" v-if="state.expedition_state && !state.expedition_state?.expedition">
+						<p><lang-string lang-id="MOD_MP_EXPEDITION_UI_NO_EXPEDITION_IS_ACTIVE_IN_THIS_GUILD"></lang-string></p>
+						<button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending" @click="state.register_expedition()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_START_AND_REGISTER"></lang-string></button>
+					</div>
+					<div>
+						<details class="mp-expedition-panel mp-expedition-snow-controls" v-if="state.expedition_snow_controls_enabled && (state.expedition_state?.expedition?.status === 'registration' || state.expedition_state?.expedition?.chamber?.id === 'entrance')">
+							<summary><lang-string lang-id="MOD_MP_EXPEDITION_UI_RIFT_SNOW_SETTINGS"></lang-string></summary>
+							<div class="mp-expedition-snow-fields">
+								<label><lang-string lang-id="MOD_MP_EXPEDITION_UI_FLAKES"></lang-string> <output>{{ state.expedition_snow.count }}</output><input type="range" min="0" max="120" step="1" v-model.number="state.expedition_snow.count"></label>
+								<label><lang-string lang-id="MOD_MP_EXPEDITION_UI_SPEED"></lang-string> <output>{{ state.expedition_snow.speed }} px/s</output><input type="range" min="0" max="150" step="5" v-model.number="state.expedition_snow.speed"></label>
+								<label><lang-string lang-id="MOD_MP_EXPEDITION_UI_OPACITY"></lang-string> <output>{{ state.expedition_snow.opacity }}%</output><input type="range" min="0" max="100" step="1" v-model.number="state.expedition_snow.opacity"></label>
+								<label><lang-string lang-id="MOD_MP_EXPEDITION_UI_SMALLEST"></lang-string> <output>{{ state.expedition_snow.min_size }} px</output><input type="range" min="0.5" :max="state.expedition_snow.max_size" step="0.5" v-model.number="state.expedition_snow.min_size"></label>
+								<label><lang-string lang-id="MOD_MP_EXPEDITION_UI_LARGEST"></lang-string> <output>{{ state.expedition_snow.max_size }} px</output><input type="range" :min="state.expedition_snow.min_size" max="8" step="0.5" v-model.number="state.expedition_snow.max_size"></label>
+								<label><lang-string lang-id="MOD_MP_EXPEDITION_UI_ANGLE"></lang-string> <output>{{ state.expedition_snow.angle }}°</output><input type="range" min="-60" max="60" step="5" v-model.number="state.expedition_snow.angle"></label>
+							</div>
+							<div class="mp-expedition-snow-meter" v-if="state.expedition_snow_stats">{{ state.expedition_text('MOD_MP_EXPEDITION_SNOW_FRAME_STATS', state.expedition_snow_stats.fps, state.expedition_snow_stats.draw_ms.toFixed(2)) }}</div>
+							<div class="mp-expedition-snow-meter" v-else><lang-string lang-id="MOD_MP_EXPEDITION_UI_SNOW_PAUSED"></lang-string></div>
+							<p><lang-string lang-id="MOD_MP_EXPEDITION_UI_FPS_MEASURES_THE_WHOLE_GAME_SNOW_DRAW_TIME_MEASURES_THIS_OVERLAY_COMPARE_SE"></lang-string></p>
+							<button type="button" class="mp-expedition-button mp-expedition-button-secondary" @click="state.reset_expedition_snow()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_RESET_SNOW"></lang-string></button>
+						</details>
+
+						<div class="mp-expedition-panel mp-expedition-notice" v-if="state.expedition_state?.tracking && state.expedition_state?.tracking?.source !== 'equipment' && state.expedition_state?.tracking?.visit_id !== state.expedition_state?.expedition?.chamber?.visit_id">
+							<p><lang-string lang-id="MOD_MP_EXPEDITION_UI_WORK_FROM_A_DEPARTED_CHAMBER_IS_AWAITING_CHECK_IN_ONLY_VERIFIED_WORK_BEFORE"></lang-string></p>
+							<button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending || state.expedition_pending_report || state.expedition_check_in_cooldown_until > 0" @click="state.submit_expedition_work('check-in')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CHECK_IN_PRIOR_WORK"></lang-string></button>
+						</div>
+						<div>
+							<div class="mp-expedition-layout">
+								<div class="mp-expedition-work-column">
+									<div class="mp-expedition-registration" v-if="state.expedition_state?.expedition?.status === 'registration'">
+										<div class="mp-expedition-panel">
+											<h3><lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTRATION"></lang-string></h3>
+											<p>{{ state.expedition_text('MOD_MP_EXPEDITION_REGISTRATION_CLOSES_IN', state.expedition_time_remaining(state.expedition_state?.expedition?.registration_ends_at)) }}</p>
+											<button type="button" class="mp-expedition-button" v-if="!state.expedition_state?.expedition?.registered" :disabled="state.expedition_action_pending" @click="state.register_expedition()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTER_FOR_THIS_EXPEDITION"></lang-string></button>
+											<p v-else><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOU_ARE_REGISTERED"></lang-string></p>
+										</div>
+									</div>
+									<div v-if="state.expedition_has_ended(state.expedition_state?.expedition)">
+										<div class="mp-expedition-panel mp-expedition-return">
+											<h3><lang-string lang-id="MOD_MP_EXPEDITION_UI_EXPEDITION_ENDED"></lang-string></h3>
+											<p class="mp-expedition-return-flavor"><lang-string lang-id="MOD_MP_EXPEDITION_RETURN_FLAVOR"></lang-string></p>
+											<p v-if="state.expedition_state?.expedition?.return_summary">{{ state.expedition_return_story(state.expedition_state?.expedition?.return_summary) }}</p>
+											<p v-if="state.expedition_state?.expedition?.return_summary">{{ state.expedition_text('MOD_MP_EXPEDITION_RETURN_EARNINGS', state.format_ep(state.expedition_state?.expedition?.return_summary?.earned_points_micros)) }}</p>
+											<div class="mp-expedition-return-reward" v-if="state.expedition_state?.expedition?.return_summary?.ending_bonus_eligible">
+												<p>{{ state.expedition_text('MOD_MP_EXPEDITION_RETURN_BONUS', state.format_ep(state.expedition_state?.expedition?.return_summary?.bonus_total_micros)) }}</p>
+												<button type="button" class="mp-expedition-button" v-if="state.expedition_state?.expedition?.return_summary?.bonus_available_micros > 0" :disabled="state.expedition_action_pending || state.expedition_pending_report" @click="state.claim_expedition_bonus(state.expedition_state?.expedition?.id)">{{ state.expedition_text('MOD_MP_EXPEDITION_RETURN_CLAIM', state.format_ep(state.expedition_state?.expedition?.return_summary?.bonus_available_micros)) }}</button>
+												<p v-else-if="state.expedition_state?.expedition?.return_summary?.bonus_claimed_micros > 0" class="mp-expedition-return-claimed"><i class="fa fa-check" aria-hidden="true"></i> <lang-string lang-id="MOD_MP_EXPEDITION_RETURN_CLAIMED"></lang-string></p>
+											</div>
+											<button type="button" class="mp-expedition-button mp-expedition-button-secondary" :disabled="state.expedition_action_pending" @click="state.register_expedition()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTER_FOR_A_NEW_EXPEDITION"></lang-string></button>
+										</div>
+										<p class="mp-expedition-points mp-expedition-return-points"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOUR_EP"></lang-string><strong>{{ state.format_ep(state.expedition_state?.points_micros) }}</strong></p>
+									</div>
+									<section class="mp-expedition-panel mp-expedition-phase" v-for="phase in ['arrival', 'exploration', 'departure']" :key="phase" v-show="state.expedition_state?.expedition?.chamber && (phase === 'arrival' || state.expedition_phase_tasks(state.expedition_state?.expedition?.chamber, phase).length)">
+										<h3 class="mp-expedition-phase-heading"><button type="button" class="mp-expedition-phase-toggle" :aria-expanded="state.expedition_phase_open[phase]" :aria-controls="'mp-expedition-' + phase + '-body'" @click="state.toggle_expedition_phase(phase)">
+												<i class="fa" :class="state.expedition_phase_tasks(state.expedition_state?.expedition?.chamber, phase).every(task => task.completed_at != null) ? 'fa-check-circle mp-expedition-phase-done' : phase === 'exploration' ? 'fa-compass' : phase === 'departure' ? 'fa-door-open' : 'fa-map-marker'" aria-hidden="true"></i>
+												<span><strong>{{ state.expedition_state?.expedition?.chamber?.preparation ? getLangString('MOD_MP_EXPEDITION_PREPARATIONS') : phase === 'arrival' ? getLangString('MOD_MP_EXPEDITION_PHASE_ARRIVAL') : phase === 'exploration' ? getLangString('MOD_MP_EXPEDITION_PHASE_EXPLORATION') : getLangString('MOD_MP_EXPEDITION_PHASE_DEPARTURE') }}</strong><small>{{ state.expedition_phase_summary(state.expedition_state?.expedition?.chamber, phase) }}</small></span>
+												<i class="fa" :class="state.expedition_phase_open[phase] ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
+											</button></h3>
+										<div class="mp-expedition-phase-body" :id="'mp-expedition-' + phase + '-body'" v-show="state.expedition_phase_open[phase]">
+											<div class="mp-expedition-task-group" v-for="group in ['done', 'active', 'pending']" :key="group" v-show="state.expedition_phase_tasks(state.expedition_state?.expedition?.chamber, phase, group).length">
+												<h4>{{ group === 'done' ? getLangString('MOD_MP_EXPEDITION_GROUP_DONE') : group === 'active' ? getLangString('MOD_MP_EXPEDITION_GROUP_ACTIVE') : getLangString('MOD_MP_EXPEDITION_GROUP_PENDING') }}</h4>
+												<article class="mp-expedition-task" :class="{ 'mp-expedition-task-done': group === 'done', 'mp-expedition-task-self': state.expedition_state?.tracking?.visit_id === state.expedition_state?.expedition?.chamber?.visit_id && state.expedition_state?.tracking?.task_id === task.task_id }" v-for="task in state.expedition_phase_tasks(state.expedition_state?.expedition?.chamber, phase, group)" :key="task.task_id">
+													<div class="mp-expedition-task-heading"><i class="fa fa-check-circle" :aria-label="getLangString('MOD_MP_EXPEDITION_COMPLETE')" v-if="group === 'done'"></i><strong>{{ state.expedition_display_label(task.title, state.expedition_state?.expedition?.chamber?.exits?.length, state.expedition_state?.expedition?.chamber?.id) }}</strong><span class="mp-expedition-task-requirement" :class="{ 'mp-expedition-task-required': task.promoted_at || task.requirement === 'required' || (task.requirement === 'conditional' && task.exit_id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id) }" v-if="group !== 'done'">{{ state.expedition_state?.expedition?.chamber?.preparation ? getLangString('MOD_MP_EXPEDITION_PERSONAL') : task.promoted_at || task.requirement === 'required' || (task.requirement === 'conditional' && task.exit_id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id) ? getLangString('MOD_MP_EXPEDITION_REQUIRED') : getLangString('MOD_MP_EXPEDITION_OPTIONAL') }}</span></div>
+													<span class="mp-expedition-task-tracking" v-if="group !== 'done' && state.expedition_state?.tracking?.visit_id === state.expedition_state?.expedition?.chamber?.visit_id && state.expedition_state?.tracking?.task_id === task.task_id"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOU_ARE_TRACKING_THIS"></lang-string></span>
+													<div class="mp-expedition-work-list" :class="{ 'mp-expedition-work-icons-only': group === 'done' }" :aria-label="group === 'done' ? getLangString('MOD_MP_EXPEDITION_ACCEPTED_ACTIVITIES') : getLangString('MOD_MP_EXPEDITION_CONTRIBUTE_ACTIVITIES')">
+														<span v-if="group !== 'done'"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CONTRIBUTE_WITH_ANY_OF_THESE"></lang-string></span>
+														<div class="mp-expedition-work" v-for="skill_id in task.evidence?.skill_ids || []" :key="skill_id" :title="state.expedition_work_name(skill_id)" :aria-label="state.expedition_work_name(skill_id)" role="img">
+															<img :src="state.expedition_work_icon(skill_id)" alt="" draggable="false"><span v-if="group !== 'done'">{{ state.expedition_work_name(skill_id) }}</span>
+														</div>
+													</div>
+													<div class="mp-expedition-progress-wrap" :class="{ 'mp-expedition-progress-done': group === 'done' }" tabindex="0" :aria-label="state.expedition_display_label(task.title, state.expedition_state?.expedition?.chamber?.exits?.length, state.expedition_state?.expedition?.chamber?.id) + ': ' + state.expedition_progress_description(task)">
+														<div class="mp-expedition-progress" role="progressbar" :aria-valuenow="state.expedition_percent(task)" aria-valuemin="0" aria-valuemax="100" :aria-label="state.expedition_display_label(task.title, state.expedition_state?.expedition?.chamber?.exits?.length, state.expedition_state?.expedition?.chamber?.id)" :aria-valuetext="state.expedition_progress_description(task)">
+															<span class="mp-expedition-progress-own" :style="{ width: state.expedition_progress_width(task.personal_ms, task) }"></span><span class="mp-expedition-progress-others" :style="{ width: state.expedition_progress_width(state.expedition_other_player_ms(task), task) }"></span><span class="mp-expedition-progress-assistance" :style="{ width: state.expedition_progress_width(task.system_ms, task) }"></span>
+														</div>
+														<div class="mp-expedition-progress-detail" role="tooltip" v-if="state.expedition_contribution_time(task.personal_ms) || state.expedition_contribution_time(state.expedition_other_player_ms(task)) || state.expedition_contribution_time(task.system_ms)">
+															<span v-if="state.expedition_contribution_time(task.personal_ms)"><i class="mp-expedition-progress-key mp-expedition-progress-own"></i>{{ state.expedition_text('MOD_MP_EXPEDITION_YOUR_WORK_TIME', state.expedition_contribution_time(task.personal_ms)) }}</span><span v-if="state.expedition_contribution_time(state.expedition_other_player_ms(task))"><i class="mp-expedition-progress-key mp-expedition-progress-others"></i>{{ state.expedition_text('MOD_MP_EXPEDITION_OTHER_WORK_TIME', state.expedition_contribution_time(state.expedition_other_player_ms(task))) }}</span><span v-if="state.expedition_contribution_time(task.system_ms)"><i class="mp-expedition-progress-key mp-expedition-progress-assistance"></i>{{ state.expedition_text('MOD_MP_EXPEDITION_ASSISTANCE_TIME', state.expedition_contribution_time(task.system_ms)) }}</span>
+														</div>
+													</div>
+													<div v-if="group !== 'done'">
+														<p class="mp-expedition-progress-percent"><strong>{{ state.expedition_remaining(task) }}</strong> · {{ state.expedition_text('MOD_MP_EXPEDITION_PERCENT_COMPLETE', state.expedition_percent(task)) }}</p>
+														<p v-if="task.trackers?.length">{{ state.expedition_text('MOD_MP_EXPEDITION_TRACKERS', task.trackers.map(member => member.display_name).join(', ')) }}</p>
+														<div class="mp-expedition-task-actions" v-if="state.expedition_state?.expedition?.registered && (state.expedition_state?.tracking?.visit_id !== state.expedition_state?.expedition?.chamber?.visit_id || state.expedition_state?.tracking?.task_id !== task.task_id)">
+
+															<div class="mp-expedition-available"><lang-string lang-id="MOD_MP_EXPEDITION_AVAILABLE_TO_EARN"></lang-string><strong>{{ state.expedition_available_points(task) }} EP</strong></div>
+														</div>
+														<p class="mp-expedition-work-hint" v-if="state.expedition_state?.expedition?.registered && !state.expedition_can_track(task)"><lang-string lang-id="MOD_MP_EXPEDITION_UI_START_ONE_OF_THE_LISTED_ACTIVITIES_TO_TRACK_THIS_TASK"></lang-string></p>
+													</div>
+												</article>
+											</div>
+										</div>
+									</section>
+								</div>
+								<div class="mp-expedition-side-column">
+									<div v-scope="{ $template: '#template-mp-expedition-leaderboard' }"></div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div id="mp-expedition-journey-view" role="tabpanel" aria-labelledby="mp-expedition-journey-tab" v-show="state.expedition_work_tab === 'journey'">
+					<div class="mp-expedition-panel" v-for="reward in (state.expedition_state ?? state.expedition_personal)?.ending_rewards || []" :key="reward.expedition_id">
+						<h3><lang-string lang-id="MOD_MP_EXPEDITION_RETURN_UNCLAIMED"></lang-string></h3>
+						<p><lang-string lang-id="MOD_MP_EXPEDITION_RETURN_UNCLAIMED_HINT"></lang-string></p>
+						<button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending || state.expedition_pending_report" @click="state.claim_expedition_bonus(reward.expedition_id)">{{ state.expedition_text('MOD_MP_EXPEDITION_RETURN_CLAIM', state.format_ep(reward.bonus_available_micros)) }}</button>
+					</div>
+					<div class="mp-expedition-passages" v-scope="{ $template: '#template-mp-expedition-passages' }"></div>
+					<p class="mp-expedition-message" v-if="!state.expedition_state?.expedition && !state.expedition_personal"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOUR_JOURNEY_WILL_APPEAR_HERE_AFTER_AN_EXPEDITION_BEGINS"></lang-string></p>
+					<div class="mp-expedition-panel" v-if="state.expedition_state?.expedition?.history?.length || (state.expedition_state?.expedition?.chamber && !state.expedition_state?.expedition?.chamber?.preparation)">
+						<div class="mp-expedition-journey-split">
+							<section class="mp-expedition-journey-flavor">
+								<h3>{{ state.expedition_journey_flavor().name }}</h3>
+								<p class="mp-expedition-journey-tagline">{{ state.expedition_journey_flavor().tagline }}</p>
+								<p class="mp-expedition-journey-description">{{ state.expedition_journey_flavor().description }}</p>
+							</section>
+							<section class="mp-expedition-journey-graph">
+								<h3><lang-string lang-id="MOD_MP_EXPEDITION_UI_VISITED_CHAMBERS"></lang-string></h3>
+								<mp-expedition-journey :snapshot="JSON.stringify(state.expedition_state)"></mp-expedition-journey>
+							</section>
+						</div>
+					</div>
+					<details class="mp-expedition-panel mp-expedition-debug-controls" v-if="state.expedition_state?.debug_enabled">
+						<summary><lang-string lang-id="MOD_MP_EXPEDITION_UI_TEST_CONTROLS"></lang-string></summary><p><lang-string lang-id="MOD_MP_EXPEDITION_UI_THESE_SHORTCUTS_AFFECT_THIS_GUILD_S_EXPEDITION_TEST_TASK_COMPLETION_GRANTS_"></lang-string></p>
+						<div class="mp-expedition-actions">
+							<button type="button" class="mp-expedition-button" :disabled="state.expedition_loading" @click="state.refresh_expedition_state()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_REFRESH"></lang-string></button>
+							<button type="button" class="mp-expedition-button" v-if="state.expedition_state?.expedition?.status === 'registration'" :disabled="state.expedition_action_pending" @click="state.debug_advance_expedition('registration')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CLOSE_REGISTRATION_NOW"></lang-string></button>
+							<button type="button" class="mp-expedition-button" v-if="state.expedition_state?.expedition?.chamber?.exits?.length > 1 && state.expedition_state?.expedition?.chamber?.vote?.deadline_at && !state.expedition_state?.expedition?.chamber?.vote?.locked_at" :disabled="state.expedition_action_pending" @click="state.debug_advance_expedition('vote')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CLOSE_VOTE_NOW"></lang-string></button>
+							<button type="button" class="mp-expedition-button mp-expedition-button-secondary" v-if="['registration', 'active'].includes(state.expedition_state?.expedition?.status)" :disabled="state.expedition_action_pending" @click="state.show_expedition_debug_confirmation('cancel')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CANCEL_EXPEDITION"></lang-string></button>
+							<button type="button" class="mp-expedition-button mp-expedition-button-secondary" :disabled="state.expedition_action_pending" @click="state.show_expedition_debug_confirmation('wipe')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_WIPE_DATA"></lang-string></button>
+							<label v-if="['registration', 'active'].includes(state.expedition_state?.expedition?.status)">
+								<lang-string lang-id="MOD_MP_EXPEDITION_TEST_JUMP"></lang-string>
+								<select class="form-control" :disabled="state.expedition_action_pending" @change="state.debug_advance_expedition('jump', $event.target.value); $event.target.value = ''">
+									<option value="">{{ getLangString('MOD_MP_EXPEDITION_TEST_CHOOSE_CHAMBER') }}</option>
+									<option v-for="chamber in state.expedition_state?.debug_chambers || []" :key="chamber.id" :value="chamber.id">{{ state.expedition_display_label(chamber.label, null, chamber.id) }}</option>
+								</select>
+							</label>
+							<div class="mp-expedition-debug-work" style="display: contents" v-show="state.expedition_state?.expedition?.status === 'active'">
+								<button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending" @click="state.debug_advance_expedition('chamber')"><lang-string lang-id="MOD_MP_EXPEDITION_TEST_COMPLETE_CHAMBER"></lang-string></button>
+								<button type="button" class="mp-expedition-button" v-for="phase in ['arrival', 'exploration', 'departure']" :key="phase" :disabled="state.expedition_action_pending" @click="state.debug_advance_expedition('phase', phase)">{{ state.expedition_text('MOD_MP_EXPEDITION_COMPLETE_FOR_TEST', getLangString('MOD_MP_EXPEDITION_PHASE_' + phase.toUpperCase())) }}</button>
+								<p><lang-string lang-id="MOD_MP_EXPEDITION_TEST_BATCH_HELP"></lang-string></p>
+							</div>
+							<button type="button" class="mp-expedition-button mp-expedition-button-secondary" v-for="task in (state.expedition_state?.expedition?.status === 'active' ? state.expedition_state?.expedition?.chamber?.tasks || [] : []).filter(task => task.unlocked_at !== null && task.completed_at === null && (task.requirement === 'required' || task.requirement === 'optional' || task.promoted_at !== null || (task.requirement === 'conditional' && (state.expedition_state?.expedition?.chamber?.exits || []).some(edge => edge.id === task.exit_id && edge.label !== '???'))))" :key="task.task_id" :disabled="state.expedition_action_pending" @click="state.debug_advance_expedition('task', task.task_id)">{{ state.expedition_text('MOD_MP_EXPEDITION_COMPLETE_FOR_TEST', state.expedition_display_label(task.title, state.expedition_state?.expedition?.chamber?.exits?.length, state.expedition_state?.expedition?.chamber?.id)) }}</button>
+						</div>
+					</details>
+				</div>
 			</div>
 		</section>
 	</div>
 </template>
+<template id="template-mp-expedition-leaderboard">
+	<section class="mp-expedition-panel mp-expedition-leaderboard">
+		<h3><lang-string lang-id="MOD_MP_EXPEDITION_LEADERBOARD"></lang-string></h3>
+		<p class="text-warning" v-if="state.expedition_leaderboard_error" role="status"><lang-string lang-id="MOD_MP_EXPEDITION_LEADERBOARD_ERROR"></lang-string></p>
+		<p v-if="!state.expedition_leaderboard && !state.expedition_leaderboard_error"><lang-string lang-id="MOD_MP_LOADING"></lang-string></p>
+		<p v-if="state.expedition_leaderboard?.total === 0"><lang-string lang-id="MOD_MP_EXPEDITION_LEADERBOARD_EMPTY"></lang-string></p>
+		<div class="mp-expedition-leaderboard-row" v-for="player in state.expedition_leaderboard?.players || []" :key="player.client_id">
+			<img class="skill-icon-xs" :src="state.get_avatar_icon(player.icon_id)" alt="">
+			<span class="mp-expedition-leaderboard-player">{{ player.display_name }}<small v-if="player.guild_name">{{ player.guild_name }}</small></span><strong>{{ state.format_ep(player.points_micros) }} EP</strong>
+		</div>
+		<nav class="mp-expedition-leaderboard-pages" v-if="state.expedition_leaderboard?.total > 10" :aria-label="getLangString('MOD_MP_EXPEDITION_LEADERBOARD')">
+			<button type="button" class="mp-expedition-button" :class="{ 'mp-expedition-page-hidden': state.expedition_leaderboard.page === 0 }" :disabled="state.expedition_leaderboard_loading || state.expedition_leaderboard.page === 0" :aria-label="getLangString('MOD_MP_EXPEDITION_LEADERBOARD_PREVIOUS')" @click="state.expedition_leaderboard_page(state.expedition_leaderboard.page - 1)">&lt;</button>
+			<button type="button" class="mp-expedition-button" :class="{ 'mp-expedition-page-hidden': (state.expedition_leaderboard.page + 1) * 10 >= state.expedition_leaderboard.total }" :disabled="state.expedition_leaderboard_loading || (state.expedition_leaderboard.page + 1) * 10 >= state.expedition_leaderboard.total" :aria-label="getLangString('MOD_MP_EXPEDITION_LEADERBOARD_NEXT')" @click="state.expedition_leaderboard_page(state.expedition_leaderboard.page + 1)">&gt;</button>
+		</nav>
+	</section>
+</template>
+
 <template id="template-mp-expedition-passages">
 	<section class="mp-expedition-panel mp-expedition-passage-overview" v-if="(state.expedition_state?.expedition?.chamber?.vote?.opened_at != null || state.expedition_state?.expedition?.chamber?.vote?.locked_at != null) && state.expedition_state?.expedition?.chamber?.exits?.length">
 		<h3>{{ state.expedition_state?.expedition?.chamber?.vote?.locked_at ? getLangString('MOD_MP_EXPEDITION_CHOSEN_PASSAGE') : state.expedition_state?.expedition?.chamber?.exits?.length === 1 ? getLangString('MOD_MP_EXPEDITION_PASSAGE_AHEAD') : getLangString('MOD_MP_EXPEDITION_PASSAGES') }}</h3>
@@ -254,6 +341,391 @@
 		<p class="mp-expedition-vote-timer" v-if="state.expedition_state?.expedition?.chamber?.vote?.deadline_at && !state.expedition_state?.expedition?.chamber?.vote?.locked_at">{{ state.expedition_text('MOD_MP_EXPEDITION_VOTE_CLOSES_IN', state.expedition_time_remaining(state.expedition_state?.expedition?.chamber?.vote?.deadline_at)) }}</p>
 	</section>
 </template>
+								<template id="template-mp-combat-page">
+	<div class="content d-none" id="mp-combat-page">
+		<div class="mp-combat-shell">
+			<details class="mp-combat-panel" v-if="state.chat_is_admin">
+				<summary class="mp-combat-panel-header">{{ state.combat_tutorial_copy('REVIEW_ADMIN') }}</summary>
+				<div class="mp-combat-panel-body">
+					<section v-if="state.combat.dungeon_debug_options" @change="state.combat.dungeon_debug_confirm = false">
+						<h3><lang-string lang-id="MOD_MP_COMBAT_DUNGEON_TEST_TITLE"></lang-string></h3>
+						<p><lang-string lang-id="MOD_MP_COMBAT_DUNGEON_TEST_INFO"></lang-string></p>
+						<label for="mp-dungeon-test-target"><lang-string lang-id="MOD_MP_COMBAT_DUNGEON_TEST_TARGET"></lang-string></label>
+						<select id="mp-dungeon-test-target" class="form-control" :value="state.combat.dungeon_debug_target" @change="state.combat_dungeon_debug_select($event.target.value)"><option v-for="target in state.combat.dungeon_debug_options.targets" :key="target.id" :value="target.id">{{ target.title }}</option></select>
+						<div class="d-flex flex-wrap" style="gap:.5rem">
+							<label v-for="skill in ['attack','strength','defence','hitpoints']" :key="skill">{{ state.combat_name(skill) }} <input type="number" class="form-control" min="1" max="25" :value="state.combat.dungeon_debug_levels[skill]" @input="state.combat.dungeon_debug_levels[skill] = Number($event.target.value); state.combat.dungeon_debug_confirm = false"></label>
+						</div>
+						<label v-for="slot in ['Weapon','Shield','Helmet','Platebody','Platelegs','Boots','Gloves']" :key="slot" class="d-block">{{ state.equipment_slot_name(slot) }}
+							<select class="form-control" :value="state.combat.dungeon_debug_gear[slot] || ''" @change="state.combat.dungeon_debug_gear[slot] = $event.target.value"><option value="">—</option><option v-for="item in state.combat.dungeon_debug_options.equipment.filter(item => item.slot === slot)" :key="item.item_id" :value="item.item_id">{{ state.get_item_name(item.item_id) }}</option></select>
+						</label>
+						<label for="mp-dungeon-test-food">{{ state.equipment_slot_name('Food') }}</label>
+						<select id="mp-dungeon-test-food" class="form-control" v-model="state.combat.dungeon_debug_food"><option v-for="food in state.combat.dungeon_debug_options.foods" :key="food.item_id" :value="food.item_id">{{ state.get_item_name(food.item_id) }}</option></select>
+						<small class="d-block"><lang-string lang-id="MOD_MP_COMBAT_DUNGEON_TEST_LIMITS"></lang-string></small>
+					</section>
+					<div v-if="state.combat.dungeon_debug_options">
+						<label><input type="checkbox" v-model="state.combat.dungeon_debug_confirm"> <lang-string lang-id="MOD_MP_COMBAT_DUNGEON_TEST_CONFIRM"></lang-string></label>
+						<button type="button" class="btn btn-warning" :disabled="!state.combat.dungeon_debug_confirm || !state.combat_dungeon_debug_ready()" @click="state.combat_dungeon_debug_apply()"><lang-string lang-id="MOD_MP_COMBAT_DUNGEON_TEST_APPLY"></lang-string></button>
+						<hr>
+					</div>
+					<div v-show="state.combat.tutorial_debug_targets.length">
+						<label for="mp-tutorial-debug-phase">{{ state.combat_tutorial_copy('REVIEW_PLAY_PHASE') }}</label>
+						<select id="mp-tutorial-debug-phase" class="form-control" :value="state.combat.tutorial_debug_target" @change="state.combat.tutorial_debug_target = $event.target.value; state.combat.tutorial_debug_confirm = false">
+							<option v-for="target in state.combat.tutorial_debug_targets" :key="target.id" :value="target.id">{{ state.combat_tutorial_target_name(target) }}</option>
+						</select>
+						<p>{{ state.combat_tutorial_copy('REVIEW_REPLACES_PROGRESS') }}</p>
+						<label><input type="checkbox" v-model="state.combat.tutorial_debug_confirm"> {{ state.combat_tutorial_copy('REVIEW_CONFIRM_REPLACE') }}</label>
+						<div class="d-flex flex-wrap" style="gap: .5rem">
+							<button type="button" class="btn btn-outline-primary" :disabled="!state.combat.tutorial_debug_confirm || !state.combat_tutorial_debug_ready()" @click="state.combat_tutorial_debug_apply()">{{ state.combat_tutorial_copy('REVIEW_APPLY') }}</button>
+							<button type="button" class="btn btn-outline-danger" :disabled="!state.combat.tutorial_debug_confirm || !state.combat_tutorial_debug_ready()" @click="state.combat_tutorial_debug_apply('start')">{{ state.combat_tutorial_copy('REVIEW_RESET') }}</button>
+						</div>
+						<small>{{ state.combat_tutorial_copy('REVIEW_STOP_TRACKING') }}</small>
+						<hr>
+					</div>
+					<p>{{ state.combat_tutorial_copy('REVIEW_BROWSE') }}</p>
+					<label for="mp-tutorial-review-step">{{ state.combat_tutorial_copy('REVIEW_STEP') }}</label>
+					<select id="mp-tutorial-review-step" class="form-control" :value="state.combat_tutorial_review_index" @change="state.combat_tutorial_review_select($event.target.value)">
+						<option v-for="(step, index) in state.combat_tutorial_review_steps()" :value="index">{{ step.title }}</option>
+					</select>
+					<p role="status">{{ state.combat_tutorial_review_current()?.text }}</p>
+					<div class="d-flex flex-wrap" style="gap: .5rem">
+						<button type="button" class="btn btn-outline-primary" :disabled="state.combat_tutorial_review_index === 0" @click="state.combat_tutorial_review_move(-1)">{{ state.combat_tutorial_copy('REVIEW_PREVIOUS') }}</button>
+						<button type="button" class="btn btn-outline-primary" :disabled="state.combat_tutorial_review_index >= state.combat_tutorial_review_steps().length - 1" @click="state.combat_tutorial_review_move(1)">{{ state.combat_tutorial_copy('REVIEW_NEXT') }}</button>
+						<button type="button" class="btn btn-outline-secondary" @click="state.combat_tutorial_review_select(0)">{{ state.combat_tutorial_copy('REVIEW_RESET_REVIEW') }}</button>
+					</div>
+				</div>
+			</details>
+			<section class="mp-combat-panel mp-tutorial-guide" v-if="state.combat_tutorial_guide()" :aria-label="state.combat_tutorial_heading()">
+				<div class="mp-combat-panel-body"><strong>{{ state.combat_tutorial_heading() }}</strong>
+				<p role="status">{{ state.combat_tutorial_guide()?.text }}</p></div>
+			</section>
+			<nav class="mp-combat-page-tabs mp-combat-desktop-tabs" role="tablist" :aria-label="getLangString('MOD_MP_COMBAT_PREPARATION')">
+				<button v-for="tab in ['character', 'test_combat', 'pvp', 'raid']" :key="tab" type="button" class="btn" role="tab" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('page', tab) }" :aria-selected="state.combat.page_tab === tab" :disabled="!state.combat_tutorial_access('page', tab)" @click="state.combat_select_page(tab)"><i v-show="!state.combat_tutorial_access('page', tab)" class="fa fa-lock" aria-hidden="true"></i>{{ getLangString('MOD_MP_COMBAT_TAB_' + tab.toUpperCase()) }}</button>
+			</nav>
+			<nav class="mp-combat-page-tabs mp-combat-mobile-tabs" role="tablist" :aria-label="getLangString('MOD_MP_COMBAT_PREPARATION')">
+				<button type="button" class="btn" role="tab" :aria-selected="state.combat.page_tab === 'character'" :disabled="state.combat.arena?.status === 'active'" @click="state.combat_select_page('character')"><i v-show="state.combat.arena?.status === 'active'" class="fa fa-lock" aria-hidden="true"></i>{{ getLangString('MOD_MP_COMBAT_TAB_CHARACTER') }}</button>
+				<button type="button" class="btn" role="tab" :aria-selected="state.combat.page_tab !== 'character'" :disabled="!state.combat_tutorial_access('page', 'test_combat')" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('page', 'test_combat') }" @click="state.combat_select_page('test_combat')">{{ getLangString('MOD_MP_COMBAT_TAB_BATTLES') }}</button>
+			</nav>
+			<nav class="mp-combat-page-tabs mp-combat-mobile-tabs mp-combat-battle-tabs" role="tablist" :aria-label="getLangString('MOD_MP_COMBAT_TAB_BATTLES')" v-show="state.combat.page_tab !== 'character'">
+				<button v-for="tab in ['test_combat', 'pvp', 'raid']" :key="tab" type="button" class="btn" role="tab" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('page', tab) }" :aria-selected="state.combat.page_tab === tab" :disabled="!state.combat_tutorial_access('page', tab)" @click="state.combat_select_page(tab)"><i v-show="!state.combat_tutorial_access('page', tab)" class="fa fa-lock" aria-hidden="true"></i>{{ getLangString('MOD_MP_COMBAT_TAB_' + tab.toUpperCase()) }}</button>
+			</nav>
+			<div class="mp-combat-arena-host" v-show="state.combat.arena">
+				<section class="mp-combat-panel mp-combat-arena" v-show="state.combat.page_tab === state.combat.combat_tab && state.combat.arena?.status === 'active'" :aria-label="state.combat_encounter_name()">
+					<header class="mp-combat-panel-header mp-combat-toolbar">
+						<button type="button" class="mp-combat-toolbar-button mp-combat-stop" :aria-label="state.combat_run_copy('stop')" :title="state.combat_run_copy('stop')" :disabled="state.combat.pending || state.combat.arena?.status !== 'active'" @click="state.combat_action('flee')"><img :src="state.combat_run_icon()" alt=""></button>
+						<div class="mp-combat-toolbar-group" role="group" :aria-label="state.combat_name('food')">
+							<button class="mp-combat-toolbar-button mp-combat-eat" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('eat') }" :aria-label="state.combat_name('eat') + ': ' + state.combat_food_name()" :title="state.combat_name('eat') + ' · +' + state.combat.arena?.food_policy.heal + ' HP'" :disabled="state.combat.pending || state.combat.arena?.status !== 'active' || state.combat.arena?.food === 0 || state.combat_eat_remaining(state.combat.arena) > 0" @click="state.combat_action('eat')"><span class="mp-combat-eat-fill" data-combat-eat-fill aria-hidden="true"></span><span class="mp-combat-eat-label"><img v-if="state.combat.arena?.food_id" :src="state.combat_food_image()" alt=""><i v-else class="fa fa-utensils" aria-hidden="true"></i></span></button>
+							<span class="mp-combat-toolbar-slot" :title="state.consumable_grid()[1].title" :aria-label="state.consumable_grid()[1].title"><i class="fa fa-utensils" aria-hidden="true"></i><i class="fa fa-lock mp-combat-toolbar-lock" aria-hidden="true"></i></span>
+						</div>
+						<div class="mp-combat-toolbar-group" role="group" :aria-label="state.combat_name('potion')">
+							<span class="mp-combat-toolbar-slot" v-for="slot in state.consumable_grid().slice(2)" :key="slot.slot" :title="slot.title" :aria-label="slot.title"><i class="fa fa-flask" aria-hidden="true"></i><i class="fa fa-lock mp-combat-toolbar-lock" aria-hidden="true"></i></span>
+						</div>
+						<span class="mp-combat-connection mp-combat-connection-desktop" :title="state.combat_name(state.combat.status)" :aria-label="state.combat_name(state.combat.status) + ' · ' + state.combat.latency + ' ms'">{{ state.combat.latency }} ms <span class="mp-combat-wifi" :class="{ 'mp-combat-wifi-off': state.combat.status !== 'ready' }"><i class="fa fa-wifi" aria-hidden="true"></i></span></span>
+						<button type="button" class="mp-combat-toolbar-button mp-combat-opponents-view" :aria-label="state.combat.opponents_view" @click="state.combat_cycle_opponents_view()">
+							<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="currentColor">
+								<path v-show="state.combat.opponents_view === 'auto'" d="M2 2h8v8H2z M2 14h8v8H2z M14 2h8v2H14z M14 8h8v2H14z M14 14h8v2H14z M14 20h8v2H14z"/>
+								<path v-show="state.combat.opponents_view === 'full'" d="M2 2h8v8H2z M14 2h8v8H14z M2 14h8v8H2z M14 14h8v8H14z"/>
+								<path v-show="state.combat.opponents_view === 'compact'" d="M2 2h8v2H2z M14 2h8v2H14z M2 8h8v2H2z M14 8h8v2H14z M2 14h8v2H2z M14 14h8v2H14z M2 20h8v2H2z M14 20h8v2H14z"/>
+							</svg>
+						</button>
+					</header>
+					<div class="mp-combat-panel-body">
+						<p v-show="state.combat.arena?.run?.mode === 'raid'" role="status">{{ state.combat_raid_copy('tier') }} {{ state.combat_roman(state.combat.arena?.run?.tier) }} / {{ state.combat_roman(state.combat.arena?.run?.raid_endpoint) }} · {{ state.combat_raid_copy('wave') }} {{ state.combat.arena?.run?.stage + 1 }} / {{ state.combat.arena?.run?.stages }} · {{ state.combat_time(state.combat.arena?.run?.total_ms) }}</p>
+						<p v-for="effect in state.combat.arena?.chamber_effects ?? []" :key="effect.id" class="mp-combat-chamber-notice"><strong>{{ state.combat_name('chamber') }}</strong> · {{ state.combat_chamber_description(effect) }}</p>
+						<p v-if="state.combat.arena?.ruleset === 'practice-1' && state.combat.arena?.run?.stages !== 1" role="status">{{ state.combat_practice_copy('bout') }} {{ state.combat.arena?.run?.stage + 1 }} / {{ state.combat.arena?.run?.stages }}</p>
+						<div class="mp-combat-field">
+							<div class="mp-combat-actor mp-combat-player">
+								<div class="mp-combat-player-overview">
+								<div class="mp-combat-portrait-row"><img class="mp-combat-portrait" :src="state.combat_actor_image('player')" alt=""><div><h4>{{ state.combat_name('player') }}</h4><span class="text-muted">{{ state.combat_style_name(state.combat.arena?.stance ?? 'accurate') }}</span></div></div>
+								<div class="mp-combat-gear"><img v-for="entry in state.combat_gear()" :key="entry[0]" :src="state.get_item_icon(entry[1])" :alt="state.get_item_name(entry[1])" :title="state.get_item_name(entry[1])" width="30" height="30"></div>
+								<div class="mp-combat-vitals"><span class="mp-combat-hp-label"><img :src="state.combat_skill_icon('hitpoints')" alt="" width="20" height="20">{{ state.combat.arena?.player.hp }} / {{ state.combat.arena?.player.max_hp }} HP</span><span class="mp-combat-interval"><img class="mp-combat-type-icon" :src="state.combat_attack_icon(state.combat.arena?.player.stats.attack_type)" :alt="state.combat_name(state.combat.arena?.player.stats.attack_type)" :title="state.combat_name(state.combat.arena?.player.stats.attack_type)" width="22" height="22"><span :title="state.combat_name('interval')"><i class="far fa-clock" aria-hidden="true"></i><span class="sr-only">{{ state.combat_name('interval') }}: </span> {{ state.combat_interval(state.combat.arena?.player.interval) }}</span></span></div>
+								</div>
+								<div class="mp-combat-player-bars">
+								<div class="mp-combat-hp-wrap" tabindex="0" aria-describedby="mp-combat-player-hp-detail" :aria-label="state.combat_name('player_marker_info')"><div class="mp-combat-bar" role="progressbar" :aria-label="state.combat_name('player') + ' HP'" :aria-valuenow="state.combat.arena?.player.hp" :aria-valuemax="state.combat.arena?.player.max_hp" aria-valuemin="0">
+									<div :style="{ width: (100 * state.combat.arena?.player.hp / state.combat.arena?.player.max_hp) + '%' }"></div>
+									<span class="mp-combat-max-hit-notch mp-combat-enemy-hit-notch" aria-hidden="true" v-show="state.combat_player_thresholds(state.combat.arena).max_hit > 0" :style="{ left: state.combat_max_hit_marker(state.combat_player_thresholds(state.combat.arena).max_hit, state.combat.arena?.player.max_hp) + '%' }"></span>
+									<span class="mp-combat-auto-eat-notch" v-show="state.combat.arena?.food_policy.auto_eat_percent > 0" aria-hidden="true" :style="{ left: state.combat_max_hit_marker(state.combat_player_thresholds(state.combat.arena).auto_eat_hp, state.combat.arena?.player.max_hp) + '%' }"></span>
+								</div>
+								<div class="mp-combat-hp-detail" id="mp-combat-player-hp-detail" role="tooltip"><p class="mp-combat-hit-legend mp-combat-enemy-hit-legend" :title="state.combat_name('player_marker_info')">{{ state.combat_name('enemy_max_hit_marker') }}: {{ state.combat_player_thresholds(state.combat.arena).max_hit }} HP</p>
+								<p class="mp-combat-hit-legend mp-combat-auto-eat-legend" v-show="state.combat.arena?.food_policy.auto_eat_percent > 0">{{ state.combat_name('auto_eat') }}: {{ state.combat_player_thresholds(state.combat.arena).auto_eat_hp }} HP</p>
+
+								</div></div><div class="mp-combat-bar mp-combat-attack"><div data-combat-actor="player"></div></div>
+								</div>
+								<div class="mp-combat-player-details">
+								<div class="mp-combat-stat-strip">
+
+
+									<span><span class="text-muted">{{ state.combat_name('min_max_hit') }}:</span> {{ state.combat.arena?.player.stats.min_hit }}/{{ state.combat.arena?.player.stats.max_hit }}</span>
+									<span :title="state.combat_name('hit_chance')"><i class="fas fa-bullseye" aria-hidden="true"></i><span class="sr-only">{{ state.combat_name('hit_chance') }}: </span> {{ state.combat_percent(state.combat.arena?.player.stats.hit_chance) }}%</span>
+								</div>
+								<div class="mp-combat-feedback" aria-live="off"><span v-for="event in state.combat_feedback('player')" :key="event.id" :class="'mp-combat-feedback-' + event.kind"><img v-if="event.kind === 'attack'" :src="state.combat_attack_icon(state.combat_feedback_attack_type(event))" :alt="state.combat_name(state.combat_feedback_attack_type(event))" width="22" height="22"><img v-if="event.kind === 'heal' &amp;&amp; state.combat.arena?.food_id" :src="state.combat_food_image()" :alt="state.combat_food_name()" :title="state.combat_food_name()" width="22" height="22"><i v-if="event.kind === 'heal' &amp;&amp; !state.combat.arena?.food_id" class="fa fa-utensils" :aria-label="state.combat_name('eat')"></i><img v-if="state.combat_effect_ids.includes(event.kind)" :src="state.combat_effect_image(event.kind)" :alt="state.combat_event_name(event.kind)" :title="state.combat_event_name(event.kind)" width="22" height="22">{{ event.kind === 'attack' &amp;&amp; event.amount === 0 ? state.combat_name('miss') : (event.kind === 'heal' ? '+' : '−') + event.amount }}</span></div>
+								<div class="mp-combat-effects" v-show="state.combat_effect_space(state.combat.arena?.player)" :aria-label="state.combat_name('effects')">
+									<details v-for="effect in state.combat.arena?.player?.effects" :key="effect.id + effect.source + (effect.lifetime || 'attack')" class="mp-combat-effect" :class="'mp-combat-effect-' + effect.id">
+										<summary :title="state.combat_name(effect.id) + ': ' + state.combat_effect_info(effect)" :aria-label="state.combat_name(effect.id) + ': ' + state.combat_effect_label(effect)"><img v-if="state.combat_effect_image(effect.id)" :src="state.combat_effect_image(effect.id)" alt="" width="24" height="24"><i v-else class="fas" :class="state.combat_effect_icon(effect.id)" aria-hidden="true"></i><small aria-hidden="true">{{ effect.lifetime === 'persistent' ? '∞' : effect.remaining_attacks === null ? state.combat_duration(state.combat_effect_remaining(effect, state.combat.arena)) : effect.remaining_attacks }}</small></summary>
+										<p><strong>{{ state.combat_name(effect.id) }}</strong>: {{ state.combat_effect_info(effect) }}</p></details></div>
+
+								<div v-show="state.combat.arena?.registration" class="mp-combat-stance-controls" role="group" :aria-label="state.combat_name('stance')"><button v-for="stance in state.combat_stances" :key="stance" class="btn btn-sm btn-outline-secondary" :aria-pressed="state.combat.arena?.stance === stance" :disabled="state.combat.pending || state.combat.arena?.status !== 'active' || !state.combat.arena?.registration || state.combat.arena?.stance === stance" :title="state.combat_name(stance + '_info')" @click="state.combat_action('stance', stance)">{{ state.combat_style_name(stance) }}</button></div>
+								<p class="text-muted mp-combat-role mp-combat-player-role"><span>{{ state.combat_name((state.combat.arena?.stance ?? 'accurate') + '_info') }}</span><span class="mp-combat-connection mp-combat-connection-mobile" :title="state.combat_name(state.combat.status)" :aria-label="state.combat_name(state.combat.status) + ' · ' + state.combat.latency + ' ms'">{{ state.combat.latency }} ms <span class="mp-combat-wifi" :class="{ 'mp-combat-wifi-off': state.combat.status !== 'ready' }"><i class="fa fa-wifi" aria-hidden="true"></i></span></span></p>
+
+								</div>
+							</div>
+							<div class="mp-combat-respawn" v-show="state.combat_respawning()" role="status">
+								<strong>{{ state.combat_run_copy('respawning') }} {{ state.combat_time(state.combat.arena?.run?.remaining_ms) }}</strong>
+								<span>{{ state.combat_encounter_name() }} <span v-show="state.combat.arena?.run?.mode === 'raid'">· {{ state.combat_raid_copy('tier') }} {{ state.combat_roman(state.combat.arena?.run?.tier) }} / {{ state.combat_roman(state.combat.arena?.run?.raid_endpoint) }}</span> · {{ state.combat_run_copy('stage') }} {{ (state.combat.arena?.run?.stage ?? 0) + 1 }} / {{ state.combat.arena?.run?.stages ?? 1 }}</span>
+								<div class="mp-combat-bar" role="progressbar" :aria-label="state.combat_run_copy('countdown')" aria-valuemin="0" :aria-valuemax="state.combat.arena?.run?.respawn_ms ?? 3000" :aria-valuenow="(state.combat.arena?.run?.respawn_ms ?? 3000) - (state.combat.arena?.run?.remaining_ms ?? 0)"><div :style="{ width: (100 * (1 - (state.combat.arena?.run?.remaining_ms ?? 0) / (state.combat.arena?.run?.respawn_ms ?? 3000))) + '%' }"></div></div>
+							</div>
+							<div class="mp-combat-enemies" :class="{ 'mp-combat-enemies-compact': state.combat_opponents_compact() }" v-show="!state.combat_respawning()">
+								<div class="mp-combat-actor mp-combat-opponent" v-for="enemy in state.combat.arena?.enemies" :key="enemy.id" :class="{ 'mp-combat-target': state.combat.arena?.target === enemy.id, 'mp-combat-defeated': enemy.hp === 0 }">
+									<button type="button" class="mp-combat-tile-target" :aria-label="state.combat_name('target') + ': ' + state.combat_name(enemy.id)" :aria-pressed="state.combat.arena?.target === enemy.id" :disabled="state.combat.pending || state.combat.arena?.status !== 'active' || enemy.hp === 0" @click="state.combat.arena?.target !== enemy.id && state.combat_action('target', enemy.id)"></button><img class="mp-combat-enemy-art" :src="state.combat_actor_image(enemy.id)" :style="state.combat_actor_image_style(enemy.id)" alt="" aria-hidden="true"><h4 class="mp-combat-enemy-name">{{ state.combat_name(enemy.id) }}</h4><div class="mp-combat-proc" v-show="state.combat_role_effects(enemy.id).length > 0" :aria-label="state.combat_role(enemy.id)"><span>{{ state.combat_name('on_hit') }}:</span><span class="mp-combat-proc-effect" v-for="(id, index) in state.combat_role_effects(enemy.id)" :key="id"><span v-if="index" aria-hidden="true">/</span><img :src="state.combat_effect_image(id)" :alt="state.combat_name(id)" :title="state.combat_name(id) + ': ' + state.combat_name(id + '_info')" width="24" height="24"></span></div><div class="mp-combat-vitals"><span class="mp-combat-hp-label"><img :src="state.combat_skill_icon('hitpoints')" alt="" width="20" height="20">{{ enemy.hp }} / {{ enemy.max_hp }} HP</span><span class="mp-combat-interval"><img class="mp-combat-type-icon" :src="state.combat_attack_icon(enemy.stats.attack_type)" :alt="state.combat_name(enemy.stats.attack_type)" :title="state.combat_name(enemy.stats.attack_type)" width="22" height="22"><span :title="state.combat_name('interval')"><i class="far fa-clock" aria-hidden="true"></i><span class="sr-only">{{ state.combat_name('interval') }}: </span> {{ state.combat_interval(enemy.interval) }}</span></span></div>
+									<div class="mp-combat-hp-wrap" tabindex="0" :aria-describedby="'mp-combat-hp-detail-' + enemy.id" :aria-label="state.combat_name('max_hit_marker') + ': ' + state.combat_opponent_max_hit(enemy) + ' HP'"><div class="mp-combat-bar" role="progressbar" :aria-label="state.combat_name(enemy.id) + ' HP'" :aria-valuenow="enemy.hp" :aria-valuemax="enemy.max_hp" aria-valuemin="0"><div :style="{ width: (100 * enemy.hp / enemy.max_hp) + '%' }"></div><span class="mp-combat-max-hit-notch" aria-hidden="true" v-show="enemy.hp > 0" :style="{ left: state.combat_max_hit_marker(state.combat_opponent_max_hit(enemy), enemy.max_hp) + '%' }"></span></div>
+									<div class="mp-combat-hp-detail" :id="'mp-combat-hp-detail-' + enemy.id" role="tooltip"><p class="mp-combat-hit-legend" v-show="enemy.hp > 0">{{ state.combat_name('max_hit_marker') }}: {{ state.combat_opponent_max_hit(enemy) }} HP</p>
+									<p class="text-muted mp-combat-role" v-show="enemy.effect_resistance > 0">{{ state.combat_name('boss_resistance') }}: {{ state.combat_percent(enemy.effect_resistance) }}% · {{ state.combat_name('effect_cap') }}: {{ enemy.effect_cap_percent }}% / {{ state.combat_duration(1) }}</p></div></div><div class="mp-combat-bar mp-combat-attack"><div :data-combat-actor="enemy.id"></div></div>
+									<div class="mp-combat-stat-strip">
+										<span class="mp-combat-compact-interval" v-show="state.combat_opponents_compact()"><img :src="state.combat_attack_icon(enemy.stats.attack_type)" :alt="state.combat_name(enemy.stats.attack_type)" width="22" height="22"><span :title="state.combat_name('interval')"><i class="far fa-clock" aria-hidden="true"></i> {{ state.combat_interval(enemy.interval) }}</span></span>
+
+
+									<span :title="state.combat_name('min_max_hit')"><span class="text-muted" v-show="!state.combat_opponents_compact()">{{ state.combat_name('min_max_hit') }}: </span>{{ enemy.stats.min_hit }}{{ state.combat_opponents_compact() ? '–' : '/' }}{{ enemy.stats.max_hit }}</span>
+									<span :title="state.combat_name('hit_chance')"><i class="fas fa-bullseye" aria-hidden="true"></i><span class="sr-only">{{ state.combat_name('hit_chance') }}: </span> {{ state.combat_percent(enemy.stats.hit_chance) }}%</span>
+								</div>
+								<div class="mp-combat-feedback" aria-live="off"><span v-for="event in state.combat_feedback(enemy.id).slice(state.combat_opponents_compact() ? -1 : -3)" :key="event.id" :class="'mp-combat-feedback-' + event.kind"><img v-if="event.kind === 'attack'" :src="state.combat_attack_icon(state.combat_feedback_attack_type(event))" :alt="state.combat_name(state.combat_feedback_attack_type(event))" width="22" height="22"><img v-if="event.kind === 'heal' &amp;&amp; state.combat.arena?.food_id" :src="state.combat_food_image()" :alt="state.combat_food_name()" :title="state.combat_food_name()" width="22" height="22"><i v-if="event.kind === 'heal' &amp;&amp; !state.combat.arena?.food_id" class="fa fa-utensils" :aria-label="state.combat_name('eat')"></i><img v-if="state.combat_effect_ids.includes(event.kind)" :src="state.combat_effect_image(event.kind)" :alt="state.combat_event_name(event.kind)" :title="state.combat_event_name(event.kind)" width="22" height="22">{{ event.kind === 'attack' &amp;&amp; event.amount === 0 ? state.combat_name('miss') : (event.kind === 'heal' ? '+' : '−') + event.amount }}</span></div>
+								<div class="mp-combat-effects" v-show="state.combat_effect_space(enemy)" :aria-label="state.combat_name('effects')">
+									<details v-for="effect in enemy?.effects" :key="effect.id + effect.source + (effect.lifetime || 'attack')" class="mp-combat-effect" :class="'mp-combat-effect-' + effect.id">
+										<summary :title="state.combat_name(effect.id) + ': ' + state.combat_effect_info(effect)" :aria-label="state.combat_name(effect.id) + ': ' + state.combat_effect_label(effect)"><img v-if="state.combat_effect_image(effect.id)" :src="state.combat_effect_image(effect.id)" alt="" width="24" height="24"><i v-else class="fas" :class="state.combat_effect_icon(effect.id)" aria-hidden="true"></i><small aria-hidden="true">{{ effect.lifetime === 'persistent' ? '∞' : effect.remaining_attacks === null ? state.combat_duration(state.combat_effect_remaining(effect, state.combat.arena)) : effect.remaining_attacks }}</small></summary>
+										<p><strong>{{ state.combat_name(effect.id) }}</strong>: {{ state.combat_effect_info(effect) }}</p></details></div>
+
+
+
+								</div>
+							</div>
+						</div>
+					</div>
+				</section>
+			</div>
+			<section class="mp-combat-panel" v-show="state.combat.page_tab === 'test_combat' && !state.combat.tutorial?.complete && state.combat_choices().length > 0 && state.combat.arena?.status !== 'active'" aria-labelledby="mp-combat-picker-title">
+				<header class="mp-combat-panel-header"><h3 id="mp-combat-picker-title">{{ state.combat_run_copy('choose') }}</h3></header>
+				<div class="mp-combat-panel-body">
+					<div class="mp-combat-choice-grid" role="group" :aria-label="state.combat_run_copy('targets')">
+						<button type="button" class="mp-combat-choice" v-for="choice in state.combat_choices()" :key="state.combat.mode + ':' + choice.id" :aria-pressed="state.combat.encounter === choice.id" :disabled="state.combat.starting || state.combat.pending || state.combat.arena?.status === 'active'" @click="state.combat.encounter = choice.id">
+							<span class="mp-combat-choice-art"><img v-for="actor in choice.actors" :key="actor" :src="state.combat_actor_image(actor)" :style="state.combat_actor_image_style(actor)" alt="" width="48" height="48"></span>
+							<strong>{{ choice.name }}</strong><span v-if="choice.description">{{ choice.description }}</span>
+							<span class="mp-combat-composition"><span v-for="group in choice.groups" :key="group.type">{{ group.count }} <img :src="state.combat_attack_icon(group.type)" :alt="state.combat_name(group.type)" :title="state.combat_name(group.type)" width="22" height="22"></span></span>
+
+						</button>
+					</div>
+					<button type="button" class="btn btn-success" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('battle') }" :disabled="(state.combat.raid_selection !== 'golbins' && state.combat_dungeon()?.available !== true) || (state.combat.tutorial && !state.combat.tutorial.complete && !state.combat.tutorial.ready) || !state.is_connected || state.is_social_only || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character || state.combat.arena?.status === 'active'" @click="state.start_combat()">{{ state.combat.starting ? state.combat_name('connecting') : state.combat_run_copy('start') }}</button>
+					<p class="text-warning mt-2" role="status" v-show="state.combat.status === 'unavailable'">{{ getLangString('MOD_MP_COMBAT_UNAVAILABLE_INFO') }}</p>
+					<p class="text-warning mt-2" role="status" v-show="state.combat.status === 'error'">{{ state.combat_name(state.combat.status) }}</p>
+					<p class="text-warning mt-2" role="status" v-show="state.combat.error">{{ state.combat_name(state.combat.error || 'rejected') }}</p>
+					<p class="text-warning mt-2" role="status" v-show="state.combat.inventory_error">{{ state.combat_inventory_error() }}</p>
+					<p class="text-warning mt-2" v-show="!state.is_connected || state.is_social_only"><lang-string lang-id="MOD_MP_COMBAT_CONNECT_REQUIRED"></lang-string></p>
+				</div>
+			</section>
+			<div class="mp-combat-practice" v-show="state.combat.page_tab === 'test_combat' && state.combat.tutorial?.complete && state.combat.arena?.status !== 'active'">
+				<nav class="mp-combat-page-tabs mp-combat-mobile-tabs mp-combat-practice-tabs" role="tablist" :aria-label="state.combat_practice_copy('picker')">
+					<button type="button" class="btn" role="tab" id="mp-practice-tab-picker" aria-controls="mp-practice-picker" :aria-selected="state.combat.practice_tab === 'picker'" @click="state.combat.practice_tab = 'picker'">{{ state.combat_practice_copy('picker') }}</button>
+					<button type="button" class="btn" role="tab" id="mp-practice-tab-selected" aria-controls="mp-practice-selected" :aria-selected="state.combat.practice_tab === 'selected'" @click="state.combat.practice_tab = 'selected'">{{ state.combat_practice_copy('selected') }}</button>
+				</nav>
+				<div class="mp-combat-practice-columns">
+					<section id="mp-practice-picker" class="mp-combat-panel" :class="{ 'mp-combat-practice-mobile-hidden': state.combat.practice_tab !== 'picker' }" aria-labelledby="mp-practice-picker-title">
+						<header class="mp-combat-panel-header"><h3 id="mp-practice-picker-title">{{ state.combat_practice_copy('opponents') }}</h3></header>
+						<div class="mp-combat-panel-body">
+							<nav class="mp-combat-page-tabs mp-combat-practice-categories" :aria-label="state.combat_practice_copy('categories')">
+								<button v-for="category in state.combat_practice_categories" :key="category" type="button" class="btn" :aria-pressed="state.combat.practice_category === category" :disabled="state.combat.starting || state.combat.pending" @click="state.combat_practice_select('category', category)">{{ state.combat_practice_copy(category) }}</button>
+							</nav>
+							<div class="mp-combat-practice-roster">
+								<button v-for="choice in state.combat_practice_choices()" :key="choice.selection" type="button" class="mp-combat-choice mp-combat-raid-choice" :aria-pressed="state.combat.practice_selection === choice.selection" :disabled="state.combat.starting || state.combat.pending" @click="state.combat_practice_select('encounter', choice.selection)">
+									<span class="mp-combat-choice-art"><img v-for="actor in choice.actors" :key="actor" :src="state.combat_actor_image(actor)" alt="" width="40" height="40"></span>
+									<strong>{{ choice.name }}</strong>
+									<span>{{ state.combat_practice_cleared(choice) }} / {{ choice.tiers.length }} {{ state.combat_practice_copy('tiers_cleared') }}</span>
+								</button>
+							</div>
+							<p v-if="!state.combat.practice.length" role="status">{{ state.combat_practice_copy('unavailable') }}</p>
+							<button v-if="!state.combat.practice.length" type="button" class="btn btn-secondary" :disabled="state.combat.inventory_busy" @click="state.refresh_combat_inventory()">{{ state.combat_name('refresh') }}</button>
+						</div>
+					</section>
+					<section id="mp-practice-selected" class="mp-combat-panel" :class="{ 'mp-combat-practice-mobile-hidden': state.combat.practice_tab !== 'selected' }" aria-labelledby="mp-practice-selected-title">
+						<header class="mp-combat-panel-header"><h3 id="mp-practice-selected-title">{{ state.combat_practice_selected()?.name ?? state.combat_practice_copy('selected') }}</h3></header>
+						<div class="mp-combat-panel-body" v-if="state.combat_practice_selected() && state.combat_practice_tier()">
+							<div class="mp-combat-practice-tier-picker" role="group" :aria-label="state.combat_practice_copy('tier')">
+								<button v-for="tier in state.combat_practice_selected().tiers" :key="tier.tier" type="button" class="btn mp-combat-tier-badge" :class="{ 'mp-combat-tier-complete': tier.complete, 'mp-combat-tier-locked': !tier.available }" :aria-pressed="state.combat.practice_tier === tier.tier" :aria-label="state.combat_practice_tier_label(tier)" :disabled="state.combat.starting || state.combat.pending" @click="state.combat_practice_select('tier', tier.tier)">
+									{{ state.combat_roman(tier.tier) }}<i v-if="!tier.available" class="fa fa-lock" aria-hidden="true"></i><i v-else-if="tier.complete" class="fa fa-check" aria-hidden="true"></i>
+								</button>
+							</div>
+							<p class="mp-combat-practice-preparation"><strong>{{ state.combat_practice_copy('recommendation') }}</strong><span class="mp-combat-practice-preparation-row"><span class="mp-combat-practice-skills"><img v-for="skill in ['attack', 'strength', 'defence']" :key="skill" :src="state.combat_skill_icon(skill)" :alt="state.combat_name(skill)" :title="state.combat_name(skill)" width="20" height="20"><img v-show="state.combat_practice_tier().hitpoints === state.combat_practice_tier().level" :src="state.combat_skill_icon('hitpoints')" :alt="state.combat_name('hitpoints')" :title="state.combat_name('hitpoints')" width="20" height="20"><span>{{ state.combat_practice_tier().level }}</span></span><span v-show="state.combat_practice_tier().hitpoints !== state.combat_practice_tier().level" class="mp-combat-practice-skills"><span aria-hidden="true">·</span><img :src="state.combat_skill_icon('hitpoints')" :alt="state.combat_name('hitpoints')" :title="state.combat_name('hitpoints')" width="20" height="20"><span>{{ state.combat_practice_tier().hitpoints }}</span></span><span aria-hidden="true">·</span><span>{{ state.combat_practice_material(state.combat_practice_tier().material) }}</span></span></p>
+							<p v-if="!state.combat_practice_tier().available" class="text-warning">{{ state.combat_practice_copy('locked') }}</p>
+							<h4>{{ state.combat_practice_copy('focus') }}</h4><p>{{ state.combat_practice_selected().focus }}</p>
+							<h4>{{ state.combat_practice_copy(state.combat_practice_selected().category === 'circuits' ? 'order' : 'opponents') }}</h4>
+							<ol class="mp-combat-practice-waves">
+								<li v-for="(wave,index) in state.combat_practice_tier().waves" :key="index">
+									<strong v-if="state.combat_practice_selected().category === 'circuits'">{{ state.combat_practice_copy('bout') }} {{ index + 1 }}</strong>
+									<small v-if="wave.length > 1">{{ state.combat_practice_copy('together') }}</small>
+									<div v-for="actor in wave" :key="actor.id" class="mp-combat-practice-actor"><img :src="state.combat_actor_image(actor.id)" alt="" width="36" height="36"><span><strong>{{ actor.name }}</strong><small><img :src="state.combat_attack_icon(actor.type)" :alt="state.combat_name(actor.type)" width="18" height="18"> {{ actor.hp }} HP · {{ state.combat_name('max_hit') }} {{ actor.max_hit }} · {{ state.combat_interval(actor.interval) }}</small></span></div>
+								</li>
+							</ol>
+							<h4>{{ state.combat_practice_copy('effects') }}</h4>
+							<p v-if="!state.combat_practice_effects().length">{{ state.combat_practice_copy('no_effects') }}</p>
+							<p v-for="actor in state.combat_practice_effects()" :key="actor.effect"><img :src="state.combat_effect_image(actor.effect)" alt="" width="20" height="20"> <strong>{{ state.combat_name(actor.effect) }}</strong>: {{ actor.effect_info }}</p>
+							<p><i v-if="state.combat_practice_tier().complete" class="fa fa-check text-success" aria-hidden="true"></i> {{ state.combat_practice_copy(state.combat_practice_tier().complete ? 'cleared' : 'uncleared') }}</p>
+							<button type="button" class="btn btn-success mp-combat-raid-start" :disabled="!state.combat_practice_tier().available || !state.is_connected || state.is_social_only || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character" @click="state.start_combat()">{{ state.combat.starting ? state.combat_name('connecting') : state.combat_practice_copy('start') + ' · ' + state.combat_practice_copy('tier') + ' ' + state.combat_roman(state.combat.practice_tier) }}</button>
+							<p class="text-warning mt-2" role="status" v-show="state.combat.status === 'unavailable'">{{ getLangString('MOD_MP_COMBAT_UNAVAILABLE_INFO') }}</p>
+							<p class="text-warning mt-2" role="status" v-show="state.combat.error">{{ state.combat_name(state.combat.error || 'rejected') }}</p>
+							<p class="text-warning mt-2" role="status" v-show="state.combat.inventory_error">{{ state.combat_inventory_error() }}</p>
+						</div>
+					</section>
+				</div>
+			</div>
+			<div class="mp-combat-raids" v-show="state.combat.page_tab === 'raid' && state.combat.arena?.status !== 'active'">
+				<nav class="mp-combat-page-tabs mp-combat-mobile-tabs mp-combat-battle-tabs mp-combat-raid-tabs" role="tablist" :aria-label="state.combat_raid_copy('raids')">
+					<button v-for="tab in ['raids', 'details', 'leaderboard']" :key="tab" type="button" class="btn" role="tab" :id="'mp-combat-raid-tab-' + tab" :aria-controls="'mp-combat-raid-panel-' + tab" :aria-selected="state.combat.raid_tab === tab" @click="state.combat.raid_tab = tab">{{ state.combat_raid_copy(tab === 'details' ? 'selected' : tab) }}</button>
+				</nav>
+				<div class="mp-combat-raid-columns">
+					<section id="mp-combat-raid-panel-raids" class="mp-combat-panel" :class="{ 'mp-combat-raid-mobile-hidden': state.combat.raid_tab !== 'raids' }" aria-labelledby="mp-combat-raids-title">
+						<header class="mp-combat-panel-header"><h3 id="mp-combat-raids-title">{{ state.combat_raid_copy('raids') }}</h3></header>
+						<div class="mp-combat-panel-body">
+							<button v-for="raid in state.combat_raids()" :key="raid.id" type="button" class="mp-combat-choice mp-combat-raid-choice" :aria-pressed="state.combat_selected_raid().id === raid.id" :disabled="state.combat.starting || state.combat.pending || (raid.id !== 'golbins' && state.combat_dungeon(raid.id)?.available !== true)" @click="state.combat_select_raid(raid.id)">
+								<i v-if="raid.id !== 'golbins' && state.combat_dungeon(raid.id)?.available !== true" class="fa fa-lock mp-combat-dungeon-lock" :aria-label="state.combat_raid_copy('locked')"></i>
+								<img class="mp-combat-dungeon-art" :src="state.combat_dungeon_art(raid.id)" alt="" aria-hidden="true">
+								<strong>{{ raid.name }}</strong><span v-if="(raid.id !== 'golbins' && state.combat_dungeon(raid.id)?.available !== true)">{{ state.combat_raid_copy('entry', raid.id) }}</span><span>{{ state.combat_raid_copy('tiers') }}</span>
+								<span class="mp-combat-tier-badges"><span v-for="tier in state.combat_raid_tiers(raid.id)" :key="tier.tier"><span class="mp-combat-tier-badge" :class="{ 'mp-combat-tier-complete': tier.complete }" :aria-label="state.combat_raid_copy('tier') + ' ' + tier.numeral + (tier.complete ? ' · ' + state.combat_raid_copy('completed') : '')"><span>{{ tier.numeral }}</span><i class="fa fa-check" v-show="tier.complete" aria-hidden="true"></i></span></span></span>
+							</button>
+						</div>
+					</section>
+					<section id="mp-combat-raid-panel-details" class="mp-combat-panel" :class="{ 'mp-combat-raid-mobile-hidden': state.combat.raid_tab !== 'details' }" aria-labelledby="mp-combat-raid-details-title">
+						<header class="mp-combat-panel-header"><h3 id="mp-combat-raid-details-title">{{ state.combat_selected_raid().name }}</h3></header>
+						<div class="mp-combat-panel-body">
+							<p v-html="state.combat_raid_copy('description')"></p>
+							<p v-if="state.combat.raid_selection === 'quarry'" v-html="state.combat_quarry_notice()"></p>
+							<h4>{{ state.combat_raid_copy('unlocks') }}</h4>
+							<div class="mp-combat-raid-unlocks"><div v-for="tier in state.combat_raid_tiers()" :key="tier.tier" class="mp-combat-raid-unlock" :class="{ 'mp-combat-raid-unlock-selected': tier.selected }"><span class="mp-combat-tier-badge" :class="{ 'mp-combat-tier-complete': tier.complete, 'mp-combat-tier-locked': tier.locked }" :aria-label="state.combat_raid_copy('tier') + ' ' + tier.numeral + (tier.locked ? ' · ' + state.combat_raid_copy('locked') : tier.complete ? ' · ' + state.combat_raid_copy('completed') : '')"><span>{{ tier.numeral }}</span><i class="fa fa-check" v-show="tier.complete && !tier.locked" aria-hidden="true"></i><i class="fa fa-lock" v-show="tier.locked" aria-hidden="true"></i></span><span class="mp-combat-raid-gains"><strong v-if="tier.name">{{ state.combat_name(state.combat.raid_selection + '_tier_' + tier.tier) }}</strong><span v-for="gain in tier.gains" :key="gain.skill"><img class="mp-combat-raid-skill-icon" :src="state.combat_skill_icon(gain.skill)" alt="" width="16" height="16">{{ state.combat_name(gain.skill) }}: <strong>{{ gain.cap }}</strong></span><span v-if="tier.material_cap" v-html="state.combat_material_access(tier.material_cap)"></span><span v-if="tier.food"><img class="mp-combat-raid-skill-icon" :src="state.get_item_icon(tier.food?.item_id)" alt="" width="16" height="16">{{ state.get_item_name(tier.food?.item_id) }} (+{{ tier.food?.heal }} HP)</span></span></div></div>
+							<p class="text-muted mp-combat-raid-qualification">{{ state.combat_raid_copy('qualification') }}</p>
+							<p v-if="state.combat_dungeon()?.best">{{ state.combat_raid_copy('best') }}: <strong>{{ state.combat_time(state.combat_dungeon()?.best?.elapsed_ms) }}</strong> · {{ state.combat_local_date(state.combat_dungeon()?.best?.achieved_at) }}</p>
+					<button type="button" class="btn btn-success mp-combat-raid-start" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('battle') }" :disabled="(state.combat.raid_selection !== 'golbins' && state.combat_dungeon()?.available !== true) || (state.combat.tutorial && !state.combat.tutorial.complete && !state.combat.tutorial.ready) || !state.is_connected || state.is_social_only || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character || state.combat.arena?.status === 'active'" @click="state.start_combat()">{{ state.combat.starting ? state.combat_name('connecting') : state.combat_raid_copy('start') + ' · ' + state.combat_raid_copy('tier') + ' ' + state.combat_roman(state.combat_dungeon()?.endpoint ?? 1) }}</button>
+					<p class="text-warning mt-2" role="status" v-show="state.combat.status === 'unavailable'">{{ getLangString('MOD_MP_COMBAT_UNAVAILABLE_INFO') }}</p>
+					<p class="text-warning mt-2" role="status" v-show="state.combat.status === 'error'">{{ state.combat_name(state.combat.status) }}</p>
+					<p class="text-warning mt-2" role="status" v-show="state.combat.error">{{ state.combat_name(state.combat.error || 'rejected') }}</p>
+					<p class="text-warning mt-2" role="status" v-show="state.combat.inventory_error">{{ state.combat_inventory_error() }}</p>
+					<p class="text-warning mt-2" v-show="!state.is_connected || state.is_social_only"><lang-string lang-id="MOD_MP_COMBAT_CONNECT_REQUIRED"></lang-string></p>
+						</div>
+					</section>
+					<section id="mp-combat-raid-panel-leaderboard" class="mp-combat-panel" :class="{ 'mp-combat-raid-mobile-hidden': state.combat.raid_tab !== 'leaderboard' }" aria-labelledby="mp-combat-raid-leaderboard-title">
+						<header class="mp-combat-panel-header"><h3 id="mp-combat-raid-leaderboard-title">{{ state.combat_raid_copy('leaderboard') }}</h3></header>
+						<div class="mp-combat-panel-body">
+							<h4>{{ state.combat_selected_raid().name }}</h4>
+							<p v-show="state.combat.raid_loading" role="status">{{ state.combat_name('connecting') }}</p>
+							<div v-if="state.combat_dungeon()?.leaderboard">
+								<p v-if="!state.combat_dungeon().leaderboard.total">{{ state.combat_raid_copy('empty') }}</p>
+								<ol class="mp-combat-raid-records" :start="state.combat_dungeon().leaderboard.page * 10 + 1">
+									<li v-for="(player, index) in state.combat_dungeon().leaderboard.players" :key="player.client_id"><span class="mp-combat-raid-rank">{{ state.combat_dungeon().leaderboard.page * 10 + index + 1 }}</span><img :src="state.get_avatar_icon(player.icon_id)" alt="" width="36" height="36"><span class="mp-combat-raid-record-player"><strong>{{ player.display_name }}</strong><small>{{ state.combat_local_date(player.achieved_at) }}</small></span><strong class="mp-combat-raid-record-time">{{ state.combat_time(player.elapsed_ms) }}</strong></li>
+								</ol>
+						<div class="mp-combat-controls" v-if="state.combat_dungeon().leaderboard.total > 10"><button type="button" class="btn btn-sm btn-secondary" :disabled="state.combat.raid_loading || state.combat_dungeon().leaderboard.page === 0" @click="state.combat_raid_page(state.combat_dungeon().leaderboard.page - 1)">{{ state.combat_raid_copy('previous') }}</button><span>{{ state.combat_dungeon().leaderboard.page + 1 }} / {{ Math.ceil(state.combat_dungeon().leaderboard.total / 10) }}</span><button type="button" class="btn btn-sm btn-secondary" :disabled="state.combat.raid_loading || (state.combat_dungeon().leaderboard.page + 1) * 10 >= state.combat_dungeon().leaderboard.total" @click="state.combat_raid_page(state.combat_dungeon().leaderboard.page + 1)">{{ state.combat_raid_copy('next') }}</button></div>
+							</div>
+						</div>
+					</section>
+				</div>
+			</div>
+			<div class="mp-combat-preparation" v-show="state.combat.page_tab === 'character' && state.combat.arena?.status !== 'active'">
+			<div class="mp-combat-preparation-tabs" role="tablist" :aria-label="getLangString('MOD_MP_COMBAT_PREPARATION')">
+				<button v-for="tab in ['levels', 'equipment', 'consumables']" :key="tab" type="button" class="btn" role="tab" :id="'mp-combat-preparation-tab-' + tab" :aria-controls="'mp-combat-preparation-' + tab" :aria-selected="state.combat.preparation_tab === tab" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('tab', tab) }" :disabled="!state.combat_tutorial_access('tab', tab)" @click="state.combat_select_preparation(tab)">{{ state.combat_name(tab) }}</button>
+			</div>
+			<section id="mp-combat-preparation-levels" class="mp-combat-panel" :class="{ 'mp-combat-preparation-hidden': state.combat.preparation_tab !== 'levels' }">
+				<header class="mp-combat-panel-header mp-combat-summary"><h3>{{ state.combat_name('levels') }}</h3><span>{{ state.format_ep(state.combat.ep_micros) }} EP</span></header>
+				<div class="mp-combat-panel-body">
+					<button v-if="!state.combat.character" class="btn btn-primary" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('prepare') }" :disabled="state.combat.inventory_busy || !state.is_connected || state.is_social_only" @click="state.prepare_combat()">{{ state.combat_name('prepare') }}</button>
+					<div v-if="state.combat.character">
+						<div class="mp-combat-level-purchases">
+							<div v-for="(level, skill) in (state.combat.character?.levels ?? {})" :key="skill" class="mp-combat-level-purchase" :class="{ 'mp-combat-level-unavailable': !state.combat_skill_available(skill) }">
+								<div class="mp-combat-level-heading">
+									<img :src="state.combat_skill_icon(skill)" alt="" width="26" height="26">
+									<div><strong>{{ state.combat_name(skill) }}</strong>
+										<div class="mp-combat-level-preview"><strong>{{ level }}<small> / {{ state.combat_cap(skill) }}</small></strong><span v-show="state.combat_level_quote(skill).count" aria-hidden="true">→</span><strong class="mp-combat-level-target" v-show="state.combat_level_quote(skill).count">{{ state.combat_level_quote(skill).target }}<small> / {{ state.combat_cap(skill) }}</small></strong></div>
+										<small v-if="skill === 'hitpoints'">{{ (state.combat.character?.max_hp ?? 0) }} HP</small>
+									</div>
+								</div>
+								<button v-if="state.combat_skill_available(skill) && level < state.combat_cap(skill)" v-show="!state.combat_level_quote(skill).count" type="button" class="btn btn-secondary mp-combat-level-button" :disabled="state.combat.inventory_busy" :aria-label="state.combat_name(skill) + ': ' + getLangString('MOD_MP_LISTING_INCREASE')" @click="state.set_combat_level_quantity(skill, 1)">+</button>
+								<small v-if="!state.combat_skill_available(skill)">{{ state.combat_name('unavailable') }}</small>
+								<div v-if="state.combat_skill_available(skill)" v-show="state.combat_level_quote(skill).count" class="mp-listing-stepper mp-combat-level-stepper">
+										<button type="button" class="btn btn-secondary mp-combat-level-button" :disabled="state.combat.inventory_busy || state.combat_level_quote(skill).count <= 1" :aria-label="state.combat_name(skill) + ': ' + getLangString('MOD_MP_LISTING_DECREASE')" @click="state.set_combat_level_quantity(skill, state.combat_level_quote(skill).count - 1)">−</button>
+										<input type="number" min="1" :max="state.combat_cap(skill) - level" step="1" :aria-label="state.combat_name(skill) + ': ' + state.combat_name('levels_to_add')" :disabled="state.combat.inventory_busy" :value="state.combat_level_quote(skill).count" @change="state.set_combat_level_quantity(skill, Math.max(1, Number($event.target.value) || 1)); $event.target.value = state.combat_level_quote(skill).count">
+										<button v-if="state.combat_level_quote(skill).target < state.combat_cap(skill)" type="button" class="btn btn-secondary mp-combat-level-button" :disabled="state.combat.inventory_busy" :aria-label="state.combat_name(skill) + ': ' + getLangString('MOD_MP_LISTING_INCREASE')" @click="state.set_combat_level_quantity(skill, state.combat_level_quote(skill).count + 1)">+</button>
+								</div>
+								<div v-if="state.combat_skill_available(skill)" v-show="state.combat_level_quote(skill).count" class="mp-combat-level-order">
+									<div class="mp-combat-level-cost"><small>+{{ state.combat_level_quote(skill).count }} {{ state.combat_name(state.combat_level_quote(skill).count === 1 ? 'level_singular' : 'level_count') }}</small><strong>{{ state.format_ep(state.combat_level_quote(skill).cost) }} EP</strong></div>
+									<div class="mp-combat-level-actions"><button type="button" class="btn btn-secondary mp-combat-level-button" :disabled="state.combat.inventory_busy" :aria-label="state.combat_name(skill) + ': ' + getLangString('MOD_MP_BUTTON_CANCEL')" @click="state.set_combat_level_quantity(skill, 0)">×</button><button class="btn btn-sm btn-outline-primary" :disabled="state.combat.inventory_busy || !state.is_connected || state.is_social_only || !state.combat_level_quote(skill).count || state.combat.ep_micros < state.combat_level_quote(skill).cost" @click="state.purchase_combat_level(skill)">{{ state.combat_name('confirm') }}</button></div>
+								</div>
+							</div>
+						</div>
+						<div class="mp-combat-level-total" v-show="state.combat_levels_quote().count > 0">
+							<span>{{ state.combat_name('pending_upgrades') }}<strong>{{ state.combat_levels_quote().count }} {{ state.combat_name(state.combat_levels_quote().count === 1 ? 'level_singular' : 'level_count') }} · {{ state.format_ep(state.combat_levels_quote().cost) }} EP</strong></span>
+							<button class="btn btn-primary" :disabled="state.combat.inventory_busy || !state.is_connected || state.is_social_only || !state.combat_levels_quote().count || state.combat.ep_micros < state.combat_levels_quote().cost" @click="state.purchase_combat_level()">{{ state.combat_name('confirm_all') }}</button>
+						</div>
+						<details class="mp-combat-help"><summary>{{ state.combat_name('reset_levels') }}</summary>
+							<p>{{ state.combat_name((state.combat.character?.banked_resets ?? 0) ? 'free_reset_info' : 'reset_info') }}</p><p>{{ state.combat_name('banked_resets') }}: <strong>{{ (state.combat.character?.banked_resets ?? 0) }}</strong></p>
+							<dl class="mp-combat-level-list"><dt>{{ state.combat_name('invested') }}</dt><dd>{{ state.format_ep((state.combat.character?.invested_micros ?? 0)) }} EP</dd><dt :class="{ 'mp-combat-fee-waived': (state.combat.character?.banked_resets ?? 0) > 0 }">{{ state.combat_name('reset_fee') }}</dt><dd :class="{ 'mp-combat-fee-waived': (state.combat.character?.banked_resets ?? 0) > 0 }">{{ state.format_ep((state.combat.character?.invested_micros ?? 0) / 10) }} EP</dd><dt>{{ state.combat_name('reset_refund') }}</dt><dd>{{ state.format_ep((state.combat.character?.reset_refund_micros ?? 0)) }} EP</dd></dl>
+							<label><input type="checkbox" v-model="state.combat.reset_confirm" :disabled="state.combat.inventory_busy"> {{ state.combat_name('reset_confirm') }}</label>
+							<button class="btn btn-outline-danger" :disabled="!state.combat.tutorial?.complete || !state.combat.reset_confirm || !(state.combat.character?.invested_micros ?? 0) || state.combat.inventory_busy || !state.is_connected || state.is_social_only" @click="state.reset_combat_levels()">{{ state.combat_name((state.combat.character?.banked_resets ?? 0) ? 'free_reset' : 'reset_levels') }}</button>
+						</details>
+					</div>
+				</div>
+			</section>
+			<section id="mp-combat-preparation-equipment" class="mp-combat-panel" :class="{ 'mp-combat-preparation-hidden': state.combat.preparation_tab !== 'equipment' }" v-if="state.combat.character">
+				<header class="mp-combat-panel-header mp-combat-summary"><h3>{{ state.combat_name('equipment') }}</h3></header>
+				<div class="mp-combat-panel-body">
+						<section class="mp-combat-equipment-access" :aria-label="state.combat_name('equipment')">
+							<div class="mp-combat-type-tabs" role="tablist" :aria-label="getLangString('MOD_MP_EQUIPMENT_ACCESS')">
+								<button v-for="type in ['melee', 'ranged', 'magic']" :key="type" type="button" class="mp-combat-type-tab" :class="{ 'mp-combat-type-tab-active': state.combat.equipment_set === type }" role="tab" :aria-selected="state.combat.equipment_set === type" :aria-label="state.combat_name(type) + (!state.equipment_set_available(type) ? ' — ' + state.combat_name('unavailable') : '')" :title="state.combat_name(type) + (!state.equipment_set_available(type) ? ' — ' + state.combat_name('unavailable') : '')" :disabled="!state.equipment_set_available(type)" @click="state.equipment_set_select(type)"><img :src="state.combat_attack_icon(type)" alt=""><i v-if="!state.equipment_set_available(type)" class="fa fa-lock" aria-hidden="true"></i></button>
+							</div>
+							<div class="mp-equipment-grid mp-combat-unlock-grid" role="group" :aria-label="getLangString('MOD_MP_EQUIPMENT_ACCESS')">
+								<button v-for="slot in state.equipment_grid()" :key="slot.slot" type="button" class="mp-equipment-slot mp-combat-unlock-slot" :disabled="!slot.available" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('slot', slot.slot), 'mp-equipment-slot-blocked': slot.blocked, 'mp-combat-unlock-slot-locked': slot.locked, 'mp-combat-unlock-slot-purchasable': slot.can_purchase, 'mp-combat-unlock-slot-upgrade': slot.upgrade }" :data-tier="slot.tier" :style="{ gridColumn: slot.col, gridRow: slot.row }" :title="slot.title" :aria-label="slot.title" :aria-pressed="state.equipment_selected.combat?.type === 'slot' && state.equipment_selected.combat?.id === slot.slot" @click="state.equipment_select('combat', 'slot', slot.slot)">
+									<img :src="slot.media" :alt="slot.item_id ? state.get_item_name(slot.item_id) : ''" width="48" height="48">
+									<i v-if="slot.locked" class="fa fa-lock mp-combat-unlock-marker" aria-hidden="true"></i>
+									<i v-else-if="slot.upgrade && slot.can_purchase" class="fa fa-arrow-up mp-combat-unlock-marker" aria-hidden="true"></i>
+								</button>
+							</div>
+						</section>
+						<div class="mp-combat-stance-controls" v-show="state.combat.equipment_set === 'melee'" role="group" :aria-label="state.combat_name('stance')"><button v-for="stance in state.combat_stances" :key="stance" class="btn btn-sm btn-outline-secondary" :aria-pressed="state.combat.stance === stance" :title="state.combat_name(stance + '_info')" @click="state.combat.stance = stance">{{ state.combat_style_name(stance) }}</button></div>
+						<hr class="mp-combat-section-divider">
+						<button type="button" class="btn btn-sm btn-outline-primary" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('start-project') || state.combat_tutorial_highlight('work') }" @click="state.open_equipment_projects()"><lang-string lang-id="MOD_MP_EQUIPMENT_GO_TO_PROJECTS"></lang-string></button>
+						<div class="mp-combat-equipment-picker" role="group" :aria-label="getLangString('MOD_MP_EQUIPMENT_UNLOCKED')">
+							<button v-for="item in state.equipment_unlocked_items()" :key="item.item_id" type="button" class="mp-combat-equipment-choice" :class="{ 'mp-combat-equipment-choice-equipped': state.equipment_is_equipped(item), 'mp-combat-equipment-choice-unavailable': !state.equipment_meets_requirements(item) }" :title="state.equipment_project_name(item) + ' · ' + state.equipment_slot_name(item.slot) + (!state.equipment_meets_requirements(item) ? ' · ' + state.equipment_requirement_text(item) : '')" :aria-label="state.equipment_project_name(item) + ' · ' + state.equipment_slot_name(item.slot) + ' · ' + getLangString(state.equipment_is_equipped(item) ? 'MOD_MP_EQUIPMENT_UNEQUIP' : 'MOD_MP_EQUIPMENT_EQUIP')" :aria-pressed="state.equipment_selected.combat?.type === 'item' && state.equipment_selected.combat?.id === item.item_id" @click="state.equipment_select('combat', 'item', item.item_id)"><img :src="state.get_item_icon(item.item_id)" alt="" width="40" height="40"><i v-if="state.equipment_is_equipped(item)" class="fa fa-check" aria-hidden="true"></i></button>
+						</div>
+						<details class="mp-combat-help" v-if="state.combat_slot_reset_quote('equipment')"><summary><lang-string lang-id="MOD_MP_EQUIPMENT_RESET"></lang-string></summary>
+							<p>{{ getLangString(state.combat_slot_reset_quote('equipment').banked_resets ? 'MOD_MP_EQUIPMENT_FREE_RESET_INFO' : 'MOD_MP_EQUIPMENT_RESET_INFO') }}</p>
+							<p>{{ state.combat_name('banked_resets') }}: <strong>{{ state.combat_slot_reset_quote('equipment').banked_resets }}</strong></p>
+							<dl class="mp-combat-level-list"><dt>{{ state.combat_name('invested') }}</dt><dd>{{ state.format_ep(state.combat_slot_reset_quote('equipment').invested_micros) }} EP</dd><dt :class="{ 'mp-combat-fee-waived': state.combat_slot_reset_quote('equipment').banked_resets > 0 }">{{ state.combat_name('reset_fee') }}</dt><dd :class="{ 'mp-combat-fee-waived': state.combat_slot_reset_quote('equipment').banked_resets > 0 }">{{ state.format_ep(state.combat_slot_reset_quote('equipment').invested_micros / 10) }} EP</dd><dt>{{ state.combat_name('reset_refund') }}</dt><dd>{{ state.format_ep(state.combat_slot_reset_quote('equipment').refund_micros) }} EP</dd></dl>
+							<label><input type="checkbox" v-model="state.combat.equipment_reset_confirm" :disabled="state.combat.inventory_busy"> <lang-string lang-id="MOD_MP_EQUIPMENT_RESET_CONFIRM"></lang-string></label>
+							<button class="btn btn-outline-danger" :disabled="!state.combat.tutorial?.complete || !state.combat.equipment_reset_confirm || !state.combat_slot_reset_quote('equipment').invested_micros || !state.equipment_can_mutate()" @click="state.reset_combat_equipment('equipment')">{{ state.combat_slot_reset_quote('equipment').banked_resets ? state.combat_name('free_reset') : getLangString('MOD_MP_EQUIPMENT_RESET') }}</button>
+						</details>
+				</div>
+			</section>
+			<section id="mp-combat-preparation-consumables" class="mp-combat-panel" :class="{ 'mp-combat-preparation-hidden': state.combat.preparation_tab !== 'consumables' }" v-if="state.combat.character">
+				<header class="mp-combat-panel-header mp-combat-summary"><h3>{{ state.combat_name('consumables') }}</h3></header>
+				<div class="mp-combat-panel-body">
+					<div class="mp-consumable-grid" role="group" :aria-label="state.combat_name('consumables')">
+						<button v-for="slot in state.consumable_grid()" :key="slot.slot" type="button" class="mp-equipment-slot mp-combat-unlock-slot mp-consumable-plain" :disabled="!slot.available" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('slot', slot.slot), 'mp-combat-unlock-slot-locked': slot.locked, 'mp-combat-unlock-slot-purchasable': slot.can_purchase, 'mp-combat-unlock-slot-upgrade': slot.upgrade }" :data-tier="slot.tier" :style="{ gridColumn: slot.col, gridRow: slot.row }" :title="slot.title" :aria-label="slot.title" :aria-pressed="state.equipment_selected.combat?.type === 'slot' && state.equipment_selected.combat?.id === slot.slot" @click="state.equipment_select('combat', 'slot', slot.slot)">
+							<img v-if="slot.item_id" :src="state.get_item_icon(slot.item_id)" alt="" width="48" height="48">
+							<i v-else class="fa mp-combat-unlock-placeholder" :class="slot.slot.startsWith('Food') ? 'fa-utensils' : 'fa-flask'" aria-hidden="true"></i>
+							<i v-if="slot.locked" class="fa fa-lock mp-combat-unlock-marker" aria-hidden="true"></i>
+							<i v-else-if="slot.upgrade && slot.can_purchase" class="fa fa-arrow-up mp-combat-unlock-marker" aria-hidden="true"></i>
+						</button>
+					</div>
+					<hr class="mp-combat-section-divider">
+					<button type="button" class="btn btn-sm btn-outline-primary" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('start-project') || state.combat_tutorial_highlight('work') }" @click="state.open_equipment_projects()"><lang-string lang-id="MOD_MP_EQUIPMENT_GO_TO_PROJECTS"></lang-string></button>
+					<div class="mp-combat-equipment-picker" role="group" :aria-label="getLangString('MOD_MP_EQUIPMENT_UNLOCKED')">
+						<button v-for="item in state.consumable_unlocked_items()" :key="item.item_id" type="button" class="mp-combat-equipment-choice" :class="{ 'mp-combat-equipment-choice-equipped': state.consumable_is_equipped(item) }" :title="state.equipment_project_name(item)" :aria-label="state.equipment_project_name(item)" @click="state.consumable_select_item(item)"><img :src="state.get_item_icon(item.item_id)" alt="" width="40" height="40"><i v-if="state.consumable_is_equipped(item)" class="fa fa-check" aria-hidden="true"></i></button>
+					</div>
+					<details class="mp-combat-help" v-if="state.combat_slot_reset_quote('consumables')"><summary><lang-string lang-id="MOD_MP_EQUIPMENT_RESET"></lang-string></summary>
+							<p>{{ getLangString(state.combat_slot_reset_quote('consumables').banked_resets ? 'MOD_MP_EQUIPMENT_FREE_RESET_INFO' : 'MOD_MP_EQUIPMENT_RESET_INFO') }}</p>
+							<p>{{ state.combat_name('banked_resets') }}: <strong>{{ state.combat_slot_reset_quote('consumables').banked_resets }}</strong></p>
+							<dl class="mp-combat-level-list"><dt>{{ state.combat_name('invested') }}</dt><dd>{{ state.format_ep(state.combat_slot_reset_quote('consumables').invested_micros) }} EP</dd><dt :class="{ 'mp-combat-fee-waived': state.combat_slot_reset_quote('consumables').banked_resets > 0 }">{{ state.combat_name('reset_fee') }}</dt><dd :class="{ 'mp-combat-fee-waived': state.combat_slot_reset_quote('consumables').banked_resets > 0 }">{{ state.format_ep(state.combat_slot_reset_quote('consumables').invested_micros / 10) }} EP</dd><dt>{{ state.combat_name('reset_refund') }}</dt><dd>{{ state.format_ep(state.combat_slot_reset_quote('consumables').refund_micros) }} EP</dd></dl>
+							<label><input type="checkbox" v-model="state.combat.consumables_reset_confirm" :disabled="state.combat.inventory_busy"> <lang-string lang-id="MOD_MP_CONSUMABLES_RESET_CONFIRM"></lang-string></label>
+							<button class="btn btn-outline-danger" :disabled="!state.combat.tutorial?.complete || !state.combat.consumables_reset_confirm || !state.combat_slot_reset_quote('consumables').invested_micros || !state.equipment_can_mutate()" @click="state.reset_combat_equipment('consumables')">{{ state.combat_slot_reset_quote('consumables').banked_resets ? state.combat_name('free_reset') : getLangString('MOD_MP_EQUIPMENT_RESET') }}</button>
+						</details>
+				</div>
+			</section>
+			</div>
+			<p class="text-warning mp-combat-notice" role="status" v-show="state.combat.inventory_error && state.combat.arena?.status !== 'active'">{{ state.combat_inventory_error() }}</p>
+		</div>
+	</div>
+								</template>
 <template id="template-mp-raid-page">
 	<div class="content d-none" id="mp-raid-page">
 		<div class="block block-rounded">
@@ -329,6 +801,10 @@
 			</div>
 			<div class="mp-updates-layout">
 				<div class="mp-updates-column mp-updates-notices" :class="{ 'mp-updates-mobile-hidden': state.updates_mobile_tab !== 'updates' }">
+					<a class="mp-updates-panel mp-updates-wiki" href="https://melvor.azcn.io/wiki" @click.prevent="state.open_multiplayer_wiki()">
+						<div class="mp-updates-panel-header"><h3 class="mp-updates-panel-title">Wiki</h3></div>
+						<div class="mp-updates-panel-body">https://melvor.azcn.io/wiki</div>
+					</a>
 					<div class="mp-updates-panel" v-if="state.updates_loading">
 						<div class="mp-updates-panel-body text-center">
 							<span class="spinner-border spinner-border-sm text-primary mr-2" role="status"></span>
@@ -345,6 +821,15 @@
 						<div class="mp-updates-panel-header"><h3 class="mp-updates-panel-title">{{ section.title }}</h3></div>
 						<div class="mp-updates-panel-body">
 							<p v-for="(paragraph, index) in section.paragraphs" :key="section.id + '-' + index">{{ paragraph }}</p>
+						</div>
+					</div>
+					<div class="mp-updates-panel">
+						<div class="mp-updates-panel-header"><h3 class="mp-updates-panel-title"><lang-string lang-id="MOD_MP_AI_DISCLOSURE_TITLE"></lang-string></h3></div>
+						<div class="mp-updates-panel-body">
+							<p><lang-string lang-id="MOD_MP_AI_DISCLOSURE_USAGE"></lang-string></p>
+							<p><lang-string lang-id="MOD_MP_AI_DISCLOSURE_RESPONSIBILITY"></lang-string></p>
+							<p><strong><lang-string lang-id="MOD_MP_AI_DISCLOSURE_ROBOTS"></lang-string></strong></p>
+							<p><lang-string lang-id="MOD_MP_AI_DISCLOSURE_ORGANIC"></lang-string></p>
 						</div>
 					</div>
 				</div>
@@ -578,8 +1063,8 @@
 							</button>
 						</div>
 						<div class="mp-chat-conversations">
-							<button type="button" class="mp-chat-conversation" v-for="conversation in state.tester_chat_conversations" :key="'testers:' + conversation.conversation_id" @click="state.open_chat_conversation(conversation)">
-								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600"><lang-string lang-id="MOD_MP_TESTER_CHAT_TITLE"></lang-string></div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ state.get_chat_plain_content(conversation.latest_message) }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge" :class="conversation.unread_tagged ? 'mp-chat-unread-badge mp-chat-tagged-nav' : conversation.contributes_unread ? 'mp-chat-unread-badge' : 'badge-info'" v-if="conversation.unread_count > 0">{{ conversation.unread_tagged ? '@' : conversation.unread_count }}</span>
+							<button type="button" class="mp-chat-conversation" v-for="conversation in state.announcement_chat_conversations" :key="'announcements:' + conversation.conversation_id" @click="state.open_chat_conversation(conversation)">
+								<img class="mp-chat-conversation-icon" :src="state.get_chat_participant_icon(conversation)"><div class="mp-chat-conversation-copy"><div class="font-w600"><lang-string lang-id="MOD_MP_ANNOUNCEMENTS_TITLE"></lang-string></div><div class="font-size-sm text-muted mp-chat-preview" v-if="conversation.latest_message">{{ state.get_chat_plain_content(conversation.latest_message) }}</div><div class="font-size-sm text-muted" v-else><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div></div><span class="badge" :class="conversation.unread_tagged ? 'mp-chat-unread-badge mp-chat-tagged-nav' : conversation.contributes_unread ? 'mp-chat-unread-badge' : 'badge-info'" v-if="conversation.unread_count > 0">{{ conversation.unread_tagged ? '@' : conversation.unread_count }}</span>
 							</button>
 						</div>
 						<div class="mp-chat-conversations">
@@ -626,7 +1111,7 @@
 					<div class="mp-chat-buttons">
 						<button type="button" class="btn btn-sm btn-secondary" @click="state.back_from_chat_conversation()"><i class="fa fa-chevron-left mr-1"></i><lang-string lang-id="MOD_MP_CHAT_BACK"></lang-string></button>
 						<button type="button" aria-haspopup="dialog" :aria-label="getLangString('MOD_MP_CHAT_TRANSLATION_TITLE')" class="btn btn-sm btn-primary mp-translation-button" v-show="!state.selected_chat_conversation?.synthetic_service" :aria-pressed="state.is_chat_translation_enabled()" @click="state.show_chat_translation_modal()"><i class="fa fa-language"></i></button>
-						<button type="button" class="btn btn-sm btn-secondary mp-notifications-button" v-show="!state.selected_chat_conversation?.synthetic_service" v-if="state.selected_chat_conversation?.conversation_kind !== 'polls' && state.selected_chat_conversation?.conversation_kind !== 'poll-discussion' && state.selected_chat_conversation?.conversation_kind !== 'petition-discussion'" :aria-label="getLangString(state.is_chat_notifications_enabled() ? 'MOD_MP_CHAT_NOTIFICATIONS_ENABLED' : 'MOD_MP_CHAT_NOTIFICATIONS_DISABLED')" :aria-pressed="state.is_chat_notifications_enabled()" :disabled="state.chat_notifications_busy" @click="state.toggle_chat_notifications()"><i class="fa" :class="state.is_chat_notifications_enabled() ? 'fa-bell' : 'fa-bell-slash'" aria-hidden="true"></i></button>
+						<button type="button" class="btn btn-sm btn-secondary mp-notifications-button" v-show="!state.selected_chat_conversation?.synthetic_service" v-if="state.selected_chat_conversation?.conversation_kind !== 'announcements' && state.selected_chat_conversation?.conversation_kind !== 'announcement-discussion' && state.selected_chat_conversation?.conversation_kind !== 'polls' && state.selected_chat_conversation?.conversation_kind !== 'poll-discussion' && state.selected_chat_conversation?.conversation_kind !== 'petition-discussion'" :aria-label="getLangString(state.is_chat_notifications_enabled() ? 'MOD_MP_CHAT_NOTIFICATIONS_ENABLED' : 'MOD_MP_CHAT_NOTIFICATIONS_DISABLED')" :aria-pressed="state.is_chat_notifications_enabled()" :disabled="state.chat_notifications_busy" @click="state.toggle_chat_notifications()"><i class="fa" :class="state.is_chat_notifications_enabled() ? 'fa-bell' : 'fa-bell-slash'" aria-hidden="true"></i></button>
 					</div>
 					<button type="button" class="mp-chat-participant" v-if="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private'" @click="state.show_chat_actions_modal()" aria-haspopup="dialog">
 						<img class="skill-icon-xs" :src="state.get_chat_participant_icon()">
@@ -653,6 +1138,7 @@
 						<div class="mp-council-proposal" v-else>{{ state.get_council_action_proposal(petition.type) }}</div>
 					</div>
 				</div>
+				<div class="font-w600 mp-poll-question mp-poll-discussion-question" v-if="state.selected_chat_conversation?.conversation_kind === 'announcement-discussion'"><span class="mp-chat-deleted-label" v-if="state.selected_chat_conversation.announcement.deleted"><lang-string lang-id="MOD_MP_CHAT_DELETED"></lang-string> · </span><mp-chat-message-body :parts="state.get_chat_message_document(state.selected_chat_conversation.announcement)"></mp-chat-message-body></div>
 				<div class="font-w600 mp-poll-question mp-poll-discussion-question" v-if="state.selected_chat_conversation?.conversation_kind === 'poll-discussion' && state.selected_chat_conversation?.poll" v-text="state.get_chat_message_content(state.selected_chat_conversation?.poll)"></div>
 				<div class="mp-chat-messages" role="log" aria-live="polite" v-if="state.selected_chat_conversation?.conversation_kind === 'polls'">
 					<div class="text-center text-muted" v-if="state.polls.length === 0"><lang-string lang-id="MOD_MP_POLLS_EMPTY"></lang-string></div>
@@ -669,14 +1155,16 @@
 					</div>
 					<div class="text-center text-muted" v-if="state.chat_messages_loading && state.chat_messages.length === 0"><lang-string lang-id="MOD_MP_CHAT_LOADING"></lang-string></div>
 					<div class="text-center text-muted" v-else-if="state.chat_messages.length === 0"><lang-string lang-id="MOD_MP_CHAT_NO_MESSAGES"></lang-string></div>
-					<div class="mp-chat-message" :class="{ 'mp-chat-message-own': message.sent_by_viewer === true || (message.sent_by_viewer === undefined && message.sender_id === state.chat_client_id) }" v-for="message in state.chat_messages" :key="message.message_id">
+					<div class="mp-chat-message" :class="{ 'mp-chat-message-deleted': message.deleted === true, 'mp-chat-message-own': message.sent_by_viewer === true || (message.sent_by_viewer === undefined && message.sender_id === state.chat_client_id) }" v-for="message in state.chat_messages" :key="message.message_id">
 						<div class="mp-chat-message-meta"><button type="button" class="mp-chat-message-author" @click="state.show_chat_message_member(message)" :disabled="!message.sender_id"><img class="mp-chat-message-avatar" :src="state.get_chat_message_icon(message)" alt=""><span class="font-w600">{{ message.sender.display_name }}</span></button><button type="button" class="mp-chat-message-timestamp" @click="state.show_chat_message_actions(message)"><time :datetime="state.format_chat_datetime(message.created_at)">{{ state.format_chat_time(message.created_at) }}</time></button></div>
 						<div class="mp-chat-message-bubble">
+							<div class="mp-chat-deleted-label" v-if="message.deleted"><lang-string lang-id="MOD_MP_CHAT_DELETED"></lang-string></div>
 							<div class="mp-chat-message-content" v-if="message.petition_event === 'aye' || message.petition_event === 'nay'"><span class="badge" :class="message.petition_event === 'aye' ? 'badge-success' : 'badge-danger'"><lang-string :lang-id="message.petition_event === 'aye' ? 'MOD_MP_COUNCIL_AYE' : 'MOD_MP_COUNCIL_NAY'"></lang-string></span></div>
 							<div class="mp-chat-message-content" :style="state.get_chat_highlight_style(message)" :class="{ 'mp-chat-tagged': state.is_chat_message_tagged(message), 'mp-chat-message-translating': state.get_chat_message_content(message) === getLangString('MOD_MP_CHAT_TRANSLATING') }" v-else><mp-chat-message-body :parts="state.get_chat_message_document(message)"></mp-chat-message-body></div>
+							<div class="mp-poll-actions" v-if="state.selected_chat_conversation?.conversation_kind === 'announcements'"><button type="button" class="btn btn-sm btn-primary" @click="state.open_announcement_discussion(message)"><lang-string lang-id="MOD_MP_POLLS_GO_DISCUSSION"></lang-string><span class="badge badge-info" v-if="message.discussion_unread_count > 0">{{ message.discussion_unread_count }}</span></button></div>
 							<div class="mp-chat-reactions" :class="{ 'mp-chat-reactions-empty': !message.reactions?.length }">
-								<button type="button" class="mp-chat-reaction-summary" :class="{ 'mp-chat-reaction-reacted': summary.reacted }" :disabled="state.selected_chat_conversation?.conversation_kind === 'testers' && state.selected_chat_conversation?.can_send !== true" v-for="summary in message.reactions" :key="summary.reaction" @click="state.toggle_chat_reaction(message, summary.reaction)"><span>{{ summary.reaction }}</span><span>{{ summary.count }}</span></button>
-								<button type="button" class="mp-chat-reaction-add" v-if="message.message_id > 0 && (state.selected_chat_conversation?.conversation_kind !== 'testers' || state.selected_chat_conversation?.can_send)" :aria-label="state.get_chat_reaction_add_label()" :aria-expanded="state.chat_reaction_picker_message_id === message.message_id" @click="state.toggle_chat_reaction_picker(message, $event)">☻<span aria-hidden="true">+</span></button>
+								<button type="button" class="mp-chat-reaction-summary" :class="{ 'mp-chat-reaction-reacted': summary.reacted }" :disabled="message.deleted === true" v-for="summary in message.reactions" :key="summary.reaction" @click="state.toggle_chat_reaction(message, summary.reaction)"><span>{{ summary.reaction }}</span><span>{{ summary.count }}</span></button>
+								<button type="button" class="mp-chat-reaction-add" v-if="message.message_id > 0 && !message.deleted" :aria-label="state.get_chat_reaction_add_label()" :aria-expanded="state.chat_reaction_picker_message_id === message.message_id" @click="state.toggle_chat_reaction_picker(message, $event)">☻<span aria-hidden="true">+</span></button>
 							</div>
 						</div>
 					</div>
@@ -684,10 +1172,8 @@
 				<div class="block-content mp-chat-compose" v-if="state.selected_chat_conversation?.conversation_kind === 'polls'">
 					<button type="button" class="btn btn-primary btn-block" v-if="state.poll_can_create" @click="state.show_poll_creator()"><lang-string lang-id="MOD_MP_POLLS_CREATE"></lang-string></button>
 				</div>
-				<div class="block-content mp-chat-compose" v-else-if="state.selected_chat_conversation?.conversation_kind === 'testers' && state.selected_chat_conversation?.can_send !== true">
-					<div class="mp-chat-disabled-message"><lang-string lang-id="MOD_MP_TESTER_CHAT_READ_ONLY"></lang-string></div>
-				</div>
-				<div class="block-content mp-chat-compose" v-else-if="state.selected_chat_conversation?.synthetic_unsupported !== true && state.selected_chat_conversation?.synthetic_service !== true">
+
+				<div class="block-content mp-chat-compose" v-else-if="state.selected_chat_conversation?.synthetic_unsupported !== true && state.selected_chat_conversation?.synthetic_service !== true && (!['announcements', 'announcement-discussion'].includes(state.selected_chat_conversation?.conversation_kind) || state.selected_chat_conversation?.can_send)">
 					<div class="mp-chat-support-prompts" v-if="state.show_chat_support_prompts">
 						<div class="mp-chat-support-prompts-label"><lang-string lang-id="MOD_MP_CHAT_SUPPORT_PROMPTS"></lang-string></div>
 						<div class="mp-chat-support-prompt-actions">
@@ -711,7 +1197,7 @@
 									<img class="skill-icon-xxs" :src="state.get_item_icon('melvorD:Message_In_A_Bottle')" alt="">
 									<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.chat_budget.credits < state.chat_budget.maximum"></span>
 								</button>
-								<button type="submit" class="btn btn-primary" :disabled="!state.chat_can_send"><span class="spinner-border spinner-border-sm text-light mr-2" role="status" v-if="state.chat_sending"></span><lang-string lang-id="MOD_MP_CHAT_SEND"></lang-string></button>
+								<button type="submit" class="btn btn-primary" :disabled="!state.chat_can_send"><span class="spinner-border spinner-border-sm text-light mr-2" role="status" v-if="state.chat_sending"></span><lang-string :lang-id="state.selected_chat_conversation?.conversation_kind === 'announcements' ? 'MOD_MP_ANNOUNCEMENTS_POST' : 'MOD_MP_CHAT_SEND'"></lang-string></button>
 							</div>
 						</div>
 					</form>
@@ -792,9 +1278,8 @@
 </template>
 <template id="template-mp-chat-message-actions-modal">
 	<div class="mp-chat-modal-actions">
-		<button type="button" class="btn btn-primary" v-if="state.has_chat_message_translations(state.selected_chat_message) && state.selected_chat_message?.sender_id !== state.chat_client_id && state.selected_chat_message?.sent_by_viewer !== true" @click="state.translate_selected_chat_message()"><lang-string lang-id="MOD_MP_CHAT_TRANSLATE"></lang-string></button>
+		<button type="button" class="btn btn-primary" v-if="state.has_chat_message_translations(state.selected_chat_message) && state.selected_chat_message?.sender_id !== state.chat_client_id && state.selected_chat_message?.sent_by_viewer !== true" @click="state.translate_selected_chat_message()"><span v-text="getLangString(state.get_chat_message_translation_action_lang_id(state.selected_chat_message))"></span></button>
 		<button type="button" class="btn btn-primary" @click="state.copy_chat_message()"><lang-string lang-id="MOD_MP_CHAT_COPY"></lang-string></button>
-		<button type="button" class="btn btn-outline-danger" v-if="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private'" @click="state.show_chat_message_delete_confirmation()"><lang-string lang-id="MOD_MP_CHAT_DELETE_MESSAGE"></lang-string></button>
 		<button type="button" class="btn btn-primary" v-if="state.selected_chat_message?.message_id > 0" @click="state.show_admin_details('reactions')"><lang-string lang-id="MOD_MP_CHAT_SHOW_REACTIONS"></lang-string></button>
 		<button type="button" class="btn btn-primary" v-if="state.selected_chat_message?.message_id > 0" @click="state.show_admin_details('seen')"><lang-string lang-id="MOD_MP_CHAT_SHOW_SEEN"></lang-string></button>
 		<button type="button" class="btn btn-danger" v-if="state.can_moderate_chat_messages()" @click="state.show_chat_message_delete_for_all_confirmation()"><lang-string lang-id="MOD_MP_CHAT_DELETE_MESSAGE_FOR_ALL"></lang-string></button>
@@ -917,7 +1402,7 @@
 		<section class="mp-profile-panel mp-profile-equipment-panel" :class="{ 'mp-profile-panel-active': state.profile_active_tab === 'equipment' }" role="tabpanel">
 			<h5 class="mp-profile-panel-title"><lang-string lang-id="MOD_MP_PROFILE_EQUIPMENT"></lang-string></h5>
 			<div class="mp-equipment-grid" role="list" :aria-label="getLangString('MOD_MP_SHARED_EQUIPMENT_ARIA')" v-if="state.viewed_equipment !== null">
-				<div class="mp-equipment-slot" :class="{ 'mp-equipment-slot-unknown': slot.unknown, 'mp-equipment-slot-blocked': slot.blocked }" :style="{ gridColumn: slot.col, gridRow: slot.row }" role="listitem" v-for="slot in state.viewed_equipment_grid" :key="slot.slot_id">
+				<div class="mp-equipment-slot" :class="{ 'mp-equipment-slot-unknown': slot.unknown, 'mp-equipment-slot-blocked': slot.blocked }" :data-tier="slot.tier" :style="{ gridColumn: slot.col, gridRow: slot.row }" role="listitem" v-for="slot in state.viewed_equipment_grid" :key="slot.slot_id">
 					<mp-equipment-item v-if="slot.item" :data-item-id="slot.item_id"><img :src="slot.media" :alt="slot.item.name" draggable="false"></mp-equipment-item>
 					<img v-else :src="slot.media" :alt="slot.unknown ? getLangString('MOD_MP_UNKNOWN_ITEM_ARIA') : slot.slot_name">
 					<span class="sr-only" v-if="slot.unknown"><lang-string lang-id="MOD_MP_EQUIPMENT_UNKNOWN_ITEM"></lang-string></span>
@@ -2027,7 +2512,7 @@
 						<span>{{ state.get_item_name(state.market_filter_item) }}</span>
 					</div>
 					<div class="mp-market-filter-clear" @click="state.clear_market_filter()">X</div>
-				</div>	
+				</div>
 			</template>
 			<template v-else>
 				<div class="mp-market-filter border-top border-4x pointer-enabled" @click="state.choose_market_filter()">
@@ -2192,7 +2677,7 @@
 		<div class="block block-rounded p-4" v-show="!state.is_social_only && !state.is_guild_member"><lang-string lang-id="MOD_MP_GUILD_REQUIRED_INFO"></lang-string></div>
 		<div v-show="!state.is_social_only && state.is_guild_member" class="mp-crucible-page">
 			<section class="mp-crucible-panel mp-crucible-heat" v-show="state.crucible" aria-labelledby="mp-crucible-heat-title">
-				<h3 id="mp-crucible-heat-title" class="mp-crucible-panel-heading"><button type="button" class="mp-crucible-panel-toggle" :aria-expanded="state.crucible_panels_open.heat" aria-controls="mp-crucible-heat-body" @click="state.crucible_panels_open.heat = !state.crucible_panels_open.heat"><i class="fa fa-fire" aria-hidden="true"></i><span><strong><lang-string lang-id="MOD_MP_CRUCIBLE_HEAT"></lang-string> {{ state.crucible?.heat?.tier ?? 0 }} / 9</strong></span><small>{{ formatNumber(state.crucible?.heat?.value ?? 0) }} <lang-string lang-id="MOD_MP_CRUCIBLE_HEAT_VALUE"></lang-string></small><i class="fa" :class="state.crucible_panels_open.heat ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></button></h3>
+				<h3 id="mp-crucible-heat-title" class="mp-crucible-panel-heading"><button type="button" class="mp-crucible-panel-toggle" :aria-expanded="state.crucible_panels_open.heat" aria-controls="mp-crucible-heat-body" @click="state.toggle_crucible_heat()"><i class="fa fa-fire" aria-hidden="true"></i><span><strong><lang-string lang-id="MOD_MP_CRUCIBLE_HEAT"></lang-string> {{ state.crucible?.heat?.tier ?? 0 }} / 9</strong></span><small>{{ formatNumber(state.crucible?.heat?.value ?? 0) }} <lang-string lang-id="MOD_MP_CRUCIBLE_HEAT_VALUE"></lang-string></small><i class="fa" :class="state.crucible_panels_open.heat ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></button></h3>
 				<div class="mp-crucible-heat-summary">
 					<div class="mp-crucible-heat-frame">
 						<div class="mp-crucible-heat-glow" aria-hidden="true" :style="{ width: ((state.crucible?.heat?.tier ?? 0) * 100 / 9) + '%', backgroundSize: (900 / Math.max(1, state.crucible?.heat?.tier ?? 0)) + '% 100%' }"></div>
@@ -2201,10 +2686,21 @@
 					<div class="mp-crucible-heat-scale" aria-hidden="true"><span>0</span><span>3</span><span>6</span><span>9</span></div>
 					<small>{{ state.crucible?.heat?.points_per_minute || 1 }}× <lang-string lang-id="MOD_MP_CRUCIBLE_MELD_SPEED"></lang-string></small>
 				</div>
-				<div id="mp-crucible-heat-body" class="mp-crucible-panel-body" v-show="state.crucible_panels_open.heat">
+				<div id="mp-crucible-heat-body" class="mp-crucible-panel-body mp-crucible-heat-body" v-show="state.crucible_panels_open.heat">
 					<table class="mp-crucible-heat-levels" :aria-label="getLangString('MOD_MP_CRUCIBLE_HEAT')"><tbody>
 						<tr v-for="level in state.crucible_heat_levels" :key="level.tier" :class="{ 'mp-crucible-heat-current': level.current }" :aria-current="level.current ? 'step' : null"><td><lang-string lang-id="MOD_MP_CRUCIBLE_HEAT"></lang-string> {{ level.tier }}</td><td class="mp-crucible-heat-dot" aria-hidden="true">·</td><td>{{ formatNumber(level.value) }} <lang-string lang-id="MOD_MP_CRUCIBLE_HEAT_VALUE"></lang-string></td><td class="mp-crucible-heat-dot" aria-hidden="true">·</td><td>{{ level.rate }}× <lang-string lang-id="MOD_MP_CRUCIBLE_MELD_SPEED"></lang-string></td></tr>
 					</tbody></table>
+					<section class="mp-crucible-guide" aria-labelledby="mp-crucible-guide-title">
+						<div class="mp-crucible-guide-header"><strong id="mp-crucible-guide-title"><lang-string lang-id="MOD_MP_CRUCIBLE_GUIDE_TITLE"></lang-string></strong><span>{{ state.crucible_guide_index + 1 }} / {{ state.crucible_guide_length }}</span></div>
+						<figure class="mp-crucible-guide-figure" aria-live="polite">
+							<h4 class="mp-crucible-guide-step"><lang-string :lang-id="state.crucible_guide_title_id"></lang-string></h4>
+							<div class="mp-crucible-guide-image">
+								<img v-effect="state.crucible_panels_open.heat ? $el.setAttribute('src', state.crucible_guide_image) : $el.removeAttribute('src')" alt="">
+							</div>
+							<figcaption class="mp-crucible-guide-description"><lang-string :lang-id="state.crucible_guide_description_id"></lang-string></figcaption>
+						</figure>
+						<div class="mp-crucible-guide-controls"><button type="button" class="btn btn-secondary btn-sm" :disabled="state.crucible_guide_index === 0" @click="state.crucible_guide_index--"><lang-string lang-id="MOD_MP_ALLIANCE_PREVIOUS"></lang-string></button><button type="button" class="btn btn-success btn-sm" :disabled="state.crucible_guide_index >= state.crucible_guide_length - 1" @click="state.crucible_guide_index++"><lang-string lang-id="MOD_MP_ALLIANCE_NEXT"></lang-string></button></div>
+					</section>
 				</div>
 			</section>
 			<div class="block block-rounded p-4" v-show="state.crucible_loading && !state.crucible"><lang-string lang-id="MOD_MP_LOADING"></lang-string></div>
@@ -2860,6 +3356,48 @@
 		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_BACK"></lang-string></button>
 	</div>
 </template>
+<template id="template-mp-equipment-modal">
+	<div class="mp-equipment-modal-layout" :class="{ 'mp-consumable-plain': state.equipment_modal_slot === 'Food' || state.equipment_modal_slot === 'Food2' }">
+		<div class="mp-equipment-modal-content">
+			<section v-show="!state.equipment_modal_tiers"><section class="mp-equipment-quick" :class="{ 'mp-equipment-quick-with-detail': state.equipment_selected.combat?.type === 'item' }" v-show="state.equipment_modal_slot">
+				<div class="mp-equipment-quick-grid" role="group" :aria-label="getLangString('MOD_MP_EQUIPMENT_UNLOCKED')">
+					<button v-for="item in state.equipment_modal_items()" :key="item.item_id" type="button" class="mp-combat-equipment-choice" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('item', item.item_id) }" :data-tier="item.tier" :aria-pressed="state.equipment_selected.combat?.id === item.item_id" :title="state.equipment_project_name(item)" :aria-label="state.equipment_project_name(item)" @click="state.equipment_modal_choose(item)"><img :src="state.get_item_icon(item.item_id)" alt="" width="44" height="44"><i v-if="state.equipment_is_equipped(item)" class="fa fa-check" aria-hidden="true"></i></button>
+				</div>
+				<p class="text-muted" v-show="state.equipment_modal_items().length === 0"><lang-string lang-id="MOD_MP_EQUIPMENT_NO_UNLOCKED"></lang-string></p>
+			</section>
+			<div v-for="selection in state.equipment_selection(state.equipment_modal_kind).filter(selection => selection.item)" :key="selection.item.item_id" class="mp-equipment-detail">
+				<div v-if="selection.item" class="mp-equipment-item-detail">
+					<header class="mp-equipment-item-heading"><img :src="state.get_item_icon(selection.item.item_id)" alt="" width="80" height="80"><div><h4>{{ state.equipment_project_name(selection.item) }}</h4><button type="button" class="btn btn-primary mp-equipment-item-action" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight(selection.action === 'equip' ? 'item' : 'project', selection.item.item_id) }" v-show="selection.label && (state.equipment_modal_kind === 'combat' || selection.can_confirm)" :disabled="!selection.can_confirm" @click="state.equipment_confirm(state.equipment_modal_kind)">{{ selection.label }}</button></div></header>
+					<p class="text-muted" v-show="selection.item.occupies?.length">{{ getLangString('MOD_MP_EQUIPMENT_OCCUPIES') }}: {{ (selection.item.occupies ?? []).map(state.equipment_slot_name).join(', ') }}</p>
+					<div class="mp-equipment-requirements"><span v-for="requirement in state.equipment_item_requirements(selection.item)" :key="requirement.name" :class="requirement.met ? 'text-success' : 'text-danger'"><img v-if="requirement.media" :src="requirement.media" alt="" width="22" height="22">{{ requirement.name }} {{ requirement.level }}</span></div>
+					<p class="text-warning" v-show="!state.equipment_item_unlocked(selection.item)"><lang-string lang-id="MOD_MP_EQUIPMENT_ACCESS_REQUIRED"></lang-string></p>
+					<p class="text-muted" v-show="selection.item.unlock_only"><lang-string lang-id="MOD_MP_EQUIPMENT_ARROWS_DEFERRED"></lang-string></p>
+					<p class="text-muted" v-show="state.equipment_modal_kind === 'project'">{{ state.equipment_project_title(selection.item) }}</p>
+					<p v-if="selection.item.slot === 'Food'"><strong>+{{ selection.item.heal }} HP</strong> · {{ state.combat_name('unlimited') }}</p>
+					<div v-else class="mp-equipment-stat-columns"><section v-for="group in state.equipment_item_stats(selection.item)" :key="group.id"><h5>{{ getLangString(group.id === 'offence' ? 'MOD_MP_EQUIPMENT_OFFENSIVE' : 'MOD_MP_EQUIPMENT_DEFENSIVE') }}</h5><dl><template v-for="stat in group.rows" :key="stat.key"><dt>{{ stat.label }}</dt><dd :class="stat.tone">{{ stat.text }}</dd></template></dl></section></div>
+					<div class="mp-equipment-project-stages" v-show="state.equipment_modal_kind === 'project'"><section v-for="(stage, index) in selection.item.stages" :key="index"><h5>{{ state.equipment_project_stage_name(selection.item, index) }}</h5><div v-for="task in stage" :key="task.task_id"><span>{{ state.equipment_task_name(task) }}</span><strong>{{ state.equipment_duration(task.target_ms) }}</strong></div></section></div>
+				</div>
+			</div>
+			</section>
+			<section class="mp-equipment-tier-view" v-show="state.equipment_modal_tiers">
+				<p><lang-string lang-id="MOD_MP_EQUIPMENT_UNLOCKED"></lang-string>:</p>
+				<ul class="mp-equipment-tier-list"><li v-for="tier in state.equipment_modal_unlocked_tiers()" :key="tier.tier"><strong class="mp-equipment-tier-number" :data-tier="tier.tier">{{ tier.tier }}</strong><span class="mp-equipment-tier-dot"> · </span>{{ state.equipment_tier_name(tier.tier, state.equipment_modal_slot) }}</li></ul>
+				<section v-for="tier in state.equipment_modal_next_tiers()" :key="tier.tier">
+					<p><lang-string lang-id="MOD_MP_EQUIPMENT_NEXT_TIER"></lang-string>:</p>
+					<ul class="mp-equipment-tier-list"><li><strong class="mp-equipment-tier-number" :data-tier="tier.tier">{{ tier.tier }}</strong><span class="mp-equipment-tier-dot"> · </span>{{ state.equipment_tier_name(tier.tier, state.equipment_modal_slot) }} · {{ state.format_ep(tier.cost_micros) }} EP</li></ul>
+					<p v-show="state.equipment_modal_needs_item()"><lang-string lang-id="MOD_MP_EQUIPMENT_UPGRADE_EQUIP_PREFIX"></lang-string> <strong>{{ state.equipment_modal_current_tier() }}</strong> <lang-string lang-id="MOD_MP_EQUIPMENT_UPGRADE_EQUIP_MIDDLE"></lang-string> <strong>{{ state.equipment_tier_name(tier.tier, state.equipment_modal_slot) }}</strong>.</p>
+				</section>
+			</section>
+		</div>
+		<div class="mp-equipment-modal-actions" :class="{ 'mp-equipment-tier-actions': state.equipment_modal_tiers }">
+			<span class="mp-equipment-unlocked-tier" v-show="state.equipment_modal_slot && !state.equipment_modal_tiers"><lang-string lang-id="MOD_MP_EQUIPMENT_CURRENT_TIER"></lang-string>: <span v-show="state.equipment_slot(state.equipment_modal_slot)?.tier > 0"><strong class="mp-equipment-tier-number" :data-tier="state.equipment_slot(state.equipment_modal_slot)?.tier">{{ state.equipment_slot(state.equipment_modal_slot)?.tier }}</strong> · </span>{{ state.equipment_modal_current_tier() }}</span>
+			<button type="button" class="btn btn-outline-primary" v-show="state.equipment_modal_slot && !state.equipment_modal_tiers" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('slot-action', state.equipment_modal_slot) }" @click="state.equipment_modal_open_tiers()">{{ getLangString(!state.equipment_slot(state.equipment_modal_slot) ? 'MOD_MP_EQUIPMENT_UNLOCK_SLOT' : state.equipment_modal_slot_actions()[0]?.can_confirm ? 'MOD_MP_EQUIPMENT_UPGRADE_SLOT' : 'MOD_MP_EQUIPMENT_VIEW_SLOT') }}</button>
+			<button v-for="action in state.equipment_modal_slot_actions()" :key="action.slot" type="button" class="btn btn-outline-primary" v-show="state.equipment_modal_tiers && action.label" :disabled="!action.can_confirm" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('slot-action', action.slot) }" @click="state.equipment_modal_upgrade()">{{ getLangString(!state.equipment_slot(action.slot) ? 'MOD_MP_EQUIPMENT_UNLOCK_SLOT' : 'MOD_MP_EQUIPMENT_UPGRADE_SLOT') }} · {{ state.format_ep(action.cost) }} EP</button>
+			<div v-for="selection in state.equipment_selection(state.equipment_modal_kind)" :key="selection.item?.item_id ?? selection.slot" v-show="!state.equipment_modal_tiers && state.equipment_modal_kind === 'project' && selection.item"><button type="button" class="btn btn-primary" v-show="selection.label" :disabled="!selection.can_confirm" @click="state.equipment_confirm(state.equipment_modal_kind)">{{ selection.label }}<span v-show="selection.cost > 0"> · {{ state.format_ep(selection.cost) }} EP</span></button></div>
+			<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
+		</div>
+	</div>
+</template>
 <template id="template-mp-crucible-wish-modal">
 	<div class="mp-modal-text mp-crucible-wish-content">
 		<p class="mp-crucible-wish-intro"><lang-string lang-id="MOD_MP_CRUCIBLE_WISH_INTRO"></lang-string></p>
@@ -2880,8 +3418,9 @@
 			<button type="button" class="mp-crucible-wish-quantity-button mp-crucible-wish-quantity-jump" :aria-label="getLangString('MOD_MP_WISH_QUANTITY_FILL')" :title="getLangString('MOD_MP_WISH_QUANTITY_FILL')" @click="state.fill_crucible_wish_qty()"><i class="fas fa-angle-double-right" aria-hidden="true"></i></button>
 		</div>
 		<div><p><lang-string lang-id="MOD_MP_WISH_CURRENT_CAPACITY"></lang-string>: {{ numberWithCommas(state.crucible_capacity.base ?? 100) }}</p><p class="mp-crucible-wish-hint"><lang-string lang-id="MOD_MP_WISH_OVER_CAPACITY_INFO"></lang-string></p></div>
+		<p class="mp-crucible-wish-hint"><lang-string lang-id="MOD_MP_WISH_EP_ROUNDING_INFO"></lang-string></p>
 		<div class="mp-crucible-wish-totals">
-			<div class="mp-crucible-wish-total"><span><lang-string lang-id="MOD_MP_WISH_COST_LABEL"></lang-string></span><strong>{{ state.crucible_ep(state.crucible_wish_ep_micros) }} EP</strong><strong class="mp-crucible-wish-currency"><img :src="state.market_currency_icon(null)" alt="">{{ state.crucible_exact(state.crucible_wish_gp_cost) }} {{ state.market_currency_shorthand(null) }}</strong></div>
+			<div class="mp-crucible-wish-total" :title="getLangString('MOD_MP_WISH_EP_ROUNDING_INFO')"><span><lang-string lang-id="MOD_MP_WISH_COST_LABEL"></lang-string></span><strong>{{ state.format_ep(state.crucible_wish_ep_micros, { round_up: true }) }} EP</strong><strong class="mp-crucible-wish-currency"><img :src="state.market_currency_icon(null)" alt="">{{ state.crucible_exact(state.crucible_wish_gp_cost) }} {{ state.market_currency_shorthand(null) }}</strong></div>
 			<div class="mp-crucible-wish-total"><span><lang-string lang-id="MOD_MP_CRUCIBLE_WISH_REQUIREMENT"></lang-string></span><strong class="mp-crucible-wish-currency"><img :src="state.market_currency_icon(null)" alt="">{{ state.crucible_exact(state.crucible_wish_requirement) }} {{ state.market_currency_shorthand(null) }}</strong></div>
 		</div>
 	</div>
@@ -2894,7 +3433,7 @@
 	<div class="mp-capacity-form">
 		<section class="mp-listing-card mp-capacity-stats">
 			<div><p class="mp-expedition-points"><lang-string lang-id="MOD_MP_WISH_CURRENT_CAPACITY"></lang-string><strong>{{ numberWithCommas(state.crucible_capacity.base ?? 100) }}</strong></p></div>
-			<div><p class="mp-expedition-points"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOUR_EP"></lang-string><strong>{{ state.expedition_points(state.crucible?.capacity?.points_micros) }}</strong></p></div>
+			<div><p class="mp-expedition-points"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOUR_EP"></lang-string><strong>{{ state.format_ep(state.crucible?.capacity?.points_micros) }}</strong></p></div>
 		</section>
 		<section class="mp-capacity-selection">
 			<h3 id="mp-capacity-selection-label"><lang-string lang-id="MOD_MP_WISH_SELECT_CAPACITY"></lang-string></h3>
@@ -2907,8 +3446,8 @@
 		<section class="mp-listing-card">
 			<h3><lang-string lang-id="MOD_MP_WISH_PAYMENT_SUMMARY"></lang-string></h3>
 			<div class="mp-capacity-stats">
-				<div><span><lang-string lang-id="MOD_MP_WISH_CREATION_COST"></lang-string></span><strong>{{ state.crucible_capacity_quote > 0 ? state.crucible_capacity_ep(state.crucible_capacity_quote) + ' EP' : '—' }}</strong></div>
-				<div><span><lang-string lang-id="MOD_MP_WISH_RECURRING_PRICE"></lang-string></span><strong>{{ state.crucible_capacity_ep(state.crucible_capacity_price(state.crucible_capacity_base)) }} EP</strong></div>
+				<div><span><lang-string lang-id="MOD_MP_WISH_CREATION_COST"></lang-string></span><strong>{{ state.crucible_capacity_quote > 0 ? state.format_ep(state.crucible_capacity_quote) + ' EP' : '—' }}</strong></div>
+				<div><span><lang-string lang-id="MOD_MP_WISH_RECURRING_PRICE"></lang-string></span><strong>{{ state.format_ep(state.crucible_capacity_price(state.crucible_capacity_base)) }} EP</strong></div>
 			</div>
 		</section>
 		<section class="mp-listing-card">
@@ -2997,37 +3536,6 @@
 		<div class="text-muted font-size-sm mt-2"><lang-string lang-id="MOD_MP_CHAT_ITEM_SEARCH_HINT"></lang-string></div>
 		<div class="text-muted font-size-sm"><lang-string lang-id="MOD_MP_CHAT_ITEM_DISCOVERY_HINT"></lang-string></div>
 		<div class="mp-button-tray mt-3"><button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button></div>
-	</div>
-</template>
-
-<template id="template-mp-expedition-work-prompt-modal">
-	<p class="mp-modal-text">{{ state.expedition_text('MOD_MP_EXPEDITION_WORK_PROMPT_INFO', state.expedition_prompt_activity_names()) }}</p>
-	<div class="mp-expedition-prompt-tasks" @touchmove="state.stop_icon_scroll_propagation($event)">
-		<article class="mp-expedition-task" v-for="task in state.expedition_prompt_tasks()" :key="task.task_id">
-			<div class="mp-expedition-task-heading"><strong>{{ state.expedition_display_label(task.title, state.expedition_state?.expedition?.chamber?.exits?.length, state.expedition_state?.expedition?.chamber?.id) }}</strong><span class="mp-expedition-task-requirement" :class="{ 'mp-expedition-task-required': task.promoted_at || task.requirement === 'required' || (task.requirement === 'conditional' && task.exit_id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id) }">{{ state.expedition_state?.expedition?.chamber?.preparation ? getLangString('MOD_MP_EXPEDITION_PERSONAL') : task.promoted_at || task.requirement === 'required' || (task.requirement === 'conditional' && task.exit_id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id) ? getLangString('MOD_MP_EXPEDITION_REQUIRED') : getLangString('MOD_MP_EXPEDITION_OPTIONAL') }}</span></div>
-			<div class="mp-expedition-work-list" :aria-label="getLangString('MOD_MP_EXPEDITION_CONTRIBUTE_ACTIVITIES')">
-				<span><lang-string lang-id="MOD_MP_EXPEDITION_UI_CONTRIBUTE_WITH_ANY_OF_THESE"></lang-string></span>
-				<div class="mp-expedition-work" v-for="skill_id in task.evidence?.skill_ids || []" :key="skill_id" :title="state.expedition_work_name(skill_id)" :aria-label="state.expedition_work_name(skill_id)" role="img">
-					<img :src="state.expedition_work_icon(skill_id)" alt="" draggable="false"><span>{{ state.expedition_work_name(skill_id) }}</span>
-				</div>
-			</div>
-			<div class="mp-expedition-progress-wrap" tabindex="0" :aria-label="state.expedition_display_label(task.title, state.expedition_state?.expedition?.chamber?.exits?.length, state.expedition_state?.expedition?.chamber?.id) + ': ' + state.expedition_progress_description(task)">
-				<div class="mp-expedition-progress" role="progressbar" :aria-valuenow="state.expedition_percent(task)" aria-valuemin="0" aria-valuemax="100" :aria-label="state.expedition_display_label(task.title, state.expedition_state?.expedition?.chamber?.exits?.length, state.expedition_state?.expedition?.chamber?.id)" :aria-valuetext="state.expedition_progress_description(task)">
-						<span class="mp-expedition-progress-own" :style="{ width: state.expedition_progress_width(task.personal_ms, task) }"></span><span class="mp-expedition-progress-others" :style="{ width: state.expedition_progress_width(state.expedition_other_player_ms(task), task) }"></span><span class="mp-expedition-progress-assistance" :style="{ width: state.expedition_progress_width(task.system_ms, task) }"></span>
-					</div>
-				<div class="mp-expedition-progress-detail" role="tooltip" v-if="state.expedition_contribution_time(task.personal_ms) || state.expedition_contribution_time(state.expedition_other_player_ms(task)) || state.expedition_contribution_time(task.system_ms)">
-						<span v-if="state.expedition_contribution_time(task.personal_ms)"><i class="mp-expedition-progress-key mp-expedition-progress-own"></i>{{ state.expedition_text('MOD_MP_EXPEDITION_YOUR_WORK_TIME', state.expedition_contribution_time(task.personal_ms)) }}</span><span v-if="state.expedition_contribution_time(state.expedition_other_player_ms(task))"><i class="mp-expedition-progress-key mp-expedition-progress-others"></i>{{ state.expedition_text('MOD_MP_EXPEDITION_OTHER_WORK_TIME', state.expedition_contribution_time(state.expedition_other_player_ms(task))) }}</span><span v-if="state.expedition_contribution_time(task.system_ms)"><i class="mp-expedition-progress-key mp-expedition-progress-assistance"></i>{{ state.expedition_text('MOD_MP_EXPEDITION_ASSISTANCE_TIME', state.expedition_contribution_time(task.system_ms)) }}</span>
-				</div>
-			</div>
-			<div>
-				<p class="mp-expedition-progress-percent"><strong>{{ state.expedition_remaining(task) }}</strong> · {{ state.expedition_text('MOD_MP_EXPEDITION_PERCENT_COMPLETE', state.expedition_percent(task)) }}</p>
-				<p v-if="task.trackers?.length">{{ state.expedition_text('MOD_MP_EXPEDITION_TRACKERS', task.trackers.map(member => member.display_name).join(', ')) }}</p>
-				<div class="mp-expedition-task-actions" v-if="state.expedition_state?.expedition?.registered && (state.expedition_state?.tracking?.visit_id !== state.expedition_state?.expedition?.chamber?.visit_id || state.expedition_state?.tracking?.task_id !== task.task_id)">
-					<button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending || state.expedition_pending_report || !state.expedition_can_track(task) || (state.expedition_state?.tracking && state.expedition_state?.tracking?.visit_id !== state.expedition_state?.expedition?.chamber?.visit_id)" @click="state.start_prompted_expedition_task(task.task_id)"><lang-string lang-id="MOD_MP_EXPEDITION_UI_TRACK_THIS_TASK"></lang-string></button>
-					<div class="mp-expedition-available"><lang-string lang-id="MOD_MP_EXPEDITION_AVAILABLE_TO_EARN"></lang-string><strong>{{ state.expedition_available_points(task) }} EP</strong></div>
-				</div>
-			</div>
-		</article>
 	</div>
 </template>
 
@@ -3125,5 +3633,18 @@
 			<button type="button" class="btn btn-secondary" @click="state.apply_chat_highlight(true)"><lang-string lang-id="MOD_MP_CHAT_HIGHLIGHT_CLEAR"></lang-string></button>
 			<button type="button" class="btn btn-primary" :disabled="!state.is_chat_highlight_input_valid()" @click="state.apply_chat_highlight()"><lang-string lang-id="MOD_MP_CHAT_HIGHLIGHT_APPLY"></lang-string></button>
 		</div>
+	</div>
+</template>
+
+<template id="template-mp-equipment-cancel-modal">
+	<p><lang-string lang-id="MOD_MP_EQUIPMENT_CANCEL_PROJECT_INFO"></lang-string></p>
+	<div class="mp-equipment-modal-actions"><button type="button" class="btn btn-danger" :disabled="!state.equipment_cancel_ready()" @click="state.equipment_cancel_confirm()"><lang-string lang-id="MOD_MP_RAID_I_UNDERSTAND"></lang-string></button><button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button></div>
+</template>
+
+<template id="template-mp-combat-result-modal">
+	<div class="mp-combat-result-details" v-if="state.combat.result">
+		<div v-if="state.combat.result.materials?.length" class="mp-combat-result-unlocks"><strong>{{ state.combat_raid_copy('unlocks') }}</strong><span v-for="gain in state.combat.result.materials" :key="gain.tier" v-html="state.combat_material_access(gain.tier)"></span></div>
+		<div v-if="state.combat.result.unlocks.length" class="mp-combat-result-unlocks"><strong>Unlocked</strong><span v-for="gain in state.combat.result.unlocks" :key="gain.skill"><img class="mp-combat-raid-skill-icon" :src="state.combat_skill_icon(gain.skill)" alt="" width="16" height="16">{{ state.combat_name(gain.skill) }} level cap: {{ gain.cap }}</span></div>
+		<strong v-if="state.combat.result.time" class="mp-combat-result-time">{{ state.combat.result.time }}</strong>
 	</div>
 </template>

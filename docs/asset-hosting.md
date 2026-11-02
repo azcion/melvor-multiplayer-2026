@@ -5,8 +5,10 @@ All original images remain in `mod/assets/` and in source control.
 
 ## Configuration
 
-`asset-hosting.json` supplies the bundled default and exact managed PNG paths. The initial list covers four Raid
-bosses, seven Expedition Chambers, and four passage gateways. Crucible, navigation icons, gamemode icons, and placeholders stay bundled.
+`asset-hosting.json` supplies the bundled default and exact managed PNG paths. The managed list covers four Colosseum
+Dungeon setting illustrations, four Raid bosses, the seven legacy Expedition scenes, eleven versioned 1.7.0 Expedition scenes, four passage gateways,
+and the Crucible visual guide. Other Crucible artwork,
+navigation icons, gamemode icons, and placeholders stay bundled.
 
 Create an ignored `asset-hosting.local.json` to override settings for your builds:
 
@@ -39,12 +41,42 @@ Only the resolved URL map reaches the game; upload settings stay outside the ZIP
 Force a self-contained build even on a machine configured for remote hosting:
 
 ```sh
-MELVOR_ASSET_CONFIG=asset-hosting.json ./scripts/package-mod.sh
+MELVOR_ASSET_CONFIG=asset-hosting.json ./scripts/package-mod.sh 1.7.0 A
 ```
 
 Switching the multiplayer API server in Mod Settings does not change the image host baked into an installed ZIP.
 Rebuild and reinstall the ZIP to change asset delivery. Remote mode requires the configured host at image load time;
 it does not contain fallback copies of the omitted artwork. Existing local Expedition placeholders remain bundled.
+
+## Artwork handoff preflight
+
+After changing managed PNG bytes or inventory, run `node scripts/asset-hosting.mjs check` before handing off
+artwork or starting a remote release build. It uses the same effective configuration and content hashes as packaging,
+checks every managed object, and changes no files or hosted objects. Bundled mode checks local PNG validity only.
+A dry-run upload lists keys but does not prove public availability. Review the reported override and mode first.
+
+An override's `assets` array replaces the tracked inventory; compare that array with `asset-hosting.json` when
+investigating stale configuration. If the effective inventory includes the expected path and its current hash URL
+returns HTTP 404, that exact object is unpublished at the configured host. A network failure cannot establish absence.
+The preflight lists all missing objects; upload using the reviewed provider workflow, then rerun it. Packaging stays
+fail-closed and never uploads automatically.
+
+For an intentionally bundled release test without changing the ignored host configuration:
+
+```sh
+asset_config="$(mktemp "${TMPDIR:-/tmp}/melvor-bundled-assets.XXXXXX")"
+git show HEAD:asset-hosting.json > "$asset_config"
+MELVOR_ASSET_CONFIG="$asset_config" ./scripts/package-release.sh VERSION SUFFIX
+```
+
+Remove the temporary file afterward and inspect the release asset metadata. Follow the next unused release suffix.
+
+## Expedition artwork compatibility
+
+The 1.7.0 expansion uses `assets/expedition-chambers/1.7.0/` for all new/replacement scenes. The Rift retains
+`assets/expedition-chambers/entrance.png`. Preserve the original unversioned images and any hosted objects referenced
+by 1.6.17 or older supported clients. Keep both generations in the managed inventory; updating only asset URLs does
+not replace the backend obligation to preserve existing content snapshots, tasks, visits and route history.
 
 ## Upload to Cloudflare R2
 
@@ -68,7 +100,8 @@ before uploading. The uploader uses Wrangler's existing credentials; never place
 ```sh
 node scripts/asset-hosting.mjs upload --dry-run
 node scripts/asset-hosting.mjs upload
-./scripts/package-mod.sh
+node scripts/asset-hosting.mjs check
+./scripts/package-mod.sh 1.7.0 A
 ```
 
 The first command lists the exact source paths, object keys, and sizes without accessing R2 or the public host.

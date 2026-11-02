@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { readFileSync } from 'node:fs';
-import { install_social_actions } from '../../mod/client-actions-social.mjs';
+import { install_social_actions, resolve_alliance_error } from '../../mod/client-actions-social.mjs';
+import { MULTIPLAYER_SUPPORTED_LANGUAGES } from '../../mod/localization.mjs';
 function setup() {
 	const calls=[];
 	const state={get_guild_icon: id => 'guild-icon:' + id,is_guild_member:true,alliance_access:true,alliance_loading:false,alliance_modal:null,alliance_name_input:'  My Alliance  ',alliance_picker_mode:'found',alliance_picker_page:0};
@@ -13,6 +14,36 @@ function setup() {
 	Object.assign(state,install_social_actions(runtime));
 	return {state,calls,runtime};
 }
+test('Alliance server errors resolve to precise translations in every shipped locale', () => {
+	const errors = {
+		'This Guild already has an Alliance or a pending affiliation process.': 'MOD_MP_ALLIANCE_ERROR_ALREADY_AFFILIATED',
+		'Founding Guild is unavailable.': 'MOD_MP_ALLIANCE_ERROR_FOUNDING_GUILD_UNAVAILABLE',
+		'Alliance is unavailable.': 'MOD_MP_ALLIANCE_ERROR_ALLIANCE_UNAVAILABLE',
+		'Alliance membership is required.': 'MOD_MP_ALLIANCE_ERROR_MEMBERSHIP_REQUIRED',
+		'Remove Guild requires at least three Member Guilds and a current target.': 'MOD_MP_ALLIANCE_ERROR_REMOVE_REQUIREMENTS',
+		'That policy is already in effect.': 'MOD_MP_ALLIANCE_ERROR_POLICY_ALREADY_IN_EFFECT',
+		'A proposal on this subject is already pending.': 'MOD_MP_ALLIANCE_ERROR_SUBJECT_PENDING',
+		'Proposal is unavailable.': 'MOD_MP_ALLIANCE_ERROR_PROPOSAL_UNAVAILABLE',
+		'Submitted proposal is unavailable.': 'MOD_MP_ALLIANCE_ERROR_SUBMITTED_PROPOSAL_UNAVAILABLE',
+		'Withdrawal is already pending.': 'MOD_MP_ALLIANCE_ERROR_WITHDRAWAL_PENDING',
+		'This Founding Proposal cannot be considered now.': 'MOD_MP_ALLIANCE_ERROR_FOUNDING_PROPOSAL_CANNOT_BE_CONSIDERED'
+	};
+	const server = readFileSync(new URL('../../server/alliances.ts', import.meta.url), 'utf8');
+	const server_errors = [...server.matchAll(/\berror:\s*'([^']+)'/g)].map(([, message]) => message).sort();
+	assert.deepEqual(Object.keys(errors).sort(), server_errors, 'every raw Alliance server error must have a client localization mapping');
+	const dictionaries = Object.fromEntries(MULTIPLAYER_SUPPORTED_LANGUAGES.map(language => [language,
+		JSON.parse(readFileSync(new URL(`../../mod/data/lang/${language}.json`, import.meta.url), 'utf8'))]));
+	for (const [error, key] of Object.entries(errors)) {
+		for (const language of MULTIPLAYER_SUPPORTED_LANGUAGES) {
+			const dictionary = dictionaries[language];
+			assert.ok(dictionary[key]?.trim(), `${language}:${key} must be translated`);
+			assert.equal(resolve_alliance_error({ error }, id => dictionary[id] ?? id), dictionary[key], `${language}:${error}`);
+		}
+	}
+	assert.equal(resolve_alliance_error({ error: 'unknown server message' }, id => dictionaries.en[id] ?? id), 'unknown server message');
+	assert.equal(resolve_alliance_error({ error: 'toString' }, id => dictionaries.en[id] ?? id), 'toString');
+	assert.equal(resolve_alliance_error({ error_lang: 'MOD_MP_GENERIC_ERR' }, id => dictionaries.en[id] ?? id), dictionaries.en.MOD_MP_GENERIC_ERR);
+});
 test('Guild preview restores picker only when opened from the picker',async()=> {
 	const {state,calls}=setup();
 	await state.show_alliance_picker('found');

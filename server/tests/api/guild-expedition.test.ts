@@ -4,7 +4,7 @@ import { attach_to_free_fellowship, make_guildmates } from '../support/fixtures'
 import { get_json_with_session, post, post_json, register_client } from '../support/http';
 import { db_all, db_run } from '../support/persistence';
 import { scale_expedition_hours } from '../../guild-expedition';
-import { EXPEDITION_CONTENT_V1 } from '../../expedition-content';
+import { EXPEDITION_CONTENT_V1, EXPEDITION_CONTENT_V3 } from '../../expedition-content';
 import { RECENTLY_ACTIVE_AFTER } from '../../recent-activity';
 
 type ExpeditionState = {
@@ -47,6 +47,11 @@ describe('Guild Expedition registration', () => {
 			const state = (await get_json_with_session<any>('/api/expedition/state', guild.first.session_token)).json;
 			const chamber = state.expedition.chamber;
 			expect(chamber.id).toBe(chamber_id);
+			expect(state.expedition.journey.supported_ids).toContain(chamber_id);
+			const discovered = await db_all<{ exit_id: string }>(
+				'SELECT edge.exit_id FROM expedition_exits AS edge JOIN expedition_visits AS visit ON visit.id = edge.visit_id WHERE visit.expedition_id = ? AND edge.discovered_at IS NOT NULL',
+				[registration.json.expedition_id]);
+			expect(state.expedition.journey.revealed.sort()).toEqual(discovered.map(edge => edge.exit_id).sort());
 			const visit_id = chamber.visit_id;
 			if (index === route.length - 1) {
 				expect(chamber.preview_exit_id).toBeNull();
@@ -59,6 +64,7 @@ describe('Guild Expedition registration', () => {
 				[Date.now(), visit_id, 'arrival_chart']);
 			const opened = (await get_json_with_session<any>('/api/expedition/state', guild.first.session_token)).json;
 			const tracking_view = (await get_json_with_session<any>('/api/expedition/state?view=tracking', guild.first.session_token)).json;
+			expect(tracking_view.expedition.journey).toBeUndefined();
 			expect(tracking_view.expedition.chamber.tasks.map((task: any) => [task.task_id, task.completed_at, task.requirement, task.evidence]))
 				.toEqual(opened.expedition.chamber.tasks.map((task: any) => [task.task_id, task.completed_at, task.requirement, task.evidence]));
 			if (chamber.exits.length > 1) {
@@ -300,11 +306,15 @@ describe('Guild Expedition registration', () => {
 			post_json('/api/expedition/debug/advance', { expedition_id, visit_id, action, task_id },
 				guild.first.session_token);
 		expect((await advance('registration', null, null)).response.status).toBe(200);
-		const active = await get_json_with_session<ExpeditionState & { debug_enabled: boolean }>(
+		const active = await get_json_with_session<ExpeditionState & { debug_enabled: boolean; debug_chambers: { id: string }[] }>(
 			'/api/expedition/state', guild.first.session_token);
 		expect(active.json.debug_enabled).toBe(true);
+		expect(active.json.debug_chambers.map(chamber => chamber.id)).not.toContain('rootforge_passage');
 		const visit_id = active.json.expedition?.chamber?.visit_id ?? -1;
-		expect((await advance('task', visit_id, 'arrival_chart')).response.status).toBe(200);
+		expect((await post('/api/expedition/debug/advance', { expedition_id, visit_id, action: 'jump', task_id: 'rootforge_passage' }, guild.first.session_token)).status).toBe(409);
+		expect((await post('/api/expedition/debug/advance', { expedition_id, visit_id, action: 'phase', task_id: 'invalid' }, guild.first.session_token)).status).toBe(409);
+		expect((await post('/api/expedition/debug/advance', { expedition_id, visit_id: visit_id + 999, action: 'phase', task_id: 'arrival' }, guild.first.session_token)).status).toBe(409);
+		expect((await advance('phase', visit_id, 'arrival')).response.status).toBe(200);
 		const task = await db_all('SELECT player_ms, system_ms, completed_at FROM expedition_tasks WHERE visit_id = ? AND task_id = ?',
 			[visit_id, 'arrival_chart']);
 		expect(task[0]?.player_ms).toBe(0);
@@ -323,13 +333,75 @@ describe('Guild Expedition registration', () => {
 			{ expedition_id, visit_id, action: 'vote', task_id: null }, guild.first.session_token)).status).toBe(409);
 		expect((await post('/api/expedition/debug/advance',
 			{ expedition_id, visit_id, action: 'task', task_id: 'prepare_1' }, guild.first.session_token)).status).toBe(409);
-		expect((await advance('task', visit_id, 'groundwork')).response.status).toBe(200);
-		expect((await advance('task', visit_id, 'reveal_1')).response.status).toBe(200);
-		expect((await advance('task', visit_id, 'prepare_1')).response.status).toBe(200);
+		expect((await advance('chamber', visit_id, null)).response.status).toBe(200);
+		expect((await post('/api/expedition/debug/advance', { expedition_id, visit_id, action: 'chamber', task_id: null }, guild.first.session_token)).status).toBe(409);
 		const next = await get_json_with_session<ExpeditionState>('/api/expedition/state', guild.first.session_token);
 		expect(next.json.expedition?.chamber?.id).toBe('prismatic_descent');
 		expect(await db_all('SELECT COUNT(*) AS count FROM expedition_ep_ledger WHERE expedition_id = ?',
 			[expedition_id])).toEqual([{ count: 0 }]);
+	});
+	test('every Chamber supports direct jumps, each phase and whole-Chamber test completion', async () => {
+		const guild = await make_guildmates('Jump One', 'Jump Two', 'Jump Guild');
+		await db_run('UPDATE clients SET client_identifier = ? WHERE client_identifier = ?',
+			[crypto.randomUUID(), 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee']);
+		await db_run('UPDATE clients SET client_identifier = ? WHERE id = ?',
+			['eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', guild.first.client_id]);
+		let expedition_id = -1;
+		const state = async () => (await get_json_with_session<any>('/api/expedition/state', guild.first.session_token)).json;
+		const advance = (visit_id: number | null, action: string, task_id: string | null) =>
+			post('/api/expedition/debug/advance', { expedition_id, visit_id, action, task_id }, guild.first.session_token);
+		const register = async () => {
+			expedition_id = (await post_json<{ expedition_id: number }>('/api/expedition/register',
+				{ operation_id: crypto.randomUUID(), content_version: 3 }, guild.first.session_token)).json.expedition_id;
+		};
+		await register();
+		for (const chamber of EXPEDITION_CONTENT_V3.chambers) {
+			for (const action of ['arrival', 'exploration', 'departure', 'chamber', 'task']) {
+				let before = await state();
+				if (!['registration', 'active'].includes(before.expedition.status)) { await register(); before = await state(); }
+				expect(before.debug_chambers.map((entry: any) => entry.id)).toContain(chamber.id);
+				const old_visit = before.expedition.chamber?.visit_id ?? null;
+				expect((await advance(old_visit, 'jump', 'missing_chamber')).status).toBe(409);
+				expect((await post('/api/expedition/debug/advance', { expedition_id, visit_id: old_visit, action: 'jump', task_id: chamber.id }, guild.second.session_token)).status).toBe(403);
+				expect((await advance(old_visit, 'jump', chamber.id)).status).toBe(200);
+				const jumped = await state();
+				expect(jumped.expedition.chamber.id).toBe(chamber.id);
+				const visit_id = jumped.expedition.chamber.visit_id;
+				expect(visit_id).not.toBe(old_visit);
+				expect((await advance(visit_id + 999999, 'jump', chamber.id)).status).toBe(409);
+				if (action === 'task') {
+					// Exercise every individual button, including newly unlocked optional work.
+					for (let pass = 0; pass < chamber.tasks.length; pass++) {
+						const current = await state();
+						if (current.expedition.chamber?.visit_id !== visit_id) break;
+						const task = current.expedition.chamber.tasks.find((task: any) => task.unlocked_at !== null && task.completed_at === null &&
+							(task.requirement === 'required' || task.requirement === 'optional' || task.promoted_at !== null ||
+							(task.requirement === 'conditional' && current.expedition.chamber.exits.some((edge: any) => edge.id === task.exit_id && edge.label !== '???'))));
+						if (!task) break;
+						expect((await advance(visit_id, 'task', task.task_id)).status).toBe(200);
+					}
+					const current = await state();
+					if (current.expedition.chamber?.visit_id === visit_id && chamber.exits.length > 1) {
+						expect((await post('/api/expedition/vote', { operation_id: crypto.randomUUID(), expedition_id,
+							visit_id, exit_id: chamber.exits[0].id }, guild.first.session_token)).status).toBe(200);
+						expect((await advance(visit_id, 'vote', null)).status).toBe(200);
+					}
+				} else {
+					expect((await advance(visit_id, action === 'chamber' ? 'chamber' : 'phase', action === 'chamber' ? null : action)).status).toBe(200);
+					const phases = ['arrival', 'exploration', 'departure'];
+					const through = action === 'chamber' ? 2 : phases.indexOf(action);
+					const completed = await db_all<{ task_id: string; completed_at: number | null; player_ms: number }>('SELECT task_id, completed_at, player_ms FROM expedition_tasks WHERE visit_id = ?', [visit_id]);
+					for (const task of completed) {
+						if (phases.indexOf(chamber.tasks.find(entry => entry.id === task.task_id)!.phase) <= through) expect(task.completed_at).toBeNumber();
+						expect(task.player_ms).toBe(0);
+					}
+					const current = await state();
+					if (current.expedition.chamber?.visit_id === visit_id)
+						expect((await advance(visit_id, action === 'chamber' ? 'chamber' : 'phase', action === 'chamber' ? null : action)).status).toBe(200);
+				}
+			}
+		}
+		expect(await db_all('SELECT COUNT(*) AS count FROM expedition_ep_ledger WHERE client_id = ?', [guild.first.client_id])).toEqual([{ count: 0 }]);
 	});
 	test('test controls cancel a run and wipe only its Guild Expedition records and EP', async () => {
 		const guild = await make_guildmates('Reset One', 'Reset Two', 'Reset Guild');
@@ -349,13 +421,38 @@ describe('Guild Expedition registration', () => {
 		expect(await db_all('SELECT status FROM expeditions WHERE id = ?', [expedition_id])).toEqual([{ status: 'inactive' }]);
 		expect(await db_all('SELECT points_micros FROM expedition_ep_balances WHERE client_id = ?', [guild.first.client_id]))
 			.toEqual([{ points_micros: 1_000_000 }]);
+		// A participant's previous Guild history must neither block this wipe nor be erased.
+		const other = await make_guildmates('Retained One', 'Retained Two', 'Retained Guild');
+		const other_registration = await post_json<{ expedition_id: number }>('/api/expedition/register',
+			{ operation_id: crypto.randomUUID() }, other.first.session_token);
+		const other_id = other_registration.json.expedition_id;
+		await db_run('INSERT INTO expedition_personal_records (expedition_id, client_id, source_guild_id, source_guild_name, registered_at, status) SELECT id, ?, guild_id, ?, registered_at, status FROM expeditions WHERE id = ?',
+			[guild.first.client_id, 'Retained Guild', other_id]);
+		await db_run("INSERT INTO expedition_ep_ledger(client_id,source_kind,source_id,expedition_id,points_micros,created_at) VALUES(?,'work',?,?,2000000,?)",
+			[guild.first.client_id, 2900000 + other_id, other_id, Date.now()]);
+		expect((await post('/api/expedition/debug/wipe',
+			{ current_expedition_id: expedition_id, confirm: 'WIPE EXPEDITION DATA' }, guild.first.session_token)).status).toBe(409);
+		// Retained unrelated earnings must still account for combat spending and its paid reset.
+		await db_run("INSERT INTO expedition_ep_ledger(client_id,source_kind,source_id,expedition_id,points_micros,created_at) VALUES(?,'work',?,NULL,10000000,?)",
+			[guild.first.client_id, 1900000 + expedition_id, Date.now()]);
+		await db_run("INSERT INTO wish_ep_spends(client_id,kind,source_id,points_micros,created_at) VALUES(?,'wish',?,2000000,?)",
+			[guild.first.client_id, crypto.randomUUID(), Date.now()]);
+		await db_run('INSERT INTO combat_ep_ledger(client_id,command_id,amount_micros,created_at) VALUES(?,?,?,?)',
+			[guild.first.client_id, crypto.randomUUID(), -1000000, Date.now()]);
+		await db_run('INSERT INTO combat_ep_ledger(client_id,command_id,amount_micros,created_at) VALUES(?,?,?,?)',
+			[guild.first.client_id, crypto.randomUUID(), 900000, Date.now()]);
 		expect((await post('/api/expedition/debug/wipe',
 			{ current_expedition_id: null, confirm: 'WIPE EXPEDITION DATA' }, guild.second.session_token)).status).toBe(403);
 		expect((await post_json('/api/expedition/debug/wipe',
 			{ current_expedition_id: null, confirm: 'WIPE EXPEDITION DATA' }, guild.first.session_token)).response.status).toBe(200);
 		expect(await db_all('SELECT id FROM expeditions WHERE id = ?', [expedition_id])).toEqual([]);
 		expect(await db_all('SELECT expedition_id FROM expedition_personal_records WHERE expedition_id = ?', [expedition_id])).toEqual([]);
-		expect(await db_all('SELECT points_micros FROM expedition_ep_balances WHERE client_id = ?', [guild.first.client_id])).toEqual([]);
+		expect(await db_all('SELECT points_micros FROM expedition_ep_balances WHERE client_id = ?', [guild.first.client_id])).toEqual([{ points_micros: 9_900_000 }]);
+		expect(await db_all('SELECT id FROM expeditions WHERE id = ?', [other_id])).toEqual([{ id: other_id }]);
+		expect(await db_all('SELECT expedition_id FROM expedition_personal_records WHERE expedition_id = ? AND client_id = ?',
+			[other_id, guild.first.client_id])).toEqual([{ expedition_id: other_id }]);
+		expect(await db_all('SELECT points_micros FROM expedition_ep_ledger WHERE expedition_id = ? AND client_id = ?',
+			[other_id, guild.first.client_id])).toEqual([{ points_micros: 2_000_000 }]);
 	});
 	test('scales fixed baseline hours from registered active participants', () => {
 		expect([1, 2, 3, 5, 20, 45, 50].map(count => scale_expedition_hours(20, count)))
@@ -595,7 +692,7 @@ describe('Guild Expedition registration', () => {
 		expect(tenures[1].ended_at).toBeNull();
 	});
 
-	test.each([true, false])('disposes an inactive Stash once through an open=%s Crucible', async (is_open) => {
+	test.each([true, false])('destroys an inactive Stash once while Crucible open=%s', async (is_open) => {
 		const guild = await make_guildmates('Crucible Supply A', 'Crucible Supply B', 'Crucible Stash',
 			{ first: '1.6.14', second: '1.6.14' });
 		const started = await post_json<{ expedition_id: number }>(

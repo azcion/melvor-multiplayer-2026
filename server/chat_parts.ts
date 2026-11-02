@@ -89,30 +89,39 @@ export function normalize_chat_parts(value: unknown, sender_id?: number): ChatPa
 }
 
 export function save_chat_parts(kind: string, message_id: number, parts?: ChatPart[], highlight_color: string | null = null): void {
-	if (highlight_color !== null) db.query('UPDATE chat_translation_jobs SET highlight_color = ? WHERE source_kind = ? AND message_id = ?')
+	const jobs = kind === 'poll' ? 'poll_translation_jobs' : 'chat_translation_jobs';
+	const bodies = kind === 'poll' ? 'poll_message_bodies' : 'chat_message_bodies';
+	const id = kind === 'poll' ? 'content_id' : 'message_id';
+	if (highlight_color !== null) db.query(`UPDATE ${jobs} SET highlight_color = ? WHERE source_kind = ? AND ${id} = ?`)
 		.run(highlight_color, kind, message_id);
 	if (!parts?.some(part => part.type !== 'text')) return;
-	db.query('INSERT INTO chat_message_bodies (job_id, parts) SELECT id, ? FROM chat_translation_jobs ' +
-		'WHERE source_kind = ? AND message_id = ?').run(JSON.stringify(parts), kind, message_id);
+	db.query(`INSERT INTO ${bodies} (job_id, parts) SELECT id, ? FROM ${jobs} ` +
+		`WHERE source_kind = ? AND ${id} = ?`).run(JSON.stringify(parts), kind, message_id);
 }
 
 export function same_chat_parts(kind: string, message_id: number, parts?: ChatPart[], highlight_color: string | null = null): boolean {
+	const jobs = kind === 'poll' ? 'poll_translation_jobs' : 'chat_translation_jobs';
+	const bodies = kind === 'poll' ? 'poll_message_bodies' : 'chat_message_bodies';
+	const id = kind === 'poll' ? 'content_id' : 'message_id';
 	const highlight = db.query<{ highlight_color: string | null }, [string, number]>(
-		'SELECT highlight_color FROM chat_translation_jobs WHERE source_kind = ? AND message_id = ?').get(kind, message_id);
+		`SELECT highlight_color FROM ${jobs} WHERE source_kind = ? AND ${id} = ?`).get(kind, message_id);
 	if ((highlight?.highlight_color ?? null) !== highlight_color) return false;
-	const existing = db.query<{ parts: string }, [string, number]>('SELECT body.parts FROM chat_message_bodies body ' +
-		'JOIN chat_translation_jobs job ON job.id = body.job_id WHERE job.source_kind = ? AND job.message_id = ?')
+	const existing = db.query<{ parts: string }, [string, number]>(`SELECT body.parts FROM ${bodies} body ` +
+		`JOIN ${jobs} job ON job.id = body.job_id WHERE job.source_kind = ? AND job.${id} = ?`)
 		.get(kind, message_id);
 	return (existing?.parts ?? null) === (parts?.some(part => part.type !== 'text') ? JSON.stringify(parts) : null);
 }
 
 export function attach_chat_parts<T extends { message_id: number }>(kind: string, messages: T[]):
 	Array<T & { parts?: ChatPart[]; highlight_color?: string }> {
+	const jobs = kind === 'poll' ? 'poll_translation_jobs' : 'chat_translation_jobs';
+	const bodies = kind === 'poll' ? 'poll_message_bodies' : 'chat_message_bodies';
+	const id = kind === 'poll' ? 'content_id' : 'message_id';
 	if (messages.length === 0) return [];
 	const rows = db.query<{ message_id: number; parts: string | null; highlight_color: string | null }, Array<string | number>>(
-		'SELECT job.message_id, body.parts, job.highlight_color FROM chat_translation_jobs job ' +
-		'LEFT JOIN chat_message_bodies body ON job.id = body.job_id ' +
-		`WHERE job.source_kind = ? AND job.message_id IN (${messages.map(() => '?').join(',')})`
+		`SELECT job.${id} AS message_id, body.parts, job.highlight_color FROM ${jobs} job ` +
+		`LEFT JOIN ${bodies} body ON job.id = body.job_id ` +
+		`WHERE job.source_kind = ? AND job.${id} IN (${messages.map(() => '?').join(',')})`
 	).all(kind, ...messages.map(message => message.message_id));
 	const by_id = new Map(rows.map(row => [row.message_id, row]));
 	return messages.map(message => {
@@ -202,6 +211,7 @@ export function chat_people(viewer_id: number, kind?: string, conversation_id?: 
 			global: ['global_chat_messages', 'channel', 'global_chat_message_moderation'],
 			testers: ['global_chat_messages', 'channel', 'global_chat_message_moderation'],
 			'poll-discussion': ['poll_discussion_messages', 'poll_id', 'poll_discussion_message_moderation'],
+			'announcement-discussion': ['poll_discussion_messages', 'poll_id', 'poll_discussion_message_moderation'],
 			'petition-discussion': ['petition_discussion_messages', 'petition_id', 'petition_discussion_message_moderation'],
 			support: ['support_messages', 'conversation_id', 'support_message_moderation']
 		};
@@ -215,7 +225,8 @@ export function chat_people(viewer_id: number, kind?: string, conversation_id?: 
 				visibility += ' AND message.id > COALESCE((SELECT hidden_through_message_id FROM chat_participants WHERE conversation_id = ? AND client_id = ?), 0)' +
 					' AND NOT EXISTS(SELECT 1 FROM chat_message_deletions WHERE message_id = message.id AND client_id = ?)';
 				values.push(conversation_id, viewer_id, viewer_id);
-			} else visibility += ` AND NOT EXISTS(SELECT 1 FROM ${moderation} WHERE message_id = message.id)`;
+			}
+			visibility += ` AND NOT EXISTS(SELECT 1 FROM ${moderation} WHERE message_id = message.id)`;
 			if (kind === 'petition-discussion') visibility += ' AND ' + petition_discussion_visibility(viewer_id);
 			if (kind !== 'support') {
 				visibility += ' AND ' + chat_shadow_visibility();
@@ -251,6 +262,15 @@ export function has_unread_person_tag(viewer_id: number, conversation: {
 }): boolean {
 	if (conversation.unread_count <= 0 || conversation.conversation_id < 1) return false;
 	const kind = conversation.conversation_kind;
+	if (kind === 'announcements') return db.query<{ tagged: number }, [number, number, number]>(`
+		SELECT EXISTS(SELECT 1 FROM polls message
+		JOIN poll_translation_jobs job ON job.source_kind='poll' AND job.content_id=message.id
+		JOIN poll_message_bodies body ON body.job_id=job.id
+		WHERE message.announcement=1 AND message.deleted_at IS NULL AND message.creator_id!=?
+		AND message.id>COALESCE((SELECT last_read_message_id FROM announcement_read_state WHERE client_id=?),0)
+		AND EXISTS(SELECT 1 FROM json_each(body.parts) part WHERE json_extract(part.value,'$.type')='person'
+			AND json_extract(part.value,'$.client_id')=?)) AS tagged
+	`).get(viewer_id, viewer_id, viewer_id)?.tagged === 1;
 	const domains: Record<string, [string, string]> = {
 		private: ['chat', 'conversation_id'], guild: ['guild_chat', 'guild_id'],
 		alliance: ['alliance_chat', 'alliance_id'], global: ['global_chat', 'channel'],
@@ -282,7 +302,7 @@ export function has_unread_person_tag(viewer_id: number, conversation: {
 			values.push(viewer_id);
 		}
 	}
-	if (kind !== 'private') unread += ` AND NOT EXISTS(SELECT 1 FROM ${prefix}_message_moderation WHERE message_id = message.id)`;
+	unread += ` AND NOT EXISTS(SELECT 1 FROM ${prefix}_message_moderation WHERE message_id = message.id)`;
 	return db.query<{ tagged: number }, Array<string | number>>(`
 		SELECT EXISTS(SELECT 1 FROM chat_translation_jobs job
 		JOIN chat_message_bodies body ON body.job_id = job.id

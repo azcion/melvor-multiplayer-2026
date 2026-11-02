@@ -1,0 +1,151 @@
+{
+  "id": "guilds",
+  "title": "Guilds & Alliances",
+  "description": "Find your people, make decisions together, and get to know other Guilds.",
+  "icon": "multiplayer.svg",
+  "articles": [
+    {
+      "id": "guild-life",
+      "title": "Life in a Guild",
+      "summary": "Chat, trade, and tackle shared activities with a group where every member has a say.",
+      "aliases": [
+        "members",
+        "roster",
+        "shadowed",
+        "heraldry",
+        "appellation"
+      ],
+      "sections": [
+        {
+          "id": "shared-spaces",
+          "title": "What can we do together?",
+          "paragraphs": [
+            "Your Guild is the group you’ll share most of Multiplayer with. Meet in Guild Chat, browse each other’s Marketplace listings, contribute to the Crucible, or work together on Raids and Expeditions.",
+            "You can send Gifts and arrange Trades with other members of your Guild. If your Guild joins an Alliance, a Shared Marketplace policy can also let you buy and sell across the Alliance."
+          ]
+        },
+        {
+          "id": "equal-members",
+          "title": "Who runs the Guild?",
+          "paragraphs": [
+            "There are no owner or officer ranks. Every member can help with applications, and the Council lets members vote on decisions that affect the group.",
+            "Want a new name, different heraldry, or open membership? Raise it through the Council. The Free Fellowship is the exception: it keeps its fixed identity and offers a smaller choice of Petitions."
+          ]
+        },
+        {
+          "id": "shadowed",
+          "title": "When someone stops playing",
+          "paragraphs": [
+            "Members who have been inactive can become Shadowed. That status changes how they count toward some Guild decisions and participation requirements. If everyone in an ordinary Guild is Shadowed, the Guild disappears from discovery until someone returns.",
+            "The Council can use Winnowing to remove qualifying Shadowed members. The Petition shows who would be affected, so check the names before voting."
+          ]
+        }
+      ],
+      "related": [
+        "council",
+        "alliances",
+        "joining-a-guild"
+      ]
+    },
+    {
+      "id": "council",
+      "title": "The Council",
+      "summary": "Have a say in your Guild’s name, rules, and shared spaces.",
+      "aliases": [
+        "aye",
+        "nay",
+        "petition",
+        "vote",
+        "temperance",
+        "indulgence",
+        "sealing",
+        "purging"
+      ],
+      "sections": [
+        {
+          "id": "petitions",
+          "title": "Want to change something?",
+          "paragraphs": [
+            "The Council is where your Guild makes decisions together. Someone raises a Petition, and members vote Aye or Nay. You can propose changes to the Guild’s name, who can join, Marketplace rules, the Crucible, and Alliance business.",
+            "The Council shows the Petitions available to your Guild right now. Some choices only appear when they’re relevant."
+          ]
+        },
+        {
+          "id": "voting",
+          "title": "Casting your vote",
+          "paragraphs": [
+            "You can normally vote once you’ve been in the Guild for 20 hours. Read the proposal and join the discussion before choosing: once you cast your ballot, you can’t change it.",
+            "For ordinary Petitions, you won’t see the running tally or who voted which way until you vote yourself or the Petition closes. Votes already cast still count if those members later leave."
+          ]
+        },
+        {
+          "id": "resolution",
+          "title": "When is the decision made?",
+          "paragraphs": [
+            "An ordinary Petition closes 24 hours after the most recent vote. Each new ballot starts that countdown again. It can close earlier if every current active member who is eligible has voted.",
+            "More Aye votes than Nay grants the Petition. A tie with at least one vote, or more Nay votes, denies it. If nobody votes at all, the Petition is granted when its deadline arrives.",
+            "Alliance proposals work differently: Guilds have their own ballots and the proposal has its own deadline. Check the proposal for the rules that apply."
+          ]
+        },
+        {
+          "id": "policy-examples",
+          "title": "What do these Petition names mean?",
+          "bullets": [
+            "Fellowship lets people join your Guild directly. Enclosure makes them apply first.",
+            "Temperance means buyers must have discovered an item on their current character before buying it or placing a Buy Order. Indulgence removes that requirement.",
+            "Interdict applies Social Only restrictions to members marked for Item Cheats. Heresy reverses that Guild policy.",
+            "Sealing closes the Crucible; Unsealing opens it again. A Purge removes the Offerings and Wishes listed in its proposal."
+          ]
+        }
+      ],
+      "related": [
+        "guild-life",
+        "alliances",
+        "marketplace",
+        "crucible"
+      ]
+    },
+    {
+      "id": "alliances",
+      "title": "Guild Alliances",
+      "summary": "Keep your own Guild while getting to know a wider group of players.",
+      "aliases": [
+        "assembly",
+        "shared marketplace",
+        "member guilds"
+      ],
+      "sections": [
+        {
+          "id": "what-is-an-alliance",
+          "title": "More company, the same Guild",
+          "paragraphs": [
+            "An Alliance brings two or more Guilds together. You keep your own Guild and gain an Alliance conversation where members of those Guilds can meet.",
+            "Each Guild can belong to one Alliance at a time. Sharing a Marketplace is a separate choice and starts switched off."
+          ]
+        },
+        {
+          "id": "assembly",
+          "title": "Making decisions together",
+          "paragraphs": [
+            "Open the Assembly to see the Alliance’s Member Guilds, applications, and policies. To found an Alliance, both founding Guilds need to agree. To admit another Guild, the applicant and the required majority of existing Member Guilds need to agree.",
+            "Your Guild makes its decision through its Council. Each Member Guild has equal weight in the Alliance vote, so a large Guild doesn’t get more votes just because it has more players."
+          ]
+        },
+        {
+          "id": "shared-market",
+          "title": "Trading across the Alliance",
+          "paragraphs": [
+            "If the Alliance enables Shared Marketplace, eligible listings become available across its Member Guilds. Sellers can set an Alliance price where the listing allows it. Check the price shown to you before buying.",
+            "Other activities and belongings still stay with their Guilds. Joining an Alliance doesn’t pool everyone’s inventories or open every Guild activity to everyone else.",
+            "A Guild joining or leaving can also change what happens to unfinished Alliance proposals. Check the affected proposal if membership changes during a vote."
+          ]
+        }
+      ],
+      "related": [
+        "council",
+        "marketplace",
+        "chat"
+      ]
+    }
+  ]
+}

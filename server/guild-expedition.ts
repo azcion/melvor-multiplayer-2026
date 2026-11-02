@@ -1,8 +1,9 @@
+import { get_expedition_return_summary } from './expedition-ending';
 import type { JsonObject } from './http';
-import { PREPARATION_CHAMBER_ID, close_preparations, ensure_preparations, get_preparation_chamber } from './expedition-preparations';
+import { PREPARATION_CHAMBER_ID, close_preparations, ensure_preparations, get_preparation_chamber, preparation_visit_id } from './expedition-preparations';
 import { record_economy_operation } from './save-rollback';
 import { db } from './db';
-import { EXPEDITION_CONTENT_PREVIEW, preview_task_available, parse_expedition_content } from './expedition-content';
+import { EXPEDITION_CONTENT_PREVIEW, EXPEDITION_CONTENT_V3, preview_task_available, parse_expedition_content } from './expedition-content';
 import type { ExpeditionChamber, ExpeditionContent } from './expedition-content';
 import { RECENTLY_ACTIVE_AFTER } from './recent-activity';
 import { createHash } from 'node:crypto';
@@ -25,20 +26,68 @@ export function can_debug_expedition(client_id: number): boolean {
 	return !!client && debug_identifiers.has(client.client_identifier);
 }
 
+export function debug_expedition_chambers(content: ExpeditionContent): ExpeditionChamber[] {
+	if (!content.preview_route) return content.chambers;
+	const supported = new Set(['entrance', ...Object.keys(content.preview_route)]);
+	for (const chamber of content.chambers) {
+		const edge = chamber.exits.find(edge => edge.id === content.preview_route![chamber.id]);
+		if (edge) supported.add(edge.target);
+	}
+	return content.chambers.filter(chamber => supported.has(chamber.id));
+}
+
+export function get_debug_expedition_chambers(guild_id: number) {
+	const expedition = current_expedition(guild_id);
+	return expedition ? debug_expedition_chambers(parse_expedition_content(expedition.content_snapshot))
+		.map(({ id, label }) => ({ id, label })) : [];
+}
+
 export function debug_advance_expedition(guild_id: number, expedition_id: number,
-	visit_id: number | null, action: 'registration' | 'task' | 'vote', task_id: string | null,
+	visit_id: number | null, action: 'registration' | 'task' | 'vote' | 'phase' | 'chamber' | 'jump', task_id: string | null,
 	now = Date.now()): boolean {
 	const changed = db.transaction(() => {
 		const expedition = current_expedition(guild_id);
 		if (!expedition || expedition.id !== expedition_id) return false;
+		if (action === 'jump') {
+			if (!task_id || (expedition.current_visit_id !== visit_id &&
+				!(expedition.status === 'registration' && visit_id === preparation_visit_id(expedition.id)))) return false;
+			const content = parse_expedition_content(expedition.content_snapshot);
+			const chamber = debug_expedition_chambers(content).find(entry => entry.id === task_id);
+			const participants = recent_registered_participants(expedition, now);
+			if (!chamber || participants === 0) return false;
+			if (expedition.current_visit_id !== null) db.query('UPDATE expedition_visits SET departed_at = ? WHERE id = ? AND departed_at IS NULL').run(now, visit_id);
+			close_preparations(expedition.id, now);
+			begin_visit(expedition, content, chamber, participants, now);
+			return true;
+		}
 		if (action === 'registration') {
-			if (expedition.status !== 'registration' || visit_id !== null || task_id !== null) return false;
+			if (expedition.status !== 'registration' || task_id !== null) return false;
+			// Registration now exposes a preparation visit through the ordinary Chamber model.
+			if (visit_id !== null && visit_id !== preparation_visit_id(expedition.id)) return false;
 			if (recent_registered_participants(expedition, now) === 0) return false;
 			db.query('UPDATE expeditions SET registration_ends_at = ? WHERE id = ?').run(now, expedition.id);
 			advance_registration(guild_id, now);
 			return true;
 		}
 		if (expedition.status !== 'active' || expedition.current_visit_id !== visit_id || visit_id === null) return false;
+		if (action === 'phase' || action === 'chamber') {
+			if (action === 'phase' ? !['arrival', 'exploration', 'departure'].includes(task_id ?? '') : task_id !== null) return false;
+			const content = parse_expedition_content(expedition.content_snapshot);
+			const chamber_id = db.query<{ chamber_id: string }, [number]>('SELECT chamber_id FROM expedition_visits WHERE id = ?').get(visit_id)?.chamber_id;
+			const definitions = content.chambers.find(chamber => chamber.id === chamber_id)?.tasks ?? [];
+			// Complete the selected phase and its earlier phases as one batch. Reconcile only
+			// after all tasks, so an early departure cannot strand optional work.
+			const phases = ['arrival', 'exploration', 'departure'];
+			const through = action === 'chamber' ? 2 : phases.indexOf(task_id!);
+			for (const definition of definitions.filter(task => phases.indexOf(task.phase) <= through)) {
+				db.query('UPDATE expedition_tasks SET system_ms = MAX(system_ms, target_ms - player_ms), ' +
+					'unlocked_at = COALESCE(unlocked_at, ?), completed_at = ? WHERE visit_id = ? AND task_id = ? AND completed_at IS NULL')
+					.run(now, now, visit_id, definition.id);
+			}
+			update_unlocks(expedition.id, visit_id, now);
+			db.query('UPDATE expeditions SET revision = revision + 1 WHERE id = ?').run(expedition.id);
+			return true;
+		}
 		if (action === 'vote') {
 			if (task_id !== null) return false;
 			const vote = db.query<{ vote_deadline_at: number | null; vote_locked_at: number | null }, [number]>(
@@ -53,7 +102,8 @@ export function debug_advance_expedition(guild_id: number, expedition_id: number
 			unlocked_at: number | null; completed_at: number | null; promoted_at: number | null }, [number, string]>(
 			'SELECT target_ms, player_ms, system_ms, unlocked_at, completed_at, promoted_at FROM expedition_tasks WHERE visit_id = ? AND task_id = ?'
 		).get(visit_id, task_id);
-		if (!task || task.unlocked_at === null || task.completed_at !== null) return false;
+		if (!task || task.unlocked_at === null) return false;
+		if (task.completed_at !== null) return true;
 		const content = parse_expedition_content(expedition.content_snapshot);
 		const chamber_id = db.query<{ chamber_id: string }, [number]>(
 			'SELECT chamber_id FROM expedition_visits WHERE id = ?'
@@ -66,7 +116,7 @@ export function debug_advance_expedition(guild_id: number, expedition_id: number
 			db.query<{ discovered_at: number | null }, [number, string]>(
 				'SELECT discovered_at FROM expedition_exits WHERE visit_id = ? AND exit_id = ?'
 			).get(visit_id, definition.exit_id)?.discovered_at != null;
-		if (definition.requirement !== 'required' && task.promoted_at === null && !discovered_exit) return false;
+		if (definition.requirement !== 'required' && definition.requirement !== 'optional' && task.promoted_at === null && !discovered_exit) return false;
 		db.query('UPDATE expedition_tasks SET system_ms = ?, completed_at = ? WHERE visit_id = ? AND task_id = ?')
 			.run(Math.max(task.system_ms, task.target_ms - task.player_ms), now, visit_id, task_id);
 		update_unlocks(expedition.id, visit_id, now);
@@ -108,14 +158,9 @@ export function debug_wipe_expedition_data(guild_id: number, expected_current_id
 			'SELECT DISTINCT registration.client_id FROM expedition_registrations AS registration ' +
 			'JOIN expeditions AS expedition ON expedition.id = registration.expedition_id WHERE expedition.guild_id = ?'
 		).all(guild_id);
-		const other_guild_history = db.query<{ found: number }, [number, number]>(
-			'SELECT 1 AS found FROM expedition_personal_records WHERE source_guild_id <> ? AND client_id IN (' +
-			'SELECT registration.client_id FROM expedition_registrations AS registration ' +
-			'JOIN expeditions AS expedition ON expedition.id = registration.expedition_id WHERE expedition.guild_id = ?) LIMIT 1'
-		).get(guild_id, guild_id);
-		if (other_guild_history) return null;
 		for (const { id } of runs) {
 			db.query('DELETE FROM expedition_work_claims WHERE expedition_id = ?').run(id);
+			db.query('DELETE FROM expedition_ending_claims WHERE expedition_id = ?').run(id);
 			db.query('DELETE FROM expedition_ep_ledger WHERE expedition_id = ?').run(id);
 			db.query('DELETE FROM expedition_personal_records WHERE expedition_id = ?').run(id);
 			db.query('DELETE FROM expedition_membership_tenures WHERE expedition_id = ?').run(id);
@@ -124,9 +169,9 @@ export function debug_wipe_expedition_data(guild_id: number, expected_current_id
 		}
 		db.query('DELETE FROM expedition_charted WHERE guild_id = ?').run(guild_id);
 		for (const { client_id } of clients) {
-			const balance = db.query<{ points: number }, [number,number,number]>(
-				"SELECT MAX(0,COALESCE((SELECT SUM(points_micros) FROM expedition_ep_ledger WHERE client_id=?),0)-COALESCE((SELECT SUM(c.quantity) FROM economy_corrections c JOIN economy_operations o ON o.id=c.operation_id WHERE o.client_id=? AND c.object_id='multiplayer:ExpeditionPointsMicros' AND c.disposition='held'),0)-COALESCE((SELECT SUM(points_micros) FROM wish_ep_spends WHERE client_id=?),0)) AS points"
-			).get(client_id,client_id,client_id)?.points ?? 0;
+			const balance = db.query<{ points: number }, [number,number,number,number]>(
+				"SELECT MAX(0,COALESCE((SELECT SUM(points_micros) FROM expedition_ep_ledger WHERE client_id=?),0)-COALESCE((SELECT SUM(c.quantity) FROM economy_corrections c JOIN economy_operations o ON o.id=c.operation_id WHERE o.client_id=? AND c.object_id='multiplayer:ExpeditionPointsMicros' AND c.disposition='held'),0)-COALESCE((SELECT SUM(points_micros) FROM wish_ep_spends WHERE client_id=?),0)+COALESCE((SELECT SUM(amount_micros) FROM combat_ep_ledger WHERE client_id=?),0)) AS points"
+			).get(client_id,client_id,client_id,client_id)?.points ?? 0;
 			db.query('DELETE FROM expedition_ep_balances WHERE client_id = ?').run(client_id);
 			if (balance > 0) db.query('INSERT INTO expedition_ep_balances (client_id, points_micros) VALUES (?, ?)')
 				.run(client_id, balance);
@@ -360,13 +405,15 @@ export function reconcile_expedition_visit(guild_id: number,
 				.run(guild_id, chamber.id, chart.completed_at);
 		const done = (task_id: string) => progress.get(task_id)?.completed_at != null;
 		const arrival = visit.charted_on_arrival ? 'arrival_scout' : 'arrival_chart';
-		if (chamber.type !== 'ending' && done(arrival) && visit.vote_opened_at === null) {
+		const arrived = done(arrival) && (content.version < 3 || expected.filter(task =>
+			task.phase === 'arrival' && task.requirement === 'required').every(task => done(task.id)));
+		if (chamber.type !== 'ending' && arrived && visit.vote_opened_at === null) {
 			db.query('UPDATE expedition_visits SET vote_opened_at = ? WHERE id = ? AND vote_opened_at IS NULL')
 				.run(now, visit.id);
 			db.query('UPDATE expeditions SET revision = revision + 1 WHERE id = ?').run(expedition.id);
 		}
 		if (chamber.type !== 'ending' && visit.vote_locked_at === null &&
-			((chamber.exits.length === 1 && done(arrival)) ||
+			((chamber.exits.length === 1 && arrived) ||
 				(visit.vote_deadline_at !== null && now >= visit.vote_deadline_at))) {
 			const votes = db.query<{ exit_id: string; count: number }, [number]>(
 				'SELECT exit_id, COUNT(*) AS count FROM expedition_votes WHERE visit_id = ? GROUP BY exit_id'
@@ -407,6 +454,7 @@ export function reconcile_expedition_visit(guild_id: number,
 				.run(now, visit.id);
 			db.query("UPDATE expeditions SET status = 'completed', ended_at = ?, current_visit_id = NULL, " +
 				'revision = revision + 1 WHERE id = ?').run(now, expedition.id);
+			db.query('UPDATE expedition_personal_records SET ending_bonus_eligible = 1 WHERE expedition_id = ?').run(expedition.id);
 			return true;
 		}
 		if (!visit.chosen_exit_id) return false;
@@ -430,7 +478,7 @@ export function reconcile_expedition_visit(guild_id: number,
 	}).immediate();
 }
 
-export function register_for_expedition(guild_id: number, client_id: number, operation_id: string, now = Date.now()): number | null {
+export function register_for_expedition(guild_id: number, client_id: number, operation_id: string, now = Date.now(), content_version = 2): number | null {
 	return db.transaction(() => {
 		const member = db.query<{ id: number; guild_id: number }, [number, number]>(
 			'SELECT id, guild_id FROM guild_memberships WHERE client_id = ? AND guild_id = ?'
@@ -445,10 +493,11 @@ export function register_for_expedition(guild_id: number, client_id: number, ope
 		advance_registration(guild_id, now); // A late entrant cannot change the Entrance snapshot.
 		let expedition = current_expedition(guild_id);
 		if (!expedition) {
+			const new_content = content_version === 3 ? EXPEDITION_CONTENT_V3 : EXPEDITION_CONTENT_PREVIEW;
 			const inserted = db.query<{ id: number }, [number, number, string, number, number, number]>(
 				'INSERT INTO expeditions (guild_id, status, content_version, content_snapshot, registered_at, ' +
 				'registration_ends_at, last_qualifying_activity_at) VALUES (?, \'registration\', ?, ?, ?, ?, ?) RETURNING id'
-			).get(guild_id, EXPEDITION_CONTENT_PREVIEW.version, JSON.stringify(EXPEDITION_CONTENT_PREVIEW), now,
+			).get(guild_id, new_content.version, JSON.stringify(new_content), now,
 				now + EXPEDITION_REGISTRATION_MS, now);
 			if (!inserted) throw new Error('Expedition registration was not created');
 			expedition = current_expedition(guild_id);
@@ -655,6 +704,14 @@ export function get_expedition_state(guild_id: number, client_id: number, now = 
 				ended_at: expedition.ended_at, stash_outcome: db.query<{ outcome: string }, [number]>(
 					'SELECT outcome FROM expedition_crucible_outcomes WHERE expedition_id = ?'
 				).get(expedition.id)?.outcome ?? expedition.stash_outcome,
-				registered_count, registered, chamber, history } };
+				registered_count, registered, chamber, history,
+				...(!tracking_only ? { journey: {
+					supported_ids: content.chambers.map(entry => entry.id),
+					revealed: db.query<{ exit_id: string }, [number]>(
+						'SELECT edge.exit_id FROM expedition_exits AS edge JOIN expedition_visits AS visit ON visit.id = edge.visit_id WHERE visit.expedition_id = ? AND edge.discovered_at IS NOT NULL'
+					).all(expedition.id).map(edge => edge.exit_id)
+				} } : {}),
+				return_summary: !tracking_only && ['completed', 'inactive', 'dissolved'].includes(expedition.status)
+					? get_expedition_return_summary(db, client_id, expedition.id) : null } };
 	}).immediate();
 }

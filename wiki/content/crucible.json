@@ -1,0 +1,159 @@
+{
+  "id": "crucible",
+  "title": "Crucible",
+  "description": "Put spare items to work and help your Guild’s Wishes come true.",
+  "icon": "crucible.png",
+  "articles": [
+    {
+      "id": "crucible",
+      "title": "The Crucible",
+      "summary": "Put spare items to work, help your Guild’s Wishes come true, or find something useful among the Offerings.",
+      "aliases": [
+        "cast",
+        "offering",
+        "heat",
+        "meld",
+        "wish",
+        "pick",
+        "slag",
+        "weird gloop"
+      ],
+      "sections": [
+        {
+          "id": "offerings",
+          "title": "What goes into the Crucible?",
+          "paragraphs": [
+            "The Crucible belongs to your Guild. Members throw in items as Offerings, and those items can help turn someone’s Wish into a reward. You can also take items out while they’re still there, using Reclaim.",
+            "To add something, choose Cast into Crucible from your Bank or cast items from your Transfer Inventory. Start with something you can spare: once it’s in the Crucible, another member may take it, or it may be consumed when it melds.",
+            "Copies of the same item share one stack. Adding more resets that stack’s Meld progress to zero, so topping up an almost-finished Offering makes it start over."
+          ]
+        },
+        {
+          "id": "offering-value",
+          "title": "How much is an Offering worth?",
+          "paragraphs": [
+            "Offerings fund Wishes using GP equivalent: a common value used inside the Crucible. For an item that sells for GP, use its normal sale value. For an item that sells for another currency, multiply that sale value by 10. An item with a zero or unknown sale value counts as 1 GP equivalent.",
+            "Multiply by the quantity to get the stack’s value. For example, 100 items worth 200 GP each provide 20,000 GP equivalent. If those items instead sell for 20 Slayer Coins each, they also provide 20,000: 100 × 20 × 10.",
+            "This is the value used when an Offering melds or earns a Reclaim bonus. Market prices don’t set it, and casting an item doesn’t pay GP into your Bank."
+          ],
+          "formulas": [
+            "Stack value = quantity × value per item"
+          ]
+        },
+        {
+          "id": "heat",
+          "title": "What happens if you leave items in?",
+          "paragraphs": [
+            "Every timed Offering adds its stack value plus 100 to Heat. The extra 100 is per distinct stack, not per item. Weird Gloop and untimed Offerings add no Heat. A single stack worth 20,000 therefore adds 20,100 Heat: tier 3, or 3 progress points per minute.",
+            "Both an Offering’s Meld bar and a Wish’s formation bar need 10,080 points. At tier 3, starting from zero takes 3,360 minutes, or 56 hours. The table assumes Heat stays at the same tier; adding, reclaiming, or melding Offerings can change it.",
+            "When an Offering melds, its items are consumed and its value funds Wishes that have finished forming. Formed Wishes belonging to its contributors get priority, then other formed Wishes share what remains, each capped at what it still needs. Ordinary melding cannot fund a Wish that is still forming."
+          ],
+          "formulas": [
+            "Heat = sum of (stack value + 100) for every timed Offering",
+            "Minutes remaining = ceil((10,080 − current progress) ÷ points per minute)"
+          ],
+          "reference": "heat-table"
+        },
+        {
+          "id": "reclaim",
+          "title": "Found something you need?",
+          "paragraphs": [
+            "Use Reclaim to take an available item out of the Crucible. You don’t have to be the person who put it in. Reclaimed items arrive in your Inbox, ready to claim into your Bank.",
+            "You may not be able to take the whole stack. Your item discovery and currency balance can limit the quantity, and Reclaim has a cooldown. New Guild members also have a waiting period before they can use it.",
+            "If an action is unavailable, check its explanation and the Next Reclaim timer. Casting an item doesn’t reserve it for you or guarantee that you can take it back later.",
+            "When someone on a different linked Melvor account reclaims your contribution, your active Wish receives a bonus worth 10 times that contribution’s value, capped at what it still needs. Unlike ordinary melding, this can fund your Wish while it is still forming. For example, reclaiming 100 of your items worth 200 GP each can add 200,000 GP equivalent. Your Wish still has to finish forming before you can claim it. Reclaiming your own account’s contributions does not earn this bonus."
+          ]
+        },
+        {
+          "id": "wishes",
+          "title": "Making a Wish",
+          "paragraphs": [
+            "Choose Make a Wish, then pick an eligible item and a quantity from 1 to 1,000. You need a linked Melvor account, and you can have one active Wish per linked account in each Guild. Your item picker only shows eligible items you’ve discovered in the content you have available.",
+            "A Wish has three separate numbers to understand: the EP you spend to make it, the GP you cast upfront, and the Offering value needed to complete it. The EP depends on quantity and your Wish capacity. The GP and Offering requirement depend on the item as well.",
+            "Heat first fills its formation bar to 10,080 points. Melding Offerings can then fund it. A Wish becomes Melded only when it is both fully formed and fully funded. Use Claim Wish to send the reward to your Inbox, or it will go there automatically after 20 hours."
+          ]
+        },
+        {
+          "id": "wish-gp",
+          "title": "The GP cost and Offering requirement",
+          "paragraphs": [
+            "Each wishable item has a value V, listed in the catalogue below. It comes from the most valuable possible reward stack in that item’s contents. It is not the container’s own sale price or the average value of opening it.",
+            "For quantity q, the Wish needs five times the total item value. You pay half of that requirement in GP upfront, rounded up to a whole GP. “ceil” means round up; for example, ceil(2.5) is 3.",
+            "Your GP payment becomes a normal GP Offering. It starts melding from zero, or resets an existing GP stack’s Meld progress when the stacks merge. It does not immediately fill your Wish, and the GP may help other formed Wishes when it eventually melds. Your linked account cannot Reclaim GP in that Guild for four hours after the payment."
+          ],
+          "formulas": [
+            "Offering requirement R = 5 × V × q",
+            "GP paid upfront = ceil(R ÷ 2) = ceil(2.5 × V × q)"
+          ],
+          "reference": "wish-gp"
+        },
+        {
+          "id": "wish-ep",
+          "title": "How the EP price works",
+          "paragraphs": [
+            "Every character starts with capacity base B = 100. This is a price break, not a quantity limit: you can still wish for up to 1,000 items. Within your base, the price rises proportionally to 1 EP, rounded up to the next 0.001 EP. At base 100, one item costs 0.010 EP and 100 items cost 1.000 EP.",
+            "Above your base, the next 100 items cost another 2 EP in total, the next 100 cost another 3 EP, then 4 EP, and so on. You pay only for the items you request within a band. At base 100, 101 items cost 1.020 EP; 200 cost 3.000 EP; 201 cost 3.030 EP.",
+            "To calculate any quantity above B, let k be the number of complete extra 100-item bands and r the items left over. For example, q = 350 and B = 100 gives k = 2 and r = 50: 1 + 5 + 2 = 8 EP. EP belongs to the character making the Wish."
+          ],
+          "formulas": [
+            "If q ≤ B: EP = ceil(1,000 × q ÷ B) ÷ 1,000",
+            "If q > B: k = floor((q − B) ÷ 100), r = (q − B) mod 100",
+            "EP = 1 + k × (k + 3) ÷ 2 + r × (k + 2) ÷ 100"
+          ],
+          "reference": "wish-ep"
+        },
+        {
+          "id": "wish-capacity",
+          "title": "Paying for more Wish capacity",
+          "paragraphs": [
+            "You can spend EP to raise your base for 30 days. A higher base changes the EP price of future Wishes; it does not change their GP cost, Offering requirement, or the 1,000-item limit.",
+            "With k = B ÷ 100 − 1, the full tier price is 10 × k × (k + 1) ÷ 2 EP. Upgrading while a tier is active costs the difference between the two full prices and starts a fresh 30-day period. Going from base 200 to base 300 therefore costs another 20 EP.",
+            "Renewal costs the full tier price. If automatic renewal cannot be paid at expiry, it pauses; earning EP later does not restart it. Once capacity expires, new Wishes use base 100 again. An existing Wish keeps its original price."
+          ],
+          "reference": "capacity"
+        },
+        {
+          "id": "wish-items",
+          "title": "All wishable items and their costs",
+          "paragraphs": [
+            "Here is the complete Wish catalogue for this wiki’s game-data snapshot. Use the quantity and capacity controls to compare costs. V and the Offering requirement are in GP equivalent; the upfront payment is actual GP. The EP column is what you spend to make the Wish, before any separate capacity purchase.",
+            "The table includes expansion items. Your game’s picker may show fewer entries because of the content you own or what that character has discovered."
+          ],
+          "reference": "wish-catalog"
+        },
+        {
+          "id": "gloop",
+          "title": "What about Weird Gloop?",
+          "paragraphs": [
+            "Weird Gloop doesn’t meld or add Heat. After eligible Wishes have been funded, leftover value from a positive GP-valued Offering turns into Gloop at 1 per 1,000 GP equivalent, rounded up. A residual 2,001 therefore makes 3 Gloop. Non-GP and unknown-value Offerings can fund Wishes, but their leftovers do not make Gloop.",
+            "For overflow from a Reclaim bonus, divide the leftover bonus value by 10,000 instead, rounded up. The higher divisor accounts for the bonus’s 10× multiplier. A residual bonus of 20,001 makes 3 Gloop.",
+            "At noon UTC each day, the Guild’s Gloop quantity becomes ceil(current quantity × 3 ÷ 4). A pile of 100 becomes 75, then 57 the next day. Rounding means piles of 1, 2, or 3 do not shrink."
+          ]
+        },
+        {
+          "id": "slag",
+          "title": "Why can’t I see every item?",
+          "paragraphs": [
+            "Some Offerings are covered by Slag, hiding what they are. As an Offering gets closer to melding, it becomes less likely to be hidden. Items you haven’t discovered are harder to see.",
+            "Clear the Slag lets you spend currency to improve your view for a limited time. The bonus applies to your linked characters in that Guild; it doesn’t clear everyone else’s view. Making a Wish resets your clearing bonus and lowers the maximum you can reach while that Wish is active.",
+            "Your Listing Filters also apply here. If you and a Guildmate see different quantities in the same stack, you may be hiding different contributions."
+          ]
+        },
+        {
+          "id": "council",
+          "title": "If the Crucible is sealed",
+          "paragraphs": [
+            "Your Guild’s Council can vote to Seal or Unseal the Crucible. If it’s sealed, the Council needs to unseal it before you can use it again.",
+            "The Council can also propose a Purge. Check which Offerings and Wishes the Petition would remove before voting; it can affect other members’ contributions and Wishes as well as your own."
+          ]
+        }
+      ],
+      "related": [
+        "expedition",
+        "transfers",
+        "council",
+        "marketplace"
+      ]
+    }
+  ]
+}

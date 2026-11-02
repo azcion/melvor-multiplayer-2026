@@ -37,7 +37,7 @@ export function can_create_poll(client_id: number): boolean {
 	return identifier !== undefined && allowed_creator_identifiers.has(identifier);
 }
 
-function next_revision(): number {
+export function next_revision(): number {
 	const revision = db.query<{ revision: number }, []>(
 		"UPDATE `service_settings` SET `value` = CAST(`value` AS INTEGER) + 1 WHERE `key` = 'poll_revision' " +
 		'RETURNING CAST(`value` AS INTEGER) AS `revision`'
@@ -53,7 +53,7 @@ function poll_view(client_id: number, poll_id: number) {
 		closed_at: number | null; created_at: number; revision: number;
 		reaction_revision: number; display_name: string; icon_id: string }, [number]>(
 		'SELECT poll.*, client.`display_name`, client.`icon_id` FROM `polls` AS poll ' +
-		'JOIN `clients` AS client ON client.`id` = poll.`creator_id` WHERE poll.`id` = ?'
+		'JOIN `clients` AS client ON client.`id` = poll.`creator_id` WHERE poll.`id` = ? AND poll.announcement = 0'
 	).get(poll_id);
 	if (!poll)
 		return null;
@@ -84,7 +84,7 @@ function poll_view(client_id: number, poll_id: number) {
 export function poll_inbox_summary(client_id: number) {
 	const owner = get_poll_owner_key(client_id);
 	const row = db.query<{ open_uninteracted: number }, [string]>(
-		'SELECT COUNT(*) AS open_uninteracted FROM polls p WHERE p.closed_at IS NULL ' +
+		'SELECT COUNT(*) AS open_uninteracted FROM polls p WHERE p.announcement=0 AND p.closed_at IS NULL ' +
 		'AND NOT EXISTS(SELECT 1 FROM poll_interactions i WHERE i.poll_id=p.id AND i.owner_key=?)'
 	).get(owner);
 	return { open_uninteracted: row?.open_uninteracted ?? 0, can_create: can_create_poll(client_id) };
@@ -98,8 +98,8 @@ export function list_polls(client_id: number, after_revision: number | null): Po
 		return { status: 'bad_request' };
 
 	const rows = db.query<{ id: number; revision: number; reaction_revision: number }, number[]>(
-		after_revision === null ? 'SELECT `id`, `revision`, `reaction_revision` FROM `polls` ORDER BY `id`' :
-			'SELECT `id`, `revision`, `reaction_revision` FROM `polls` WHERE MAX(`revision`, `reaction_revision`) > ? ORDER BY `id`'
+		after_revision === null ? 'SELECT `id`, `revision`, `reaction_revision` FROM `polls` WHERE announcement=0 ORDER BY `id`' :
+			'SELECT `id`, `revision`, `reaction_revision` FROM `polls` WHERE announcement=0 AND MAX(`revision`, `reaction_revision`) > ? ORDER BY `id`'
 	).all(...(after_revision === null ? [] : [after_revision]));
 	const deleted_poll_ids = after_revision === null ? [] : db.query<{ poll_id: number }, [number]>(
 		'SELECT `poll_id` FROM `poll_deletions` WHERE `revision` > ? ORDER BY `revision`'
@@ -113,7 +113,7 @@ export function list_polls(client_id: number, after_revision: number | null): Po
 			'SELECT message.`poll_id`, COUNT(*) AS `unread_count` FROM `poll_discussion_messages` AS message ' +
 			'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` ' +
 			'LEFT JOIN `poll_discussion_read_state` AS read ON read.`poll_id` = message.`poll_id` AND read.`client_id` = ? ' +
-			'WHERE message.`id` > COALESCE(read.`last_read_message_id`, 0) AND message.`sender_id` != ? ' +
+			'WHERE EXISTS(SELECT 1 FROM polls WHERE id=message.poll_id AND announcement=0) AND message.`id` > COALESCE(read.`last_read_message_id`, 0) AND message.`sender_id` != ? ' +
 			'AND NOT EXISTS(SELECT 1 FROM poll_discussion_message_moderation WHERE message_id = message.id) ' +
 			'AND ' + chat_shadow_visibility() + ' GROUP BY message.`poll_id`'
 		).all(client_id, client_id, client_id, client_id);
@@ -138,6 +138,7 @@ export function create_poll(client_id: number, idempotency_key: string, content:
 		return { status: 'bad_request' };
 	if (!can_create_poll(client_id))
 		return { status: 'forbidden' };
+	if (db.query('SELECT 1 FROM polls WHERE creator_id=? AND idempotency_key=? AND announcement=1').get(client_id, idempotency_key)) return { status: 'bad_request' };
 	const poll_id = db.transaction(() => {
 		const existing = db.query<{ id: number }, [number, string]>(
 			'SELECT `id` FROM `polls` WHERE `creator_id` = ? AND `idempotency_key` = ?'
@@ -160,7 +161,7 @@ export function add_poll_options(client_id: number, poll_id: number, options: un
 	if (!Number.isSafeInteger(poll_id) || poll_id < 1 || !valid_options(options))
 		return { status: 'bad_request' };
 	const poll = db.query<{ creator_id: number; closed_at: number | null }, [number]>(
-		'SELECT `creator_id`, `closed_at` FROM `polls` WHERE `id` = ?').get(poll_id);
+		'SELECT `creator_id`, `closed_at` FROM `polls` WHERE `id` = ? AND announcement=0').get(poll_id);
 	if (!poll)
 		return { status: 'missing' };
 	if (!can_create_poll(client_id) || poll.closed_at !== null)
@@ -181,7 +182,7 @@ export function delete_poll(client_id: number, poll_id: number): PollResult<{ de
 	if (!Number.isSafeInteger(poll_id) || poll_id < 1)
 		return { status: 'bad_request' };
 	const poll = db.query<{ creator_id: number }, [number]>(
-		'SELECT `creator_id` FROM `polls` WHERE `id` = ?').get(poll_id);
+		'SELECT `creator_id` FROM `polls` WHERE `id` = ? AND announcement=0').get(poll_id);
 	if (!poll)
 		return { status: 'missing' };
 	if (!can_create_poll(client_id))
@@ -200,7 +201,7 @@ export function set_poll_vote(client_id: number, poll_id: number, option_id: num
 		return { status: 'bad_request' };
 	const option = db.query<{ id: number; choice_mode: 'single' | 'multi'; closed_at: number | null }, [number, number]>(
 		'SELECT option.`id`, poll.`choice_mode`, poll.`closed_at` FROM `poll_options` AS option ' +
-		'JOIN `polls` AS poll ON poll.`id` = option.`poll_id` WHERE option.`id` = ? AND option.`poll_id` = ?'
+		'JOIN `polls` AS poll ON poll.`id` = option.`poll_id` WHERE option.`id` = ? AND option.`poll_id` = ? AND poll.announcement=0'
 	).get(option_id, poll_id);
 	if (!option)
 		return { status: 'missing' };
@@ -238,7 +239,7 @@ export function set_poll_open(client_id: number, poll_id: number, open: boolean,
 		return { status: 'forbidden' };
 	if (!Number.isSafeInteger(poll_id) || poll_id < 1 || typeof open !== 'boolean')
 		return { status: 'bad_request' };
-	const poll = db.query<{ closed_at: number | null }, [number]>('SELECT `closed_at` FROM `polls` WHERE `id` = ?').get(poll_id);
+	const poll = db.query<{ closed_at: number | null }, [number]>('SELECT `closed_at` FROM `polls` WHERE `id` = ? AND announcement=0').get(poll_id);
 	if (!poll)
 		return { status: 'missing' };
 	if ((poll.closed_at === null) === open)
@@ -257,34 +258,36 @@ function discussion_message_view(message: DiscussionMessage) {
 		sender: { client_id: message.sender_id, display_name: message.display_name, icon_id: message.icon_id }, reactions: [] };
 }
 
-export function list_poll_discussion_messages(client_id: number, poll_id: number, before: number | null, after: number | null): PollResult<{ messages: ReturnType<typeof discussion_message_view>[]; has_more: boolean }> {
-	if (!Number.isSafeInteger(poll_id) || poll_id < 1 || !poll_view(client_id, poll_id) ||
+export function list_poll_discussion_messages(client_id: number, poll_id: number, before: number | null, after: number | null, announcement = false): PollResult<{ messages: ReturnType<typeof discussion_message_view>[]; has_more: boolean }> {
+	if (!Number.isSafeInteger(poll_id) || poll_id < 1 ||
 		(before !== null && (!Number.isSafeInteger(before) || before < 1)) ||
 		(after !== null && (!Number.isSafeInteger(after) || after < 0)) || (before !== null && after !== null))
 		return { status: 'bad_request' };
+	if (!discussion_access(client_id, poll_id, announcement)) return { status: 'missing' };
 	const clause = before !== null ? ' AND message.`id` < ?' : after !== null ? ' AND message.`id` > ?' : '';
 	const values = before !== null ? [poll_id, before] : after !== null ? [poll_id, after] : [poll_id];
 	const rows = db.query<DiscussionMessage, number[]>(
 		'SELECT message.*, sender.`display_name`, sender.`icon_id` FROM `poll_discussion_messages` AS message ' +
 		'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` ' +
-		'WHERE message.`poll_id` = ? AND NOT EXISTS(SELECT 1 FROM poll_discussion_message_moderation WHERE message_id = message.id) AND ' + chat_shadow_visibility() + clause +
-		' ORDER BY message.`id` DESC LIMIT 21'
+		`WHERE message.poll_id = ? AND (${is_admin(client_id) ? 1 : 0} OR NOT EXISTS(SELECT 1 FROM poll_discussion_message_moderation WHERE message_id=message.id)) AND ` + chat_shadow_visibility() + clause +
+		` ORDER BY message.id ${after === null ? 'DESC' : 'ASC'} LIMIT 21`
 	).all(values[0] as number, client_id, client_id, ...values.slice(1));
 	const has_more = rows.length > 20;
-	if (rows.length > 0) {
-		const last_read_message_id = rows[0]!.id;
+	if (before === null && rows.length > 0) {
+		const last_read_message_id = Math.max(...rows.slice(0, 20).map(row => row.id));
 		db.query('INSERT INTO `poll_discussion_read_state` (`poll_id`, `client_id`, `last_read_message_id`) VALUES (?, ?, ?) ' +
 			'ON CONFLICT (`poll_id`, `client_id`) DO UPDATE SET `last_read_message_id` = ' +
 			'MAX(`poll_discussion_read_state`.`last_read_message_id`, excluded.`last_read_message_id`)')
 			.run(poll_id, client_id, last_read_message_id);
 	}
-	return { status: 'ok', value: { messages: rows.slice(0, 20).reverse().map(discussion_message_view), has_more } };
+	return { status: 'ok', value: { messages: (after === null ? rows.slice(0, 20).reverse() : rows.slice(0, 20)).map(discussion_message_view), has_more } };
 }
 
-export function send_poll_discussion_message(client_id: number, poll_id: number, idempotency_key: string, content: string, now = Date.now(), parts?: ChatPart[], highlight_color: string | null = null): PollResult<{ message: ReturnType<typeof discussion_message_view> }> {
+export function send_poll_discussion_message(client_id: number, poll_id: number, idempotency_key: string, content: string, now = Date.now(), parts?: ChatPart[], highlight_color: string | null = null, announcement = false): PollResult<{ message: ReturnType<typeof discussion_message_view> }> {
 	const trimmed = content.trim();
+	if (announcement && db.query('SELECT 1 FROM polls WHERE id=? AND deleted_at IS NOT NULL').get(poll_id)) return { status: 'missing' };
 	if (!Number.isSafeInteger(poll_id) || poll_id < 1 || idempotency_key.length < 1 || idempotency_key.length > 128 ||
-		trimmed.length < 1 || trimmed.length > 1000 || !poll_view(client_id, poll_id))
+		trimmed.length < 1 || trimmed.length > 1000 || !discussion_access(client_id, poll_id, announcement))
 		return { status: 'bad_request' };
 	const message_id = db.transaction(() => {
 		const existing = db.query<{ id: number; poll_id: number; content: string }, [number, string]>(
@@ -304,4 +307,10 @@ export function send_poll_discussion_message(client_id: number, poll_id: number,
 		'JOIN `clients` AS sender ON sender.`id` = message.`sender_id` WHERE message.`id` = ?'
 	).get(message_id)!;
 	return { status: 'ok', value: { message: discussion_message_view(message) } };
+}
+
+// Storage and translations are shared; audience and lifecycle remain domain-scoped.
+export function discussion_access(client_id: number, id: number, announcement = false): boolean {
+	return db.query(`SELECT 1 FROM polls WHERE id=? AND announcement=?
+		AND (deleted_at IS NULL OR ?=1)`).get(id, Number(announcement), Number(is_admin(client_id))) !== null;
 }

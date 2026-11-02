@@ -1,3 +1,27 @@
+// Shared by in-game and standalone Chat. Only exact HTTPS hostnames are linked.
+export function append_chat_text(document, target, value) {
+	const text = String(value ?? '');
+	const hosts = new Set(['wiki.melvoridle.com', 'melvor.azcn.io', 'mod.io', 'github.com']);
+	let cursor = 0;
+	for (const match of text.matchAll(/https?:\/\/[^\s<>"']+/gi)) {
+		let candidate = match[0].replace(/[.,!?;:]+$/, '');
+		// Keep balanced parentheses in wiki paths, but leave enclosing punctuation outside.
+		while (candidate.endsWith(')') && candidate.split(')').length > candidate.split('(').length) candidate = candidate.slice(0, -1);
+		let url;
+		try { url = new URL(candidate); } catch { continue; }
+		if (url.protocol !== 'https:' || !hosts.has(url.hostname) || url.username || url.password || url.port || candidate.includes('\\')) continue;
+		target.append(document.createTextNode(text.slice(cursor, match.index)));
+		const link = document.createElement('a');
+		link.textContent = candidate;
+		link.href = url.href;
+		link.target = '_blank';
+		link.rel = 'noopener noreferrer';
+		target.append(link);
+		cursor = match.index + candidate.length;
+	}
+	target.append(document.createTextNode(text.slice(cursor)));
+}
+
 export const valid_dev_badge_label = value => typeof value === 'string' && value === value.trim() && value.length > 0 && value.length <= 60 && !/[\u0000-\u001f\u007f-\u009f]/u.test(value);
 export const valid_chat_person = part => Number.isSafeInteger(part?.client_id) && part.client_id > 0 &&
 	typeof part.display_name === 'string' && part.display_name.length > 0 && part.display_name.length <= 100 &&
@@ -301,7 +325,10 @@ export function register_chat_elements({ game, state = {}, getLangString, docume
 		const fragment = document.createDocumentFragment();
 		for (const part of parts) {
 			switch (part.type) {
-				case 'text': fragment.append(document.createTextNode(part.text)); break;
+				case 'text':
+					if (editing) fragment.append(document.createTextNode(part.text));
+					else append_chat_text(document, fragment, part.text);
+					break;
 				case 'person': fragment.append(person_node(part, editing)); break;
 				case 'feature': fragment.append(feature_node(part, editing)); break;
 				default: fragment.append(item_node(part, editing)); break;

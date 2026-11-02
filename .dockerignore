@@ -11,6 +11,7 @@ assets/*
 mod/*
 !mod/chat-items.mjs
 !mod/chat-highlights.mjs
+!mod/client-actions-chat.mjs
 !mod/assets/
 mod/assets/*
 !mod/assets/multiplayer.svg

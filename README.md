@@ -8,6 +8,7 @@ A community-maintained remaster of the Melvor Idle multiplayer mod, with source 
 
 ## Documentation
 
+- [Player wiki source and independent hosting](wiki/README.md)
 - [Self-hosting](docs/self-hosting.md)
 - [API reference](docs/api-contracts.md)
 - [Repository tools](tools/README.md)

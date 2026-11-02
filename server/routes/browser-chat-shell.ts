@@ -16,7 +16,7 @@ export function register_browser_chat_shell_routes(): void {
 		}));
 	runtime.server.route('/chat/', () => new Response(null, { status: 308, headers: { ...headers, Location: '/chat' } }));
 	// Exact routes only: no arbitrary filesystem or upstream asset proxy.
-	const shared = { '/mod/chat-highlights.mjs': ['chat-highlights.mjs', 'text/javascript'], '/mod/chat-items.mjs': ['chat-items.mjs', 'text/javascript'],
+	const shared = { '/mod/client-actions-chat.mjs': ['client-actions-chat.mjs', 'text/javascript'], '/mod/chat-highlights.mjs': ['chat-highlights.mjs', 'text/javascript'], '/mod/chat-items.mjs': ['chat-items.mjs', 'text/javascript'],
 		'/chat/assets/multiplayer.svg': ['assets/multiplayer.svg', 'image/svg+xml'], '/chat/assets/transfer_bag.svg': ['assets/transfer_bag.svg', 'image/svg+xml'],
 		'/chat/assets/market.svg': ['assets/market.svg', 'image/svg+xml'], '/chat/assets/crucible.png': ['assets/crucible.png', 'image/png'],
 		'/chat/assets/expedition-nav.png': ['assets/expedition-nav.png', 'image/png'], '/chat/assets/raid-nav.png': ['assets/raid-nav.png', 'image/png'] };

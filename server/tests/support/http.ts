@@ -46,30 +46,30 @@ export async function request(path: string, init: RequestInit = {}): Promise<Res
 	return fetch(new URL(wire_path, server_url), init);
 }
 
-async function read_json_response<T>(response: Response): Promise<T> {
+async function read_json_response<T>(response: Response, method: string, path: string): Promise<T> {
 	const body = await response.text();
 	const content_type = response.headers.get('Content-Type') ?? '';
+	const pathname = new URL(path, server_url).pathname;
+	const context = `${method} ${pathname}`;
 	if (!content_type.toLowerCase().startsWith('application/json')) {
 		throw new Error(
-			`Expected JSON response, got HTTP ${response.status} ${response.statusText}; ` +
-			`Content-Type=${content_type || '<missing>'}; body=${body.slice(0, 512)}`
+			`Expected JSON response for ${context}, got HTTP ${response.status} ${response.statusText}; ` +
+			`Content-Type=${content_type || '<missing>'}`
 		);
 	}
 
 	try {
 		return JSON.parse(body) as T;
-	} catch (error) {
+	} catch {
 		throw new Error(
-			`Invalid JSON response from HTTP ${response.status} ${response.statusText}; ` +
-			`body=${body.slice(0, 512)}`,
-			{ cause: error }
+			`Invalid JSON response for ${context}, HTTP ${response.status} ${response.statusText}`
 		);
 	}
 }
 
 export async function request_json<T>(path: string, init: RequestInit = {}): Promise<JsonResponse<T>> {
 	const response = await request(path, init);
-	const json = await read_json_response<T>(response);
+	const json = await read_json_response<T>(response, init.method ?? 'GET', path);
 
 	return { response, json };
 }
@@ -109,7 +109,7 @@ export async function post_json<T>(
 	headers: RequestHeaders = {}
 ): Promise<JsonResponse<T>> {
 	const response = await post(path, body, session_token, headers);
-	const json = await read_json_response<T>(response);
+	const json = await read_json_response<T>(response, 'POST', path);
 
 	return { response, json };
 }
@@ -141,7 +141,7 @@ export async function get_with_session(path: string, session_token: string): Pro
 
 export async function get_json_with_session<T>(path: string, session_token: string): Promise<JsonResponse<T>> {
 	const response = await get_with_session(path, session_token);
-	const json = await read_json_response<T>(response);
+	const json = await read_json_response<T>(response, 'GET', path);
 
 	return { response, json };
 }

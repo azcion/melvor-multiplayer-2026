@@ -616,3 +616,36 @@ test('event label updates refresh visible Chat badges and clear previous-server 
 	apply({});
 	assert.equal(chip.firstChild.nodeValue, 'OSRS Overhaul Dev');
 });
+
+test('Chat links only exact allowed HTTPS hosts and preserves untrusted text', async () => {
+	const document = {
+		createTextNode: text => ({ text }),
+		createElement: tag => ({ tag })
+	};
+	const render = (text, fn = items.append_chat_text) => {
+		const children = [], target = { append: child => children.push(child) };
+		fn(document, target, text);
+		return children;
+	};
+	const input = 'See https://wiki.melvoridle.com/w/Food_(item), https://melvor.azcn.io/chat?q=a&b=c#here https://mod.io/g/melvoridle https://github.com/org/repo.';
+	const children = render(input), links = children.filter(child => child.tag === 'a');
+	assert.equal(links.length, 4);
+	assert.equal(links[0].textContent, 'https://wiki.melvoridle.com/w/Food_(item)');
+	assert.equal(links[3].href, 'https://github.com/org/repo');
+	for (const link of links) {
+		assert.equal(link.target, '_blank');
+		assert.equal(link.rel, 'noopener noreferrer');
+	}
+	assert.equal(children.map(child => child.text ?? child.textContent).join(''), input);
+	for (const text of ['https://github.com.evil.org/a', 'https://sub.github.com/a', 'https://evil.org/github.com',
+		'http://github.com/a', 'javascript:alert(1)', 'https://github.com@evil.org', 'https://evil@github.com/a',
+		'https://github.com:444/a', 'https://github.com\\@evil.org', '<img src=x onerror=alert(1)>']) {
+		assert.deepEqual(render(text), [{ text }], text);
+	}
+	const { render_parts } = await import('../../server/chat-assets/render.mjs');
+	for (const parts of [undefined, [{ type: 'text', text: input }]]) {
+		const children = [], target = { append: child => children.push(child) };
+		render_parts(document, target, parts, input);
+		assert.equal(children.filter(child => child.tag === 'a').length, 4);
+	}
+});

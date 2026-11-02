@@ -8,13 +8,13 @@ import { create_pending_economy_actions } from '../../mod/pending-economy-action
 import { apply_economy_receipt } from '../../mod/economy-receipts.mjs';
 
 const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
-const pointsFormatter = new Function(main.slice(main.indexOf('function expedition_points('), main.indexOf('function expedition_text(')) + 'return expedition_points;')();
+const pointsFormatter = new Function(main.slice(main.indexOf('function format_ep('), main.indexOf('function expedition_text(')) + 'return format_ep;')();
 const getters = main.slice(main.indexOf('\tget crucible_wish_requirement()'), main.indexOf('\tget market_buy_price_formatted()'));
 function harness() {
 	const game = { gp: { amount: 10_000_000 } };
 	let capacity = { base: 100, expires_at: null, auto_renew: false, renewal_micros: 0, points_micros: 1_020_000 };
 	let active_wish = null;
-	const state = { expedition_points: pointsFormatter, is_guild_member: true, is_connected: true, is_social_only: false,
+	const state = { format_ep: pointsFormatter, is_guild_member: true, is_connected: true, is_social_only: false,
 		crucible_clock_time: Date.now(), crucible_wish_item_id: 'chest', crucible_wish_qty: 101,
 		crucible_capacity_base: 200, crucible_capacity_auto_renew: false,
 		eligible_crucible_wish_items: [{ id: 'chest' }] };
@@ -81,15 +81,47 @@ test('client quotes every rounding boundary and prorated increment without float
 	assert.equal(rules.wish_gp_cost(Number.MAX_SAFE_INTEGER),4503599627370496);
 });
 
+test('shared EP formatting uses two decimals and ceilings only display prices at exact cent boundaries', () => {
+	const localized = points => new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(points);
+	for (const [micros, rounded, ceiling] of [[0,0,0],[1,0,0.01],[2000,0,0.01],[9999,0.01,0.01],
+		[10000,0.01,0.01],[10001,0.01,0.02],[12000,0.01,0.02],[20000,0.02,0.02],
+		[70000,0.07,0.07],[31275000,31.28,31.28],[1234567890,1234.57,1234.57]]) {
+		assert.equal(pointsFormatter(micros), localized(rounded));
+		assert.equal(pointsFormatter(micros, { round_up: true }), localized(ceiling));
+	}
+	for (const value of [undefined,null,NaN,Infinity,-1]) assert.equal(pointsFormatter(value), localized(0));
+	// Every supported Wish quote displays at least the charge, by less than 0.01 EP.
+	for (const base of [100,200,300,400,500]) for (let qty=1; qty<=1000; qty++) {
+		const micros = rules.wish_price_micros(qty,base);
+		const cents = Math.ceil(micros / 10000);
+		assert.equal(pointsFormatter(micros, { round_up: true }), localized(cents / 100));
+		assert.ok(cents * 10000 >= micros && cents * 10000 - micros < 10000);
+	}
+});
+
+test('rounded Wish display keeps exact affordability and charges below the displayed price', async () => {
+	for (const [qty, micros, display] of [[1,2000,0.01],[6,12000,0.02]]) {
+		const h = harness();
+		h.capacity({ base: 500, expires_at: Date.now() + 86400000, points_micros: micros });
+		await h.refresh(); h.state.crucible_wish_qty = qty;
+		assert.equal(h.state.crucible_wish_ep_micros, micros);
+		assert.equal(h.state.format_ep(micros, { round_up: true }), pointsFormatter(display * 1000000));
+		assert.equal(h.state.crucible_wish_affordable, true);
+		await h.state.crucible_make_wish();
+		assert.equal(h.requests[0].payload.ep_micros, micros);
+		assert.equal(h.state.crucible.capacity.points_micros, 0);
+	}
+});
+
 test('confirmation shows current exact costs, character capacity, expiry and upgrade differences', async () => {
 	const h=harness(); await h.refresh();
 	assert.equal(h.state.crucible_wish_requirement,50500);
 	assert.equal(h.state.crucible_wish_gp_cost,25250);
 	assert.equal(h.state.crucible_wish_ep_micros,1_020_000);
-	assert.equal(h.state.crucible_ep(1_020_000),'1.020');
-	assert.equal(h.state.crucible_capacity_ep(40_000_000),'40');
-	assert.equal(h.state.expedition_points(31_275_000), new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 }).format(31.275));
-	assert.equal(h.state.crucible_capacity_ep(9_999_999),'9');
+	assert.equal(h.state.format_ep(1_020_000),'1.02');
+	assert.equal(h.state.format_ep(40_000_000),'40.00');
+	assert.equal(h.state.format_ep(31_275_000), new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(31.275));
+	assert.equal(h.state.format_ep(9_999_999),'10.00');
 	assert.equal(h.state.crucible_wish_affordable,true);
 	h.capacity({base:300,expires_at:h.state.crucible_clock_time+1000,renewal_micros:30_000_000});await h.refresh();
 	h.state.crucible_capacity_base=500;assert.equal(h.state.crucible_capacity_quote,70_000_000);
@@ -171,7 +203,7 @@ test('quantity fill caps at capacity and respects exact EP and GP limits', async
 	h.game.gp.amount = 7500; h.state.fill_crucible_wish_qty(); assert.equal(h.state.crucible_wish_qty, 30);
 	h.game.gp.amount = 0; h.state.fill_crucible_wish_qty();
 	assert.equal(h.state.crucible_wish_qty, 1); assert.equal(h.state.crucible_wish_affordable, false);
-	h.game.gp.amount = 10_000_000; h.capacity({ expires_at: Date.now() - 1 }); await h.refresh();
+	h.game.gp.amount = 10_000_000; h.capacity({ expires_at: h.state.crucible_clock_time - 1 }); await h.refresh();
 	h.state.fill_crucible_wish_qty(); assert.equal(h.state.crucible_wish_qty, 100);
 	h.state.crucible_wish_item_id = 'missing'; h.state.fill_crucible_wish_qty();
 	assert.equal(h.state.crucible_wish_qty, 1); assert.equal(h.state.crucible_wish_affordable, false);
@@ -182,17 +214,19 @@ test('localized confirmation bindings preserve Wish precision and scroll only th
 	const css=await readFile(new URL('../../mod/ui/style.css',import.meta.url),'utf8');
 	const wish=templates.split('<template id="template-mp-crucible-wish-modal">')[1].split('</template>')[0];
 	assert.doesNotMatch(wish,/mp-wish-modal-scroll|crucible_capacity_summary|MOD_MP_WISH_PAYMENT_INFO/);
-	assert.match(wish,/MOD_MP_WISH_CURRENT_CAPACITY/);assert.match(wish,/crucible_ep\(/);
+	assert.match(wish,/MOD_MP_WISH_CURRENT_CAPACITY/);assert.match(wish,/format_ep\(/);
 	assert.match(wish,/MOD_MP_WISH_COST_LABEL/);
+	assert.match(wish,/format_ep\(state.crucible_wish_ep_micros, \{ round_up: true \}\)/);
+	assert.match(wish,/<lang-string lang-id="MOD_MP_WISH_EP_ROUNDING_INFO"/);
 	assert.equal((wish.match(/market_currency_icon\(null\)/g) ?? []).length,2);
 	assert.match(wish,/:disabled="state.crucible_busy \|\| !state.crucible_wish_affordable"/);
 	const capacity=templates.split('<template id="template-mp-crucible-capacity-modal">')[1].split('</template>')[0];
 	assert.doesNotMatch(capacity,/mp-wish-modal-scroll|@touchmove|<select|crucible_save_renewal|crucible_expiry|crucible_renewal_quote|MOD_MP_WISH_BALANCE/);
 	assert.match(capacity,/MOD_MP_EXPEDITION_UI_YOUR_EP/);
-	assert.match(capacity,/expedition_points\(state.crucible\?\.capacity\?\.points_micros\)/);
+	assert.match(capacity,/format_ep\(state.crucible\?\.capacity\?\.points_micros\)/);
 	assert.match(capacity,/\[100,200,300,400,500\]/);
 	assert.match(capacity,/:aria-pressed="state.crucible_capacity_base === tier"/);
-	assert.match(capacity,/crucible_capacity_ep\(state.crucible_capacity_quote\)/);
+	assert.match(capacity,/format_ep\(state.crucible_capacity_quote\)/);
 	assert.match(capacity,/crucible_confirm_capacity\(\)/);
 	assert.match(capacity,/MOD_MP_WISH_RENEWAL_QUOTE/);
 	assert.match(capacity,/role="switch" :aria-checked="state.crucible_capacity_auto_renew"/);
@@ -200,7 +234,7 @@ test('localized confirmation bindings preserve Wish precision and scroll only th
 	assert.match(css,/\.mp-crucible-wish-grid\s*\{[^}]*flex-shrink:\s*0;[^}]*overflow-y:\s*scroll;[^}]*touch-action:\s*pan-y;[^}]*overscroll-behavior-y:\s*contain;/);
 	for(const locale of ['en','de','es','fr','it','ja','ko','pt','pt-br','ru','tr','zh-CN','zh-TW']) {
 		const lang=JSON.parse(await readFile(new URL(`../../mod/data/lang/${locale}.json`,import.meta.url),'utf8'));
-		for(const key of ['MOD_MP_WISH_QUANTITY_MIN','MOD_MP_WISH_QUANTITY_FILL','MOD_MP_WISH_CAPACITY_DESCRIPTION','MOD_MP_WISH_OVER_CAPACITY_INFO','MOD_MP_WISH_COST_LABEL','MOD_MP_WISH_CAPACITY_INFO','MOD_MP_WISH_RENEWAL_PAUSED']) assert.ok(lang[key],`${locale}:${key}`);
+		for(const key of ['MOD_MP_WISH_EP_ROUNDING_INFO','MOD_MP_WISH_QUANTITY_MIN','MOD_MP_WISH_QUANTITY_FILL','MOD_MP_WISH_CAPACITY_DESCRIPTION','MOD_MP_WISH_OVER_CAPACITY_INFO','MOD_MP_WISH_COST_LABEL','MOD_MP_WISH_CAPACITY_INFO','MOD_MP_WISH_RENEWAL_PAUSED']) assert.ok(lang[key],`${locale}:${key}`);
 		for(const placeholder of ['base','expiry','ep','renew','balance']) assert.ok(lang.MOD_MP_WISH_CAPACITY_STATUS.includes(`%${placeholder}%`),locale);
 		assert.equal(lang.MOD_MP_WISH_CAPACITY_STATUS.split('\n').length,4,locale);
 	}
@@ -236,7 +270,7 @@ test('capacity confirmation buys upgrades or changes renewal without re-buying a
 	globalThis.getLangString=key=>({MOD_MP_WISH_FREE:'Free',MOD_MP_WISH_ACTIVE:'Active'})[key];
 	try {
 		assert.deepEqual([100,200,300,400,500].map(tier=>h.state.crucible_capacity_tier_cost(tier)),
-			['Free','—','Active','30 EP','70 EP']);
+			['Free','—','Active','30.00 EP','70.00 EP']);
 	} finally {
 		if (oldLang === undefined) delete globalThis.getLangString;
 		else globalThis.getLangString=oldLang;

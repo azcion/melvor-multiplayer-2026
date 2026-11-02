@@ -24,7 +24,7 @@ export function register_poll_routes(): void {
 		if (!has_polls_capability(url)) return 404;
 		const poll_id = Number(url.searchParams.get('poll_id'));
 		if (!Number.isSafeInteger(poll_id) || poll_id < 1) return 400;
-		if (!db.query('SELECT id FROM polls WHERE id = ?').get(poll_id)) return 404;
+		if (!db.query('SELECT id FROM polls WHERE id = ? AND announcement=0').get(poll_id)) return 404;
 		const options = db.query<{ option_id: number; content: string }, [number]>(
 			'SELECT id AS option_id, content FROM poll_options WHERE poll_id = ? ORDER BY id').all(poll_id);
 		const votes = db.query<{ option_id: number; client_id: number; display_name: string; icon_id: string }, [number]>(

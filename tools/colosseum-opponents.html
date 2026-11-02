@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Colosseum opponents</title>
+<link rel="stylesheet" href="../mod/ui/style.css">
+<style>
+:root { color-scheme: dark; font-family: system-ui, sans-serif; background: #101e25; color: #e7edf0; }
+body { margin: 0; } main { max-width: 1500px; margin: auto; padding: 1.5rem; }
+h1 { margin: 0 0 .4rem; } p { color: #b6c6ce; line-height: 1.5; }
+.controls { position: sticky; top: 0; z-index: 10; background: #152933; border: 1px solid #45616b; border-radius: .5rem; padding: 1rem; display: flex; gap: .8rem; flex-wrap: wrap; align-items: end; box-shadow: 0 4px 18px #0008; }
+label { display: grid; gap: .3rem; font-size: .85rem; color: #c1d0d6; } input, select, button { font: inherit; color: #fff; background: #253e49; border: 1px solid #65808b; border-radius: .3rem; padding: .5rem; } input { min-width: min(32rem, 80vw); } button { cursor: pointer; } button:hover { background: #365766; }
+#status { font-size: .85rem; margin: .7rem 0; } .roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 350px), 1fr)); gap: 1rem; }
+.entry { background: #172a33; border: 1px solid #38535e; border-radius: .5rem; padding: .75rem; min-width: 0; } .entry.selected { border-color: #6adbac; } .entry-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .75rem; } .entry-head strong { font-size: 1rem; } .entry-head small { display: block; color: #9cb1ba; margin-top: .15rem; } .entry-head button { flex-shrink: 0; }
+.preview-label { color: #9cb1ba; text-transform: uppercase; letter-spacing: .08em; font-size: .65rem; margin: .8rem 0 .35rem; } .standalone { height: 155px; display: grid; place-items: center; background: #10212b; border-radius: .35rem; } .standalone img { width: 145px; height: 145px; object-fit: contain; }
+#mp-combat-page h4 { font-size: 1.1rem; line-height: 1.2; font-weight: 600; } #mp-combat-page .mp-combat-bar > div { height: 100%; width: 75%; } #mp-combat-page .mp-combat-attack > div { transform: scaleX(.55); background: #b9a5ea; width: 100%; } .mp-combat-feedback { color: #fff; } .mp-combat-vitals { font-size: .85rem; } .mp-combat-stat-strip { color: #d1dce0; } .mp-combat-enemies-compact { margin-top: .25rem; }
+.error { color: #ffbd9c; font-size: .75rem; } [hidden] { display: none !important; }
+</style>
+</head>
+<body><main id="mp-combat-page">
+<h1>Colosseum opponents</h1>
+<p>Preview each named opponent independently. Select one to edit its image filter; changes apply to all three views. Card statistics are illustrative.</p>
+<div class="controls">
+<label>Find opponent<input id="search" type="search" placeholder="Name or group"></label>
+<label>Layout<select id="layout"><option value="all">All three views</option><option value="full">Full card</option><option value="compact">Compact card</option><option value="standalone">Standalone</option></select></label>
+<label>Selected opponent filter<input id="filter" type="text" spellcheck="false" placeholder="e.g. hue-rotate(90deg) saturate(.6)"></label>
+<button id="reset" type="button">Reset filter</button>
+</div>
+<p id="status" aria-live="polite"></p><div id="roster" class="roster"></div>
+</main>
+<script>
+// Snapshot of the named actors and their image resolution in main.mjs, combat-tutorial.mjs and practice.ts.
+const cdn = 'https://cdn2-main.melvor.net/assets/media/';
+const person = name => cdn + 'skills/thieving/' + name + '.svg';
+const monster = name => cdn + 'monsters/' + name + '.png';
+const actors = [
+ ['tutorial_1','Training Partner','Tutorial',person('man')], ['tutorial_2','Sparring Partner','Tutorial',person('woman')],
+ ['tutorial_3','Armoured Squire','Tutorial',person('squire')], ['tutorial_4','Practice Partner','Tutorial',person('bandit_thug')],
+ ['tutorial_5','Endurance Bout','Tutorial',person('chef')], ['tutorial_6','Heavy Hitter','Tutorial',person('marauder')], ['tutorial_7','Final Assessment','Tutorial',person('knight')],
+ ['human_recruit','Guard Recruit','Practice',person('squire')], ['human_veteran','Shield Veteran','Practice',person('knight')],
+ ['human_mauler','Heavy Mauler','Practice',person('marauder')], ['human_quickblade','Quickblade','Practice',person('bandit_thug')],
+ ['human_serrated','Serrated Duelist','Practice',person('bandit_thug')], ['human_venom','Venom Sparrer','Practice',person('woman')],
+ ['human_hammer','Hammer Veteran','Practice',person('knight')], ['human_apprentice','Apprentice Duelist','Practice',person('man')],
+ ['human_archer','Patrol Archer','Practice',person('squire')], ['human_caster','Patrol Spellcaster','Practice',person('man')],
+ ['golbin','Horde Bruiser','Golbin Horde',monster('goblin'),'hue-rotate(15deg) saturate(.4) brightness(.75)'],
+ ['golbin_scout','Horde Slinger','Golbin Horde',monster('goblin'),'hue-rotate(60deg) saturate(.45) brightness(.75)'],
+ ['mind_golbin','Horde Hexer','Golbin Horde',monster('goblin'),'hue-rotate(175deg) saturate(.5) brightness(.75)'],
+ ['saltwing','Saltwing','Tidal Caverns',monster('seagull'),'hue-rotate(-60deg) saturate(.6) brightness(.8)'], ['reefbreaker','Reefbreaker','Tidal Caverns',monster('large_crab'),'hue-rotate(-30deg) saturate(.8) brightness(.8)'],
+ ['undertide_tendril','Undertide Tendril','Tidal Caverns',monster('tentacle'),'saturate(.5) hue-rotate(15deg)'],
+ ['undertide','The Undertide','Tidal Caverns',monster('kraken'),'hue-rotate(-150deg) saturate(.6) brightness(.9)'],
+ ['blob','Blob','Sinking Mire',monster('GreenSlime')], ['bittertoad','Bittertoad','Sinking Mire',monster('poison_toad')], ['bogmaw','Bogmaw','Sinking Mire',monster('hungry_plant')], ['drowned_root','Drowned Root','Sinking Mire',monster('Grumpy_Willow')],
+ ['cinder_snail','Cinder Snail','Cinder Quarry',cdn + 'pets/harry.png'], ['kiln_wisp','Kiln Wisp','Cinder Quarry',monster('fire_spirit')], ['embercoil','Embercoil','Cinder Quarry',monster('burning_snake')], ['slagheart','Slagheart','Cinder Quarry',monster('Lava_Golem')],
+ ['plant','Plant','Other',monster('plant')], ['vine','Hollow Vine','Other','../mod/assets/combat-vine.svg'],
+ ['tendril','Rending Tendril','Other','../mod/assets/combat-tendril.svg'], ['root','Grasping Root','Other','../mod/assets/combat-root.svg']
+].map(([id,name,group,src,initial = '']) => ({id,name,group,src,initial,filter: initial}));
+let selected = actors[0];
+const roster = document.querySelector('#roster'), filter = document.querySelector('#filter'), search = document.querySelector('#search'), layout = document.querySelector('#layout'), status = document.querySelector('#status');
+function image(actor, className) {
+ const img = document.createElement('img'); img.className = className; img.src = actor.src; if (['blob','drowned_root'].includes(actor.id)) img.style.transform = 'scaleX(-1)'; img.alt = className === 'mp-combat-enemy-art' ? '' : actor.name;
+ img.addEventListener('error', () => { const note = document.createElement('span'); note.className = 'error'; note.textContent = 'Artwork unavailable'; img.replaceWith(note); }, {once:true});
+ return img;
+}
+function card(actor, compact) {
+ const wrap = document.createElement('div'); if (compact) wrap.className = 'mp-combat-enemies-compact';
+ const card = document.createElement('div'); card.className = 'mp-combat-actor mp-combat-opponent'; card.append(image(actor, 'mp-combat-enemy-art'));
+ const name = document.createElement('h4'); name.className = 'mp-combat-enemy-name'; name.textContent = actor.name; card.append(name);
+ card.insertAdjacentHTML('beforeend', '<div class="mp-combat-vitals"><span class="mp-combat-hp-label">♥ 75 / 100 HP</span><span class="mp-combat-interval">⚔ 4.0s</span></div><div class="mp-combat-hp-wrap"><div class="mp-combat-bar"><div></div></div></div><div class="mp-combat-bar mp-combat-attack"><div></div></div><div class="mp-combat-stat-strip"><span>⚔ 12</span><span>🛡 10</span><span>Max hit 8</span></div><div class="mp-combat-feedback"></div>');
+ wrap.append(card); return wrap;
+}
+function apply(actor, entry) {
+ entry.querySelectorAll('.mp-combat-enemy-art').forEach(img => img.style.setProperty('--mp-combat-image-filter', actor.filter || 'brightness(1)'));
+ entry.querySelectorAll('.standalone img').forEach(img => img.style.filter = actor.filter || 'none');
+}
+function render() {
+ roster.replaceChildren(); const query = search.value.trim().toLowerCase();
+ const visible = actors.filter(actor => (actor.name + ' ' + actor.group + ' ' + actor.id).toLowerCase().includes(query));
+ status.textContent = `${visible.length} of ${actors.length} opponents · Editing ${selected.name}`;
+ for (const actor of visible) {
+  const entry = document.createElement('section'); entry.className = 'entry' + (actor === selected ? ' selected' : ''); entry.dataset.id = actor.id;
+  const head = document.createElement('div'); head.className = 'entry-head'; const title = document.createElement('div'); const name = document.createElement('strong'); name.textContent = actor.name; const group = document.createElement('small'); group.textContent = actor.group + ' · ' + actor.id; title.append(name,group);
+  const select = document.createElement('button'); select.type = 'button'; select.textContent = actor === selected ? 'Selected' : 'Edit filter'; select.addEventListener('click', () => { selected = actor; filter.value = actor.filter; render(); filter.focus(); }); head.append(title, select); entry.append(head);
+  for (const type of ['full','compact','standalone']) {
+   const section = document.createElement('div'); section.hidden = layout.value !== 'all' && layout.value !== type;
+   const label = document.createElement('div'); label.className = 'preview-label'; label.textContent = type === 'full' ? 'Full combat card' : type === 'compact' ? 'Compact combat card' : 'Standalone'; section.append(label);
+   if (type === 'standalone') { const box = document.createElement('div'); box.className = 'standalone'; box.append(image(actor, '')); section.append(box); } else section.append(card(actor, type === 'compact'));
+   entry.append(section);
+  }
+  roster.append(entry); apply(actor,entry);
+ }
+}
+filter.value = selected.filter;
+filter.addEventListener('input', () => { selected.filter = filter.value; const entry = [...roster.children].find(el => el.dataset.id === selected.id); if (entry) apply(selected,entry); });
+search.addEventListener('input',render); layout.addEventListener('change',render);
+document.querySelector('#reset').addEventListener('click', () => { selected.filter = selected.initial; filter.value = selected.filter; const entry = [...roster.children].find(el => el.dataset.id === selected.id); if (entry) apply(selected,entry); });
+render();
+</script></body></html>

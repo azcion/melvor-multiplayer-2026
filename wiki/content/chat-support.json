@@ -1,0 +1,217 @@
+{
+  "id": "chat-support",
+  "title": "Chat & Support",
+  "description": "Keep in touch from the game or your browser, and get help when you need it.",
+  "icon": "transfer_bag.svg",
+  "articles": [
+    {
+      "id": "chat",
+      "title": "Chat & conversations",
+      "summary": "Say hello, ask a question, or keep a conversation going with your Guild.",
+      "aliases": [
+        "global",
+        "private",
+        "message",
+        "mention",
+        "translation",
+        "reactions",
+        "poll"
+      ],
+      "sections": [
+        {
+          "id": "channels",
+          "title": "Who would you like to talk to?",
+          "bullets": [
+            "Global Chat is a good place to meet players outside your Guild.",
+            "Guild Chat is for your Guild. Alliance Chat brings together the Member Guilds in your Alliance.",
+            "Private conversations let you talk directly with another player, if their messaging preferences allow it.",
+            "Support is the place to ask the team for help.",
+            "Polls and Council Petitions have their own discussions, so you can keep the conversation beside the decision."
+          ]
+        },
+        {
+          "id": "tags",
+          "title": "Showing someone what you mean",
+          "paragraphs": [
+            "Use a person tag to mention another player, an item tag to show an item, or a feature tag to point to something in Multiplayer. Tags keep a readable name even if the other person doesn’t have the same content installed.",
+            "You can also react to messages and see read information where the conversation allows it. Mentioning someone doesn’t bring them into a private, Guild, or Alliance conversation they can’t already access."
+          ]
+        },
+        {
+          "id": "translation",
+          "title": "Reading and replying",
+          "paragraphs": [
+            "Where translation is available, you can choose English or Simplified Chinese for a conversation. Your own messages stay as you wrote them. Translations can take a moment to arrive and may get things wrong, so ask if a message seems odd.",
+            "In Browser Chat, select a message’s timestamp to open its actions. On desktop, Enter sends and Shift+Enter starts a new line. On mobile, use the Send button."
+          ]
+        }
+      ],
+      "related": [
+        "browser-chat",
+        "support",
+        "council"
+      ]
+    },
+    {
+      "id": "browser-chat",
+      "title": "Browser Chat",
+      "summary": "Keep talking when Melvor is closed, from your computer or phone.",
+      "aliases": [
+        "pair",
+        "link browser",
+        "one-use code",
+        "revoke",
+        "unlink",
+        "mobile"
+      ],
+      "sections": [
+        {
+          "id": "link",
+          "title": "Connecting your browser",
+          "paragraphs": [
+            "You’ll need Melvor open once to link your character. After that, you can read and reply from Browser Chat without keeping the game running."
+          ],
+          "steps": [
+            "In Melvor, open Multiplayer Options → Browser Chat → Link browser.",
+            "Open Chat on this server in the browser you want to use. Enter the one-use code before it expires.",
+            "To add another character, get a fresh code from that character and repeat the linking step.",
+            "Use the character selector in Browser Chat to choose who you’re reading and replying as."
+          ]
+        },
+        {
+          "id": "access",
+          "title": "What can I do in Browser Chat?",
+          "paragraphs": [
+            "You can read conversations, reply, and use the message actions available to your character. To move items, fight a Raid, or play your character, head back to Melvor.",
+            "Each character sees its own conversations. If two of your characters belong to different Guilds, switch characters to read the other Guild’s Chat."
+          ]
+        },
+        {
+          "id": "revoke",
+          "title": "Removing a link or starting again",
+          "paragraphs": [
+            "You can manage linked browsers from Browser Chat options in Melvor. In the browser, you can unlink the selected character or all linked characters.",
+            "If a code has expired or already been used, get a new one from Melvor. Keep these codes private: they let someone link your character to a browser.",
+            "The link is saved in that browser. If you clear its stored data or move to another browser, you may need to link again."
+          ]
+        }
+      ],
+      "related": [
+        "chat",
+        "first-steps",
+        "support"
+      ]
+    },
+    {
+      "id": "support",
+      "title": "Getting help",
+      "summary": "Tell us what happened so we can help you get back to playing.",
+      "aliases": [
+        "help",
+        "error",
+        "missing items",
+        "connection",
+        "maintenance",
+        "recovery",
+        "custom server"
+      ],
+      "sections": [
+        {
+          "id": "where",
+          "title": "Something gone wrong?",
+          "paragraphs": [
+            "Open a Support conversation in Multiplayer Chat. Tell us what you were trying to do, what you expected, and what happened instead. A short account in your own words is a good start.",
+            "If you lost connection or saw a maintenance message during an action, let the game reconnect before trying it again. It may still be checking what happened the first time."
+          ]
+        },
+        {
+          "id": "include",
+          "title": "Details that help",
+          "paragraphs": [
+            "Include what you can from this list. You don’t need to know the cause of the problem to ask for help."
+          ],
+          "bullets": [
+            "Which feature you were using and your Multiplayer mod version.",
+            "Roughly when it happened, including your time zone.",
+            "An action, exchange, listing, or reward number, if the game shows one.",
+            "The exact error or recovery message, and whether it’s still there after reconnecting."
+          ]
+        },
+        {
+          "id": "privacy",
+          "title": "If items seem to be missing",
+          "paragraphs": [
+            "Check your Bank, Transfer Inventory, Inbox, and exchange history, then tell us what you found. That helps us follow where the items went. Leave unavailable items in place while we work out what happened; discarding them is permanent.",
+            "Keep your Recovery code, Browser Chat linking codes, and account credentials out of the conversation. We don’t need those to investigate an item problem."
+          ]
+        },
+        {
+          "id": "different-server",
+          "title": "Playing on a different server?",
+          "paragraphs": [
+            "Each Multiplayer server has its own profiles, Guilds, and economy. A profile on one server won’t automatically appear on another. If you use a custom server, its operator is the person to ask about that server’s problems."
+          ]
+        }
+      ],
+      "related": [
+        "transfers",
+        "browser-chat",
+        "first-steps"
+      ]
+    },
+    {
+      "id": "glossary",
+      "title": "Multiplayer glossary",
+      "summary": "A name you don’t recognise? Here’s what it means.",
+      "aliases": [
+        "terms",
+        "definitions",
+        "dictionary"
+      ],
+      "sections": [
+        {
+          "id": "community",
+          "title": "People and Guilds",
+          "bullets": [
+            "Guild — the group your character belongs to for Chat, trading, and shared activities.",
+            "Council — where Guild members vote on decisions together.",
+            "Petition — a proposal in the Council. Vote Aye to support it or Nay to oppose it.",
+            "Alliance — two or more Guilds grouped together. Open the Assembly to see its members and decisions.",
+            "Shadowed — a status for inactive members. It changes how they count toward some Guild decisions and activities."
+          ]
+        },
+        {
+          "id": "economy",
+          "title": "Items and trading",
+          "bullets": [
+            "Transfer Inventory — where you prepare items for Gifts, Trades, and Crucible Casts.",
+            "Inbox — where incoming items and currency wait for you to claim them.",
+            "Sell Listing — items someone has put up for sale, priced per item.",
+            "Buy Order — a request to buy items for GP, paid for in advance by the buyer.",
+            "Haggle — an offer you negotiate with a seller on a Marketplace listing.",
+            "Offering — an item stack in the Guild Crucible. Adding items to it is called a Cast.",
+            "Heat — what makes Offerings meld and Wishes form faster in the Crucible.",
+            "Meld — when an Offering finishes its progress and is consumed to help fill Wishes.",
+            "Wish — an item request you make in the Crucible. It needs time to form and value from melding Offerings before you can collect it."
+          ]
+        },
+        {
+          "id": "adventure",
+          "title": "Raids and Expeditions",
+          "bullets": [
+            "Chamber — one of the places your Guild visits during an Expedition.",
+            "EP — Expedition Points, earned when your personal task progress is accepted.",
+            "Assault — one of your attempts at fighting a Raid monster.",
+            "Victory Cache — a personal reward for taking part in a Raid that your Guild secures, if you meet its participation requirements."
+          ]
+        }
+      ],
+      "related": [
+        "first-steps",
+        "council",
+        "transfers",
+        "expedition"
+      ]
+    }
+  ]
+}

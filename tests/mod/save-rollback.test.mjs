@@ -128,7 +128,7 @@ test('unchanged status release requires a full event snapshot, including no-cand
  const main=await readFile(new URL('../../mod/main.mjs',import.meta.url),'utf8');
  const source=main.slice(main.indexOf('async function get_client_events_request('),main.indexOf('\nfunction start_client_event_polling('));
  let event={unchanged:true,revision:7,rollback:status()},recoveries=0;
- const context={crucible_page_hydrating:false,server_host:'https://one.test',guild_revision_scope:null,last_guild_revision:null,economy_receipt_reviews: null, rollback_client:h.client,session_generation:1,client_events_hydrated:true,client_event_trailing:false,client_event_revision:7,CHAT_CAPABILITIES:'',
+ const context={expedition_leaderboard: null, crucible_page_hydrating:false,server_host:'https://one.test',guild_revision_scope:null,last_guild_revision:null,economy_receipt_reviews: null, rollback_client:h.client,session_generation:1,client_events_hydrated:true,client_event_trailing:false,client_event_revision:7,CHAT_CAPABILITIES:'',
   state:{listing_filters:[],refresh_crucible:async()=>{},chat_notification_preferences:{},events:{},inbox_items:[],get_chat_notification_tagged:()=>false},
   api_get:async endpoint=>{assert.ok(!endpoint.includes('revision='));return event;},
   enter_unsupported_multiplayer:()=>false,check_released_mod_version(){},apply_dev_badge_labels(){},maybe_auto_check_in_expedition(){},
@@ -259,7 +259,7 @@ test('actual raw request gate permits recovery and affected-only 426 keeps ordin
  const source=main.slice(main.indexOf('async function api_post_response_raw('),main.indexOf('async function api_post_binary_response('));
  let sends=0,blocks=0;const floors=[];
  const context={state:{multiplayer_unsupported:false},session_token:'fixture',selected_api_major:2,session_generation:1,server_host:'https://one.test',
-  economy_receipt_reviews: null, rollback_client:{admitted:()=>false,block(){blocks++;}},rollback_module:rollback,resolve_api_endpoint:path=>path,transport_diagnostics:null,
+  economy_receipt_reviews: null, rollback_client:{admitted:()=>false,block(){blocks++;}},rollback_module:rollback,resolve_api_endpoint:path=>path,transport_diagnostics:null,equipment_catalog_cache:null,
   coordinated_request:async(_url,_options,request)=>{sends++;return request.consume(Response.json({error:'economy_upgrade_required'},{status:426}));},
   handle_session_response(){},enter_unsupported_multiplayer:floor=>{floors.push(floor);return false;},error(){throw Error('transport');}};
  runInNewContext(source,context);

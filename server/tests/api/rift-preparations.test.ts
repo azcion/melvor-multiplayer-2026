@@ -1,6 +1,6 @@
-import { describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { make_guildmates, register_guild_client } from '../support/fixtures';
-import { get_json_with_session, post_json } from '../support/http';
+import { get_json_with_session, post, post_json } from '../support/http';
 import type { RegisteredClient } from '../support/http';
 import { db_all, db_run } from '../support/persistence';
 import { PREPARATION_SKILLS } from '../../expedition-preparations';
@@ -40,7 +40,74 @@ async function work(client: RegisteredClient, expedition_id: number, chamber: Ch
 	return (await report('stop', 1000 + duration_ms)).json;
 }
 
+describe('Staged Expedition release', () => {
+	test('defaults to live donations, then cuts over without losing committed receipt recovery', async () => {
+		await db_run("DELETE FROM service_settings WHERE key = 'expedition_preparations_enabled'");
+		const guild = await make_guildmates('Staged Supply', 'Staged Witness', 'Staged Guild');
+		const expedition_id = await register(guild.first);
+		expect((await state(guild.first)).chamber).toBeNull();
+		expect(await db_all('SELECT id FROM expedition_visits WHERE expedition_id = ?', [expedition_id])).toEqual([]);
+		const catalog = (await get_json_with_session<any>('/api/expedition/supply/catalog', guild.first.session_token)).json;
+		expect(catalog.version).toBe(1);
+		expect(catalog.items['melvorD:Shrimp'].value_per_item).toBe(2);
+		const payload = { command_id: crypto.randomUUID(), expedition_id, item_id: 'melvorD:Shrimp', qty: 1000,
+			source: 'bank', value_currency_id: 'melvorD:GP', value_per_item: 2 };
+		const first = await post_json<any>('/api/expedition/supply/donate', payload, guild.first.session_token);
+		expect(first.json.success).toBe(true);
+		expect(first.json.receipt.effects).toEqual([{ storage: 'bank', item_id: 'melvorD:Shrimp', qty: -1000 }]);
+		const balance = await db_all('SELECT points_micros FROM expedition_ep_balances WHERE client_id = ?', [guild.first_id]);
+		await db_run("INSERT INTO service_settings (key, value) VALUES ('expedition_preparations_enabled', '1')");
+		const replay = await post_json<any>('/api/expedition/supply/donate', payload, guild.first.session_token);
+		expect(replay.json).toEqual(first.json);
+		const refused = await post_json<any>('/api/expedition/supply/donate', { ...payload, command_id: crypto.randomUUID() }, guild.first.session_token);
+		expect(refused.json).toEqual({ success: false, error: 'supplies_removed' });
+		expect(await db_all('SELECT qty FROM expedition_supplies WHERE expedition_id = ?', [expedition_id])).toEqual([{ qty: 1000 }]);
+		expect(await db_all('SELECT points_micros FROM expedition_ep_balances WHERE client_id = ?', [guild.first_id])).toEqual(balance);
+		expect((await state(guild.first)).chamber?.preparation).toBe(true);
+		await post_json('/api/economy/receipts/acknowledge', { receipt_id: payload.command_id }, guild.first.session_token);
+		const acknowledged = await post_json<any>('/api/expedition/supply/donate', payload, guild.first.session_token);
+		expect(acknowledged.json.success).toBe(true);
+		expect(acknowledged.json.receipt).toBeNull();
+	});
+});
+
 describe('Rift Preparations', () => {
+	beforeAll(async () => {
+		await db_run("INSERT INTO service_settings (key, value) VALUES ('expedition_preparations_enabled', '1') ON CONFLICT(key) DO UPDATE SET value = '1'");
+	});
+	afterAll(async () => {
+		await db_run("DELETE FROM service_settings WHERE key = 'expedition_preparations_enabled'");
+	});
+	test('closes registration with its displayed preparation visit but rejects foreign visits and replay', async () => {
+		const guild = await make_guildmates('Prep Debug', 'Prep Debug Witness', 'Prep Debug Guild');
+		await db_run('UPDATE clients SET client_identifier = ? WHERE client_identifier = ?',
+			[crypto.randomUUID(), 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee']);
+		await db_run('UPDATE clients SET client_identifier = ? WHERE id = ?',
+			['eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', guild.first_id]);
+		try {
+			const expedition_id = await register(guild.first);
+			const preparation = (await state(guild.first)).chamber!;
+			expect(preparation.preparation).toBe(true);
+			const payload = { expedition_id, visit_id: preparation.visit_id, action: 'registration', task_id: null };
+			expect((await post('/api/expedition/debug/advance', payload, guild.second.session_token)).status).toBe(403);
+			expect((await post('/api/expedition/debug/advance', { ...payload, visit_id: preparation.visit_id + 100000 }, guild.first.session_token)).status).toBe(409);
+			expect((await post_json('/api/expedition/debug/advance', payload, guild.first.session_token)).json).toEqual({ success: true });
+			const active = await state(guild.first);
+			expect(active.status).toBe('active');
+			expect(active.chamber?.id).toBe('entrance');
+			expect((await post('/api/expedition/debug/advance', payload, guild.first.session_token)).status).toBe(409);
+			expect(await db_all('SELECT points_micros FROM expedition_ep_ledger WHERE expedition_id = ?', [expedition_id])).toEqual([]);
+			// Direct navigation also accepts the preparation visit shown during registration.
+			expect((await post('/api/expedition/debug/cancel', { expedition_id }, guild.first.session_token)).status).toBe(200);
+			const next_id = await register(guild.first);
+			const next_preparation = (await state(guild.first)).chamber!;
+			expect((await post('/api/expedition/debug/advance', { expedition_id: next_id, visit_id: next_preparation.visit_id,
+				action: 'jump', task_id: 'prismatic_descent' }, guild.first.session_token)).status).toBe(200);
+			expect((await state(guild.first)).chamber?.id).toBe('prismatic_descent');
+		} finally {
+			await db_run('UPDATE clients SET client_identifier = ? WHERE id = ?', [crypto.randomUUID(), guild.first_id]);
+		}
+	});
 	test('gives each registrant one optional 20 hour task over the fixed eight activities', async () => {
 		const guild = await make_guildmates('Prep One', 'Prep Two', 'Prep Guild');
 		await register(guild.first);
@@ -182,6 +249,12 @@ describe('Rift Preparations', () => {
 });
 
 describe('Expedition supplies', () => {
+	beforeAll(async () => {
+		await db_run("INSERT INTO service_settings (key, value) VALUES ('expedition_preparations_enabled', '1') ON CONFLICT(key) DO UPDATE SET value = '1'");
+	});
+	afterAll(async () => {
+		await db_run("DELETE FROM service_settings WHERE key = 'expedition_preparations_enabled'");
+	});
 	test('are no longer accepted and the catalog is empty', async () => {
 		const guild = await make_guildmates('Supply Gone', 'Supply Gone Two', 'Supply Gone Guild');
 		const expedition_id = await register(guild.first);

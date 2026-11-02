@@ -27,3 +27,15 @@ test('demo endpoint has explicit selected browser auth and never accepts game he
 	expect((await request('/chat/api/data', { headers: { Origin: 'https://evil.test', 'X-Chat-Link-ID': '1' } })).status).toBe(403);
 	expect((await request('/chat/api/data', { method: 'POST' })).status).toBe(405);
 });
+test('shared Chat modules are present in the server image and served as JavaScript', async () => {
+	for (const [file, exported_name] of [
+		['client-actions-chat.mjs', 'CHAT_REACTION_DEFAULT_CHOICES'],
+		['chat-highlights.mjs', 'CHAT_HIGHLIGHT_PRESETS'],
+		['chat-items.mjs', 'append_chat_text'],
+	]) {
+		const response = await request(`/mod/${file}`);
+		expect(response.status).toBe(200);
+		expect(response.headers.get('Content-Type')).toMatch(/^text\/javascript\b/);
+		expect(await response.text()).toContain(exported_name);
+	}
+});

@@ -1,3 +1,4 @@
+export const CHAT_REACTION_DEFAULT_CHOICES = Object.freeze(['👍', '👎', '❤️', '😂', '😭', '💀', '👀', '🔥', '💯', '🎉', '🤔', '😮', '😬', '😡', '🗿', '👋', '👏', '😎']);
 // Generated from Unicode Emoji 16.0 emoji-test.txt.
 // Only fully-qualified, single-code-point emoji are included, excluding the fixed picker set.
 export const CHAT_REACTION_EMOJI_VERSION = '16.0';
@@ -64,7 +65,7 @@ export const CHAT_REACTION_RANDOM_CANDIDATES = Object.freeze([
 
 export function sample_chat_reactions(excluded_reactions, count = 6, random = Math.random) {
 	const excluded = new Set(excluded_reactions ?? []);
-	const pool = CHAT_REACTION_RANDOM_CANDIDATES.filter(reaction => !excluded.has(reaction));
+	const pool = [...CHAT_REACTION_DEFAULT_CHOICES, ...CHAT_REACTION_RANDOM_CANDIDATES].filter(reaction => !excluded.has(reaction));
 	for (let index = pool.length - 1; index > 0; index--) {
 		const swap = Math.floor(random() * (index + 1));
 		[pool[index], pool[swap]] = [pool[swap], pool[index]];
@@ -616,7 +617,7 @@ export function install_chat_actions(runtime) {
 		get_chat_message_parts(message) {
 			const content = this.get_chat_message_content(message);
 			const own = message?.sender_id === this.chat_client_id || message?.sent_by_viewer === true;
-			const language = message?.sender_id === null ? localized_welcome_language() :
+			const language = message?.manual_translation_language === false ? null : message?.sender_id === null ? localized_welcome_language() :
 				message?.manual_translation_language ?? translation_preference(this.selected_chat_conversation);
 			if (!own && language && message?.translation_parts?.[language] && content === message.translations?.[language])
 				return message.translation_parts[language];
@@ -636,7 +637,7 @@ export function install_chat_actions(runtime) {
 		},
 
 		is_chat_notifications_enabled(conversation = this.selected_chat_conversation) {
-			if (conversation?.synthetic_service) return true;
+			if (conversation?.synthetic_service || conversation?.conversation_kind === 'announcements') return true;
 			const key = get_chat_conversation_key(conversation);
 			return this.chat_notification_preferences[key] !== false;
 		},
@@ -657,7 +658,7 @@ export function install_chat_actions(runtime) {
 		},
 
 		toggle_chat_notifications() {
-			if (this.selected_chat_conversation?.synthetic_service) return;
+			if (this.selected_chat_conversation?.synthetic_service || this.selected_chat_conversation?.conversation_kind === 'announcements') return;
 			const key = get_chat_conversation_key(this.selected_chat_conversation);
 			if (key === null || this.chat_notifications_busy || now() < notifications_next_toggle_at)
 				return;
@@ -797,7 +798,7 @@ export function install_chat_actions(runtime) {
 		},
 
 		get_chat_reaction_picker_message() {
-			return this.chat_messages.find(message => message.message_id === this.chat_reaction_picker_message_id);
+			return this.chat_messages.find(message => message.deleted !== true && message.message_id === this.chat_reaction_picker_message_id);
 		},
 
 		get_chat_reaction_add_label() {
@@ -806,8 +807,7 @@ export function install_chat_actions(runtime) {
 
 		async toggle_chat_reaction(message, reaction) {
 			const conversation = this.selected_chat_conversation;
-			if (!conversation || !Number.isSafeInteger(message?.message_id) || message.message_id < 1 ||
-				(conversation.conversation_kind === 'testers' && conversation.can_send !== true) ||
+			if (message?.deleted || !conversation || !Number.isSafeInteger(message?.message_id) || message.message_id < 1 ||
 				typeof reaction !== 'string')
 				return;
 			const pending_key = (conversation.conversation_kind ?? 'private') + '\n' + conversation.conversation_id + '\n' +
@@ -1057,6 +1057,12 @@ export function install_chat_actions(runtime) {
 			if (petition) changePage(game.pages.getObjectByID('multiplayer:Guild'));
 		},
 
+		async open_announcement_discussion(announcement) {
+			await this.open_chat_conversation({ conversation_kind: 'announcement-discussion', conversation_id: announcement.message_id,
+				participant: { client_id: null, display_name: getLangString('MOD_MP_ANNOUNCEMENTS_TITLE'), icon_id: 'multiplayer' },
+				announcement, unread_count: 0, contributes_unread: false, blocked: false, can_send: !announcement.deleted });
+		},
+
 		async open_poll_discussion(poll) {
 			await this.open_chat_conversation({ conversation_kind: 'poll-discussion', conversation_id: poll.poll_id,
 				participant: { client_id: null, display_name: getLangString('MOD_MP_POLLS_DISCUSSION'), icon_id: 'multiplayer' },
@@ -1154,10 +1160,27 @@ export function install_chat_actions(runtime) {
 		translate_selected_chat_message() {
 			const message = this.selected_chat_message;
 			if (!message || message.sender_id === this.chat_client_id || message.sent_by_viewer === true) return;
-			const language = preferred_manual_language(message);
-			if (language) message.manual_translation_language = language;
+			if (this.is_chat_message_showing_translation(message)) {
+				message.manual_translation_language = false;
+			} else {
+				const preferred = preferred_manual_language(message);
+				const language = [preferred, ...translation_languages].find(language =>
+					typeof message.translations?.[language] === 'string' && message.translations[language].length > 0);
+				if (language) message.manual_translation_language = language;
+			}
 			this.selected_chat_message = null;
 			this.close_modal();
+		},
+
+		is_chat_message_showing_translation(message) {
+			if (!message || message.sender_id === this.chat_client_id || message.sent_by_viewer === true) return false;
+			const language = message.manual_translation_language === false ? null : message.sender_id === null ? localized_welcome_language() :
+				message.manual_translation_language ?? translation_preference(this.selected_chat_conversation);
+			return !!language && typeof message.translations?.[language] === 'string' && message.translations[language].length > 0;
+		},
+
+		get_chat_message_translation_action_lang_id(message) {
+			return this.is_chat_message_showing_translation(message) ? 'MOD_MP_CHAT_SHOW_ORIGINAL' : 'MOD_MP_CHAT_SHOW_TRANSLATION';
 		},
 
 		has_chat_message_translations(message) {
@@ -1171,7 +1194,7 @@ export function install_chat_actions(runtime) {
 				return getLangString('MOD_MP_COUNCIL_' + message.petition_event.toUpperCase());
 			if (!message || message.sender_id === this.chat_client_id || message.sent_by_viewer === true)
 				return message?.content ?? '';
-			if (message.sender_id === null) {
+			if (message.sender_id === null && message.manual_translation_language !== false) {
 				const localized = message.translations?.[localized_welcome_language()];
 				if (typeof localized === 'string' && localized.length > 0) return localized;
 			}
@@ -1305,7 +1328,7 @@ export function install_chat_actions(runtime) {
 			const parts_key = JSON.stringify(parts ?? null);
 			const highlight_color = this.get_chat_draft_highlight();
 			if (!conversation || conversation_key === null || content.length === 0 || content.length > 1000 ||
-				(conversation.conversation_kind === 'testers' && conversation.can_send !== true) ||
+				(['announcements', 'announcement-discussion'].includes(conversation.conversation_kind) && conversation.can_send !== true) ||
 				this.chat_sending_conversations[conversation_key] === true || !this.is_chat_item_draft_valid())
 				return;
 			this.chat_sending_conversations[conversation_key] = true;
@@ -1363,7 +1386,7 @@ export function install_chat_actions(runtime) {
 				}
 				if (res?.success) {
 					conversation.conversation_id = res.message.conversation_id;
-					if (is_current_view() && !this.chat_messages.some(message => message.message_id === res.message.message_id))
+					if (is_current_view() && (!res.message.deleted || this.chat_is_admin) && !this.chat_messages.some(message => message.message_id === res.message.message_id))
 						this.chat_messages.push(res.message);
 					if (is_current_view())
 						await this.scroll_chat_messages_to_bottom();
@@ -1403,7 +1426,8 @@ export function install_chat_actions(runtime) {
 				hide_button_spinner($button);
 				return show_modal_error(getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR'));
 			}
-			this.chat_messages = this.chat_messages.filter(entry => entry.message_id !== message.message_id);
+			if (this.chat_is_admin) { message.deleted = true; message.can_delete = false; }
+			else this.chat_messages = this.chat_messages.filter(entry => entry.message_id !== message.message_id);
 			this.selected_chat_message = null;
 			this.close_modal();
 			await refresh_chat_conversations();
@@ -1427,7 +1451,8 @@ export function install_chat_actions(runtime) {
 				hide_button_spinner($button);
 				return show_modal_error(getLangString(res?.error_lang ?? 'MOD_MP_GENERIC_ERR'));
 			}
-			this.chat_messages = this.chat_messages.filter(entry => entry.message_id !== message.message_id);
+			if (this.chat_is_admin) { message.deleted = true; message.can_delete = false; }
+			else this.chat_messages = this.chat_messages.filter(entry => entry.message_id !== message.message_id);
 			this.selected_chat_message = null;
 			this.close_modal();
 			await refresh_chat_conversations();

@@ -17,6 +17,23 @@ test('shares concurrent reads, clones results, expires and invalidates after mut
 	scope = 'b'; await cache.read('inbox', load); assert.equal(calls, 4);
 });
 
+test('priming supersedes an older read for its original and coalesced callers', async () => {
+	const cache = create_read_cache({ scope: () => 'a' });
+	let finish, calls = 0;
+	const load = () => { calls++; return new Promise(resolve => { finish = resolve; }); };
+	const first = cache.read('inbox', load);
+	const second = cache.read('inbox', load);
+	await Promise.resolve();
+	cache.prime('inbox', { items: [2] });
+	finish({ items: [1] });
+	const results = await Promise.all([first, second]);
+	assert.deepEqual(results, [{ items: [2] }, { items: [2] }]);
+	results[0].items.push(3);
+	assert.deepEqual(results[1], { items: [2] });
+	assert.deepEqual(await cache.read('inbox', load), { items: [2] });
+	assert.equal(calls, 1);
+});
+
 test('an old read cannot overwrite a mutation or another server/session', async () => {
 	let scope = 'a', finish;
 	const cache = create_read_cache({ scope: () => scope });
@@ -42,12 +59,17 @@ test('queued acknowledgements run before optional reads and capacity replenishes
 });
 
 test('reads preserve request tokens for durable writes', async () => {
-	const scheduler = create_request_scheduler({ capacity: 2, read_reserve: 1, refill_per_second: 100 });
+	let clock = 0;
+	const scheduler = create_request_scheduler({ now: () => clock, capacity: 2, read_reserve: 1, refill_per_second: 100 });
 	const order = [];
 	await scheduler.run(0, () => order.push('first'));
 	const history = scheduler.run(0, () => order.push('history'));
 	const ack = scheduler.run(1, () => order.push('acknowledge'));
-	await Promise.all([history, ack]);
+	await ack;
+	assert.deepEqual(order, ['first', 'acknowledge']);
+	clock = 20;
+	// The existing wake-up timer observes exactly two replenished tokens.
+	await history;
 	assert.deepEqual(order, ['first', 'acknowledge', 'history']);
 });
 
@@ -107,7 +129,7 @@ test('twenty repeated page visits share one Transfers and one Guild snapshot', a
 		state: { multiplayer_unsupported: false }, read_cache: create_read_cache({ scope: () => 'a' }),
 		unavailable_guild_previews: new Set(), guild_preview_scope: null,
 		page_snapshots_supported: true, session_generation: 1, selected_api_major: 2, server_host: 'https://example.test',
-		session_token: 'test-session', CACHED_READS: new Set([...transfers, ...guild]), transport_diagnostics: null,
+		session_token: 'test-session', CACHED_READS: new Set([...transfers, ...guild]), transport_diagnostics: null, equipment_catalog_cache: null,
 		cache_bust_api_endpoint: endpoint => endpoint, resolve_api_endpoint: endpoint => endpoint,
 		handle_session_response() {}, enter_unsupported_multiplayer() {}, error() {},
 		coordinated_request: async (url, _options, request) => {
@@ -214,7 +236,7 @@ test('expected read cancellation is quiet while a genuine transport timeout stay
 	const source = main.slice(main.indexOf('async function api_get_request('), main.indexOf('async function api_post_response('));
 	const errors = [];
 	const context = { state: {}, session_generation: 1, selected_api_major: 2, server_host: 'https://example.test',
-		session_token: 'fixture', transport_diagnostics: null, resolve_api_endpoint: route => route,
+		session_token: 'fixture', transport_diagnostics: null, equipment_catalog_cache: null, resolve_api_endpoint: route => route,
 		cache_bust_api_endpoint: route => route, error: (...args) => errors.push(args),
 		coordinated_request: async () => { throw new DOMException('Cancelled', 'AbortError'); }
 	};
@@ -232,7 +254,7 @@ test('missing Guild previews survive Council refreshes but reset across servers 
 	const source = main.slice(main.indexOf('async function api_get(endpoint,'), main.indexOf('async function api_post_response('));
 	let status = 404, calls = 0;
 	const context = { state: {}, session_generation: 1, selected_api_major: 2, server_host: 'https://one.test',
-		session_token: 'fixture', transport_diagnostics: null, resolve_api_endpoint: route => route,
+		session_token: 'fixture', transport_diagnostics: null, equipment_catalog_cache: null, resolve_api_endpoint: route => route,
 		cache_bust_api_endpoint: route => route, handle_session_response: () => {}, error: () => {},
 		unavailable_guild_previews: new Set(), guild_preview_scope: null, CACHED_READS: new Set(),
 	};

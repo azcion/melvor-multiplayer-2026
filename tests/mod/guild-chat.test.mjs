@@ -74,7 +74,7 @@ test('uses Guild identity and keeps private-only controls out of Guild Chat', as
 	assert.match(main, /kind !== 'private' \|\| \(this\.messaging_enabled/);
 	assert.match(chat, /conversation_kind \|\| 'private'\) === 'private'/);
 	assert.match(chat, /conversation_kind \|\| 'private'\) === 'private' && state\.chat_budget_enabled/);
-	assert.match(templates, /conversation_kind \|\| 'private'\) === 'private'[^>]*show_chat_message_delete_confirmation/);
+	assert.match(templates, /state\.can_moderate_chat_messages\(\)[^>]*show_chat_message_delete_for_all_confirmation/);
 	assert.match(main, /const conversation_kind = conversation\.conversation_kind \?\? 'private'/);
 	assert.match(main, /conversation_kind,/);
 	assert.match(main, /chat-message-actions-modal', this\.get_chat_participant_icon\(\)/);

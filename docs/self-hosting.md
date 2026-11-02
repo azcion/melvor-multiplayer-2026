@@ -116,16 +116,21 @@ Install Node.js and the `zip` command on the build host. Package the checked-in 
 with `unzip`:
 
 ```sh
-./scripts/package-mod.sh
-unzip -tq dist/melvor-multiplayer-local.zip
-unzip -p dist/melvor-multiplayer-local.zip main.mjs | head -n 5
+./scripts/package-mod.sh 1.7.0 A
+unzip -tq dist/melvor-multiplayer-local-1.7.0-A.zip
+unzip -p dist/melvor-multiplayer-local-1.7.0-A.zip main.mjs | head -n 5
 ```
 
 The archive must have `manifest.json` and `main.mjs` at its root. The checked-in client defaults to
-`http://127.0.0.1:3000` and reports `development` as its internal mod version. A ZIP made this way does not inherit
+`http://127.0.0.1:3000`. Pass the numeric `x.y.z` version matching your source checkout (for example, `1.7.0`
+for 1.7.0 source); the packager replaces `development` only in the staged copy. The backend rejects
+`development` and versions below its supported minimum. A version override does not make older source compatible.
+The optional suffix (`A` above) distinguishes rebuilds in the filename without changing the API version.
+The script packages working-tree changes, including uncommitted edits, and leaves source files unchanged.
+A ZIP made this way does not inherit
 the published release's bundled endpoint. The Connection setting can override its endpoint in the same way.
 
-1. Import `dist/melvor-multiplayer-local.zip` using Creator Toolkit and enable it in a dedicated mod profile.
+1. Import `dist/melvor-multiplayer-local-1.7.0-A.zip` using Creator Toolkit and enable it in a dedicated mod profile.
 2. Disable the published remaster and the original Multiplayer mod in that profile so only this local client runs.
 3. Fully reload Melvor and open a separate test character. Verify the Connection setting uses the intended origin.
 4. Repeat registration, Guild-page, save/reload, and ongoing-connection checks against the fresh backend.
@@ -177,3 +182,12 @@ MELVOR_SERVER_PORT=3001 ./scripts/smoke-test.sh
 ```
 
 The smoke test uses the fixed Compose project `melvor-mp-smoke`; do not run competing smoke tests concurrently.
+
+## Expedition preparation activation
+
+Backend deployments keep Expedition supply donations enabled by default. Rift Preparations are activated separately
+through the host administration CLI: `bun run admin.ts expedition-preparations enable confirm` from the server
+working directory. Inspect with `bun run admin.ts expedition-preparations status`. This persistent, one-way switch
+closes new donations and exposes personal preparation tasks; committed donation receipts and earned EP remain.
+Coordinate activation with the matching client release and supported-client floor. Code deployment alone never
+activates this cutover.

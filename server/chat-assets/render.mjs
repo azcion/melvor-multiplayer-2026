@@ -1,4 +1,4 @@
-import { fallback_feature_name, badge_feature } from '../../mod/chat-items.mjs';
+import { fallback_feature_name, badge_feature, append_chat_text } from '../../mod/chat-items.mjs';
 import { readable_item } from './transport.mjs';
 export const kind_labels = { global: 'Global', guild: 'Guild', alliance: 'Alliance', private: 'Private', support: 'Support', testers: 'Expedition' };
 export function node(document, tag, text, class_name) {
@@ -49,9 +49,9 @@ export function presentation(message, locale, original = false) {
 			message.translation_status === 'failed' ? 'Translation unavailable · showing original' : 'Original' };
 }
 export function render_parts(document, target, parts, text, items = [], person, avatars = []) {
-	if (!Array.isArray(parts) || !parts.length) { target.append(node(document, 'span', text ?? '')); return; }
+	if (!Array.isArray(parts) || !parts.length) { append_chat_text(document, target, text); return; }
 	for (const part of parts) {
-		if (part.type === 'text') target.append(node(document, 'span', part.text ?? ''));
+		if (part.type === 'text') append_chat_text(document, target, part.text);
 		else if (part.type === 'item') {
 			const item = readable_item(String(part.item_id), items), chip = node(document, 'span', undefined, 'tag');
 			if (safe_media(item.media)) {

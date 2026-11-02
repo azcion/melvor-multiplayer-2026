@@ -6,6 +6,97 @@ import { install_crucible_actions } from '../../mod/client-crucible.mjs';
 import * as crucible_rules from '../../mod/crucible-rules.mjs';
 import * as transfer_currency_support from '../../mod/transfer-currencies.mjs';
 
+test('Heat guide uses hosted-compatible images and bounds its navigation', async () => {
+	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const template = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
+	const css = await readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8');
+	const config = JSON.parse(await readFile(new URL('../../asset-hosting.json', import.meta.url), 'utf8'));
+	const declaration = main.match(/const CRUCIBLE_GUIDE_STEPS = (\[[\s\S]*?\]);/);
+	const steps = runInNewContext(declaration[1]);
+	assert.equal(steps.length, 9);
+	for (const [name] of steps) {
+		const path = `assets/crucible-guide/${name}.png`;
+		assert.ok(config.assets.includes(path), `${path} is managed by asset hosting`);
+		const bytes = await readFile(new URL(`../../mod/${path}`, import.meta.url));
+		assert.deepEqual([...bytes.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+	}
+	assert.deepEqual(Array.from(steps, step => step[0]), [
+		'06-meld-flow', '01-cast-menu', '02-cast-quantity', '03-offering', '04-choose-wish',
+		'05-wish-quantity', '07-forming', '08-claim-wish', '09-collect'
+	]);
+	assert.match(template, /:disabled="state\.crucible_guide_index === 0"/);
+	assert.match(template, /:disabled="state\.crucible_guide_index >= state\.crucible_guide_length - 1"/);
+	const image_effect = template.match(/<img v-effect="([^"]+)" alt="">/)[1];
+	const attributes = new Map();
+	const state = { crucible_panels_open: { heat: false }, crucible_guide_image: 'guide.png' };
+	const $el = { setAttribute: (name, value) => attributes.set(name, value), removeAttribute: name => attributes.delete(name) };
+	const update_image = () => runInNewContext(image_effect, { state, $el });
+	update_image();
+	assert.equal(attributes.has('src'), false);
+	state.crucible_panels_open.heat = true;
+	update_image();
+	assert.equal(attributes.get('src'), 'guide.png');
+	state.crucible_panels_open.heat = false;
+	update_image();
+	assert.equal(attributes.has('src'), false);
+	assert.match(css, /\.mp-crucible-heat-body \{ display: grid; grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/);
+	assert.match(css, /\.mp-crucible-heat-body \{ grid-template-columns: minmax\(0, 1fr\);/);
+});
+
+test('Heat starts expanded and restores each character and server preference across reloads', async () => {
+	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const template = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
+	const methods = main.slice(main.indexOf('\tload_crucible_heat_preference()'), main.indexOf('\tget crucible_guide_length()'));
+	const saved = new Map();
+	let scope = 'character-a:server-a:';
+	const state = runInNewContext(`({ crucible_panels_open: { heat: true }, ${methods} })`, {
+		get_instance_storage_item: key => saved.get(scope + key),
+		set_instance_storage_item: (key, value) => saved.set(scope + key, value)
+	});
+	state.load_crucible_heat_preference();
+	assert.equal(state.crucible_panels_open.heat, true);
+	state.toggle_crucible_heat();
+	state.crucible_panels_open.heat = true;
+	state.load_crucible_heat_preference();
+	assert.equal(state.crucible_panels_open.heat, false, 'collapsed choice survives reload');
+	for (scope of ['character-b:server-a:', 'character-a:server-b:']) {
+		state.load_crucible_heat_preference();
+		assert.equal(state.crucible_panels_open.heat, true, 'other characters and servers default open');
+	}
+	scope = 'character-a:server-a:';
+	state.load_crucible_heat_preference();
+	state.toggle_crucible_heat();
+	state.crucible_panels_open.heat = false;
+	state.load_crucible_heat_preference();
+	assert.equal(state.crucible_panels_open.heat, true, 'expanded choice survives reload');
+	assert.match(main, /apply_server_configuration\(\);\s*state\.load_crucible_heat_preference\(\);/);
+	assert.match(template, /@click="state\.toggle_crucible_heat\(\)"/);
+});
+
+test('every guide step has dedicated translated titles and visible descriptions, including live language changes', async () => {
+	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const template = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
+	const steps = runInNewContext(main.match(/const CRUCIBLE_GUIDE_STEPS = (\[[\s\S]*?\]);/)[1]);
+	const getters = main.slice(main.indexOf('\tget crucible_guide_title_id()'), main.indexOf('\tget crucible_wish_item_name()'));
+	const state = runInNewContext(`({ crucible_guide_index: 0, ${getters} })`, { CRUCIBLE_GUIDE_STEPS: steps });
+	for (const locale of ['en', 'zh-CN', 'zh-TW', 'fr', 'de', 'pt', 'pt-br', 'it', 'ko', 'ja', 'es', 'ru', 'tr']) {
+		const strings = JSON.parse(await readFile(new URL(`../../mod/data/lang/${locale}.json`, import.meta.url), 'utf8'));
+		for (let index = 0; index < steps.length; index++) {
+			state.crucible_guide_index = index;
+			for (const key of [state.crucible_guide_title_id, state.crucible_guide_description_id]) {
+				assert.match(key, /^MOD_MP_CRUCIBLE_GUIDE_/);
+				assert.ok(strings[key]?.trim(), `${locale}:${key} must have tutorial copy`);
+			}
+		}
+		for (const [, key] of template.matchAll(/lang-id="(MOD_MP_CRUCIBLE_GUIDE_NODE_[A-Z]+)"/g))
+			assert.ok(strings[key]?.trim(), `${locale}:${key} must translate the infographic`);
+	}
+	// Native lang-string elements update both when the step changes and when Melvor changes language.
+	assert.match(template, /<lang-string :lang-id="state\.crucible_guide_title_id"><\/lang-string>/);
+	assert.match(template, /<figcaption[^>]*><lang-string :lang-id="state\.crucible_guide_description_id"><\/lang-string><\/figcaption>/);
+	assert.doesNotMatch(template, /MOD_MP_CRUCIBLE_GUIDE_RECLAIM_NOTE|state\.crucible_guide_alt/);
+});
+
 test('Crucible entry owns hydration through Events and recovery, then restores polling', async () => {
 	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
 	const setter = main.slice(main.indexOf('function set_crucible_page_visible('), main.indexOf('// #endregion', main.indexOf('function set_crucible_page_visible(')));
@@ -15,7 +106,7 @@ test('Crucible entry owns hydration through Events and recovery, then restores p
 	const events = main.slice(eventsStart, main.indexOf('\n\t\tvoid maybe_auto_check_in_expedition', eventsStart));
 	for (const summary of [true, false]) {
 		let enter, tick, release, reads = 0, forced = 0, recoveries = 0;
-		const context = { crucible_page_visible: false, crucible_page_entry: 0, crucible_page_hydrating: false,
+		const context = { crucible_page_visible: false, crucible_page_entry: 0, expedition_leaderboard: null, crucible_page_hydrating: false,
 			crucible_clock_timer: null, CRUCIBLE_CLOCK_INTERVAL: 30_000, document: {},
 			listing_filters: '', state: { listing_filters: [], is_connected: true, refresh_crucible: async force => { reads++; if (force) forced++; } },
 			polling: { is_foreground: () => true }, clearInterval() {}, setInterval: fn => { tick = fn; return 1; },

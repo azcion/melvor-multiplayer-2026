@@ -165,8 +165,8 @@ export class ChatTranslationWorker {
 			return;
 		}
 		try {
-			const body = job.queue === 'chat' ? this.database.query<{ parts: string }, [number]>(
-				'SELECT parts FROM chat_message_bodies WHERE job_id = ?').get(job.id) : null;
+			const body = job.queue !== 'update' ? this.database.query<{ parts: string }, [number]>(
+				`SELECT parts FROM ${job.queue === 'poll' ? 'poll_message_bodies' : 'chat_message_bodies'} WHERE job_id = ?`).get(job.id) : null;
 			const parts = body ? JSON.parse(body.parts) as ChatPart[] : undefined;
 			const translatable = /[\p{L}\p{N}]/u.test(job.content);
 			const result: TranslationResult = !translatable
@@ -192,7 +192,7 @@ export class ChatTranslationWorker {
 							'VALUES (?, ?, ?, ?) ON CONFLICT (`job_id`, `language`) DO UPDATE SET ' +
 							'`content` = excluded.`content`, `translated_at` = excluded.`translated_at`')
 							.run(job.id, translation.language, translation.content, completed_at);
-					if (parts) this.database.query('UPDATE chat_message_bodies SET translations = ? WHERE job_id = ?')
+					if (parts) this.database.query(`UPDATE ${job.queue === 'poll' ? 'poll_message_bodies' : 'chat_message_bodies'} SET translations = ? WHERE job_id = ?`)
 						.run(JSON.stringify(Object.fromEntries(result.translations.map(translation => [translation.language, translation.parts]))), job.id);
 					this.database.query(`UPDATE \`${job_table}\` SET \`state\` = 'complete', \`detected_language\` = ?, ` +
 						'`completed_at` = ?, `last_error_code` = NULL WHERE `id` = ?')
@@ -314,11 +314,11 @@ export function attach_translations<T extends { message_id: number; sender_id?: 
 	for (const translation of translations)
 		by_job.set(translation.job_id,
 			{ ...(by_job.get(translation.job_id) ?? {}), [translation.language]: translation.content });
-	const bodies = poll_source || jobs.length === 0 ? [] : db.query<{ job_id: number; translations: string }, number[]>(
-		`SELECT job_id, translations FROM chat_message_bodies WHERE job_id IN (${jobs.map(() => '?').join(',')})`
+	const bodies = jobs.length === 0 ? [] : db.query<{ job_id: number; translations: string }, number[]>(
+		`SELECT job_id, translations FROM ${poll_source ? 'poll_message_bodies' : 'chat_message_bodies'} WHERE job_id IN (${jobs.map(() => '?').join(',')})`
 	).all(...jobs.map(job => job.id));
 	const body_by_job = new Map(bodies.map(body => [body.job_id, JSON.parse(body.translations) as Record<string, ChatPart[]>]));
-	const messages_with_parts = poll_source ? messages : attach_chat_parts(source_kind, messages);
+	const messages_with_parts = source_kind === 'poll-option' ? messages : attach_chat_parts(source_kind, messages);
 	return messages_with_parts.map(message => {
 		const job = by_message.get(message.message_id);
 		return {

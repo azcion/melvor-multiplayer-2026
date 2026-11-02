@@ -63,3 +63,6 @@ test-results/
 /server/data/
 /backups/
 /logs/
+
+# Standalone wiki host release directories
+/wiki/site/

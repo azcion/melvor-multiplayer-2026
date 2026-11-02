@@ -15,9 +15,9 @@ function harness({ storage = new Map(), server = new Map(), account_value = acco
 	const calls = [], notices = [], errors = [];
 	const state = { close_modal() {}, identity_error: '' };
 	const context = vm.createContext({
-		state, active_identity_credentials: null, cloudManager: {}, localStorage: {}, IS_DEV_MODE: true, is_creator_toolkit_local_mod: () => false, is_connecting: false, listing_filter_prompt: null,
+		expedition_leaderboard: null, state, active_identity_credentials: null, cloudManager: {}, localStorage: {}, IS_DEV_MODE: true, is_creator_toolkit_local_mod: () => false, is_connecting: false, listing_filter_prompt: null,
 		close_expedition_work_prompt() {}, session_generation: 0, events_refreshed_at: 0, last_events_result: null,
-		transfer_history_module: { create_transfer_history_state: () => ({}) }, economy_commands_ready: false,
+		combat_arena: null, combat_inventory: null, transfer_history_module: { create_transfer_history_state: () => ({}) }, economy_commands_ready: false,
 		economy_command_journal: null, rollback_client: null, selected_api_major: 1,
 		identity_bootstrap: bootstrap, identity_bindings: { ...bindings, read_melvor_account: () => account_value },
 		identity_registration_supported: supported, server_host: origin,
