@@ -66,7 +66,9 @@ export function combat_state(database: Database, client: number, raid_page = 0) 
 // Admission freezes the server-owned selection and healing. There is no inventory reservation.
 export function reserve_combat(database: Database, client: number, controller: string, id: string, selection?: string, mode = 'once'): CombatAdmission | null {
 	return database.transaction(() => {
-		if (rollback_held(database, client) || database.query("SELECT 1 FROM combat_encounters WHERE client_id=? AND status='active'").get(client)) return null;
+		// Share the write lock with the operator drain so an admission cannot slip past its zero-battle check.
+		if (database.query("SELECT 1 FROM combat_availability WHERE drain_at IS NOT NULL UNION ALL SELECT 1 FROM service_settings WHERE key='maintenance' AND value='1'").get()) return null;
+		if (rollback_held(database, client) || database.query('SELECT 1 FROM combat_recovery WHERE client_id=?').get(client) || database.query("SELECT 1 FROM combat_encounters WHERE client_id=? AND status='active'").get(client)) return null;
 		const tutorial = tutorial_state(database, client);
 		if (!tutorial.complete && (!tutorial.ready || selection !== tutorial.trial?.id || mode !== 'once')) return null;
 		if (tutorial.complete && selection?.startsWith('tutorial_')) return null;
@@ -86,7 +88,7 @@ export function reserve_combat(database: Database, client: number, controller: s
 		return { registration, food_id: food?.item_id ?? '', heal: food?.heal ?? 0, auto_eat: combat_unlocks(database, client).auto_eat, ...(endpoint ? { raid_endpoint: endpoint } : {}) };
 	}).immediate();
 }
-export function update_combat(database: Database, controller: string, id: string, used: number, status: string, completed?: number, now = Date.now()) {
+export function update_combat(database: Database, controller: string, id: string, used: number, status: string, completed?: number, now = Date.now(), active_ms?: number) {
 	return database.transaction(() => {
 		const row = database.query<Encounter, [string]>('SELECT * FROM combat_encounters WHERE id=?').get(id);
 		if (!row || row.controller !== controller || !Number.isSafeInteger(used) || used < row.used || (!row.food_id && used > 0) ||
@@ -110,7 +112,7 @@ export function update_combat(database: Database, controller: string, id: string
 				database.query('UPDATE combat_encounters SET raid_completed=? WHERE id=?').run(completed!, id);
 			}
 			if (status === 'victory' && row.raid_endpoint === dungeon.tiers.length && !database.query('SELECT 1 FROM combat_test_profiles WHERE client_id=?').get(row.client_id)) {
-				const elapsed = now - row.created_at;
+				const elapsed = active_ms ?? now - row.created_at;
 				if (!Number.isSafeInteger(elapsed) || elapsed <= 0) return false;
 				database.query(`INSERT INTO combat_raid_records(client_id,raid,ruleset,elapsed_ms,achieved_at) VALUES(?,?,?,?,?)
 					ON CONFLICT(client_id,raid,ruleset) DO UPDATE SET elapsed_ms=excluded.elapsed_ms,achieved_at=excluded.achieved_at
@@ -134,6 +136,6 @@ export function update_combat(database: Database, controller: string, id: string
 	}).immediate();
 }
 export function interrupt_combats(database: Database, controller?: string) {
-	for (const row of database.query<Encounter, []>("SELECT * FROM combat_encounters WHERE status='active'").all())
+	for (const row of database.query<Encounter, []>("SELECT * FROM combat_encounters WHERE status='active' AND id NOT IN (SELECT encounter_id FROM combat_recovery)").all())
 		if (!controller || row.controller === controller) update_combat(database, row.controller, row.id, row.used, 'interrupted');
 }

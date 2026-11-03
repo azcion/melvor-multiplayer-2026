@@ -1,6 +1,12 @@
 import { db } from './db';
 
 export const EXPEDITION_TESTER_TAG = 'expedition-tester';
+export const CONTRIBUTOR_TAG = 'contributor';
+
+export function is_contributor(account_id: number | null): boolean {
+	return account_id !== null && db.query('SELECT 1 FROM melvor_account_contributors WHERE account_id = ?')
+		.get(account_id) !== null;
+}
 
 export function get_account_tags(client_id: number): string[] {
 	return db.query<{ tag: string }, [number]>(
@@ -43,7 +49,8 @@ export function get_dev_badge_labels(): Record<string, string> {
 
 export function get_dev_badge_label(account_id: number | null, labels = get_dev_badge_labels()): string | null {
 	const kind = dev_tag_kind(account_id);
-	return kind === null ? null : labels[DEV_BADGES[kind].feature_id] ?? DEV_BADGES[kind].label;
+	return kind === null ? (is_contributor(account_id) ? 'Contributor' : null) :
+		labels[DEV_BADGES[kind].feature_id] ?? DEV_BADGES[kind].label;
 }
 
 export function dev_tag_kind(account_id: number | null): DevTagKind | null {
@@ -58,4 +65,13 @@ export function get_dev_tag_visibility(client_id: number): { eligible: boolean; 
 		'SELECT melvor_account_id, dev_tag_visible FROM clients WHERE id = ?'
 	).get(client_id);
 	return { eligible: dev_tag_kind(client?.melvor_account_id ?? null) !== null, visible: client?.dev_tag_visible !== 0 };
+}
+
+// Presentation eligibility includes cosmetic Contributors; permission checks must use get_dev_tag_visibility.
+export function get_account_badge_visibility(client_id: number): { eligible: boolean; visible: boolean } {
+	const dev = get_dev_tag_visibility(client_id);
+	const client = db.query<{ melvor_account_id: number | null }, [number]>(
+		'SELECT melvor_account_id FROM clients WHERE id = ?'
+	).get(client_id);
+	return { eligible: dev.eligible || is_contributor(client?.melvor_account_id ?? null), visible: dev.visible };
 }

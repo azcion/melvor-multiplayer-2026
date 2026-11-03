@@ -69,7 +69,7 @@ test('Practice preview cache preserves fresh flags, isolates scope/reset and acc
 			}]}]};
 		}});
 	assert.equal(await inventory.refresh(),true);
-	assert.equal(paths.at(-1),'/api/combat/inventory');
+	assert.equal(paths.at(-1),'/api/combat/inventory?recovery=1');
 	// A reactive renderer must never be the cache's source of truth.
 	view.practice[0].tiers[0].waves[0][0].name = 'changed by view';
 	compact = true; complete = true; view.raid_page = 2;

@@ -680,4 +680,48 @@ export const migrations: Migration[] = [
 		CREATE INDEX combat_encounters_history ON combat_encounters(client_id, created_at DESC);
 		CREATE INDEX combat_raid_ranking ON combat_raid_records(raid, ruleset, elapsed_ms, achieved_at, client_id);
 	` },
+	{ version: 216, sql: `
+		CREATE TABLE combat_recovery (
+			encounter_id TEXT PRIMARY KEY REFERENCES combat_encounters(id) ON DELETE CASCADE,
+			client_id INTEGER NOT NULL UNIQUE REFERENCES clients(id) ON DELETE CASCADE,
+			checkpoint TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0,
+			state TEXT NOT NULL CHECK(state IN ('running','paused','terminal')),
+			expires INTEGER NOT NULL DEFAULT 0, format INTEGER NOT NULL DEFAULT 1
+		) STRICT;
+		CREATE TABLE combat_availability (
+			id INTEGER PRIMARY KEY CHECK(id=1), clock INTEGER NOT NULL DEFAULT 0,
+			last_seen INTEGER NOT NULL DEFAULT 0, drain_at INTEGER, incompatible INTEGER NOT NULL DEFAULT 0
+		) STRICT;
+		INSERT INTO combat_availability(id) VALUES(1);
+	` },
+	{ version: 217, sql: `
+		-- Finish saved tutorial projects that already meet the shortened requirements.
+		CREATE TEMP TABLE tutorial_project_targets(item_id TEXT PRIMARY KEY, targets TEXT);
+		INSERT INTO tutorial_project_targets VALUES
+			('melvorD:Bronze_Sword','{"melvorD:Mining|melvorD:Copper_Ore":45000,"melvorD:Mining|melvorD:Tin_Ore":45000,"melvorD:Smithing|melvorD:Bronze_Bar":45000,"melvorD:Smithing|melvorD:Bronze_Sword":45000}'),
+			('melvorD:Bronze_Helmet','{"melvorD:Mining|melvorD:Copper_Ore":90000,"melvorD:Mining|melvorD:Tin_Ore":90000,"melvorD:Smithing|melvorD:Bronze_Bar":90000,"melvorD:Smithing|melvorD:Bronze_Helmet":90000}'),
+			('melvorD:Bronze_Shield','{"melvorD:Mining|melvorD:Copper_Ore":135000,"melvorD:Mining|melvorD:Tin_Ore":135000,"melvorD:Smithing|melvorD:Bronze_Bar":135000,"melvorD:Smithing|melvorD:Bronze_Shield":135000}'),
+			('melvorD:Iron_Shield','{"melvorD:Mining|melvorD:Iron_Ore":135000,"melvorD:Smithing|melvorD:Iron_Bar":135000,"melvorD:Smithing|melvorD:Iron_Shield":135000}'),
+			('melvorD:Shrimp','{"melvorD:Fishing|melvorD:Raw_Shrimp":45000,"melvorD:Cooking|melvorD:Shrimp":45000}');
+		CREATE TEMP TABLE completed_tutorial_projects AS
+		SELECT project.id, project.client_id FROM combat_equipment_projects project
+		JOIN tutorial_project_targets recipe ON recipe.item_id=project.item_id
+		WHERE project.completed_at IS NULL AND NOT EXISTS (
+			SELECT 1 FROM json_each(recipe.targets) task
+			WHERE COALESCE(json_extract(project.progress_json, '$."' || task.key || '"'), 0) < task.value
+		);
+		UPDATE combat_characters SET revision=revision+1
+		WHERE client_id IN (SELECT client_id FROM completed_tutorial_projects);
+		DELETE FROM combat_project_tracking WHERE project_id IN (SELECT id FROM completed_tutorial_projects);
+		UPDATE combat_equipment_projects SET completed_at=unixepoch()*1000
+		WHERE id IN (SELECT id FROM completed_tutorial_projects);
+		DROP TABLE completed_tutorial_projects;
+		DROP TABLE tutorial_project_targets;
+	` },
+	{ version: 218, sql: `
+		CREATE TABLE melvor_account_contributors (
+			account_id INTEGER PRIMARY KEY REFERENCES melvor_accounts(id) ON DELETE CASCADE,
+			granted_at INTEGER NOT NULL CHECK(granted_at >= 0)
+		) STRICT;
+	` },
 ];

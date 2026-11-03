@@ -1,8 +1,9 @@
 import type { Registration } from './catalog';
 export type CombatAdmission = { registration: Registration; food_id: string; heal: number; auto_eat?: boolean; raid_endpoint?: number };
-export type CombatAuthority = { reserve(client: number, encounter: string, selection?: string, mode?: string): Promise<CombatAdmission | null>; progress(encounter: string, used: number, status: string, completed?: number): Promise<boolean>; stop(): void };
+export type CombatAuthority = { reserve(client: number, encounter: string, selection?: string, mode?: string): Promise<CombatAdmission | null>; progress(encounter: string, used: number, status: string, completed?: number): Promise<boolean>; recovery?: (action: string, payload?: Record<string, unknown>) => Promise<any>; on_shutdown?: (callback: () => Promise<void>) => void; stop(): void };
 export function connect_authority(url: string, key: string, lost: () => void): CombatAuthority {
 	let socket: WebSocket | null = null, stopped = false, heartbeat: ReturnType<typeof setInterval> | undefined;
+	let shutdown_callback: (() => Promise<void>) | undefined;
 	let retry: ReturnType<typeof setTimeout> | undefined, last_received = 0;
 	const pending = new Map<string, { resolve(value: any): void; timer: ReturnType<typeof setTimeout> }>();
 	function failed() {
@@ -24,7 +25,9 @@ export function connect_authority(url: string, key: string, lost: () => void): C
 			if (socket !== ws) return;
 			last_received = performance.now();
 			try {
-				const response = JSON.parse(String(event.data)); const request = pending.get(response.id);
+				const response = JSON.parse(String(event.data));
+				if (response.type === 'shutdown') { void shutdown_callback?.().finally(() => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type:'drained'})); }); return; }
+				const request = pending.get(response.id);
 				if (request) { pending.delete(response.id); clearTimeout(request.timer); request.resolve(response.result); }
 			} catch { failed(); }
 		};
@@ -39,7 +42,8 @@ export function connect_authority(url: string, key: string, lost: () => void): C
 		});
 	}
 	connect();
-	return { reserve: (client,encounter,selection,mode) => request({ type:'reserve',client,encounter,selection,mode }),
+	return { recovery: (action,payload = {}) => request({type:'recovery',action,...payload}),
+		on_shutdown: callback => { shutdown_callback = callback; }, reserve: (client,encounter,selection,mode) => request({ type:'reserve',client,encounter,selection,mode }),
 		progress: async (encounter,used,status,completed) => await request({ type:'progress',encounter,used,status,completed }) === true,
 		stop() { stopped = true; clearTimeout(retry); failed(); } };
 }

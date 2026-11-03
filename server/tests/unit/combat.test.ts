@@ -158,7 +158,7 @@ test('real socket authenticates once, streams states, deduplicates actions and r
 		expect((await c.next('ack')).accepted).toBe(false);
 		expect((await c.next('state')).arena).toBeNull();
 		c.ws.close(); await c.closed;
-	} finally { a.ws.close(); service.stop(); }
+	} finally { a.ws.close(); await service.stop(); }
 });
 
 test('socket supports web, Steam, native and custom origins while requiring signed tickets', async () => {
@@ -180,7 +180,7 @@ test('socket supports web, Steam, native and custom origins while requiring sign
 				expect((await b.next('ready')).protocol).toBe(4);
 			} finally { b.ws.close(); await b.closed; }
 		}
-	} finally { service.stop(); }
+	} finally { await service.stop(); }
 });
 
 test('explicit socket origin restrictions remain available for self-hosting', async () => {
@@ -190,7 +190,7 @@ test('explicit socket origin restrictions remain available for self-hosting', as
 		expect((await fetch(url, { headers: { Origin: 'https://example.invalid' } })).status).toBe(403);
 		expect((await fetch(url)).status).toBe(403);
 		expect((await fetch(url, { headers: { Origin: 'https://melvoridle.com' } })).status).toBe(400);
-	} finally { service.stop(); }
+	} finally { await service.stop(); }
 });
 
 test('socket refuses invalid tickets, sequence gaps and excessive messages', async () => {
@@ -206,7 +206,7 @@ test('socket refuses invalid tickets, sequence gaps and excessive messages', asy
 			}
 			expect(await a.closed).toBe(1008);
 		}
-	} finally { service.stop(); }
+	} finally { await service.stop(); }
 });
 
 
@@ -395,7 +395,7 @@ test('socket rejects retired and unknown encounters before reserve and advertise
 		expect(arena.enemies).toHaveLength(6);
 		expect(arena.enemies[0].hp).toBe(10);
 		expect(reservations).toBe(1);
-	} finally { a.ws.close(); service.stop(); }
+	} finally { a.ws.close(); await service.stop(); }
 });
 
 test('socket defaults an omitted encounter to Golbin', async () => {
@@ -411,7 +411,7 @@ test('socket defaults an omitted encounter to Golbin', async () => {
 		const arena = (await a.next('state')).arena;
 		expect(arena.encounter).toBe('golbin');
 		expect(arena.enemies.map((enemy: { id: string }) => enemy.id)).toEqual(['golbin']);
-	} finally { a.ws.close(); service.stop(); }
+	} finally { a.ws.close(); await service.stop(); }
 });
 
 const run_registration = { levels: { attack:99, strength:99, defence:99, hitpoints:99 }, gear: {} };
@@ -501,7 +501,7 @@ test('socket retains one food selection across a repeat and closes authority sta
 		a.send({type:'command',seq:2,encounter:id,action:'flee'});
 		expect((await a.next('ack')).accepted).toBe(true);
 		expect(progress.at(-1)).toEqual({id,used:0,status:'fled'});
-	} finally { clearInterval(heartbeat); a.ws.close(); service.stop(); }
+	} finally { clearInterval(heartbeat); a.ws.close(); await service.stop(); }
 },20000);
 
 test('unlimited low-tier food heals once even below threshold and shares manual/auto cooldown', () => {
@@ -533,7 +533,7 @@ test('delta capability is negotiated per socket and streams baseline then compac
 		const delta = await a.next('state_delta');
 		expect(delta.base).toBe(1); expect(delta.seq).toBe(2); expect(delta.id).toBe(baseline.arena.id);
 		expect(JSON.stringify(delta).length).toBeLessThan(JSON.stringify(baseline).length / 3);
-	} finally { a.ws.close(); service.stop(); }
+	} finally { a.ws.close(); await service.stop(); }
 });
 
 test('living actors land same-tick lethal attacks before resolving a draw', () => {
@@ -603,5 +603,5 @@ test('real socket advertises and freezes a finite Practice circuit; commands can
 		expect((await a.next('ack')).accepted).toBe(false);
 		a.send({type:'start',seq:3,encounter:'practice_circuit_2',mode:'once'});
 		expect((await a.next('ack')).accepted).toBe(false);
-	} finally {a.ws.close();service.stop();}
+	} finally {a.ws.close();await service.stop();}
 });

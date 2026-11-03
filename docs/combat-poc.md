@@ -34,7 +34,9 @@ Ranged and magic fighting, runes, potions, prayer points, summoning and item eff
 Equipment access is purchased on Combat through the equipment grid. Slot, equip and project tiles open compact, animation-free modals with direct action labels. Slot borders and numeric badges show purchased material access independently of equipped gear; lock and upgrade markers remain at the bottom right. Slot pickers list permanently unlocked equipment from highest material to lowest, alongside the current material and separate Unlock slot or Upgrade material actions with EP costs. Item details show online offensive/defensive stats, skill requirements, additional occupied slots and project work. The Equipment Projects link sits below the grid and above unlocked items. General Combat description blocks and fixed respawn timing copy are omitted. The centered Equipment sets grid offers Melee and an inspectable Ranged tab; Magic stays locked. Ranged exposes Quiver preparation, with unfinished weapon and armor slots disabled. Access currently remains shared across the style views. Quiver appears only under Ranged; there is no separate Arrows access section. Equipment Projects remain in Expedition, alongside Chamber Tasks, even without a Guild, grouped as compact Weapons, Armor and Arrows icon grids. Projects appear only after their slot and material tier are open and the same item in the previous material is completed. Permanent unlocks fold into a compact details panel. Each equipment slot costs 1 EP to open. Its tiers unlock sequentially at 1 EP for Bronze, 2 for Iron, 3 for Steel,
 4 for Mithril, 5 for Adamant and 6 for Rune. Beyond Bronze, a slot can advance only while a permanently unlocked item matching its current purchased material is equipped and meets Online level requirements. Discover an item in the current save before beginning its personal project.
 The server defines projects from official Smithing recipes: gather the required ores, smelt the required bars, then
-craft the item, with five minutes of work per required ingredient unit. The Bronze Dagger retains its original
+craft the item, normally with five minutes of work per required ingredient unit. The tutorial recipes (Bronze Sword,
+Bronze Helmet, Bronze Shield and Iron Shield) instead take 45 seconds per ingredient unit, displayed as 0:45 for one
+or 2:15 for three. These shorter definitions also apply after graduation. The Bronze Dagger retains its original
 five minutes each of Copper and Tin Mining, Bronze Bar Smithing and Bronze Dagger Smithing. Native materials are consumed
 and native products awarded by the game normally; the project makes no additional Bank deduction.
 
@@ -104,8 +106,8 @@ highest unlocked food before buying its next tier. The second food slot is tempo
 and rejects new slot/tier purchases on the backend. Existing second-slot access remains refundable.
 Two potion slots remain locked. Neutral slot tiles show tier numbers and eligible upgrade arrows; the shared
 equipment picker and tier modal show best-first unlocked food, access and upgrade pricing.
-Each personal project requires 30 minutes Fishing the
-specific raw fish, followed by 30 minutes actively Cooking that recipe. Native action intervals count, including
+Shrimp requires 45 seconds Fishing followed by 45 seconds actively Cooking. Other food projects require
+30 minutes Fishing the specific raw fish, followed by 30 minutes actively Cooking that recipe. Native action intervals count, including
 burns; production quantities, perfect products and doubling do not matter. Passive Cooking does not contribute.
 Food uses the shared personal-project, single-tracking and offline-evidence lifecycle. Native action products
 normalize Fishing/Cooking activity IDs to the same raw/cooked item IDs used by event evidence.
@@ -231,7 +233,7 @@ victories queue the next wave after the same delay; each actor then starts a ful
 engine remains independently single-shot; `combat/runs.ts` owns scheduling and wraparound. During respawn the socket
 and encounter stay active, the client shows a countdown instead of enemy tiles, and Stop, eating and stance changes
 remain available. HP, stance, selected food, cumulative eating count and cooldown carry between waves; there is no free healing.
-Defeat, surrender, per-fight expiry, disconnect and existing fifteen-minute transport expiry terminate the run.
+Defeat, surrender and per-fight expiry terminate the run. Disconnect and fifteen-minute transport expiry pause recovery-capable PvE runs; legacy connections still terminate.
 
 One encounter ID covers the entire run. Intermediate victories do not refresh preparation or submit another start
 command. The authority commits cumulative eating count and terminal status before publication.
@@ -245,8 +247,8 @@ at `ws://server:3003/authority`; that port remains private to the Compose networ
 
 Admission freezes the server-owned loadout and selected food for the encounter. Food is unlimited and no Bank or
 inventory reservation occurs. The authority commits changes to the cumulative eating count and terminal status
-before the combat service publishes them; ordinary attacks do not write to the database. A backend restart or loss
-of the authority connection interrupts active encounters. Reconnection starts a new encounter rather than resuming it.
+before the combat service publishes them. Recovery-capable connections also checkpoint ordinary combat every two seconds.
+A backend restart or loss of the authority connection pauses recoverable encounters; legacy encounters are interrupted.
 
 ## Independent deployment
 
@@ -306,15 +308,72 @@ The client has one in-flight command, a 5-second command timeout and no automati
 Heartbeat interval is 2 seconds with a 10-second lease. Navigating between Combat, Chat and native skill pages retains the same socket and encounter.
 The sidebar shows a pulsing active badge only while an authoritative encounter is active (static with reduced motion).
 Off-screen attack animations stop; returning paints the latest snapshot. Hiding the app, closing or navigating away
-from the game document, explicitly disconnecting or changing identity closes the client socket; detected socket closure interrupts its arena. Network-loss detection may take up to the lease duration.
-Reconnect requires a new ticket and starts fresh. Fights expire after 3000 simulation ticks; transport connections expire at fifteen minutes. A stalled
-service aborts sockets instead of catching up more than a second of accumulated time. Restart interrupts all active arenas. There is no offline progress to restore.
+from the game document, explicitly disconnecting or changing identity closes the client socket. Recovery-capable PvE pauses on detected closure; legacy connections interrupt their arena. Network-loss detection may take up to the lease duration.
+Reconnect requires a new ticket. Recovery-capable clients discover the saved battle and require manual Resume; legacy clients start fresh. Fights expire after 3000 simulation ticks; transport connections expire at fifteen minutes. A stalled
+service closes sockets instead of catching up more than a second of accumulated time. Restart restores recoverable arenas as paused. There is no offline simulation.
 
 Tickets are verified locally, and the main authority checks current identity admission when admitting a fight.
 Revocation is not continuously pushed during an existing fight; connection lifetime remains bounded and rollback
 holds stop consumption at the authority. Multi-replica ownership and production PvP fairness remain future work.
 Run one combat replica. Protect public ingress against connection floods before broader rollout. The connection
 cap is a defensive bound, not a measured Raspberry Pi capacity promise.
+
+## PvE recovery and maintenance (1.7.1)
+
+Protocol 4 remains unchanged. The optional `pve-recovery-v1` capability enables recovery only when both client
+and combat service support it. Existing 1.7.0 clients keep their previous disconnect behavior and API response
+shape; no minimum-client version change is required. The inventory query `recovery=1` adds saved-battle and
+maintenance summaries. Deploy the main authority first, then the matching combat image, then test 1.7.1.
+Do not enable recovery clients against a new combat service backed by an older authority.
+
+The SQLite authority stores one versioned arena per identity, with controller and revision fencing. Complete
+arena/run state is checkpointed every two seconds, on food/progression/terminal changes, and on clean closure.
+Checkpoint and progression writes share a transaction. A crash can rewind ordinary combat to the last checkpoint;
+random draws after that point are not replay-identical. Persisted food usage and progression cannot be replayed.
+The format constant must change for incompatible engine/content changes. Unsupported checkpoints terminate with
+an expired notice while keeping already committed progression. Terminal results remain until client delivery is
+acknowledged; a lost acknowledgement may redisplay the result but cannot grant progression twice.
+
+Resume restores frozen loadout, HP, effects, attack/eating timers and wave state after checking current admission.
+Inspecting a paused battle does not extend retention. Actual resume ends that pause; the next disconnect starts a
+new roughly 30-minute allowance. An authority availability clock advances on healthy combat-service checks every
+two seconds; gaps over ten seconds, global maintenance and combat drain do not count. Recovery after an outage
+ensures at least five minutes remain. This detects backend/combat outages, not failures of public ingress or a
+particular player's network. PvP/shared multiplayer raids are not implemented and must not inherit this pause policy.
+
+Compose grants both services 15 seconds to stop. Main-authority shutdown requests a combat flush and waits up to
+four seconds; combat shutdown awaits socket cleanup before exit. Forced kills fall back to durable checkpoints.
+For planned maintenance, run these host CLI commands from the server working directory:
+
+```sh
+bun run admin.ts combat-maintenance status
+bun run admin.ts combat-maintenance drain 5
+# Return immediately if idle, otherwise wait until running battles finish or pause.
+bun run admin.ts combat-maintenance wait
+# Only for a known incompatible update: warn that remaining battles will end.
+bun run admin.ts combat-maintenance drain 5 incompatible
+bun run admin.ts combat-maintenance clear
+```
+
+Drain blocks new starts and resumes immediately, broadcasts a minute countdown to capable clients, and lets
+existing fights continue until the deadline. At the deadline they pause; explicit incompatible mode ends retained
+paused battles. Drain persists across restarts and must be cleared after deployment. Legacy clients cannot show
+the new countdown but retain normal play outside this deliberate maintenance window.
+
+The countdown is a maximum finish window, not a mandatory delay. `status` includes `running_battles`,
+`paused_battles` and `ready`; `wait` exits successfully as soon as the closed admission gate has no running
+battles, including legacy battles. Compatible paused battles and unacknowledged terminal results do not delay
+deployment. In incompatible mode, paused battles also block readiness until the service invalidates them.
+Admission checks share the SQLite write lock with the drain setting, preventing a new start from slipping
+between gate closure and the idle check. The waiter polls once per second, fails if the drain changes, and
+fails closed if battles remain fifteen seconds beyond the deadline. Failure leaves the drain enabled for
+operator investigation; it never treats elapsed time alone as permission to deploy.
+
+Recovery tests include actual combat/authority SIGKILL and graceful authority shutdown with a file-backed database.
+The load fixture accepts `COMBAT_LOAD_DATABASE=1 COMBAT_LOAD_RECOVERY=1`; on 2026-11-02, five-second local stages
+at 25/50/100 clients completed without failures. The 100-client stage wrote 378 checkpoints (about 1.03 MiB),
+with 0.05 ms checkpoint p95, 6.2% of one CPU core and 88.2 MiB peak RSS. This short in-process authority fixture
+excludes private-socket/public-ingress overhead and is not a production Pi capacity claim.
 
 ## Validation
 
@@ -372,8 +431,9 @@ during training. Other multiplayer features and normal Expedition EP earning rem
 Opening Weapon or Shield access permanently unlocks its Online-only Wooden Sword or Wooden Shield. Players
 must equip it themselves. Later steps require real material purchases, native item discovery where applicable,
 normal Equipment Projects and equipping: Bronze Sword, Bronze Helmet, Shrimp, Bronze Shield, then Iron Shield.
-No crafted item is awarded by the tutorial. Native work durations, automatic tracking, the shared tracking target
-and offline report rules remain unchanged. The UI outlines the next relevant page, slot, purchase, project or item
+No crafted item is awarded by the tutorial. Tutorial equipment work takes 45 seconds per ingredient unit; Shrimp
+Fishing and Cooking take 45 seconds each. Existing recorded work is preserved; the upgrade completes saved projects
+that already meet every reduced target. Automatic tracking, the shared tracking target and offline report rules remain unchanged. The UI outlines the next relevant page, slot, purchase, project or item
 in green and explains the current task in both Combat and Projects. Tutorial guidance is currently English preview
 copy, consistent with the existing encounter picker.
 
@@ -411,10 +471,11 @@ No EP, loot, cosmetics, repeat payouts or cash-out rewards are granted. Equipmen
 initially bounded per slot to Iron, food initially to tier 1; Tidal Caverns grants food tier 2 and Cinder Quarry tier I raises supported melee material caps to Steel. Existing catalog
 recipes remain defined for retained progress and future content. Ranged and Magic stay at cap 1.
 
-Only a successful 11-battle I–III run qualifies for the Golbin time leaderboard. The backend measures wall time
-from reservation through final victory, including initial/between-wave spawn delays and command/transport time.
-There is no pause/resume: lost sockets, authority restarts and transport expiry end the run. Client messages
-cannot supply completion times or select an endpoint. Records are scoped to the authored `golbin-2` ruleset;
+Only a successful 11-battle I–III run qualifies for the Golbin time leaderboard. Recovery-capable runs use
+authoritative simulation duration, including initial/between-wave delays but excluding pauses and service stalls.
+Legacy runs retain wall time from reservation through victory. Existing records remain in the same board; this
+is an intentional timing improvement without deleting historical achievements. Client messages cannot supply
+completion times or select an endpoint. Records are scoped to the authored `golbin-2` ruleset;
 a strictly faster run replaces both time and achieved timestamp, while equal/slower times preserve the original.
 Display dates use the viewer's local timezone. Ordering is elapsed time, achieved timestamp, then Client ID.
 The paginated board excludes disabled/deleted identities and follows current public display names and avatars.

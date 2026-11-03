@@ -183,7 +183,7 @@ function foreground_chat_harness() {
 	const functions = new Function('state', 'document', 'polling', 'setTimeout', 'refresh_chat_messages', `
 		let chat_poll_id = 0, chat_poll_failures = 0, chat_view_generation = 1, chat_page_visible = true;
 		let client_event_poll_id = 0, status_sync_timer = null;
-		const combat_arena = null, service_availability = null, clearTimeout = () => {}, error = () => {};
+		const combat_page_visible = false, combat_inventory = null, combat_arena = null, service_availability = null, clearTimeout = () => {}, error = () => {};
 		const stop_gp_sampling = () => {}, stop_status_observer = () => {}, start_client_event_polling = () => {};
 		const start_gp_sampling = () => {}, start_status_observer = () => {}, schedule_status_sync = () => {};
 		${scheduler}\n${visibility}

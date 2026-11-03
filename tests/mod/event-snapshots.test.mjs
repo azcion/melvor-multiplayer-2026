@@ -92,7 +92,7 @@ test('unreviewable receipts preserve recovery while a fully reviewed page releas
 		economy_receipt_reviews: { has: id => reviewed.some(receipt => receipt.id === id), flush() {} },
 		reconcile_economy_receipts: async () => true,
 		economy_receipts: await import('../../mod/economy-receipts.mjs'), ECONOMY_RECEIPT_PAGE_SIZE: 64,
-		remove_instance_storage_item() {}, legacy_market_payout_migration_started: true,
+		remove_instance_storage_item() {},
 		guild_page_visible: false, refresh_guild_state: async () => {}, update_guild_nav() {}, show_pending_banishment_notice() {}
 	});
 	await runInNewContext(source + '\nget_client_events_request(true, 1)', context);

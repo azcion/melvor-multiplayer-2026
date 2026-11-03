@@ -23,9 +23,9 @@ test('lets only tagged accounts hide Dev badges per character', async () => {
 	const after = await get_json_with_session<{ members: Array<{ client_id: number; dev_badge: boolean }> }>(
 		'/api/guilds/state', pair.second.session_token);
 	const sibling = await post_json<{ dev_tag: { eligible: boolean; visible: boolean } }>(
-		'/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] }, client_identifier: other_character.client_identifier, client_key: other_character.client_key, cloud_username: 'dev-test-account', playfab_id: 'dev-test-playfab' });
+		'/api/authenticate', { client_runtime: { mod_version: '1.7.0', active_mods: [] }, client_identifier: other_character.client_identifier, client_key: other_character.client_key, cloud_username: 'dev-test-account', playfab_id: 'dev-test-playfab' });
 	const owner = await post_json<{ session_token: string; dev_tag: { eligible: boolean; visible: boolean } }>(
-		'/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] }, client_identifier: pair.first.client_identifier, client_key: pair.first.client_key, cloud_username: 'dev-test-account', playfab_id: 'dev-test-playfab' });
+		'/api/authenticate', { client_runtime: { mod_version: '1.7.0', active_mods: [] }, client_identifier: pair.first.client_identifier, client_key: pair.first.client_key, cloud_username: 'dev-test-account', playfab_id: 'dev-test-playfab' });
 	expect(before.json.members.find(member => member.client_id === pair.first_id)?.dev_badge).toBe(true);
 	expect(rejected.status).toBe(403);
 	expect(malformed.status).toBe(400);
@@ -74,8 +74,8 @@ test('lets only tagged accounts hide Dev badges per character', async () => {
 	await db_run("DELETE FROM service_settings WHERE key='dev-badge-label:osrs_overhaul_dev'");
 });
 
-test('authorizes hidden Dev accounts, persists per-message colors and retains 1.6.15 ordinary sends', async () => {
-	const pair = await make_guildmates('Highlight Dev', 'Highlight Reader', 'Highlight Guild', { first: '1.6.16', second: '1.6.15' });
+test('authorizes hidden Dev accounts, persists per-message colors and retains ordinary supported sends', async () => {
+	const pair = await make_guildmates('Highlight Dev', 'Highlight Reader', 'Highlight Guild', { first: '1.7.0', second: '1.7.0' });
 	const inbox = await get_json_with_session<any>('/api/chat/conversations', pair.first.session_token);
 	const support = inbox.json.conversations.find((c: any) => c.conversation_kind === 'support');
 	const base = { conversation_kind: 'private', conversation_id: null, client_id: pair.second_id,
@@ -121,9 +121,58 @@ test('authorizes hidden Dev accounts, persists per-message colors and retains 1.
 		expect((await post('/api/chat/messages/send', { ...base, idempotency_key: crypto.randomUUID(), highlight_color: color }, pair.first.session_token)).status).toBe(400);
 	const old_send = await post_json<any>('/api/chat/messages/send', {
 		conversation_kind: 'private', conversation_id: null, client_id: pair.first_id,
-		idempotency_key: crypto.randomUUID(), content: 'Normal 1.6.15 message'
+		idempotency_key: crypto.randomUUID(), content: 'Normal supported message'
 	}, pair.second.session_token);
 	expect(old_send.json.success).toBe(true); expect(old_send.json.message.highlight_color).toBeUndefined();
 	const old_history = await get_json_with_session<any>(`/api/chat/messages?conversation_kind=private&conversation_id=${old_send.json.message.conversation_id}`, pair.second.session_token);
 	expect(old_history.json.messages.some((m: any) => m.highlight_color === '#ABC123')).toBe(true);
+});
+
+test('shares cosmetic Contributor badges across an account without dev permissions', async () => {
+	const pair = await make_guildmates('Contributor', 'Contributor Reader', 'Contributor Guild', { first: '1.7.0', second: '1.7.0' });
+	const sibling = await register_client('Contributor Sibling');
+	const [sibling_row] = await db_all<{ id: number }>('SELECT id FROM clients WHERE client_identifier = ?', [sibling.client_identifier]);
+	await db_run("INSERT INTO melvor_accounts (id, cloud_username, playfab_id, created_at) VALUES (9000, 'contributor-test', 'contributor-playfab', 1)");
+	await db_run('UPDATE clients SET melvor_account_id = 9000 WHERE id IN (?, ?)', [pair.first_id, sibling_row!.id]);
+	await db_run("INSERT INTO melvor_account_contributors (account_id, granted_at) VALUES (9000, 1)");
+	const authenticate = (character: typeof sibling) => post_json<any>('/api/authenticate', {
+		client_runtime: { mod_version: '1.7.0', active_mods: [] }, client_identifier: character.client_identifier,
+		client_key: character.client_key, cloud_username: 'contributor-test', playfab_id: 'contributor-playfab'
+	});
+	for (const visible of [true, false]) {
+		const visibility = await post_json<any>('/api/client/dev-tag/visibility', { visible }, pair.first.session_token);
+		expect(visibility.json).toEqual({ success: true, visible });
+		const roster = await get_json_with_session<any>('/api/guilds/state', pair.second.session_token);
+		expect(roster.json.members.find((member: any) => member.client_id === pair.first_id)).toMatchObject({
+			dev_badge_label: visible ? 'Contributor' : null, dev_badge: false, sae_dev_badge: false, osrs_overhaul_dev_badge: false
+		});
+		const owner = await authenticate(pair.first);
+		pair.first.session_token = owner.json.session_token;
+		expect(owner.json.dev_tag).toEqual({ eligible: true, visible });
+		const state = await get_json_with_session<any>('/api/chat/state', owner.json.session_token);
+		expect(state.json.can_highlight).toBe(false);
+		const inbox = await get_json_with_session<any>('/api/chat/conversations', owner.json.session_token);
+		expect(inbox.json.conversations.find((c: any) => c.conversation_kind === 'announcements').can_send).toBe(false);
+		for (const conversation_kind of ['private', 'announcements']) {
+			const payload = { conversation_kind, conversation_id: conversation_kind === 'announcements' ? 1 : null,
+				client_id: pair.second_id, content: 'No extra permissions', idempotency_key: crypto.randomUUID() };
+			const denied = await post('/api/chat/messages/send', { ...payload, highlight_color: '#ABC123' }, owner.json.session_token);
+			expect(denied.status).toBe(403);
+			const plain = await post('/api/chat/messages/send', payload, owner.json.session_token);
+			expect(plain.status).toBe(conversation_kind === 'announcements' ? 403 : 200);
+		}
+	}
+	const other = await authenticate(sibling);
+	expect(other.json.dev_tag).toEqual({ eligible: true, visible: true });
+	const applied = await post_json<any>('/api/guilds/apply', { guild_id: pair.guild_id }, other.json.session_token);
+	expect(applied.json.success).toBe(true);
+	const applicants = await get_json_with_session<any>('/api/guilds/state', pair.second.session_token);
+	expect(applicants.json.applicants.find((applicant: any) => applicant.client_id === sibling_row!.id)).toMatchObject({
+		dev_badge_label: 'Contributor', dev_badge: false, sae_dev_badge: false, osrs_overhaul_dev_badge: false
+	});
+	expect(applicants.json.members.find((member: any) => member.client_id === pair.second_id).dev_badge_label).toBeNull();
+	await db_run("DELETE FROM melvor_account_contributors WHERE account_id = 9000");
+	const revoked = await authenticate(pair.first);
+	expect(revoked.json.dev_tag).toEqual({ eligible: false, visible: false });
+	expect((await post('/api/client/dev-tag/visibility', { visible: true }, revoked.json.session_token)).status).toBe(403);
 });

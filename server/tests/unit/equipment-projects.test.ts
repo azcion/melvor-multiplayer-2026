@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test, expect } from 'bun:test';
@@ -161,6 +161,36 @@ test('exact actions, ordered stages, offline counter evidence, replay and perman
 		expect(equipment_project_state(db,101).unlocked).toEqual(['multiplayer:Wooden_Sword', 'melvorD:Bronze_Dagger']);
 		expect(ep_balance(db,101)).toBe(7900000);
 	}finally{db.close();}
+});
+
+test('project work starts and continues during an active encounter without changing its loadout', () => {
+	const db = fixture(); try {
+		const project = start(db), task = EQUIPMENT_PROJECTS[0].stages[0][0];
+		const key = equipment_task_key(task), epoch = crypto.randomUUID();
+		db.run("INSERT INTO combat_encounters(id,client_id,controller,status,registration_json,food_id,used,created_at) VALUES('project-active',101,'controller','active','{}','',0,1)");
+		const before = combat_character(db,101)!, balance = ep_balance(db,101);
+		const report = (kind: 'start'|'check-in'|'stop', elapsed: number) => change_equipment_work(db,101,crypto.randomUUID(),{
+			kind, project_id: project.id, task_id: key, captured_at: 1000 + elapsed,
+			actions: { epoch, time_ms: { [key]: elapsed } }, statistics: { time_ms: { [task.skill_id]: elapsed } },
+			activities: [{ type: 'skill', skill_id: task.skill_id, action_id: task.action_id }]
+		},1000 + elapsed);
+		expect(report('start',0).success).toBe(true);
+		const check_in = report('check-in',10000);
+		expect(check_in.settlement.credited_ms).toBe(10000);
+		expect(check_in.tracking?.task_id).toBe(key);
+		expect(report('stop',20000).settlement.credited_ms).toBe(10000);
+		expect(equipment_project_state(db,101).project!.stages[0][0].player_ms).toBe(20000);
+		expect(combat_character(db,101)).toEqual(before);
+		expect(ep_balance(db,101)).toBe(balance);
+		expect(db.query("SELECT status,registration_json FROM combat_encounters WHERE id='project-active'").get()).toEqual({status:'active',registration_json:'{}'});
+		// Save-rollback holds still prevent new tracking and work credit.
+		expect(report('start',20000).success).toBe(true);
+		db.run("INSERT INTO economy_client_holds(client_id,held,reason,created_at) VALUES(101,1,'test',1)");
+		const held = report('check-in',30000);
+		expect(held.settlement.credited_ms).toBe(0);
+		expect(held.tracking).toBeNull();
+		expect(report('start',30000).error).toBe('activity_required');
+	} finally { db.close(); }
 });
 
 test('counter epoch changes, unrelated same-skill work and wall-clock rollback cannot grant work',()=>{
@@ -439,7 +469,7 @@ test('food access costs exactly 1 EP per sequential tier, requires completion, a
 			expect(unlock(db,'start-project',{item_id:`melvorD:${name}`,discovered:false}).error).toBe('discovery_required');
 			expect(unlock(db,'start-project',{item_id:`melvorD:${name}`,discovered:true}).success).toBe(true);
 			const project=equipment_project_state(db,101).project!;
-			expect(project.stages.map(group=>group[0].target_ms)).toEqual([1800000,1800000]);
+			expect(project.stages.map(group=>group[0].target_ms)).toEqual(index === 0 ? [45000,45000] : [1800000,1800000]);
 			expect(project.stages[0][0].action_id).toBe(`melvorD:Raw_${name}`);
 			expect(project.stages[1][0].action_id).toBe(`melvorD:${name}`);
 			expect(unlock(db,'equip',{slot:'Food',item_id:`melvorD:${name}`}).success).toBe(false);
@@ -459,7 +489,7 @@ test('food access costs exactly 1 EP per sequential tier, requires completion, a
 	} finally {db.close();}
 });
 
-test('food work settles exact sequential 30-minute action-time evidence, including offline reports', () => {
+test('food work settles exact sequential 45-second Shrimp action-time evidence, including offline reports', () => {
 	const db=fixture(); try {
 		unlock(db,'unlock-tier',{slot:'Food'});unlock(db,'start-project',{item_id:'melvorD:Shrimp',discovered:true});
 		const project=equipment_project_state(db,101).project!;
@@ -470,11 +500,11 @@ test('food work settles exact sequential 30-minute action-time evidence, includi
 				actions:{epoch,time_ms:{[key]:0}},activities:[{type:'skill',skill_id:task.skill_id,action_id:task.action_id}],statistics:{time_ms:{[task.skill_id]:0}}};
 			if(index===0) expect(change_equipment_work(db,101,crypto.randomUUID(),{...request,task_id:project.stages[1][0].task_id},clock).success).toBe(false);
 			expect(change_equipment_work(db,101,crypto.randomUUID(),request,clock).success).toBe(true);
-			clock+=1800000;
+			clock+=45000;
 			const operation=crypto.randomUUID();
-			const stopped={...request,kind:'stop' as const,captured_at:clock,actions:{epoch,time_ms:{[key]:1800000}},statistics:{time_ms:{[task.skill_id]:1800000}}};
+			const stopped={...request,kind:'stop' as const,captured_at:clock,actions:{epoch,time_ms:{[key]:45000}},statistics:{time_ms:{[task.skill_id]:45000}}};
 			const result=change_equipment_work(db,101,operation,stopped,clock);
-			expect(result.settlement?.credited_ms).toBe(1800000);
+			expect(result.settlement?.credited_ms).toBe(45000);
 			expect(change_equipment_work(db,101,operation,stopped,clock)).toEqual(result);
 			clock+=1000;
 		}
@@ -545,5 +575,38 @@ test('freshness is transport-only; replay retains settlement and forces a curren
 		const legacy = change_equipment_work(db,101,operation,request,3000);
 		expect(legacy.equipment_work_current).toBeUndefined();
 		expect(legacy.equipment_projects.catalog).toBeArray();
+	} finally { db.close(); }
+});
+
+test('only tutorial equipment recipes use 45 seconds per native ingredient', () => {
+	const original = JSON.parse(readFileSync(new URL('../../equipment-recipes-v1.json', import.meta.url), 'utf8'));
+	const tutorial = new Set(['melvorD:Bronze_Sword', 'melvorD:Bronze_Helmet', 'melvorD:Bronze_Shield', 'melvorD:Iron_Shield']);
+	for (const item of original.items) {
+		const actual = EQUIPMENT_PROJECTS.find(entry => entry.item_id === item.item_id)!;
+		const expected = structuredClone(item);
+		if (tutorial.has(item.item_id)) for (const task of expected.stages.flat()) task.target_ms = task.target_ms / 300000 * 45000;
+		expect(actual).toEqual(expected);
+	}
+	expect(EQUIPMENT_PROJECTS.find(item => item.item_id === 'melvorD:Bronze_Sword')!.stages[2][0].target_ms).toBe(45000);
+	expect(EQUIPMENT_PROJECTS.find(item => item.item_id === 'melvorD:Bronze_Shield')!.stages[2][0].target_ms).toBe(135000);
+});
+
+
+test('shorter tutorial upgrade completes satisfied saved projects and preserves partial work', async () => {
+	const { migrations } = await import('../../db/schema');
+	const db = fixture(); try {
+		const item = EQUIPMENT_PROJECTS.find(item => item.item_id === 'melvorD:Bronze_Shield')!;
+		const progress = Object.fromEntries(item.stages.flat().map(task => [equipment_task_key(task), task.target_ms + 1000]));
+		const insert = db.query('INSERT INTO combat_equipment_projects(client_id,item_id,progress_json,created_at) VALUES(?,?,?,1)');
+		insert.run(101,item.item_id,JSON.stringify(progress));
+		const partial = { ...progress, [equipment_task_key(item.stages[2][0])]: 1000 };
+		insert.run(102,item.item_id,JSON.stringify(partial));
+		const before = combat_character(db,101)!.revision;
+		db.transaction(() => db.run(migrations.find(row => row.version === 217)!.sql)).immediate();
+		expect(equipment_project_state(db,101).unlocked).toContain(item.item_id);
+		expect(equipment_project_state(db,101).project).toBeNull();
+		expect(combat_character(db,101)!.revision).toBe(before + 1);
+		expect(equipment_project_state(db,102).project!.stage).toBe(2);
+		expect(equipment_project_state(db,102).project!.stages[2][0].player_ms).toBe(1000);
 	} finally { db.close(); }
 });

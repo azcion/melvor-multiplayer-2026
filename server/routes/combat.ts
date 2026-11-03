@@ -1,3 +1,4 @@
+import { read_recovery, combat_availability } from '../combat-recovery';
 import { debug_dungeon, dungeon_debug_options } from '../combat-dungeon-debug';
 import { equipment_catalog_response, change_equipment, debug_equipment_project, reset_equipment } from '../equipment-projects';
 import { prepare_combat, purchase_combat_levels, reset_combat_levels } from '../combat-progression';
@@ -11,7 +12,20 @@ import { run_economy_command } from '../economy';
 import { can_debug_expedition } from '../guild-expedition';
 import type { HandlerResult } from '../http';
 export function register_combat_routes() {
-	session_get_route('/api/combat/inventory', (_req,url,client) => combat_inventory_response(equipment_catalog_response({ ...combat_state(db,client, Number(url.searchParams.get('raid_page') ?? 0)), debug_enabled: can_debug_expedition(client), dungeon_debug_options: is_admin(client) ? dungeon_debug_options() : null, tutorial_debug_targets: is_admin(client) ? tutorial_debug_targets() : [] }, url), url));
+	session_get_route('/api/combat/inventory', (_req,url,client) => {
+		const recovery = url.searchParams.get('recovery') === '1';
+		const saved = recovery ? read_recovery(db,client) : null;
+		return combat_inventory_response(equipment_catalog_response({
+			...combat_state(db,client,Number(url.searchParams.get('raid_page') ?? 0)),
+			...(recovery ? {
+				recovery: saved ? {id:saved.arena.id,state:saved.state,remaining_ms:saved.remaining_ms} : null,
+				combat_maintenance: combat_availability(db)
+			} : {}),
+			debug_enabled: can_debug_expedition(client),
+			dungeon_debug_options: is_admin(client) ? dungeon_debug_options() : null,
+			tutorial_debug_targets: is_admin(client) ? tutorial_debug_targets() : []
+		},url),url);
+	});
 	for (const action of ['unlock-slot','unlock-tier','start-project','cancel-project','equip','prepare','level','reset-levels','reset-equipment','debug-project','debug-tutorial','debug-dungeon'] as const) session_post_route(`/api/combat/${action}`, (_req,_url,client,json): HandlerResult => {
 		if ((action === 'debug-tutorial' || action === 'debug-dungeon') && !is_admin(client)) return 403;
 		if (action === 'debug-project' && !can_debug_expedition(client)) return 403;

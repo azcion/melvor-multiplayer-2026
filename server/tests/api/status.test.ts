@@ -358,7 +358,7 @@ describe('player status API', () => {
 			'SELECT `game_mode_id` FROM `client_runtime_snapshots` WHERE `client_id` = ?',
 			[pair.first_id]
 		);
-		const authenticated = await post_json<{ game_mode_visible: boolean }>('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
+		const authenticated = await post_json<{ game_mode_visible: boolean }>('/api/authenticate', { client_runtime: { mod_version: '1.7.0', active_mods: [] },
 			client_identifier: pair.first.client_identifier,
 			client_key: pair.first.client_key
 		});
@@ -414,7 +414,7 @@ describe('player status API', () => {
 			'SELECT `active_mods` FROM `client_runtime_snapshots` WHERE `client_id` = ?',
 			[pair.first_id]
 		);
-		const authenticated = await post_json<{ active_mods_visible: boolean }>('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
+		const authenticated = await post_json<{ active_mods_visible: boolean }>('/api/authenticate', { client_runtime: { mod_version: '1.7.0', active_mods: [] },
 			client_identifier: pair.first.client_identifier,
 			client_key: pair.first.client_key
 		});

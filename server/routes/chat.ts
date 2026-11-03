@@ -1,5 +1,5 @@
 import { poll_inbox_summary } from '../polls';
-import { announcement_inbox, create_announcement, list_announcements, supports_announcements } from '../announcements';
+import { announcement_inbox, create_announcement, list_announcements } from '../announcements';
 import { attach_deletion_state, delete_visible_message, message_is_visible } from '../chat_reactions';
 import { list_petition_discussion_messages, send_petition_discussion_message } from '../petition-discussions';
 import {
@@ -205,7 +205,7 @@ function register_scoped_chat_routes(scope: ChatScope): void {
 
 	session_get_route('/api/chat/conversations', (req, url, client_id) => {
 		const global_chat = has_global_chat_capability(url) ? get_global_chat_inbox(client_id) : null;
-		const announcements = !browser && supports_announcements(req) ? announcement_inbox(client_id) : null;
+		const announcements = !browser ? announcement_inbox(client_id) : null;
 		const alliance_chat = has_alliance_access(client_id) ? get_alliance_chat_inbox(client_id) : null;
 		const guild_chat = has_guild_chat_capability(url) ? get_guild_chat_inbox(client_id) : null;
 		const conversations = [
@@ -254,7 +254,7 @@ function register_scoped_chat_routes(scope: ChatScope): void {
 
 	session_get_route('/api/chat/messages', (req, url, client_id): HandlerResult => {
 		const kind = url.searchParams.get('conversation_kind') ?? 'private';
-		if (kind === 'testers' || ((kind === 'announcements' || kind === 'announcement-discussion') && (browser || !supports_announcements(req)))) return 404;
+		if (kind === 'testers' || ((kind === 'announcements' || kind === 'announcement-discussion') && browser)) return 404;
 
 		const conversation_parameter = url.searchParams.get('conversation_id');
 		const conversation_id = conversation_parameter === null || conversation_parameter === ''
@@ -323,7 +323,7 @@ function register_scoped_chat_routes(scope: ChatScope): void {
 
 	session_get_route('/api/chat/messages/details', (req, url, client_id) => {
 		const kind = url.searchParams.get('conversation_kind') ?? 'private';
-		if (kind === 'testers' || ((kind === 'announcements' || kind === 'announcement-discussion') && (browser || !supports_announcements(req)))) return 404;
+		if (kind === 'testers' || ((kind === 'announcements' || kind === 'announcement-discussion') && browser)) return 404;
 
 		const conversation_id = Number(url.searchParams.get('conversation_id'));
 		const message_id = Number(url.searchParams.get('message_id'));
@@ -335,7 +335,7 @@ function register_scoped_chat_routes(scope: ChatScope): void {
 
 	session_post_route('/api/chat/messages/reaction', (req, url, client_id, json) => {
 		const kind = json.conversation_kind ?? 'private';
-		if (kind === 'testers' || ((kind === 'announcements' || kind === 'announcement-discussion') && (browser || !supports_announcements(req)))) return 404;
+		if (kind === 'testers' || ((kind === 'announcements' || kind === 'announcement-discussion') && browser)) return 404;
 
 		if (kind !== 'alliance' && kind !== 'private' && kind !== 'support' && kind !== 'guild' && kind !== 'global' && kind !== 'testers' && kind !== 'poll-discussion' && kind !== 'petition-discussion' && kind !== 'announcements' && kind !== 'announcement-discussion')
 			return 400;
@@ -354,7 +354,7 @@ function register_scoped_chat_routes(scope: ChatScope): void {
 
 	session_post_route('/api/chat/messages/send', (req, url, client_id, json) => {
 		const kind = json.conversation_kind ?? 'private';
-		if (kind === 'testers' || ((kind === 'announcements' || kind === 'announcement-discussion') && (browser || !supports_announcements(req)))) return 404;
+		if (kind === 'testers' || ((kind === 'announcements' || kind === 'announcement-discussion') && browser)) return 404;
 
 		if (kind !== 'alliance' && kind !== 'private' && kind !== 'support' && kind !== 'guild' && kind !== 'global' && kind !== 'testers' && kind !== 'poll-discussion' && kind !== 'petition-discussion' && kind !== 'announcements' && kind !== 'announcement-discussion')
 			return 400;
@@ -451,7 +451,7 @@ function register_scoped_chat_routes(scope: ChatScope): void {
 	const remove_message: ChatHandler = (req, url, client_id, json) => {
 		const kind = json.conversation_kind ?? 'private';
 		if (typeof kind !== 'string' || !['private','alliance','guild','global','support','poll-discussion','petition-discussion','announcements','announcement-discussion'].includes(kind)) return 400;
-		if ((kind === 'announcements' || kind === 'announcement-discussion') && (browser || !supports_announcements(req))) return 404;
+		if ((kind === 'announcements' || kind === 'announcement-discussion') && browser) return 404;
 		const message_id = json.message_id;
 		if (typeof message_id !== 'number' || !Number.isSafeInteger(message_id) || message_id < 1) return 400;
 		const conversation_id = json.conversation_id ?? (kind === 'global' || kind === 'announcements' ? 1 :

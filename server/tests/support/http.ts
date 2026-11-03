@@ -149,7 +149,7 @@ export async function get_json_with_session<T>(path: string, session_token: stri
 export async function register_client(
 	display_name = 'Test Idler',
 	melvor_account?: MelvorAccountFixture,
-	mod_version: string | null = '1.6.14'
+	mod_version: string | null = '1.7.0'
 ): Promise<RegisteredClient> {
 	const client_key = crypto.randomUUID();
 	const { response, json } = await post_json<Omit<RegisteredClient, 'client_key' | 'client_id'> & {

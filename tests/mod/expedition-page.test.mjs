@@ -708,3 +708,14 @@ test('test controls refresh authoritative state after both success and a rejecte
 		assert.equal(calls.length, 1);
 	}
 });
+
+
+test('Journey renders the retained Rift return with its own reward claim target', async () => {
+	const html = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
+	const journey = html.slice(html.indexOf('id="mp-expedition-journey-view"'), html.indexOf('class="mp-expedition-passages"'));
+	assert.match(journey, /previous_return/);
+	assert.match(journey, /expedition_return_story\(summary\)/);
+	assert.match(journey, /format_ep\(summary.earned_points_micros\)/);
+	assert.match(journey, /claim_expedition_bonus\(summary.expedition_id\)/);
+	assert.match(journey, /MOD_MP_EXPEDITION_RETURN_CLAIMED/);
+});

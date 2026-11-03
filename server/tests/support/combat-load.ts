@@ -1,3 +1,4 @@
+import { combat_available, save_recovery, read_recovery, resume_recovery, abandon_recovery, pause_recovery } from '../../combat-recovery';
 // Isolated, reward-free loopback benchmark. Never connects to the deployed combat service or database.
 import { start_combat_service } from '../../combat/service';
 import { COMBAT_PROTOCOL, issue_ticket } from '../../combat/tickets';
@@ -19,11 +20,14 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const percentile = (values: number[], fraction: number) => values.length ? [...values].sort((a, b) => a - b)[Math.floor((values.length - 1) * fraction)] : 0;
 const registration = { levels: { attack:99, strength:99, defence:99, hitpoints:99 }, gear: { Weapon:'melvorD:Bronze_Sword' } };
 // The default adapter measures simulation/streaming; opt in to real disposable database work below.
+const recovery = process.env.COMBAT_LOAD_RECOVERY === '1';
+if (recovery && !durable) throw new Error('Recovery benchmark requires COMBAT_LOAD_DATABASE=1');
 const authority = { reserve: async () => ({registration,food_id:'melvorD:Shrimp',heal:30}), progress: async () => true, stop() {} };
 for (const clients of [25, 50, 100]) {
 	const directory = durable ? mkdtempSync(join(tmpdir(), 'combat-load-')) : null;
 	const database = directory ? create_test_database(join(directory, 'combat.sqlite')) : null;
-	let writes = 0, reads = 0, inventory_bytes = 0;
+	let writes = 0, reads = 0, inventory_bytes = 0, checkpoint_bytes = 0;
+	const checkpoint_times: number[] = [];
 	if (database) {
 		database.run('PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;');
 		for (let client=1;client<=clients;client++) {
@@ -39,6 +43,19 @@ for (const clients of [25, 50, 100]) {
 	const durable_authority = database ? {
 		reserve: async (client:number,id:string,selection?:string,mode?:string) => reserve_combat(database,client,'benchmark',id,selection,mode),
 		progress: async (id:string,used:number,status:string,completed?:number) => { writes++; return update_combat(database,'benchmark',id,used,status,completed); },
+		...(recovery ? {recovery: async (action:string,payload:Record<string,any>={}) => {
+			if (action === 'available') return combat_available(database);
+			if (action === 'read') return read_recovery(database,payload.client);
+			if (action === 'resume') return resume_recovery(database,payload.client,'benchmark',payload.encounter);
+			if (action === 'abandon') return abandon_recovery(database,payload.client,payload.encounter);
+			if (action === 'pause') { pause_recovery(database,'benchmark',payload.encounter); return true; }
+			if (action === 'save') {
+				const before=performance.now(); writes++; checkpoint_bytes+=JSON.stringify(payload.arena).length;
+				const result=save_recovery(database,'benchmark',payload.arena,payload.revision,payload.initial);
+				checkpoint_times.push(performance.now()-before); return result;
+			}
+			return null;
+		}} : {}),
 		stop() {}
 	} : authority;
 	const service = start_combat_service({ key, hostname: '127.0.0.1', port: 0, authority: durable_authority });
@@ -49,10 +66,10 @@ for (const clients of [25, 50, 100]) {
 		await Promise.all(Array.from({ length: clients }, (_, index) => new Promise<void>((resolve, reject) => {
 			const ws = new WebSocket(`ws://127.0.0.1:${service.server.port}/combat/socket`, { headers: { Origin: 'https://melvoridle.com' } });
 			sockets.push(ws);
-			let sequence = 0, start_sequence = 0, last = 0, anchor = 0, arena_id = '';
+			let acknowledge_sequence = 0, sequence = 0, start_sequence = 0, last = 0, anchor = 0, arena_id = '';
 			let snapshot: any = null;
 			const timeout = setTimeout(() => reject(new Error('Admission timed out')), 5000);
-			ws.onopen = () => ws.send(JSON.stringify({ type: 'authenticate', protocol: COMBAT_PROTOCOL, ticket: issue_ticket(index + 1, key), ...(deltas ? { capabilities:['state-delta-v1'] } : {}) }));
+			ws.onopen = () => ws.send(JSON.stringify({ type: 'authenticate', protocol: COMBAT_PROTOCOL, ticket: issue_ticket(index + 1, key), capabilities:[...(deltas ? ['state-delta-v1'] : []),...(recovery ? ['pve-recovery-v1'] : [])] }));
 			ws.onerror = () => reject(new Error('Socket failed'));
 			ws.onclose = () => { if (measuring) failures++; };
 			const start = () => { start_sequence = ++sequence; ws.send(JSON.stringify({ type: 'start', seq: start_sequence, ...(durable ? {encounter:'quarry',mode:'raid'} : {}) })); };
@@ -69,6 +86,7 @@ for (const clients of [25, 50, 100]) {
 					}, 2000));
 				}
 				// Cooldown-rejected eat commands are expected; a rejected start is not.
+				if (message.type === 'ack' && message.seq === acknowledge_sequence && message.accepted) { acknowledge_sequence = 0; start(); }
 				if (message.type === 'ack' && !message.accepted && (!durable || message.seq === start_sequence)) failures++;
 				if (message.type === 'state') snapshot = message.arena;
 				else if (message.type === 'state_delta' && snapshot) {
@@ -85,7 +103,7 @@ for (const clients of [25, 50, 100]) {
 				last = now;
 				if (arena.status !== 'active') {
 					if (database) { inventory_bytes += JSON.stringify(combat_state(database,index+1)).length; reads++; }
-					start();
+					if (recovery) { if (!acknowledge_sequence) { acknowledge_sequence=++sequence; ws.send(JSON.stringify({type:'abandon',seq:acknowledge_sequence,encounter:arena.id})); } } else start();
 				}
 			};
 		})));
@@ -105,7 +123,7 @@ for (const clients of [25, 50, 100]) {
 		await sleep(seconds * 1000);
 		clearInterval(sample); if (inventory_burst) clearInterval(inventory_burst); measuring = false;
 		const duration = performance.now() - begin, used = process.cpuUsage(cpu);
-		const result = { deltas, durable, clients, seconds, started, failures, writes, inventory_reads:reads, inventory_bytes,
+		const result = { deltas, durable, recovery, checkpoint_bytes, checkpoint_p95_ms:percentile(checkpoint_times,.95), clients, seconds, started, failures, writes, inventory_reads:reads, inventory_bytes,
 			inventory_read_p95_ms:percentile(read_times,.95), snapshots, snapshots_per_client_sec: snapshots / clients / (duration / 1000),
 			outbound_kib_sec: bytes / 1024 / (duration / 1000), combined_cpu_one_core_percent: (used.user + used.system) / (duration * 10),
 			combined_peak_rss_mib: rss / 1024 / 1024, snapshot_gap_p95_ms: percentile(gaps, .95), snapshot_gap_max_ms: Math.max(0, ...gaps),
@@ -116,7 +134,7 @@ for (const clients of [25, 50, 100]) {
 		measuring = false;
 		for (const timer of heartbeats) clearInterval(timer);
 		for (const ws of sockets) ws.close();
-		service.stop();
+		await service.stop();
 		// Allow close handlers to settle active fights before closing the file-backed database.
 		if (database) await sleep(100);
 		database?.close();

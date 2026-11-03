@@ -615,13 +615,7 @@ export function install_chat_actions(runtime) {
 		},
 
 		get_chat_message_parts(message) {
-			const content = this.get_chat_message_content(message);
-			const own = message?.sender_id === this.chat_client_id || message?.sent_by_viewer === true;
-			const language = message?.manual_translation_language === false ? null : message?.sender_id === null ? localized_welcome_language() :
-				message?.manual_translation_language ?? translation_preference(this.selected_chat_conversation);
-			if (!own && language && message?.translation_parts?.[language] && content === message.translations?.[language])
-				return message.translation_parts[language];
-			return content === message?.content && message.parts ? message.parts : [{ type: 'text', text: content }];
+			return this.get_chat_message_presentation(message).parts;
 		},
 
 		get_chat_message_document(message) { return JSON.stringify(this.get_chat_message_parts(message)); },
@@ -1130,6 +1124,7 @@ export function install_chat_actions(runtime) {
 				this.chat_translation_preferences[key] = this.chat_translation_language_input;
 			else
 				this.chat_translation_preferences[key] = false;
+			for (const message of this.chat_messages ?? []) delete message.manual_translation_language;
 			this.chat_translation_preferences = { ...this.chat_translation_preferences };
 			set_instance_storage_item('chat_translation_preferences', this.chat_translation_preferences);
 			this.close_modal();
@@ -1164,7 +1159,8 @@ export function install_chat_actions(runtime) {
 				message.manual_translation_language = false;
 			} else {
 				const preferred = preferred_manual_language(message);
-				const language = [preferred, ...translation_languages].find(language =>
+				const candidates = translation_preference(this.selected_chat_conversation) ? [preferred] : [preferred, ...translation_languages];
+				const language = candidates.find(language =>
 					typeof message.translations?.[language] === 'string' && message.translations[language].length > 0);
 				if (language) message.manual_translation_language = language;
 			}
@@ -1173,10 +1169,7 @@ export function install_chat_actions(runtime) {
 		},
 
 		is_chat_message_showing_translation(message) {
-			if (!message || message.sender_id === this.chat_client_id || message.sent_by_viewer === true) return false;
-			const language = message.manual_translation_language === false ? null : message.sender_id === null ? localized_welcome_language() :
-				message.manual_translation_language ?? translation_preference(this.selected_chat_conversation);
-			return !!language && typeof message.translations?.[language] === 'string' && message.translations[language].length > 0;
+			return this.get_chat_message_presentation(message).translated;
 		},
 
 		get_chat_message_translation_action_lang_id(message) {
@@ -1188,35 +1181,40 @@ export function install_chat_actions(runtime) {
 				typeof translation === 'string' && translation.length > 0);
 		},
 
-		get_chat_message_content(message) {
-			if (message?.petition_event === 'proposal') return getLangString('MOD_MP_COUNCIL_DISCUSSION_PROPOSE');
+		get_chat_message_presentation(message) {
+			const original = { content: message?.content ?? '',
+				parts: message?.parts ?? [{ type: 'text', text: message?.content ?? '' }], translated: false, pending: false };
+			let event_content;
+			if (message?.petition_event === 'proposal') event_content = getLangString('MOD_MP_COUNCIL_DISCUSSION_PROPOSE');
 			if (message?.petition_event === 'aye' || message?.petition_event === 'nay')
-				return getLangString('MOD_MP_COUNCIL_' + message.petition_event.toUpperCase());
-			if (!message || message.sender_id === this.chat_client_id || message.sent_by_viewer === true)
-				return message?.content ?? '';
-			if (message.sender_id === null && message.manual_translation_language !== false) {
-				const localized = message.translations?.[localized_welcome_language()];
-				if (typeof localized === 'string' && localized.length > 0) return localized;
-			}
-			const language = message.manual_translation_language ?? translation_preference(this.selected_chat_conversation);
-			if (!language) return message.content;
+				event_content = getLangString('MOD_MP_COUNCIL_' + message.petition_event.toUpperCase());
+			if (event_content !== undefined)
+				return { ...original, content: event_content, parts: [{ type: 'text', text: event_content }] };
+			if (!message || message.sender_id === this.chat_client_id || message.sent_by_viewer === true) return original;
+			const welcome_language = message.sender_id === null ? localized_welcome_language() : null;
+			const localized = message.translations?.[welcome_language];
+			const language = message.manual_translation_language === false ? null : message.manual_translation_language ??
+				(typeof localized === 'string' && localized.length > 0 ? welcome_language : translation_preference(this.selected_chat_conversation));
+			if (!language) return original;
 			const translated = message.translations?.[language];
-			if (typeof translated === 'string' && translated.length > 0) return translated;
+			if (typeof translated === 'string' && translated.length > 0)
+				return { content: translated, parts: message.translation_parts?.[language] ?? [{ type: 'text', text: translated }],
+					translated: true, pending: false };
+			const pending = message.translation_status === 'queued' || message.translation_status === 'processing';
 			message.translation_observed_at ??= now();
-			if ((message.translation_status === 'queued' || message.translation_status === 'processing') &&
-				now() - message.translation_observed_at < translation_wait_ms)
-				return getLangString('MOD_MP_CHAT_TRANSLATING');
-			return message.content;
+			if (pending && now() - message.translation_observed_at < translation_wait_ms) {
+				const content = getLangString('MOD_MP_CHAT_TRANSLATING');
+				return { content, parts: [{ type: 'text', text: content }], translated: false, pending };
+			}
+			return { ...original, pending };
+		},
+
+		get_chat_message_content(message) {
+			return this.get_chat_message_presentation(message).content;
 		},
 
 		is_chat_message_translation_pending(message) {
-			if (message?.petition_event) return false;
-			if (!message || message.sender_id === this.chat_client_id || message.sent_by_viewer === true)
-				return false;
-			const language = message.manual_translation_language ?? translation_preference(this.selected_chat_conversation);
-			if (!language || (typeof message.translations?.[language] === 'string' && message.translations[language].length > 0))
-				return false;
-			return message.translation_status === 'queued' || message.translation_status === 'processing';
+			return this.get_chat_message_presentation(message).pending;
 		},
 
 		is_chat_message_translation_waiting(message) {
@@ -1279,7 +1277,7 @@ export function install_chat_actions(runtime) {
 			if (!clipboard?.writeText)
 				return show_modal_error(getLangString('MOD_MP_CHAT_COPY_FAILED'));
 			try {
-				await clipboard.writeText(this.get_chat_plain_content(message));
+				await clipboard.writeText(items.plain_text(game, getLangString, this.get_chat_message_parts(message)));
 			} catch (e) {
 				log('Chat message copy failed (%s)', e);
 				return show_modal_error(getLangString('MOD_MP_CHAT_COPY_FAILED'));

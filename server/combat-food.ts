@@ -9,8 +9,8 @@ export const FOOD_DEFINITIONS: (EquipmentDefinition & { heal: number })[] = [
 	item_id: `melvorD:${name}`, name: String(name), heal: Number(heal), slot: 'Food', tier: index + 1,
 	occupies: [], requirements: [], stats: [],
 	stages: [
-		[{ skill_id: 'melvorD:Fishing', action_id: `melvorD:Raw_${name}`, target_ms: 1_800_000 }],
-		[{ skill_id: 'melvorD:Cooking', action_id: `melvorD:${name}`, target_ms: 1_800_000 }]
+		[{ skill_id: 'melvorD:Fishing', action_id: `melvorD:Raw_${name}`, target_ms: index === 0 ? 45_000 : 1_800_000 }],
+		[{ skill_id: 'melvorD:Cooking', action_id: `melvorD:${name}`, target_ms: index === 0 ? 45_000 : 1_800_000 }]
 	]
 }));
 export function food_access(database: Database, client: number, slot = 'Food') {

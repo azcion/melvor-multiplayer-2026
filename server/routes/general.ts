@@ -12,7 +12,7 @@ import type { HandlerResult, JsonObject } from '../http';
 import { has_pending_inbox } from '../inbox';
 import { change_display_name } from '../audit';
 import { get_dev_badge_labels, get_account_tags } from '../account_tags';
-import { announcement_unread_count, supports_announcements } from '../announcements';
+import { announcement_unread_count } from '../announcements';
 import { release_campaign_refunds } from '../campaign-retirement';
 import { review_economy_receipt } from '../economy';
 
@@ -57,7 +57,7 @@ export function register_general_routes(): void {
 			Number(url.searchParams.get('guild_revision')) === summaries.guild_revision))
 			return { ...rollback, ...summaries, revision: client.event_revision, unchanged: true, dev_badge_labels: get_dev_badge_labels(), released_mod_version: get_released_mod_version(),
 				minimum_supported_mod_version: get_minimum_supported_mod_version() };
-		const announcement_unread = supports_announcements(req) ? announcement_unread_count(client_id) : 0;
+		const announcement_unread = announcement_unread_count(client_id);
 		// Read-state initialization can advance this client's event revision.
 		client.event_revision = db.query<Pick<db_row.clients, 'event_revision'>, [number]>(
 			'SELECT event_revision FROM clients WHERE id = ?').get(client_id)!.event_revision;

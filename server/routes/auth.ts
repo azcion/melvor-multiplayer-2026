@@ -5,7 +5,7 @@ import { rollback_player_status } from '../rollback-policy';
 import { record_load_clock } from '../save-rollback';
 import { has_alliance_access } from '../alliances';
 import { API_VERSIONS } from '../api-contract';
-import { get_dev_badge_labels, get_account_tags, get_dev_tag_visibility } from '../account_tags';
+import { get_dev_badge_labels, get_account_tags, get_account_badge_visibility } from '../account_tags';
 import { record_character_save_load } from '../character-save-loads';
 import { db } from '../db';
 import { authenticate_installation, enroll_installation } from '../installations';
@@ -111,7 +111,7 @@ export function register_auth_routes(): void {
 			game_mode_visible: client_row.game_mode_visible === 1,
 			active_mods_visible: client_row.active_mods_visible === 1,
 			dev_badge_labels: get_dev_badge_labels(),
-			dev_tag: get_dev_tag_visibility(client_row.id),
+			dev_tag: get_account_badge_visibility(client_row.id),
 			alliance_access: has_alliance_access(client_row.id),
 			chat_reaction_choices: get_chat_reaction_choices(),
 			chat: get_chat_state(client_row.id),
@@ -185,7 +185,7 @@ export function register_auth_routes(): void {
 			equipment_visible: true, skills_visible: true, activity_visible: true, gp_visible: true, game_mode_visible: true,
 			active_mods_visible: true,
 			dev_badge_labels: get_dev_badge_labels(),
-			dev_tag: get_dev_tag_visibility(client_id),
+			dev_tag: get_account_badge_visibility(client_id),
 			alliance_access: has_alliance_access(client_id),
 			chat_reaction_choices: get_chat_reaction_choices(),
 			chat: get_chat_state(client_id),

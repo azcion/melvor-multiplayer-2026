@@ -3485,6 +3485,7 @@ mp-chat-composer { display: block; min-width: 0; }
 .mp-expedition-tracking { display: flex; align-items: center; justify-content: space-between; gap: .75rem; border-color: #347b65; background: #17433d; }
 .mp-expedition-tracking-copy { display: flex; align-items: center; gap: .75rem; min-width: 0; }
 .mp-expedition-tracking-copy > .fa { color: #69d4a0; font-size: 1.4rem; }
+.mp-expedition-tracking-copy > div { min-width: 0; overflow-wrap: anywhere; }
 .mp-expedition-tracking-copy strong, .mp-expedition-tracking-copy small { display: block; }
 .mp-expedition-tracking-copy small { margin-top: .2rem; color: #c1d9d2; }
 .mp-expedition-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; align-items: start; }
@@ -4298,6 +4299,9 @@ span:has([lang-id="MOD_MP_TRANSFER_HISTORY_RECONSTRUCTED"]) {
 .mp-combat-bg { background: linear-gradient(135deg, #30283f, #76558e) !important; color: #fff !important; }
 #mp-combat-page { padding: 0; }
 .mp-combat-shell { max-width: 1100px; margin: 0 auto; padding: 1rem; color: #f5f7fa; }
+.mp-combat-maintenance { display: flex; align-items: flex-start; gap: .65rem; margin: 0 0 .75rem; padding: .8rem .9rem; border: 1px solid #e7b864; border-left-width: 4px; border-radius: .35rem; background: #403722; color: #f5dea1; overflow-wrap: anywhere; }
+.mp-combat-maintenance > i { flex: 0 0 auto; margin-top: .2rem; color: #ffcb54; }
+.mp-combat-maintenance > div { min-width: 0; }
 .mp-combat-panel { min-width: 0; margin-bottom: .75rem; border: 1px solid #45616b; border-radius: .55rem; background: #182732; overflow: hidden; }
 .mp-combat-panel-header { min-height: 58px; padding: .7rem .9rem; }
 header.mp-combat-panel-header { display: flex; align-items: center; }
@@ -4555,7 +4559,6 @@ header.mp-combat-panel-header { display: flex; align-items: center; }
 .mp-equipment-stage progress { width: 100%; accent-color: #6bc296; }
 .mp-equipment-stage small { display: block; margin: .3rem 0; }
 .mp-equipment-locked { opacity: .6; }
-.mp-equipment-tracking { border: 1px solid #6bc296; border-radius: .35rem; padding: .6rem; }
 @media (max-width: 560px) { .mp-project-grid { grid-template-columns: minmax(0, 1fr); } .mp-project-grid > section:first-child { grid-column: auto; } }
 
 
@@ -4679,7 +4682,7 @@ header.mp-combat-panel-header { display: flex; align-items: center; }
 @media (max-width: 900px) {
 	.mp-combat-desktop-tabs { display: none; }
 	.mp-combat-mobile-tabs { display: grid; }
-	.mp-combat-preparation-tabs, .mp-combat-battle-tabs { border-top: 1px solid #45616b; padding-top: .75rem; }
+	.mp-combat-preparation-tabs, .mp-combat-battle-tabs, .mp-combat-practice-tabs { border-top: 1px solid #45616b; padding-top: .75rem; }
 	.mp-combat-page-tabs .btn { padding: .55rem 1.25rem; font-size: .85rem; }
 }
 

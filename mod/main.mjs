@@ -4,7 +4,6 @@ const SERVER_INSTANCE_STORAGE_PREFIX = 'instance:local-mac:';
 const SERVER_INSTANCE_STORAGE_LEGACY_PREFIXES = [];
 const MOD_VERSION = 'development';
 const UPDATES_LAST_SEEN_MOD_VERSION_KEY = 'updates_last_seen_mod_version';
-const LEGACY_MARKET_PAYOUT_MIGRATION_KEY = 'legacy_market_payout_migration_1_5_6';
 const LOCAL_MOD_CHARACTER_STORAGE_PREFIX = 'mp:local-character:';
 const LEGACY_LOCAL_MOD_CHARACTER_STORAGE_PREFIX = 'kru-melvor-multiplayer:local-character:';
 const SERVER_SCOPED_LEGACY_STORAGE_KEYS = [
@@ -1873,7 +1872,8 @@ async function maybe_start_expedition_work(activities) {
 	const due = expedition_work_prompt_gate.observe({ session: session_generation, activities,
 		enabled: true, automatic: true,
 		tracking: !!state.expedition_pending_report || !!current_tracking &&
-			!(tutorial_project(current_model) && current_tracking.source !== 'equipment'),
+			!(tutorial_project(current_model) && current_tracking.source !== 'equipment') &&
+			!expedition_tasks.should_prefer_equipment(current_model, activities),
 		now: Date.now() });
 	if (!due || expedition_work_prompt_loading || state.expedition_loading || state.expedition_action_pending) return;
 	const generation = session_generation;
@@ -1883,15 +1883,16 @@ async function maybe_start_expedition_work(activities) {
 		const refreshed = await refresh_expedition_state();
 		if (generation !== session_generation || !state.is_connected || !polling.is_foreground(document) ||
 			activity_key !== expedition_tasks.work_activity_key(capture_status_activities())) return;
-		// Retry unavailable work without replacing active tracking or a saved report.
+		// Retry unavailable work; settle competing chamber tracking before selecting project work.
 		expedition_work_prompt_gate.defer(Date.now(), 30_000);
 		if (!refreshed || state.expedition_action_pending || state.expedition_pending_report) return;
 		const model = state.expedition_state ?? state.expedition_personal;
 		const equipment_only = tutorial_project(model);
 		const tracking = state.expedition_state?.tracking ?? state.expedition_personal?.tracking;
 		if (tracking) {
-			// Settle competing chamber work before the mandatory project takes over. Never bypass a pending claim.
-			if (equipment_only && tracking.source !== 'equipment' && !tracking.pending_boundary_at && !tracking.claim) {
+			// Settle chamber work before a matching project takes over. Never bypass a pending claim.
+			if ((equipment_only || expedition_tasks.should_prefer_equipment(model, activities)) &&
+				tracking.source !== 'equipment' && !tracking.pending_boundary_at && !tracking.claim) {
 				await submit_expedition_work('stop', null, true, true);
 				expedition_work_prompt_gate.defer(Date.now(), 2500);
 			}
@@ -4322,7 +4323,6 @@ let rollback_server_supported = false;
 let economy_commands_ready = false;
 let client_events_hydrated = false;
 let selected_api_major = null;
-let legacy_market_payout_migration_started = false;
 
 function unsupported_support_conversation(minimum_supported_mod_version) {
 	const created_at = Date.now();
@@ -5671,11 +5671,6 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 			client_event_revision = res.revision;
 		client_events_hydrated = true;
 		void economy_command_journal?.recover();
-		if (!legacy_market_payout_migration_started &&
-			(MOD_VERSION === 'development' || MOD_VERSION === '1.5.6') &&
-			get_instance_storage_item(LEGACY_MARKET_PAYOUT_MIGRATION_KEY) !== true) {
-			setTimeout(() => void claim_legacy_market_payouts(), 0);
-		}
 		if (res.inbox_pending === true || state.inbox_items.length > 0)
 			void update_inbox();
 		if (res.banishment_return_pending) {
@@ -5699,26 +5694,6 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 		show_pending_banishment_notice();
 	}
 	return res;
-}
-
-async function claim_legacy_market_payouts() {
-	if (legacy_market_payout_migration_started || !economy_commands_ready ||
-		get_instance_storage_item(LEGACY_MARKET_PAYOUT_MIGRATION_KEY) === true)
-		return;
-	legacy_market_payout_migration_started = true;
-	if (await economy_command_journal?.recover() === false) {
-		legacy_market_payout_migration_started = false;
-		return;
-	}
-	const result = await api_post_response('/api/market/claim-legacy-payouts', {
-		command_id: crypto.randomUUID()
-	});
-	if (result.response?.status !== 200 || result.json?.success !== true)
-		return;
-	if (!await reconcile_economy_receipts([result.json.receipt]))
-		return;
-	set_instance_storage_item(LEGACY_MARKET_PAYOUT_MIGRATION_KEY, true);
-	await update_inbox();
 }
 
 function start_client_event_polling(count_initial_check = false) {
@@ -5749,7 +5724,7 @@ async function poll_client_events(poll_id, scheduled_check = true) {
 
 function handle_runtime_visibility_change() {
 	if (!polling.is_foreground(document)) {
-		combat_arena?.forfeit();
+		combat_arena?.close();
 		client_event_poll_id++;
 		stop_chat_polling();
 		stop_gp_sampling();
@@ -5758,6 +5733,7 @@ function handle_runtime_visibility_change() {
 		status_sync_timer = null;
 		return;
 	}
+	if (combat_page_visible) void combat_inventory?.refresh();
 	start_client_event_polling();
 	start_gp_sampling();
 	start_status_observer();
@@ -6112,7 +6088,7 @@ export async function setup(ctx) {
 	state.combat_style_name = id => game.attackStyles.getObjectByID('melvorD:' + ({ accurate: 'Stab', aggressive: 'Slash', defensive: 'Block' }[id] ?? 'Stab'))?.name ?? state.combat_name(id);
 
 	state.start_combat = async () => {
-		if (!['test_combat', 'raid'].includes(state.combat.page_tab) || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character || !state.is_connected || state.is_social_only || state.combat.arena?.status === 'active') return;
+		if (!['test_combat', 'raid'].includes(state.combat.page_tab) || state.combat.recovery || state.combat.maintenance?.drain_at != null || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character || !state.is_connected || state.is_social_only || state.combat.arena?.status === 'active') return;
 		if (state.combat.page_tab === 'test_combat' && !state.combat_choices().some(choice => choice.id === state.combat.encounter)) return;
 		if (state.combat.page_tab === 'test_combat' && state.combat.tutorial?.complete && !state.combat_practice_tier()?.available) return;
 		const scope = `${server_host}:${session_generation}`;
@@ -6125,6 +6101,9 @@ export async function setup(ctx) {
 			if (scope === `${server_host}:${session_generation}` && state.combat.status !== 'connecting' && !state.combat.pending) state.combat.starting = false;
 		}
 	};
+	state.combat_recover = action => combat_arena.recover(action);
+	state.combat_recovery_copy = (key, amount = '') => getLangString('MOD_MP_COMBAT_RECOVERY_' + key.toUpperCase()).replace('%s', String(amount));
+	state.combat_restart_minutes = () => Math.max(0,Math.ceil(((state.combat.maintenance?.drain_at ?? Date.now())-Date.now())/60000));
 	state.combat_action = (action, target) => combat_arena.act(action, target);
 	state.combat_cycle_opponents_view = () => combat_arena.cycle_opponents_view();
 	state.combat_opponents_compact = () => combat_module.combat_opponents_compact(state.combat);
@@ -6633,7 +6612,6 @@ export async function setup(ctx) {
 		raid_loaded_session_id = crypto.randomUUID();
 		loaded_save_tracker.character_loaded(game);
 		loaded_game_mode_id = client_runtime.get_game_mode_id(game.currentGamemode);
-		legacy_market_payout_migration_started = false;
 		state.load_chat_translation_preferences();
 		state.last_seen_mod_version = get_character_storage_item(UPDATES_LAST_SEEN_MOD_VERSION_KEY) ?? '';
 		state.updates_new = updates_loader.has_unseen_mod_version(MOD_VERSION, state.last_seen_mod_version);

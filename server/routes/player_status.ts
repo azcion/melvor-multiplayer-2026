@@ -6,7 +6,7 @@ import type { PetitionType } from '../council';
 import { observe_dev_work_tracking, parse_work_statistics } from './expedition';
 import { observe_expedition_work } from '../expedition-work';
 import { is_admin } from '../admin_identity';
-import { get_dev_tag_visibility } from '../account_tags';
+import { get_account_badge_visibility } from '../account_tags';
 
 const { db, db_execute, db_get_all, db_get_single, guild_membership_exists, parse_player_status_account_creation_date, parse_player_status_activities, parse_player_status_skills, parse_player_status_total_skill_level, session_get_route, session_post_route, status_snapshot_activities, status_snapshot_activity } = runtime;
 
@@ -214,7 +214,7 @@ export function register_player_status_routes(): void {
 	session_post_route('/api/client/dev-tag/visibility', async (req, url, client_id, json) => {
 		if (typeof json.visible !== 'boolean')
 			return 400; // Bad Request
-		if (!get_dev_tag_visibility(client_id).eligible)
+		if (!get_account_badge_visibility(client_id).eligible)
 			return 403; // Forbidden
 		await db_execute('UPDATE `clients` SET `dev_tag_visible` = ? WHERE `id` = ?', [
 			json.visible ? 1 : 0, client_id

@@ -101,8 +101,11 @@
 					</div>
 					<div class="mp-expedition-actions"><div class="mp-expedition-available" v-if="state.expedition_state?.tracking?.reward_remaining_ms != null"><lang-string lang-id="MOD_MP_EXPEDITION_AVAILABLE_TO_EARN"></lang-string><strong>{{ state.format_ep(Math.floor((state.expedition_state?.tracking?.reward_remaining_ms ?? 0) * 1000000 / 3600000)) }} EP</strong></div><button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending || state.expedition_pending_report || state.expedition_check_in_cooldown_until > 0" @click="state.submit_expedition_work('check-in')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CHECK_IN"></lang-string></button></div>
 				</div>
-				<div v-show="state.equipment_tracking()?.source === 'equipment'" class="mp-expedition-panel mp-equipment-tracking">
-					<strong>{{ state.equipment_task_name({ action_id: state.equipment_tracking()?.task_id?.split('|')[1] }) }}</strong>
+				<div v-show="state.equipment_tracking()?.source === 'equipment'" class="mp-expedition-panel mp-expedition-tracking mp-equipment-tracking">
+					<div class="mp-expedition-tracking-copy">
+						<i class="fa fa-crosshairs" aria-hidden="true"></i>
+						<div><strong>{{ state.expedition_text('MOD_MP_EXPEDITION_TRACKING_TITLE', state.equipment_task_name({ action_id: state.equipment_tracking()?.task_id?.split('|')[1] })) }}</strong><small>{{ state.expedition_text('MOD_MP_EXPEDITION_STARTED_AGO', state.expedition_time_since(state.equipment_tracking()?.started_at)) }}</small></div>
+					</div>
 					<div class="mp-expedition-actions"><button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending || state.expedition_pending_report" @click="state.equipment_action('check-in')"><lang-string lang-id="MOD_MP_EXPEDITION_UI_CHECK_IN"></lang-string></button></div>
 				</div>
 			</div>
@@ -139,7 +142,7 @@
 							<header class="mp-equipment-item-heading" v-for="project in [state.equipment_model()?.project].filter(Boolean)" :key="project.item_id"><img :src="state.get_item_icon(project.item_id)" alt="" width="80" height="80"><div><h4>{{ state.equipment_project_name(project) }}</h4><button type="button" class="btn btn-sm btn-outline-danger mb-3" v-show="state.equipment_model()?.project" :disabled="!state.equipment_cancel_ready()" @click="state.equipment_cancel_preview()"><lang-string lang-id="MOD_MP_EQUIPMENT_CANCEL_PROJECT"></lang-string></button></div></header>
 							<div v-for="(tasks, index) in state.equipment_model()?.project?.stages || []" :key="index" class="mp-equipment-stage">
 								<h4>{{ state.equipment_stage_name(index) }}</h4>
-								<article v-for="task in tasks" :key="task.task_id" class="mp-expedition-task" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('work') && task.available && task.player_ms < task.target_ms, 'mp-equipment-locked': !task.available && task.player_ms < task.target_ms }">
+								<article v-for="task in tasks" :key="task.task_id" class="mp-expedition-task" :class="{ 'mp-expedition-task-self': state.equipment_tracking()?.source === 'equipment' && state.equipment_tracking()?.task_id === task.task_id, 'mp-tutorial-highlight': state.combat_tutorial_highlight('work') && task.available && task.player_ms < task.target_ms, 'mp-equipment-locked': !task.available && task.player_ms < task.target_ms }">
 									<div class="mp-equipment-item"><img :src="state.expedition_work_icon(task.skill_id)" alt="" width="24" height="24"><strong>{{ state.equipment_task_name(task) }}</strong></div>
 									<progress :value="task.player_ms" :max="task.target_ms" :aria-label="state.equipment_task_name(task)"></progress><small>{{ state.equipment_duration(task.player_ms) }} / {{ state.equipment_duration(task.target_ms) }}</small>
 
@@ -260,7 +263,18 @@
 					</div>
 				</div>
 				<div id="mp-expedition-journey-view" role="tabpanel" aria-labelledby="mp-expedition-journey-tab" v-show="state.expedition_work_tab === 'journey'">
-					<div class="mp-expedition-panel" v-for="reward in (state.expedition_state ?? state.expedition_personal)?.ending_rewards || []" :key="reward.expedition_id">
+					<div class="mp-expedition-panel mp-expedition-return" v-for="summary in [state.expedition_state?.expedition?.previous_return].filter(Boolean)" :key="summary.expedition_id">
+						<h3><lang-string lang-id="MOD_MP_EXPEDITION_UI_EXPEDITION_ENDED"></lang-string></h3>
+						<p class="mp-expedition-return-flavor"><lang-string lang-id="MOD_MP_EXPEDITION_RETURN_FLAVOR"></lang-string></p>
+						<p>{{ state.expedition_return_story(summary) }}</p>
+						<p>{{ state.expedition_text('MOD_MP_EXPEDITION_RETURN_EARNINGS', state.format_ep(summary.earned_points_micros)) }}</p>
+						<div class="mp-expedition-return-reward" v-if="summary.ending_bonus_eligible">
+							<p>{{ state.expedition_text('MOD_MP_EXPEDITION_RETURN_BONUS', state.format_ep(summary.bonus_total_micros)) }}</p>
+							<button type="button" class="mp-expedition-button" v-if="summary.bonus_available_micros > 0" :disabled="state.expedition_action_pending || state.expedition_pending_report" @click="state.claim_expedition_bonus(summary.expedition_id)">{{ state.expedition_text('MOD_MP_EXPEDITION_RETURN_CLAIM', state.format_ep(summary.bonus_available_micros)) }}</button>
+							<p v-else-if="summary.bonus_claimed_micros > 0" class="mp-expedition-return-claimed"><i class="fa fa-check" aria-hidden="true"></i> <lang-string lang-id="MOD_MP_EXPEDITION_RETURN_CLAIMED"></lang-string></p>
+						</div>
+					</div>
+					<div class="mp-expedition-panel" v-for="reward in ((state.expedition_state ?? state.expedition_personal)?.ending_rewards || []).filter(reward => reward.expedition_id !== state.expedition_state?.expedition?.previous_return?.expedition_id)" :key="reward.expedition_id">
 						<h3><lang-string lang-id="MOD_MP_EXPEDITION_RETURN_UNCLAIMED"></lang-string></h3>
 						<p><lang-string lang-id="MOD_MP_EXPEDITION_RETURN_UNCLAIMED_HINT"></lang-string></p>
 						<button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending || state.expedition_pending_report" @click="state.claim_expedition_bonus(reward.expedition_id)">{{ state.expedition_text('MOD_MP_EXPEDITION_RETURN_CLAIM', state.format_ep(reward.bonus_available_micros)) }}</button>
@@ -408,6 +422,19 @@
 			<nav class="mp-combat-page-tabs mp-combat-mobile-tabs mp-combat-battle-tabs" role="tablist" :aria-label="getLangString('MOD_MP_COMBAT_TAB_BATTLES')" v-show="state.combat.page_tab !== 'character'">
 				<button v-for="tab in ['test_combat', 'pvp', 'raid']" :key="tab" type="button" class="btn" role="tab" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('page', tab) }" :aria-selected="state.combat.page_tab === tab" :disabled="!state.combat_tutorial_access('page', tab)" @click="state.combat_select_page(tab)"><i v-show="!state.combat_tutorial_access('page', tab)" class="fa fa-lock" aria-hidden="true"></i>{{ getLangString('MOD_MP_COMBAT_TAB_' + tab.toUpperCase()) }}</button>
 			</nav>
+			<section class="mp-combat-panel" v-show="state.combat.recovery && state.combat.arena?.status !== 'active'" aria-live="polite">
+				<div class="mp-combat-panel-body">
+					<strong>{{ state.combat_recovery_copy(state.combat.recovery?.state === 'terminal' ? 'result' : state.combat.recovery?.state === 'paused' ? 'paused' : 'check') }}</strong>
+					<p v-show="state.combat.recovery?.state === 'paused'">{{ state.combat_recovery_copy('retention', Math.ceil((state.combat.recovery?.remaining_ms ?? 0) / 60000)) }}</p>
+					<button class="btn btn-primary" :disabled="!state.combat.recovery || state.combat.pending || state.combat.status === 'connecting' || (state.combat.recovery?.state === 'paused' && state.combat.maintenance?.drain_at != null)" @click="state.combat_recover(state.combat.recovery?.state === 'paused' ? 'resume' : null)">{{ state.combat_recovery_copy(state.combat.recovery?.state === 'terminal' ? 'result' : state.combat.recovery?.state === 'paused' ? 'resume' : 'check') }}</button>
+					<button v-show="state.combat.recovery?.state === 'paused'" class="btn btn-outline-secondary" :disabled="!state.combat.recovery || state.combat.pending || state.combat.status === 'connecting'" @click="state.combat_recover('abandon')">{{ state.combat_recovery_copy('abandon') }}</button>
+				</div>
+			</section>
+			<p v-if="state.combat.recovery_notice" class="text-muted" role="status">{{ state.combat_recovery_copy(state.combat.recovery_notice) }}</p>
+			<div v-show="state.combat.maintenance?.drain_at != null" class="mp-combat-maintenance" role="status">
+				<i class="fa fa-exclamation-triangle" aria-hidden="true"></i>
+				<div><strong>{{ state.combat_restart_minutes() > 0 ? state.combat_recovery_copy('restart', state.combat_restart_minutes()) : state.combat_recovery_copy('maintenance') }}</strong> <span v-show="state.combat.maintenance?.incompatible">{{ state.combat_recovery_copy('ending') }}</span></div>
+			</div>
 			<div class="mp-combat-arena-host" v-show="state.combat.arena">
 				<section class="mp-combat-panel mp-combat-arena" v-show="state.combat.page_tab === state.combat.combat_tab && state.combat.arena?.status === 'active'" :aria-label="state.combat_encounter_name()">
 					<header class="mp-combat-panel-header mp-combat-toolbar">
@@ -511,7 +538,7 @@
 
 						</button>
 					</div>
-					<button type="button" class="btn btn-success" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('battle') }" :disabled="(state.combat.raid_selection !== 'golbins' && state.combat_dungeon()?.available !== true) || (state.combat.tutorial && !state.combat.tutorial.complete && !state.combat.tutorial.ready) || !state.is_connected || state.is_social_only || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character || state.combat.arena?.status === 'active'" @click="state.start_combat()">{{ state.combat.starting ? state.combat_name('connecting') : state.combat_run_copy('start') }}</button>
+					<button type="button" class="btn btn-success" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('battle') }" :disabled="!!state.combat.recovery || state.combat.maintenance?.drain_at != null || (state.combat.raid_selection !== 'golbins' && state.combat_dungeon()?.available !== true) || (state.combat.tutorial && !state.combat.tutorial.complete && !state.combat.tutorial.ready) || !state.is_connected || state.is_social_only || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character || state.combat.arena?.status === 'active'" @click="state.start_combat()">{{ state.combat.starting ? state.combat_name('connecting') : state.combat_run_copy('start') }}</button>
 					<p class="text-warning mt-2" role="status" v-show="state.combat.status === 'unavailable'">{{ getLangString('MOD_MP_COMBAT_UNAVAILABLE_INFO') }}</p>
 					<p class="text-warning mt-2" role="status" v-show="state.combat.status === 'error'">{{ state.combat_name(state.combat.status) }}</p>
 					<p class="text-warning mt-2" role="status" v-show="state.combat.error">{{ state.combat_name(state.combat.error || 'rejected') }}</p>
@@ -565,7 +592,7 @@
 							<p v-if="!state.combat_practice_effects().length">{{ state.combat_practice_copy('no_effects') }}</p>
 							<p v-for="actor in state.combat_practice_effects()" :key="actor.effect"><img :src="state.combat_effect_image(actor.effect)" alt="" width="20" height="20"> <strong>{{ state.combat_name(actor.effect) }}</strong>: {{ actor.effect_info }}</p>
 							<p><i v-if="state.combat_practice_tier().complete" class="fa fa-check text-success" aria-hidden="true"></i> {{ state.combat_practice_copy(state.combat_practice_tier().complete ? 'cleared' : 'uncleared') }}</p>
-							<button type="button" class="btn btn-success mp-combat-raid-start" :disabled="!state.combat_practice_tier().available || !state.is_connected || state.is_social_only || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character" @click="state.start_combat()">{{ state.combat.starting ? state.combat_name('connecting') : state.combat_practice_copy('start') + ' · ' + state.combat_practice_copy('tier') + ' ' + state.combat_roman(state.combat.practice_tier) }}</button>
+							<button type="button" class="btn btn-success mp-combat-raid-start" :disabled="!!state.combat.recovery || state.combat.maintenance?.drain_at != null || !state.combat_practice_tier().available || !state.is_connected || state.is_social_only || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character" @click="state.start_combat()">{{ state.combat.starting ? state.combat_name('connecting') : state.combat_practice_copy('start') + ' · ' + state.combat_practice_copy('tier') + ' ' + state.combat_roman(state.combat.practice_tier) }}</button>
 							<p class="text-warning mt-2" role="status" v-show="state.combat.status === 'unavailable'">{{ getLangString('MOD_MP_COMBAT_UNAVAILABLE_INFO') }}</p>
 							<p class="text-warning mt-2" role="status" v-show="state.combat.error">{{ state.combat_name(state.combat.error || 'rejected') }}</p>
 							<p class="text-warning mt-2" role="status" v-show="state.combat.inventory_error">{{ state.combat_inventory_error() }}</p>
@@ -584,7 +611,7 @@
 							<button v-for="raid in state.combat_raids()" :key="raid.id" type="button" class="mp-combat-choice mp-combat-raid-choice" :aria-pressed="state.combat_selected_raid().id === raid.id" :disabled="state.combat.starting || state.combat.pending || (raid.id !== 'golbins' && state.combat_dungeon(raid.id)?.available !== true)" @click="state.combat_select_raid(raid.id)">
 								<i v-if="raid.id !== 'golbins' && state.combat_dungeon(raid.id)?.available !== true" class="fa fa-lock mp-combat-dungeon-lock" :aria-label="state.combat_raid_copy('locked')"></i>
 								<img class="mp-combat-dungeon-art" :src="state.combat_dungeon_art(raid.id)" alt="" aria-hidden="true">
-								<strong>{{ raid.name }}</strong><span v-if="(raid.id !== 'golbins' && state.combat_dungeon(raid.id)?.available !== true)">{{ state.combat_raid_copy('entry', raid.id) }}</span><span>{{ state.combat_raid_copy('tiers') }}</span>
+								<strong>{{ raid.name }}</strong><span v-if="(raid.id !== 'golbins' && state.combat_dungeon(raid.id)?.available !== true)">{{ state.combat_raid_copy('entry', raid.id) }}</span>
 								<span class="mp-combat-tier-badges"><span v-for="tier in state.combat_raid_tiers(raid.id)" :key="tier.tier"><span class="mp-combat-tier-badge" :class="{ 'mp-combat-tier-complete': tier.complete }" :aria-label="state.combat_raid_copy('tier') + ' ' + tier.numeral + (tier.complete ? ' · ' + state.combat_raid_copy('completed') : '')"><span>{{ tier.numeral }}</span><i class="fa fa-check" v-show="tier.complete" aria-hidden="true"></i></span></span></span>
 							</button>
 						</div>
@@ -598,7 +625,7 @@
 							<div class="mp-combat-raid-unlocks"><div v-for="tier in state.combat_raid_tiers()" :key="tier.tier" class="mp-combat-raid-unlock" :class="{ 'mp-combat-raid-unlock-selected': tier.selected }"><span class="mp-combat-tier-badge" :class="{ 'mp-combat-tier-complete': tier.complete, 'mp-combat-tier-locked': tier.locked }" :aria-label="state.combat_raid_copy('tier') + ' ' + tier.numeral + (tier.locked ? ' · ' + state.combat_raid_copy('locked') : tier.complete ? ' · ' + state.combat_raid_copy('completed') : '')"><span>{{ tier.numeral }}</span><i class="fa fa-check" v-show="tier.complete && !tier.locked" aria-hidden="true"></i><i class="fa fa-lock" v-show="tier.locked" aria-hidden="true"></i></span><span class="mp-combat-raid-gains"><strong v-if="tier.name">{{ state.combat_name(state.combat.raid_selection + '_tier_' + tier.tier) }}</strong><span v-for="gain in tier.gains" :key="gain.skill"><img class="mp-combat-raid-skill-icon" :src="state.combat_skill_icon(gain.skill)" alt="" width="16" height="16">{{ state.combat_name(gain.skill) }}: <strong>{{ gain.cap }}</strong></span><span v-if="tier.material_cap" v-html="state.combat_material_access(tier.material_cap)"></span><span v-if="tier.food"><img class="mp-combat-raid-skill-icon" :src="state.get_item_icon(tier.food?.item_id)" alt="" width="16" height="16">{{ state.get_item_name(tier.food?.item_id) }} (+{{ tier.food?.heal }} HP)</span></span></div></div>
 							<p class="text-muted mp-combat-raid-qualification">{{ state.combat_raid_copy('qualification') }}</p>
 							<p v-if="state.combat_dungeon()?.best">{{ state.combat_raid_copy('best') }}: <strong>{{ state.combat_time(state.combat_dungeon()?.best?.elapsed_ms) }}</strong> · {{ state.combat_local_date(state.combat_dungeon()?.best?.achieved_at) }}</p>
-					<button type="button" class="btn btn-success mp-combat-raid-start" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('battle') }" :disabled="(state.combat.raid_selection !== 'golbins' && state.combat_dungeon()?.available !== true) || (state.combat.tutorial && !state.combat.tutorial.complete && !state.combat.tutorial.ready) || !state.is_connected || state.is_social_only || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character || state.combat.arena?.status === 'active'" @click="state.start_combat()">{{ state.combat.starting ? state.combat_name('connecting') : state.combat_raid_copy('start') + ' · ' + state.combat_raid_copy('tier') + ' ' + state.combat_roman(state.combat_dungeon()?.endpoint ?? 1) }}</button>
+					<button type="button" class="btn btn-success mp-combat-raid-start" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('battle') }" :disabled="!!state.combat.recovery || state.combat.maintenance?.drain_at != null || (state.combat.raid_selection !== 'golbins' && state.combat_dungeon()?.available !== true) || (state.combat.tutorial && !state.combat.tutorial.complete && !state.combat.tutorial.ready) || !state.is_connected || state.is_social_only || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character || state.combat.arena?.status === 'active'" @click="state.start_combat()">{{ state.combat.starting ? state.combat_name('connecting') : state.combat_raid_copy('start') + ' · ' + state.combat_raid_copy('tier') + ' ' + state.combat_roman(state.combat_dungeon()?.endpoint ?? 1) }}</button>
 					<p class="text-warning mt-2" role="status" v-show="state.combat.status === 'unavailable'">{{ getLangString('MOD_MP_COMBAT_UNAVAILABLE_INFO') }}</p>
 					<p class="text-warning mt-2" role="status" v-show="state.combat.status === 'error'">{{ state.combat_name(state.combat.status) }}</p>
 					<p class="text-warning mt-2" role="status" v-show="state.combat.error">{{ state.combat_name(state.combat.error || 'rejected') }}</p>

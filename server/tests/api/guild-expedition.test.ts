@@ -694,7 +694,7 @@ describe('Guild Expedition registration', () => {
 
 	test.each([true, false])('destroys an inactive Stash once while Crucible open=%s', async (is_open) => {
 		const guild = await make_guildmates('Crucible Supply A', 'Crucible Supply B', 'Crucible Stash',
-			{ first: '1.6.14', second: '1.6.14' });
+			{ first: '1.7.0', second: '1.7.0' });
 		const started = await post_json<{ expedition_id: number }>(
 			'/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.first.session_token);
 		const now = Date.now();

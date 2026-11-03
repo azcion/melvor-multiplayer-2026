@@ -1,5 +1,6 @@
 services:
   server:
+    stop_grace_period: 15s
     build:
       context: .
     environment:
@@ -71,6 +72,7 @@ services:
     command: ["bun", "run", "test"]
 
   combat:
+    stop_grace_period: 15s
     profiles: ["combat"]
     build:
       context: .

@@ -162,3 +162,25 @@ test('automatic gate selects again after tracking ends without an activity chang
 	assert.equal(gate.observe({ ...input, now: 39000 }), false);
 	assert.equal(gate.observe({ ...input, now: 41500 }), true);
 });
+
+
+test('matching projects take priority over ongoing chamber work without bypassing verification', async () => {
+	const { should_prefer_equipment, best_eligible_task } = await import('../../mod/expedition-tasks.mjs');
+	const activity = { type: 'skill', skill_id: 'melvorD:Smithing', action_id: 'melvorD:Bronze_Helmet' };
+	const project = { task_id: 'helmet', available: true, player_ms: 0, target_ms: 60000, ...activity };
+	const chamber_task = { task_id: 'chamber', unlocked_at: 1, completed_at: null, requirement: 'required',
+		target_ms: 3600000, evidence: { skill_ids: [activity.skill_id] } };
+	const model = { tracking: { task_id: 'chamber' }, equipment_projects: { project: { stages: [[project]] } },
+		expedition: { status: 'active', registered: true, chamber: { tasks: [chamber_task] } } };
+	assert.equal(should_prefer_equipment(model, [activity]), true);
+	assert.equal(best_eligible_task(model, [activity]), null, 'must settle existing work first');
+	assert.equal(best_eligible_task({ ...model, tracking: null }, [activity]).task_id, 'helmet');
+	assert.equal(should_prefer_equipment(model, [{ ...activity, action_id: 'melvorD:Bronze_Boots' }]), false);
+	for (const tracking of [null, { source: 'equipment' }, { pending_boundary_at: 1 }, { claim: true }])
+		assert.equal(should_prefer_equipment({ ...model, tracking }, [activity]), false);
+	project.available = false;
+	assert.equal(should_prefer_equipment(model, [activity]), false);
+	project.available = true;
+	project.player_ms = project.target_ms;
+	assert.equal(should_prefer_equipment(model, [activity]), false);
+});

@@ -105,8 +105,8 @@ const combat_key = read_combat_key();
 const combat_authority = combat_key ? start_combat_authority({ database: db, key: combat_key, admitted: client => !is_social_only_client(client) && !rollback_held(db,client) && !!db.query('SELECT 1 FROM clients WHERE id=? AND disabled=0 AND deleted_at IS NULL').get(client) }) : null;
 server.start();
 const shutdown = create_shutdown_handler(
-	() => {
-		combat_authority?.stop();
+	async () => {
+		await combat_authority?.stop();
 		clearInterval(expedition_maintenance_timer);
 		clearInterval(raid_maintenance_timer);
 		chat_translation_worker.stop();

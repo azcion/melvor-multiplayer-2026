@@ -14,7 +14,7 @@ type State = { expedition: { id: number; chamber: { visit_id: number; tasks: {
 }[] } } };
 
 async function entrance() {
-	const guild = await make_guildmates('Expedition Worker', 'Expedition Witness', 'Work Guild', { first: '1.6.17', second: '1.6.17' });
+	const guild = await make_guildmates('Expedition Worker', 'Expedition Witness', 'Work Guild', { first: '1.7.0', second: '1.7.0' });
 	const registered = await post_json<{ expedition_id: number }>(
 		'/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.first.session_token);
 	await db_run('UPDATE expeditions SET registered_at = ?, registration_ends_at = ? WHERE id = ?',
@@ -50,7 +50,7 @@ describe('Expedition verified work', () => {
 			['sequential accepted half-hours', [woodcutting], 1_800_000, 1_800_000, 3_600_000],
 			['accepted work capped before division with counter tolerance', [woodcutting, fishing], 3_672_000, 3_672_000, 1_764_705]
 		] as const) {
-			test(`1.6.17 reports credit ${label}, dissolution=${dissolve}`, async () => {
+			test(`supported reports credit ${label}, dissolution=${dissolve}`, async () => {
 				const { guild, expedition_id, visit_id, task } = await entrance();
 				const hour = 3_600_000;
 				const content = structuredClone(EXPEDITION_CONTENT_PREVIEW);
@@ -60,7 +60,7 @@ describe('Expedition verified work', () => {
 					[JSON.stringify(content), expedition_id]);
 				await db_run('UPDATE expedition_tasks SET target_ms = ?, player_ms = 0, system_ms = 0 WHERE visit_id = ? AND task_id = ?',
 					[10 * hour, visit_id, task]);
-				// Exact 1.6.17 request fields: no new client capability or evidence format.
+				// Existing request fields remain valid without an additional capability or evidence format.
 				const report = (amount: number) => ({ operation_id: crypto.randomUUID(), expedition_id, visit_id,
 					task_id: task, captured_at: Date.now(), activities: [...activities],
 					statistics: { version: 1, time_ms: { [woodcutting.skill_id]: amount ? woodcutting_ms : 0,

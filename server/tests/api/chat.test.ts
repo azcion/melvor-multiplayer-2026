@@ -500,10 +500,10 @@ describe('Private Chat API', () => {
 
 		await post_json('/api/chat/conversations/delete', { conversation_id }, pair.first.session_token);
 		expect((await conversations(pair.first.session_token)).json.conversations.filter(entry =>
-			(entry as { conversation_kind?: string }).conversation_kind !== 'support' && (entry as { conversation_kind?: string }).conversation_kind !== 'testers'
+			(entry as { conversation_kind?: string }).conversation_kind === 'private'
 		)).toEqual([]);
 		expect((await conversations(pair.second.session_token)).json.conversations.filter(entry =>
-			(entry as { conversation_kind?: string }).conversation_kind !== 'support' && (entry as { conversation_kind?: string }).conversation_kind !== 'testers'
+			(entry as { conversation_kind?: string }).conversation_kind === 'private'
 		)).toHaveLength(1);
 		await send_chat(pair.second.session_token, conversation_id, 'Later');
 		const reopened = await conversations(pair.first.session_token);
@@ -1299,8 +1299,8 @@ describe('Support Chat API', () => {
 	});
 });
 
-test('retires Expedition Chat for old and current clients while retaining backend history', async () => {
- for (const version of ['1.6.14','1.7.0']) {
+test('retires Expedition Chat for supported clients while retaining backend history', async () => {
+ for (const version of ['1.7.0','1.7.1']) {
   const client = await register_client('Retired Expedition', undefined, version);
   await db_run("INSERT INTO global_chat_messages(channel,sender_id,idempotency_key,content,created_at) VALUES('testers',?,?,?,?)", [client.client_id,crypto.randomUUID(),'Retained history',Date.now()]);
   const inbox = await get_json_with_session<any>('/api/chat/conversations',client.session_token);

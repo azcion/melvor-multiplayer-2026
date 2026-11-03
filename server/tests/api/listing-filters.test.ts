@@ -4,7 +4,7 @@ import { get_json_with_session, post, post_json, register_client } from '../supp
 import { db_all, db_run } from '../support/persistence';
 
 test('viewer filters affect Sell Listings and catalog counts, leaving Buy Orders and other viewers intact', async () => {
-	const pair = await make_guildmates('Filter Seller', 'Filter Viewer', 'Listing Filter Guild', { first: '1.6.14', second: '1.6.14' });
+	const pair = await make_guildmates('Filter Seller', 'Filter Viewer', 'Listing Filter Guild', { first: '1.7.0', second: '1.7.0' });
 	const item_id = 'melvorD:Filter_Logs';
 	await post_json('/api/market/sell', { item_id, item_qty: 5, item_sell_price: 5 }, pair.first.session_token);
 	await post_json('/api/market/buy-order', { item_id, item_qty: 5, item_buy_price: 5 }, pair.first.session_token);
@@ -26,7 +26,7 @@ test('viewer filters affect Sell Listings and catalog counts, leaving Buy Orders
 });
 
 test('mixed Crucible stacks display and reclaim only unfiltered lots with safe replay', async () => {
-	const pair = await make_guildmates('Filtered Caster', 'Clean Caster', 'Crucible Filters', { first: '1.6.14', second: '1.6.14' });
+	const pair = await make_guildmates('Filtered Caster', 'Clean Caster', 'Crucible Filters', { first: '1.7.0', second: '1.7.0' });
 	const item_id = 'test:Filtered_Crucible_Ore';
 	for (const [client, qty] of [[pair.first, 5], [pair.second, 3]] as const) {
 		const result = await post_json<any>('/api/crucible/cast', { command_id: crypto.randomUUID(), source: 'bank',
@@ -63,8 +63,8 @@ test('mixed Crucible stacks display and reclaim only unfiltered lots with safe r
 
 
 test('filter prompt eligibility and acknowledgement persist across authentication without affecting other identities', async () => {
-	const first = await register_client('Prompt First', undefined, '1.6.14');
-	const unrelated = await register_client('Prompt Unlinked', undefined, '1.6.14');
+	const first = await register_client('Prompt First', undefined, '1.7.0');
+	const unrelated = await register_client('Prompt Unlinked', undefined, '1.7.0');
 	const pending = async (client: typeof first) => (await get_json_with_session<{ pending: boolean }>(
 		'/api/listing-filters/prompt', client.session_token)).json.pending;
 	expect(await pending(first)).toBe(true);
@@ -74,7 +74,7 @@ test('filter prompt eligibility and acknowledgement persist across authenticatio
 	expect(await pending(unrelated)).toBe(true);
 	const auth = await post_json<{ listing_filter_prompt_pending: boolean }>('/api/authenticate', {
 		client_identifier: first.client_identifier, client_key: first.client_key,
-		client_runtime: { mod_version: '1.6.14', active_mods: [] }
+		client_runtime: { mod_version: '1.7.0', active_mods: [] }
 	});
 	expect(auth.json.listing_filter_prompt_pending).toBe(false);
 });

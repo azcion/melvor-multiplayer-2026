@@ -77,7 +77,7 @@ describe('friends API', () => {
 			revision: initial.json.revision,
 			unchanged: true,
 			released_mod_version: null,
-			minimum_supported_mod_version: '1.6.14',
+			minimum_supported_mod_version: '1.7.0',
 			dev_badge_labels: {
 				'multiplayer:Badge_Dev': 'Dev',
 				'multiplayer:Badge_SAE_Dev': 'SAE Dev',
@@ -107,7 +107,7 @@ describe('friends API', () => {
 				revision: initial.json.revision,
 				unchanged: true,
 				released_mod_version: '1.6.14',
-				minimum_supported_mod_version: '1.6.14',
+				minimum_supported_mod_version: '1.7.0',
 				dev_badge_labels: {
 					'multiplayer:Badge_Dev': 'Dev',
 					'multiplayer:Badge_SAE_Dev': 'SAE Dev',

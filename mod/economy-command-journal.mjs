@@ -10,6 +10,16 @@ export function create_economy_command_journal({ read, write, remove, send, reco
 	}
 	function retire(id) { if (current() && read()?.payload?.command_id === id) remove(); }
 	const retired_result = id => ({ response: null, json: { success: false, error: 'economy_command_retired', retired_command_id: id, receipt: null } });
+	function normalize_pending(pending) {
+		if (typeof pending?.endpoint !== 'string' || typeof pending.payload?.command_id !== 'string' ||
+			![1, 2].includes(pending.major)) return null;
+		if (pending.major === 1) {
+			pending = { ...pending, major: 2 };
+			write(pending);
+			if (JSON.stringify(read()) !== JSON.stringify(pending)) return null;
+		}
+		return pending;
+	}
 	async function dispatch(pending) {
 		if (!current() || !can_recover(pending)) return failed();
 		if (is_retired(pending.payload.command_id)) { retire(pending.payload.command_id); return retired_result(pending.payload.command_id); }
@@ -21,7 +31,7 @@ export function create_economy_command_journal({ read, write, remove, send, reco
 			retire(retired_id); return result;
 		}
 		if (transient_rollback_failure(result.json)) return result;
-		if (result.json?.success === true && (result.json.receipt === null || (pending.major === 1 && result.json.receipt === undefined)))
+		if (result.json?.success === true && result.json.receipt === null)
 			retire(pending.payload.command_id); // Acknowledged replay has no effects, even after local processed-ID eviction.
 		else if (result.json?.success === false || typeof result.json?.error_lang === 'string' ||
 			[400, 403, 404, 409].includes(result.response?.status))
@@ -50,6 +60,8 @@ export function create_economy_command_journal({ read, write, remove, send, reco
 					write(pending);
 					if (JSON.stringify(read()) !== JSON.stringify(pending)) return Promise.resolve(failed());
 				}
+				pending = normalize_pending(pending);
+				if (pending === null) return Promise.resolve(failed());
 				return locked(() => dispatch(pending));
 			} catch { return Promise.resolve(failed()); }
 		},
@@ -64,17 +76,10 @@ export function create_economy_command_journal({ read, write, remove, send, reco
 			if (pending === undefined || !current()) return true;
 			if (is_retired(pending?.payload?.command_id)) { retire(pending.payload.command_id); return true; }
 			if (!can_recover(pending)) return false;
-			if (typeof pending?.endpoint !== 'string' || typeof pending.payload?.command_id !== 'string' ||
-				![1, 2].includes(pending.major)) return Promise.resolve(false);
-			if (pending.major === 1) {
-				pending = { ...pending, major: 2 };
-				try {
-					write(pending);
-					if (JSON.stringify(read()) !== JSON.stringify(pending)) return false;
-				} catch { return false; }
-			}
+			try { pending = normalize_pending(pending); } catch { return false; }
+			if (pending === null) return false;
 			return locked(() => dispatch(pending)).then(async result => {
-				if (result.json?.success === true && await reconcile([result.json.receipt])) return true;
+				if (result.json?.success === true && result.json.receipt !== undefined && await reconcile([result.json.receipt])) return true;
 				return read() === undefined;
 			}).catch(() => false);
 		}

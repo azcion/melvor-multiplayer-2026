@@ -93,7 +93,7 @@ export function combat_opponents_compact(view) {
 }
 
 export function create_combat_view() {
-	return { dungeon_debug_options: null, dungeon_debug_target: 'tidal:2', dungeon_debug_levels: {attack:12,strength:12,defence:12,hitpoints:12}, dungeon_debug_gear: {Weapon:'melvorD:Iron_Sword',Shield:'melvorD:Iron_Shield',Helmet:'melvorD:Iron_Helmet'}, dungeon_debug_food: 'melvorD:Herring', dungeon_debug_confirm: false, test_profile: false, practice: [], practice_category: 'duels', practice_selection: 'recruit', practice_tier: 1, practice_tab: 'picker', opponents_view: 'auto', result: null, raid_tab: 'raids', raid_selection: 'golbins', raid_page: 0, raid_loading: false, dungeons: [], raid: null, unlocks: null, tutorial_debug_targets: [], tutorial_debug_confirm: false, tutorial_debug_target: 'start', tutorial: null, mode: 'once', encounter: '', supported_encounters: [], status: 'idle', arena: null, pending: false, starting: false, error: '', latency: 0, foods: [], character: null, ep_micros: 0, level_quantities: {}, reset_confirm: false, equipment_set: 'melee', equipment_reset_confirm: false, consumables_reset_confirm: false, page_tab: 'character', combat_tab: 'test_combat', preparation_tab: 'levels', history: [], debug_enabled: false, inventory_busy: false, inventory_error: '', food_id: '', stance: 'accurate' };
+	return { recovery_notice: '', recovery: null, recovery_supported: false, maintenance: null, dungeon_debug_options: null, dungeon_debug_target: 'tidal:2', dungeon_debug_levels: {attack:12,strength:12,defence:12,hitpoints:12}, dungeon_debug_gear: {Weapon:'melvorD:Iron_Sword',Shield:'melvorD:Iron_Shield',Helmet:'melvorD:Iron_Helmet'}, dungeon_debug_food: 'melvorD:Herring', dungeon_debug_confirm: false, test_profile: false, practice: [], practice_category: 'duels', practice_selection: 'recruit', practice_tier: 1, practice_tab: 'picker', opponents_view: 'auto', result: null, raid_tab: 'raids', raid_selection: 'golbins', raid_page: 0, raid_loading: false, dungeons: [], raid: null, unlocks: null, tutorial_debug_targets: [], tutorial_debug_confirm: false, tutorial_debug_target: 'start', tutorial: null, mode: 'once', encounter: '', supported_encounters: [], status: 'idle', arena: null, pending: false, starting: false, error: '', latency: 0, foods: [], character: null, ep_micros: 0, level_quantities: {}, reset_confirm: false, equipment_set: 'melee', equipment_reset_confirm: false, consumables_reset_confirm: false, page_tab: 'character', combat_tab: 'test_combat', preparation_tab: 'levels', history: [], debug_enabled: false, inventory_busy: false, inventory_error: '', food_id: '', stance: 'accurate' };
 }
 
 export function combat_socket_url(origin) {
@@ -112,6 +112,9 @@ export function create_combat_controller({ view, get_scope, get_origin, can_conn
 	let snapshots = create_combat_snapshot_reader(), deltas = false;
 	let next_view_change = 0;
 	let heartbeat = null, deadline = null, command_deadline = null;
+	const delivered_results = new Set();
+	let delivering = null, acknowledging_result = false;
+	let recovery_intent = null, recovery_result = undefined, recovering = false;
 	let last_received = 0, ping_sent = 0, next_connection = 0, auto_start = false;
 	function close(status = 'closed', preserve_arena = false) {
 		generation++;
@@ -122,12 +125,15 @@ export function create_combat_controller({ view, get_scope, get_origin, can_conn
 		if (old) { old.onopen = old.onmessage = old.onclose = old.onerror = null; old.close(); }
 		view.supported_encounters = [];
 		view.status = status; view.pending = false; view.starting = false; view.latency = 0; auto_start = false;
-		if (!preserve_arena) { view.arena = null; on_state(null); }
+		if (!preserve_arena) { if (view.recovery_supported && view.arena?.status === 'active') view.recovery = {id:view.arena.id,state:'unknown',remaining_ms:0}; view.arena = null; on_state(null); }
 	}
-	async function connect(start_after_connect = false) {
+	async function connect(start_after_connect = false, intent = null) {
+		if (socket && view.status === 'ready' && !view.pending && start_after_connect && view.recovery_supported) {
+			auto_start = true; recovering = true; recovery_result = undefined; send({type:'recover'}); return;
+		}
 		if (socket || view.status === 'connecting' || !can_connect() || now() < next_connection) { if (start_after_connect) { view.starting = false; view.status = 'error'; } return; }
 		next_connection = now() + 5000;
-		close('connecting'); view.starting = start_after_connect; auto_start = start_after_connect; view.error = '';
+		close('connecting'); delivering = null; acknowledging_result = false; view.recovery_notice = ''; recovery_intent = intent; recovery_result = undefined; recovering = false; view.starting = start_after_connect; auto_start = start_after_connect; view.error = '';
 		const current = generation, scope = get_scope();
 		const valid = () => current === generation && scope === get_scope() && can_connect();
 		try {
@@ -142,7 +148,7 @@ export function create_combat_controller({ view, get_scope, get_origin, can_conn
 			deadline = timers.setTimeout(() => { if (valid()) close('error'); }, 8000);
 			ws.onopen = () => {
 				if (!valid()) { close(); return; }
-				ws.send(JSON.stringify({ type: 'authenticate', protocol: COMBAT_PROTOCOL, ticket: result.ticket, capabilities: ['state-delta-v1'] }));
+				ws.send(JSON.stringify({ type: 'authenticate', protocol: COMBAT_PROTOCOL, ticket: result.ticket, capabilities: ['state-delta-v1', 'pve-recovery-v1'] }));
 			};
 			ws.onmessage = event => {
 				if (!valid()) { close(); return; }
@@ -155,7 +161,10 @@ export function create_combat_controller({ view, get_scope, get_origin, can_conn
 					view.supported_encounters = Array.isArray(message.encounters)
 						? message.encounters.filter(id => typeof id === 'string' && id !== 'mossbound')
 						: [];
-					if (auto_start && (!['test_combat', 'raid'].includes(view.page_tab) || !start())) {
+					view.recovery_supported = message.capabilities?.includes('pve-recovery-v1') === true;
+					view.maintenance = message.maintenance ?? null;
+					if (view.recovery_supported) { recovering = true; send({type:'recover'}); }
+					if (!view.recovery_supported && auto_start && (!['test_combat', 'raid'].includes(view.page_tab) || !start())) {
 						if (['test_combat', 'raid'].includes(view.page_tab) && !view.error) view.error = 'rejected';
 						close('idle', true); return;
 					}
@@ -164,23 +173,50 @@ export function create_combat_controller({ view, get_scope, get_origin, can_conn
 						if (ws.readyState !== 1 || ws.bufferedAmount > 8192) { close('error'); return; }
 						ping_sent = now(); ws.send(JSON.stringify({ type: 'heartbeat' }));
 					}, 2000);
+				} else if (message.type === 'maintenance') {
+					view.maintenance = message;
+				} else if (message.type === 'recovery') {
+					recovery_result = message.saved;
+					view.maintenance = message.maintenance ?? view.maintenance;
+					view.recovery = message.saved ? {id:message.saved.arena.id,state:message.saved.state,remaining_ms:message.saved.remaining_ms} : null;
 				} else if (message.type === 'state' || message.type === 'state_delta') {
 					try { if (deltas) message = { ...message, arena: snapshots.read(message) };
 						else if (message.type !== 'state') throw new Error('Unnegotiated delta');
 					} catch { close('error'); return; }
+					if (!message.arena && recovering) return;
+					if (message.arena?.status === 'active') view.recovery = null;
 					const starting = message.arena?.status === 'active' && view.arena?.status !== 'active';
 					if (starting) { view.page_tab = view.combat_tab; view.opponents_view = 'auto'; next_view_change = 0; }
 					view.arena = message.arena;
+					if (COMBAT_STANCES.includes(message.arena?.stance)) view.stance = message.arena.stance;
 					if (starting) { view.starting = false; auto_start = false; on_start(); }
 					on_state(message.arena);
 					if (message.arena && message.arena.status !== 'active') {
-						next_connection = 0; close('idle', true);
-						if (['victory', 'defeat', 'draw', 'fled'].includes(message.arena.status)) on_result(message.arena);
+						if (view.recovery_supported) { void deliver_result(message.arena); }
+						else { next_connection = 0; close('idle', true); if (['victory','defeat','draw','fled'].includes(message.arena.status)) on_result(message.arena); }
 					}
 				} else if (message.type === 'heartbeat') {
 					view.latency = Math.max(0, Math.round(now() - ping_sent));
 				} else if (message.type === 'ack' && message.seq === pending_sequence) {
 					timers.clearTimeout(command_deadline); view.pending = false;
+					if (acknowledging_result) { acknowledging_result = false; if (message.accepted) view.recovery = null; next_connection = 0; close('idle',true); return; }
+					if (recovering && recovery_result !== undefined) {
+						recovering = false;
+						const saved = recovery_result; recovery_result = undefined;
+						if (saved?.state === 'terminal') {
+							view.arena = saved.arena; on_state(saved.arena); auto_start = false; view.starting = false;
+							void deliver_result(saved.arena); return;
+						}
+						if (saved?.state === 'paused' && ['resume','abandon'].includes(recovery_intent)) {
+							const action = recovery_intent; recovery_intent = null; auto_start = false;
+							view.encounter = saved.arena.run?.selection ?? saved.arena.encounter; view.mode = saved.arena.run?.mode ?? 'once';
+							view.combat_tab = view.mode === 'raid' ? 'raid' : 'test_combat';
+							send({type:action,encounter:saved.arena.id}); return;
+						}
+						if (!saved && auto_start) { start(); return; }
+						auto_start = false; view.starting = false;
+					}
+
 					view.error = message.accepted ? '' : 'rejected';
 					if (!message.accepted && auto_start) close('idle', true);
 				}
@@ -189,6 +225,21 @@ export function create_combat_controller({ view, get_scope, get_origin, can_conn
 			ws.onerror = () => { if (current === generation) close('error'); };
 		} catch { if (current === generation) close('error'); }
 	}
+	async function deliver_result(arena) {
+		if (delivering === arena.id) return;
+		delivering = arena.id;
+		const current = generation, scope = get_scope(), key = `${scope}:${arena.id}`;
+		view.recovery = {id:arena.id,state:'terminal',remaining_ms:0};
+		try {
+			if (!delivered_results.has(key) && ['victory','defeat','draw','fled'].includes(arena.status)) await on_result(arena);
+			if (current !== generation || scope !== get_scope()) return;
+			delivered_results.add(key);
+			if (arena.status === 'expired') view.recovery_notice = 'expired';
+			acknowledging_result = send({type:'abandon',encounter:arena.id});
+			if (!acknowledging_result) close('closed',true);
+		} catch { if (current === generation) close('error',true); }
+	}
+
 	function send(payload) {
 		if (view.status !== 'ready' || view.pending || !can_connect() || socket?.readyState !== 1) return false;
 		if (socket.bufferedAmount > 8192) { close('error'); return false; }
@@ -207,7 +258,9 @@ export function create_combat_controller({ view, get_scope, get_origin, can_conn
 	}
 	return {
 		connect, close, start,
+		recover(intent = null) { if (socket && view.status === 'ready') { recovery_intent = intent; recovering = true; recovery_result = undefined; return send({type:'recover'}); } return connect(false,intent); },
 		forfeit() {
+			if (view.recovery_supported) return send({type:'command',encounter:view.arena?.id,action:'flee'});
 			const arena = view.arena?.status === 'active' ? { ...view.arena, status: 'fled' } : null;
 			close('idle', true);
 			if (!arena) return false;

@@ -1,11 +1,16 @@
 # Multiplayer API contracts
 
-The compiled minimum supported mod version is 1.6.14. The API exposes one current wire contract, API v2;
+The compiled minimum supported mod version is 1.7.0. The API exposes one current wire contract, API v2;
 backend deployment versions remain independent of mod releases.
 
 The operator may raise the minimum supported version; clearing an override restores the compiled baseline. Empty,
 malformed or older stored overrides cannot reopen retired request contracts. API discovery, major selection, explicit
 capability negotiation and update notices remain available for future releases.
+
+Global/Guild Chat and Polls retain the explicit `capabilities=global-chat-v1,guild-chat-v1,polls-v1`
+query selectors. Omitting a selector still omits its conversation/unread summary or rejects its dedicated routes;
+the client floor does not implicitly select these protocols. Participation settings and domain authorization remain
+independent. Browser Chat fixes its own Global/Guild capabilities and does not gain Poll or Announcement access.
 
 Authentication may include `social_mode_enforcement` as `identity`, `account`, or null. When non-null, the effective
 `social_mode` is `social`, Full-mode changes return `MOD_MP_SOCIAL_MODE_ENFORCED`, and every Social Only authorization
@@ -493,11 +498,11 @@ The 1.7.0 client refreshes the visible leaderboard every five minutes and reques
 
 ### Announcements and retained Message deletion
 
-Game clients from 1.7.0 receive `announcements` (conversation ID 1) through the existing Chat inbox/history/send,
+All supported game clients receive `announcements` (conversation ID 1) through the existing Chat inbox/history/send,
 reaction and details endpoints. `announcement-discussion` uses its announcement ID as the conversation ID.
-These kinds are unavailable to older authenticated sessions and browser links, and cannot be accessed through Poll
-APIs. Announcement publication and account-wide author deletion require Highlight eligibility; admins retain deletion
-authority. Announcements cannot be opted out of or muted. History responses include independent
+Browser links exclude these kinds, and Poll APIs cannot access them. The game support gate rejects older
+authenticated sessions before the Chat handlers. Announcement publication and account-wide author deletion require
+Highlight eligibility; admins retain deletion authority. Announcements cannot be opted out of or muted. History responses include independent
 `discussion_unread_counts`; discussion replies never contribute to the aggregate Chat unread count.
 
 `messages/delete` and the compatible game `messages/delete-for-all` action now retain the original row and hide
@@ -538,6 +543,12 @@ personal join/end timestamps, credited milliseconds, distinct Chambers with posi
 preparations), base earned EP and completion-bonus totals/claimed/available micro-EP. Compact tracking reads omit
 the summary. Full state and personal reads also include owner-scoped `ending_rewards` with outstanding bonuses,
 including older runs after registration or Guild changes.
+
+During registration and active Entrance visits, full Guild state also includes `expedition.previous_return`:
+the same personal summary plus `expedition_id` for the immediately preceding ended run in the current Guild.
+It is null when the viewer did not participate in that run, no previous run exists, or the current run has left
+The Rift. Compact tracking reads omit this field. Claimed rewards remain in the summary; claims use its own
+`expedition_id`, independently of the current run.
 
 `POST /api/v2/expedition/ending/claim` accepts `{ expedition_id }` for the authenticated owner's eligible successful
 completion. New successful endings become eligible; historical completions, inactivity and dissolution do not.

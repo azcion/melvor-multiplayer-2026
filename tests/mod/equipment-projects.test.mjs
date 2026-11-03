@@ -100,7 +100,7 @@ test('personal exact-action work wins automatic selection, has zero EP, and neve
 	assert.equal(equipment_tasks(null).length, 0);
 });
 
-test('tutorial project settles chamber tracking then follows native work without chamber fallback', async () => {
+test('projects settle chamber tracking before and after tutorial graduation', async () => {
 	const { readFile } = await import('node:fs/promises');
 	const { runInNewContext } = await import('node:vm');
 	const expedition_tasks = await import('../../mod/expedition-tasks.mjs');
@@ -110,8 +110,9 @@ test('tutorial project settles chamber tracking then follows native work without
 	const model = { tracking: { task_id: 'chamber' }, equipment_projects: { project: { item_id: 'sword', stages: [[task]] } } };
 	const state = { is_connected: true, combat: { tutorial: { complete: false, trial: { item: 'sword' } } }, expedition_state: model };
 	const calls = [];
+	const observations = [];
 	const context = { state, expedition_tasks, offline_work_gate: null, session_generation: 1, expedition_work_prompt_loading: false,
-		expedition_work_prompt_gate: { observe: () => true, defer: () => {} }, Date, document: {}, polling: { is_foreground: () => true },
+		expedition_work_prompt_gate: { observe: input => { observations.push(input); return true; }, defer: () => {} }, Date, document: {}, polling: { is_foreground: () => true },
 		capture_status_activities: () => activities, refresh_expedition_state: async () => true,
 		submit_expedition_work: async (kind, id) => { calls.push([kind, id]); if (kind === 'stop') model.tracking = null; } };
 	runInNewContext(main.slice(main.indexOf('async function maybe_start_expedition_work('), main.indexOf('function expedition_notify(')), context);
@@ -127,7 +128,10 @@ test('tutorial project settles chamber tracking then follows native work without
 	}
 	model.tracking = { task_id: 'chamber' }; state.combat.tutorial.complete = true;
 	await context.maybe_start_expedition_work(activities);
-	assert.equal(calls.length, 0, 'graduated players retain normal tracking ownership');
+	assert.equal(observations.at(-1).tracking, false, 'a matching project enables selection during chamber tracking');
+	assert.deepEqual(calls, [['stop', null]], 'graduated players also settle chamber work for matching projects');
+	await context.maybe_start_expedition_work(activities);
+	assert.deepEqual(calls[1], ['start', 'tin']);
 });
 
 test('project grid hides locked access and requires the completed previous material in the same family', async () => {
@@ -177,6 +181,28 @@ test('Combat owns equipment spending while Expedition shows available and active
 	assert.ok(!expedition.includes('mp-equipment-permanent'));
 	assert.ok(html.includes('state.equipment_grid()'));
 	assert.ok(html.includes("v-for=\"type in ['melee', 'ranged', 'magic']\""));
+});
+
+test('personal tracking shares the responsive banner without EP and highlights only its tracked task', async () => {
+	const { readFile } = await import('node:fs/promises');
+	const { runInNewContext } = await import('node:vm');
+	const html = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
+	const banner = html.slice(html.indexOf('<div v-show="state.equipment_tracking()'), html.indexOf('<div id="mp-expedition-chamber-view"'));
+	assert.match(banner, /mp-expedition-panel mp-expedition-tracking mp-equipment-tracking/);
+	assert.match(banner, /mp-expedition-tracking-copy/);
+	assert.match(banner, /fa fa-crosshairs/);
+	assert.match(banner, /MOD_MP_EXPEDITION_TRACKING_TITLE/);
+	assert.match(banner, /MOD_MP_EXPEDITION_STARTED_AGO/);
+	assert.match(banner, /equipment_tracking\(\)\?\.started_at/);
+	assert.match(banner, /equipment_action\('check-in'\)/);
+	assert.doesNotMatch(banner, /AVAILABLE_TO_EARN|format_ep|reward_remaining_ms/);
+	const row = html.match(/<article v-for="task in tasks"[^>]+/)[0];
+	const expression = row.match(/'mp-expedition-task-self': (.*?), 'mp-tutorial-highlight'/)[1];
+	const selected = tracking => runInNewContext(expression, { state: { equipment_tracking: () => tracking }, task: { task_id: 'smithing|bronze' } });
+	assert.equal(selected({ source: 'equipment', task_id: 'smithing|bronze' }), true);
+	assert.equal(selected({ source: 'equipment', task_id: 'mining|copper' }), false);
+	assert.equal(selected({ source: 'chamber', task_id: 'smithing|bronze' }), false);
+	assert.equal(selected(null), false);
 });
 
 test('equipment tiles select without mutations and confirmation rechecks affordability and instance scope', async () => {

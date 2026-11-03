@@ -84,3 +84,41 @@ test('storage denial fails closed without sending or rejecting the recovery loop
 	assert.equal(await denied.recover(), false);
 	assert.equal(denied.has_pending(), true);
 });
+
+for (const entry of ['run', 'recover']) {
+	const payload = { command_id: 'saved-v1', items: [{ id: 'melvorD:Coal_Ore', qty: 7 }] };
+	const endpoint = '/api/market/claim-legacy-payouts';
+	const replay = journal => entry === 'recover' ? journal.recover() : journal.run(endpoint, { ...payload, command_id: 'new-id' }, 2);
+	test(`${entry} upgrades a saved v1 command before dispatch and requires an explicit acknowledgement`, async () => {
+		const h = harness();
+		h.options.write({ endpoint, payload, major: 1 });
+		h.respond({ response: { status: 200 }, json: { success: true } });
+		h.options.reconcile = async receipts => { assert.notEqual(receipts[0], undefined); return true; };
+		const journal = create_economy_command_journal(h.options);
+		const result = await replay(journal);
+		if (entry === 'recover') assert.equal(result, false);
+		assert.deepEqual(h.calls, [[endpoint, payload, 2]]);
+		assert.deepEqual(h.saved(), { endpoint, payload, major: 2 });
+		// An absent receipt is ambiguous in v2, not an acknowledgement.
+		assert.equal(journal.has_pending(), true);
+		h.respond({ response: { status: 200 }, json: { success: true, receipt: null } });
+		await replay(journal);
+		assert.equal(h.saved(), undefined);
+	});
+
+	for (const failure of ['throw', 'readback', 'missing-readback']) test(`${entry} fails closed when the saved v1 upgrade cannot persist: ${failure}`, async () => {
+		const h = harness();
+		h.options.write({ endpoint, payload, major: 1 });
+		const journal = create_economy_command_journal({ ...h.options,
+			write() {
+				if (failure === 'throw') throw new Error('denied');
+				if (failure === 'missing-readback') h.options.remove();
+			}
+		});
+		const result = await replay(journal);
+		if (entry === 'recover') assert.equal(result, false);
+		else assert.equal(result.response, null);
+		assert.deepEqual(h.calls, []);
+		assert.deepEqual(h.saved(), failure === 'missing-readback' ? undefined : { endpoint, payload, major: 1 });
+	});
+}

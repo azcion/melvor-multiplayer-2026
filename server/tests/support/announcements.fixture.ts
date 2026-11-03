@@ -7,23 +7,18 @@ const feed = '/api/chat/messages?conversation_kind=announcements&conversation_id
 const send = '/api/chat/messages/send?capabilities=global-chat-v1,guild-chat-v1,polls-v1';
 const del = '/api/chat/messages/delete';
 
-test('gates the mandatory feed by version, shares Highlight eligibility and preserves announcements and discussion', async () => {
+test('serves the mandatory feed to supported clients, shares Highlight eligibility and preserves announcements and discussion', async () => {
  const author = await register_client('Announcement author',undefined,'1.7.0');
  const sibling = await register_client('Author sibling',undefined,'1.7.0');
  const reader = await register_client('Announcement reader',undefined,'1.7.0');
- const legacy = await register_client('Legacy reader',undefined,'1.6.14');
  const admin = await register_client('Announcement admin',undefined,'1.7.0');
  await db_run("INSERT INTO melvor_accounts(id,cloud_username,playfab_id,created_at) VALUES(15,'announcement-dev','announcement-dev',1)");
  await db_run('UPDATE clients SET melvor_account_id=15,dev_tag_visible=0 WHERE id IN (?,?)',[author.client_id,sibling.client_id]);
  await db_run("UPDATE clients SET client_identifier='ANNOUNCEMENT-ADMIN' WHERE id=?",[admin.client_id]);
- for (const [client,visible] of [[reader,true],[legacy,false]] as const) {
-  const inbox = await get_json_with_session<any>('/api/chat/conversations',client.session_token);
-  expect(inbox.json.conversations.some((c:any)=>c.conversation_kind==='announcements')).toBe(visible);
- }
- expect((await get_with_session(feed,legacy.session_token)).status).toBe(404);
+ const initial = await get_json_with_session<any>('/api/chat/conversations',reader.session_token);
+ expect(initial.json.conversations.some((c:any)=>c.conversation_kind==='announcements')).toBe(true);
  const body={conversation_kind:'announcements',conversation_id:1,content:'Immutable announcement',parts:[{type:'text',text:'News '},{type:'item',item_id:'melvorD:Bronze_Sword'},{type:'feature',feature_id:'multiplayer:Chat'},{type:'person',client_id:reader.client_id}],highlight_color:'#12ab34',idempotency_key:crypto.randomUUID()};
  expect((await post(send,{...body,parts:undefined,highlight_color:undefined},reader.session_token)).status).toBe(403);
- expect((await post(send,body,legacy.session_token)).status).toBe(404);
  const sent=await post_json<any>(send,body,author.session_token);
  expect(sent.response.status).toBe(200);
  const id=sent.json.message.message_id;

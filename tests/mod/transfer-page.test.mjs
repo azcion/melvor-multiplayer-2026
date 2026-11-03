@@ -119,12 +119,8 @@ test('keeps three Transfers panels mounted with mobile-only tab visibility', asy
 	assert.match(page, /v-for="\(group, group_index\) of state\.inbox_groups"/);
 	assert.match(page, /state\.get_inbox_group_title\(group\)/);
 	assert.match(style, /\.mp-inbox-group-title \{/);
-	assert.match(main, /claim_legacy_market_payouts/);
 	assert.match(actions, /market_expired: 'MOD_MP_INBOX_SOURCE_MARKET_EXPIRED'/);
 	assert.equal(english.MOD_MP_INBOX_SOURCE_MARKET_EXPIRED, 'Expired Marketplace listing');
-	assert.match(main, /legacy_market_payout_migration_1_5_6/);
-	assert.match(main, /get_instance_storage_item\(LEGACY_MARKET_PAYOUT_MIGRATION_KEY\)/);
-	assert.match(main, /set_instance_storage_item\(LEGACY_MARKET_PAYOUT_MIGRATION_KEY, true\)/);
 	assert.match(style, /\.mp-transfers-outbox \.mp-transfer-buttons\.mp-transfer-buttons-single \.btn \{[\s\S]*grid-column: 1 \/ -1;/);
 	assert.match(page, /class="mp-transfer-buttons" :class="\{ 'mp-transfer-buttons-single': state\.transfer_inventory\.length === 0 \}/);
 	assert.doesNotMatch(style, /\.mp-transfers-inbox \{\s*min-height: 60vh;/);

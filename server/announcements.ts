@@ -2,17 +2,11 @@ import { attach_chat_parts, save_chat_parts, same_chat_parts, type ChatPart } fr
 import { db } from './db';
 import { get_dev_tag_visibility } from './account_tags';
 import { is_admin } from './admin_identity';
-import { is_client_version_at_least } from './client-version-policy';
-import { get_request_mod_version } from './http';
 import { next_revision } from './polls';
 import { chat_shadow_visibility } from './chat_shadowban';
 
 // Announcement headers reuse Poll content/translation storage, without options or ballots.
 // The discriminant is checked on every Poll and discussion entry point.
-export function supports_announcements(req: Request): boolean {
-	return is_client_version_at_least(get_request_mod_version(req), '1.7.0');
-}
-
 export function can_delete_announcement(client_id: number, id: number): boolean {
 	if (is_admin(client_id)) return true;
 	return get_dev_tag_visibility(client_id).eligible && db.query(`SELECT 1 FROM polls p

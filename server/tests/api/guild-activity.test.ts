@@ -70,7 +70,7 @@ describe('Guild Activity', () => {
 
 	test('hides retired Charitree events from every client and Campaign events from current Activity pages', async () => {
 		const pair = await make_guildmates('Legacy Feed', 'Crucible Feed', 'Versioned Activity',
-			{ first: '1.6.14', second: '1.6.14' });
+			{ first: '1.7.0', second: '1.7.0' });
 		const kinds = ['joined', 'campaign_started', 'campaign_completed', 'campaign_contributed',
 			'charitree_donated'];
 		for (let index = 0; index < 25; index++)

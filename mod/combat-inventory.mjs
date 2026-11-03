@@ -38,7 +38,7 @@ export function create_combat_inventory({ view, scope, request, reconcile, can_m
 		const work = (async () => {
 			try {
 				const known = practice_cache?.scope === current ? practice_cache : null;
-				const params = new URLSearchParams();
+				const params = new URLSearchParams({ recovery: '1' });
 				if (view.raid_page) params.set('raid_page', view.raid_page);
 				if (known) params.set('practice_catalog', known.revision);
 				const result = await request('/api/combat/inventory' + (params.size ? '?' + params : ''));
@@ -57,6 +57,7 @@ export function create_combat_inventory({ view, scope, request, reconcile, can_m
 					}) }));
 					practice_cache = { scope: current, revision, waves };
 				}
+				view.recovery = result.recovery ?? null; view.maintenance = result.combat_maintenance ?? null;
 				view.foods = result.foods; view.food_id = result.food_id;
 				if (view.character?.revision !== result.character?.revision) {
 					const pending = {};
@@ -154,6 +155,6 @@ export function create_combat_inventory({ view, scope, request, reconcile, can_m
 			if (result) { view.reset_confirm = false; view.level_quantities = {}; }
 			return result;
 		},
-		reset() { view.dungeon_debug_options = null; view.dungeon_debug_confirm = false; view.test_profile = false; epoch++; loading = null; settlement = null; practice_cache = null; view.foods = []; view.food_id = ''; view.level_quantities = {}; view.reset_confirm = false; view.equipment_reset_confirm = false; view.consumables_reset_confirm = false; view.equipment_set = 'melee'; view.preparation_tab = 'levels'; view.raid_page = 0; view.raid_loading = false; view.dungeons = []; view.raid = null; view.unlocks = null; view.tutorial = null; view.character = null; view.equipment_projects = null; view.ep_micros = 0; view.history = []; view.inventory_busy = false; view.debug_enabled = false; view.tutorial_debug_targets = []; view.tutorial_debug_confirm = false; view.tutorial_debug_target = 'start'; }
+		reset() { view.recovery = null; view.maintenance = null; view.recovery_notice = ''; view.recovery_supported = false; view.dungeon_debug_options = null; view.dungeon_debug_confirm = false; view.test_profile = false; epoch++; loading = null; settlement = null; practice_cache = null; view.foods = []; view.food_id = ''; view.level_quantities = {}; view.reset_confirm = false; view.equipment_reset_confirm = false; view.consumables_reset_confirm = false; view.equipment_set = 'melee'; view.preparation_tab = 'levels'; view.raid_page = 0; view.raid_loading = false; view.dungeons = []; view.raid = null; view.unlocks = null; view.tutorial = null; view.character = null; view.equipment_projects = null; view.ep_micros = 0; view.history = []; view.inventory_busy = false; view.debug_enabled = false; view.tutorial_debug_targets = []; view.tutorial_debug_confirm = false; view.tutorial_debug_target = 'start'; }
 	};
 }

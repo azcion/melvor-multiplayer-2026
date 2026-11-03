@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.7.1
+
+- Added cosmetic pink Contributor badges in Guild rosters and applications, assigned by the backend without granting developer privileges or requiring a client update.
+- Fixed Colosseum stance changes made during battle reverting after combat ends; your confirmed stance remains selected for the next battle.
+- Shortened Colosseum tutorial equipment projects to 45 seconds per ingredient (0:45 for one, 2:15 for three), and Shrimp Fishing and Cooking tasks to 45 seconds each. Other project times are unchanged.
+- Fixed in-game Chat translation actions to follow the selected automatic translation language and label the displayed text correctly. Copy now copies the visible original or translation, including localized tags.
+- Matching personal project tasks now take priority over an already tracked Chamber task, checking in its work before switching. Personal project work continues during active or paused Colosseum encounters, including for existing 1.7.0 clients after the backend update. Personal projects now share the Expedition tracking banner and highlight the tracked task on desktop and mobile, without awarding EP.
+- Journey keeps your previous Guild Expedition’s return story, statistics, earnings and completion reward visible while you are back in the Rift.
+- Colosseum battles and solo Dungeons now pause on disconnect and can be resumed manually for roughly 30 minutes of service availability. Compatible backend restarts preserve progress with best-effort recovery. Planned restarts can show a countdown and temporarily block new battles; paused time no longer counts toward new Dungeon records. Requires an updated combat backend.
+
 ## 1.7.0
 
 - Fixed the in-game Chat scrollbar turning white when hovered.

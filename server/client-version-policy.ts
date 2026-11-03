@@ -1,5 +1,5 @@
 // Raising this baseline permits removal of older request contracts. Operator overrides may only raise it.
-export const MINIMUM_CLIENT_VERSION = '1.6.14';
+export const MINIMUM_CLIENT_VERSION = '1.7.0';
 export const MINIMUM_SUPPORTED_VERSION_FEATURE = '1.5.10';
 
 function parse_version(value: unknown): number[] | null {

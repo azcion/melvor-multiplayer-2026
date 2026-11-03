@@ -8,7 +8,7 @@ export type ExpandedRestartState = {
 	snapshot: Record<string, unknown>[]; visits: Record<string, unknown>[]; tasks: Record<string, unknown>[];
 };
 export async function setup_expanded_restart(): Promise<ExpandedRestartState> {
-	const guild = await make_guildmates('Expansion Owner', 'Expansion Worker', 'Expansion Restart', { first: '1.7.0', second: '1.6.17' });
+	const guild = await make_guildmates('Expansion Owner', 'Expansion Worker', 'Expansion Restart', { first: '1.7.0', second: '1.7.0' });
 	const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 3 }, guild.first.session_token);
 	const expedition_id = created.json.expedition_id;
 	await post_json('/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.second.session_token);
@@ -50,7 +50,7 @@ export type PreparationRestartState = {
 };
 export async function setup_preparation_restart(): Promise<PreparationRestartState> {
 	await db_run("INSERT INTO service_settings (key, value) VALUES ('expedition_preparations_enabled', '1') ON CONFLICT(key) DO UPDATE SET value = '1'");
-	const guild = await make_guildmates('Preparation Owner', 'Preparation Legacy', 'Preparation Restart', { first: '1.7.0', second: '1.6.17' });
+	const guild = await make_guildmates('Preparation Owner', 'Preparation Legacy', 'Preparation Restart', { first: '1.7.0', second: '1.7.0' });
 	const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.first.session_token);
 	const expedition_id = created.json.expedition_id;
 	await post_json('/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.second.session_token);

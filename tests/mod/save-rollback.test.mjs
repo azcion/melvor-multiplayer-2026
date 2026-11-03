@@ -137,7 +137,7 @@ test('unchanged status release requires a full event snapshot, including no-cand
   update_chat_nav(){},reconcile_guild_member_social_modes(){},update_transfer_inventory_nav(){},update_multiplayer_nav(){},leave_social_only_disabled_page(){},
   reconcile_economy_receipts:async()=>true,economy_receipts:receipts,ECONOMY_RECEIPT_PAGE_SIZE:64,remove_instance_storage_item(){},
   guild_page_visible:false,prepare_page_snapshot:async()=>{},refresh_guild_state:async()=>{},
-  legacy_market_payout_migration_started:true,show_pending_banishment_notice(){},update_guild_nav(){}};
+  show_pending_banishment_notice(){},update_guild_nav(){}};
  runInNewContext(source,context);await context.get_client_events_request(false,1);
  assert.equal(context.client_event_trailing,true);assert.equal(context.client_events_hydrated,false);assert.equal(recoveries,0);
  event={revision:7,rollback:status(),economy_receipts:[],gifts:[],trades:[],resolved_trades:[]};

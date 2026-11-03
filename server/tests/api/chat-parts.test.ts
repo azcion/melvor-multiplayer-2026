@@ -5,7 +5,7 @@ import { db_run, db_all } from '../support/persistence';
 
 test('item parts survive sends, retries, history and inboxes across every Chat kind', async () => {
 	const { first, second, guild_id } = await make_guildmates(
-		'Tag Sender', 'Tag Reader', 'Tag Test Guild', { first: '1.6.14', second: '1.6.14' }
+		'Tag Sender', 'Tag Reader', 'Tag Test Guild', { first: '1.7.0', second: '1.7.0' }
 	);
 	try {
 		const inbox = await get_json_with_session<{ conversations: any[] }>('/api/chat/conversations', first.session_token);
@@ -63,7 +63,7 @@ test('item parts survive sends, retries, history and inboxes across every Chat k
 
 test('feature tags stay structured in responses, history and inbox', async () => {
 	const { first, second } = await make_guildmates(
-		'Feature Sender', 'Legacy Reader', 'Feature Tag Guild', { first: '1.6.14', second: '1.6.14' }
+		'Feature Sender', 'Legacy Reader', 'Feature Tag Guild', { first: '1.7.0', second: '1.7.0' }
 	);
 	const parts = [{ type: 'text', text: 'Try ' }, { type: 'feature', feature_id: 'multiplayer:Guild_Raid' },
 		{ type: 'text', text: ' and ' }, { type: 'feature', feature_id: 'melvorD:Cooking' }];
@@ -89,8 +89,8 @@ test('feature tags stay structured in responses, history and inbox', async () =>
 });
 
 test('person tags allow outsiders, reject self and missing targets, and prioritize full visible history', async () => {
-	const { first, second, guild_id } = await make_guildmates('Mention Sender', 'Lucy Mention', 'Mention Guild', { first: '1.6.14', second: '1.6.14' });
-	const { first: outsider } = await make_guildmates('Albert Mention', 'Bob Mention', 'Other Mention Guild', { first: '1.6.14', second: '1.6.14' });
+	const { first, second, guild_id } = await make_guildmates('Mention Sender', 'Lucy Mention', 'Mention Guild', { first: '1.7.0', second: '1.7.0' });
+	const { first: outsider } = await make_guildmates('Albert Mention', 'Bob Mention', 'Other Mention Guild', { first: '1.7.0', second: '1.7.0' });
 	const endpoint = '/api/chat/messages/send?capabilities=guild-chat-v1,global-chat-v1';
 	const send = (sender: typeof first, parts: unknown[], conversation_kind = 'guild', conversation_id: number | null = guild_id) =>
 		post_json<any>(endpoint, { conversation_kind, conversation_id, client_id: second.client_id,
@@ -128,7 +128,7 @@ test('person tags allow outsiders, reject self and missing targets, and prioriti
 });
 
 test('person picker orders speakers, active Guild members, then outsiders and excludes Shadowed people', async () => {
-	const { first, second, guild_id } = await make_guildmates('Picker Viewer', 'Z Picker Speaker', 'Picker Order Guild', { first: '1.6.14', second: '1.6.14' });
+	const { first, second, guild_id } = await make_guildmates('Picker Viewer', 'Z Picker Speaker', 'Picker Order Guild', { first: '1.7.0', second: '1.7.0' });
 	const newer = await register_client('Z Picker Newer');
 	const older = await register_client('A Picker Older');
 	const shadowed = await register_client('Picker Shadowed');
@@ -150,8 +150,8 @@ test('person picker orders speakers, active Guild members, then outsiders and ex
 });
 
 test('unread person tags survive later untagged replies and clear after reading across ordinary chats', async () => {
-	const { first, second, guild_id } = await make_guildmates('Badge Sender', 'Badge Reader', 'Badge Guild', { first: '1.6.14', second: '1.6.14' });
-	const outsider = await register_client('Badge Outsider', undefined, '1.6.14');
+	const { first, second, guild_id } = await make_guildmates('Badge Sender', 'Badge Reader', 'Badge Guild', { first: '1.7.0', second: '1.7.0' });
+	const outsider = await register_client('Badge Outsider', undefined, '1.7.0');
 	const capabilities = 'global-chat-v1,guild-chat-v1';
 	const inbox = (client: typeof first) => get_json_with_session<any>('/api/chat/conversations?capabilities=' + capabilities, client.session_token);
 	try {
@@ -182,7 +182,7 @@ test('unread person tags survive later untagged replies and clear after reading 
 });
 
 test('Alliance person tags use the current Alliance read boundary and visibility', async () => {
-	const { first, second, guild_id } = await make_guildmates('Alliance Tag Sender', 'Alliance Tag Reader', 'Alliance Tag Guild', { first: '1.6.14', second: '1.6.14' });
+	const { first, second, guild_id } = await make_guildmates('Alliance Tag Sender', 'Alliance Tag Reader', 'Alliance Tag Guild', { first: '1.7.0', second: '1.7.0' });
 	await db_run('INSERT INTO alliances(name,shared_marketplace,created_at) VALUES(?,1,?)', ['Tag Alliance', Date.now()]);
 	const [alliance] = await db_all<{ id: number }>('SELECT id FROM alliances WHERE name = ?', ['Tag Alliance']);
 	await db_run('INSERT INTO alliance_memberships(guild_id,alliance_id,joined_at) VALUES(?,?,?)', [guild_id, alliance!.id, Date.now()]);
@@ -200,8 +200,8 @@ test('Alliance person tags use the current Alliance read boundary and visibility
 });
 
 test('Support person tags follow player and team unread acknowledgements', async () => {
-	const player = await register_client('Support Tag Player', undefined, '1.6.14');
-	const member = await register_client('Support Tag Member', undefined, '1.6.14');
+	const player = await register_client('Support Tag Player', undefined, '1.7.0');
+	const member = await register_client('Support Tag Member', undefined, '1.7.0');
 	const inbox = (client: typeof player) => get_json_with_session<any>('/api/chat/conversations', client.session_token);
 	const support = (await inbox(player)).json.conversations.find((c: any) => c.conversation_kind === 'support');
 	await db_run('INSERT INTO support_team_memberships(team_id, client_id, member_display_name, created_at) VALUES(?, ?, ?, ?)',
@@ -230,7 +230,7 @@ test('Support person tags follow player and team unread acknowledgements', async
 
 test('badge features retain structured parts in responses, history and inbox', async () => {
 	const { first, second } = await make_guildmates('Badge Sender', 'Badge Reader', 'Badge Guild',
-		{ first: '1.6.14', second: '1.6.14' });
+		{ first: '1.7.0', second: '1.7.0' });
 	const parts = [{ type: 'text', text: 'Discuss ' }, { type: 'feature', feature_id: 'multiplayer:Badge_Item_Cheats' },
 		{ type: 'text', text: ' in ' }, { type: 'feature', feature_id: 'multiplayer:Guild_Raid' }];
 	const sent = await post_json<any>('/api/chat/messages/send', { conversation_kind: 'private',

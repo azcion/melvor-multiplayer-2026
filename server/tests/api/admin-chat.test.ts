@@ -4,9 +4,9 @@ import { make_guildmates } from '../support/fixtures';
 import { db_all, db_run } from '../support/persistence';
 
 test('admin details respect conversation access, include readers and reactors, and moderate own Private messages', async () => {
-	const admin = await register_client('Chat Details Admin', undefined, '1.6.14');
-	const reader = await register_client('Chat Details Reader', undefined, '1.6.14');
-	const outsider = await register_client('Chat Details Outsider', undefined, '1.6.14');
+	const admin = await register_client('Chat Details Admin', undefined, '1.7.0');
+	const reader = await register_client('Chat Details Reader', undefined, '1.7.0');
+	const outsider = await register_client('Chat Details Outsider', undefined, '1.7.0');
 	await db_run('UPDATE clients SET client_identifier = ? WHERE id = ?', ['TEST-ADMIN-CHAT-DETAILS', admin.client_id]);
 	const started = await post_json<any>('/api/chat/conversations/start', { client_id: reader.client_id }, admin.session_token);
 	const draft_id = started.json.conversation.conversation_id;
@@ -46,8 +46,8 @@ test('admin details respect conversation access, include readers and reactors, a
 });
 
 test('admin Poll responses retain character ballot attribution and moderate Poll Discussion', async () => {
-	const admin = await register_client('Poll Details Admin', undefined, '1.6.14');
-	const voter = await register_client('Poll Details Voter', undefined, '1.6.14');
+	const admin = await register_client('Poll Details Admin', undefined, '1.7.0');
+	const voter = await register_client('Poll Details Voter', undefined, '1.7.0');
 	await db_run('UPDATE clients SET client_identifier = ? WHERE id = ?', ['TEST-ADMIN-POLL-DETAILS', admin.client_id]);
 	const created = await post_json<any>('/api/polls/create?capabilities=polls-v1', {
 		idempotency_key: crypto.randomUUID(), content: 'Admin details?', options: ['Yes', 'No'], choice_mode: 'multi'
@@ -77,8 +77,8 @@ test('admin Poll responses retain character ballot attribution and moderate Poll
 });
 
 test('Support admin details resolve member readers and delete every author kind without removing send keys', async () => {
-	const admin = await register_client('Support Details Admin', undefined, '1.6.14');
-	const player = await register_client('Support Details Player', undefined, '1.6.14');
+	const admin = await register_client('Support Details Admin', undefined, '1.7.0');
+	const player = await register_client('Support Details Player', undefined, '1.7.0');
 	await db_run('UPDATE clients SET client_identifier = ? WHERE id = ?', ['TEST-ADMIN-SUPPORT-DETAILS', admin.client_id]);
 	const inbox = await get_json_with_session<any>('/api/chat/conversations', player.session_token);
 	const support = inbox.json.conversations.find((conversation: any) => conversation.conversation_kind === 'support');
@@ -105,7 +105,7 @@ test('Support admin details resolve member readers and delete every author kind 
 });
 
 test('shared Chat admin details resolve Global and Guild read watermarks', async () => {
-	const pair = await make_guildmates('Shared Details Admin', 'Shared Details Reader', 'Shared Details Guild', { first: '1.6.14', second: '1.6.14' });
+	const pair = await make_guildmates('Shared Details Admin', 'Shared Details Reader', 'Shared Details Guild', { first: '1.7.0', second: '1.7.0' });
 	await db_run('UPDATE clients SET client_identifier = ? WHERE id = ?', ['TEST-ADMIN-SHARED-DETAILS', pair.first_id]);
 	for (const kind of ['global', 'guild']) {
 		const conversation_id = kind === 'guild' ? pair.guild_id : 1;
@@ -128,9 +128,9 @@ test('shared Chat admin details resolve Global and Guild read watermarks', async
 });
 
 test('public reaction and read attribution cannot reveal inaccessible or deleted Messages', async () => {
-	const sender = await register_client('Public Reactions Sender', undefined, '1.6.14');
-	const reader = await register_client('Public Reactions Reader', undefined, '1.6.14');
-	const outsider = await register_client('Public Reactions Outsider', undefined, '1.6.14');
+	const sender = await register_client('Public Reactions Sender', undefined, '1.7.0');
+	const reader = await register_client('Public Reactions Reader', undefined, '1.7.0');
+	const outsider = await register_client('Public Reactions Outsider', undefined, '1.7.0');
 
 	for (const recipient of [reader]) {
 		const started = await post_json<any>('/api/chat/conversations/start', { client_id: recipient.client_id }, sender.session_token);

@@ -47,7 +47,7 @@ test('rebuilds caches and preserves API state after a server restart', async () 
 	expect(checked_work.json.settlement.credited_ms).toBeLessThanOrEqual(checked_work.json.settlement.elapsed_ms);
 	const existing_installation = await get_json_with_session('/api/events', state.installation.session_token);
 	expect(existing_installation.response.status).toBe(200);
-	const reauthenticated = await post_json<{ session_token: string }>('/api/authenticate', { client_runtime: { mod_version: '1.6.14', active_mods: [] },
+	const reauthenticated = await post_json<{ session_token: string }>('/api/authenticate', { client_runtime: { mod_version: '1.7.0', active_mods: [] },
 		client_identifier: state.installation.client_identifier, installation_id: state.installation.installation_id,
 		installation_key: state.installation.installation_key
 	});

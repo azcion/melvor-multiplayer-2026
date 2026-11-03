@@ -1,3 +1,4 @@
+import { combat_drain_status, set_combat_drain, wait_combat_drain } from './combat-recovery';
 import { rift_preparations_enabled } from './expedition-preparations';
 import { grant_combat_resets, combat_reset_balance } from './combat-progression';
 import { rollback_policy, preview_rollback_policy, set_rollback_policy, set_rollback_hold, rollback_admission_revision, type RollbackPolicy } from './rollback-policy';
@@ -6,7 +7,7 @@ import { inspect_rollback_benefits, release_rollback_benefit } from './rollback-
 import { inspect_save_rollback } from './save-rollback';
 import { createHash } from 'node:crypto';
 import { record_audit_event } from './audit';
-import { DEV_BADGES, get_dev_badge_labels, valid_dev_badge_label, EXPEDITION_TESTER_TAG, is_expedition_tester } from './account_tags';
+import { DEV_BADGES, get_dev_badge_labels, valid_dev_badge_label, EXPEDITION_TESTER_TAG, is_expedition_tester, CONTRIBUTOR_TAG, is_contributor } from './account_tags';
 import { revoke_installation } from './installations';
 import { db, get_service_setting } from './db';
 import { make_audit_context, run_with_audit_context } from './audit-context';
@@ -63,6 +64,7 @@ function usage(output: AdminOutput): number {
   bun run admin.ts alliance inspect ALLIANCE_ID
   bun run admin.ts alliance-process inspect PROCESS_ID
   bun run admin.ts guild inspect GUILD_ID
+  bun run admin.ts combat-maintenance status|wait|clear|drain MINUTES [incompatible]
   bun run admin.ts combat-resets grant CLIENT_ID QUANTITY COMMAND_UUID
   bun run admin.ts identity find DISPLAY_NAME
   bun run admin.ts identity inspect CLIENT_ID
@@ -73,6 +75,7 @@ function usage(output: AdminOutput): number {
   bun run admin.ts chat-shadowban enforce|clear CLIENT_ID
   bun run admin.ts chat-shadow-observer grant|revoke CLIENT_ID
   bun run admin.ts feature-tester grant|revoke pending|council CLIENT_ID
+  bun run admin.ts contributor-tag inspect|grant|revoke CLIENT_ID
   bun run admin.ts tester-tag grant|revoke CLIENT_ID
   bun run admin.ts global-chat-message hide|restore MESSAGE_ID
   bun run admin.ts global-chat-throttle server clear|MAX_MESSAGES WINDOW_SECONDS
@@ -721,6 +724,29 @@ function run_admin_command(args: string[], output: AdminOutput = console_output)
 			output.log(JSON.stringify({ client_id, feature: argument, granted: action === 'grant' }));
 			return 0;
 		}
+		case 'contributor-tag': {
+			const client_id = parse_positive_integer(argument);
+			if (args.length !== 3 || !['inspect', 'grant', 'revoke'].includes(action ?? '') || client_id === null)
+				return usage(output);
+			const account = db.query<{ account_id: number }, [number]>(
+				'SELECT melvor_account_id AS account_id FROM clients WHERE id = ? AND melvor_account_id IS NOT NULL'
+			).get(client_id);
+			if (account === null) {
+				output.error(`Identity ${client_id} has no linked Melvor account.`);
+				return 1;
+			}
+			if (action !== 'inspect') db.transaction(() => {
+				const changed = action === 'grant'
+					? db.query('INSERT INTO melvor_account_contributors (account_id, granted_at) VALUES (?, ?) ' +
+						'ON CONFLICT (account_id) DO NOTHING').run(account.account_id, Date.now())
+					: db.query('DELETE FROM melvor_account_contributors WHERE account_id = ?')
+						.run(account.account_id);
+				if (changed.changes) db.run('UPDATE clients SET event_revision = event_revision + 1');
+			}).immediate();
+			output.log(JSON.stringify({ account_id: account.account_id, tag: CONTRIBUTOR_TAG,
+				granted: is_contributor(account.account_id) }));
+			return 0;
+		}
 		case 'tester-tag': {
 			const client_id = parse_positive_integer(argument);
 			if (args.length !== 3 || (action !== 'grant' && action !== 'revoke') || client_id === null)
@@ -901,6 +927,15 @@ function run_admin_command(args: string[], output: AdminOutput = console_output)
 				return usage(output);
 			return inspect_support_message(message_id, output);
 		}
+		case 'combat-maintenance': {
+			if (args[1] === 'status' && args.length === 2) { output.log(JSON.stringify(combat_drain_status(db))); return 0; }
+			if (args[1] === 'clear' && args.length === 2) { set_combat_drain(db,null); output.log('Combat admissions reopened.'); return 0; }
+			if (args[1] === 'drain' && (args.length === 3 || (args.length === 4 && args[3] === 'incompatible')) && /^\d+$/.test(args[2]!)) {
+				const minutes = Number(args[2]);
+				if (minutes <= 60) { set_combat_drain(db,minutes,args[3] === 'incompatible'); output.log('Combat admissions closed; drain countdown scheduled.'); return 0; }
+			}
+			output.error('Use combat-maintenance status|wait|clear|drain MINUTES [incompatible], with minutes 0–60.'); return 1;
+		}
 		case 'combat-resets': {
 			const client = parse_positive_integer(argument);
 			const quantity = parse_positive_integer(args[3]);
@@ -1014,7 +1049,10 @@ export function run_admin(args: string[], output: AdminOutput = console_output):
 
 if (import.meta.main) {
 	const args = Bun.argv.slice(2);
-	if (args.length === 5 && args[0] === 'support-message' && args[1] === 'correct') {
+	if (args.length === 2 && args[0] === 'combat-maintenance' && args[1] === 'wait') {
+		try { await wait_combat_drain(db, status => console_output.log(JSON.stringify(status))); }
+		catch (error) { console_output.error(error instanceof Error ? error.message : String(error)); process.exitCode = 1; }
+	} else if (args.length === 5 && args[0] === 'support-message' && args[1] === 'correct') {
 		const message_id = parse_positive_integer(args[2]);
 		const expected_digest = args[3];
 		if (message_id === null || !/^[0-9a-f]{64}$/.test(expected_digest ?? '') || args[4] !== 'confirm') {

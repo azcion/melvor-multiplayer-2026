@@ -397,6 +397,7 @@ test('localization inventory tracks runtime references and the unresolved baseli
 	const literals = new Set([...sources.matchAll(/['"](MOD_MP_[A-Z0-9_]+)['"]/g)].map(match => match[1]));
 	// These families are assembled at runtime, including inside HTML bindings.
 	const dynamic = new Set();
+	for (const key of ['paused','resume','abandon','check','result','retention','restart','ending','maintenance','expired']) dynamic.add('MOD_MP_COMBAT_RECOVERY_' + key.toUpperCase());
 	// Combat names are built by state.combat_name from target IDs and error values.
 	for (const name of ['target_unavailable', 'golbin', 'golbin_scout', 'mind_golbin', 'golbins', 'plants', 'plant',
 		'quarry', 'cinder_snail', 'kiln_wisp', 'embercoil', 'slagheart', 'quarry_entry', 'quarry_description', 'quarry_slow_notice',

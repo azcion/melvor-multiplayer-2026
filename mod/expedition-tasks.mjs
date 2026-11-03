@@ -12,6 +12,12 @@ export function eligible_equipment_tasks(model, activities) {
 	return equipment_tasks(model).filter(task => task.available && task.player_ms < task.target_ms &&
 		activities.some(activity => equipment_activity_matches(task, activity)));
 }
+// A matching project may take over ordinary chamber work after its captured interval is settled.
+export function should_prefer_equipment(model, activities) {
+	const tracking = model?.tracking;
+	return !!tracking && tracking.source !== 'equipment' && !tracking.pending_boundary_at && !tracking.claim &&
+		eligible_equipment_tasks({ ...model, tracking: null }, activities ?? []).length > 0;
+}
 export function can_track_task(task, activities) {
 	if (task?.source === 'equipment') return activities?.some(activity => equipment_activity_matches(task, activity)) ?? false;
 	const skill_ids = task?.evidence?.skill_ids;

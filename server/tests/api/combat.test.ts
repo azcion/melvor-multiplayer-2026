@@ -25,7 +25,7 @@ test('combat food custody routes are retired and preparation needs no deposit en
 
 test('combat levels debit EP once, serialize stale quotes and refund once without native input', async () => {
 	const owner = await register_client('Combat Levels', undefined, '1.7.0');
-	const other = await register_client('Unrelated Old Client', undefined, '1.6.17');
+	const other = await register_client('Unrelated Supported Client', undefined, '1.7.0');
 	await db_run('INSERT INTO expedition_ep_balances(client_id,points_micros) VALUES(?,5000000)', [owner.client_id]);
 	await db_run('INSERT INTO expedition_ep_balances(client_id,points_micros) VALUES(?,7000000)', [other.client_id]);
 	expect((await post('/api/combat/register', { command_id: crypto.randomUUID(), levels: { attack:99 } }, owner.session_token)).status).toBe(404);
@@ -321,8 +321,8 @@ test('card reset API carries the selected group and replays without resetting th
 	}
 });
 
-test('1.6.17 retains full equipment responses; compact clients negotiate hashes across all reads', async () => {
-	const legacy = await register_client('Legacy Catalog', undefined, '1.6.17');
+test('omitted catalog selectors retain full responses; compact clients negotiate hashes across all reads', async () => {
+	const legacy = await register_client('Legacy Catalog', undefined, '1.7.0');
 	const modern = await register_client('Compact Catalog', undefined, '1.7.0');
 	for (const owner of [legacy, modern]) {
 		const first = (await get_json_with_session<any>('/api/combat/inventory', owner.session_token)).json;

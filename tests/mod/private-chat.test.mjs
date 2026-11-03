@@ -265,7 +265,7 @@ test('opens message actions from timestamps with copy and confirmed deletion', a
 	assert.match(main, /selected_chat_message: null/);
 	assert.match(main, /queue_modal\('MOD_MP_CHAT_MESSAGE_ACTIONS', 'chat-message-actions-modal'/);
 	assert.match(main, /queue_modal\('MOD_MP_CHAT_DELETE_MESSAGE_CONFIRM_TITLE', 'chat-message-delete-confirm-modal'/);
-	assert.match(main, /clipboard\.writeText\(this\.get_chat_plain_content\(message\)\)/);
+	assert.match(main, /clipboard\.writeText\(items\.plain_text\(game, getLangString, this\.get_chat_message_parts\(message\)\)\)/);
 	assert.match(main, /api_post\('\/api\/chat\/messages\/delete'/);
 	assert.doesNotMatch(style, /\.mp-chat-message-content\s*\{[^}]*margin-top/);
 	assert.match(style, /\.mp-chat-message-timestamp[\s\S]*cursor: pointer/);
@@ -402,6 +402,67 @@ test('message translation actions toggle original text and typed parts independe
 		const language = JSON.parse(await readFile(new URL(`mod/data/lang/${locale}.json`, root), 'utf8'));
 		assert.ok(language.MOD_MP_CHAT_SHOW_TRANSLATION?.length, locale);
 		assert.ok(language.MOD_MP_CHAT_SHOW_ORIGINAL?.length, locale);
+	}
+});
+
+test('Support welcome manual translation uses the same language for visible content, parts and action label', () => {
+	const state = { chat_client_id: 7, selected_chat_conversation: { conversation_kind: 'support' },
+		chat_translation_preferences: { support: 'en' } };
+	const context = Object.assign(state, install_chat_actions({ state, document: null,
+		get_chat_conversation_key: () => 'support', localization: { resolve_multiplayer_language: () => 'en' }
+	}));
+	const message = { sender_id: null, content: 'Welcome', translations: { en: 'Welcome', 'zh-CN': '欢迎' },
+		manual_translation_language: 'zh-CN', translation_parts: { 'zh-CN': [{ type: 'text', text: '欢迎' }] } };
+	assert.equal(context.get_chat_message_content(message), '欢迎');
+	assert.deepEqual(context.get_chat_message_parts(message), [{ type: 'text', text: '欢迎' }]);
+	assert.equal(context.get_chat_message_translation_action_lang_id(message), 'MOD_MP_CHAT_SHOW_ORIGINAL');
+	message.manual_translation_language = false;
+	assert.equal(context.get_chat_message_content(message), 'Welcome');
+	assert.equal(context.get_chat_message_translation_action_lang_id(message), 'MOD_MP_CHAT_SHOW_TRANSLATION');
+});
+
+test('English auto translation keeps the toggle and clipboard aligned with visible rich text', async () => {
+	const copied = [];
+	const previous_navigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+	Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { clipboard: {
+		writeText: async text => copied.push(text)
+	} } });
+	try {
+		const state = { chat_client_id: 7, selected_chat_conversation: { conversation_kind: 'global', conversation_id: 1 },
+			chat_translation_preferences: { 'global:1': 'en' } };
+		const context = Object.assign(state, install_chat_actions({ state, document: null,
+			get_chat_conversation_key: () => 'global:1', now: () => 1000,
+			chat_items: { plain_text: (_game, _lang, parts) => parts.map(part => part.text ?? part.name).join('') },
+			notify() {}, set_instance_storage_item() {}, refresh_chat_messages: async () => {} }), { close_modal() {} });
+		const message = { sender_id: 8, content: '你好 公会', parts: [{ type: 'text', text: '你好 ' }, { type: 'feature', name: 'Guild' }],
+			translations: { en: 'Hello Guild', 'zh-CN': '你好 公会' },
+			translation_parts: { en: [{ type: 'text', text: 'Hello ' }, { type: 'feature', name: 'Guild' }] } };
+		for (const [label, visible] of [['MOD_MP_CHAT_SHOW_ORIGINAL', 'Hello Guild'],
+			['MOD_MP_CHAT_SHOW_TRANSLATION', '你好 Guild'], ['MOD_MP_CHAT_SHOW_ORIGINAL', 'Hello Guild']]) {
+			assert.equal(context.get_chat_message_translation_action_lang_id(message), label);
+			context.selected_chat_message = message;
+			await context.copy_chat_message();
+			assert.equal(copied.at(-1), visible);
+			context.selected_chat_message = message;
+			context.translate_selected_chat_message();
+		}
+		// Applying another conversation language clears the previous per-message selection.
+		context.chat_messages = [message];
+		context.chat_translation_language_input = 'zh-CN';
+		context.set_chat_translation_enabled(true);
+		assert.equal(message.manual_translation_language, undefined);
+		assert.equal(context.get_chat_message_content(message), '你好 公会');
+		assert.equal(context.get_chat_message_translation_action_lang_id(message), 'MOD_MP_CHAT_SHOW_ORIGINAL');
+		// Never select an unrelated language when the configured translation is unavailable.
+		context.chat_translation_preferences = { 'global:1': 'en' };
+		const unavailable = { sender_id: 8, content: '原文', translations: { 'zh-CN': '其他' } };
+		context.selected_chat_message = unavailable;
+		context.translate_selected_chat_message();
+		assert.equal(context.get_chat_message_content(unavailable), '原文');
+		assert.equal(context.get_chat_message_translation_action_lang_id(unavailable), 'MOD_MP_CHAT_SHOW_TRANSLATION');
+	} finally {
+		if (previous_navigator) Object.defineProperty(globalThis, 'navigator', previous_navigator);
+		else delete globalThis.navigator;
 	}
 });
 
@@ -794,7 +855,7 @@ test('renders Support Chat identity, alignment, virtual welcomes, and restricted
 	assert.match(main, /multiplayer: 'multiplayer\.svg'/);
 	assert.match(main, /sae_support: 'sae_support\.png'/);
 	assert.match(main, /conversation\?\.conversation_kind === 'support' && conversation\.viewer_side === 'player'/);
-	assert.match(main, /message\.sender_id === null[\s\S]*message\.translations\?\.\[localized_welcome_language\(\)\]/);
+	assert.match(main, /message\.sender_id === null \? localized_welcome_language\(\)/);
 	assert.match(main, /asset === undefined \? 'assets\/media\/main\/question\.png'/);
 });
 

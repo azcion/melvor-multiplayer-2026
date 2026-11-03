@@ -73,7 +73,7 @@ test('private authority and public socket freeze food and commit eating before p
 		await until(()=>messages.some(m=>m.arena?.food_used===1));
 		expect(db.query<{used:number},[string]>('SELECT used FROM combat_encounters WHERE id=?').get(arena.id)!.used).toBe(1);
 		ws.close();await until(()=>combat_state(db,101).history.some(row=>row.id===arena.id&&row.status==='interrupted'));
-	} finally {ws?.close();service.stop();control.stop();authority.stop();db.close();}
+	} finally {ws?.close();await service.stop();control.stop();await authority.stop();db.close();}
 }, 15000);
 
 test('food migration discards test encounters and retires only combat custody while preserving other value', async () => {

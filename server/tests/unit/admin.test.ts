@@ -81,6 +81,48 @@ afterEach(() => {
 });
 
 describe('administration CLI', () => {
+	test('grants, inspects and revokes account-wide Contributor tags idempotently without maintenance', async () => {
+		const database_path = fixture_database();
+		for (const args of [['grant', '1'], ['grant', '99999']])
+			expect((await run_admin(database_path, 'contributor-tag', ...args)).exit_code).toBe(1);
+		const database = new Database(database_path);
+		database.run("INSERT INTO melvor_accounts (id, cloud_username, playfab_id, created_at) VALUES (9000, 'test-contributor', 'test-contributor', 1)");
+		database.run('UPDATE clients SET melvor_account_id=9000 WHERE id=1');
+		const revision = () => (database.query('SELECT event_revision FROM clients WHERE id=1').get() as { event_revision: number }).event_revision;
+		const initial_revision = revision();
+		const inspect = await run_admin(database_path, 'contributor-tag', 'inspect', '1');
+		expect(JSON.parse(inspect.stdout)).toEqual({ account_id: 9000, tag: 'contributor', granted: false });
+		expect(revision()).toBe(initial_revision);
+		for (const action of ['grant', 'grant', 'inspect']) {
+			const result = await run_admin(database_path, 'contributor-tag', action, '1');
+			expect(result.exit_code).toBe(0);
+			expect(JSON.parse(result.stdout)).toEqual({ account_id: 9000, tag: 'contributor', granted: true });
+			expect(revision()).toBe(initial_revision + 1);
+		}
+		for (const action of ['revoke', 'revoke', 'inspect']) {
+			const result = await run_admin(database_path, 'contributor-tag', action, '1');
+			expect(result.exit_code).toBe(0);
+			expect(JSON.parse(result.stdout)).toEqual({ account_id: 9000, tag: 'contributor', granted: false });
+			expect(revision()).toBe(initial_revision + 2);
+		}
+		expect(database.query("SELECT value FROM service_settings WHERE key='maintenance'").get()).toEqual({ value: '0' });
+		expect((await run_admin(database_path, 'contributor-tag', 'grant', '0')).exit_code).toBe(2);
+		expect((await run_admin(database_path, 'contributor-tag', 'unknown', '1')).exit_code).toBe(2);
+		database.close();
+	});
+
+	test('combat drain wait requires a closed gate and exits immediately when no battles are running', async () => {
+		const database_path = fixture_database();
+		expect((await run_admin(database_path,'combat-maintenance','wait')).exit_code).toBe(1);
+		expect((await run_admin(database_path,'combat-maintenance','drain','5')).exit_code).toBe(0);
+		const status = await run_admin(database_path,'combat-maintenance','status');
+		expect(JSON.parse(status.stdout)).toMatchObject({running_battles:0,paused_battles:0,ready:true});
+		const wait = await run_admin(database_path,'combat-maintenance','wait');
+		expect(wait.exit_code).toBe(0);
+		expect(JSON.parse(wait.stdout)).toMatchObject({ready:true});
+		expect((await run_admin(database_path,'combat-maintenance','clear')).exit_code).toBe(0);
+		expect((await run_admin(database_path,'combat-maintenance','wait')).exit_code).toBe(1);
+	});
 	test('renames developer badges, invalidates roster reads, and resets defaults without maintenance', async () => {
 		const database_path = fixture_database();
 		const before = new Database(database_path, { readonly: true });
@@ -314,21 +356,21 @@ describe('administration CLI', () => {
 
 	test('sets, reports, validates, and clears the minimum supported mod version', async () => {
 		const database_path = fixture_database();
-		const set = await run_admin(database_path, 'minimum-supported-version', '1.6.15');
+		const set = await run_admin(database_path, 'minimum-supported-version', '1.7.1');
 		const status = await run_admin(database_path, 'status');
-		const too_old = await run_admin(database_path, 'minimum-supported-version', '1.5.9');
+		const too_old = await run_admin(database_path, 'minimum-supported-version', '1.6.17');
 		const invalid = await run_admin(database_path, 'minimum-supported-version', 'latest');
 		const clear = await run_admin(database_path, 'minimum-supported-version', 'clear');
 		const cleared_status = await run_admin(database_path, 'status');
 
 		expect(set.exit_code).toBe(0);
-		expect(set.stdout).toBe('Minimum supported mod version set to 1.6.15.\n');
-		expect(status.stdout).toContain('minimum_supported_mod_version=1.6.15\n');
+		expect(set.stdout).toBe('Minimum supported mod version set to 1.7.1.\n');
+		expect(status.stdout).toContain('minimum_supported_mod_version=1.7.1\n');
 		expect(too_old.exit_code).toBe(2);
 		expect(invalid.exit_code).toBe(2);
 		expect(clear.exit_code).toBe(0);
 		expect(clear.stdout).toBe('Minimum supported mod version cleared.\n');
-		expect(cleared_status.stdout).toContain('minimum_supported_mod_version=1.6.14\n');
+		expect(cleared_status.stdout).toContain('minimum_supported_mod_version=1.7.0\n');
 	});
 
 	test('toggles and reports icon collection without accepting arbitrary values', async () => {

@@ -587,8 +587,8 @@ describe('guild API', () => {
 
 	test('keeps permanent Free Fellowship membership, directory, and policy and Winnowing petitions', async () => {
 		const [first, second, browser] = await Promise.all([
-			register_client('Fellowship First', undefined, '1.6.14'),
-			register_client('Fellowship Second', undefined, '1.6.14'),
+			register_client('Fellowship First', undefined, '1.7.0'),
+			register_client('Fellowship Second', undefined, '1.7.0'),
 			register_client('Fellowship Browser')
 		]);
 		const listing = await get_json_with_session<{ guilds: Array<GuildSummary & {

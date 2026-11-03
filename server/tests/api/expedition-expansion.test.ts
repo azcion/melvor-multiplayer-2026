@@ -16,8 +16,8 @@ for (const route of [
 	['entrance', 'prismatic_descent', 'embervein_machinery'],
 	['entrance', 'rootforge_passage', 'glassroot_terraces', 'buried_observatory', 'prismatic_orrery', 'voidwatch_threshold', 'hollow_star'],
 	['entrance', 'prismatic_descent', 'glassroot_terraces', 'buried_observatory', 'prismatic_orrery', 'voidwatch_threshold', 'hollow_star']
-]) test(`mixed 1.6.17/1.7.0 completes ${route.join(' → ')}`, async () => {
-	const guild = await make_guildmates('Expansion New', 'Expansion Legacy', 'Expansion Guild', { first: '1.7.0', second: '1.6.17' });
+]) test(`supported participants complete ${route.join(' → ')}`, async () => {
+	const guild = await make_guildmates('Expansion New', 'Expansion Legacy', 'Expansion Guild', { first: '1.7.0', second: '1.7.0' });
 	const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 3 }, guild.first.session_token);
 	expect(created.response.status).toBe(200);
 	const expedition_id = created.json.expedition_id;
@@ -72,7 +72,7 @@ for (const route of [
 });
 
 test('new client joins a legacy run without changing tasks, visits, history or an open work segment', async () => {
-	const guild = await make_guildmates('Legacy Creator', 'New Joiner', 'Continuity Guild', { first: '1.6.17', second: '1.7.0' });
+	const guild = await make_guildmates('Legacy Creator', 'New Joiner', 'Continuity Guild', { first: '1.7.0', second: '1.7.0' });
 	const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.first.session_token);
 	const id = created.json.expedition_id;
 	await db_run('UPDATE expeditions SET registered_at = ?, registration_ends_at = ? WHERE id = ?', [Date.now() - 20 * 3_600_000, Date.now() - 1, id]);
@@ -96,7 +96,7 @@ test('new client joins a legacy run without changing tasks, visits, history or a
 });
 
 test('legacy work reports unlock expanded phases only after all required arrival work and replay safely', async () => {
-	const guild = await make_guildmates('New Content Owner', 'Legacy Worker', 'Phase Gate Guild', { first: '1.7.0', second: '1.6.17' });
+	const guild = await make_guildmates('New Content Owner', 'Legacy Worker', 'Phase Gate Guild', { first: '1.7.0', second: '1.7.0' });
 	const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 3 }, guild.first.session_token);
 	await post_json('/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.second.session_token);
 	const expedition_id = created.json.expedition_id;
@@ -139,4 +139,30 @@ test('legacy work reports unlock expanded phases only after all required arrival
 	chamber = (await state(guild.second.session_token)).expedition.chamber;
 	expect(chamber.exits.find((e: any) => e.id === 'drowned_cloister:exit_1').label).toBe('Tideworn Crypts');
 	expect(chamber.tasks.find((t: any) => t.task_id === 'prepare_1').unlocked_at).not.toBeNull();
+});
+
+
+test('Rift retains the previous Guild return only for participants, including claimed rewards', async () => {
+	const guild = await make_guildmates('Rift Returner', 'Rift Newcomer', 'Rift Recap', { first: '1.7.1', second: '1.7.1' });
+	const old = (await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 3 }, guild.first.session_token)).json.expedition_id;
+	await db_run("UPDATE expeditions SET status='completed', ended_at=? WHERE id=?", [Date.now(), old]);
+	await db_run("UPDATE expedition_personal_records SET status='completed', ended_at=?, ending_bonus_eligible=1 WHERE expedition_id=?", [Date.now(), old]);
+	await db_run("INSERT INTO expedition_ep_ledger(client_id,source_kind,source_id,points_micros,created_at,expedition_id) VALUES(?,'work',?,10000000,?,?)", [guild.first.client_id, 90000000 + old, Date.now(), old]);
+	const next = (await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 3 }, guild.second.session_token)).json.expedition_id;
+	expect((await state(guild.second.session_token)).expedition.previous_return).toBeNull();
+	const recap = (await state(guild.first.session_token)).expedition.previous_return;
+	expect(recap).toMatchObject({ expedition_id: old, earned_points_micros: 10000000, bonus_available_micros: 2000000 });
+	await post_json('/api/expedition/ending/claim', { expedition_id: old }, guild.first.session_token);
+	expect((await state(guild.first.session_token)).expedition.previous_return).toMatchObject({ bonus_available_micros: 0, bonus_claimed_micros: 2000000 });
+	const compact = (await get_json_with_session<any>('/api/expedition/state?view=tracking', guild.first.session_token)).json;
+	expect(compact.expedition.previous_return).toBeUndefined();
+	await db_run('UPDATE expeditions SET registered_at=?, registration_ends_at=? WHERE id=?', [Date.now() - 20 * 3600000, Date.now() - 1, next]);
+	const active = await state(guild.first.session_token);
+	expect(active.expedition.chamber.id).toBe('entrance');
+	expect(active.expedition.previous_return.expedition_id).toBe(old);
+	await db_run("UPDATE expeditions SET status='inactive', ended_at=? WHERE id=?", [Date.now(), next]);
+	expect((await state(guild.first.session_token)).expedition.previous_return).toBeNull();
+	await db_run("UPDATE expeditions SET status='active', ended_at=NULL WHERE id=?", [next]);
+	await db_run("UPDATE expedition_visits SET chamber_id='drowned_cloister' WHERE id=?", [active.expedition.chamber.visit_id]);
+	expect((await state(guild.first.session_token)).expedition.previous_return).toBeNull();
 });

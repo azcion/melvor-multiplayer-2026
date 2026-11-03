@@ -87,6 +87,41 @@ test('one action connects and starts, retaining repeat runs until their terminal
 	await h.controller.connect(true); assert.equal(h.sockets.length, 2);
 });
 
+test('server-confirmed mid-combat stance survives combat exit and starts the next battle', async () => {
+	for (const status of ['victory', 'defeat', 'draw', 'fled']) {
+		const h = harness();
+		await h.controller.connect();
+		const ws = h.sockets[0]; ws.open(); ws.message({ type: 'ready', protocol: 4, encounters: ['golbin'] });
+		ws.message({ type: 'state', arena: { id: 'fight', status: 'active', stance: 'accurate' } });
+		assert.equal(h.controller.act('stance', 'defensive'), true);
+		assert.equal(h.view.stance, 'accurate');
+		ws.message({ type: 'ack', seq: 1, accepted: true });
+		ws.message({ type: 'state', arena: { id: 'fight', status: 'active', stance: 'defensive' } });
+		assert.equal(h.view.stance, 'defensive');
+		ws.message({ type: 'state', arena: { id: 'fight', status, stance: 'defensive' } });
+		assert.equal(h.view.stance, 'defensive');
+		await h.controller.connect();
+		const next = h.sockets[1]; next.open(); next.message({ type: 'ready', protocol: 4, encounters: ['golbin'] });
+		assert.equal(h.controller.start(), true);
+		assert.equal(next.sent.at(-1).stance, 'defensive');
+		h.controller.close();
+	}
+});
+
+test('recovered stance becomes the setup choice while absent and invalid stances preserve it', async () => {
+	const h = harness();
+	await h.controller.connect();
+	const ws = h.sockets[0]; ws.open(); ws.message({ type: 'ready', protocol: 4, encounters: ['golbin'] });
+	ws.message({ type: 'state', arena: { id: 'recovered', status: 'active', stance: 'aggressive' } });
+	assert.equal(h.view.stance, 'aggressive');
+	ws.message({ type: 'state', arena: { id: 'recovered', status: 'active', stance: 'invalid' } });
+	assert.equal(h.view.stance, 'aggressive');
+	ws.message({ type: 'state', arena: null });
+	assert.equal(h.view.stance, 'aggressive');
+	h.controller.close();
+	assert.equal(h.view.stance, 'aggressive');
+});
+
 test('Raid tab connects and starts its selected finite run after admission', async () => {
 	const h = harness(); h.view.page_tab = 'raid'; h.view.mode = 'raid'; h.view.encounter = 'golbins';
 	await h.controller.connect(true);
@@ -493,7 +528,7 @@ test('combat sticky toolbar shares Chat’s measured host header offset', async 
 
 test('negotiated deltas update the arena, preserve old snapshots and fail closed on gaps', async () => {
 	const h = harness(); await h.controller.connect(); const ws = h.sockets[0]; ws.open();
-	assert.deepEqual(ws.sent[0].capabilities, ['state-delta-v1']);
+	assert.deepEqual(ws.sent[0].capabilities, ['state-delta-v1', 'pve-recovery-v1']);
 	ws.message({ type: 'ready', protocol: 4, capabilities: ['state-delta-v1'], encounters: ['golbin'] });
 	const arena = { id: 'fight', status: 'active', elapsed_ms: 0, player: { hp: 10 }, enemies: [{ id: 'golbin', hp: 20 }], log: [] };
 	ws.message({ type: 'state', seq: 1, arena });
@@ -718,6 +753,27 @@ test('raid status bindings remain safe during queued arena teardown', async () =
 		assert.doesNotThrow(() => new Function('state', `return (${expression});`)(state));
 });
 
+test('recovery and maintenance bindings tolerate queued updates after resume and drain clearing', async () => {
+	const html = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
+	const recovery_start = html.indexOf('<section class="mp-combat-panel" v-show="state.combat.recovery');
+	const warning_start = html.indexOf('<div v-show="state.combat.maintenance?.drain_at');
+	assert.ok(recovery_start >= 0 && warning_start >= 0);
+	const section = html.slice(recovery_start, html.indexOf('</section>',recovery_start)) + html.slice(warning_start,html.indexOf('<div class="mp-combat-arena-host"'));
+	assert.ok(section.includes('mp-combat-maintenance'));
+	assert.equal(section.includes('v-if='),false,'keep recovery and warning descendants mounted through queued updates');
+	const expressions = [...section.matchAll(/\{\{(.*?)\}\}|(?:v-show|:disabled)="([^"]+)"/g)].map(match=>match[1] ?? match[2]);
+	assert.ok(expressions.length >= 10);
+	const state = {combat:{recovery:{state:'paused',remaining_ms:60000},maintenance:{drain_at:Date.now()+60000,incompatible:1}},combat_recovery_copy:String,combat_restart_minutes:()=>1};
+	for (const recovery of [{state:'paused',remaining_ms:60000},{state:'terminal'},null]) {
+		state.combat.recovery = recovery;
+		for (const maintenance of [{drain_at:1,incompatible:1},null]) {
+			state.combat.maintenance = maintenance;
+			for (const expression of expressions)
+				assert.doesNotThrow(()=>new Function('state',`return (${expression});`)(state),expression);
+		}
+	}
+});
+
 
 test('Tidal is a two-tier dungeon and compact mode retains all twelve or eight selectable actors', async () => {
  const {combat_choices,combat_opponents_compact,combat_raid_tiers,create_combat_snapshot_reader}=await import('../../mod/combat-arena.mjs');
@@ -756,4 +812,43 @@ test('Mire uses server-adjusted per-target max-hit markers and the exact portrai
 	for(const id of ['blob','blob_2','drowned_root','drowned_root_1']) assert.equal(combat_actor_image_style(id)['--mp-combat-image-scale-x'],-1);
 	for(const id of ['bittertoad','bittertoad_2','bogmaw','bogmaw_1']) assert.equal(combat_actor_image_style(id)['--mp-combat-image-scale-x'],undefined);
 	assert.deepEqual(combat_raid_tiers(null,2,{tiers:[{cap:17,complete:true},{cap:19,complete:false},{cap:21,complete:false}]}).map(t=>({cap:t.cap,locked:t.locked})),[{cap:17,locked:false},{cap:19,locked:false},{cap:21,locked:true}]);
+});
+
+test('recovery discovers a paused battle without auto-resuming and resumes only on explicit intent', async () => {
+	const h = harness(); h.view.page_tab = 'test_combat';
+	await h.controller.connect(true); const ws=h.sockets[0]; ws.open();
+	ws.message({type:'ready',protocol:4,encounters:['golbin'],capabilities:['pve-recovery-v1']});
+	assert.equal(ws.sent.at(-1).type,'recover');
+	const arena={id:'saved',status:'active',run:{mode:'raid',selection:'tidal'}};
+	ws.message({type:'recovery',saved:{arena,state:'paused',remaining_ms:1500000}});
+	ws.message({type:'ack',seq:1,accepted:true});
+	assert.equal(ws.sent.at(-1).type,'recover'); assert.equal(h.view.starting,false);
+	h.controller.recover('resume');
+	ws.message({type:'recovery',saved:{arena,state:'paused',remaining_ms:1500000}});
+	ws.message({type:'ack',seq:2,accepted:true});
+	assert.equal(ws.sent.at(-1).type,'resume'); assert.equal(ws.sent.at(-1).encounter,'saved');
+	ws.message({type:'ack',seq:3,accepted:true}); ws.message({type:'state',arena});
+	assert.equal(h.view.combat_tab,'raid'); assert.equal(h.view.recovery,null);
+	h.controller.close();
+	assert.equal(h.view.recovery.state,'unknown'); assert.equal(ws.sent.some(m=>m.action==='flee'),false);
+});
+
+test('terminal recovery waits for result delivery before acknowledging and remains recoverable on failure', async () => {
+	let complete; const delivered=[];
+	const h=harness({on_result:arena=>{delivered.push(arena);return new Promise(resolve=>complete=resolve);}});
+	await h.controller.recover(); const ws=h.sockets[0];ws.open();
+	ws.message({type:'ready',protocol:4,capabilities:['pve-recovery-v1']});
+	const arena={id:'finished',status:'victory'};
+	ws.message({type:'recovery',saved:{arena,state:'terminal'}});ws.message({type:'ack',seq:1,accepted:true});
+	assert.equal(delivered.length,1);assert.equal(ws.sent.at(-1).type,'recover');
+	complete();await Promise.resolve();
+	assert.equal(ws.sent.at(-1).type,'abandon');
+	ws.message({type:'ack',seq:2,accepted:true});
+	assert.equal(h.view.recovery,null);assert.equal(ws.closed,true);
+});
+
+test('background visibility closes the connection rather than issuing surrender', async () => {
+	const source=await readFile(new URL('../../mod/main.mjs',import.meta.url),'utf8');
+	const handler=source.slice(source.indexOf('function handle_runtime_visibility_change()'),source.indexOf('// #region SETUP FUNCTIONS'));
+	assert.match(handler,/combat_arena\?\.close\(\)/);assert.doesNotMatch(handler,/forfeit/);
 });

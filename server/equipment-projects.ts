@@ -282,7 +282,9 @@ export function change_equipment_work(database: Database, client: number, operat
 		const task_id = request.kind === 'start' ? request.task_id : existing?.task_id;
 		const task = stage?.find(task => equipment_task_key(task) === task_id && (progress[equipment_task_key(task)] ?? 0) < task.target_ms);
 		const matches = task && request.activities.some(activity => activity.type === 'skill' && activity.skill_id === task.skill_id && (activity.action_id === task.action_id || task.skill_id === 'melvorD:Woodcutting' && task.action_id === 'multiplayer:Any_Woodcutting'));
-		const may_start = matches && !blocked(database, client) && request.actions.time_ms[task_id!] !== undefined;
+		// Native skill work continues during Online Combat, including paused encounters.
+		// Only equipment mutations need the active-encounter guard.
+		const may_start = matches && !rollback_held(database, client) && request.actions.time_ms[task_id!] !== undefined;
 		if (request.kind === 'start' && !may_start) return { success: false, error: 'activity_required' };
 		// Delayed saved reports settle their old interval, but never attribute the transport gap to a new one.
 		const fresh = !existing || now - expedition_capture_time(request.captured_at, now, existing) <= EXPEDITION_FRESH_CAPTURE_MS;

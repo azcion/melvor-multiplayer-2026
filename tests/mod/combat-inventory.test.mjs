@@ -16,7 +16,7 @@ test('food selection captures server revision, blocks concurrent submission and 
 	assert.equal(await h.controller.equipment('equip',{slot:'Food',item_id:'melvorD:Herring'}),false);
 	release(true);assert.equal(await pending,true);
 	assert.equal(h.calls[0].payload.item_id,'melvorD:Shrimp');assert.equal(h.calls[0].payload.revision,4);
-	assert.equal(h.calls[1].path,'/api/combat/inventory');
+	assert.equal(h.calls[1].path,'/api/combat/inventory?recovery=1');
 });
 test('scope reset suppresses stale refreshes and receipt application',async()=>{
 	let finish;const h=harness({request:()=>new Promise(resolve=>finish=resolve)});

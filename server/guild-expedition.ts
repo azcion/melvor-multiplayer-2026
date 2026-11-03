@@ -698,6 +698,13 @@ export function get_expedition_state(guild_id: number, client_id: number, now = 
 				exits: definition.exits.map(edge => ({ id: edge.id, slot: edge.slot,
 					label: discovered.has(edge.id) ? chamber_names.get(edge.target) ?? edge.target : '???' })) };
 		}
+		// Keep the immediately preceding Guild run visible to its participants while back in the Rift.
+		const previous = !tracking_only && (expedition.status === 'registration' ||
+			expedition.status === 'active' && chamber?.id === 'entrance')
+			? db.query<{ id: number }, [number, number]>(
+				"SELECT id FROM expeditions WHERE guild_id = ? AND id < ? AND status IN ('completed','inactive','dissolved') ORDER BY id DESC LIMIT 1"
+			).get(guild_id, expedition.id) : null;
+		const previous_summary = previous ? get_expedition_return_summary(db, client_id, previous.id) : null;
 		return { contract_version: 1, content_version: expedition.content_version, server_now: now,
 			expedition: { id: expedition.id, status: expedition.status, revision: expedition.revision,
 				registered_at: expedition.registered_at, registration_ends_at: expedition.registration_ends_at,
@@ -705,6 +712,7 @@ export function get_expedition_state(guild_id: number, client_id: number, now = 
 					'SELECT outcome FROM expedition_crucible_outcomes WHERE expedition_id = ?'
 				).get(expedition.id)?.outcome ?? expedition.stash_outcome,
 				registered_count, registered, chamber, history,
+				...(!tracking_only ? { previous_return: previous_summary ? { expedition_id: previous!.id, ...previous_summary } : null } : {}),
 				...(!tracking_only ? { journey: {
 					supported_ids: content.chambers.map(entry => entry.id),
 					revealed: db.query<{ exit_id: string }, [number]>(

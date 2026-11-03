@@ -114,6 +114,8 @@ test('browser and game share canonical private messages, reads, reactions, parts
 		'alliance',
 		'testers',
 		'support',
+		'announcements',
+		'announcement-discussion',
 		'poll-discussion',
 		'petition-discussion',
 		'unknown'
@@ -192,10 +194,11 @@ test('exact browser allowlist, selected identity, deferred kinds and ordinary li
 	expect(profile).not.toHaveProperty('last_active_at');
 	const inbox = await json(await web.get('conversations?capabilities=polls-v1'));
 	expect(inbox).not.toHaveProperty('polls_summary');
+	expect(inbox.conversations.some((c: any) => ['announcements', 'announcement-discussion'].includes(c.conversation_kind))).toBe(false);
 	for (const conversation of inbox.conversations) expect(conversation).not.toHaveProperty('can_moderate');
 	expect(inbox.conversations.some((c: any) => c.conversation_kind === 'global')).toBe(true);
 	expect((await web.get('profile?people=1')).status).toBe(200);
-	for (const kind of ['poll-discussion', 'petition-discussion', 'unknown']) {
+	for (const kind of ['announcements', 'announcement-discussion', 'poll-discussion', 'petition-discussion', 'unknown']) {
 		for (const path of [
 			'state',
 			'profile?people=1',
