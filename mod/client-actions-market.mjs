@@ -389,14 +389,14 @@ export function install_market_actions(runtime) {
 			const listing_price = Number.isSafeInteger(item?.price) && item.price > 0 ? item.price : price;
 			const cap = transfer_currency_support?.get_transfer_currency_cap(game, item?.currency_id ?? 'melvorD:GP') ?? 1_000_000_000;
 			return item && Number.isSafeInteger(qty) && qty > 0 && Number.isSafeInteger(price) && price > 0 &&
-				qty * Math.max(price, listing_price) > cap ? `${state.market_currency_shorthand(item)}: ${numberWithCommas(cap)}` : '';
+				price > listing_price && qty * price > cap ? `${state.market_currency_shorthand(item)}: ${numberWithCommas(cap)}` : '';
 		},
 
 		get_market_haggle_counter_cap_notice() {
 			const haggle = state.market_haggle_counter;
 			const price = Number(this.market_haggle_price);
 			const cap = transfer_currency_support?.get_transfer_currency_cap(game, haggle?.currency_id ?? 'melvorD:GP') ?? 1_000_000_000;
-			return haggle && Number.isSafeInteger(price) && price > 0 && haggle.item_qty * price > cap
+			return haggle && Number.isSafeInteger(price) && price > 0 && price > haggle.listing_price && haggle.item_qty * price > cap
 				? `${state.market_currency_shorthand(haggle)}: ${numberWithCommas(cap)}` : '';
 		},
 
@@ -415,7 +415,7 @@ export function install_market_actions(runtime) {
 				return notify_error('MOD_MP_MARKET_VALUE_TOO_LARGE');
 			const cap = transfer_currency_support?.get_transfer_currency_cap(game, item?.currency_id ?? 'melvorD:GP') ?? 1_000_000_000;
 			const listing_price = Number.isSafeInteger(item.price) && item.price > 0 ? item.price : price;
-			const qty = Math.min(requested_qty, Math.floor(cap / Math.max(price, listing_price)));
+			const qty = price > listing_price ? Math.min(requested_qty, Math.floor(cap / price)) : requested_qty;
 			if (qty < 1)
 				return notify_error('MOD_MP_MARKET_VALUE_TOO_LARGE');
 			const local_item = game.items.getObjectByID(item.item_id);
@@ -466,19 +466,17 @@ export function install_market_actions(runtime) {
 				}
 			}
 			if (action === 'counter' || action === 'accept') {
-				let total = haggle.item_qty * price;
+				const total = haggle.item_qty * price;
 				if (!Number.isSafeInteger(total)) {
 					hide_button_spinner($button);
 					return notify_error('MOD_MP_MARKET_VALUE_TOO_LARGE');
 				}
 				if (action === 'counter') {
 					const cap = transfer_currency_support?.get_transfer_currency_cap(game, haggle?.currency_id ?? 'melvorD:GP') ?? 1_000_000_000;
-					price = Math.min(price, Math.floor(cap / haggle.item_qty));
-					if (price < 1) {
+					if (price > haggle.listing_price && total > cap) {
 						hide_button_spinner($button);
 						return notify_error('MOD_MP_MARKET_VALUE_TOO_LARGE');
 					}
-					total = haggle.item_qty * price;
 				}
 				const is_payer = haggle.direction === 'sell' ? haggle.is_initiator : !haggle.is_initiator;
 				const top_up = Math.max(total - haggle.payer_escrow_gp, 0);

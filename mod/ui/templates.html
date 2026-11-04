@@ -438,32 +438,33 @@
 			<div class="mp-combat-arena-host" v-show="state.combat.arena">
 				<section class="mp-combat-panel mp-combat-arena" v-show="state.combat.page_tab === state.combat.combat_tab && state.combat.arena?.status === 'active'" :aria-label="state.combat_encounter_name()">
 					<header class="mp-combat-panel-header mp-combat-toolbar">
-						<button type="button" class="mp-combat-toolbar-button mp-combat-stop" :aria-label="state.combat_run_copy('stop')" :title="state.combat_run_copy('stop')" :disabled="state.combat.pending || state.combat.arena?.status !== 'active'" @click="state.combat_action('flee')"><img :src="state.combat_run_icon()" alt=""></button>
 						<div class="mp-combat-toolbar-group" role="group" :aria-label="state.combat_name('food')">
-							<button class="mp-combat-toolbar-button mp-combat-eat" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('eat') }" :aria-label="state.combat_name('eat') + ': ' + state.combat_food_name()" :title="state.combat_name('eat') + ' · +' + state.combat.arena?.food_policy.heal + ' HP'" :disabled="state.combat.pending || state.combat.arena?.status !== 'active' || state.combat.arena?.food === 0 || state.combat_eat_remaining(state.combat.arena) > 0" @click="state.combat_action('eat')"><span class="mp-combat-eat-fill" data-combat-eat-fill aria-hidden="true"></span><span class="mp-combat-eat-label"><img v-if="state.combat.arena?.food_id" :src="state.combat_food_image()" alt=""><i v-else class="fa fa-utensils" aria-hidden="true"></i></span></button>
-							<span class="mp-combat-toolbar-slot" :title="state.consumable_grid()[1].title" :aria-label="state.consumable_grid()[1].title"><i class="fa fa-utensils" aria-hidden="true"></i><i class="fa fa-lock mp-combat-toolbar-lock" aria-hidden="true"></i></span>
+							<button class="mp-combat-toolbar-button mp-combat-eat" data-combat-slot="1" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('eat') }" :aria-label="state.combat_name('eat') + ': ' + state.combat_food_name()" :title="state.combat_name('eat') + ' · +' + state.combat.arena?.food_policy.heal + ' HP'" :disabled="state.combat.pending || state.combat.arena?.status !== 'active' || state.combat.arena?.food === 0 || state.combat_eat_remaining(state.combat.arena) > 0" @click="state.combat_action('eat')"><span class="mp-combat-eat-fill" data-combat-eat-fill aria-hidden="true"></span><span class="mp-combat-eat-label"><img v-if="state.combat.arena?.food_id" :src="state.combat_food_image()" alt=""><i v-else class="fa fa-utensils" aria-hidden="true"></i></span></button>
+							<span class="mp-combat-toolbar-slot" data-combat-slot="2" :title="state.consumable_grid()[1].title" :aria-label="state.consumable_grid()[1].title"><i class="fa fa-utensils" aria-hidden="true"></i><i class="fa fa-lock mp-combat-toolbar-lock" aria-hidden="true"></i></span>
 						</div>
 						<div class="mp-combat-toolbar-group" role="group" :aria-label="state.combat_name('potion')">
-							<span class="mp-combat-toolbar-slot" v-for="slot in state.consumable_grid().slice(2)" :key="slot.slot" :title="slot.title" :aria-label="slot.title"><i class="fa fa-flask" aria-hidden="true"></i><i class="fa fa-lock mp-combat-toolbar-lock" aria-hidden="true"></i></span>
+							<span class="mp-combat-toolbar-slot" v-for="(slot, index) in state.consumable_grid().slice(2)" :data-combat-slot="index + 3" :key="slot.slot" :title="slot.title" :aria-label="slot.title"><i class="fa fa-flask" aria-hidden="true"></i><i class="fa fa-lock mp-combat-toolbar-lock" aria-hidden="true"></i></span>
 						</div>
 						<span class="mp-combat-connection mp-combat-connection-desktop" :title="state.combat_name(state.combat.status)" :aria-label="state.combat_name(state.combat.status) + ' · ' + state.combat.latency + ' ms'">{{ state.combat.latency }} ms <span class="mp-combat-wifi" :class="{ 'mp-combat-wifi-off': state.combat.status !== 'ready' }"><i class="fa fa-wifi" aria-hidden="true"></i></span></span>
-						<button type="button" class="mp-combat-toolbar-button mp-combat-opponents-view" :aria-label="state.combat.opponents_view" @click="state.combat_cycle_opponents_view()">
-							<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="currentColor">
-								<path v-show="state.combat.opponents_view === 'auto'" d="M2 2h8v8H2z M2 14h8v8H2z M14 2h8v2H14z M14 8h8v2H14z M14 14h8v2H14z M14 20h8v2H14z"/>
-								<path v-show="state.combat.opponents_view === 'full'" d="M2 2h8v8H2z M14 2h8v8H14z M2 14h8v8H2z M14 14h8v8H14z"/>
-								<path v-show="state.combat.opponents_view === 'compact'" d="M2 2h8v2H2z M14 2h8v2H14z M2 8h8v2H2z M14 8h8v2H14z M2 14h8v2H2z M14 14h8v2H14z M2 20h8v2H2z M14 20h8v2H14z"/>
-							</svg>
-						</button>
+						<div class="mp-combat-toolbar-group mp-combat-view-actions">
+							<button type="button" class="mp-combat-toolbar-button mp-combat-opponents-view" :aria-label="state.combat.opponents_view" @click="state.combat_cycle_opponents_view()">
+								<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="currentColor">
+									<path v-show="state.combat.opponents_view === 'auto'" d="M2 2h8v8H2z M2 14h8v8H2z M14 2h8v2H14z M14 8h8v2H14z M14 14h8v2H14z M14 20h8v2H14z"/>
+									<path v-show="state.combat.opponents_view === 'full'" d="M2 2h8v8H2z M14 2h8v8H14z M2 14h8v8H2z M14 14h8v8H14z"/>
+									<path v-show="state.combat.opponents_view === 'compact'" d="M2 2h8v2H2z M14 2h8v2H14z M2 8h8v2H2z M14 8h8v2H14z M2 14h8v2H2z M14 14h8v2H14z M2 20h8v2H2z M14 20h8v2H14z"/>
+								</svg>
+							</button>
+							<button type="button" class="mp-combat-toolbar-button mp-combat-stop" :aria-label="state.combat_run_copy('stop')" :title="state.combat_run_copy('stop')" :disabled="state.combat.pending || state.combat.arena?.status !== 'active'" @click="state.combat_action('flee')"><img :src="state.combat_run_icon()" alt=""></button>
+						</div>
 					</header>
 					<div class="mp-combat-panel-body">
 						<p v-show="state.combat.arena?.run?.mode === 'raid'" role="status">{{ state.combat_raid_copy('tier') }} {{ state.combat_roman(state.combat.arena?.run?.tier) }} / {{ state.combat_roman(state.combat.arena?.run?.raid_endpoint) }} · {{ state.combat_raid_copy('wave') }} {{ state.combat.arena?.run?.stage + 1 }} / {{ state.combat.arena?.run?.stages }} · {{ state.combat_time(state.combat.arena?.run?.total_ms) }}</p>
-						<p v-for="effect in state.combat.arena?.chamber_effects ?? []" :key="effect.id" class="mp-combat-chamber-notice"><strong>{{ state.combat_name('chamber') }}</strong> · {{ state.combat_chamber_description(effect) }}</p>
 						<p v-if="state.combat.arena?.ruleset === 'practice-1' && state.combat.arena?.run?.stages !== 1" role="status">{{ state.combat_practice_copy('bout') }} {{ state.combat.arena?.run?.stage + 1 }} / {{ state.combat.arena?.run?.stages }}</p>
 						<div class="mp-combat-field">
 							<div class="mp-combat-actor mp-combat-player">
 								<div class="mp-combat-player-overview">
 								<div class="mp-combat-portrait-row"><img class="mp-combat-portrait" :src="state.combat_actor_image('player')" alt=""><div><h4>{{ state.combat_name('player') }}</h4><span class="text-muted">{{ state.combat_style_name(state.combat.arena?.stance ?? 'accurate') }}</span></div></div>
-								<div class="mp-combat-gear"><img v-for="entry in state.combat_gear()" :key="entry[0]" :src="state.get_item_icon(entry[1])" :alt="state.get_item_name(entry[1])" :title="state.get_item_name(entry[1])" width="30" height="30"></div>
+								<div class="mp-combat-gear"><img v-for="entry in state.combat_gear()" :key="entry[0]" :class="{ 'mp-combat-gear-debuffed': state.combat_gear_debuffed(entry) }" :src="state.get_item_icon(entry[1])" :alt="state.get_item_name(entry[1])" :title="state.get_item_name(entry[1])" width="30" height="30"></div>
 								<div class="mp-combat-vitals"><span class="mp-combat-hp-label"><img :src="state.combat_skill_icon('hitpoints')" alt="" width="20" height="20">{{ state.combat.arena?.player.hp }} / {{ state.combat.arena?.player.max_hp }} HP</span><span class="mp-combat-interval"><img class="mp-combat-type-icon" :src="state.combat_attack_icon(state.combat.arena?.player.stats.attack_type)" :alt="state.combat_name(state.combat.arena?.player.stats.attack_type)" :title="state.combat_name(state.combat.arena?.player.stats.attack_type)" width="22" height="22"><span :title="state.combat_name('interval')"><i class="far fa-clock" aria-hidden="true"></i><span class="sr-only">{{ state.combat_name('interval') }}: </span> {{ state.combat_interval(state.combat.arena?.player.interval) }}</span></span></div>
 								</div>
 								<div class="mp-combat-player-bars">
@@ -2221,7 +2222,7 @@
 		<label><lang-string lang-id="MOD_MP_MARKET_HAGGLE_PRICE"></lang-string></label>
 		<input type="number" min="1" step="1" class="form-control" v-model.number="state.market_haggle_price">
 		<div class="text-center mt-2">{{ numberWithCommas(state.market_haggle_counter.item_qty) }} × {{ numberWithCommas(state.market_haggle_price) }} {{ state.market_currency_shorthand(state.market_haggle_counter) }}</div>
-		<p class="text-warning" v-if="state.get_market_haggle_counter_cap_notice()"><mp-lang-string-f lang-id="MOD_MP_TRANSFER_CAP_NOTICE" :lang-arg-1="state.get_market_haggle_counter_cap_notice()"></mp-lang-string-f></p>
+		<p class="text-warning" v-if="state.get_market_haggle_counter_cap_notice()"><lang-string lang-id="MOD_MP_MARKET_VALUE_TOO_LARGE"></lang-string> {{ state.get_market_haggle_counter_cap_notice() }}</p>
 	</div>
 	<div class="mp-button-tray">
 		<button type="button" class="btn btn-warning" @click="state.respond_market_haggle($event, state.market_haggle_counter, 'counter', true)">

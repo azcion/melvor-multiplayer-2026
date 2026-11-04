@@ -1,4 +1,6 @@
 {
+	"MOD_MP_SETTINGS_COMBAT_KEYS": "Savaş klavye kısayolları",
+	"MOD_MP_SETTINGS_COMBAT_KEYS_HINT": "Çevrimiçi savaş görünümünde: Boşluk/1 = Yiyecek 1, 2 = Yiyecek 2, 3 = İksir 1, 4 = İksir 2. Kilitli yuvalar kullanılamaz. Her basışta bir kez kullanılır.",
 	"MOD_MP_COMBAT_RECOVERY_PAUSED": "Savaş duraklatıldı",
 	"MOD_MP_COMBAT_RECOVERY_RESUME": "Devam et",
 	"MOD_MP_COMBAT_RECOVERY_ABANDON": "Vazgeç",
@@ -1886,7 +1888,7 @@
 	"MOD_MP_COMBAT_QUARRY_DESCRIPTION": "Terk edilmiş taş ocağı çıkıntılarında küller süzülür. Kabuklu yaratıklar soğuyan taşlar arasında sürünür, ateşler galerilerde dolaşır ve yılanlar erimiş kaya yüreğinin altında kıvrılır.",
 	"MOD_MP_COMBAT_QUARRY_ENTRY": "Açmak için Batan Bataklığı tamamla",
 	"MOD_MP_COMBAT_CHAMBER": "Oda",
-	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "Savaş boyunca saldırı hızı −%25. Yanma bu hız cezasını geçici olarak dengeler.",
+	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "Savaş boyunca saldırı hızı −%25.",
 	"MOD_MP_COMBAT_PERSISTENT_INFO": "Bu savaş bitene kadar sürer.",
 	"MOD_MP_COMBAT_CHAMBER_EQUIPMENT": "Şu yuvalarda herhangi bir {material} parça takılıysa her savaş boyunca {effect}: {slots}.",
 	"MOD_MP_COMBAT_CHAMBER_UNCONDITIONAL": "Her savaş boyunca {effect}.",

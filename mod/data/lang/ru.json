@@ -1,4 +1,6 @@
 {
+	"MOD_MP_SETTINGS_COMBAT_KEYS": "Горячие клавиши боя",
+	"MOD_MP_SETTINGS_COMBAT_KEYS_HINT": "На экране сетевого боя: Пробел/1 = Еда 1, 2 = Еда 2, 3 = Зелье 1, 4 = Зелье 2. Заблокированные ячейки остаются недоступными. Одно использование за нажатие.",
 	"MOD_MP_COMBAT_RECOVERY_PAUSED": "Бой приостановлен",
 	"MOD_MP_COMBAT_RECOVERY_RESUME": "Продолжить",
 	"MOD_MP_COMBAT_RECOVERY_ABANDON": "Отказаться",
@@ -1886,7 +1888,7 @@
 	"MOD_MP_COMBAT_QUARRY_DESCRIPTION": "Пепел кружится над заброшенными уступами. Панцирные твари ползут среди остывающих камней, огоньки бродят по галереям, а змеи свиваются под сердцем из расплавленной породы.",
 	"MOD_MP_COMBAT_QUARRY_ENTRY": "Пройдите Тонущую топь, чтобы открыть",
 	"MOD_MP_COMBAT_CHAMBER": "Камера",
-	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "Скорость атаки −25% на весь бой. Горение временно компенсирует этот штраф скорости.",
+	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "Скорость атаки −25% на весь бой.",
 	"MOD_MP_COMBAT_PERSISTENT_INFO": "Действует весь бой.",
 	"MOD_MP_COMBAT_CHAMBER_EQUIPMENT": "{effect} на весь бой, если надет любой предмет из материала «{material}» в ячейках: {slots}.",
 	"MOD_MP_COMBAT_CHAMBER_UNCONDITIONAL": "{effect} на протяжении каждого боя.",

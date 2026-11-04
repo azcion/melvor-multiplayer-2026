@@ -245,7 +245,7 @@ export function register_market_routes(): void {
 				(lot.alliance_price > 0 && json.expected_price !== price))
 				return { error_lang: 'MOD_MP_MARKET_LISTING_CHANGED' };
 			const final_cost = safe_market_total(final_qty, price);
-			if (final_cost === null || final_cost > (get_transfer_currency_cap(lot.currency_id) ?? 0))
+			if (final_cost === null)
 				return { error_lang: 'MOD_MP_MARKET_VALUE_TOO_LARGE' };
 			const new_item_qty = Math.max(lot.available - final_qty, 0);
 			const updated = db.query(

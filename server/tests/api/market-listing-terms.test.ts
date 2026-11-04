@@ -8,6 +8,41 @@ type Reply = { success: boolean; error_lang?: string; receipt?: { effects: unkno
 const read = (client: RegisteredClient) => get_json_with_session<Reply>('/api/market/listings', client.session_token);
 const send = (client: RegisteredClient, route: string, data: Record<string, unknown>) => post_json<Reply>(route, data, client.session_token);
 
+test('purchases and Haggles at or below listing price bypass transfer caps', async () => {
+	const pair = await make_guildmates('Cap Buyer', 'Cap Seller', 'Cap Guild', { first: '1.7.0', second: '1.7.0' });
+	const currency_id = 'melvorD:SlayerCoins';
+	await send(pair.second, '/api/market/sell', { item_id: 'melvorD:Cap_Item', item_qty: 10, item_sell_price: 1_000_000, currency_id });
+	const lot = (await read(pair.second)).json.items[0];
+	const buy = { id: lot.id, qty: 2, expected_currency_id: currency_id, expected_price: 1_000_000, command_id: crypto.randomUUID() };
+	const purchased = (await send(pair.first, '/api/market/buy', buy)).json;
+	expect(purchased.receipt?.effects).toEqual([{ storage: 'bank', item_id: currency_id, qty: -2_000_000 }]);
+	expect((await send(pair.first, '/api/market/buy', buy)).json).toEqual(purchased);
+	const offer = { id: lot.id, qty: 2, price: 900_000, expected_currency_id: currency_id };
+	const opened = (await send(pair.first, '/api/market/haggle', offer)).json;
+	expect(opened.receipt?.effects).toEqual([{ storage: 'bank', item_id: currency_id, qty: -1_800_000 }]);
+	const equal = (await send(pair.second, '/api/market/haggle/counter', { id: opened.haggle_id, revision: 1, price: 1_000_000 })).json;
+	expect(equal.success).toBe(true);
+	expect((await db_all<{ offer_price: number }>('SELECT offer_price FROM market_haggles WHERE id=?', [opened.haggle_id!]))[0].offer_price).toBe(1_000_000);
+	const increased = (await send(pair.first, '/api/market/haggle/counter', { id: opened.haggle_id, revision: 2, price: 1_000_001 })).json;
+	expect(increased.error_lang).toBe('MOD_MP_MARKET_VALUE_TOO_LARGE');
+	expect((await db_all<{ offer_price: number; revision: number }>('SELECT offer_price, revision FROM market_haggles WHERE id=?', [opened.haggle_id!]))[0]).toEqual({ offer_price: 1_000_000, revision: 2 });
+	await send(pair.first, '/api/market/haggle/terminate', { id: opened.haggle_id, revision: 2 });
+	expect((await send(pair.first, '/api/market/haggle', { ...offer, price: 1_000_001 })).json.error_lang).toBe('MOD_MP_MARKET_VALUE_TOO_LARGE');
+});
+
+test('higher Haggle counteroffers respect the exact currency cap without changing the entered price', async () => {
+	const pair = await make_guildmates('Counter Buyer', 'Counter Seller', 'Counter Guild', { first: '1.7.0', second: '1.7.0' });
+	const currency_id = 'melvorD:SlayerCoins';
+	await send(pair.second, '/api/market/sell', { item_id: 'melvorD:Counter_Item', item_qty: 2, item_sell_price: 100_000, currency_id });
+	const lot = (await read(pair.second)).json.items[0];
+	const opened = (await send(pair.first, '/api/market/haggle', { id: lot.id, qty: 2, price: 100_000, expected_currency_id: currency_id })).json;
+	const at_cap = (await send(pair.second, '/api/market/haggle/counter', { id: opened.haggle_id, revision: 1, price: 500_000 })).json;
+	expect(at_cap.success).toBe(true);
+	const over_cap = (await send(pair.first, '/api/market/haggle/counter', { id: opened.haggle_id, revision: 2, price: 500_001 })).json;
+	expect(over_cap.error_lang).toBe('MOD_MP_MARKET_VALUE_TOO_LARGE');
+	expect((await db_all<{ offer_price: number; revision: number }>('SELECT offer_price, revision FROM market_haggles WHERE id=?', [opened.haggle_id!]))[0]).toEqual({ offer_price: 500_000, revision: 2 });
+});
+
 test('listing terms merge only matching lots, enforce limits and replay once', async () => {
 	const pair = await make_guildmates('Terms Buyer', 'Terms Seller', 'Terms Guild', { first: '1.7.0', second: '1.7.0' });
 	const data = { item_id: 'melvorD:Terms_Apple', item_qty: 10, item_sell_price: 7, currency_id: 'melvorD:SlayerCoins', purchase_limit: 3, allow_haggles: false };

@@ -30,7 +30,9 @@ without configuring an administrator. Optional translation credentials are not r
 
 The server binds to `127.0.0.1:3000` on the Docker host. If that port is occupied, set `MELVOR_SERVER_PORT=3001` in
 a local `.env` file before starting, and use that port in every URL below. `.env.example` lists optional settings;
-the defaults work for this local test. Keep the same project name for subsequent commands.
+the defaults work for the API local test. To use Browser Chat locally, also set
+`MELVOR_CHAT_PUBLIC_ORIGIN=http://127.0.0.1:3000` (adjust the host and port to the exact browser origin), then
+recreate the server. Keep the same project name for subsequent commands.
 
 The `melvor-selfhost_database-data` named volume holds SQLite state. An unused project name creates a new volume;
 repeating the start command with the same name preserves the existing database. To stop while keeping data:
@@ -80,8 +82,9 @@ Before using an origin such as `https://multiplayer.example.com`, provide:
 - DNS or a local hosts entry resolving that hostname on each game device.
 - An HTTPS reverse proxy with a certificate trusted by each game browser or app. Compose serves HTTP and does not
   provision DNS, certificates, or an HTTPS proxy.
-- Proxy routing for `/health`, `/api/versions`, and all `/api/` paths to the backend, preserving paths, request bodies,
-  `Origin`, and the mod's request/response headers. Forward `OPTIONS` requests to the backend; it supplies CORS headers.
+- Proxy routing for `/health`, `/api/`, `/chat` and `/chat/`, and `/mod/` to the backend, preserving paths, query
+  strings, request bodies, `Origin`, cookies, and the mod's request/response headers. Forward `OPTIONS` requests to
+  the backend; it supplies CORS headers. Browser Chat imports shared modules from `/mod/`.
 - Network access to the proxy from the game device. The default backend port is loopback-only. A proxy running on
   the Docker host can reach `127.0.0.1:3000`; a proxy container on the same Compose network uses `server:3000`.
 
@@ -89,6 +92,103 @@ Check `https://multiplayer.example.com/health` and `/api/versions` in the actual
 warning before connecting. Set only the origin in Mod Settings, without `/api`, a path, credentials, query, or fragment.
 Keep `MELVOR_TRUST_PROXY=0` for an ordinary reverse proxy; this option specifically trusts Cloudflare's
 `CF-Connecting-IP` header and is not a general HTTPS switch.
+
+With this default, the backend puts **all source-limited requests into one shared bucket**, even for direct connections.
+By default that allows a combined burst of 30 requests and refills at 120 per minute; registrations share a bucket
+with a capacity of 4 that refills at 4 per hour. Multiple players can therefore receive HTTP 429 responses. Authenticated
+identity limits and the service-wide registration limit also apply. The source and registration limits can be tuned
+in `.env` using the settings listed in `.env.example`, but raising them reduces the protection they provide. The backend
+ignores `X-Forwarded-For`, so the Nginx example does not provide per-client source limits.
+
+For supported per-client source limits, route public traffic exclusively through a Cloudflare Tunnel to the
+loopback-bound backend and set `MELVOR_TRUST_PROXY=1` in `.env`. Ensure that Cloudflare supplies the correct
+`CF-Connecting-IP` for every request and that clients cannot reach the backend through another route, including a
+directly exposed port or an ordinary proxy. Protect access from untrusted processes or containers on the host as
+well: the backend does not authenticate the sender of that header, so any route that can bypass Cloudflare can
+spoof client addresses and evade source limits. Missing or invalid addresses share an `unknown` bucket. Recreate
+the server after changing the setting. Leave trust disabled if you cannot enforce this boundary; an ordinary proxy
+alone is not a supported per-client source configuration.
+
+Set the browser-facing origin in `.env` before starting the server:
+
+```dotenv
+MELVOR_CHAT_PUBLIC_ORIGIN=https://multiplayer.example.com
+```
+
+After changing `.env`, recreate the server:
+
+```sh
+docker compose --project-name melvor-selfhost up --build --detach --wait server
+```
+
+The value must be the exact origin used to open Browser Chat: HTTPS except for HTTP on `localhost`, `127.0.0.1`,
+or `[::1]`. Include a non-default port when used, but no trailing slash, path, credentials, query, or fragment. Compose passes it to the backend as
+`CHAT_PUBLIC_ORIGIN`. Its default points at the official service, so set it for your own deployment. Open `/chat`
+on that origin and pair it from the game. A different host spelling or port fails the origin check.
+
+### Example: Nginx on the Docker host
+
+This HTTPS server block forwards all backend paths without rewriting them. Install a trusted certificate and replace
+the example hostname and certificate paths. This example assumes Nginx runs directly on the Docker host, with the
+backend on loopback port 3000. Add it to your Nginx configuration, test with `nginx -t`, then reload Nginx.
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name multiplayer.example.com;
+    ssl_certificate /etc/ssl/example/fullchain.pem;
+    ssl_certificate_key /etc/ssl/example/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+For an optional wiki on port 3080, insert these two locations in the same `server` block. Nginx selects them ahead
+of the backend catch-all and preserves `/wiki` in the request URI:
+
+```nginx
+location = /wiki { proxy_pass http://127.0.0.1:3080; }
+location ^~ /wiki/ { proxy_pass http://127.0.0.1:3080; }
+```
+
+The example does not enable the optional Online Combat service; that service needs its own WebSocket routing.
+Verify `/health`, `/api/versions`, `/chat`, `/chat/assets/chat.mjs`, and `/mod/chat-items.mjs` through HTTPS,
+and, if enabled, `/wiki/`. Pair Browser Chat and check the game connection from the actual client as well.
+
+### Optional player wiki
+
+The default wiki link points to the official handbook. To host a copy, build the static site with Node.js 22.18+
+and run its separate Nginx container from the repository root:
+
+```sh
+node wiki/scripts/build.mjs
+mkdir -p wiki/site/releases/initial
+cp -R wiki/dist/. wiki/site/releases/initial/
+ln -s releases/initial wiki/site/current
+docker compose -f wiki/compose.yaml -p melvor-wiki up -d --wait
+node wiki/scripts/check-host.mjs http://127.0.0.1:3080
+```
+
+Route `/wiki` and `/wiki/` to that service as above. Set `MELVOR_WIKI_URL=https://multiplayer.example.com/wiki/`
+in `.env`, then recreate the backend so clients discover your wiki link through `/api/versions`. An empty, unset, or
+invalid URL falls back to the official wiki; use HTTP or HTTPS without credentials. Older clients or servers that do
+not advertise a valid URL also use the official link.
+
+To update the wiki, rebuild, copy `wiki/dist/` into a **new** release directory, and atomically switch the `current`
+symlink to that directory; retain the previous directory for rollback. The wiki server need not restart for content
+updates. See [wiki hosting](../wiki/README.md#independent-hosting) for the layout, checks, and update details. The
+wiki is independently hosted and updating it does not update the backend or the mod.
+
+For a disposable local acceptance check, run `./scripts/self-host-acceptance.sh`. It builds the backend and wiki,
+starts isolated Docker services, checks Browser Chat pairing and the example proxy routes, then removes its test
+containers and database. It requires Docker and Node.js 22.18 or later; it does not test HTTPS certificates or
+replace pairing from an actual game client.
 
 ## Test a source-built mod
 

@@ -1,4 +1,6 @@
 {
+	"MOD_MP_SETTINGS_COMBAT_KEYS": "Combat keyboard shortcuts",
+	"MOD_MP_SETTINGS_COMBAT_KEYS_HINT": "While viewing an Online Combat battle: Space/1 = Food 1, 2 = Food 2, 3 = Potion 1, 4 = Potion 2. Locked slots remain unavailable. One use per press.",
 	"MOD_MP_COMBAT_RECOVERY_PAUSED": "Battle paused",
 	"MOD_MP_COMBAT_RECOVERY_RESUME": "Resume",
 	"MOD_MP_COMBAT_RECOVERY_ABANDON": "Abandon",
@@ -1886,7 +1888,7 @@
 	"MOD_MP_COMBAT_QUARRY_DESCRIPTION": "Ash drifts over abandoned quarry ledges. Shelled creatures creep between cooling stones, fiery wisps haunt the galleries, and serpents coil beneath a heart of molten rock.",
 	"MOD_MP_COMBAT_QUARRY_ENTRY": "Complete Sinking Mire to unlock",
 	"MOD_MP_COMBAT_CHAMBER": "Chamber",
-	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "Attack speed −25% throughout this battle. Burn temporarily offsets this speed penalty.",
+	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "Attack speed −25% throughout this battle.",
 	"MOD_MP_COMBAT_PERSISTENT_INFO": "Persists throughout this battle.",
 	"MOD_MP_COMBAT_CHAMBER_EQUIPMENT": "{effect} throughout each battle while wearing any {material} piece in these slots: {slots}.",
 	"MOD_MP_COMBAT_CHAMBER_UNCONDITIONAL": "{effect} throughout each battle.",

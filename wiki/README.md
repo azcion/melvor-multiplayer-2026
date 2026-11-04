@@ -100,7 +100,9 @@ all page and asset bytes. Preserve previous release directories for rollback; co
 new directory and atomic symlink switch. Recreate the static server only when its image or config changes.
 
 Route the public hostname's **`^/wiki(/.*)?$`** path to `http://127.0.0.1:3080` before the existing catch-all
-backend rule. Keep `/chat`, `/api`, and `/health` on their existing origin. For a remotely managed tunnel,
+backend rule. Keep `/chat`, `/mod/`, `/api/`, and `/health` on the backend. Browser Chat imports shared modules
+from `/mod/`. For a complete self-hosting example and the setting that advertises your wiki to clients, see
+[self-hosting](../docs/self-hosting.md#optional-player-wiki). For a remotely managed tunnel,
 change its published-application configuration; for a locally managed tunnel, change its ingress config.
 This one-time routing setup is independent of subsequent wiki content updates. Consult
 [Cloudflare ingress configuration](https://developers.cloudflare.com/tunnel/features/locally-managed-tunnels/configuration-file/)

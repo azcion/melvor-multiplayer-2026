@@ -16,10 +16,29 @@ test('selection, category and tier changes synchronise one finite server-authore
 	practice_select(view,'tier',2);assert.equal(view.encounter,'practice_partners_2');
 	practice_select(view,'tier',99);assert.equal(view.practice_tier,2);
 	practice_select(view,'encounter','circuit');assert.equal(view.practice_tab,'selected');assert.equal(view.practice_category,'circuits');
-	assert.equal(practice_choices(view)[0].id,'practice_circuit_2');assert.equal(view.mode,'once');
-	view.starting=true;practice_select(view,'tier',1);assert.equal(view.practice_tier,2);
+	assert.equal(practice_choices(view)[0].id,'practice_circuit_1');assert.equal(view.mode,'once');
+	view.starting=true;practice_select(view,'tier',2);assert.equal(view.practice_tier,1);
 	assert.equal(practice_actor(view,'human_recruit_1').name,'Guard Recruit');assert.equal(practice_actor(view,'golbin'),null);
 	assert.equal(practice_title(view,{encounter:'practice_circuit_2'}),'circuit · Tier II');assert.equal(roman(12),'XII');
+});
+
+test('selects the first uncleared tier, including locked gaps, and falls back to the last',()=>{
+	const view=fixture(), tiers=view.practice[0].tiers;
+	tiers.push({ ...tiers[1], tier:3, encounter:'practice_recruit_3', complete:true });
+	tiers[0].complete=true; tiers[1].complete=false; tiers[1].available=false;
+	practice_sync(view,{select_next:true}); assert.equal(view.practice_tier,2); assert.equal(view.encounter,'practice_recruit_2');
+	practice_select(view,'tier',1); practice_sync(view); assert.equal(view.practice_tier,1);
+	tiers[1].complete=true; practice_sync(view,{select_next:true}); assert.equal(view.practice_tier,3);
+	practice_select(view,'encounter','partners'); assert.equal(view.practice_tier,1);
+	practice_select(view,'encounter','recruit'); assert.equal(view.practice_tier,3);
+});
+test('initial inventory and Practice settlement select fresh progression without resetting ordinary refreshes',async()=>{
+	const view=create_combat_view(), catalog=fixture().practice;
+	catalog[0].tiers[0].complete=true;
+	const inventory=create_combat_inventory({view,scope:()=> 'test',request:async()=>({foods:[],practice:catalog,tutorial:{complete:true}}),reconcile:async()=>true,can_mutate:()=>true,practice_sync});
+	await inventory.refresh(); assert.equal(view.practice_tier,2);
+	practice_select(view,'tier',1); await inventory.refresh(); assert.equal(view.practice_tier,1);
+	await inventory.settle({id:'fight',status:'victory',encounter:'practice_recruit_1'}); assert.equal(view.practice_tier,2);
 });
 test('Practice catalog text resolves stable IDs and falls back to server English when a locale key is absent',()=>{
 	const view=fixture(), entry=view.practice[0];

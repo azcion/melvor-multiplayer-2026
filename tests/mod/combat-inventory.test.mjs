@@ -9,6 +9,34 @@ function harness(overrides={}) {
 		reconcile:async()=>{receipts++;return true;},...overrides});
 	return {view,calls,controller,receipts:()=>receipts};
 }
+test('Dungeon selection follows available unfinished progression on load and after a run', async()=>{
+	const dungeon=(id,available,complete)=>({id,available,tiers:complete.map(value=>({complete:value}))});
+	let dungeons=[dungeon('golbins',true,[true,true]),dungeon('tidal',true,[true,false]),dungeon('mire',false,[false])];
+	const h=harness({request:async()=>({foods:[],history:[],dungeons})});
+	h.view.mode='raid';
+	await h.controller.refresh();
+	assert.equal(h.view.raid_selection,'tidal'); assert.equal(h.view.encounter,'tidal');
+	h.view.raid_selection='golbins'; h.view.encounter='golbins';
+	await h.controller.refresh(); assert.equal(h.view.raid_selection,'golbins');
+	dungeons=[dungeon('golbins',true,[true,true]),dungeon('tidal',true,[true,true]),dungeon('mire',true,[false])];
+	await h.controller.settle({id:'fight',status:'victory',run:{mode:'raid',selection:'tidal'}});
+	assert.equal(h.view.raid_selection,'mire'); assert.equal(h.view.encounter,'mire');
+	dungeons=[dungeon('golbins',true,[true,true]),dungeon('tidal',true,[true,true]),dungeon('mire',true,[true])];
+	await h.controller.settle({id:'last',status:'victory',run:{mode:'raid',selection:'mire'}});
+	assert.equal(h.view.raid_selection,'mire');
+});
+
+test('Dungeon selection skips locked and empty dungeons without changing Practice', async()=>{
+	const h=harness({request:async()=>({foods:[],history:[],dungeons:[
+		{id:'golbins',available:true,tiers:[{complete:true}]},
+		{id:'tidal',available:false,tiers:[{complete:false}]},
+		{id:'mire',available:true,tiers:[]},
+		{id:'quarry',available:true,tiers:[{complete:false}]}
+	]})});
+	h.view.encounter='practice_recruit_1'; await h.controller.refresh();
+	assert.equal(h.view.raid_selection,'quarry'); assert.equal(h.view.encounter,'practice_recruit_1');
+});
+
 test('food selection captures server revision, blocks concurrent submission and reconciles the command',async()=>{
 	let release;const h=harness({reconcile:()=>new Promise(resolve=>release=resolve)});
 	h.view.character={revision:4};

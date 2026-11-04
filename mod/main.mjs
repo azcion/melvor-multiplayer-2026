@@ -104,6 +104,7 @@ let server_host = SERVER_HOST;
 let server_instance_storage_prefix = SERVER_INSTANCE_STORAGE_PREFIX;
 let server_instance_storage_legacy_prefixes = SERVER_INSTANCE_STORAGE_LEGACY_PREFIXES;
 let server_settings_section = null;
+let combat_settings_section = null;
 let resolve_server_config = null;
 let get_custom_server_validation_error = null;
 let custom_server_max_length = null;
@@ -6109,6 +6110,15 @@ export async function setup(ctx) {
 	state.combat_recovery_copy = (key, amount = '') => getLangString('MOD_MP_COMBAT_RECOVERY_' + key.toUpperCase()).replace('%s', String(amount));
 	state.combat_restart_minutes = () => Math.max(0,Math.ceil(((state.combat.maintenance?.drain_at ?? Date.now())-Date.now())/60000));
 	state.combat_action = (action, target) => combat_arena.act(action, target);
+	window.addEventListener('keydown', combat_module.create_combat_keydown({
+		enabled: () => combat_settings_section?.get('combat-keybinds') !== false,
+		active: () => combat_page_visible && document.visibilityState !== 'hidden' &&
+			state.combat.arena?.status === 'active' && state.combat.page_tab === state.combat.combat_tab &&
+			!document.body.classList.contains('swal2-shown') && !document.querySelector('.modal.show') &&
+			!!document.querySelector('#mp-combat-page .mp-combat-arena')?.getClientRects().length,
+		get_slot: slot => document.querySelector(`#mp-combat-page [data-combat-slot="${slot}"]`)
+	}), true);
+
 	state.combat_cycle_opponents_view = () => combat_arena.cycle_opponents_view();
 	state.combat_opponents_compact = () => combat_module.combat_opponents_compact(state.combat);
 	state.combat_run_icon = () => assets.getURI('assets/media/skills/combat/run.png');
@@ -6249,13 +6259,6 @@ export async function setup(ctx) {
 	state.combat_effect_label = effect => effect.lifetime === 'persistent' ? state.combat_name('chamber')
 		: effect.remaining_attacks === null ? state.combat_duration(state.combat_effect_remaining(effect, state.combat.arena))
 		: effect.remaining_attacks + ' ' + state.combat_name('attacks');
-	state.combat_chamber_description = definition => {
-		const condition = definition.equipment;
-		const template = state.combat_name(condition ? 'chamber_equipment' : 'chamber_unconditional');
-		return template.replace('{effect}',state.combat_name(definition.effect))
-			.replace('{material}',condition ? getLangString('MOD_MP_EQUIPMENT_TIER_' + condition.material.toUpperCase()) : '')
-			.replace('{slots}',condition?.slots.map(state.equipment_slot_name).join(', ') ?? '');
-	};
 	state.combat_material_access = tier => state.combat_name('material_access').replace('{material}',state.equipment_tier_name(tier));
 	state.combat_effect_icon = combat_module.combat_effect_icon;
 	// Native paths verified in melvorDemo combat-effect templates (including Bleed100).
@@ -6292,6 +6295,7 @@ export async function setup(ctx) {
 		ctx.getResourceUrl(['vine', 'tendril', 'root'].includes(id) ? `assets/combat-${id}.svg` : 'assets/combat.svg'));
 	};
 	state.combat_gear = () => Object.entries(state.combat.arena?.registration?.gear ?? state.combat.registration?.gear ?? {});
+	state.combat_gear_debuffed = entry => combat_module.combat_gear_debuffed(state.combat.arena, entry);
 	state.combat_role = id => ['vine', 'tendril', 'root'].includes(id) ? state.combat_name(id + '_role') : '';
 	state.combat_event_name = kind => state.combat_name(kind.startsWith('apply_') ? kind.slice(6) : kind);
 	state.combat_percent = fraction => (fraction * 100).toFixed(1);
@@ -6595,6 +6599,13 @@ export async function setup(ctx) {
 		onChange(value) {
 			return get_custom_server_validation_error(value) ?? true;
 		}
+	});
+
+	combat_settings_section = ctx.settings.section(getLangString('MOD_MP_PAGE_COMBAT'));
+	combat_settings_section.add({
+		type: 'switch', name: 'combat-keybinds', default: true,
+		label: getLangString('MOD_MP_SETTINGS_COMBAT_KEYS'),
+		hint: getLangString('MOD_MP_SETTINGS_COMBAT_KEYS_HINT')
 	});
 
 	await ctx.loadTemplates('ui/templates.html');

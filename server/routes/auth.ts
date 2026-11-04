@@ -18,10 +18,20 @@ import type * as db_row from '../db/types/db_types';
 
 const { AUTH_RESPONSE_DELAY_MS, BACKEND_VERSION, DEFAULT_USER_ICON_ID, allow_browser_access, associate_client_with_melvor_account, cancel_deletion_on_authentication, db_get_single, execute_due_client_deletions, generate_friend_code, generate_session_token, get_chat_state, get_client_social_mode, get_client_social_mode_enforcement, get_minimum_supported_mod_version, get_owned_pet_ids, get_released_mod_version, identify_request, is_valid_uuid, log, parse_client_runtime, parse_melvor_account, persist_client_runtime, recover_deleted_client, register_client, require_registration_capacity, require_service_available, require_source_capacity, server, temporary_unavailable, validate_display_name, validate_json_request } = runtime;
 
+function get_wiki_url(): string {
+	try {
+		const value = process.env.WIKI_URL ?? '';
+		if (value.length > 2048) throw new Error('Wiki URL too long');
+		const url = new URL(value);
+		if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw new Error('Invalid wiki URL');
+		return url.href;
+	} catch { return 'https://melvor.azcn.io/wiki'; }
+}
+
 export function register_auth_routes(): void {
 	server.route('/api/versions', allow_browser_access(require_source_capacity(require_service_available(() => ({
 		page_snapshots: true, capabilities:['save-rollback-v1', 'identity-registration-v1'], api_versions: API_VERSIONS, preferred_api_version: API_VERSIONS[API_VERSIONS.length - 1],
-		minimum_supported_mod_version: get_minimum_supported_mod_version()
+		minimum_supported_mod_version: get_minimum_supported_mod_version(), wiki_url: get_wiki_url()
 	})))), ['GET', 'OPTIONS']);
 	server.route('/health', require_source_capacity(() => ({ status: 'ok', backend_version: BACKEND_VERSION })));
 

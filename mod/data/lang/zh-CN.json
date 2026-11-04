@@ -1,4 +1,6 @@
 {
+	"MOD_MP_SETTINGS_COMBAT_KEYS": "战斗快捷键",
+	"MOD_MP_SETTINGS_COMBAT_KEYS_HINT": "仅在线战斗画面中：空格/1 = 食物栏1，2 = 食物栏2，3 = 药水栏1，4 = 药水栏2。锁定栏位仍不可用。每次按键使用一次。",
 	"MOD_MP_COMBAT_RECOVERY_PAUSED": "战斗已暂停",
 	"MOD_MP_COMBAT_RECOVERY_RESUME": "继续",
 	"MOD_MP_COMBAT_RECOVERY_ABANDON": "放弃",
@@ -1886,7 +1888,7 @@
 	"MOD_MP_COMBAT_QUARRY_DESCRIPTION": "灰烬飘过废弃的采石岩台。披壳生物在渐冷的石块间爬行，火灵游荡于回廊，群蛇盘踞在熔岩之心下。",
 	"MOD_MP_COMBAT_QUARRY_ENTRY": "通关沉沦泥沼后解锁",
 	"MOD_MP_COMBAT_CHAMBER": "房间",
-	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "整场战斗攻击速度降低25%。灼烧会暂时抵消此速度惩罚。",
+	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "整场战斗攻击速度降低25%。",
 	"MOD_MP_COMBAT_PERSISTENT_INFO": "持续至本场战斗结束。",
 	"MOD_MP_COMBAT_CHAMBER_EQUIPMENT": "以下槽位中任意一件{material}装备会在每场战斗全程施加{effect}：{slots}。",
 	"MOD_MP_COMBAT_CHAMBER_UNCONDITIONAL": "每场战斗全程施加{effect}。",

@@ -1,4 +1,6 @@
 {
+	"MOD_MP_SETTINGS_COMBAT_KEYS": "戰鬥快捷鍵",
+	"MOD_MP_SETTINGS_COMBAT_KEYS_HINT": "僅在線上戰鬥畫面中：空白鍵/1 = 食物欄1，2 = 食物欄2，3 = 藥水欄1，4 = 藥水欄2。鎖定欄位仍無法使用。每次按鍵使用一次。",
 	"MOD_MP_COMBAT_RECOVERY_PAUSED": "戰鬥已暫停",
 	"MOD_MP_COMBAT_RECOVERY_RESUME": "繼續",
 	"MOD_MP_COMBAT_RECOVERY_ABANDON": "放棄",
@@ -1886,7 +1888,7 @@
 	"MOD_MP_COMBAT_QUARRY_DESCRIPTION": "灰燼飄過廢棄的採石岩臺。披殼生物在漸冷的石塊間爬行，火靈遊蕩於迴廊，群蛇盤踞在熔岩之心下。",
 	"MOD_MP_COMBAT_QUARRY_ENTRY": "通關沉淪泥沼後解鎖",
 	"MOD_MP_COMBAT_CHAMBER": "房間",
-	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "整場戰鬥攻擊速度降低25%。灼燒會暫時抵消此速度懲罰。",
+	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "整場戰鬥攻擊速度降低25%。",
 	"MOD_MP_COMBAT_PERSISTENT_INFO": "持續至本場戰鬥結束。",
 	"MOD_MP_COMBAT_CHAMBER_EQUIPMENT": "以下欄位中任意一件{material}裝備會在每場戰鬥全程施加{effect}：{slots}。",
 	"MOD_MP_COMBAT_CHAMBER_UNCONDITIONAL": "每場戰鬥全程施加{effect}。",

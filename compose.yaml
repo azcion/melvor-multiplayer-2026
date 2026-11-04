@@ -5,6 +5,7 @@ services:
       context: .
     environment:
       SERVER_PORT: "3000"
+      WIKI_URL: ${MELVOR_WIKI_URL:-}
       COMBAT_TICKET_KEY_FILE: ${MELVOR_COMBAT_TICKET_KEY_FILE:-}
       CHAT_PUBLIC_ORIGIN: ${MELVOR_CHAT_PUBLIC_ORIGIN:-https://melvor.azcn.io}
       DB_PATH: /app/data/melvor-multiplayer.sqlite

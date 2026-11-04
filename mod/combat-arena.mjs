@@ -25,6 +25,18 @@ export function combat_opponent_max_hit(arena, enemy) {
 	return arena?.player?.stats?.max_hit ?? 0;
 }
 
+// Match equipment-specific effects against the authoritative battle snapshot.
+export function combat_gear_debuffed(arena, [slot, id]) {
+	if (!arena || typeof id !== 'string') return false;
+	const enemies = arena.enemies ?? [];
+	if (id.startsWith('melvorD:Bronze_')) {
+		const corroding = enemy => enemy.hp > 0 && enemy.bronze_corrosion;
+		if (slot === 'Weapon' ? enemies.some(enemy => enemy.id === arena.target && corroding(enemy)) : enemies.some(corroding)) return true;
+	}
+	return (arena.chamber_effects ?? []).some(({ equipment }) => equipment &&
+		equipment.slots.includes(slot) && id.startsWith(`melvorD:${equipment.material}_`));
+}
+
 // One danger threshold for the strongest living enemy, not combined burst damage.
 export function combat_player_thresholds(arena) {
 	const max_hit = (arena?.enemies ?? []).reduce((highest, enemy) =>
@@ -455,4 +467,21 @@ export function combat_material_gains(before, after) {
 		groups.get(tier).push(slot);
 	}
 	return [...groups].map(([tier, slots]) => ({ tier, slots }));
+}
+
+// Resolve the live toolbar on every press so hidden views and disabled slots stay inert.
+export function create_combat_keydown({ enabled, active, get_slot }) {
+	return event => {
+		const slot = ({ ' ': 1, '1': 1, '2': 2, '3': 3, '4': 4 })[event.key];
+		if (!slot || event.defaultPrevented || event.isComposing || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey ||
+			!enabled() || !active()) return;
+		if (event.composedPath().some(node => node.isContentEditable || node.closest?.(
+			'input, textarea, select, button, a[href], [role="textbox"], [role="combobox"], [role="button"], [role="slider"], [role="checkbox"], [role="radio"], [role="tab"]'
+		))) return;
+		event.preventDefault();
+		event.stopImmediatePropagation();
+		if (event.repeat) return;
+		const control = get_slot(slot);
+		if (control?.matches('button:enabled') && control.getClientRects().length) control.click();
+	};
 }

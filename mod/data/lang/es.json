@@ -1,4 +1,6 @@
 {
+	"MOD_MP_SETTINGS_COMBAT_KEYS": "Atajos de combate",
+	"MOD_MP_SETTINGS_COMBAT_KEYS_HINT": "En la vista de combate en línea: Espacio/1 = Comida 1, 2 = Comida 2, 3 = Poción 1, 4 = Poción 2. Los espacios bloqueados siguen sin estar disponibles. Un uso por pulsación.",
 	"MOD_MP_COMBAT_RECOVERY_PAUSED": "Combate en pausa",
 	"MOD_MP_COMBAT_RECOVERY_RESUME": "Reanudar",
 	"MOD_MP_COMBAT_RECOVERY_ABANDON": "Abandonar",
@@ -1886,7 +1888,7 @@
 	"MOD_MP_COMBAT_QUARRY_DESCRIPTION": "La ceniza flota sobre las cornisas abandonadas. Criaturas con caparazón reptan entre piedras que se enfrían, fuegos rondan las galerías y serpientes se enroscan bajo un corazón de roca fundida.",
 	"MOD_MP_COMBAT_QUARRY_ENTRY": "Completa Ciénaga Hundida para desbloquear",
 	"MOD_MP_COMBAT_CHAMBER": "Cámara",
-	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "Velocidad de ataque −25% durante toda la batalla. Quemadura compensa temporalmente esta penalización.",
+	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "Velocidad de ataque −25% durante toda la batalla.",
 	"MOD_MP_COMBAT_PERSISTENT_INFO": "Persiste durante toda la batalla.",
 	"MOD_MP_COMBAT_CHAMBER_EQUIPMENT": "{effect} durante cada batalla al llevar cualquier pieza de {material} en estas ranuras: {slots}.",
 	"MOD_MP_COMBAT_CHAMBER_UNCONDITIONAL": "{effect} durante cada batalla completa.",

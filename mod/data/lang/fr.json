@@ -1,4 +1,6 @@
 {
+	"MOD_MP_SETTINGS_COMBAT_KEYS": "Raccourcis de combat",
+	"MOD_MP_SETTINGS_COMBAT_KEYS_HINT": "Dans la vue de combat en ligne : Espace/1 = Nourriture 1, 2 = Nourriture 2, 3 = Potion 1, 4 = Potion 2. Les emplacements verrouillés restent indisponibles. Une utilisation par pression.",
 	"MOD_MP_COMBAT_RECOVERY_PAUSED": "Combat en pause",
 	"MOD_MP_COMBAT_RECOVERY_RESUME": "Reprendre",
 	"MOD_MP_COMBAT_RECOVERY_ABANDON": "Abandonner",
@@ -1886,7 +1888,7 @@
 	"MOD_MP_COMBAT_QUARRY_DESCRIPTION": "La cendre flotte sur les corniches abandonnées. Des créatures à coquille rampent entre les pierres refroidissantes, des feux hantent les galeries et des serpents se lovent sous un cœur de roche en fusion.",
 	"MOD_MP_COMBAT_QUARRY_ENTRY": "Terminez le Marais Englouti pour débloquer",
 	"MOD_MP_COMBAT_CHAMBER": "Chambre",
-	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "Vitesse d’attaque −25% pendant tout le combat. Brûlure compense temporairement cette pénalité.",
+	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "Vitesse d’attaque −25% pendant tout le combat.",
 	"MOD_MP_COMBAT_PERSISTENT_INFO": "Persiste pendant tout le combat.",
 	"MOD_MP_COMBAT_CHAMBER_EQUIPMENT": "{effect} pendant chaque combat si une pièce en {material} occupe un de ces emplacements : {slots}.",
 	"MOD_MP_COMBAT_CHAMBER_UNCONDITIONAL": "{effect} pendant chaque combat entier.",

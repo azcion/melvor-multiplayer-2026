@@ -1,4 +1,6 @@
 {
+	"MOD_MP_SETTINGS_COMBAT_KEYS": "戦闘のキーボードショートカット",
+	"MOD_MP_SETTINGS_COMBAT_KEYS_HINT": "オンライン戦闘画面でのみ：スペース/1 = 食料1、2 = 食料2、3 = ポーション1、4 = ポーション2。ロック中のスロットは使用できません。1回のキー入力につき1回使用します。",
 	"MOD_MP_COMBAT_RECOVERY_PAUSED": "戦闘は一時停止中です",
 	"MOD_MP_COMBAT_RECOVERY_RESUME": "再開",
 	"MOD_MP_COMBAT_RECOVERY_ABANDON": "放棄",
@@ -1886,7 +1888,7 @@
 	"MOD_MP_COMBAT_QUARRY_DESCRIPTION": "灰が廃坑の岩棚を漂う。冷えゆく石の間を殻ある獣が這い、回廊には鬼火が揺れ、溶岩の心臓の下で蛇がとぐろを巻く。",
 	"MOD_MP_COMBAT_QUARRY_ENTRY": "沈みゆく沼をクリアすると解放",
 	"MOD_MP_COMBAT_CHAMBER": "部屋",
-	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "戦闘中ずっと攻撃速度−25%。火傷は一時的にこの速度低下を相殺する。",
+	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "戦闘中ずっと攻撃速度−25%。",
 	"MOD_MP_COMBAT_PERSISTENT_INFO": "この戦闘が終わるまで持続。",
 	"MOD_MP_COMBAT_CHAMBER_EQUIPMENT": "次の部位に{material}製の装備が1つでもあると、各戦闘中ずっと{effect}：{slots}。",
 	"MOD_MP_COMBAT_CHAMBER_UNCONDITIONAL": "各戦闘中ずっと{effect}。",

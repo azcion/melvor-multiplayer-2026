@@ -17,7 +17,7 @@ test('quarry rewards distinguish material access from cap rewards and announce o
 	assert.ok(html.includes('state.combat.result.materials?.length'));
 });
 
-test('persistent effect labels and descriptions never claim an attack countdown; chamber conditions name exact material and slots',()=>{
+test('persistent effects show their duration without a chamber notice or tactical advice',()=>{
 	const state={combat_name:id=>en['MOD_MP_COMBAT_'+id.toUpperCase()],equipment_slot_name:String,equipment_tier_name:()=> 'Steel'};
 	const start=main.indexOf('\tstate.combat_effect_info =');
 	const end=main.indexOf('\tstate.combat_effect_icon =',start);
@@ -27,11 +27,8 @@ test('persistent effect labels and descriptions never claim an attack countdown;
 	assert.equal(state.combat_effect_label(effect),'Chamber');
 	assert.match(state.combat_effect_info(effect),/−25%.*throughout/);
 	assert.doesNotMatch(state.combat_effect_info(effect),/2 attacks/);
-	const text=state.combat_chamber_description({effect:'slow',equipment:{material:'Iron',slots:['Helmet','Shield']}});
-	assert.match(text,/Iron/);assert.match(text,/Helmet, Shield/);assert.doesNotMatch(text,/Bronze|Steel|Weapon/);
-	assert.equal(state.combat_chamber_description({effect:'burn'}),'Burn throughout each battle.');
-	assert.match(html,/state\.combat\.arena\?\.chamber_effects/);
-	assert.doesNotMatch(html,/tier\.chamber_effects/);
+	assert.doesNotMatch(state.combat_effect_info(effect),/Burn/);
+	assert.doesNotMatch(html,/mp-combat-chamber-notice|state\.combat\.arena\?\.chamber_effects/);
 });
 
 test('quarry portraits use native assets with intended filters and numbered actors resolve to their base identities',()=>{

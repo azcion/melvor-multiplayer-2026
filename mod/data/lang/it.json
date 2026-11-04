@@ -1,4 +1,6 @@
 {
+	"MOD_MP_SETTINGS_COMBAT_KEYS": "Scorciatoie di combattimento",
+	"MOD_MP_SETTINGS_COMBAT_KEYS_HINT": "Nella vista di combattimento online: Spazio/1 = Cibo 1, 2 = Cibo 2, 3 = Pozione 1, 4 = Pozione 2. Gli slot bloccati restano indisponibili. Un uso per pressione.",
 	"MOD_MP_COMBAT_RECOVERY_PAUSED": "Combattimento in pausa",
 	"MOD_MP_COMBAT_RECOVERY_RESUME": "Riprendi",
 	"MOD_MP_COMBAT_RECOVERY_ABANDON": "Abbandona",
@@ -1886,7 +1888,7 @@
 	"MOD_MP_COMBAT_QUARRY_DESCRIPTION": "La cenere aleggia sulle sporgenze abbandonate. Creature corazzate strisciano tra pietre che si raffreddano, fuochi infestano le gallerie e serpenti si avvolgono sotto un cuore di roccia fusa.",
 	"MOD_MP_COMBAT_QUARRY_ENTRY": "Completa la Palude Sommersa per sbloccare",
 	"MOD_MP_COMBAT_CHAMBER": "Camera",
-	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "Velocità di attacco −25% per tutta la battaglia. Ustione compensa temporaneamente questa penalità.",
+	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "Velocità di attacco −25% per tutta la battaglia.",
 	"MOD_MP_COMBAT_PERSISTENT_INFO": "Persiste per tutta la battaglia.",
 	"MOD_MP_COMBAT_CHAMBER_EQUIPMENT": "{effect} in ogni battaglia indossando un qualsiasi pezzo di {material} in questi slot: {slots}.",
 	"MOD_MP_COMBAT_CHAMBER_UNCONDITIONAL": "{effect} per tutta ogni battaglia.",

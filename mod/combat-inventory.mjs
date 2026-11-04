@@ -22,6 +22,13 @@ export function combat_food_choices(foods, item_name = food => food) {
 	return foods.map(food => ({ ...food, name: item_name(food.id) })).sort((a,b) => b.heal - a.heal || a.name.localeCompare(b.name));
 }
 
+export function dungeon_select_next(view) {
+	const next = view.dungeons?.find(dungeon => dungeon.available === true && dungeon.tiers?.some(tier => !tier.complete));
+	if (!next) return;
+	view.raid_selection = next.id;
+	if (view.mode === 'raid') view.encounter = next.id;
+}
+
 export function create_combat_inventory({ view, scope, request, reconcile, can_mutate,
 	access = () => true, practice_sync = () => {}, wait = ms => new Promise(resolve => setTimeout(resolve, ms)) }) {
 	let loading = null, epoch = 0, settlement = null, practice_cache = null;
@@ -70,12 +77,15 @@ export function create_combat_inventory({ view, scope, request, reconcile, can_m
 				}
 				view.equipment_projects = result.equipment_projects;
 				view.character = result.character; view.ep_micros = result.ep_micros;
+				const initialize_dungeons = !view.dungeons?.length;
 				view.history = result.history; view.dungeons = result.dungeons ?? []; view.raid = result.raid ?? null; view.unlocks = result.unlocks ?? null;
+				const initialize_practice = !view.practice?.length || view.tutorial?.complete !== true;
 				view.practice = practice;
 				view.tutorial = result.tutorial ?? null;
 				if (view.tutorial && !view.tutorial.complete) { view.mode = 'once'; view.encounter = view.tutorial.trial.id; }
 				else if (view.encounter?.startsWith('tutorial_')) { view.mode = 'once'; view.encounter = ''; }
-				practice_sync(view);
+				practice_sync(view, { select_next: initialize_practice });
+				if (initialize_dungeons) dungeon_select_next(view);
 				if (!access(view, 'page', view.page_tab)) view.page_tab = view.arena?.status === 'active' ? 'test_combat' : 'character';
 				if (!access(view, 'tab', view.preparation_tab)) view.preparation_tab = 'levels';
 				view.debug_enabled = result.debug_enabled === true;
@@ -100,7 +110,11 @@ export function create_combat_inventory({ view, scope, request, reconcile, can_m
 			for (let attempt = 0; attempt < 3; attempt++) {
 				if (attempt) await wait(attempt * 500);
 				if (current !== current_scope() || settlement !== entry) return false;
-				if (await refresh({ fresh: true })) return true;
+				if (await refresh({ fresh: true })) {
+					if (String(arena.run?.selection ?? arena.encounter ?? '').startsWith('practice_')) practice_sync(view, { select_next: true });
+					if (arena.run?.mode === 'raid') dungeon_select_next(view);
+					return true;
+				}
 			}
 			return false;
 		})();

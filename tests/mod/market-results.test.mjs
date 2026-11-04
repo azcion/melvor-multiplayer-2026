@@ -698,6 +698,7 @@ function haggle_actions_fixture({ gp = 0, bank_qty = 0, price = 10, confirm = tr
 	const game = { gp: { amount: gp }, items: { getObjectByID: () => ({}) }, bank: { getQty: () => bank_qty } };
 	const actions = install_market_actions({
 		state, game, crypto: { randomUUID: () => 'command' },
+		is_market_item_discovered: () => true,
 		getLangString: key => key,
 		queue_modal: (...args) => { modals.push(args); return true; },
 		is_button_spinning: () => spinning,
@@ -711,6 +712,21 @@ function haggle_actions_fixture({ gp = 0, bank_qty = 0, price = 10, confirm = tr
 	});
 	return { actions, state, game, requests, errors, confirmations, modals, is_spinning: () => spinning, event: { currentTarget: {} } };
 }
+
+test('Haggles apply the currency cap only above the listing price', async () => {
+	const fixture = haggle_actions_fixture({ gp: 5_000_000_000, price: 1_000_000_000 });
+	Object.assign(fixture.state, { market_haggle_item: { id: 1, direction: 'sell', item_id: 'melvorD:Logs', price: 1_000_000_000 }, item_slider_value: 2 });
+	await fixture.actions.create_market_haggle.call(fixture.state, fixture.event);
+	assert.equal(fixture.requests[0].body.qty, 2);
+	const haggle = { id: 'haggle', revision: 1, direction: 'sell', is_initiator: false, item_qty: 2,
+		listing_price: 1_000_000_000, offer_price: 900_000_000, payer_escrow_gp: 1_800_000_000 };
+	await fixture.actions.respond_market_haggle.call(fixture.state, fixture.event, haggle, 'counter', true);
+	assert.equal(fixture.requests[1].body.price, 1_000_000_000);
+	fixture.state.market_haggle_price = 1_000_000_001;
+	await fixture.actions.respond_market_haggle.call(fixture.state, fixture.event, haggle, 'counter', true);
+	assert.equal(fixture.requests.length, 2);
+	assert.deepEqual(fixture.errors, ['MOD_MP_MARKET_VALUE_TOO_LARGE']);
+});
 
 for (const direction of ['sell', 'buy']) {
 	for (const action of ['counter', 'accept']) {

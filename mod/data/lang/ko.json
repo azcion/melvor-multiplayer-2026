@@ -1,4 +1,6 @@
 {
+	"MOD_MP_SETTINGS_COMBAT_KEYS": "전투 단축키",
+	"MOD_MP_SETTINGS_COMBAT_KEYS_HINT": "온라인 전투 화면에서: 스페이스/1 = 음식 1, 2 = 음식 2, 3 = 물약 1, 4 = 물약 2. 잠긴 슬롯은 사용할 수 없습니다. 키를 누를 때마다 한 번 사용합니다.",
 	"MOD_MP_COMBAT_RECOVERY_PAUSED": "전투 일시 정지",
 	"MOD_MP_COMBAT_RECOVERY_RESUME": "재개",
 	"MOD_MP_COMBAT_RECOVERY_ABANDON": "포기",
@@ -1886,7 +1888,7 @@
 	"MOD_MP_COMBAT_QUARRY_DESCRIPTION": "버려진 채석장 절벽 위로 재가 흩날린다. 식어가는 돌 사이로 껍질 달린 생물이 기어가고, 회랑에는 도깨비불이 떠돌며, 녹은 바위의 심장 아래 뱀들이 똬리를 튼다.",
 	"MOD_MP_COMBAT_QUARRY_ENTRY": "가라앉는 늪을 완료하면 해금",
 	"MOD_MP_COMBAT_CHAMBER": "방",
-	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "전투 내내 공격 속도 −25%. 화상은 이 속도 감소를 일시적으로 상쇄합니다.",
+	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "전투 내내 공격 속도 −25%.",
 	"MOD_MP_COMBAT_PERSISTENT_INFO": "이 전투가 끝날 때까지 지속됩니다.",
 	"MOD_MP_COMBAT_CHAMBER_EQUIPMENT": "다음 슬롯에 {material} 장비가 하나라도 있으면 매 전투 내내 {effect}: {slots}.",
 	"MOD_MP_COMBAT_CHAMBER_UNCONDITIONAL": "매 전투 내내 {effect}.",

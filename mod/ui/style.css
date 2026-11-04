@@ -4390,6 +4390,7 @@ header.mp-combat-panel-header { display: flex; align-items: center; }
 .mp-combat-defeated .mp-combat-portrait { filter: grayscale(1); opacity: .5; }
 .mp-combat-gear, .mp-combat-stance-controls { display: flex; flex-wrap: wrap; gap: .35rem; margin: .6rem 0; }
 .mp-combat-gear img { object-fit: contain; padding: 2px; background: #182732; border-radius: .2rem; }
+.mp-combat-gear img.mp-combat-gear-debuffed { outline: 2px solid red; }
 .mp-combat-stance-controls [aria-pressed="true"] { background: #315946; border-color: #6bc296 !important; }
 .mp-combat-role { font-size: .8rem; margin: .6rem 0; }
 .mp-combat-effects { position: relative; }
@@ -4817,7 +4818,7 @@ header.mp-combat-toolbar { box-sizing: border-box; }
 	.mp-combat-connection-desktop { display: none; }
 	.mp-combat-connection-mobile { display: inline; }
 	.mp-combat-player-role { display: flex; align-items: baseline; gap: .75rem; }
-	.mp-combat-opponents-view { margin-left: auto; }
+	.mp-combat-view-actions { margin-left: auto; }
 }
 
 /* Practice keeps the category picker on the left and selected encounter on the right. */
@@ -4865,7 +4866,6 @@ header.mp-combat-toolbar { box-sizing: border-box; }
 .mp-expedition-return-claimed { color: #8dd7b3; }
 .mp-expedition-return-points { margin: 0 0 .75rem !important; }
 
-.mp-combat-chamber-notice { color: #d4b7f5; font-size: .875rem; }
 
 /* Compact dungeon navigation: decorative artwork stays behind the controls. */
 #mp-combat-raid-panel-raids .mp-combat-raid-choice { position: relative; isolation: isolate; overflow: hidden; gap: .35rem; padding: .7rem .85rem; }

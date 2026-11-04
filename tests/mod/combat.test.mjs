@@ -1,7 +1,32 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { create_combat_view, create_combat_controller, combat_socket_url, combat_elapsed_ms, combat_attack_progress, combat_max_hit_marker, combat_player_thresholds, create_combat_animator, combat_effect_space, combat_effect_remaining, combat_effect_icon, combat_feedback, combat_tick, combat_eat_remaining, combat_eat_progress, combat_eat_overlay, combat_eat_opacity } from '../../mod/combat-arena.mjs';
+import { create_combat_view, create_combat_controller, combat_socket_url, combat_elapsed_ms, combat_attack_progress, combat_max_hit_marker, combat_player_thresholds, combat_gear_debuffed, create_combat_animator, combat_effect_space, combat_effect_remaining, combat_effect_icon, combat_feedback, combat_tick, combat_eat_remaining, combat_eat_progress, combat_eat_overlay, combat_eat_opacity } from '../../mod/combat-arena.mjs';
+
+test('equipment outlines follow living Blob corrosion and the selected target', () => {
+	const blob = { id: 'blob', hp: 10, bronze_corrosion: true }, other = { id: 'other', hp: 10 };
+	const arena = { enemies: [blob, other], target: 'blob' };
+	const weapon = ['Weapon', 'melvorD:Bronze_Sword'], armor = ['Shield', 'melvorD:Bronze_Shield'];
+	assert.equal(combat_gear_debuffed(arena, weapon), true);
+	assert.equal(combat_gear_debuffed(arena, armor), true);
+	assert.equal(combat_gear_debuffed(arena, ['Helmet', 'melvorD:Iron_Helmet']), false);
+	arena.target = 'other';
+	assert.equal(combat_gear_debuffed(arena, weapon), false);
+	assert.equal(combat_gear_debuffed(arena, armor), true);
+	blob.hp = 0;
+	assert.equal(combat_gear_debuffed(arena, armor), false);
+	assert.equal(combat_gear_debuffed(null, armor), false);
+});
+
+test('equipment outlines follow chamber material and slot conditions', () => {
+	const arena = { chamber_effects: [{ equipment: { material: 'Iron', slots: ['Helmet', 'Shield'] } }] };
+	assert.equal(combat_gear_debuffed(arena, ['Helmet', 'melvorD:Iron_Helmet']), true);
+	assert.equal(combat_gear_debuffed(arena, ['Shield', 'melvorD:Iron_Shield']), true);
+	assert.equal(combat_gear_debuffed(arena, ['Weapon', 'melvorD:Iron_Sword']), false);
+	assert.equal(combat_gear_debuffed(arena, ['Helmet', 'melvorD:Steel_Helmet']), false);
+	arena.chamber_effects = [];
+	assert.equal(combat_gear_debuffed(arena, ['Helmet', 'melvorD:Iron_Helmet']), false);
+});
 
 test('max hit notch shows the one-hit HP threshold independently of current HP', () => {
 	assert.equal(combat_max_hit_marker(36, 240), 15);
@@ -851,4 +876,33 @@ test('background visibility closes the connection rather than issuing surrender'
 	const source=await readFile(new URL('../../mod/main.mjs',import.meta.url),'utf8');
 	const handler=source.slice(source.indexOf('function handle_runtime_visibility_change()'),source.indexOf('// #region SETUP FUNCTIONS'));
 	assert.match(handler,/combat_arena\?\.close\(\)/);assert.doesNotMatch(handler,/forfeit/);
+});
+
+test('combat keys map slots and use only visible enabled toolbar controls once per press', async () => {
+	const { create_combat_keydown } = await import('../../mod/combat-arena.mjs');
+	let enabled = true, active = true, usable = true, visible = true;
+	const clicks = [], looked_up = [];
+	const handle = create_combat_keydown({ enabled: () => enabled, active: () => active,
+		get_slot: slot => { looked_up.push(slot); return { matches: () => usable,
+			getClientRects: () => visible ? [1] : [], click: () => clicks.push(slot) }; } });
+	const press = (key, extra = {}) => {
+		const event = { key, composedPath: () => [], preventDefault() { this.prevented = true; },
+			stopImmediatePropagation() { this.stopped = true; }, ...extra };
+		handle(event); return event;
+	};
+	for (const key of [' ', '1', '2', '3', '4']) {
+		const event = press(key); assert.equal(event.prevented, true); assert.equal(event.stopped, true);
+	}
+	assert.deepEqual(clicks, [1, 1, 2, 3, 4]);
+	assert.equal(press(' ', { repeat: true }).prevented, true);
+	assert.equal(looked_up.length, 5);
+	usable = false; press('1'); visible = false; usable = true; press('1');
+	assert.equal(clicks.length, 5);
+	for (const extra of [{ ctrlKey: true }, { altKey: true }, { metaKey: true }, { shiftKey: true },
+		{ isComposing: true }, { defaultPrevented: true },
+		{ composedPath: () => [{ isContentEditable: true }] },
+		{ composedPath: () => [{ closest: () => ({}) }] }]) assert.equal(press(' ', extra).prevented, undefined);
+	assert.equal(press('5').prevented, undefined);
+	enabled = false; assert.equal(press(' ').prevented, undefined);
+	enabled = true; active = false; assert.equal(press(' ').prevented, undefined);
 });

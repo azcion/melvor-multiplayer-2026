@@ -2,7 +2,12 @@
 
 ## 1.7.2
 
-- Added localized in-game guides for Multiplayer pages, with links to the selected server’s wiki where available. Info also uses the wiki advertised by the selected server.
+- Added localized Game Guides to Guild, Transfers, Marketplace, Crucible, Expedition, Raid (old) and Colosseum. Guides and Info use the selected server’s Multiplayer Wiki; older servers and those without a configured link use the official wiki.
+- Practice selects the first uncleared tier for each opponent by default and after combat, including locked tiers. Dungeons select the first available dungeon with an uncleared tier on load and after a dungeon run.
+- Fixed Marketplace purchases above currency transfer limits. Haggles at or below the listing price also bypass those limits; higher offers remain limited.
+- Moved the Run button to the right of the combat view selector, leaving food and potions on the left.
+- Colosseum combat outlines equipment in red when it causes or receives a Dungeon debuff, including Blob corrosion and Cinder Quarry chamber effects. Battle views no longer display chamber notices or tactical advice in persistent Slow descriptions.
+- Added optional keyboard shortcuts for the visible Online Combat battle: Space or 1 for food slot 1, 2 for food slot 2, and 3/4 for potion slots 1/2. Enabled by default in Mod Settings; locked slots stay unavailable. Shortcuts prevent Space scrolling during battle and stop when you leave the battle view, type, or open a dialog.
 
 ## 1.7.1
 

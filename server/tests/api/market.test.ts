@@ -252,7 +252,7 @@ describe('market API', () => {
 		expect(timestamps[0]?.updated_at).toBeGreaterThan(inactive_at);
 	});
 
-	test('caps GP paid by a Marketplace Haggle without capping the listing itself', async () => {
+	test('allows an equal-price Marketplace Haggle above the GP transfer cap', async () => {
 		const pair = await make_guildmates('Haggle Cap Buyer', 'Haggle Cap Seller', 'Haggle Cap Guild');
 		const item_id = 'melvorD:Haggle_Cap_Item';
 		await post_json('/api/market/sell', { item_id, item_qty: 2, item_sell_price: 900_000_000,
@@ -262,8 +262,8 @@ describe('market API', () => {
 			id: listing.id, qty: 2, price: 900_000_000, command_id: crypto.randomUUID()
 		}, pair.first.session_token);
 
-		expect(created.json.receipt.effects).toEqual([{ storage: 'gp', qty: -900_000_000 }]);
-		expect(await wait_for_listing(pair.second, item_id)).toMatchObject({ qty: 2, available: 1, reserved: 1 });
+		expect(created.json.receipt.effects).toEqual([{ storage: 'gp', qty: -1_800_000_000 }]);
+		expect(await wait_for_listing(pair.second, item_id)).toMatchObject({ qty: 2, available: 0, reserved: 2 });
 	});
 
 	test('reserves, counters, settles, and independently claims a Sell-listing Haggle', async () => {

@@ -37,13 +37,15 @@ export function practice_actor_name(actor, get_lang = null) {
 }
 export function practice_selected(view) { return view.practice?.find(entry => entry.id === view.practice_selection) ?? view.practice?.[0] ?? null; }
 export function practice_tier(view) { return practice_selected(view)?.tiers?.find(entry => entry.tier === view.practice_tier) ?? null; }
-export function practice_sync(view) {
+export function practice_sync(view, { select_next = false } = {}) {
 	if (view.tutorial?.complete !== true || view.mode === 'raid') return;
 	const selected = practice_selected(view);
 	if (!selected) { view.encounter = ''; return; }
 	view.practice_selection = selected.id;
 	view.practice_category = selected.category;
-	if (!selected.tiers.some(tier => tier.tier === view.practice_tier)) view.practice_tier = 1;
+	if (select_next || !selected.tiers.some(tier => tier.tier === view.practice_tier)) {
+		view.practice_tier = (selected.tiers.find(tier => !tier.complete) ?? selected.tiers.at(-1))?.tier ?? 1;
+	}
 	view.mode = 'once';
 	view.encounter = practice_tier(view)?.encounter ?? '';
 }
@@ -57,8 +59,10 @@ export function practice_select(view, kind, value) {
 	if (view.starting || view.pending || view.arena?.status === 'active' || view.tutorial?.complete !== true) return;
 	if (kind === 'category' && PRACTICE_CATEGORIES.includes(value)) {
 		view.practice_selection = view.practice.find(entry => entry.category === value)?.id;
+		practice_sync(view, { select_next: true }); return;
 	} else if (kind === 'encounter' && view.practice.some(entry => entry.id === value)) {
 		view.practice_selection = value; view.practice_tab = 'selected';
+		practice_sync(view, { select_next: true }); return;
 	} else if (kind === 'tier' && practice_selected(view)?.tiers.some(tier => tier.tier === value)) view.practice_tier = value;
 	practice_sync(view);
 }

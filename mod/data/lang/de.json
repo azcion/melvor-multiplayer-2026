@@ -1,4 +1,6 @@
 {
+	"MOD_MP_SETTINGS_COMBAT_KEYS": "Tastenkürzel im Kampf",
+	"MOD_MP_SETTINGS_COMBAT_KEYS_HINT": "Während eines Online-Kampfes: Leertaste/1 = Nahrung 1, 2 = Nahrung 2, 3 = Trank 1, 4 = Trank 2. Gesperrte Plätze bleiben gesperrt. Eine Verwendung pro Tastendruck.",
 	"MOD_MP_COMBAT_RECOVERY_PAUSED": "Kampf pausiert",
 	"MOD_MP_COMBAT_RECOVERY_RESUME": "Fortsetzen",
 	"MOD_MP_COMBAT_RECOVERY_ABANDON": "Aufgeben",
@@ -1886,7 +1888,7 @@
 	"MOD_MP_COMBAT_QUARRY_DESCRIPTION": "Asche treibt über verlassene Steinbruchsimse. Gepanzerte Wesen kriechen zwischen erkaltenden Steinen, Feuerlichter spuken in den Galerien und Schlangen winden sich unter einem Herzen aus geschmolzenem Fels.",
 	"MOD_MP_COMBAT_QUARRY_ENTRY": "Versinkendes Moor abschließen, um freizuschalten",
 	"MOD_MP_COMBAT_CHAMBER": "Kammer",
-	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "Angriffstempo im gesamten Kampf −25%. Brennen gleicht diesen Tempomalus vorübergehend aus.",
+	"MOD_MP_COMBAT_SLOW_PERSISTENT_INFO": "Angriffstempo im gesamten Kampf −25%.",
 	"MOD_MP_COMBAT_PERSISTENT_INFO": "Hält den gesamten Kampf an.",
 	"MOD_MP_COMBAT_CHAMBER_EQUIPMENT": "{effect} in jedem Kampf, solange ein Teil aus {material} in diesen Plätzen getragen wird: {slots}.",
 	"MOD_MP_COMBAT_CHAMBER_UNCONDITIONAL": "{effect} während jedes gesamten Kampfes.",

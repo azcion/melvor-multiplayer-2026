@@ -136,7 +136,8 @@ export function register_haggle_routes(): void {
 				return { success: false, error_lang: 'MOD_MP_MARKET_DISCOVERY_REQUIRED' };
 			const buyer_guild = db.query<{ guild_id: number }, [number]>('SELECT guild_id FROM guild_memberships WHERE client_id=?').get(client_id)!.guild_id;
 			const listing_price = market_price(lot, buyer_guild);
-			const max_item_qty = Math.floor(market_currency_cap(lot.currency_id) / Math.max(listing_price, offer_price));
+			const max_item_qty = offer_price > listing_price
+				? Math.floor(market_currency_cap(lot.currency_id) / offer_price) : item_qty;
 			const capped_item_qty = Math.min(item_qty, max_item_qty);
 			if (lot.direction === 'sell' && capped_item_qty > market_remaining_limit(lot, client_id))
 				return { success: false, error_lang: 'MOD_MP_MARKET_PURCHASE_LIMIT_REACHED' };
@@ -205,12 +206,9 @@ export function register_haggle_routes(): void {
 				!market_deal_allowed(haggle.initiator_id, haggle.owner_id, haggle.guild_id ?? -1) ||
 				(haggle.initiator_id !== client_id && !market_deal_allowed(client_id, haggle.initiator_id, (db.query<{guild_id:number},[number]>('SELECT guild_id FROM guild_memberships WHERE client_id=?').get(haggle.initiator_id))?.guild_id??-1)))
 				return { success: false, error_lang: 'MOD_MP_MARKET_HAGGLE_STALE' };
-			const max_price = Math.floor(market_currency_cap(haggle.currency_id) / haggle.item_qty);
-			if (max_price < 1)
-				return { success: false, error_lang: 'MOD_MP_MARKET_VALUE_TOO_LARGE' };
-			const price = Math.min(requested_price, max_price);
+			const price = requested_price;
 			const total = safe_total(haggle.item_qty, price);
-			if (total === null)
+			if (total === null || (price > haggle.listing_price && total > market_currency_cap(haggle.currency_id)))
 				return { success: false, error_lang: 'MOD_MP_MARKET_VALUE_TOO_LARGE' };
 			const payer_id = haggle.direction === 'sell' ? haggle.initiator_id : haggle.owner_id;
 			const top_up = client_id === payer_id ? Math.max(total - haggle.payer_escrow_gp, 0) : 0;
