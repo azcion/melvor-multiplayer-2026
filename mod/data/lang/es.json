@@ -1393,7 +1393,7 @@
 	"MOD_MP_PAGE_COMBAT": "Coliseo",
 	"MOD_MP_COMBAT_TITLE": "Campo de pruebas",
 	"MOD_MP_COMBAT_INFO": "Arena cuerpo a cuerpo separada con equipo reutilizable desbloqueado mediante proyectos y depósito de comida real. La vida y la experiencia del juego principal no cambian. No hay recompensas de combate.",
-	"MOD_MP_COMBAT_CONNECT_REQUIRED": "Conéctate al Multijugador en modo completo para probar el combate.",
+	"MOD_MP_COMBAT_CONNECT_REQUIRED": "Conéctate al Multijugador para probar el combate.",
 	"MOD_MP_COMBAT_UNAVAILABLE_INFO": "El servicio de combate aún no está activado en este servidor.",
 	"MOD_MP_COMBAT_LOADOUT": "Equipo de prueba",
 	"MOD_MP_COMBAT_CONNECT": "Conectar",

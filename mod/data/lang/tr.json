@@ -1393,7 +1393,7 @@
 	"MOD_MP_PAGE_COMBAT": "Kolezyum",
 	"MOD_MP_COMBAT_TITLE": "Deneme alanı",
 	"MOD_MP_COMBAT_INFO": "Projelerle açılan, tekrar kullanılabilir ekipman ve gerçek yiyecek emaneti kullanan ayrı bir yakın dövüş arenası. Ana oyundaki can ve deneyim değişmez. Savaş ödülü yoktur.",
-	"MOD_MP_COMBAT_CONNECT_REQUIRED": "Savaşı denemek için Çok Oyunculuya tam modda bağlan.",
+	"MOD_MP_COMBAT_CONNECT_REQUIRED": "Savaşı denemek için Çok Oyunculuya bağlan.",
 	"MOD_MP_COMBAT_UNAVAILABLE_INFO": "Bu sunucuda savaş hizmeti henüz etkin değil.",
 	"MOD_MP_COMBAT_LOADOUT": "Deneme teçhizatı",
 	"MOD_MP_COMBAT_CONNECT": "Bağlan",

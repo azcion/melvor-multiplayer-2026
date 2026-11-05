@@ -1393,7 +1393,7 @@
 	"MOD_MP_PAGE_COMBAT": "競技場",
 	"MOD_MP_COMBAT_TITLE": "試煉場",
 	"MOD_MP_COMBAT_INFO": "獨立的近戰競技場，使用透過專案解鎖的可重複使用裝備和真實食物託管。原生生命值和經驗值保持不變。沒有戰鬥獎勵。",
-	"MOD_MP_COMBAT_CONNECT_REQUIRED": "請以完整模式連線至多人服務以測試戰鬥。",
+	"MOD_MP_COMBAT_CONNECT_REQUIRED": "請連線至多人服務以測試戰鬥。",
 	"MOD_MP_COMBAT_UNAVAILABLE_INFO": "此伺服器尚未啟用戰鬥服務。",
 	"MOD_MP_COMBAT_LOADOUT": "測試配置",
 	"MOD_MP_COMBAT_CONNECT": "連線",

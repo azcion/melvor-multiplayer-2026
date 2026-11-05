@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.4
+
+- Colosseum is available in Social Mode, including the tutorial, Practice, Dungeons, and personal Equipment Projects.
+
 ## 1.7.3
 
 - Each Colosseum Dungeon now shows recent victories and defeats by tier in an Activity card below its Leaderboard. Load 20 results at a time from across Guilds, going back through retained attempts since Dungeons launched. Forfeits and test characters are excluded.

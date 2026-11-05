@@ -1393,7 +1393,7 @@
 	"MOD_MP_PAGE_COMBAT": "Colosseum",
 	"MOD_MP_COMBAT_TITLE": "The proving ground",
 	"MOD_MP_COMBAT_INFO": "A separate melee arena with reusable equipment unlocked through projects and real food escrow. Native HP and XP stay unchanged. There are no combat rewards.",
-	"MOD_MP_COMBAT_CONNECT_REQUIRED": "Connect to Multiplayer in Full mode to test combat.",
+	"MOD_MP_COMBAT_CONNECT_REQUIRED": "Connect to Multiplayer to test combat.",
 	"MOD_MP_COMBAT_UNAVAILABLE_INFO": "The combat service is not enabled on this server yet.",
 	"MOD_MP_COMBAT_LOADOUT": "Test loadout",
 	"MOD_MP_COMBAT_CONNECT": "Connect",

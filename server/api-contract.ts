@@ -20,6 +20,7 @@ export const ECONOMY_COMMAND_KINDS: Readonly<Record<string, string>> = {
 	'/api/combat/cancel-project': 'combat-cancel-project',
 	'/api/combat/equip': 'combat-equip',
 	'/api/combat/prepare': 'combat-prepare',
+	'/api/combat/skip-tutorial': 'combat-skip-tutorial',
 	'/api/combat/level': 'combat-level',
 	'/api/combat/reset-equipment': 'combat-reset-equipment',
 	'/api/combat/reset-levels': 'combat-reset-levels',

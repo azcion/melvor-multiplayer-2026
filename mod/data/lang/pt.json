@@ -1393,7 +1393,7 @@
 	"MOD_MP_PAGE_COMBAT": "Coliseu",
 	"MOD_MP_COMBAT_TITLE": "Campo de provas",
 	"MOD_MP_COMBAT_INFO": "Arena corpo a corpo separada com equipamento reutilizável desbloqueado através de projetos e depósito de comida real. A vida e a experiência do jogo principal não mudam. Não há recompensas de combate.",
-	"MOD_MP_COMBAT_CONNECT_REQUIRED": "Liga-te ao Multijogador no modo completo para testar o combate.",
+	"MOD_MP_COMBAT_CONNECT_REQUIRED": "Liga-te ao Multijogador para testar o combate.",
 	"MOD_MP_COMBAT_UNAVAILABLE_INFO": "O serviço de combate ainda não está ativo neste servidor.",
 	"MOD_MP_COMBAT_LOADOUT": "Equipamento de teste",
 	"MOD_MP_COMBAT_CONNECT": "Ligar",

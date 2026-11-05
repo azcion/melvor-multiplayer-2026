@@ -1393,7 +1393,7 @@
 	"MOD_MP_PAGE_COMBAT": "Colosseo",
 	"MOD_MP_COMBAT_TITLE": "Il campo di prova",
 	"MOD_MP_COMBAT_INFO": "Arena da mischia separata con equipaggiamento riutilizzabile sbloccato tramite progetti e deposito di cibo reale. Salute ed esperienza del gioco principale restano invariate. Non ci sono ricompense di combattimento.",
-	"MOD_MP_COMBAT_CONNECT_REQUIRED": "Connettiti al Multigiocatore in modalità completa per provare il combattimento.",
+	"MOD_MP_COMBAT_CONNECT_REQUIRED": "Connettiti al Multigiocatore per provare il combattimento.",
 	"MOD_MP_COMBAT_UNAVAILABLE_INFO": "Il servizio di combattimento non è ancora attivo su questo server.",
 	"MOD_MP_COMBAT_LOADOUT": "Equipaggiamento di prova",
 	"MOD_MP_COMBAT_CONNECT": "Connetti",

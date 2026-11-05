@@ -11,6 +11,19 @@ test('combat ticket requires a session and is disabled without explicit host con
 	expect(await response.json()).toEqual({ available: false });
 });
 
+test('Social Mode can skip the tutorial and unlock Colosseum', async () => {
+	const owner = await register_client('Social Colosseum', undefined, '1.7.3');
+	expect((await post_json<any>('/api/social-mode/set', { mode:'social', command_id:crypto.randomUUID() }, owner.session_token)).json).toMatchObject({success:true,social_mode:'social'});
+	const payload = { command_id:crypto.randomUUID(), ep_micros:9_000_000 };
+	const skipped = (await post_json<any>('/api/combat/skip-tutorial', payload, owner.session_token)).json;
+	expect(skipped.success).toBe(true);
+	expect((await post_json<any>('/api/combat/skip-tutorial', payload, owner.session_token)).json).toEqual(skipped);
+	const inventory = (await get_json_with_session<any>('/api/combat/inventory', owner.session_token)).json;
+	expect(inventory).toMatchObject({ tutorial:{ complete:true }, ep_micros:9_000_000 });
+	expect(inventory.practice.length).toBeGreaterThan(0);
+	expect(inventory.dungeons.some(dungeon => dungeon.available)).toBe(true);
+});
+
 test('combat food custody routes are retired and preparation needs no deposit enrollment', async()=>{
 	const owner=await register_client('Food Unlocks',undefined,'1.7.0');
 	expect((await post_json<any>('/api/combat/prepare',{command_id:crypto.randomUUID()},owner.session_token)).json.success).toBe(true);
@@ -87,6 +100,7 @@ test('bulk level command and free reset replay commit once and unavailable skill
 test('guildless personal equipment commands replay without Bank effects and exact work remains private without EP', async () => {
 	const owner = await register_client('Personal Equipment', undefined, '1.7.0');
 	const other = await register_client('Other Equipment', undefined, '1.7.0');
+	expect((await post_json<any>('/api/social-mode/set', { mode:'social', command_id:crypto.randomUUID() }, owner.session_token)).json).toMatchObject({success:true,social_mode:'social'});
 	await db_run('INSERT INTO expedition_ep_balances(client_id,points_micros) VALUES(?,5000000)', [owner.client_id]);
 	await post_json('/api/combat/prepare', { command_id: crypto.randomUUID() }, owner.session_token);
 	await db_run('UPDATE combat_tutorial SET victories=7 WHERE client_id=?',[owner.client_id]);

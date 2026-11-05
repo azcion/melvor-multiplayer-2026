@@ -2,7 +2,6 @@ import { interrupt_combats } from './combat-inventory';
 import { start_combat_authority } from './combat-authority';
 import { read_combat_key } from './combat/tickets';
 import { db } from './db';
-import { is_social_only_client } from './app-runtime';
 import { rollback_held } from './rollback-policy';
 import { register_browser_chat_shell_routes } from './routes/browser-chat-shell';
 import { register_browser_chat_auth_routes } from './routes/browser-chat-auth';
@@ -102,7 +101,7 @@ server.default((req, status_code) => default_handler(status_code));
 
 interrupt_combats(db);
 const combat_key = read_combat_key();
-const combat_authority = combat_key ? start_combat_authority({ database: db, key: combat_key, admitted: client => !is_social_only_client(client) && !rollback_held(db,client) && !!db.query('SELECT 1 FROM clients WHERE id=? AND disabled=0 AND deleted_at IS NULL').get(client) }) : null;
+const combat_authority = combat_key ? start_combat_authority({ database: db, key: combat_key, admitted: client => !rollback_held(db,client) && !!db.query('SELECT 1 FROM clients WHERE id=? AND disabled=0 AND deleted_at IS NULL').get(client) }) : null;
 server.start();
 const shutdown = create_shutdown_handler(
 	async () => {

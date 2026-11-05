@@ -1393,7 +1393,7 @@
 	"MOD_MP_PAGE_COMBAT": "Colisée",
 	"MOD_MP_COMBAT_TITLE": "Terrain d’épreuve",
 	"MOD_MP_COMBAT_INFO": "Une arène de mêlée indépendante avec de l’équipement réutilisable débloqué par des projets et un dépôt de nourriture réelle. Les PV et l’XP du jeu principal restent inchangés. Les combats ne donnent aucune récompense.",
-	"MOD_MP_COMBAT_CONNECT_REQUIRED": "Connectez-vous au Multijoueur en mode complet pour tester le combat.",
+	"MOD_MP_COMBAT_CONNECT_REQUIRED": "Connectez-vous au Multijoueur pour tester le combat.",
 	"MOD_MP_COMBAT_UNAVAILABLE_INFO": "Le service de combat n’est pas encore activé sur ce serveur.",
 	"MOD_MP_COMBAT_LOADOUT": "Équipement de test",
 	"MOD_MP_COMBAT_CONNECT": "Connexion",

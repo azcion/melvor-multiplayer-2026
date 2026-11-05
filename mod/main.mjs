@@ -2220,8 +2220,8 @@ async function submit_expedition_work(kind, task_id = null, automatic = false, q
 	const personal_task = model?.equipment_projects?.project?.stages?.flat().find(task => task.task_id === task_id);
 	const equipment = kind === 'start' ? !!personal_task : tracking?.source === 'equipment';
 	if (equipment) {
-		if (state.is_social_only || (kind === 'start' && (tracking || !personal_task?.available || !activities.some(activity =>
-			expedition_tasks.equipment_activity_matches(personal_task, activity))))) return;
+		if (kind === 'start' && (tracking || !personal_task?.available || !activities.some(activity =>
+			expedition_tasks.equipment_activity_matches(personal_task, activity)))) return;
 		const actions = equipment_evidence.snapshot(kind === 'start' ? task_id : tracking.task_id);
 		if (!actions) return;
 		const payload = { source: 'equipment', operation_id: crypto.randomUUID(), project_id: kind === 'start' ? model.equipment_projects.project.id : tracking.project_id,
@@ -6041,7 +6041,7 @@ export async function setup(ctx) {
 	state.equipment_project_name = project => project ? state.get_item_name(project.item_id) : '';
 	state.equipment_duration = ms => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
 	state.equipment_matches = task => capture_status_activities().some(activity => expedition_tasks.equipment_activity_matches(task, activity));
-	state.equipment_can_mutate = () => state.is_connected && !state.is_social_only && !state.expedition_loading && !state.expedition_action_pending && !state.combat.inventory_busy && state.combat.arena?.status !== 'active';
+	state.equipment_can_mutate = () => state.is_connected && !state.expedition_loading && !state.expedition_action_pending && !state.combat.inventory_busy && state.combat.arena?.status !== 'active';
 	state.equipment_action = kind => submit_expedition_work(kind);
 
 	state.combat = combat_module.create_combat_view();
@@ -6073,7 +6073,7 @@ export async function setup(ctx) {
 		},
 		get_scope: () => `${server_host}:${session_generation}`,
 		get_origin: () => server_host,
-		can_connect: () => state.is_connected && !state.is_social_only && document.visibilityState !== 'hidden',
+		can_connect: () => state.is_connected && document.visibilityState !== 'hidden',
 		ticket: () => api_post('/api/combat/ticket', {})
 	});
 	combat_inventory = combat_inventory_module.create_combat_inventory({ view: state.combat, access: tutorial_module.tutorial_access,
@@ -6093,7 +6093,7 @@ export async function setup(ctx) {
 	state.combat_style_name = id => game.attackStyles.getObjectByID('melvorD:' + ({ accurate: 'Stab', aggressive: 'Slash', defensive: 'Block' }[id] ?? 'Stab'))?.name ?? state.combat_name(id);
 
 	state.start_combat = async () => {
-		if (!['test_combat', 'raid'].includes(state.combat.page_tab) || state.combat.recovery || state.combat.maintenance?.drain_at != null || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character || !state.is_connected || state.is_social_only || state.combat.arena?.status === 'active') return;
+		if (!['test_combat', 'raid'].includes(state.combat.page_tab) || state.combat.recovery || state.combat.maintenance?.drain_at != null || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character || !state.is_connected || state.combat.arena?.status === 'active') return;
 		if (state.combat.page_tab === 'test_combat' && !state.combat_choices().some(choice => choice.id === state.combat.encounter)) return;
 		if (state.combat.page_tab === 'test_combat' && state.combat.tutorial?.complete && !state.combat_practice_tier()?.available) return;
 		const scope = `${server_host}:${session_generation}`;

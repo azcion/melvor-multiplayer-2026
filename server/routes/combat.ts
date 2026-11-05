@@ -2,7 +2,7 @@ import { read_recovery, combat_availability } from '../combat-recovery';
 import { debug_dungeon, dungeon_debug_options } from '../combat-dungeon-debug';
 import { equipment_catalog_response, change_equipment, debug_equipment_project, reset_equipment } from '../equipment-projects';
 import { prepare_combat, purchase_combat_levels, reset_combat_levels } from '../combat-progression';
-import { session_post_route, session_get_route, is_social_only_client } from '../app-runtime';
+import { session_post_route, session_get_route } from '../app-runtime';
 import { db } from '../db';
 import { COMBAT_PROTOCOL, issue_ticket, read_combat_key } from '../combat/tickets';
 import { is_admin } from '../admin_identity';
@@ -36,7 +36,6 @@ export function register_combat_routes() {
 	for (const action of ['unlock-slot','unlock-tier','start-project','cancel-project','equip','prepare','skip-tutorial','level','reset-levels','reset-equipment','debug-project','debug-tutorial','debug-dungeon'] as const) session_post_route(`/api/combat/${action}`, (_req,_url,client,json): HandlerResult => {
 		if ((action === 'debug-tutorial' || action === 'debug-dungeon') && !is_admin(client)) return 403;
 		if (action === 'debug-project' && !can_debug_expedition(client)) return 403;
-		if (is_social_only_client(client)) return 403;
 		return run_economy_command(client,json.command_id,`combat-${action}`,() => {
 			if (action === 'debug-dungeon') return debug_dungeon(db,client,String(json.command_id),json);
 			if (action === 'debug-tutorial') return debug_tutorial(db,client,String(json.command_id),json);
@@ -55,7 +54,7 @@ export function register_combat_routes() {
 	});
 	session_post_route('/api/combat/ticket', (_req, _url, client_id): HandlerResult => {
 		const key = read_combat_key();
-		if (!key || is_social_only_client(client_id)) return { available: false };
+		if (!key) return { available: false };
 		return { available: true, ticket: issue_ticket(client_id, key), socket_path: '/combat/socket', protocol: COMBAT_PROTOCOL };
 	});
 }

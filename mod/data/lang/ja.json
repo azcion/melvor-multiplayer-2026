@@ -1393,7 +1393,7 @@
 	"MOD_MP_PAGE_COMBAT": "闘技場",
 	"MOD_MP_COMBAT_TITLE": "試練の場",
 	"MOD_MP_COMBAT_INFO": "プロジェクトで解放した再利用可能な装備と実際に預けた食料を使う独立した近接アリーナです。通常のHPと経験値は変わりません。戦闘報酬はありません。",
-	"MOD_MP_COMBAT_CONNECT_REQUIRED": "戦闘を試すには、フルモードでマルチプレイヤーに接続してください。",
+	"MOD_MP_COMBAT_CONNECT_REQUIRED": "戦闘を試すには、マルチプレイヤーに接続してください。",
 	"MOD_MP_COMBAT_UNAVAILABLE_INFO": "このサーバーでは戦闘サービスがまだ有効になっていません。",
 	"MOD_MP_COMBAT_LOADOUT": "テスト装備",
 	"MOD_MP_COMBAT_CONNECT": "接続",

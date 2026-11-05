@@ -1393,7 +1393,7 @@
 	"MOD_MP_PAGE_COMBAT": "콜로세움",
 	"MOD_MP_COMBAT_TITLE": "시험장",
 	"MOD_MP_COMBAT_INFO": "프로젝트로 해금한 재사용 장비와 실제 예치한 음식을 사용하는 별도의 근접 경기장입니다. 기본 체력과 경험치는 변하지 않습니다. 전투 보상은 없습니다.",
-	"MOD_MP_COMBAT_CONNECT_REQUIRED": "전투를 시험하려면 전체 모드로 멀티플레이어에 연결하세요.",
+	"MOD_MP_COMBAT_CONNECT_REQUIRED": "전투를 시험하려면 멀티플레이어에 연결하세요.",
 	"MOD_MP_COMBAT_UNAVAILABLE_INFO": "이 서버에서는 아직 전투 서비스가 활성화되지 않았습니다.",
 	"MOD_MP_COMBAT_LOADOUT": "시험 장비",
 	"MOD_MP_COMBAT_CONNECT": "연결",

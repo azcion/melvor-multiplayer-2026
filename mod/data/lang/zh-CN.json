@@ -1393,7 +1393,7 @@
 	"MOD_MP_PAGE_COMBAT": "斗技场",
 	"MOD_MP_COMBAT_TITLE": "试炼场",
 	"MOD_MP_COMBAT_INFO": "独立的近战竞技场，使用通过项目解锁的可重复使用装备和真实食物托管。原生生命值和经验值保持不变。没有战斗奖励。",
-	"MOD_MP_COMBAT_CONNECT_REQUIRED": "请以完整模式连接多人服务以测试战斗。",
+	"MOD_MP_COMBAT_CONNECT_REQUIRED": "请连接多人服务以测试战斗。",
 	"MOD_MP_COMBAT_UNAVAILABLE_INFO": "此服务器尚未启用战斗服务。",
 	"MOD_MP_COMBAT_LOADOUT": "测试配置",
 	"MOD_MP_COMBAT_CONNECT": "连接",

@@ -1393,7 +1393,7 @@
 	"MOD_MP_PAGE_COMBAT": "Kolosseum",
 	"MOD_MP_COMBAT_TITLE": "Das Übungsgelände",
 	"MOD_MP_COMBAT_INFO": "Eine separate Nahkampfarena mit wiederverwendbarer, durch Projekte freigeschalteter Ausrüstung und echter Nahrungshinterlegung. LP und EP im Hauptspiel bleiben unverändert. Es gibt keine Kampfbelohnungen.",
-	"MOD_MP_COMBAT_CONNECT_REQUIRED": "Verbinde dich im Vollmodus mit Multiplayer, um den Kampf zu testen.",
+	"MOD_MP_COMBAT_CONNECT_REQUIRED": "Verbinde dich mit Multiplayer, um den Kampf zu testen.",
 	"MOD_MP_COMBAT_UNAVAILABLE_INFO": "Der Kampfdienst ist auf diesem Server noch nicht aktiviert.",
 	"MOD_MP_COMBAT_LOADOUT": "Testausrüstung",
 	"MOD_MP_COMBAT_CONNECT": "Verbinden",

@@ -93,7 +93,6 @@ export function register_guild_expedition_routes(): void {
 	for (const kind of ['start', 'check-in', 'stop'] as const) {
 		session_post_route(`/api/expedition/task/${kind}`, async (req, url, client_id, json): Promise<HandlerResult> => {
 			if (json.source === 'equipment') {
-				if (runtime.is_social_only_client(client_id)) return 403;
 				const actions = parse_action_statistics(json.actions);
 				const statistics = parse_work_statistics(json.statistics);
 				const activities = parse_player_status_activities(json.activities);
