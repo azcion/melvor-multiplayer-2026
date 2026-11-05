@@ -80,7 +80,7 @@ export function unpack_equipment_evidence(value) {
 
 // Native action-event intervals count actual completed actions, including native offline loops.
 // Selected activity and skill-wide statistics alone never increment these counters.
-export function create_equipment_evidence({ read, write, scope, uuid = () => crypto.randomUUID(), now = () => Date.now(), on_error = () => {}, action_id = (_skill, action) => action?.id }) {
+export function create_equipment_evidence({ read, write, scope, is_skill_active, uuid = () => crypto.randomUUID(), now = () => Date.now(), on_error = () => {}, action_id = (_skill, action) => action?.id }) {
 	let counters = null, owner = null, last_write = 0, running_game = null, last_error = -Infinity;
 	const action_keys = new Set(pilot_action_keys);
 	const tracking_keys = new Set(pilot_action_keys);
@@ -139,7 +139,7 @@ export function create_equipment_evidence({ read, write, scope, uuid = () => cry
 				const key = event.skill?.id === 'melvorD:Woodcutting' && event.actions?.size > 0
 					? 'melvorD:Woodcutting|multiplayer:Any_Woodcutting' : `${event.skill?.id}|${action_id(event.skill, event.action)}`;
 				const food_work = event.skill?.id === 'melvorD:Fishing' || event.skill?.id === 'melvorD:Cooking';
-				if (event.skill?.id === 'melvorD:Cooking' && ((running_game.activeAction !== event.skill) ||
+				if (event.skill?.id === 'melvorD:Cooking' && (!is_skill_active(event.skill) ||
 					(event.skill.masteryAction && action_id(event.skill, event.skill.masteryAction) !== action_id(event.skill, event.action)))) return;
 				if (!tracking_keys.has(key) || (!food_work && event.successful === false) || !Number.isFinite(event.interval) || event.interval <= 0) return;
 				const value = counters.time_ms[key] + Math.floor(event.interval);

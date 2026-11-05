@@ -134,8 +134,7 @@
           "id": "slag",
           "title": "Why can’t I see every item?",
           "paragraphs": [
-            "Some Offerings are covered by Slag, hiding what they are. As an Offering gets closer to melding, it becomes less likely to be hidden. Items you haven’t discovered are harder to see.",
-            "Clear the Slag lets you spend currency to improve your view for a limited time. The bonus applies to your linked characters in that Guild; it doesn’t clear everyone else’s view. Making a Wish resets your clearing bonus and lowers the maximum you can reach while that Wish is active.",
+            "Some Offerings are covered by Slag, hiding what they are. Slag gradually reveals Offerings as they Meld. An Offering may be covered again if more items are added to its stack or part of it is reclaimed. Weird Gloop and currencies are always visible.",
             "Your Listing Filters also apply here. If you and a Guildmate see different quantities in the same stack, you may be hiding different contributions."
           ]
         },

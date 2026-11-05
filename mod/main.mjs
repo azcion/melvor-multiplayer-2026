@@ -451,11 +451,8 @@ const state = ui.createStore({
 	crucible_capacity_base: 200,
 	crucible_capacity_auto_renew: false,
 	crucible_wish_search: '',
-	crucible_panels_open: { heat: true, wishes: true, clearing: true, offerings: true },
+	crucible_panels_open: { heat: true, wishes: true, offerings: true },
 	crucible_guide_index: 0,
-	crucible_clear_offers: [],
-	crucible_clear_max: false,
-	crucible_clear_totals: [],
 	crucible_selected_offering_id: null,
 	crucible_selected_wish_id: null,
 	crucible_clock_time: Date.now(),
@@ -1866,15 +1863,12 @@ let expedition_work_prompt_loading = false;
 
 async function maybe_start_expedition_work(activities) {
 	if (offline_work_gate?.pending() || !state.is_connected) return;
-	const tutorial_project = model => !!state.combat?.tutorial && !state.combat.tutorial.complete &&
-		model?.equipment_projects?.project?.item_id === state.combat.tutorial.trial?.item;
 	const current_model = state.expedition_state ?? state.expedition_personal;
 	const current_tracking = state.expedition_state?.tracking ?? state.expedition_personal?.tracking;
 	expedition_work_prompt_gate ??= expedition_tasks.create_work_prompt_gate();
 	const due = expedition_work_prompt_gate.observe({ session: session_generation, activities,
 		enabled: true, automatic: true,
 		tracking: !!state.expedition_pending_report || !!current_tracking &&
-			!(tutorial_project(current_model) && current_tracking.source !== 'equipment') &&
 			!expedition_tasks.should_prefer_equipment(current_model, activities),
 		now: Date.now() });
 	if (!due || expedition_work_prompt_loading || state.expedition_loading || state.expedition_action_pending) return;
@@ -1889,18 +1883,17 @@ async function maybe_start_expedition_work(activities) {
 		expedition_work_prompt_gate.defer(Date.now(), 30_000);
 		if (!refreshed || state.expedition_action_pending || state.expedition_pending_report) return;
 		const model = state.expedition_state ?? state.expedition_personal;
-		const equipment_only = tutorial_project(model);
 		const tracking = state.expedition_state?.tracking ?? state.expedition_personal?.tracking;
 		if (tracking) {
 			// Settle chamber work before a matching project takes over. Never bypass a pending claim.
-			if ((equipment_only || expedition_tasks.should_prefer_equipment(model, activities)) &&
+			if (expedition_tasks.should_prefer_equipment(model, activities) &&
 				tracking.source !== 'equipment' && !tracking.pending_boundary_at && !tracking.claim) {
 				await submit_expedition_work('stop', null, true, true);
 				expedition_work_prompt_gate.defer(Date.now(), 2500);
 			}
 			return;
 		}
-		const task = expedition_tasks.best_eligible_task(model, activities, { equipment_only });
+		const task = expedition_tasks.best_eligible_task(model, activities);
 		if (task) await submit_expedition_work('start', task.task_id, true);
 	} finally {
 		expedition_work_prompt_loading = false;
@@ -4767,6 +4760,7 @@ function set_session_token(token) {
 	combat_arena?.close();
 	state.clear_browser_links?.();
 	combat_inventory?.reset();
+	state.combat_dungeons_visited = get_instance_storage_item('combat_dungeons_visited') === true;
 	events_refreshed_at = 0;
 	last_events_result = null;
 	state.is_connected = true;
@@ -5786,6 +5780,7 @@ export async function setup(ctx) {
 	status_activities = await ctx.loadModule('status-activities.mjs');
 	equipment_evidence = equipment_module.create_equipment_evidence({
 		action_id: status_activities.native_work_action_id,
+		is_skill_active: status_activities.is_skill_active,
 		read: () => get_instance_storage_item('equipment_action_evidence'),
 		write: value => set_instance_storage_item('equipment_action_evidence', value),
 		scope: () => server_instance_storage_prefix,
@@ -6045,6 +6040,7 @@ export async function setup(ctx) {
 	state.equipment_action = kind => submit_expedition_work(kind);
 
 	state.combat = combat_module.create_combat_view();
+	state.combat_dungeons_visited = false;
 	const combat_animation = combat_module.create_combat_animator({ get_root: () => document.getElementById('mp-combat-page') });
 	let combat_start_caps = null, combat_start_unlocks = null;
 	combat_arena = combat_module.create_combat_controller({
@@ -6198,7 +6194,13 @@ export async function setup(ctx) {
 	state.combat_select_page = tab => {
 		if (!state.combat_tutorial_access('page', tab)) return;
 		state.combat.page_tab = tab;
-		if (tab === 'raid') { state.combat.mode = 'raid'; state.combat.encounter = state.combat.raid_selection; combat_inventory.refresh({ fresh: true }); }
+		if (tab === 'raid') {
+			state.combat_dungeons_visited = true;
+			set_instance_storage_item('combat_dungeons_visited', true);
+			state.combat.mode = 'raid';
+			state.combat.encounter = state.combat.raid_selection;
+			combat_inventory.refresh({ fresh: true });
+		}
 		else if (tab === 'test_combat' && state.combat.mode === 'raid') { state.combat.mode = 'once'; state.combat.encounter = state.combat_choices()[0]?.id ?? ''; practice_module.practice_sync(state.combat); }
 	};
 	state.combat_select_preparation = tab => { if (state.combat_tutorial_access('tab', tab)) state.combat.preparation_tab = tab; };
@@ -6208,6 +6210,8 @@ export async function setup(ctx) {
 		return combat_localized_text('MOD_MP_COMBAT_TUTORIAL_HEADING', 'Training {number} / 7 · {name}', { number, name });
 	};
 	state.combat_tutorial_highlight = (kind, id = null) => {
+		if (kind === 'battles') return state.combat_tutorial_highlight('page', 'test_combat') || state.combat_tutorial_highlight('page', 'raid');
+		if (kind === 'page' && id === 'raid') return state.combat.tutorial?.complete === true && !state.combat_dungeons_visited;
 		const guide = state.combat_tutorial_guide();
 		if (!guide) return false;
 		if (kind === 'page') return state.combat_tutorial_access('page', id) && id === (guide.action === 'battle' ? 'test_combat' : 'character');
@@ -6669,6 +6673,7 @@ export async function setup(ctx) {
 		combat_page_visible = false;
 		combat_arena?.close();
 		combat_inventory?.reset();
+		state.combat_dungeons_visited = false;
 		listing_filter_prompt?.stop();
 		set_crucible_page_visible(false);
 		loaded_save_tracker.clear();
@@ -6904,6 +6909,7 @@ function apply_server_configuration() {
 		combat_arena?.close();
 		state.clear_browser_links?.();
 		combat_inventory?.reset();
+		state.combat_dungeons_visited = get_instance_storage_item('combat_dungeons_visited') === true;
 		events_refreshed_at = 0;
 		last_events_result = null;
 		page_snapshots_supported = false;
@@ -7248,6 +7254,7 @@ async function start_multiplayer_session(options = {}) {
 	combat_arena?.close();
 	state.clear_browser_links?.();
 	combat_inventory?.reset();
+	state.combat_dungeons_visited = get_instance_storage_item('combat_dungeons_visited') === true;
 	events_refreshed_at = 0;
 	last_events_result = null;
 	state.transfer_history = transfer_history_module.create_transfer_history_state();

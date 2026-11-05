@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.7.5
+
+- Slag progressively reveals Offerings as they Meld. Revealed Offerings may be covered again when their stack changes; Weird Gloop and currencies are always visible.
+- After completing or skipping the Colosseum tutorial, Dungeons glows until your first visit. The glow also highlights Battles on mobile and stays dismissed for that character on that server.
+- Fixed Colosseum food projects failing to credit active Cooking with Multitasking enabled. Passive recipes remain excluded.
+- Fixed unfinished Colosseum tutorial projects blocking Expedition work during unrelated activities. Matching project work still takes priority; other eligible activities automatically track Chamber tasks.
+
 ## 1.7.4
 
 - Colosseum is available in Social Mode, including the tutorial, Practice, Dungeons, and personal Equipment Projects.

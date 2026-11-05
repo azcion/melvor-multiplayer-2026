@@ -37,7 +37,7 @@ test('real API and client modules calibrate opt-in restores, retire exact comman
   const command=crypto.randomUUID(),payload={command_id:command,source:'bank',items:[{id:'melvorD:Logs',qty:4}]};
   const outgoing=await post_json<any>('/api/crucible/cast',payload,original.response.session_token);expect(outgoing.json.success).toBe(true);
   storage.set('journal',{endpoint:'/api/crucible/cast',payload,major:2}); // Restored local Bank never applied this response.
-  // Clear correction retains currency-lock evidence for review. It must not suspend the player.
+  // Legacy Clear is a no-op and does not add restrictive correction evidence.
   const clear_payload={command_id:crypto.randomUUID(),currency_id:'melvorD:GP',balance:1000000};
   expect((await post_json<any>('/api/crucible/clear',clear_payload,original.response.session_token)).json.success).toBe(true);
   const restored=await authenticate(loaded());expect(restored.response.rollback.admission).toBe('waiting');
@@ -47,11 +47,11 @@ test('real API and client modules calibrate opt-in restores, retire exact comman
    send:async(endpoint:any,body:any)=>{sends++;return post_json<any>(endpoint,body,restored.response.session_token);},reconcile:async()=>{throw Error('Retirement cannot reconcile value');}});
   expect(await journal.recover()).toBe(false);expect(sends).toBe(0);
   await client.bootstrap(restored.response,restored.timing);expect(client.admitted()).toBe(true);expect(retired).toBeGreaterThan(0);
-  expect(db.query('SELECT state FROM economy_admissions a JOIN economy_load_observations l ON l.id=a.save_load_id WHERE l.client_id=? ORDER BY a.id DESC LIMIT 1').get(actor.client_id)).toEqual({state:'review'});
+  expect(db.query('SELECT state FROM economy_admissions a JOIN economy_load_observations l ON l.id=a.save_load_id WHERE l.client_id=? ORDER BY a.id DESC LIMIT 1').get(actor.client_id)).toEqual({state:'ready'});
   const correction_count=db.query<{n:number},[number]>('SELECT COUNT(*) n FROM economy_corrections c JOIN economy_operations o ON o.id=c.operation_id WHERE o.client_id=?').get(actor.client_id)!.n;
   expect(correction_count).toBeGreaterThan(0);
   const old_clear=await post_json<any>('/api/crucible/clear',clear_payload,restored.response.session_token);
-  expect(old_clear.json.error).toBe('economy_command_retired');expect(old_clear.json.receipt).toBeNull();
+  expect(old_clear.json.success).toBe(true);expect(old_clear.json.receipt.effects).toEqual([]);
   const fresh_clear=await post_json<any>('/api/crucible/clear',{...clear_payload,command_id:crypto.randomUUID()},restored.response.session_token);
   expect(fresh_clear.response.status).toBe(200);expect(fresh_clear.json.success).toBe(true);
   expect((await post('/api/economy/receipts/acknowledge',{receipt_id:fresh_clear.json.receipt.id},restored.response.session_token)).status).toBe(200);

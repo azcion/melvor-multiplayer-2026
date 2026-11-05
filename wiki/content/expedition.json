@@ -67,7 +67,8 @@
           "steps": [
             "Open Chamber to see available tasks and the activities that count, then start one of those activities.",
             "The game automatically selects eligible work and sends check-ins as you play. Follow any notice about work awaiting verification or a saved report.",
-            "If an eligible personal Equipment Project matches your activity, it takes priority over Chamber work. Project work unlocks equipment or food and does not earn EP.",
+            "If an eligible personal Equipment Project matches your activity, it takes priority over Chamber work. Project work unlocks equipment or food and does not earn EP. An unfinished Colosseum tutorial project does not block Chamber work during unrelated activities.",
+            "Active Cooking can advance a matching food project while you use Multitasking. Passive Cooking recipes do not count.",
             "Check the shared task bar to see your contribution and your EP display to see the points you earned."
           ]
         },

@@ -14,14 +14,25 @@ test('Offerings put Gloop first, then exact Meld progress and older stack IDs', 
 	assert.deepEqual(offerings.sort(compare_crucible_offerings).map(row => row.id), [6, 2, 3, 4, 5]);
 });
 
-test('Slag follows earned Meld progress and paid clearing while keeping undiscovered items covered', () => {
-	assert.equal(get_crucible_slag_chance(0, true, 0), 100);
-	assert.equal(get_crucible_slag_chance(10_080, true, 0), 0);
-	assert.equal(get_crucible_slag_chance(10_080, false, 0), 100);
-	assert.equal(get_crucible_slag_chance(10_080, false, 10), 50);
-	const item = { id: 'test:ore', qty: 5, generation: 2, meld_points: 2_000 };
-	assert.deepEqual(get_crucible_slag_coverage(item), get_crucible_slag_coverage(item));
-	assert.equal(get_crucible_slag_coverage({ ...item, id: 'melvorD:Weird_Gloop' }).covered, false);
+test('Slag reveals each generation monotonically, independent of quantity and character discovery', () => {
+	assert.equal(get_crucible_slag_chance(0), 100);
+	assert.equal(get_crucible_slag_chance(10_080), 0);
+	const reveals = new Set();
+	for (let generation = 1; generation <= 100; generation++) {
+		let revealed = false;
+		for (let points = 0; points <= 10_080; points += 120) {
+			const item = { id: 'test:ore', qty: 5, generation, meld_points: points };
+			const coverage = get_crucible_slag_coverage(item);
+			assert.deepEqual(coverage, get_crucible_slag_coverage({ ...item, qty: 99 }));
+			if (!coverage.covered && !revealed) reveals.add(points);
+			if (revealed) assert.equal(coverage.covered, false);
+			revealed ||= !coverage.covered;
+		}
+		assert.equal(revealed, true);
+	}
+	assert.ok(reveals.size > 3, 'different generations reveal across multiple progress bands');
+	assert.equal(get_crucible_slag_coverage({ id: 'melvorD:Weird_Gloop', meld_points: 0 }).covered, false);
+	assert.equal(get_crucible_slag_coverage({ id: 'melvorD:GP', meld_points: 0 }, () => true).covered, false);
 });
 
 test('Reclaim chooses the largest whole quantity under half the current currency balance', () => {

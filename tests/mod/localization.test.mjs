@@ -555,7 +555,7 @@ test('Multiplayer templates route currency suffixes through display helpers with
 	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
 	assert.doesNotMatch(templates, /\bGP\b/);
 	assert.doesNotMatch(templates, /\.shorthand/);
-	for (const expression of ['state.selected_transfer_currency', 'entry', 'offer.currency'])
+	for (const expression of ['state.selected_transfer_currency', 'entry'])
 		assert.ok(templates.includes(`state.currency_display_shorthand(${expression})`), expression);
 	const start = templates.indexOf('<template id="template-mp-market-buy-modal">');
 	assert.ok(start >= 0);

@@ -274,3 +274,48 @@ test('level and reset bindings survive a missing character before conditional te
 	}
 	assert.doesNotMatch(panel, /state\.combat\.character\./);
 });
+
+test('Dungeons glows after graduation until an allowed visit, surviving reload and isolating servers', () => {
+	const source = readFileSync(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const highlight_body = source.split('state.combat_tutorial_highlight = (kind, id = null) => {')[1].split('\n\t};')[0];
+	const select_body = source.split('state.combat_select_page = tab => {')[1].split('\n\t};')[0];
+	const storage = new Map();
+	let server = 'first';
+	const read = key => storage.get(`${server}:${key}`);
+	const write = (key, value) => storage.set(`${server}:${key}`, value);
+	const state = { combat: { tutorial: null, page_tab: 'character' }, combat_tutorial_guide: () => null };
+	state.combat_tutorial_access = (kind, id) => tutorial_access(state.combat, kind, id);
+	state.combat_tutorial_highlight = (kind, id = null) => new Function('state', 'kind', 'id', highlight_body)(state, kind, id);
+	const select = tab => new Function('state', 'tab', 'combat_inventory', 'set_instance_storage_item', select_body)(state, tab, { refresh() {} }, write);
+	const reload_flag = () => {
+		const assignment = source.match(/state\.combat_dungeons_visited = get_instance_storage_item\('combat_dungeons_visited'\) === true;/)[0];
+		new Function('state', 'get_instance_storage_item', assignment)(state, read);
+	};
+	reload_flag();
+	assert.equal(state.combat_tutorial_highlight('page', 'raid'), false);
+	state.combat.character = {};
+	state.combat.tutorial = { complete: false };
+	select('raid');
+	assert.equal(read('combat_dungeons_visited'), undefined);
+	assert.equal(state.combat.page_tab, 'character');
+	assert.equal(state.combat_tutorial_highlight('battles'), false);
+	state.combat.tutorial.complete = true; // Both graduation and skipping use this status.
+	assert.equal(state.combat_tutorial_highlight('page', 'raid'), true);
+	assert.equal(state.combat_tutorial_highlight('battles'), true);
+	select('character');
+	select('test_combat'); // Opening the mobile Battles parent does not dismiss Dungeons.
+	assert.equal(state.combat_tutorial_highlight('page', 'raid'), true);
+	select('raid');
+	assert.equal(state.combat.page_tab, 'raid');
+	assert.equal(read('combat_dungeons_visited'), true);
+	assert.equal(state.combat_tutorial_highlight('page', 'raid'), false);
+	assert.equal(state.combat_tutorial_highlight('battles'), false);
+	reload_flag();
+	assert.equal(state.combat_tutorial_highlight('page', 'raid'), false);
+	server = 'second'; reload_flag();
+	assert.equal(state.combat_tutorial_highlight('page', 'raid'), true);
+	server = 'first'; reload_flag();
+	assert.equal(state.combat_tutorial_highlight('page', 'raid'), false);
+	const template = readFileSync(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
+	assert.match(template, /'mp-tutorial-highlight': state.combat_tutorial_highlight\('battles'\)/);
+});

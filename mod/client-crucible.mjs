@@ -8,7 +8,6 @@ export function install_crucible_actions(runtime, rules) {
 	const show_error = result => notify_error(result?.error_lang ?? error_keys[result?.error] ?? 'MOD_MP_GENERIC_ERR');
 	let last_check = 0;
 	let request = null;
-	const currencies = () => transfer_currency_support.get_transfer_currencies(game);
 	const is_currency = id => transfer_currency_support.is_transfer_currency(game, id);
 	const discovered = id => is_currency(id) || state.is_crucible_item_discovered(id);
 	const rule_options = {
@@ -25,20 +24,6 @@ export function install_crucible_actions(runtime, rules) {
 			const item = game.items.getObjectByID(id);
 			return item ? game.bank.getItemSalePrice(item, qty) : 0;
 		}
-	};
-	const quote_clearings = count => {
-		const simulation = currencies().map(entry => ({ ...entry, balance: entry.currency.amount }));
-		const offers = [];
-		for (let index = 0; index < count; index++) {
-			const eligible = simulation.filter(entry => Number.isSafeInteger(entry.balance) && entry.balance > 1000);
-			if (eligible.length === 0) break;
-			const choice = eligible[Math.floor(Math.random() * eligible.length)];
-			const cap = transfer_currency_support.get_transfer_currency_cap(game, choice.id);
-			const qty = Math.min(Math.floor(choice.balance / 1000), cap);
-			offers.push({ currency_id: choice.id, balance: choice.balance, qty });
-			choice.balance -= qty;
-		}
-		return offers;
 	};
 	async function refresh(force = false) {
 		if (!state.is_guild_member || state.is_social_only || !state.is_connected) return;
@@ -147,8 +132,7 @@ export function install_crucible_actions(runtime, rules) {
 			});
 		},
 		crucible_slag(offering) {
-			return rules.get_crucible_slag_coverage(offering, discovered(offering.id),
-				state.crucible?.level ?? 0, is_currency);
+			return rules.get_crucible_slag_coverage(offering, is_currency);
 		},
 		crucible_reclaim_quantity(offering) {
 			return rules.get_crucible_reclaim_quantity(offering, rule_options);
@@ -237,43 +221,6 @@ export function install_crucible_actions(runtime, rules) {
 				await close_modal_and_wait('crucible-capacity-modal');
 		},
 		async crucible_cancel_wish() { await wish_action('cancel'); },
-		async crucible_claim_wish() { await wish_action('claim'); },
-		async crucible_clear(max = false) {
-			if (state.crucible_busy || !state.crucible?.is_open) return;
-			const target = state.crucible.active_wish ? 10 : 20;
-			const count = max ? target - state.crucible.level : 1;
-			if (count < 1) return;
-			const offers = quote_clearings(count);
-			if (offers.length !== count) return notify_error('MOD_MP_CRUCIBLE_CLEAR_POOR');
-			const totals = new Map();
-			for (const offer of offers) totals.set(offer.currency_id, (totals.get(offer.currency_id) ?? 0) + offer.qty);
-			state.crucible_clear_offers = offers;
-			state.crucible_clear_max = max;
-			state.crucible_clear_totals = [...totals].map(([currency_id, qty]) => ({
-				currency_id, qty, currency: currencies().find(entry => entry.id === currency_id)
-			}));
-			queue_modal('MOD_MP_CRUCIBLE_CLEAR', 'crucible-clear-modal', 'assets/crucible.png', {
-				showConfirmButton: false
-			});
-		},
-		async crucible_confirm_clear(event) {
-			const offers = state.crucible_clear_offers;
-			if (state.crucible_busy || !offers?.length) return;
-			state.crucible_busy = true;
-			const button = event?.currentTarget;
-			if (button) show_button_spinner(button);
-			try {
-				const result = await run_pending_economy_action('crucible_clear', '/api/crucible/clear',
-					offers.length === 1 ? offers[0] : { offers });
-				if (result?.success) {
-					state.crucible_clear_offers = [];
-					await close_modal_and_wait('crucible-clear-modal');
-					notify('MOD_MP_CRUCIBLE_ACTION_DONE'); await refresh(true);
-				}
-				else notify_error(result?.error_lang ?? 'MOD_MP_GENERIC_ERR');
-			} catch {
-				notify_error('MOD_MP_GENERIC_ERR');
-			} finally { state.crucible_busy = false; if (button) hide_button_spinner(button); }
-		}
+		async crucible_claim_wish() { await wish_action('claim'); }
 	};
 }

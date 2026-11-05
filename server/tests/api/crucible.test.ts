@@ -113,7 +113,7 @@ test('Reclaim bonus creates audited Gloop in the Guild Crucible', async () => {
 		.toEqual([{ quantity: 10 }]);
 });
 
-test('Wish reset and paid Clear the Slag use independent Crucible state', async () => {
+test('legacy clearing is free of effects and Wishes preserve maximum compatibility visibility', async () => {
 	const client = await register_guild_client('Crucible Wish', 'Crucible Wish Guild', '1.7.0');
 	const account_id = await db_run('INSERT INTO melvor_accounts (cloud_username, playfab_id, created_at) VALUES (?, ?, ?)',
 		[`crucible-${crypto.randomUUID()}`, crypto.randomUUID(), Date.now()]);
@@ -123,19 +123,32 @@ test('Wish reset and paid Clear the Slag use independent Crucible state', async 
 	await db_run('INSERT INTO expedition_ep_balances(client_id,points_micros) VALUES(?,1000000000)', [client.client_id]);
 	const first_clear = await post_json<{ success: boolean; level: number; receipt: { effects: unknown[] } }>(
 		'/api/crucible/clear', { currency_id: 'melvorD:GP', balance: 1_001_000 }, client.session_token);
-	expect(first_clear.json).toMatchObject({ success: true, level: 1 });
-	expect(await db_all("SELECT s.operation_key,s.quantity,d.kind FROM economy_custody_sources s JOIN economy_dependency_evidence d ON d.root_key=s.root_key WHERE s.client_id=? AND d.kind='slag-clear-point'",[client.client_id]))
-		.toMatchObject([{operation_key:expect.stringContaining('receipt:'),quantity:expect.any(Number),kind:'slag-clear-point'}]);
+	expect(first_clear.json).toMatchObject({ success: true, level: 20 });
+	expect(first_clear.json.receipt.effects).toEqual([]);
+	expect(await db_all('SELECT * FROM crucible_clear_events WHERE guild_id=?', [client.guild_id])).toEqual([]);
+	expect(await db_all('SELECT * FROM crucible_offerings WHERE guild_id=?', [client.guild_id])).toEqual([]);
+	// Historical paid rows remain intact; new Wishes must neither delete nor reset them.
+	await db_run('INSERT INTO crucible_clear_events(guild_id,owner_key,cleared_at,expires_at) VALUES(?,?,?,?)',
+		[client.guild_id, `account:${account.id}`, 1234, Date.now() + 86400000]);
+	const historical = await db_all('SELECT * FROM crucible_clear_events WHERE guild_id=?', [client.guild_id]);
+	const command_id = crypto.randomUUID();
+	const original = { success: true, level: 1, receipt: { id: command_id, kind: 'crucible-clear', effects: [{ storage: 'gp', qty: -1001 }] } };
+	await db_run('INSERT INTO economy_receipts(id,client_id,kind,response_json,created_at) VALUES(?,?,?,?,?)',
+		[command_id, client.client_id, 'crucible-clear', JSON.stringify(original), Date.now()]);
+	const replay = await post_json('/api/crucible/clear', { command_id, currency_id: 'melvorD:GP', balance: 1001000 }, client.session_token);
+	expect(replay.json).toEqual(original);
 	const wish = await post_json<{ success: boolean; wish_id: number }>(
 		'/api/crucible/wish/make', { item_id: 'melvorAoD:Torn_Parchment', qty: 1, ep_micros: 10000, gp: 250, gp_balance: 1000000 }, client.session_token);
 	expect(wish.json.success).toBe(true);
 	const state = await get_json_with_session<{ level: number; wishes: Array<{ phase: string }> }>(
 		'/api/crucible/contents', client.session_token);
-	expect(state.json.level).toBe(-10);
+	expect(state.json.level).toBe(20);
 	expect(state.json.wishes[0]?.phase).toBe('forming');
+	expect(await db_all('SELECT * FROM crucible_clear_events WHERE guild_id=?', [client.guild_id])).toEqual(historical);
+	expect(await db_all('SELECT * FROM crucible_visibility_resets WHERE guild_id=?', [client.guild_id])).toEqual([]);
 	const second_clear = await post_json<{ success: boolean; level: number }>(
 		'/api/crucible/clear', { currency_id: 'melvorD:SlayerCoins', balance: 2_000 }, client.session_token);
-	expect(second_clear.json).toMatchObject({ success: true, level: -9 });
+	expect(second_clear.json).toMatchObject({ success: true, level: 20 });
 	await db_run('UPDATE crucible_wishes SET required_gp = 2000, progress_gp = 1500 WHERE guild_id = ?',
 		[client.guild_id]);
 	const canceled = await post_json<{ success: boolean }>(
@@ -152,7 +165,7 @@ test('Wish reset and paid Clear the Slag use independent Crucible state', async 
 		.toEqual([{ quantity: 2, direction: 'create' }]);
 	const after = await get_json_with_session<{ level: number; active_wish: boolean }>(
 		'/api/crucible/contents', client.session_token);
-	expect(after.json).toMatchObject({ level: -9, active_wish: false });
+	expect(after.json).toMatchObject({ level: 20, active_wish: false });
 });
 
 test('Council Purging targets only the captured Offering generation', async () => {
@@ -178,7 +191,7 @@ test('Council Purging targets only the captured Offering generation', async () =
 	expect(council.json.petitions.some(petition => petition.type === 'crucible_purging')).toBe(true);
 });
 
-test('linked characters share Wishes and Slag within each Guild and remain independent across Guilds', async () => {
+test('linked characters share Wishes within each Guild with maximum legacy visibility everywhere', async () => {
 	const pair = await make_guildmates('Scope First', 'Scope Sibling', 'Scope Shared',
 		{ first: '1.7.0', second: '1.7.0' });
 	const other = await register_guild_client('Scope Other', 'Scope Other Guild', '1.7.0');
@@ -195,22 +208,22 @@ test('linked characters share Wishes and Slag within each Guild and remain indep
 		'/api/crucible/clear', { currency_id: 'melvorD:GP', balance: 2_000 }, token)).json;
 	const make = async (token: string) => (await post_json<{ success: boolean }>(
 		'/api/crucible/wish/make', { item_id: 'melvorAoD:Torn_Parchment', qty: 1, ep_micros: 10000, gp: 250, gp_balance: 1000000 }, token)).json;
-	expect(await clear(pair.first.session_token)).toMatchObject({ success: true, level: 1 });
-	expect(await state(pair.second.session_token)).toMatchObject({ level: 1, active_wish: false });
-	expect(await state(other.session_token)).toMatchObject({ level: 0, active_wish: false });
+	expect(await clear(pair.first.session_token)).toMatchObject({ success: true, level: 20 });
+	expect(await state(pair.second.session_token)).toMatchObject({ level: 20, active_wish: false });
+	expect(await state(other.session_token)).toMatchObject({ level: 20, active_wish: false });
 	expect((await make(pair.first.session_token)).success).toBe(true);
-	expect(await state(pair.second.session_token)).toMatchObject({ level: -10, active_wish: true });
+	expect(await state(pair.second.session_token)).toMatchObject({ level: 20, active_wish: true });
 	expect((await make(pair.second.session_token)).success).toBe(false);
-	expect(await state(other.session_token)).toMatchObject({ level: 0, active_wish: false });
-	expect(await clear(other.session_token)).toMatchObject({ success: true, level: 1 });
-	expect(await clear(pair.second.session_token)).toMatchObject({ success: true, level: -9 });
-	expect(await state(pair.first.session_token)).toMatchObject({ level: -9, active_wish: true });
+	expect(await state(other.session_token)).toMatchObject({ level: 20, active_wish: false });
+	expect(await clear(other.session_token)).toMatchObject({ success: true, level: 20 });
+	expect(await clear(pair.second.session_token)).toMatchObject({ success: true, level: 20 });
+	expect(await state(pair.first.session_token)).toMatchObject({ level: 20, active_wish: true });
 	expect((await make(other.session_token)).success).toBe(true);
-	expect(await state(other.session_token)).toMatchObject({ level: -10, active_wish: true });
-	expect(await state(pair.first.session_token)).toMatchObject({ level: -9, active_wish: true });
+	expect(await state(other.session_token)).toMatchObject({ level: 20, active_wish: true });
+	expect(await state(pair.first.session_token)).toMatchObject({ level: 20, active_wish: true });
 	expect((await post_json<{ success: boolean }>('/api/crucible/wish/cancel', {}, other.session_token)).json.success).toBe(true);
-	expect(await state(other.session_token)).toMatchObject({ level: -10, active_wish: false });
-	expect(await state(pair.second.session_token)).toMatchObject({ level: -9, active_wish: true });
+	expect(await state(other.session_token)).toMatchObject({ level: 20, active_wish: false });
+	expect(await state(pair.second.session_token)).toMatchObject({ level: 20, active_wish: true });
 });
 
 test('retired Charitree endpoints are absent for every supported client', async () => {

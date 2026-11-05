@@ -76,8 +76,8 @@ export function eligible_prompt_tasks(expedition_state, activities) {
 		(task.requirement !== 'conditional' || discovered.has(task.exit_id)) && can_track_task(task, activities))];
 }
 
-export function best_eligible_task(expedition_state, activities, { equipment_only = false } = {}) {
-	return eligible_equipment_tasks(expedition_state, activities ?? [])[0] ?? (equipment_only ? null : eligible_prompt_tasks(expedition_state, activities)
+export function best_eligible_task(expedition_state, activities) {
+	return eligible_equipment_tasks(expedition_state, activities ?? [])[0] ?? (eligible_prompt_tasks(expedition_state, activities)
 		.filter(task => task_available_points_micros(task) > 0)
 		.sort((a, b) => Number(b.requirement === 'required') - Number(a.requirement === 'required') ||
 			task_available_points_micros(b) - task_available_points_micros(a))[0] ?? null);

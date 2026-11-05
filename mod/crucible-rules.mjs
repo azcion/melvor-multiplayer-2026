@@ -9,26 +9,31 @@ export function compare_crucible_offerings(left, right) {
 	return right.meld_points - left.meld_points || left.id - right.id;
 }
 
-export function get_crucible_slag_chance(points, discovered = true, clear_level = 0) {
+export function get_crucible_slag_chance(points) {
 	if (!Number.isSafeInteger(points) || points < 0 || points > CRUCIBLE_PROGRESS_MAX) return 0;
 	const progress = Math.floor(points * 100 / CRUCIBLE_PROGRESS_MAX);
-	const base = !discovered ? 100 : progress >= 88 ? 0 : progress >= 75 ? 5
+	const base = progress >= 88 ? 0 : progress >= 75 ? 5
 		: progress >= 63 ? 15 : progress >= 50 ? 30 : progress >= 38 ? 50
 		: progress >= 25 ? 70 : progress >= 13 ? 85 : progress >= 7 ? 95 : 100;
-	return Math.max(0, Math.min(100, base - clear_level * 5));
+	return base;
 }
 
-export function get_crucible_slag_coverage(offering, discovered = true, clear_level = 0,
-	is_currency = () => false) {
+export function get_crucible_slag_coverage(offering, is_currency = () => false) {
 	if (!offering || offering.id === CRUCIBLE_GLOOP_ID || is_currency(offering.id))
 		return { covered: false, percentage: 0 };
-	const percentage = get_crucible_slag_chance(offering.meld_points, discovered, clear_level);
+	const percentage = get_crucible_slag_chance(offering.meld_points);
 	let hash = 2166136261;
-	const seed = `${offering.id}\0${offering.qty}\0${offering.generation}\0${Math.floor(offering.meld_points / 120)}`;
+	const seed = `${offering.id}\0${offering.generation}`;
 	for (const byte of encoder.encode(seed)) {
 		hash ^= byte;
 		hash = Math.imul(hash, 16777619);
 	}
+	// Avalanche short, similar generation IDs before choosing a fixed reveal threshold.
+	hash ^= hash >>> 16;
+	hash = Math.imul(hash, 0x85ebca6b);
+	hash ^= hash >>> 13;
+	hash = Math.imul(hash, 0xc2b2ae35);
+	hash ^= hash >>> 16;
 	return { covered: ((hash >>> 0) / 4294967296) * 100 < percentage, percentage };
 }
 

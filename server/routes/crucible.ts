@@ -126,8 +126,7 @@ export function register_crucible_routes(): void {
 		try {
 			return run_economy_command(client_id, json.command_id, 'crucible-clear', () => {
 				const response = clear_crucible_slag(result.actor!, offers, String(json.command_id));
-				return response.success === true ? { ...response, effects: economy_item_effects(
-					offers.map(offer => ({ id: offer.currency_id, qty: offer.qty })), 'bank', -1) } : response;
+				return response.success === true ? { ...response, effects: [] } : response;
 			}) ?? 400;
 		} catch (error) { return error instanceof RangeError ? 400 : 500; }
 	});

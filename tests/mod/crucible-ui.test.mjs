@@ -190,7 +190,7 @@ test('mounted Crucible bindings tolerate cleared state after leaving a Guild', a
 		.map(match => match[1] ?? match[2])
 		.filter(expression => /state\.crucible\b/.test(expression))
 		.map(expression => expression.replace(/^\w+ of /, ''));
-	assert.ok(expressions.length >= 20, 'covers heat, wishes, clearing, offerings, and reclaim bindings');
+	assert.ok(expressions.length >= 20, 'covers heat, wishes, offerings, and reclaim bindings');
 	const state = { crucible: null, crucible_busy: false, crucible_clock_time: 1_000,
 		crucible_loading: false, crucible_time: value => value,
 		crucible_selected_wish_id: 1, crucible_selected_offering_id: 'item' };
@@ -345,4 +345,8 @@ test('Crucible state transitions keep conditional anchors mounted for the shared
 	assert.doesNotMatch(page, /v-(?:if|else|else-if)\b/);
 	assert.doesNotMatch(page, /<template[^>]+v-show/);
 	assert.match(page, /class="mp-crucible-content" v-show="state.crucible"/);
+});
+
+test('Crucible presents passive Slag discovery without payment controls', async () => {
+	assert.doesNotMatch(await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8'), /crucible-clear-modal|crucible_confirm_clear|MOD_MP_CRUCIBLE_CLEAR/);
 });

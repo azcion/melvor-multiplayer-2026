@@ -3668,7 +3668,6 @@ mp-chat-composer { display: block; min-width: 0; }
 .mp-crucible-selection p { margin: .5rem 0; }
 .mp-crucible-capacity-summary { white-space: pre-line; }
 .mp-crucible-wish-form { margin: 1rem 0; }
-.mp-crucible-clear-total { display: flex; align-items: center; justify-content: center; margin: .3rem 0; }
 
 /* Crucible Wish picker. */
 #mp-crucible-wish-search {

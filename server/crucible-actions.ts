@@ -16,7 +16,6 @@ import { CRUCIBLE_PET_ID, get_crucible_pet_chance, grant_pet } from './pets';
 
 const RECLAIM_COOLDOWN_MS = 20 * 60 * 60_000;
 const CLEAR_LOCK_MS = 4 * 60 * 60_000;
-const CLEAR_WINDOW_MS = 48 * 60 * 60_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const wish_catalog = new Map<string, number>();
 for (const entry of JSON.parse(readFileSync(new URL('./openable-wish-values.json', import.meta.url), 'utf8')) as
@@ -298,59 +297,17 @@ export function crucible_clear_state(actor: CrucibleActor, now = Date.now()): {
 	const active_wish = actor.account_id !== null && db.query(
 		'SELECT 1 FROM crucible_wishes WHERE guild_id = ? AND melvor_account_id = ?'
 	).get(actor.guild_id, actor.account_id) !== null;
-	const reset = db.query<{ reset_at: number }, [number, string]>(
-		'SELECT reset_at FROM crucible_visibility_resets WHERE guild_id = ? AND owner_key = ?'
-	).get(actor.guild_id, actor.owner_key)?.reset_at;
-	const floor = active_wish || (reset !== undefined && reset + CLEAR_WINDOW_MS > now) ? -10 : 0;
-	const count = db.query<{ count: number }, [number, string, number]>(
-		'SELECT COUNT(*) AS count FROM crucible_clear_events WHERE guild_id = ? AND owner_key = ? AND expires_at > ?'
-	).get(actor.guild_id, actor.owner_key, now)?.count ?? 0;
 	const last = db.query<{ last_reclaimed_at: number }, [number]>(
 		'SELECT last_reclaimed_at FROM crucible_reclaim_state WHERE client_id = ?').get(actor.client_id)?.last_reclaimed_at;
-	return { level: Math.min(active_wish ? 10 : 20, floor + count), active_wish, clear_count: count,
+	// Compatibility ceiling disables payment controls in pre-1.7.5 clients.
+	return { level: 20, active_wish, clear_count: 0,
 		next_reclaim_at: last === undefined ? null : last + RECLAIM_COOLDOWN_MS };
 }
 
 export function clear_crucible_slag(actor: CrucibleActor, offers: Array<{ currency_id: string; qty: number }>,
 	source_id: string, now = Date.now()): JsonObject {
-	if (!crucible_available(actor, now)) return { success: false, error: 'Crucible is catching up.' };
-	if (!is_open(actor.guild_id)) return { success: false, error: 'Crucible is sealed.' };
-	const current = crucible_clear_state(actor, now);
-	if (current.level + offers.length > (current.active_wish ? 10 : 20))
-		return { success: false, error: 'Maximum Slag clearing level changed.' };
-	for (let index = 0; index < offers.length; index++) {
-		const offer = offers[index]!;
-		add_crucible_offering(actor.guild_id, { id: offer.currency_id, qty: offer.qty,
-			value_currency_id: offer.currency_id, value_per_item: 1 }, now,
-			'clear', `${source_id}:${index}`, actor.client_id);
-		const point=db.query<{id:number},[number,string,number,number]>('INSERT INTO crucible_clear_events (guild_id, owner_key, cleared_at, expires_at) VALUES (?, ?, ?, ?) RETURNING id')
-			.get(actor.guild_id, actor.owner_key, now, now + CLEAR_WINDOW_MS)!;
-		record_dependency(db,`clear:${actor.client_id}:${source_id}:${index}`,'slag-clear-point',1,
-			{event_id:point.id,guild_id:actor.guild_id,owner_key:actor.owner_key,cleared_at:now,expires_at:now+CLEAR_WINDOW_MS});
-		record_dependency(db,`clear:${actor.client_id}:${source_id}:${index}`,'slag-currency-lock',1,
-			{guild_id:actor.guild_id,owner_key:actor.owner_key,currency_id:offer.currency_id,locked_until:now+CLEAR_LOCK_MS});
-		db.query('INSERT INTO crucible_currency_locks (guild_id, owner_key, currency_id, locked_until) ' +
-			'VALUES (?, ?, ?, ?) ON CONFLICT (guild_id, owner_key, currency_id) DO UPDATE ' +
-			'SET locked_until = excluded.locked_until')
-			.run(actor.guild_id, actor.owner_key, offer.currency_id, now + CLEAR_LOCK_MS);
-	}
-	const totals = new Map<string, number>();
-	for (const offer of offers)
-		totals.set(offer.currency_id, safe_crucible_add(totals.get(offer.currency_id) ?? 0, offer.qty));
-	const clear_event = record_audit_event({ event_type: 'crucible.slag_cleared',
-		source_key: `crucible-clear:${actor.client_id}:${source_id}`, command_id: source_id,
-		actor: { kind: 'client', client_id: actor.client_id }, guild_id: actor.guild_id, occurred_at: now,
-		values: [...totals].map(([object_id, quantity]) => ({ object_id, quantity, direction: 'move' })),
-		details: { clear_count: offers.length } });
-	for (const [currency_id, qty] of totals)
-		move_audit_value_with_fallback(clear_event, currency_id, qty, 'client', String(actor.client_id),
-			'crucible', String(actor.guild_id));
-	crucible_heat_value(db.query<db_row.crucible_offerings, [number]>(
-		'SELECT * FROM crucible_offerings WHERE guild_id = ?').all(actor.guild_id));
-	const pet_granted = offers.some(offer => Math.random() < get_crucible_pet_chance(offer.qty)) &&
-		grant_pet(actor.client_id, CRUCIBLE_PET_ID, now);
-	return { success: true, ...crucible_clear_state(actor, now),
-		...(pet_granted ? { pet_id: CRUCIBLE_PET_ID } : {}) };
+	// Old command receipts replay before this callback. Fresh legacy requests do nothing.
+	return { success: true, ...crucible_clear_state(actor, now) };
 }
 
 export function run_crucible_wish_command(client_id: number, command_id: unknown, kind: string,
@@ -417,9 +374,6 @@ export function make_crucible_wish(actor: CrucibleActor, item_id: string, qty: n
 		paid_gp = gp;
 		base = capacity.base;
 	}
-	db.query('DELETE FROM crucible_clear_events WHERE guild_id = ? AND owner_key = ?').run(actor.guild_id, actor.owner_key);
-	db.query('INSERT INTO crucible_visibility_resets (guild_id, owner_key, reset_at) VALUES (?, ?, ?) ' +
-		'ON CONFLICT (guild_id, owner_key) DO UPDATE SET reset_at = excluded.reset_at').run(actor.guild_id, actor.owner_key, now);
 	const wish = db.query<{ id: number }, [number, number, number, string, number, number, number]>(
 		'INSERT INTO crucible_wishes (guild_id, owner_client_id, melvor_account_id, item_id, qty, ' +
 		'required_gp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id'

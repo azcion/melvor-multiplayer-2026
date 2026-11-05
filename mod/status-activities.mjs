@@ -58,8 +58,13 @@ function capture_skill_action_id(skill) {
 	return null;
 }
 
+// A concurrent-action mod may own game.activeAction while native skills keep running.
+export function is_skill_active(skill) {
+	return skill?.isActive === true;
+}
+
 function capture_skill_status_activity(skill) {
-	if (skill?.isActive !== true)
+	if (!is_skill_active(skill))
 		return null;
 	const skill_id = get_game_object_id(skill);
 	const action_id = capture_skill_action_id(skill);

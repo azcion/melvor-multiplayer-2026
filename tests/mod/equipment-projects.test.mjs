@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { EventEmitter } from 'node:events';
-import { native_work_action_id } from '../../mod/status-activities.mjs';
+import { native_work_action_id, is_skill_active } from '../../mod/status-activities.mjs';
 import { create_equipment_evidence, equipment_catalog_action_keys, pilot_action_keys, pack_equipment_evidence, unpack_equipment_evidence } from '../../mod/equipment-projects.mjs';
 import { equipment_tasks, best_eligible_task, can_track_task, tracked_skill_ids, task_available_points_micros } from '../../mod/expedition-tasks.mjs';
 
@@ -11,7 +11,7 @@ function fixture() {
 		['mining', Object.assign(new EventEmitter(), { id: 'melvorD:Mining' })],
 		['smithing', Object.assign(new EventEmitter(), { id: 'melvorD:Smithing' })]
 	]) } };
-	const evidence = create_equipment_evidence({ action_id: native_work_action_id, read: () => storage.get(owner), write: value => storage.set(owner, structuredClone(value)),
+	const evidence = create_equipment_evidence({ is_skill_active, action_id: native_work_action_id, read: () => storage.get(owner), write: value => storage.set(owner, structuredClone(value)),
 		scope: () => owner, uuid: () => `00000000-0000-4000-8000-${String(++serial).padStart(12, '0')}`, now: () => time });
 	const action = (skill, action, interval = 3000, successful = true) => game.skills.registeredObjects.get(skill).emit('action', {
 		skill: { id: `melvorD:${skill === 'mining' ? 'Mining' : 'Smithing'}` }, action: { id: `melvorD:${action}` }, interval, successful });
@@ -80,7 +80,7 @@ test('server and character scopes retain independent epochs and invalid storage 
 	assert.notEqual(x.evidence.snapshot().epoch, first.epoch);
 });
 
-test('personal exact-action work wins automatic selection, has zero EP, and never preempts an existing target', () => {
+test('personal exact-action work wins selection, has zero EP, and otherwise falls back to chamber work', () => {
 	const activity = { type: 'skill', skill_id: 'melvorD:Mining', action_id: 'melvorD:Copper_Ore' };
 	const personal = { task_id: pilot_action_keys[0], skill_id: activity.skill_id, action_id: activity.action_id, target_ms: 300000, player_ms: 0, available: true };
 	const chamber = { task_id: 'chamber', requirement: 'required', unlocked_at: 1, completed_at: null, target_ms: 3600000, evidence: { skill_ids: ['melvorD:Mining'] } };
@@ -94,10 +94,45 @@ test('personal exact-action work wins automatic selection, has zero EP, and neve
 	assert.deepEqual(tracked_skill_ids({ ...model, tracking: { source: 'equipment', task_id: personal.task_id } }, [{ ...activity, action_id: 'melvorD:Tin_Ore' }]), []);
 	personal.available = false;
 	assert.equal(best_eligible_task(model, [activity]).task_id, 'chamber');
-	assert.equal(best_eligible_task(model, [activity], { equipment_only: true }), null, 'tutorial project waits for its next recipe instead of starting chamber work');
 	personal.available = true;
-	assert.equal(best_eligible_task(model, [activity], { equipment_only: true }).task_id, personal.task_id);
+	assert.equal(best_eligible_task(model, [activity]).task_id, personal.task_id);
 	assert.equal(equipment_tasks(null).length, 0);
+});
+
+test('an unfinished tutorial project permits unrelated chamber work and takes over only for matching recipes', async () => {
+	const { readFile } = await import('node:fs/promises');
+	const { runInNewContext } = await import('node:vm');
+	const expedition_tasks = await import('../../mod/expedition-tasks.mjs');
+	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	let activities = [{ type: 'combat', area_id: 'melvorF:Holy_Isles' }];
+	const recipe = { task_id: 'copper', skill_id: 'melvorD:Mining', action_id: 'melvorD:Copper_Ore', available: true, player_ms: 0, target_ms: 45000 };
+	const model = { tracking: null, equipment_projects: { project: { item_id: 'melvorD:Bronze_Helmet', stages: [[recipe]] } },
+		expedition: { status: 'active', registered: true, chamber: { tasks: [{ task_id: 'exploration', unlocked_at: 1,
+			completed_at: null, target_ms: 3600000, evidence: { skill_ids: ['melvorD:Combat'] } }] } } };
+	const state = { is_connected: true, combat: { tutorial: { complete: false, trial: { item: 'melvorD:Bronze_Helmet' } } }, expedition_state: model };
+	const calls = [];
+	const context = { state, expedition_tasks, offline_work_gate: null, session_generation: 1, expedition_work_prompt_loading: false,
+		expedition_work_prompt_gate: { observe: ({ tracking }) => !tracking, defer: () => {} }, Date, document: {}, polling: { is_foreground: () => true },
+		capture_status_activities: () => activities, refresh_expedition_state: async () => true,
+		submit_expedition_work: async (kind, id) => { calls.push([kind, id]); model.tracking = kind === 'stop' ? null :
+			{ task_id: id, source: id === 'copper' ? 'equipment' : 'chamber' }; } };
+	runInNewContext(main.slice(main.indexOf('async function maybe_start_expedition_work('), main.indexOf('function expedition_notify(')), context);
+	await context.maybe_start_expedition_work(activities);
+	assert.deepEqual(calls, [['start', 'exploration']], 'combat tracks the chamber despite the unfinished helmet');
+	await context.maybe_start_expedition_work(activities);
+	assert.equal(calls.length, 1, 'unrelated project must not stop ongoing chamber work');
+	activities = [{ type: 'skill', skill_id: recipe.skill_id, action_id: recipe.action_id }];
+	await context.maybe_start_expedition_work(activities);
+	assert.deepEqual(calls.at(-1), ['stop', null], 'matching project settles chamber work first');
+	await context.maybe_start_expedition_work(activities);
+	assert.deepEqual(calls.at(-1), ['start', 'copper'], 'matching recipe takes priority');
+	await context.maybe_start_expedition_work(activities);
+	assert.equal(calls.length, 3, 'existing project tracking retains ownership');
+	for (const boundary of [{ pending_boundary_at: 1 }, { claim: {} }]) {
+		model.tracking = { task_id: 'exploration', ...boundary };
+		await context.maybe_start_expedition_work(activities);
+		assert.equal(calls.length, 3, 'pending verification must retain ownership');
+	}
 });
 
 test('projects settle chamber tracking before and after tutorial graduation', async () => {
@@ -291,7 +326,7 @@ test('actual full catalog migrates below the 8 KB budget with a pending equipmen
 
 test('failed evidence writes keep counters in memory, rate-limit errors and recover without losing work', () => {
 	let fail = true, saved, time = 0, notices = 0;
-	const evidence = create_equipment_evidence({ action_id: native_work_action_id, read: () => saved, write: value => {
+	const evidence = create_equipment_evidence({ is_skill_active, action_id: native_work_action_id, read: () => saved, write: value => {
 		if (fail) throw new Error('quota'); saved = structuredClone(value);
 	}, scope: () => 'a', uuid: () => '00000000-0000-4000-8000-000000000001', now: () => time, on_error: () => notices++ });
 	const skill = Object.assign(new EventEmitter(), { id: 'melvorD:Mining' });
@@ -525,6 +560,7 @@ test('food action time uses native products, counts burned active cooking and ex
 	cooking.emit('action', { skill: cooking, action: cooked, interval: 3000 });
 	assert.equal(x.evidence.snapshot().time_ms[cook_key], 0, 'passive cooking while fishing earns no cooking time');
 	x.game.activeAction = cooking;
+	cooking.isActive = true;
 	cooking.masteryAction = { id: 'native:Other', product: { id: 'melvorD:Herring' } };
 	cooking.emit('action', { skill: cooking, action: cooked, interval: 3000 });
 	assert.equal(x.evidence.snapshot().time_ms[cook_key], 0, 'passive second recipe earns no time');
@@ -535,6 +571,38 @@ test('food action time uses native products, counts burned active cooking and ex
 	for (let i = 0; i < 300; i++) cooking.emit('action', { skill: cooking, action: cooked, interval: 3000, successful: true, isPassiveCooking: true, productQuantity: 100 });
 	assert.equal(x.evidence.snapshot().time_ms[cook_key], 1800000, 'offline bursts and burns count elapsed actions, independent of quantity');
 	x.evidence.stop(); assert.equal(cooking.listenerCount('action'), 0);
+});
+
+test('concurrent Cooking credits only its active recipe through a Multitasking wrapper', () => {
+	const x = fixture();
+	const cooking = Object.assign(new EventEmitter(), { id: 'melvorD:Cooking', isActive: true });
+	const shrimp = { id: 'melvorD:Cooking_Shrimp', product: { id: 'melvorD:Shrimp' } };
+	const herring = { id: 'melvorD:Cooking_Herring', product: { id: 'melvorD:Herring' } };
+	const key = 'melvorD:Cooking|melvorD:Shrimp';
+	x.game.skills.registeredObjects.set('cooking', cooking);
+	x.game.activeAction = { id: 'multitasking:multitasking', isActive: true };
+	cooking.masteryAction = shrimp;
+	x.evidence.start(x.game);
+	x.evidence.configure([{ stages: [[{ skill_id: cooking.id, action_id: shrimp.product.id }]] }]);
+	const cook = (successful = true) => cooking.emit('action', {
+		skill: cooking, action: shrimp, interval: 3000, successful, isPassiveCooking: true
+	});
+	cook(); cook(false);
+	assert.equal(x.evidence.snapshot().time_ms[key], 6000, 'active cooks and burns count while another station cooks passively');
+	cooking.masteryAction = herring;
+	cook();
+	assert.equal(x.evidence.snapshot().time_ms[key], 6000, 'a passive shrimp recipe does not count');
+	cooking.masteryAction = shrimp;
+	cooking.isActive = false;
+	cook();
+	assert.equal(x.evidence.snapshot().time_ms[key], 6000, 'selection and passive-only cooking do not count');
+	cooking.isActive = true;
+	x.evidence.stop(); x.evidence.start(x.game);
+	assert.equal(cooking.listenerCount('action'), 1);
+	cook();
+	assert.equal(x.evidence.snapshot().time_ms[key], 9000, 'reload retains evidence and one subscription');
+	x.evidence.stop(); cook();
+	assert.equal(x.evidence.snapshot().time_ms[key], 9000, 'cleanup stops capture');
 });
 
 test('food tier purchases have no separate slot charge and require the current food equipped', async () => {

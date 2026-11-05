@@ -155,6 +155,21 @@ test('defers character-scoped Chat preference loading until a character is loade
 	assert.match(character_loaded, /state\.load_chat_translation_preferences\(\);/);
 });
 
+test('Dungeons visit preference waits for the loaded character and server scope', async () => {
+	const main = await read_client_source(root);
+	const setup_start = main.indexOf('export async function setup(ctx)');
+	const character_loaded_start = main.indexOf('ctx.onCharacterLoaded(() =>', setup_start);
+	const setup_before_character_load = main.slice(setup_start, character_loaded_start);
+	const selection_start = main.indexOf('ctx.onCharacterSelectionLoaded(() =>', character_loaded_start);
+	const selection_end = main.indexOf('\n\t});', selection_start);
+	assert.doesNotMatch(setup_before_character_load, /state\.combat_dungeons_visited = get_instance_storage_item/);
+	assert.match(setup_before_character_load, /state\.combat_dungeons_visited = false;/);
+	assert.match(main.slice(selection_start, selection_end), /state\.combat_dungeons_visited = false;/);
+	const session_start = main.indexOf('async function start_multiplayer_session(');
+	assert.match(main.slice(session_start, main.indexOf('\n\ttry {', session_start)),
+		/state\.combat_dungeons_visited = get_instance_storage_item\('combat_dungeons_visited'\) === true;/);
+});
+
 const conflict_document = { createElement(tag) {
 	return { tag, style: {}, children: [], append(...children) { this.children.push(...children); } };
 } };

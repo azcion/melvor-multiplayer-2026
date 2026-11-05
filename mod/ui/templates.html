@@ -419,7 +419,7 @@
 			</nav>
 			<nav class="mp-combat-page-tabs mp-combat-mobile-tabs" role="tablist" :aria-label="getLangString('MOD_MP_COMBAT_PREPARATION')">
 				<button type="button" class="btn" role="tab" :aria-selected="state.combat.page_tab === 'character'" :disabled="state.combat.arena?.status === 'active'" @click="state.combat_select_page('character')"><i v-show="state.combat.arena?.status === 'active'" class="fa fa-lock" aria-hidden="true"></i>{{ getLangString('MOD_MP_COMBAT_TAB_CHARACTER') }}</button>
-				<button type="button" class="btn" role="tab" :aria-selected="state.combat.page_tab !== 'character'" :disabled="!state.combat_tutorial_access('page', 'test_combat')" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('page', 'test_combat') }" @click="state.combat_select_page('test_combat')">{{ getLangString('MOD_MP_COMBAT_TAB_BATTLES') }}</button>
+				<button type="button" class="btn" role="tab" :aria-selected="state.combat.page_tab !== 'character'" :disabled="!state.combat_tutorial_access('page', 'test_combat')" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('battles') }" @click="state.combat_select_page('test_combat')">{{ getLangString('MOD_MP_COMBAT_TAB_BATTLES') }}</button>
 			</nav>
 			<nav class="mp-combat-page-tabs mp-combat-mobile-tabs mp-combat-battle-tabs" role="tablist" :aria-label="getLangString('MOD_MP_COMBAT_TAB_BATTLES')" v-show="state.combat.page_tab !== 'character'">
 				<button v-for="tab in ['test_combat', 'pvp', 'raid']" :key="tab" type="button" class="btn" role="tab" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('page', tab) }" :aria-selected="state.combat.page_tab === tab" :disabled="!state.combat_tutorial_access('page', tab)" @click="state.combat_select_page(tab)"><i v-show="!state.combat_tutorial_access('page', tab)" class="fa fa-lock" aria-hidden="true"></i>{{ getLangString('MOD_MP_COMBAT_TAB_' + tab.toUpperCase()) }}</button>
@@ -2785,7 +2785,6 @@
 						</div>
 					</div>
 				</section>
-				<section class="mp-crucible-panel mp-crucible-clearing" aria-labelledby="mp-crucible-clearing-title"><h3 id="mp-crucible-clearing-title" class="mp-crucible-panel-heading"><button type="button" class="mp-crucible-panel-toggle" :aria-expanded="state.crucible_panels_open.clearing" aria-controls="mp-crucible-clearing-body" @click="state.crucible_panels_open.clearing = !state.crucible_panels_open.clearing"><i class="fa fa-broom" aria-hidden="true"></i><span><lang-string lang-id="MOD_MP_CRUCIBLE_CLEARING_TITLE"></lang-string></span><i class="fa" :class="state.crucible_panels_open.clearing ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></button></h3><div id="mp-crucible-clearing-body" class="mp-crucible-panel-body" v-show="state.crucible_panels_open.clearing"><strong><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR_LEVEL" class="mp-crucible-inline-label"></lang-string>{{ state.crucible?.level ?? 0 }} / {{ state.crucible?.active_wish ? 10 : 20 }}</strong><p><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR_INFO"></lang-string></p><button type="button" class="btn btn-success mr-2" :disabled="state.crucible_busy || !state.crucible?.is_open || state.crucible?.level >= (state.crucible?.active_wish ? 10 : 20)" @click="state.crucible_clear(false)"><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR"></lang-string></button><button type="button" class="btn btn-secondary" :disabled="state.crucible_busy || !state.crucible?.is_open || state.crucible?.level >= (state.crucible?.active_wish ? 10 : 20)" @click="state.crucible_clear(true)"><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR_MAX"></lang-string></button></div></section>
 				<section class="mp-crucible-panel" aria-labelledby="mp-crucible-offerings-title">
 					<h3 id="mp-crucible-offerings-title" class="mp-crucible-panel-heading"><button type="button" class="mp-crucible-panel-toggle" :aria-expanded="state.crucible_panels_open.offerings" aria-controls="mp-crucible-offerings-body" @click="state.crucible_panels_open.offerings = !state.crucible_panels_open.offerings"><i class="fa fa-fire" aria-hidden="true"></i><span><lang-string lang-id="MOD_MP_CRUCIBLE_OFFERINGS"></lang-string></span><small>{{ state.crucible?.offerings?.length ?? 0 }}</small><i class="fa" :class="state.crucible_panels_open.offerings ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></button></h3>
 					<div id="mp-crucible-offerings-body" class="mp-crucible-panel-body" v-show="state.crucible_panels_open.offerings">
@@ -3516,21 +3515,7 @@
 		</div>
 	</div>
 </template>
-<template id="template-mp-crucible-clear-modal">
-	<div class="mp-modal-text">
-		<p class="mb-2"><lang-string :lang-id="state.crucible_clear_max ? 'MOD_MP_CRUCIBLE_CLEAR_MAX_QUOTE' : 'MOD_MP_CRUCIBLE_CLEAR_QUOTE'"></lang-string></p>
-		<div class="mp-crucible-clear-totals mb-2">
-			<div class="mp-crucible-clear-total" v-for="offer in state.crucible_clear_totals" :key="offer.currency_id">
-				<img class="skill-icon-sm mr-2" :src="offer.currency?.currency?.media" :alt="offer.currency?.currency?.name || ''">
-				<strong>{{ formatNumber(offer.qty) }} {{ state.currency_display_shorthand(offer.currency) }}</strong>
-			</div>
-		</div>
-	</div>
-	<div class="mp-button-tray">
-		<button type="button" class="btn btn-success" :disabled="state.crucible_busy" @click="state.crucible_confirm_clear($event)"><div class="spinner-border spinner-border-sm text-light mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_CRUCIBLE_CLEAR"></lang-string></button>
-		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
-	</div>
-</template>
+
 
 <template id="template-mp-alliance-picker-modal">
 	<input v-if="state.alliance_picker_mode === 'found'" class="mp-input-text mp-alliance-name-input w-100 mb-3" v-model="state.alliance_name_input" maxlength="20" :placeholder="getLangString('MOD_MP_ALLIANCE_NAME')" @input="state.alliance_error = ''">
