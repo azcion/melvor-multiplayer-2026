@@ -643,6 +643,8 @@ test('raid picker keeps rules implicit and dates use viewer-local formatting', a
 	assert.equal(combat_choices('raid',3)[0].description,'');
 	const timestamp = Date.UTC(2026,9,31,23,30);
 	assert.equal(combat_local_date(timestamp),new Intl.DateTimeFormat(undefined,{year:'numeric',month:'short',day:'numeric'}).format(new Date(timestamp)));
+	assert.equal(combat_local_date(timestamp, 'fr'),new Intl.DateTimeFormat('fr',{year:'numeric',month:'short',day:'numeric'}).format(new Date(timestamp)));
+	assert.equal(combat_local_date(timestamp, 'invalid_locale'),new Intl.DateTimeFormat('en',{year:'numeric',month:'short',day:'numeric'}).format(new Date(timestamp)));
 	const template=await readFile(new URL('../../mod/ui/templates.html',import.meta.url),'utf8');
 	assert.match(template, /state.combat_local_date\(player.achieved_at\)/);
 	assert.match(template, /state.combat_attack_icon\(group.type\)/);

@@ -1,4 +1,6 @@
 {
+	"MOD_MP_COMBAT_TUTORIAL_SKIP": "Saltar tutorial",
+	"MOD_MP_COMBAT_TUTORIAL_SKIP_INFO": "Queres saltar o tutorial e receber os {ep} EP restantes da recompensa?",
 	"MOD_MP_SETTINGS_COMBAT_KEYS": "Atalhos de combate",
 	"MOD_MP_SETTINGS_COMBAT_KEYS_HINT": "Na vista de combate online: Espaço/1 = Comida 1, 2 = Comida 2, 3 = Poção 1, 4 = Poção 2. Os espaços bloqueados continuam indisponíveis. Uma utilização por pressão.",
 	"MOD_MP_COMBAT_RECOVERY_PAUSED": "Combate em pausa",
@@ -1738,6 +1740,8 @@
 	"MOD_MP_COMBAT_DUNGEON_CAP": "Limite de nível",
 	"MOD_MP_COMBAT_DUNGEON_BEST": "Recorde pessoal",
 	"MOD_MP_COMBAT_DUNGEON_LEADERBOARD": "Classificação",
+	"MOD_MP_COMBAT_DUNGEON_ACTIVITY": "Atividade",
+	"MOD_MP_COMBAT_DUNGEON_ACTIVITY_EMPTY": "Ainda não há atividade.",
 	"MOD_MP_COMBAT_DUNGEON_COMPLETED": "Concluído",
 	"MOD_MP_COMBAT_DUNGEON_SELECTED": "Selecionado",
 	"MOD_MP_COMBAT_DUNGEON_LOCKED": "Bloqueado",

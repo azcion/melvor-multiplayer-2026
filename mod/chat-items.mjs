@@ -35,7 +35,7 @@ export const official_chat_item = id => typeof id === 'string' &&
 	/^(melvorD|melvorF|melvorTotH|melvorAoD|melvorItA):[A-Za-z0-9_]+$/.test(id);
 export const MULTIPLAYER_FEATURE_NAMES = Object.freeze({
 	Chat: 'Chat', Guild: 'Guild', Transfer_Items: 'Transfers', Multiplayer_Market: 'Marketplace',
-	Crucible: 'Crucible', Expedition: 'Expedition', Guild_Raid: 'Raid', Updates: 'Updates'
+	Crucible: 'Crucible', Expedition: 'Expedition', Guild_Raid: 'Raid', Combat: 'Colosseum', Updates: 'Updates'
 });
 export const TEXT_FEATURE_NAMES = Object.freeze({
 	Alliance: 'alliance', Alliance_Member_Guild: 'alliance member guild', Guild_Member: 'guild member',
@@ -68,7 +68,7 @@ const text_feature_name = id => {
 const MULTIPLAYER_FEATURE_LANG_IDS = Object.freeze({
 	Chat: 'MOD_MP_PAGE_CHAT', Guild: 'MOD_MP_PAGE_GUILD', Transfer_Items: 'MOD_MP_PAGE_TRANSFER_ITEMS',
 	Multiplayer_Market: 'MOD_MP_PAGE_MARKET', Crucible: 'MOD_MP_PAGE_CRUCIBLE',
-	Expedition: 'MOD_MP_PAGE_EXPEDITION', Guild_Raid: 'MOD_MP_PAGE_RAID', Updates: 'MOD_MP_PAGE_UPDATES'
+	Expedition: 'MOD_MP_PAGE_EXPEDITION', Guild_Raid: 'MOD_MP_PAGE_RAID', Combat: 'MOD_MP_PAGE_COMBAT', Updates: 'MOD_MP_PAGE_UPDATES'
 });
 const FEATURE_SIDEBAR_ORDER = [
 	'melvorD:Shop', 'melvorD:Bank',

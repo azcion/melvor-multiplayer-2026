@@ -404,8 +404,11 @@ export function create_combat_snapshot_reader() {
 	};
 }
 
-export function combat_local_date(timestamp) {
-	return Number.isSafeInteger(timestamp) && timestamp >= 0 ? new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(timestamp)) : '';
+export function combat_local_date(timestamp, language) {
+	if (!Number.isSafeInteger(timestamp) || timestamp < 0) return '';
+	const options = { year: 'numeric', month: 'short', day: 'numeric' };
+	try { return new Intl.DateTimeFormat(language, options).format(new Date(timestamp)); }
+	catch { return new Intl.DateTimeFormat('en', options).format(new Date(timestamp)); }
 }
 
 export function combat_raid_tiers(unlocks, endpoint = 1, dungeon, catalog = []) {

@@ -6170,6 +6170,25 @@ export async function setup(ctx) {
 		await refresh_expedition_state();
 		return true;
 	};
+	state.combat_tutorial_skip_ready = () => Number.isSafeInteger(state.combat.tutorial?.skip_ep_micros) &&
+		!state.combat.tutorial.complete && !state.combat.inventory_busy && !state.combat.starting &&
+		economy_commands_ready && !economy_command_journal?.has_pending();
+	state.combat_tutorial_skip_preview = () => {
+		if (!state.combat_tutorial_skip_ready()) return;
+		state.combat_tutorial_skip_quote = { ep_micros: state.combat.tutorial.skip_ep_micros, scope: session_generation };
+		queue_modal('MOD_MP_COMBAT_TUTORIAL_SKIP', 'combat-tutorial-skip-modal', '', { showConfirmButton: false, width: '440px' }, true, false);
+	};
+	state.combat_tutorial_skip_message = () => getLangString('MOD_MP_COMBAT_TUTORIAL_SKIP_INFO')
+		.replace('{ep}', String((state.combat_tutorial_skip_quote?.ep_micros ?? 0) / 1_000_000));
+	state.combat_tutorial_skip_confirm = async () => {
+		const quote = state.combat_tutorial_skip_quote;
+		const ready = () => quote?.scope === session_generation && state.combat_tutorial_skip_ready() &&
+			quote.ep_micros === state.combat.tutorial.skip_ep_micros;
+		if (!ready()) return;
+		await close_modal_and_wait('combat-tutorial-skip-modal');
+		if (!ready()) return;
+		if (await combat_inventory.skip_tutorial(quote.ep_micros, () => combat_arena.close('idle'))) await refresh_expedition_state();
+	};
 	state.combat_tutorial_guide = () => {
 		const guide = tutorial_module.tutorial_guide(state.combat.tutorial, state.equipment_model(), getLangString, state.get_item_name, state.equipment_slot_name);
 		if (guide && !state.combat.character) return { ...guide, action: 'prepare', tab: 'levels', text: getLangString('MOD_MP_COMBAT_TUTORIAL_PREPARE') };
@@ -6179,7 +6198,7 @@ export async function setup(ctx) {
 	state.combat_select_page = tab => {
 		if (!state.combat_tutorial_access('page', tab)) return;
 		state.combat.page_tab = tab;
-		if (tab === 'raid') { state.combat.mode = 'raid'; state.combat.encounter = state.combat.raid_selection; }
+		if (tab === 'raid') { state.combat.mode = 'raid'; state.combat.encounter = state.combat.raid_selection; combat_inventory.refresh({ fresh: true }); }
 		else if (tab === 'test_combat' && state.combat.mode === 'raid') { state.combat.mode = 'once'; state.combat.encounter = state.combat_choices()[0]?.id ?? ''; practice_module.practice_sync(state.combat); }
 	};
 	state.combat_select_preparation = tab => { if (state.combat_tutorial_access('tab', tab)) state.combat.preparation_tab = tab; };
@@ -6229,8 +6248,9 @@ export async function setup(ctx) {
 	state.combat_respawning = () => state.combat.arena?.status === 'active' && state.combat.arena?.run?.phase === 'respawning';
 	state.combat_name = id => practice_module.practice_actor(state.combat,id,getLangString)?.name ?? (/^(saltwing|reefbreaker|undertide_tendril|blob|bittertoad|bogmaw|drowned_root|cinder_snail|kiln_wisp|embercoil|slagheart)_\d+$/.test(id) ? state.combat_name(String(id).replace(/_\d+$/, '')) : null) ?? tutorial_module.tutorial_name(id,getLangString) ?? (/^(golbin|golbin_scout|mind_golbin)_\d+$/.test(id) ? state.combat_name(id.replace(/_\d+$/, '')) : null) ?? (String(id).startsWith('plant_') ? state.combat_name('plant') : getLangString('MOD_MP_COMBAT_' + String(id).toUpperCase()));
 	state.combat_cap = skill => state.combat.character?.caps?.[skill] ?? 1;
-	state.combat_local_date = combat_module.combat_local_date;
+	state.combat_local_date = timestamp => combat_module.combat_local_date(timestamp, typeof setLang === 'string' ? setLang : 'en');
 	state.combat_raid_page = page => combat_inventory.raid_page(page);
+	state.combat_load_dungeon_activity = () => combat_inventory.load_dungeon_activity();
 	state.combat_raids = () => combat_module.combat_choices('raid').map(dungeon => ({...dungeon, name: state.combat_name(dungeon.id === 'golbins' ? 'horde' : dungeon.id)}));
 	state.combat_dungeon_art = id => get_mod_asset_url(`assets/combat-dungeons/${id}.png`);
 	state.combat_selected_raid = () => state.combat_raids().find(raid => raid.id === state.combat.raid_selection) ?? state.combat_raids()[0];

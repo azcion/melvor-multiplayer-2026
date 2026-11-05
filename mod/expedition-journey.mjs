@@ -6,9 +6,12 @@ export function create_journey_runtime({ topology, supported_versions, layout_gr
 		const chamber = expedition?.chamber;
 		const route = visits.map(visit => visit.chamber_id);
 		if (chamber && !chamber.preparation && by_id.has(chamber.id) && route.at(-1) !== chamber.id) route.push(chamber.id);
-		const revealed = new Set(expedition?.journey?.revealed ?? []);
-		for (const visit of visits) if (visit.chosen_exit_id) revealed.add(visit.chosen_exit_id);
-		for (const exit of chamber?.exits ?? []) if (exit.label !== '???') revealed.add(exit.id);
+		const frontier = new Set(expedition?.journey?.frontier ?? []);
+		const revealed = new Set((expedition?.journey?.revealed ?? []).filter(id => !frontier.has(id)));
+		if (!expedition?.journey?.frontier) {
+			for (const visit of visits) if (visit.chosen_exit_id) revealed.add(visit.chosen_exit_id);
+			for (const exit of chamber?.exits ?? []) if (exit.label !== '???') revealed.add(exit.id);
+		}
 		// Tracking reads omit history; debug jumps need not follow passages. Only a saved
 		// choice leading to the next visit proves that a passage was travelled.
 		const travelled = new Set();
@@ -18,7 +21,7 @@ export function create_journey_runtime({ topology, supported_versions, layout_gr
 			if (edge && edge.target === route[i + 1]) travelled.add(edge.id);
 		}
 		const current = expedition?.status === 'active' && !chamber?.preparation && by_id.has(chamber?.id) ? chamber.id : null;
-		return { route, revealed, snapshot_state: { current, visited: new Set(route), travelled }, supported_ids: new Set(expedition?.journey?.supported_ids ?? (supported_versions[content_version] ?? [])),
+		return { route, revealed, frontier, snapshot_state: { current, visited: new Set(route), travelled }, supported_ids: new Set(expedition?.journey?.supported_ids ?? (supported_versions[content_version] ?? [])),
 			current };
 	}
 
@@ -78,7 +81,7 @@ export function create_journey_runtime({ topology, supported_versions, layout_gr
 				const graph = layout_graph(topology, { column_gap: 45, row_gap: 35, radius: 17, supported_ids: snapshot.supported_ids });
 				// IDs and topology are fixed; only visited names may be disclosed.
 				for (const node of graph.nodes) node.label = label(node.id === 'entrance' ? 'The Rift' : node.label);
-				render_graph(this.svg, graph, snapshot.route, { revealed: snapshot.revealed, current: snapshot.current, snapshot_state: snapshot.snapshot_state,
+				render_graph(this.svg, graph, snapshot.route, { revealed: snapshot.revealed, frontier: snapshot.frontier, current: snapshot.current, snapshot_state: snapshot.snapshot_state,
 					unknown_label: getLangString('MOD_MP_EXPEDITION_UNKNOWN_CHAMBER') });
 				this.svg.setAttribute('aria-label', getLangString('MOD_MP_EXPEDITION_UI_JOURNEY'));
 				const current = this.svg.querySelector('.current');

@@ -342,6 +342,17 @@ test('feature tags send stable IDs and open their page from Chat', async () => {
 	assert.deepEqual(requests[1].parts, requests[0].parts);
 });
 
+test('Colosseum appears in the feature picker and opens its registered page', () => {
+	const { state, game, pages } = context();
+	const colosseum = { id: 'multiplayer:Combat', media: 'colosseum.png' };
+	game.pages.getObjectByID = id => id === colosseum.id ? colosseum : undefined;
+	const catalog = items.feature_catalog(game, key => key === 'MOD_MP_PAGE_COMBAT' ? 'Colosseum' : key);
+	assert.deepEqual(catalog.find(feature => feature.id === colosseum.id),
+		{ id: colosseum.id, name: 'Colosseum', media: 'colosseum.png' });
+	state.open_chat_feature(colosseum.id);
+	assert.deepEqual(pages, [colosseum]);
+});
+
 test('Expedition feature tags open for untagged Guild members, including Social Only players', () => {
 	const { state, game, pages } = context();
 	const expedition_page = { id: 'multiplayer:Expedition' };

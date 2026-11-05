@@ -43,7 +43,7 @@ describe('Chat item translation format', () => {
 			['multiplayer:Petition', 'petition'], ['multiplayer:Policy', 'policy'],
 			['multiplayer:Buy_Order', 'buy order'], ['multiplayer:Sell_Listing', 'sell listing'],
 			['multiplayer:Trade', 'trade'], ['multiplayer:Gift', 'gift'], ['multiplayer:Wish', 'wish'],
-			['multiplayer:Haggle', 'haggle'], ['multiplayer:Chamber', 'chamber']];
+			['multiplayer:Haggle', 'haggle'], ['multiplayer:Chamber', 'chamber'], ['multiplayer:Combat', 'Colosseum']];
 		for (const [feature_id, label] of entries) {
 			const parts: ChatPart[] = [{ type: 'feature', feature_id: feature_id! }];
 			expect(normalize_chat_parts(parts)).toEqual(parts);

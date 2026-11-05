@@ -6,17 +6,24 @@ import { session_post_route, session_get_route, is_social_only_client } from '..
 import { db } from '../db';
 import { COMBAT_PROTOCOL, issue_ticket, read_combat_key } from '../combat/tickets';
 import { is_admin } from '../admin_identity';
-import { debug_tutorial, tutorial_debug_targets } from '../combat-tutorial';
-import { combat_state, combat_inventory_response } from '../combat-inventory';
+import { debug_tutorial, skip_tutorial, tutorial_debug_targets } from '../combat-tutorial';
+import { combat_state, combat_inventory_response, dungeon_activity, parse_dungeon_activity_cursor } from '../combat-inventory';
+import { DUNGEONS } from '../combat/raids';
 import { run_economy_command } from '../economy';
 import { can_debug_expedition } from '../guild-expedition';
 import type { HandlerResult } from '../http';
 export function register_combat_routes() {
+	session_get_route('/api/combat/dungeon-activity', (_req, url): HandlerResult => {
+		const id = url.searchParams.get('dungeon');
+		const cursor = parse_dungeon_activity_cursor(url.searchParams.get('cursor'));
+		if (id === null || !Object.hasOwn(DUNGEONS, id) || !cursor) return 400;
+		return dungeon_activity(db, DUNGEONS[id].ruleset, cursor);
+	});
 	session_get_route('/api/combat/inventory', (_req,url,client) => {
 		const recovery = url.searchParams.get('recovery') === '1';
 		const saved = recovery ? read_recovery(db,client) : null;
 		return combat_inventory_response(equipment_catalog_response({
-			...combat_state(db,client,Number(url.searchParams.get('raid_page') ?? 0)),
+			...combat_state(db,client,Number(url.searchParams.get('raid_page') ?? 0),url.searchParams.get('dungeon_activity') === '1'),
 			...(recovery ? {
 				recovery: saved ? {id:saved.arena.id,state:saved.state,remaining_ms:saved.remaining_ms} : null,
 				combat_maintenance: combat_availability(db)
@@ -26,7 +33,7 @@ export function register_combat_routes() {
 			tutorial_debug_targets: is_admin(client) ? tutorial_debug_targets() : []
 		},url),url);
 	});
-	for (const action of ['unlock-slot','unlock-tier','start-project','cancel-project','equip','prepare','level','reset-levels','reset-equipment','debug-project','debug-tutorial','debug-dungeon'] as const) session_post_route(`/api/combat/${action}`, (_req,_url,client,json): HandlerResult => {
+	for (const action of ['unlock-slot','unlock-tier','start-project','cancel-project','equip','prepare','skip-tutorial','level','reset-levels','reset-equipment','debug-project','debug-tutorial','debug-dungeon'] as const) session_post_route(`/api/combat/${action}`, (_req,_url,client,json): HandlerResult => {
 		if ((action === 'debug-tutorial' || action === 'debug-dungeon') && !is_admin(client)) return 403;
 		if (action === 'debug-project' && !can_debug_expedition(client)) return 403;
 		if (is_social_only_client(client)) return 403;
@@ -35,6 +42,7 @@ export function register_combat_routes() {
 			if (action === 'debug-tutorial') return debug_tutorial(db,client,String(json.command_id),json);
 			if (action === 'debug-project') return debug_equipment_project(db,client,String(json.command_id),json);
 			if (['unlock-slot','unlock-tier','start-project','cancel-project','equip'].includes(action)) return change_equipment(db,client,String(json.command_id),action,json);
+			if (action === 'skip-tutorial') return skip_tutorial(db,client,json.ep_micros);
 			if (action === 'prepare') {
 				const response = prepare_combat(db,client);
 				return response;

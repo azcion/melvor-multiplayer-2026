@@ -37,6 +37,15 @@ test('Dungeon selection skips locked and empty dungeons without changing Practic
 	assert.equal(h.view.raid_selection,'quarry'); assert.equal(h.view.encounter,'practice_recruit_1');
 });
 
+test('Dungeon inventory requests activity only while viewing Dungeons', async()=>{
+	const h=harness();
+	await h.controller.refresh();
+	assert.equal(new URL(h.calls[0].path, 'https://example.test').searchParams.has('dungeon_activity'),false);
+	h.view.page_tab='raid';
+	await h.controller.refresh();
+	assert.equal(new URL(h.calls[1].path, 'https://example.test').searchParams.get('dungeon_activity'),'1');
+});
+
 test('food selection captures server revision, blocks concurrent submission and reconciles the command',async()=>{
 	let release;const h=harness({reconcile:()=>new Promise(resolve=>release=resolve)});
 	h.view.character={revision:4};
@@ -345,4 +354,24 @@ test('applying a dungeon setup navigates to the selected real Dungeon without au
 	assert.equal(submitted.target,'quarry:2');assert.equal(submitted.levels.attack,21);
 	assert.equal(closed,1);assert.equal(view.page_tab,'raid');assert.equal(view.raid_tab,'details');
 	assert.equal(view.encounter,'quarry');assert.equal(view.mode,'raid');
+});
+
+test('Dungeon activity appends only one page per cursor and hides Load more at the end', async () => {
+	let release;
+	let calls = 0;
+	const h = harness({ request: async path => {
+		calls++;
+		assert.equal(path, '/api/combat/dungeon-activity?dungeon=golbins&cursor=100%3Afirst');
+		return new Promise(resolve => { release = resolve; });
+	} });
+	h.view.raid_selection = 'golbins';
+	h.view.dungeons = [{ id: 'golbins', activity: [{ occurred_at: 100 }], activity_next_cursor: '100:first' }];
+	const pending = h.controller.load_dungeon_activity();
+	await h.controller.load_dungeon_activity();
+	release({ activity: [{ occurred_at: 90 }], activity_next_cursor: null });
+	await pending;
+	await h.controller.load_dungeon_activity();
+	assert.equal(calls, 1);
+	assert.deepEqual(h.view.dungeons[0].activity, [{ occurred_at: 100 }, { occurred_at: 90 }]);
+	assert.equal(h.view.dungeons[0].activity_next_cursor, null);
 });

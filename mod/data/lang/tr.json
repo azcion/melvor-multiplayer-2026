@@ -1,4 +1,6 @@
 {
+	"MOD_MP_COMBAT_TUTORIAL_SKIP": "Eğitimi Atla",
+	"MOD_MP_COMBAT_TUTORIAL_SKIP_INFO": "Eğitimi atlayıp kalan {ep} EP eğitim ödülünü almak ister misin?",
 	"MOD_MP_SETTINGS_COMBAT_KEYS": "Savaş klavye kısayolları",
 	"MOD_MP_SETTINGS_COMBAT_KEYS_HINT": "Çevrimiçi savaş görünümünde: Boşluk/1 = Yiyecek 1, 2 = Yiyecek 2, 3 = İksir 1, 4 = İksir 2. Kilitli yuvalar kullanılamaz. Her basışta bir kez kullanılır.",
 	"MOD_MP_COMBAT_RECOVERY_PAUSED": "Savaş duraklatıldı",
@@ -1738,6 +1740,8 @@
 	"MOD_MP_COMBAT_DUNGEON_CAP": "Seviye sınırı",
 	"MOD_MP_COMBAT_DUNGEON_BEST": "En iyi derece",
 	"MOD_MP_COMBAT_DUNGEON_LEADERBOARD": "Sıralama tablosu",
+	"MOD_MP_COMBAT_DUNGEON_ACTIVITY": "Etkinlik",
+	"MOD_MP_COMBAT_DUNGEON_ACTIVITY_EMPTY": "Henüz etkinlik yok.",
 	"MOD_MP_COMBAT_DUNGEON_COMPLETED": "Tamamlandı",
 	"MOD_MP_COMBAT_DUNGEON_SELECTED": "Seçildi",
 	"MOD_MP_COMBAT_DUNGEON_LOCKED": "Kilitli",

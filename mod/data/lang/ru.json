@@ -1,4 +1,6 @@
 {
+	"MOD_MP_COMBAT_TUTORIAL_SKIP": "Пропустить обучение",
+	"MOD_MP_COMBAT_TUTORIAL_SKIP_INFO": "Пропустить обучение и получить оставшуюся награду в размере {ep} EP?",
 	"MOD_MP_SETTINGS_COMBAT_KEYS": "Горячие клавиши боя",
 	"MOD_MP_SETTINGS_COMBAT_KEYS_HINT": "На экране сетевого боя: Пробел/1 = Еда 1, 2 = Еда 2, 3 = Зелье 1, 4 = Зелье 2. Заблокированные ячейки остаются недоступными. Одно использование за нажатие.",
 	"MOD_MP_COMBAT_RECOVERY_PAUSED": "Бой приостановлен",
@@ -1738,6 +1740,8 @@
 	"MOD_MP_COMBAT_DUNGEON_CAP": "Предел уровня",
 	"MOD_MP_COMBAT_DUNGEON_BEST": "Лучший результат",
 	"MOD_MP_COMBAT_DUNGEON_LEADERBOARD": "Таблица рекордов",
+	"MOD_MP_COMBAT_DUNGEON_ACTIVITY": "Активность",
+	"MOD_MP_COMBAT_DUNGEON_ACTIVITY_EMPTY": "Пока нет активности.",
 	"MOD_MP_COMBAT_DUNGEON_COMPLETED": "Завершено",
 	"MOD_MP_COMBAT_DUNGEON_SELECTED": "Выбрано",
 	"MOD_MP_COMBAT_DUNGEON_LOCKED": "Заблокировано",

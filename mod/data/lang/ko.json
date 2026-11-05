@@ -1,4 +1,6 @@
 {
+	"MOD_MP_COMBAT_TUTORIAL_SKIP": "튜토리얼 건너뛰기",
+	"MOD_MP_COMBAT_TUTORIAL_SKIP_INFO": "튜토리얼을 건너뛰고 남은 보상 {ep} EP를 받으시겠습니까?",
 	"MOD_MP_SETTINGS_COMBAT_KEYS": "전투 단축키",
 	"MOD_MP_SETTINGS_COMBAT_KEYS_HINT": "온라인 전투 화면에서: 스페이스/1 = 음식 1, 2 = 음식 2, 3 = 물약 1, 4 = 물약 2. 잠긴 슬롯은 사용할 수 없습니다. 키를 누를 때마다 한 번 사용합니다.",
 	"MOD_MP_COMBAT_RECOVERY_PAUSED": "전투 일시 정지",
@@ -1737,6 +1739,8 @@
 	"MOD_MP_COMBAT_DUNGEON_CAP": "레벨 상한",
 	"MOD_MP_COMBAT_DUNGEON_BEST": "개인 최고 기록",
 	"MOD_MP_COMBAT_DUNGEON_LEADERBOARD": "순위표",
+	"MOD_MP_COMBAT_DUNGEON_ACTIVITY": "활동",
+	"MOD_MP_COMBAT_DUNGEON_ACTIVITY_EMPTY": "아직 활동이 없습니다.",
 	"MOD_MP_COMBAT_DUNGEON_COMPLETED": "완료",
 	"MOD_MP_COMBAT_DUNGEON_SELECTED": "선택됨",
 	"MOD_MP_COMBAT_DUNGEON_LOCKED": "잠김",

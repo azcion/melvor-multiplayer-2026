@@ -1,4 +1,6 @@
 {
+	"MOD_MP_COMBAT_TUTORIAL_SKIP": "チュートリアルをスキップ",
+	"MOD_MP_COMBAT_TUTORIAL_SKIP_INFO": "チュートリアルをスキップして、残りの報酬 {ep} EP を受け取りますか？",
 	"MOD_MP_SETTINGS_COMBAT_KEYS": "戦闘のキーボードショートカット",
 	"MOD_MP_SETTINGS_COMBAT_KEYS_HINT": "オンライン戦闘画面でのみ：スペース/1 = 食料1、2 = 食料2、3 = ポーション1、4 = ポーション2。ロック中のスロットは使用できません。1回のキー入力につき1回使用します。",
 	"MOD_MP_COMBAT_RECOVERY_PAUSED": "戦闘は一時停止中です",
@@ -1737,6 +1739,8 @@
 	"MOD_MP_COMBAT_DUNGEON_CAP": "レベル上限",
 	"MOD_MP_COMBAT_DUNGEON_BEST": "自己ベスト",
 	"MOD_MP_COMBAT_DUNGEON_LEADERBOARD": "ランキング",
+	"MOD_MP_COMBAT_DUNGEON_ACTIVITY": "アクティビティ",
+	"MOD_MP_COMBAT_DUNGEON_ACTIVITY_EMPTY": "まだ活動はありません。",
 	"MOD_MP_COMBAT_DUNGEON_COMPLETED": "完了",
 	"MOD_MP_COMBAT_DUNGEON_SELECTED": "選択中",
 	"MOD_MP_COMBAT_DUNGEON_LOCKED": "ロック中",

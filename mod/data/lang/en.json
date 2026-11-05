@@ -1,4 +1,6 @@
 {
+	"MOD_MP_COMBAT_TUTORIAL_SKIP": "Skip Tutorial",
+	"MOD_MP_COMBAT_TUTORIAL_SKIP_INFO": "Skip the tutorial and receive your remaining tutorial reward of {ep} EP?",
 	"MOD_MP_SETTINGS_COMBAT_KEYS": "Combat keyboard shortcuts",
 	"MOD_MP_SETTINGS_COMBAT_KEYS_HINT": "While viewing an Online Combat battle: Space/1 = Food 1, 2 = Food 2, 3 = Potion 1, 4 = Potion 2. Locked slots remain unavailable. One use per press.",
 	"MOD_MP_COMBAT_RECOVERY_PAUSED": "Battle paused",
@@ -1738,6 +1740,8 @@
 	"MOD_MP_COMBAT_DUNGEON_CAP": "Level cap",
 	"MOD_MP_COMBAT_DUNGEON_BEST": "Personal best",
 	"MOD_MP_COMBAT_DUNGEON_LEADERBOARD": "Leaderboard",
+	"MOD_MP_COMBAT_DUNGEON_ACTIVITY": "Activity",
+	"MOD_MP_COMBAT_DUNGEON_ACTIVITY_EMPTY": "No activity yet.",
 	"MOD_MP_COMBAT_DUNGEON_COMPLETED": "Completed",
 	"MOD_MP_COMBAT_DUNGEON_SELECTED": "Selected",
 	"MOD_MP_COMBAT_DUNGEON_LOCKED": "Locked",

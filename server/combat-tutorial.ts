@@ -14,22 +14,51 @@ export const TUTORIAL_TRIALS = [
 	{ id: 'tutorial_6', name: 'Heavy Hitter', slot: 'Shield', tier: 1, item: 'melvorD:Bronze_Shield', reward: 2 },
 	{ id: 'tutorial_7', name: 'Final Assessment', slot: 'Shield', tier: 2, item: 'melvorD:Iron_Shield', reward: 0 }
 ] as const;
+const tutorial_allowance = 1_000_000;
+
+function remaining_ep_micros(victories: number, prepared: boolean) {
+	return TUTORIAL_TRIALS.slice(victories).reduce((amount, trial) => amount + trial.reward * 1_000_000,
+		prepared ? 0 : tutorial_allowance);
+}
+
+// The receipt transaction serializes this with battle settlement and admission.
+export function skip_tutorial(database: Database, client: number, quote: unknown) {
+	const row = database.query<{ victories: number }, [number]>('SELECT victories FROM combat_tutorial WHERE client_id=?').get(client);
+	const victories = row?.victories ?? 0;
+	if (victories === TUTORIAL_TRIALS.length || rollback_held(database, client)) return { success: false, error: 'rejected' };
+	const amount = remaining_ep_micros(victories, !!row);
+	if (quote !== amount) return { success: false, error: 'quote_changed' };
+	if (!reward_fits(database, client, amount)) return { success: false, error: 'rejected' };
+	database.query(`DELETE FROM combat_recovery WHERE client_id=? AND encounter_id IN
+		(SELECT id FROM combat_encounters WHERE client_id=? AND tutorial_trial IS NOT NULL)`).run(client, client);
+	database.query("UPDATE combat_encounters SET status='interrupted' WHERE client_id=? AND tutorial_trial IS NOT NULL AND status='active'").run(client);
+	database.query('INSERT INTO combat_tutorial(client_id,victories) VALUES(?,?) ON CONFLICT(client_id) DO UPDATE SET victories=excluded.victories')
+		.run(client, TUTORIAL_TRIALS.length);
+	database.query('INSERT INTO combat_characters(client_id,revision) VALUES(?,0) ON CONFLICT(client_id) DO UPDATE SET revision=revision+1').run(client);
+	if (amount) database.query('INSERT INTO expedition_ep_balances(client_id,points_micros) VALUES(?,?) ON CONFLICT(client_id) DO UPDATE SET points_micros=points_micros+excluded.points_micros').run(client, amount);
+	return { success: true };
+}
+
 export function tutorial_complete(database: Database, client: number) {
 	return database.query<{ victories: number }, [number]>('SELECT victories FROM combat_tutorial WHERE client_id=?').get(client)?.victories === 7;
 }
 // Called inside character preparation's command transaction. The initial allowance is never replayed.
 export function prepare_tutorial(database: Database, client: number) {
 	if (database.query('SELECT 1 FROM combat_tutorial WHERE client_id=?').get(client)) return true;
-	if (!reward_fits(database, client, 1_000_000)) return false;
+	if (!reward_fits(database, client, tutorial_allowance)) return false;
 	if (!database.query('INSERT INTO combat_tutorial(client_id) VALUES(?) ON CONFLICT DO NOTHING').run(client).changes) return true;
-	database.query('INSERT INTO expedition_ep_balances(client_id,points_micros) VALUES(?,1000000) ON CONFLICT(client_id) DO UPDATE SET points_micros=points_micros+1000000').run(client);
+	database.query('INSERT INTO expedition_ep_balances(client_id,points_micros) VALUES(?,?) ON CONFLICT(client_id) DO UPDATE SET points_micros=points_micros+excluded.points_micros').run(client, tutorial_allowance);
 	return true;
 }
 function reward_fits(database: Database, client: number, amount: number) {
 	const balance = database.query<{ points_micros: number }, [number]>('SELECT points_micros FROM expedition_ep_balances WHERE client_id=?').get(client)?.points_micros ?? 0;
 	return Number.isSafeInteger(balance) && balance >= 0 && balance <= Number.MAX_SAFE_INTEGER - amount;
 }
-export function tutorial_state(database: Database, client: number) {
+type TutorialState = { victories: number; ready: boolean } & (
+	{ complete: true; trial: null; next: null } |
+	{ complete: false; trial: typeof TUTORIAL_TRIALS[number]; next: string; skip_ep_micros: number }
+);
+export function tutorial_state(database: Database, client: number): TutorialState {
 	const row = database.query<{ victories: number }, [number]>('SELECT victories FROM combat_tutorial WHERE client_id=?').get(client);
 	const victories = row?.victories ?? 0;
 	if (victories === 7) return { complete: true, victories, trial: null, ready: false, next: null };
@@ -49,7 +78,7 @@ export function tutorial_state(database: Database, client: number) {
 	const ready = equipped.every(row => expected.get(row.slot) === row.equipped_item) && !!character && Object.values(character).every(level => level === 1) && [...expected].every(([slot, item]) => !!database.query(
 		`SELECT 1 FROM ${slot === 'Food' ? 'combat_food_access' : 'combat_equipment_slots'} s WHERE client_id=? AND slot=? AND equipped_item=? AND EXISTS(SELECT 1 FROM combat_equipment_projects p WHERE p.client_id=s.client_id AND p.item_id=s.equipped_item AND p.completed_at IS NOT NULL)`
 	).get(client, slot, item));
-	return { complete: false, victories, trial, ready, next: next === 'battle' && !ready ? 'restore-loadout' : next };
+	return { complete: false, victories, skip_ep_micros: remaining_ep_micros(victories, !!row), trial, ready, next: next === 'battle' && !ready ? 'restore-loadout' : next };
 }
 // The encounter row is the settlement journal. Caller commits status and award in the same transaction.
 export function tutorial_victory(database: Database, client: number, trial: number) {

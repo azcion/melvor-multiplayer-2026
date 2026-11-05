@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { create_test_database } from '../support/database';
 import { combat_character, prepare_combat, purchase_combat_levels } from '../../combat-progression';
-import { tutorial_state, TUTORIAL_TRIALS } from '../../combat-tutorial';
+import { skip_tutorial, tutorial_state, tutorial_victory, TUTORIAL_TRIALS } from '../../combat-tutorial';
 import { change_equipment } from '../../equipment-projects';
 import { reserve_combat, update_combat } from '../../combat-inventory';
 import { create_run, step_run, run_command } from '../../combat/runs';
@@ -139,5 +139,51 @@ test('switching tutorial phases rejects an actively tracked project', async () =
 		db.query("INSERT INTO combat_project_tracking(client_id,project_id,task_id,started_at,start_clock_offset_ms,epoch,counter_ms,statistics_json) VALUES(101,?,'task',0,0,'epoch',0,'{}')").run(project.id);
 		expect(debug_tutorial(db,101,'tracking',{target:'start',revision:combat_character(db,101)!.revision})).toMatchObject({success:false,error:'tracking_busy'});
 		expect(tutorial_state(db,101).next).toBe('work');
+	} finally { db.close(); }
+});
+
+test('skip before preparation creates an unequipped fighter with the full nine EP', () => {
+	const db = fixture();
+	try {
+		db.run('DELETE FROM combat_characters WHERE client_id=101');
+		db.run('DELETE FROM combat_tutorial WHERE client_id=101');
+		db.run('DELETE FROM expedition_ep_balances WHERE client_id=101');
+		expect(tutorial_state(db,101)).toMatchObject({ skip_ep_micros:9_000_000 });
+		expect(skip_tutorial(db,101,9_000_000)).toEqual({ success:true });
+		expect(combat_character(db,101)?.gear).toEqual({});
+		expect(tutorial_state(db,101)).toMatchObject({ complete:true });
+		expect(reserve_combat(db,101,'owner','practice','practice_recruit_1')).not.toBeNull();
+		expect(skip_tutorial(db,101,9_000_000)).toMatchObject({ success:false });
+		expect(db.query('SELECT points_micros FROM expedition_ep_balances').get()).toEqual({ points_micros:9_000_000 });
+	} finally { db.close(); }
+});
+
+test('skip awards only unsettled tutorial rewards and ends the current trial', () => {
+	const db = fixture();
+	try {
+		const revision = () => combat_character(db,101)!.revision;
+		change_equipment(db,101,'slot','unlock-slot',{slot:'Weapon',revision:revision()});
+		change_equipment(db,101,'equip','equip',{slot:'Weapon',item_id:'multiplayer:Wooden_Sword',revision:revision()});
+		expect(reserve_combat(db,101,'owner','first','tutorial_1')).not.toBeNull();
+		expect(update_combat(db,'owner','first',0,'victory')).toBe(true);
+		expect(skip_tutorial(db,101,8_000_000)).toMatchObject({ success:false,error:'quote_changed' });
+		change_equipment(db,101,'shield-slot','unlock-slot',{slot:'Shield',revision:revision()});
+		change_equipment(db,101,'shield-equip','equip',{slot:'Shield',item_id:'multiplayer:Wooden_Shield',revision:revision()});
+		expect(reserve_combat(db,101,'owner','second','tutorial_2')).not.toBeNull();
+		expect(tutorial_state(db,101)).toMatchObject({ skip_ep_micros:7_000_000 });
+		expect(skip_tutorial(db,101,7_000_000)).toEqual({ success:true });
+		expect(update_combat(db,'owner','second',0,'victory')).toBe(false);
+		expect(db.query('SELECT points_micros FROM expedition_ep_balances').get()).toEqual({ points_micros:7_000_000 });
+	} finally { db.close(); }
+});
+
+test('the final trial can be skipped with zero EP remaining', () => {
+	const db = fixture();
+	try {
+		for (let index = 0; index < 6; index++) expect(tutorial_victory(db,101,index)).toBe(true);
+		expect(tutorial_state(db,101)).toMatchObject({ skip_ep_micros:0 });
+		expect(skip_tutorial(db,101,0)).toEqual({ success:true });
+		expect(tutorial_state(db,101)).toMatchObject({ complete:true });
+		expect(db.query('SELECT points_micros FROM expedition_ep_balances').get()).toEqual({ points_micros:9_000_000 });
 	} finally { db.close(); }
 });

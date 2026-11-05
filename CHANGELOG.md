@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.3
+
+- Each Colosseum Dungeon now shows recent victories and defeats by tier in an Activity card below its Leaderboard. Load 20 results at a time from across Guilds, going back through retained attempts since Dungeons launched. Forfeits and test characters are excluded.
+- You can skip the Colosseum tutorial from any step. The confirmation shows your remaining tutorial EP, and skipping grants it and immediately opens Practice and Dungeons.
+- Guild Expedition Journey maps retain visits and discoveries across runs, including the preview route. Dotted passages point from visited Chambers to supported unknown destinations, and solid passages show completed reveals. Known Chambers appear by name with blurred artwork during voting. Pending repeat reveal tasks take one hour, accept the same skills and still advance the Expedition.
+- Click any active Equipment Project task card to open its skill page. Cards show a white outline on hover, and clicking leaves the activity selection and progress alone.
+- Use the $Colosseum tag in Chat to link directly to the Colosseum page.
+
 ## 1.7.2
 
 - Added localized Game Guides to Guild, Transfers, Marketplace, Crucible, Expedition, Raid (old) and Colosseum. Guides and Info use the selected server’s Multiplayer Wiki; older servers and those without a configured link use the official wiki.

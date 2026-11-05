@@ -29,7 +29,37 @@ export function combat_inventory_response(response: JsonObject, url: URL): JsonO
 		tiers: (entry.tiers as JsonObject[]).map(({ waves, ...dynamic }) => dynamic)
 	})) };
 }
-export function combat_state(database: Database, client: number, raid_page = 0) {
+type DungeonActivity = { client_id: number; display_name: string; icon_id: string; status: string; tier: number; occurred_at: number };
+const dungeon_activity_page_size = 20;
+type DungeonActivityCursor = { occurred_at: number; id: string };
+
+export function parse_dungeon_activity_cursor(value: string | null): DungeonActivityCursor | null {
+	const match = value?.match(/^(0|[1-9]\d{0,15}):([a-zA-Z0-9-]{1,64})$/);
+	if (!match || !Number.isSafeInteger(Number(match[1]))) return null;
+	return { occurred_at: Number(match[1]), id: match[2] };
+}
+
+export function dungeon_activity(database: Database, ruleset: string, cursor: DungeonActivityCursor | null = null) {
+	// Ruleset versions for the same dungeon share their prefix; older encounters predate completion timestamps.
+	const prefix = ruleset.slice(0, ruleset.lastIndexOf('-') + 1);
+	const minimum = prefix === 'golbin-' || prefix === 'tidal-' ? 2 : 1;
+	const rows = database.query<DungeonActivity & { id: string }, (string | number)[]>(`SELECT e.id,e.client_id,c.display_name,c.icon_id,e.status,
+		e.raid_endpoint AS tier,COALESCE(e.completed_at,e.created_at) AS occurred_at
+		FROM combat_encounters e JOIN clients c ON c.id=e.client_id
+		WHERE e.raid_ruleset GLOB ? AND CAST(substr(e.raid_ruleset,length(?) + 1) AS INTEGER)>=? AND e.raid_endpoint IS NOT NULL AND e.status IN ('victory','defeat')
+		AND c.deleted_at IS NULL AND c.disabled=0
+		AND NOT EXISTS (SELECT 1 FROM combat_activity_exclusions x WHERE x.client_id=e.client_id)
+		${cursor ? 'AND (COALESCE(e.completed_at,e.created_at),e.id) < (?,?)' : ''}
+		ORDER BY occurred_at DESC,e.id DESC LIMIT ?`).all(prefix + '*', prefix, minimum,
+			...(cursor ? [cursor.occurred_at, cursor.id] : []), dungeon_activity_page_size + 1);
+	const page = rows.slice(0, dungeon_activity_page_size);
+	const last = page.at(-1);
+	return {
+		activity: page.map(({ id, ...entry }) => entry),
+		activity_next_cursor: last && rows.length > dungeon_activity_page_size ? `${last.occurred_at}:${last.id}` : null
+	};
+}
+export function combat_state(database: Database, client: number, raid_page = 0, include_activity = false) {
 	settle_wish_capacity(database, client);
 	const food_slot = food_access(database, client);
 	const completed_foods = new Set(database.query<{item_id:string}, [number]>(
@@ -56,6 +86,7 @@ export function combat_state(database: Database, client: number, raid_page = 0) 
 			id: dungeon.id, name: dungeon.name, available: !dungeon.requires || DUNGEONS[dungeon.requires].tiers.every((_,i) => complete(dungeon.requires!,i)), endpoint: endpoint(dungeon.id),
 			tiers: dungeon.tiers.map((tier,i) => ({ ...tier, chamber_effects: (tier.chamber_effects ?? []).map(effect => ({...effect, equipment: effect.equipment ? {...effect.equipment, slots: [...effect.equipment.slots]} : null})), complete: complete(dungeon.id,i) })),
 			leaderboard: combat_leaderboard(database,raid_page,dungeon.id),
+			...(include_activity ? dungeon_activity(database,dungeon.ruleset) : null),
 			best: database.query<{elapsed_ms:number;achieved_at:number},[number,string,string]>('SELECT elapsed_ms,achieved_at FROM combat_raid_records WHERE client_id=? AND raid=? AND ruleset=?').get(client,dungeon.id,dungeon.ruleset)
 		}));
 	const golbins = dungeons.find(dungeon => dungeon.id === 'golbins')!;
@@ -131,7 +162,7 @@ export function update_combat(database: Database, controller: string, id: string
 				VALUES(?,?,?,?)`).run(row.client_id,row.practice_id,row.practice_tier,PRACTICE_RULESET);
 		}
 		if (status === 'victory' && row.tutorial_trial !== null && !tutorial_victory(database, row.client_id, row.tutorial_trial)) return false;
-		database.query('UPDATE combat_encounters SET used=?,status=? WHERE id=?').run(used, status, id);
+		database.query('UPDATE combat_encounters SET used=?,status=?,completed_at=? WHERE id=?').run(used, status, status === 'active' ? null : now, id);
 		return status !== 'interrupted';
 	}).immediate();
 }

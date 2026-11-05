@@ -15,7 +15,7 @@ export const MULTIPLAYER_CHAT_FEATURES = new Map([
 	['multiplayer:Chat', 'Chat'], ['multiplayer:Guild', 'Guild'],
 	['multiplayer:Transfer_Items', 'Transfers'], ['multiplayer:Multiplayer_Market', 'Marketplace'],
 	['multiplayer:Crucible', 'Crucible'], ['multiplayer:Expedition', 'Expedition'],
-	['multiplayer:Guild_Raid', 'Raid'], ['multiplayer:Updates', 'Updates'],
+	['multiplayer:Guild_Raid', 'Raid'], ['multiplayer:Combat', 'Colosseum'], ['multiplayer:Updates', 'Updates'],
 	['multiplayer:Alliance', 'alliance'], ['multiplayer:Alliance_Member_Guild', 'alliance member guild'],
 	['multiplayer:Guild_Member', 'guild member'], ['multiplayer:Petition', 'petition'],
 	['multiplayer:Policy', 'policy'], ['multiplayer:Buy_Order', 'buy order'], ['multiplayer:Sell_Listing', 'sell listing'],

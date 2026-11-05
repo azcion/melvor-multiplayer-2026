@@ -47,6 +47,7 @@ export function create_combat_inventory({ view, scope, request, reconcile, can_m
 				const known = practice_cache?.scope === current ? practice_cache : null;
 				const params = new URLSearchParams({ recovery: '1' });
 				if (view.raid_page) params.set('raid_page', view.raid_page);
+				if (view.page_tab === 'raid') params.set('dungeon_activity', '1');
 				if (known) params.set('practice_catalog', known.revision);
 				const result = await request('/api/combat/inventory' + (params.size ? '?' + params : ''));
 				if (current !== current_scope()) return false;
@@ -120,8 +121,8 @@ export function create_combat_inventory({ view, scope, request, reconcile, can_m
 		})();
 		return entry.work;
 	}
-	async function submit(action, payload) {
-		if (view.inventory_busy || !can_mutate() || view.arena?.status === 'active') return false;
+	async function submit(action, payload, on_success) {
+		if (view.inventory_busy || !can_mutate() || (action !== 'skip-tutorial' && view.arena?.status === 'active')) return false;
 		const current = current_scope(); view.inventory_busy = true; view.inventory_error = '';
 		try {
 			const result = await request(`/api/combat/${action}`,{ ...payload, command_id: crypto.randomUUID() });
@@ -133,12 +134,36 @@ export function create_combat_inventory({ view, scope, request, reconcile, can_m
 				if (current === current_scope()) view.inventory_error = result?.error ?? 'rejected';
 				return false;
 			}
-			await refresh(); return current === current_scope();
+			on_success?.();
+			await refresh({ fresh: action === 'skip-tutorial' }); return current === current_scope();
 		} catch { if (current === current_scope()) view.inventory_error = 'rejected'; return false; }
 		finally { if (current === current_scope()) view.inventory_busy = false; }
 	}
 	return {
 		refresh, settle,
+		async load_dungeon_activity() {
+			const dungeon = view.dungeons?.find(entry => entry.id === view.raid_selection);
+			const cursor = dungeon?.activity_next_cursor;
+			if (!cursor || dungeon.activity_loading) return;
+			const current = current_scope();
+			dungeon.activity_loading = true;
+			dungeon.activity_error = false;
+			try {
+				const params = new URLSearchParams({ dungeon: dungeon.id, cursor });
+				const result = await request('/api/combat/dungeon-activity?' + params);
+				if (current !== current_scope() || !view.dungeons.includes(dungeon)) return;
+				if (!Array.isArray(result?.activity)) {
+					dungeon.activity_error = true;
+					return;
+				}
+				dungeon.activity = [...dungeon.activity, ...result.activity];
+				dungeon.activity_next_cursor = result.activity_next_cursor;
+			} catch {
+				if (current === current_scope()) dungeon.activity_error = true;
+			} finally {
+				if (current === current_scope()) dungeon.activity_loading = false;
+			}
+		},
 		async raid_page(page) {
 			if (view.raid_loading || !Number.isSafeInteger(page) || page < 0) return false;
 			const current = current_scope(); view.raid_loading = true; view.raid_page = page;
@@ -149,6 +174,7 @@ export function create_combat_inventory({ view, scope, request, reconcile, can_m
 		debug_dungeon: payload => view.dungeon_debug_options ? submit('debug-dungeon', { ...payload, revision: view.character?.revision ?? null }) : Promise.resolve(false),
 		debug_tutorial: payload => view.tutorial_debug_targets?.some(target => target.id === payload.target) ? submit('debug-tutorial', { ...payload, revision: view.character?.revision ?? null }) : Promise.resolve(false),
 		debug_equipment: payload => view.debug_enabled ? submit('debug-project', payload) : Promise.resolve(false),
+		skip_tutorial: (ep_micros, on_success) => submit('skip-tutorial', { ep_micros }, on_success),
 		prepare: () => submit('prepare', {}),
 		async level(skill) {
 			if (skill !== undefined && !available_combat_skills.includes(skill)) return false;

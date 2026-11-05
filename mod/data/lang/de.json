@@ -1,4 +1,6 @@
 {
+	"MOD_MP_COMBAT_TUTORIAL_SKIP": "Tutorial überspringen",
+	"MOD_MP_COMBAT_TUTORIAL_SKIP_INFO": "Das Tutorial überspringen und die verbleibende Belohnung von {ep} EP erhalten?",
 	"MOD_MP_SETTINGS_COMBAT_KEYS": "Tastenkürzel im Kampf",
 	"MOD_MP_SETTINGS_COMBAT_KEYS_HINT": "Während eines Online-Kampfes: Leertaste/1 = Nahrung 1, 2 = Nahrung 2, 3 = Trank 1, 4 = Trank 2. Gesperrte Plätze bleiben gesperrt. Eine Verwendung pro Tastendruck.",
 	"MOD_MP_COMBAT_RECOVERY_PAUSED": "Kampf pausiert",
@@ -1738,6 +1740,8 @@
 	"MOD_MP_COMBAT_DUNGEON_CAP": "Stufenlimit",
 	"MOD_MP_COMBAT_DUNGEON_BEST": "Persönliche Bestzeit",
 	"MOD_MP_COMBAT_DUNGEON_LEADERBOARD": "Bestenliste",
+	"MOD_MP_COMBAT_DUNGEON_ACTIVITY": "Aktivität",
+	"MOD_MP_COMBAT_DUNGEON_ACTIVITY_EMPTY": "Noch keine Aktivität.",
 	"MOD_MP_COMBAT_DUNGEON_COMPLETED": "Abgeschlossen",
 	"MOD_MP_COMBAT_DUNGEON_SELECTED": "Ausgewählt",
 	"MOD_MP_COMBAT_DUNGEON_LOCKED": "Gesperrt",

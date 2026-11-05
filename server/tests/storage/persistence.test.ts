@@ -69,6 +69,7 @@ describe('SQLite persistence probe', () => {
 			'client_runtime_snapshots',
 			'client_sessions',
 			'clients',
+			'combat_activity_exclusions',
 			'combat_availability',
 			'combat_characters',
 			'combat_encounters',

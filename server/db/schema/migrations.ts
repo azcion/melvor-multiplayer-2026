@@ -724,4 +724,16 @@ export const migrations: Migration[] = [
 			granted_at INTEGER NOT NULL CHECK(granted_at >= 0)
 		) STRICT;
 	` },
+	{ version: 219, sql: `
+		ALTER TABLE combat_encounters ADD COLUMN completed_at INTEGER CHECK(completed_at IS NULL OR completed_at >= 0);
+		CREATE TABLE combat_activity_exclusions (
+			client_id INTEGER PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE
+		) STRICT;
+		INSERT OR IGNORE INTO combat_activity_exclusions(client_id)
+			SELECT actor_client_id FROM audit_events WHERE event_type='combat-dungeon-test'
+			AND actor_client_id IN (SELECT id FROM clients);
+		INSERT OR IGNORE INTO combat_activity_exclusions(client_id) SELECT client_id FROM combat_test_profiles;
+		CREATE INDEX combat_dungeon_activity ON combat_encounters(COALESCE(completed_at,created_at) DESC, id DESC)
+			WHERE raid_endpoint IS NOT NULL AND status IN ('victory','defeat');
+	` },
 ];

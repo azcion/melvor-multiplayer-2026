@@ -69,6 +69,26 @@ for (const route of [
 	expect(completed.expedition.stash_outcome).toBe('empty');
 	expect(completed.expedition.history.map((v: any) => v.chamber_id)).toEqual(route);
 	expect(await db_all('SELECT content_snapshot FROM expeditions WHERE id = ?', [expedition_id])).toEqual(snapshot);
+	if (route.join(',') === 'entrance,drowned_cloister,tideworn_crypts') {
+		// The fixture revealed all Rift exits, but visited only the Drowned Cloister.
+		const replay = await post_json<any>('/api/expedition/register',
+			{ operation_id: crypto.randomUUID(), content_version: 3 }, guild.first.session_token);
+		await post_json('/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.second.session_token);
+		await db_run('UPDATE expeditions SET registered_at = ?, registration_ends_at = ? WHERE id = ?',
+			[Date.now() - 20 * 3_600_000, Date.now() - 1, replay.json.expedition_id]);
+		const next = (await state(guild.second.session_token)).expedition;
+		expect(next.history.map((visit: any) => visit.chamber_id)).toEqual(route);
+		expect(next.journey.revealed).toContain('entrance:exit_1');
+		expect(next.chamber.participant_count).toBe(2);
+		expect(next.chamber.exits).toContainEqual(expect.objectContaining({
+			id: 'entrance:exit_1', label: 'Prismatic Descent'
+		}));
+		const repeat = next.chamber.tasks.find((task: any) => task.discovery_target === 'entrance:exit_1');
+		const original = JSON.parse(String(snapshot[0].content_snapshot)).chambers[0].tasks
+			.find((task: any) => task.discovery_target === 'entrance:exit_1');
+		expect(repeat).toMatchObject({ target_ms: 3_600_000, evidence: original.evidence, completed_at: null });
+	}
+
 });
 
 test('new client joins a legacy run without changing tasks, visits, history or an open work segment', async () => {

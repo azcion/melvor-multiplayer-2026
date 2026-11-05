@@ -100,18 +100,19 @@ export function route_to(graph, target) {
 }
 
 // Discovery belongs to each passage, never to all edges incident to a visible node.
-export function discovery_state(graph, route, revealed = new Set(), snapshot_state) {
+export function discovery_state(graph, route, revealed = new Set(), snapshot_state, frontier = new Set()) {
 	const state = snapshot_state ?? journey_state(graph, route);
 	const by_id = new Map(graph.nodes.map(node => [node.id, node]));
 	const visible_edges = graph.edges.filter(edge => by_id.get(edge.from).available && by_id.get(edge.to).available
-		&& state.visited.has(edge.from) && (state.travelled.has(edge.id) || revealed.has(edge.id)));
+		&& state.visited.has(edge.from) && (state.travelled.has(edge.id) || revealed.has(edge.id)
+			|| frontier.has(edge.id) && !state.visited.has(edge.to)));
 	const visible_nodes = new Set([...state.visited].filter(id => by_id.get(id).available));
 	for (const edge of visible_edges) visible_nodes.add(edge.to);
 	return { ...state, visible_edges, visible_nodes };
 }
 
-export function render_graph(svg, graph, route, { radius = 17, revealed = new Set(), ghosts = false, current, snapshot_state, unknown_label = 'Unknown Chamber' } = {}) {
-	const state = discovery_state(graph, route, revealed, snapshot_state);
+export function render_graph(svg, graph, route, { radius = 17, revealed = new Set(), frontier = new Set(), ghosts = false, current, snapshot_state, unknown_label = 'Unknown Chamber' } = {}) {
+	const state = discovery_state(graph, route, revealed, snapshot_state, frontier);
 	if (current !== undefined) state.current = current;
 	const doc = svg.ownerDocument;
 	function el(tag, attributes, text) {
@@ -124,14 +125,14 @@ export function render_graph(svg, graph, route, { radius = 17, revealed = new Se
 	svg.setAttribute('viewBox', `0 0 ${graph.width} ${graph.height}`);
 	svg.setAttribute('width', graph.width);
 	svg.setAttribute('height', graph.height);
-	svg.append(el('desc', {}, 'Only visited Chambers and individually revealed passages are shown. Question marks are unvisited destinations. Gold lines show the travelled route. A bright ring marks the current Chamber. Dashed circles are unvisited.'));
+	svg.append(el('desc', {}, 'Question marks are unvisited destinations. Dotted lines show undiscovered passages from visited Chambers. Solid lines show discovered passages, and gold lines show the travelled route. A bright ring marks the current Chamber. Dashed circles are unvisited.'));
 	const by_id = new Map(graph.nodes.map(node => [node.id, node]));
 	for (const edge of graph.edges) {
 		const visible = state.visible_edges.some(candidate => candidate.id === edge.id);
 		if (!visible && !ghosts) continue;
 		const from = by_id.get(edge.from), to = by_id.get(edge.to);
 		svg.append(el('line', { x1: from.x, y1: from.y, x2: to.x, y2: to.y,
-			class: `passage${state.travelled.has(edge.id) ? ' travelled' : ''}${visible ? '' : ' layout-ghost'}`, 'data-edge': edge.id }));
+			class: `passage${state.travelled.has(edge.id) ? ' travelled' : frontier.has(edge.id) ? ' frontier' : ''}${visible ? '' : ' layout-ghost'}`, 'data-edge': edge.id }));
 	}
 	for (const node of graph.nodes) {
 		const visible = state.visible_nodes.has(node.id);

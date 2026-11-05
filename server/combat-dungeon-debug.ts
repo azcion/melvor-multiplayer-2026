@@ -51,6 +51,7 @@ export function debug_dungeon(database: Database, client: number, command: strin
 	database.query('DELETE FROM combat_characters WHERE client_id=?').run(client);
 	database.query('INSERT INTO combat_characters(client_id,attack,strength,defence,hitpoints,revision) VALUES(?,?,?,?,?,?)').run(client,registration.levels.attack,registration.levels.strength,registration.levels.defence,registration.levels.hitpoints,revision);
 	database.query('INSERT INTO combat_test_profiles(client_id) VALUES(?)').run(client);
+	database.query('INSERT OR IGNORE INTO combat_activity_exclusions(client_id) VALUES(?)').run(client);
 	database.query('INSERT INTO combat_tutorial(client_id,victories) VALUES(?,7) ON CONFLICT(client_id) DO UPDATE SET victories=7').run(client);
 	database.query('DELETE FROM combat_raid_progress WHERE client_id=?').run(client);
 	database.query('DELETE FROM combat_unlocks WHERE client_id=?').run(client);

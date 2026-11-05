@@ -36,7 +36,7 @@ describe('Guild Expedition registration', () => {
 			[EXPEDITION_CONTENT_V1.version, JSON.stringify(EXPEDITION_CONTENT_V1), expedition_id]);
 	}
 	test('restricts new preview runs to the seven-Chamber route while keeping votes', async () => {
-		const guild = await make_guildmates('Preview One', 'Preview Two', 'Preview Guild');
+		const guild = await make_guildmates('Preview One', 'Preview Two', 'Preview Guild', { first: '1.7.2', second: '1.7.2' });
 		const registration = await post_json<{ expedition_id: number }>('/api/expedition/register',
 			{ operation_id: crypto.randomUUID() }, guild.first.session_token);
 		await db_run('UPDATE expeditions SET registered_at = ?, registration_ends_at = ? WHERE id = ?',
@@ -51,7 +51,12 @@ describe('Guild Expedition registration', () => {
 			const discovered = await db_all<{ exit_id: string }>(
 				'SELECT edge.exit_id FROM expedition_exits AS edge JOIN expedition_visits AS visit ON visit.id = edge.visit_id WHERE visit.expedition_id = ? AND edge.discovered_at IS NOT NULL',
 				[registration.json.expedition_id]);
-			expect(state.expedition.journey.revealed.sort()).toEqual(discovered.map(edge => edge.exit_id).sort());
+			expect(state.expedition.journey.revealed.filter((id: string) => !state.expedition.journey.frontier.includes(id)).sort()).toEqual(discovered.map(edge => edge.exit_id).sort());
+			if (index === 0) {
+				expect(state.expedition.journey.frontier.sort()).toEqual(['entrance:exit_1', 'entrance:exit_2', 'entrance:exit_3']);
+				expect(state.expedition.journey.revealed.sort()).toEqual(state.expedition.journey.frontier);
+				expect(chamber.exits.every((edge: any) => edge.label === '???')).toBe(true);
+			}
 			const visit_id = chamber.visit_id;
 			if (index === route.length - 1) {
 				expect(chamber.preview_exit_id).toBeNull();
@@ -116,6 +121,32 @@ describe('Guild Expedition registration', () => {
 		expect(compact.expedition.status).toBe(completed.expedition.status);
 		expect(compact.tracking).toEqual(completed.tracking);
 		expect(compact.expedition.chamber).toEqual(completed.expedition.chamber);
+		const replay = await post_json<{ expedition_id: number }>('/api/expedition/register',
+			{ operation_id: crypto.randomUUID(), content_version: 3 }, guild.first.session_token);
+		const registering = (await get_json_with_session<any>('/api/expedition/state', guild.second.session_token)).json;
+		expect(registering.expedition.history.map((entry: any) => entry.chamber_id)).toEqual(route);
+		await db_run('UPDATE expeditions SET registered_at = ?, registration_ends_at = ? WHERE id = ?',
+			[Date.now() - 20 * 3_600_000, Date.now() - 1, replay.json.expedition_id]);
+		const returning = (await get_json_with_session<any>('/api/expedition/state', guild.second.session_token)).json;
+		expect(returning.expedition.history.map((entry: any) => entry.chamber_id)).toEqual(route);
+		expect(returning.expedition.chamber.exits).toContainEqual(expect.objectContaining({
+			id: 'entrance:exit_1', label: 'Prismatic Descent'
+		}));
+		expect(returning.expedition.chamber.exits).toContainEqual(expect.objectContaining({
+			id: 'entrance:exit_2', label: '???'
+		}));
+		const repeat = returning.expedition.chamber.tasks.find((task: any) => task.discovery_target === 'entrance:exit_1');
+		expect(repeat).toMatchObject({ target_ms: 3_600_000, completed_at: null, kind: 'discovery' });
+		expect(repeat.evidence.skill_ids.length).toBeGreaterThan(0);
+
+		// An active visit from the old backend can already have progress above the new target.
+		await db_run('UPDATE expedition_tasks SET target_ms = ?, player_ms = ?, unlocked_at = ? WHERE visit_id = ? AND task_id = ?',
+			[25 * 3_600_000, 2 * 3_600_000, Date.now(), returning.expedition.chamber.visit_id, repeat.task_id]);
+		const upgraded = (await get_json_with_session<any>('/api/expedition/state', guild.second.session_token)).json;
+		expect(upgraded.expedition.chamber.tasks.find((task: any) => task.task_id === repeat.task_id))
+			.toMatchObject({ target_ms: 3_600_000, player_ms: 2 * 3_600_000, completed_at: expect.any(Number) });
+		expect(upgraded.expedition.chamber.tasks.find((task: any) => task.exit_id === 'entrance:exit_1').unlocked_at)
+			.toBeNumber();
 	});
 	test('chooses a sole exit after arrival work without a ballot', async () => {
 		const guild = await make_guildmates('Sole Exit A', 'Sole Exit B', 'Sole Exit Guild');

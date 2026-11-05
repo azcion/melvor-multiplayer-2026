@@ -87,3 +87,22 @@ test('snapshot renders debug jumps and repeated visits with only proven passage 
 	const jump = journey_snapshot({ status: 'active', history: [{ chamber_id: 'entrance' }], chamber: { id: 'prismatic_descent' } });
 	assert.equal(jump.snapshot_state.travelled.size, 0);
 });
+
+test('legacy hints become dotted without promoting known voting names to revealed passages', () => {
+	const snapshot = journey_snapshot({ status: 'active',
+		history: [{ chamber_id: 'entrance' }],
+		chamber: { id: 'rootforge_passage', exits: [{ id: 'rootforge_passage:exit_1', label: 'Glassroot Terraces' }] },
+		journey: {
+			revealed: ['entrance:exit_1', 'entrance:exit_2', 'rootforge_passage:exit_1', 'prismatic_descent:exit_1'],
+			frontier: ['entrance:exit_2', 'rootforge_passage:exit_1', 'prismatic_descent:exit_1']
+		}
+	});
+	const svg = new Element('svg'); svg.ownerDocument = doc;
+	render_graph(svg, layout_graph(topology), snapshot.route, snapshot);
+	assert.deepEqual(Object.fromEntries(svg.children.filter(node => node.tag === 'line')
+		.map(node => [node.attrs['data-edge'], node.attrs.class])), {
+		'entrance:exit_1': 'passage',
+		'entrance:exit_2': 'passage frontier',
+		'rootforge_passage:exit_1': 'passage frontier'
+	});
+});

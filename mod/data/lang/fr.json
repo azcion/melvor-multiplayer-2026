@@ -1,4 +1,6 @@
 {
+	"MOD_MP_COMBAT_TUTORIAL_SKIP": "Passer le tutoriel",
+	"MOD_MP_COMBAT_TUTORIAL_SKIP_INFO": "Passer le tutoriel et recevoir les {ep} EP de récompense restants ?",
 	"MOD_MP_SETTINGS_COMBAT_KEYS": "Raccourcis de combat",
 	"MOD_MP_SETTINGS_COMBAT_KEYS_HINT": "Dans la vue de combat en ligne : Espace/1 = Nourriture 1, 2 = Nourriture 2, 3 = Potion 1, 4 = Potion 2. Les emplacements verrouillés restent indisponibles. Une utilisation par pression.",
 	"MOD_MP_COMBAT_RECOVERY_PAUSED": "Combat en pause",
@@ -1738,6 +1740,8 @@
 	"MOD_MP_COMBAT_DUNGEON_CAP": "Niveau maximal",
 	"MOD_MP_COMBAT_DUNGEON_BEST": "Record personnel",
 	"MOD_MP_COMBAT_DUNGEON_LEADERBOARD": "Classement",
+	"MOD_MP_COMBAT_DUNGEON_ACTIVITY": "Activité",
+	"MOD_MP_COMBAT_DUNGEON_ACTIVITY_EMPTY": "Aucune activité pour le moment.",
 	"MOD_MP_COMBAT_DUNGEON_COMPLETED": "Terminé",
 	"MOD_MP_COMBAT_DUNGEON_SELECTED": "Sélectionné",
 	"MOD_MP_COMBAT_DUNGEON_LOCKED": "Verrouillé",

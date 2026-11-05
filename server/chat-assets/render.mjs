@@ -11,7 +11,7 @@ export function node(document, tag, text, class_name) {
 const feature_images = { Shop: 'main/shop_header.png', Bank: 'main/bank_header.png', Combat: 'main/combat_header.png',
 	Chat: 'bank/message_in_a_bottle.png', Updates: 'main/announcement.png' };
 const mod_images = { Guild: 'multiplayer.svg', Transfer_Items: 'transfer_bag.svg', Multiplayer_Market: 'market.svg',
-	Crucible: 'crucible.png', Expedition: 'expedition-nav.png', Guild_Raid: 'raid-nav.png' };
+	Crucible: 'crucible.png', Expedition: 'expedition-nav.png', Guild_Raid: 'raid-nav.png', Combat: 'colosseum.png' };
 const skills = new Set('Attack Strength Defence Hitpoints Ranged Magic Prayer Slayer Corruption Farming Township Woodcutting Fishing Firemaking Cooking Mining Smithing Thieving Fletching Crafting Runecrafting Herblore Agility Summoning Astrology Cartography Archaeology Harvesting'.split(' '));
 export function feature_image(id) {
 	const [namespace, key] = String(id).split(':');

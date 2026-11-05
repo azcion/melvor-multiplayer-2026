@@ -20,6 +20,7 @@ mod/assets/*
 !mod/assets/crucible.png
 !mod/assets/expedition-nav.png
 !mod/assets/raid-nav.png
+!mod/assets/colosseum.png
 tests
 
 dist

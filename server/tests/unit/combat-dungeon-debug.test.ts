@@ -47,6 +47,7 @@ test('every tier prepares legal admission without EP, other-player changes, refu
 		const revision = combat_character(db,101)!.revision;
 		expect(debug_tutorial(db,101,'reset',{target:'start',revision})).toEqual({success:true});
 		expect(db.query('SELECT 1 FROM combat_test_profiles WHERE client_id=101').get()).toBeNull();
+		expect(db.query('SELECT 1 FROM combat_activity_exclusions WHERE client_id=101').get()).not.toBeNull();
 		expect(db.query('SELECT 1 FROM combat_raid_progress WHERE client_id=101').get()).toBeNull();
 		expect(db.query('PRAGMA foreign_key_check').all()).toEqual([]);
 	} finally { db.close(); }

@@ -3,7 +3,7 @@ import type { JsonObject } from './http';
 import { PREPARATION_CHAMBER_ID, close_preparations, ensure_preparations, get_preparation_chamber, preparation_visit_id } from './expedition-preparations';
 import { record_economy_operation } from './save-rollback';
 import { db } from './db';
-import { EXPEDITION_CONTENT_PREVIEW, EXPEDITION_CONTENT_V3, preview_task_available, parse_expedition_content } from './expedition-content';
+import { EXPEDITION_CONTENT_V1, EXPEDITION_CONTENT_PREVIEW, EXPEDITION_CONTENT_V3, preview_task_available, parse_expedition_content } from './expedition-content';
 import type { ExpeditionChamber, ExpeditionContent } from './expedition-content';
 import { RECENTLY_ACTIVE_AFTER } from './recent-activity';
 import { createHash } from 'node:crypto';
@@ -298,11 +298,33 @@ function recent_registered_participants(expedition: ExpeditionRow, now: number):
 	).get(expedition.id, expedition.guild_id, now - RECENTLY_ACTIVE_AFTER)?.count ?? 0;
 }
 
+// Visits and completed reveals are the durable Guild record, including preview runs.
+function guild_chamber_knowledge(guild_id: number) {
+	const evidence = db.query<{ chamber_id: string; exit_id: string | null }, [number, number]>(
+		'SELECT visit.chamber_id, NULL AS exit_id FROM expeditions AS run ' +
+		'JOIN expedition_visits AS visit ON visit.expedition_id = run.id WHERE run.guild_id = ? ' +
+		'UNION SELECT visit.chamber_id, edge.exit_id FROM expeditions AS run ' +
+		'JOIN expedition_visits AS visit ON visit.expedition_id = run.id ' +
+		'JOIN expedition_exits AS edge ON edge.visit_id = visit.id WHERE run.guild_id = ? AND edge.discovered_at IS NOT NULL'
+	).all(guild_id, guild_id);
+	const chambers = new Map(EXPEDITION_CONTENT_V1.chambers.map(chamber => [chamber.id, chamber]));
+	const known = new Set<string>();
+	const revealed = new Set<string>();
+	for (const { chamber_id, exit_id } of evidence) {
+		const target = exit_id === null ? chamber_id : chambers.get(chamber_id)?.exits.find(edge => edge.id === exit_id)?.target;
+		if (target) known.add(target);
+		if (exit_id !== null) revealed.add(exit_id);
+	}
+	return { known, revealed };
+}
+
 function begin_visit(expedition: ExpeditionRow, content: ExpeditionContent, chamber: ExpeditionChamber,
 	participants: number, now: number): void {
 	const charted = db.query<{ found: number }, [number, string]>(
 		'SELECT 1 AS found FROM expedition_charted WHERE guild_id = ? AND chamber_id = ?'
 	).get(expedition.guild_id, chamber.id) !== null;
+	const { known } = guild_chamber_knowledge(expedition.guild_id);
+	const known_exits = new Set(chamber.exits.filter(edge => known.has(edge.target)).map(edge => edge.id));
 	const inserted = db.query<{ id: number }, [number, string, number, number, number]>(
 		'INSERT INTO expedition_visits (expedition_id, chamber_id, entered_at, participant_count, charted_on_arrival) ' +
 		'VALUES (?, ?, ?, ?, ?) RETURNING id'
@@ -313,7 +335,8 @@ function begin_visit(expedition: ExpeditionRow, content: ExpeditionContent, cham
 		const unlocked_at = task.phase === 'arrival' && task.depends_on.length === 0 ? now : null;
 		db.query(
 			'INSERT INTO expedition_tasks (visit_id, task_id, target_ms, unlocked_at) VALUES (?, ?, ?, ?)'
-		).run(inserted.id, task.id, scale_expedition_hours(task.baseline_hours, participants) * HOUR_MS, unlocked_at);
+		).run(inserted.id, task.id, task.discovery_target && known_exits.has(task.discovery_target)
+			? HOUR_MS : scale_expedition_hours(task.baseline_hours, participants) * HOUR_MS, unlocked_at);
 	}
 	for (const edge of chamber.exits)
 		db.query('INSERT INTO expedition_exits (visit_id, exit_id) VALUES (?, ?)').run(inserted.id, edge.id);
@@ -352,6 +375,31 @@ export function reconcile_expedition_visit(guild_id: number,
 		const content = parse_expedition_content(expedition.content_snapshot);
 		const chamber = content.chambers.find(entry => entry.id === visit.chamber_id);
 		if (!chamber) throw new Error('Current Chamber is missing from content snapshot');
+		// Bring pending reveals on visits that were already open at rollout onto the same target.
+		const pending_reveals = db.query<{ task_id: string }, [number, number]>(
+			'SELECT task_id FROM expedition_tasks WHERE visit_id = ? AND target_ms <> ? AND completed_at IS NULL'
+		).all(visit.id, HOUR_MS);
+		const reveal_targets = new Map(chamber.tasks.filter(task => task.discovery_target)
+			.map(task => [task.id, chamber.exits.find(edge => edge.id === task.discovery_target)?.target]));
+		const pending_discoveries = pending_reveals.filter(task => reveal_targets.has(task.task_id));
+		if (pending_discoveries.length > 0) {
+			const { known } = guild_chamber_knowledge(guild_id);
+			let shortened = false;
+			let completed = false;
+			for (const { task_id } of pending_discoveries) {
+				const target = reveal_targets.get(task_id);
+				if (!target || !known.has(target)) continue;
+				const updated = db.query<{ completed_at: number | null }, [number, number, number, number, string]>(
+					'UPDATE expedition_tasks SET target_ms = ?, completed_at = CASE ' +
+					'WHEN unlocked_at IS NOT NULL AND player_ms + system_ms >= ? THEN ? END ' +
+					'WHERE visit_id = ? AND task_id = ? RETURNING completed_at'
+				).get(HOUR_MS, HOUR_MS, now, visit.id, task_id);
+				shortened = true;
+				completed ||= updated?.completed_at != null;
+			}
+			if (completed) update_unlocks(expedition.id, visit.id, now);
+			if (shortened) db.query('UPDATE expeditions SET revision = revision + 1 WHERE id = ?').run(expedition.id);
+		}
 		const preview_exit_id = content.preview_route?.[chamber.id];
 		if (visit.vote_deadline_at !== null && visit.vote_locked_at === null && !visit.vote_full_shortened) {
 			const sole_vote = db.query<{ found: number }, [number, number, number]>(
@@ -630,14 +678,19 @@ export function get_expedition_state(guild_id: number, client_id: number, now = 
 			'SELECT COUNT(*) AS count FROM expedition_registrations WHERE expedition_id = ?'
 		).get(expedition.id)?.count ?? 0;
 		const content = parse_expedition_content(expedition.content_snapshot);
-		const chamber_names = new Map(content.chambers.map(entry => [entry.id, entry.label]));
+		const chamber_names = new Map(EXPEDITION_CONTENT_V1.chambers.map(entry => [entry.id, entry.label]));
+		for (const entry of content.chambers) chamber_names.set(entry.id, entry.label);
+		const { known, revealed } = guild_chamber_knowledge(guild_id);
+		// The client infers traversal from adjacent visits. Never connect the end of one run to the next.
 		const history = tracking_only ? [] : db.query<{
 			chamber_id: string; entered_at: number; departed_at: number | null; chosen_exit_id: string | null;
-		}, [number, string]>(
-			'SELECT chamber_id, entered_at, departed_at, chosen_exit_id FROM expedition_visits ' +
-			'WHERE expedition_id = ? AND departed_at IS NOT NULL AND chamber_id <> ? ORDER BY id'
-		).all(expedition.id, PREPARATION_CHAMBER_ID).map(visit => {
-			const source = content.chambers.find(entry => entry.id === visit.chamber_id);
+		}, [number, number, string]>(
+			'WITH visits AS (SELECT visit.*, LEAD(visit.id) OVER (PARTITION BY visit.expedition_id ORDER BY visit.id) AS next_visit_id ' +
+			'FROM expeditions AS run JOIN expedition_visits AS visit ON visit.expedition_id = run.id WHERE run.guild_id = ?) ' +
+			'SELECT chamber_id, entered_at, departed_at, CASE WHEN next_visit_id IS NOT NULL THEN chosen_exit_id END AS chosen_exit_id ' +
+			'FROM visits WHERE (expedition_id <> ? OR departed_at IS NOT NULL) AND chamber_id <> ? ORDER BY expedition_id, id'
+		).all(guild_id, expedition.id, PREPARATION_CHAMBER_ID).map(visit => {
+			const source = EXPEDITION_CONTENT_V1.chambers.find(entry => entry.id === visit.chamber_id);
 			const target = source?.exits.find(edge => edge.id === visit.chosen_exit_id)?.target;
 			return { ...visit, label: chamber_names.get(visit.chamber_id) ?? visit.chamber_id,
 				chosen_exit_label: target ? chamber_names.get(target) ?? target : null };
@@ -673,10 +726,6 @@ export function get_expedition_state(guild_id: number, client_id: number, now = 
 				list.push({ client_id: row.client_id, display_name: row.display_name, icon_id: row.icon_id });
 				trackers.set(row.task_id, list);
 			}
-			const exits = db.query<{ exit_id: string; discovered_at: number | null }, [number]>(
-				'SELECT exit_id, discovered_at FROM expedition_exits WHERE visit_id = ?'
-			).all(visit.id);
-			const discovered = new Set(exits.filter(exit => exit.discovered_at !== null).map(exit => exit.exit_id));
 			const ballot = db.query<{ exit_id: string }, [number, number]>(
 				'SELECT exit_id FROM expedition_votes WHERE visit_id = ? AND client_id = ?'
 			).get(visit.id, client_id)?.exit_id ?? null;
@@ -696,7 +745,7 @@ export function get_expedition_state(guild_id: number, client_id: number, now = 
 						personal_ms: personal.get(task.id) ?? 0, trackers: trackers.get(task.id) ?? [] }] : [];
 				}),
 				exits: definition.exits.map(edge => ({ id: edge.id, slot: edge.slot,
-					label: discovered.has(edge.id) ? chamber_names.get(edge.target) ?? edge.target : '???' })) };
+					label: known.has(edge.target) ? chamber_names.get(edge.target) ?? edge.target : '???' })) };
 		}
 		// Keep the immediately preceding Guild run visible to its participants while back in the Rift.
 		const previous = !tracking_only && (expedition.status === 'registration' ||
@@ -705,6 +754,13 @@ export function get_expedition_state(guild_id: number, client_id: number, now = 
 				"SELECT id FROM expeditions WHERE guild_id = ? AND id < ? AND status IN ('completed','inactive','dissolved') ORDER BY id DESC LIMIT 1"
 			).get(guild_id, expedition.id) : null;
 		const previous_summary = previous ? get_expedition_return_summary(db, client_id, previous.id) : null;
+		const visited = new Set(history.map(visit => visit.chamber_id));
+		if (typeof chamber?.id === 'string' && !chamber.preparation) visited.add(chamber.id);
+		const frontier = tracking_only ? [] : EXPEDITION_CONTENT_V3.chambers
+			.filter(entry => visited.has(entry.id))
+			.flatMap(entry => entry.exits.filter(edge => !visited.has(edge.target) && !revealed.has(edge.id))
+				.map(edge => edge.id));
+
 		return { contract_version: 1, content_version: expedition.content_version, server_now: now,
 			expedition: { id: expedition.id, status: expedition.status, revision: expedition.revision,
 				registered_at: expedition.registered_at, registration_ends_at: expedition.registration_ends_at,
@@ -714,10 +770,10 @@ export function get_expedition_state(guild_id: number, client_id: number, now = 
 				registered_count, registered, chamber, history,
 				...(!tracking_only ? { previous_return: previous_summary ? { expedition_id: previous!.id, ...previous_summary } : null } : {}),
 				...(!tracking_only ? { journey: {
-					supported_ids: content.chambers.map(entry => entry.id),
-					revealed: db.query<{ exit_id: string }, [number]>(
-						'SELECT edge.exit_id FROM expedition_exits AS edge JOIN expedition_visits AS visit ON visit.id = edge.visit_id WHERE visit.expedition_id = ? AND edge.discovered_at IS NOT NULL'
-					).all(expedition.id).map(edge => edge.exit_id)
+					supported_ids: [...new Set([...content.chambers.map(entry => entry.id), ...known])],
+					// Older clients draw both kinds of passage from revealed.
+					revealed: [...revealed, ...frontier],
+					frontier
 				} } : {}),
 				return_summary: !tracking_only && ['completed', 'inactive', 'dissolved'].includes(expedition.status)
 					? get_expedition_return_summary(db, client_id, expedition.id) : null } };

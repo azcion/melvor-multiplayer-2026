@@ -4585,6 +4585,17 @@ header.mp-combat-panel-header { display: flex; align-items: center; }
 .mp-equipment-stage h4 { color: inherit; font-size: 1rem; }
 .mp-equipment-stage progress { width: 100%; accent-color: #6bc296; }
 .mp-equipment-stage small { display: block; margin: .3rem 0; }
+.mp-equipment-task { position: relative; }
+.mp-equipment-task-link {
+	position: absolute;
+	inset: 0;
+	padding: 0;
+	border: 0;
+	border-radius: inherit;
+	background: transparent;
+	cursor: pointer;
+}
+.mp-equipment-task-link:hover, .mp-equipment-task-link:focus-visible { outline: 1px solid white; }
 .mp-equipment-locked { opacity: .6; }
 @media (max-width: 560px) { .mp-project-grid { grid-template-columns: minmax(0, 1fr); } .mp-project-grid > section:first-child { grid-column: auto; } }
 
@@ -4775,6 +4786,9 @@ header.mp-combat-toolbar { box-sizing: border-box; }
 .mp-combat-raid-start { width: 100%; min-height: 44px; margin-top: .5rem; }
 .mp-combat-raid-records { list-style: none; padding: 0; margin: .75rem 0; }
 .mp-combat-raid-records > li { display: grid; grid-template-columns: 1.4rem 36px minmax(0, 1fr) auto; gap: .5rem; align-items: center; padding: .9rem 0; border-top: 1px solid #45616b; }
+.mp-combat-dungeon-activity > li { grid-template-columns: 36px minmax(0, 1fr) auto; }
+.mp-combat-dungeon-activity-result { text-align: right; }
+.mp-combat-dungeon-activity-result > small { display: block; color: #b1c5d1; font-size: .75rem; }
 .mp-combat-raid-record-player { min-width: 0; overflow-wrap: anywhere; }
 .mp-combat-raid-record-player > small { display: block; color: #b1c5d1; font-size: .75rem; }
 .mp-combat-raid-record-time { font-variant-numeric: tabular-nums; white-space: nowrap; font-size: .85rem; }
@@ -4874,6 +4888,7 @@ header.mp-combat-toolbar { box-sizing: border-box; }
 #mp-combat-raid-panel-raids .mp-combat-dungeon-art { position: absolute; z-index: -1; pointer-events: none; right: -.5rem; top: -.8rem; width: 8rem; height: 8rem; object-fit: cover; mask-image: linear-gradient(to right, transparent, #000 35%), linear-gradient(to bottom, #000 65%, transparent); mask-composite: intersect; filter: brightness(.8); opacity: .55; }
 #mp-combat-raid-panel-raids .mp-combat-tier-badge { width: 2.6rem; min-width: 2.6rem; min-height: 2.2rem; padding: .3rem .6rem; }
 
+.mp-journey-map .passage.frontier { stroke-dasharray: 1 4; stroke-linecap: round; }
 .mp-journey-map .passage { stroke: #697c93; stroke-width: 1.5; opacity: .48; } .mp-journey-map .passage.travelled { stroke: var(--gold); stroke-width: 3; opacity: 1; } .mp-journey-map .node-circle { fill: #1b2939; stroke: #94a5b9; stroke-width: 1.5; } .mp-journey-map .unknown .node-circle { stroke-dasharray: 3 3; } .mp-journey-map .visited .node-circle { stroke: var(--gold); fill: #665334; } .mp-journey-map .visited-dot { fill: #ffe1ae; } .mp-journey-map .current .node-circle { fill: var(--gold); stroke: #ffe7bd; stroke-width: 2; } .mp-journey-map .current-ring { fill: #e6bc7010; stroke: #ffe0a6; stroke-width: 1.5; } .mp-journey-map .chamber { cursor: pointer; } .mp-journey-map .chamber text { fill: #b7c5d5; font: 14px system-ui, sans-serif; } .mp-journey-map .current text, .mp-journey-map .visited text { fill: #f5dab0; } .mp-journey-map .chamber:focus { outline: none; } .mp-journey-map .chamber:focus .node-circle, .mp-journey-map .chamber:hover .node-circle { stroke: white; stroke-width: 3; }
 .mp-journey-map { --gold:#e6bc70; display:block; position:relative; padding-bottom:48px; width:100%; }
 .mp-journey-map svg { display:block; width:100%; height:auto; }

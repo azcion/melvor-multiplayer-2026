@@ -19,7 +19,8 @@ export function register_browser_chat_shell_routes(): void {
 	const shared = { '/mod/client-actions-chat.mjs': ['client-actions-chat.mjs', 'text/javascript'], '/mod/chat-highlights.mjs': ['chat-highlights.mjs', 'text/javascript'], '/mod/chat-items.mjs': ['chat-items.mjs', 'text/javascript'],
 		'/chat/assets/multiplayer.svg': ['assets/multiplayer.svg', 'image/svg+xml'], '/chat/assets/transfer_bag.svg': ['assets/transfer_bag.svg', 'image/svg+xml'],
 		'/chat/assets/market.svg': ['assets/market.svg', 'image/svg+xml'], '/chat/assets/crucible.png': ['assets/crucible.png', 'image/png'],
-		'/chat/assets/expedition-nav.png': ['assets/expedition-nav.png', 'image/png'], '/chat/assets/raid-nav.png': ['assets/raid-nav.png', 'image/png'] };
+		'/chat/assets/expedition-nav.png': ['assets/expedition-nav.png', 'image/png'], '/chat/assets/raid-nav.png': ['assets/raid-nav.png', 'image/png'],
+		'/chat/assets/colosseum.png': ['assets/colosseum.png', 'image/png'] };
 	for (const [name, [file, type]] of Object.entries(shared))
 		runtime.server.route(name, () => new Response(Bun.file(new URL(`../../mod/${file}`, import.meta.url)), {
 			headers: { ...headers, 'Content-Type': type }
