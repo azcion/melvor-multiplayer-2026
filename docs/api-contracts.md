@@ -239,9 +239,52 @@ A different proof/account, or a disabled/deleted existing profile, returns 401 w
 creates another registration audit event. Pending authentication uses that same saved proof after a lost response;
 registration replay is bounded to one authentication attempt per connection attempt. No schema migration is required.
 
-The current client offers explicit existing-profile recovery or confirmed creation when proof is absent or rejected. The
-exception for valid legacy proof associated with a different active Melvor account still creates that account's own
-Client, as before. New clients refuse registration on servers lacking the capability; healthy authentication works.
+The `identity-onboarding-v1` capability supports optional boolean `check_existing_profile` on registration.
+Automatic creation sets it to true. Inside the same insertion transaction, after checking replay, the server compares
+trimmed, case-insensitive PlayFab IDs and exact character names against
+the exact registration character name, current profile name, its earliest retained name and any enrolled native character name. Optional
+`character_name` persists the native name separately from the constrained multiplayer `display_name`, as an unverified
+onboarding hint only. Existing profiles with no recorded native name retain the other hint sources. A match returns HTTP 409 with
+`{identity_status: "recovery_required"}` without creating a Client or returning candidate details. Disabled and
+soft-deleted profiles also count. These observations are recovery hints only and never grant profile access.
+Confirmed separate-profile creation sets the flag to false; older callers retain their registration behavior.
+
+The current client authenticates saved proof first. Missing, malformed or 401-rejected proof attempts protected
+automatic registration; only a matching existing profile opens the recovery/create modal automatically, after
+interface readiness. New accounts and differently named characters connect without that modal. Valid legacy proof
+associated with another active Melvor account uses the same protected registration path. Revocation, disablement,
+account-required responses and transport failures never trigger automatic creation or recovery prompts. Manual
+Connect Multiplayer remains available while disconnected. Automatic creation requires both capabilities; on older
+servers it opens manual recovery/create choices with the host-upgrade error, while healthy authentication and supported explicit creation work.
+
+`identity-account-recovery-v1` adds optional verified account recovery:
+
+| POST route | Authority and result |
+| --- | --- |
+| `/api/identity-recovery/enroll` | Current multiplayer session plus verified Melvor login enables/refreshes recovery for that Client and exact native name. |
+| `/api/identity-recovery/disable` | Current multiplayer session removes only its own recovery binding. No Melvor token needed. |
+| `/api/identity-recovery/list` | Verified Melvor login returns up to 50 enabled, active exact-name matches, newest activity first: `{identities:[{client_id,display_name,last_active_at}]}`. Zero activity means unknown. |
+| `/api/identity-recovery/connect` | Reverify login and exact-name ownership of selected `client_id`; return `{credentials:{client_identifier,client_key}}` for ordinary authentication. |
+
+Except disable, requests contain `melvor_token` and `character_name` (1–100 UTF-16 code units). Connect additionally
+requires a positive safe-integer `client_id`. Name comparison is exact and case-sensitive; selection never normalizes
+or trims names. Account IDs are trimmed and compared case-insensitively. The backend posts the token to the fixed
+`https://melvoridle.com/cloud/api/validateToken.php` endpoint, with an eight-second deadline, no redirects or cookies,
+and a 64 KiB response limit. Only the validated upstream account establishes ownership. Invalid Melvor proof returns
+422, unavailable verification 503, invalid inputs 400, and missing/disabled/deleted/unowned selections 404.
+Enrollment additionally rechecks the multiplayer session after validation; revoked sessions return 401 and mismatched
+account ownership 403. Disable atomically advances a persisted revocation marker and removes the binding, including
+when no binding exists yet. Enrollment captures the marker before upstream verification and returns 409 if disable
+changed it while verification was pending. A later explicit enrollment can enable recovery again. Recovery responses
+use `Cache-Control: no-store`.
+
+Enabling recovery requires both existing Client authentication and verified Melvor account ownership. Historical
+unverified groups never become recovery authority automatically. Older profiles need working save credentials or a
+recovery code before enabling this alternative. Renaming the native character requires refreshing the binding.
+The mod presents explicit consent before reading/sending the Melvor login token, names the selected server, and warns
+that the token can access the Melvor account. Neither tokens nor upstream responses are persisted or logged. No
+passwords are read or sent. Closing the modal clears consent and candidates; stale server/session results are discarded.
+Recovering preserves the existing identity, credentials, preferences and multiplayer data; it never merges identities.
 
 A portable `MP1.` recovery code contains the normalized origin and save-carried UUID identifier/key, encoded as
 base64 JSON. It is a bearer credential, not encryption, an account lookup, or a new source of authority. Imported proof
@@ -526,15 +569,42 @@ apply fresh equipment results without an immediate Expedition GET; replay, unkno
 retain their refresh. The independent chamber refresh clock remains active. Query negotiation never changes the
 saved work payload, operation identity, settlement, or replay hash.
 
-## Practice preview transport
+## Fighter Adventures (1.7.6)
 
-`combat/inventory` includes `practice_catalog_revision`, a content hash of the process-local Practice
-names, tiers and enemy-wave definitions. Clients may send `practice_catalog=HASH` after receiving the full model.
-A matching hash omits only each Practice tier's `waves`; encounter IDs, availability and completion flags remain
-fresh on every response. Missing/outdated hashes receive the complete model, preserving older clients.
-Clients retain plain wave definitions in memory per selected server/session, hydrate by encounter ID only when
-response and requested revisions match, and clear the cache on reset. No player progression is cached.
-This query composes with `equipment_catalog` and `raid_page`; it does not change admission or settlement.
+`GET /api/versions` advertises `fighter-adventures-v1`. Clients without this capability continue using their
+existing Colosseum and Inbox contracts. Adventures are character-owned and independent of Guild membership.
+
+`GET /api/adventures/state` returns the current assignment, capacity, EP balance, reset quote, area efficiencies,
+reward previews and haul read state. Mutation routes are `start`, `stop`, `check-in`, `capacity`, `reset-capacity`,
+`opt-in` and `seen` under `/api/adventures/`. All except `seen` require the returned `revision`. Mutations
+commit entirely on the server and reject `command_id`. A stale revision cannot repeat a committed mutation.
+Refresh state after an uncertain response before deciding whether to submit a new action.
+Purchases accept an integer `target` up to 99;
+resets affect Adventure capacity alone and use the existing shared free-reset balance or 90% refund policy.
+
+Start accepts `area_id`, `monster_ids` and `eligibility: { discovered: string[], owned_dlc: string[] }`. Check-in accepts the same
+eligibility report and `reason: "login" | "online"`. Discovery reports are trusted client evidence; only catalog
+items in the saved monster drop tables can be produced. Login settles the old snapshot before applying the new
+report. Online check-ins settle at most once per five minutes. Area, level and equipment
+changes preserve earned production and used capacity. Stop and opt-out settle before ending the assignment.
+
+Settled items enter the existing claimable Inbox with `source_type: "fighter_adventures"`. For clients requesting
+`GET /api/events?adventures=1`, Adventure items are excluded from `inbox_pending`, and separate
+`adventure_items_pending`, `adventure_unread` and `adventure_haul_revision` fields are returned, including unchanged
+responses. `seen` accepts `haul_revision`, clears only that observed login-haul indicator and leaves items claimable.
+Without this query parameter, the legacy Inbox pending behavior is preserved.
+
+The versioned `server/fighter-adventures-catalog.json` defines supported base-game Combat Areas, monsters and
+native loot. A catalog change ends the affected assignment after settling production using its saved snapshot.
+
+## Retired Practice encounters (1.7.6)
+
+`combat/inventory` no longer returns `practice` or `practice_catalog_revision`; the obsolete `practice_catalog`
+query parameter is ignored. Equipment catalog negotiation and Dungeon paging remain available.
+The combat socket no longer advertises or admits `practice_*` encounters, and the authority independently rejects
+them. Tutorial trials remain server-owned and available before graduation. Historical Practice encounters and
+completion records are preserved; saved Practice recovery becomes terminal without new rewards or completion
+marks and can be acknowledged normally.
 
 ## Expedition return and claimed bonus
 
@@ -557,3 +627,16 @@ to integer micro-EP) and prior ending awards. It returns `{ success: true, claim
 concurrent claims return zero after the first credit. Late verified work can create another positive difference.
 Invalid IDs return 400; foreign, missing or ineligible records return 409. All value stays in server-owned EP,
 without local item/GP effects. Bonus awards appear in the EP leaderboard when claimed.
+
+
+## Client preferences
+
+Servers advertising `client-preferences-v1` accept authenticated
+`POST /api/v2/client/preferences/sync` with `legacy` and `changes` objects.
+The supported fields are `listing_filters`, `chat_translation_preferences`,
+and `chat_notification_preferences`. Legacy values initialize only absent
+fields for the authenticated identity. An explicit listing filter update
+replaces its array. Chat updates merge by conversation key, with `null`
+removing an entry. The response returns the saved `preferences` and the
+`imported` and `updated` field names the server accepted. The client uses
+these acknowledgements to retire imported save values and pending edits.

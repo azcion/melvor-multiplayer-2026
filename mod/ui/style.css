@@ -1507,6 +1507,10 @@ mp-modal-component input.form-control[type="number"],
 	background-color: #8f3030;
 }
 
+.mp-guild-cheats-badge-unfiltered {
+	background-color: #846e6e;
+}
+
 .mp-guild-member-rule {
 	width: calc(100% - 32px);
 	margin: 0 auto;
@@ -2893,6 +2897,26 @@ mp-item-slider .noUi-target * {
 	font-weight: 600;
 	line-height: 1.4;
 	overflow-wrap: anywhere;
+}
+
+#mp-transfer-page .mp-inbox-haul-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	margin: 0 0 .6rem;
+	padding: .35rem .5rem;
+	border: 1px solid #92b7c5;
+	border-radius: .35rem;
+	background: #182732;
+	color: #f5f7fa;
+	text-align: left;
+	cursor: pointer;
+}
+
+#mp-transfer-page .mp-inbox-haul-toggle:focus-visible {
+	outline: 2px solid #6adbac;
+	outline-offset: 2px;
 }
 
 .mp-transfer-item-grid {
@@ -4574,7 +4598,6 @@ header.mp-combat-panel-header { display: flex; align-items: center; }
 .mp-equipment-project-ready { border-color: #6adbac; }
 .mp-equipment-project-icon:not(:disabled):hover { background: #24443f; }
 .mp-equipment-project-icon:focus-visible { outline: 2px solid #6adbac; outline-offset: 2px; }
-.mp-equipment-project-undiscovered img { filter: grayscale(1); opacity: .48; }
 .mp-equipment-project-lock, .mp-equipment-project-status { position: absolute; bottom: 3px; right: 4px; font-size: .7rem; }
 .mp-equipment-project-lock { color: #c4d0d5; }
 .mp-equipment-project-complete .mp-equipment-project-status { color: #6adbac; }
@@ -4708,18 +4731,16 @@ header.mp-combat-panel-header { display: flex; align-items: center; }
 .mp-chat-deleted-label { color: #ffd08a; font-weight: 700; margin-bottom: .4rem; }
 
 .mp-combat-page-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .4rem; margin-bottom: .75rem; }
-.mp-combat-desktop-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.mp-combat-main-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .mp-combat-mobile-tabs { display: none; }
-.mp-combat-battle-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .mp-combat-page-tabs .btn { position: relative; min-width: 0; min-height: 44px; white-space: normal; background: #314b58; color: #f5f7fa; border: 1px solid #45616b; }
 .mp-combat-page-tabs .btn { padding-left: 1.25rem; padding-right: 1.25rem; }
 .mp-combat-page-tabs .fa-lock { position: absolute; top: auto; right: .35rem; bottom: .3rem; margin: 0; }
 .mp-combat-page-tabs [aria-selected="true"] { background: #176547; border-color: #6adbac; }
 .mp-combat-page-tabs .btn:focus-visible { outline: 2px solid #6adbac; outline-offset: 2px; }
 @media (max-width: 900px) {
-	.mp-combat-desktop-tabs { display: none; }
 	.mp-combat-mobile-tabs { display: grid; }
-	.mp-combat-preparation-tabs, .mp-combat-battle-tabs, .mp-combat-practice-tabs { border-top: 1px solid #45616b; padding-top: .75rem; }
+	.mp-combat-preparation-tabs { border-top: 1px solid #45616b; padding-top: .75rem; }
 	.mp-combat-page-tabs .btn { padding: .55rem 1.25rem; font-size: .85rem; }
 }
 
@@ -4794,7 +4815,7 @@ header.mp-combat-toolbar { box-sizing: border-box; }
 .mp-combat-raid-rank { color: #c4d4dc; font-weight: 700; }
 .mp-combat-raid-records > li:first-child .mp-combat-raid-rank { color: #f5ca61; }
 @media (max-width: 767.98px) {
-	.mp-combat-raid-tabs { display: grid; }
+	.mp-combat-raid-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 	.mp-combat-raid-columns { grid-template-columns: minmax(0, 1fr); }
 	.mp-combat-raid-mobile-hidden { display: none; }
 }
@@ -4834,40 +4855,11 @@ header.mp-combat-toolbar { box-sizing: border-box; }
 	.mp-combat-view-actions { margin-left: auto; }
 }
 
-/* Practice keeps the category picker on the left and selected encounter on the right. */
-.mp-combat-practice-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; align-items: start; }
-.mp-combat-practice-columns > .mp-combat-panel { min-width: 0; margin-bottom: 0; }
-.mp-combat-practice-tabs { display: none; }
-.mp-combat-practice-categories { display: flex; flex-wrap: wrap; margin-bottom: .75rem; }
-.mp-combat-practice-categories > button { flex: 1; min-height: 44px; }
-.mp-combat-practice-categories > button[aria-pressed="true"] { background: #17433d; border-color: #6adbac; color: #fff; }
-.mp-combat-practice-roster { display: grid; gap: .65rem; }
-.mp-combat-practice-tier-picker { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1rem; }
-.mp-combat-practice-tier-picker > button[aria-pressed="true"] { outline: 2px solid #6adbac; outline-offset: 1px; }
-.mp-combat-practice-preparation { padding: .65rem; background: #1c303b; border-radius: .35rem; }
-.mp-combat-practice-waves { list-style: none; padding: 0; display: grid; gap: .6rem; }
-.mp-combat-practice-waves > li { padding: .65rem; background: #1c303b; border-radius: .35rem; }
-.mp-combat-practice-waves small { display: block; color: #c4d0d5; }
-.mp-combat-practice-actor { display: flex; gap: .6rem; align-items: center; padding: .4rem 0; }
-.mp-combat-practice-actor > img { flex-shrink: 0; object-fit: contain; }
-.mp-combat-practice-actor > span { min-width: 0; overflow-wrap: anywhere; }
-.mp-combat-practice-columns h4 { margin-top: 1rem; }
-@media (max-width: 767.98px) {
-	.mp-combat-practice-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-	.mp-combat-practice-tabs > button { white-space: normal; overflow-wrap: anywhere; min-height: 44px; }
-	.mp-combat-practice-columns { grid-template-columns: minmax(0, 1fr); }
-	.mp-combat-practice-mobile-hidden { display: none; }
-}
-
 #mp-combat-page button.mp-combat-tier-badge { color: #c4d4dc; }
 #mp-combat-page button.mp-combat-tier-complete { color: #effff8; }
 /* Keep native button hover styles from reducing tier contrast. */
 #mp-combat-page button.mp-combat-tier-badge:is(:hover, :focus, :active) { color: #f5f7fa; background: #314b58; border-color: #92b7c5; }
 #mp-combat-page button.mp-combat-tier-complete:is(:hover, :focus, :active) { color: #effff8; background: #176547; border-color: #64e6b4; }
-.mp-combat-practice-preparation > strong { display: block; }
-.mp-combat-practice-preparation-row { display: flex; flex-wrap: wrap; align-items: center; gap: .2rem; }
-.mp-combat-practice-preparation img { object-fit: contain; }
-.mp-combat-practice-skills { display: inline-flex; align-items: center; gap: .2rem; }
 .mp-expedition-page-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 767.98px) {
 	/* Keep opponents full-width on mobile. */
@@ -4902,4 +4894,53 @@ header.mp-combat-toolbar { box-sizing: border-box; }
 @media (max-width: 767.98px) {
 	.mp-expedition-journey-split { grid-template-columns: minmax(0, 1fr); }
 	.mp-expedition-journey-graph { border-left: 0; border-top: 1px solid #3e5964; padding: 1rem 0 0; }
+}
+
+.mp-adventure-areas { columns: 2; column-gap: 12px; }
+.mp-adventure-items { list-style: none; padding: 0; }
+.mp-adventure-items li { margin-bottom: 8px; }
+.mp-adventure-items img { object-fit: contain; margin-right: 4px; }
+
+.mp-combat-main-tabs.mp-has-adventures { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 600px) { .mp-combat-main-tabs.mp-has-adventures { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.mp-account-recovery-list {
+	max-height: min(35dvh, 280px);
+	overflow-y: scroll;
+	-webkit-overflow-scrolling: touch;
+	touch-action: pan-y;
+	overscroll-behavior-y: contain;
+	margin-block: 1rem;
+}
+
+.mp-adventure-area { position: relative; isolation: isolate; overflow: hidden; break-inside: avoid; margin-bottom: 12px; }
+.mp-adventure-area.mp-adventure-area-active { border-color: #6bc296; }
+.mp-adventure-area-art { position: absolute; z-index: -1; pointer-events: none; top: 0; right: 0; width: 10rem; height: 10rem; object-fit: contain; opacity: .25; mask-image: linear-gradient(to left, #000 25%, transparent), linear-gradient(to bottom, #000 40%, transparent); mask-composite: intersect; }
+.mp-adventure-monsters { display: flex; flex-wrap: wrap; gap: .65rem; margin: .75rem 0; }
+.mp-adventure-monster { display: flex; align-items: center; gap: .35rem; max-width: 100%; }
+.mp-adventure-monster-badge { display: flex; align-items: center; gap: .65rem; min-height: 64px; max-width: 100%; padding: .6rem .75rem; border: 2px solid #626976; border-radius: .5rem; background: #263541; color: #c4d0d5; text-align: left; cursor: pointer; }
+.mp-adventure-monster-badge.mp-selected { border-color: #6bc296; background: #17433d; color: #f5f7fa; }
+.mp-adventure-monster-badge:focus-visible { outline: 2px solid #6adbac; outline-offset: 2px; }
+.mp-adventure-monster-badge:disabled { cursor: default; opacity: .6; }
+.mp-adventure-monster-badge img { object-fit: contain; flex-shrink: 0; }
+.mp-adventure-monster-badge span { min-width: 0; overflow-wrap: anywhere; }
+.mp-adventure-monster-badge small { display: block; }
+.mp-adventure-monster-badge .mp-adventure-hp-icon { display: inline; width: 1em; height: 1em; vertical-align: -0.1em; }
+.mp-adventure-drops { flex-shrink: 0; min-width: 44px; min-height: 44px; padding: .5rem; }
+.mp-adventure-drops img { object-fit: contain; }
+
+.mp-adventure-overview { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 1.25rem; }
+.mp-adventure-limit { align-self: start; min-width: 0; }
+.mp-adventure-limit > .mp-combat-level-purchase { margin: 0; padding: 0; border-bottom: 0; }
+.mp-adventure-limit details { margin-top: 1rem; }
+.mp-adventure-description { min-width: 0; border-left: 1px solid var(--mp-border-color,rgba(127,127,127,.2)); padding-left: 1.25rem; }
+.mp-adventure-description > :last-child { margin-bottom: 0; }
+.mp-adventure-area-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; }
+.mp-adventure-rate { white-space: nowrap; }
+.swal2-html-container.mp-adventure-drops-content { overflow: visible; max-height: none; }
+.mp-adventure-drop-unavailable { color: #c87878; text-decoration: line-through; }
+@media (max-width: 767px) {
+ .mp-adventure-areas { columns: 1; }
+ .mp-adventure-overview { grid-template-columns: minmax(0, 1fr); }
+ .mp-adventure-description { border-left: 0; border-top: 1px solid var(--mp-border-color,rgba(127,127,127,.2)); padding-left: 0; padding-top: 1.25rem; }
 }

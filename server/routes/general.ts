@@ -1,4 +1,4 @@
-import { acknowledge_listing_filter_prompt, listing_filter_prompt_pending, listing_filters_from_url } from '../listing-filters';
+import { acknowledge_listing_filter_prompt, listing_filter_prompt_pending, listing_filters_from_url, parse_listing_filters } from '../listing-filters';
 import { crucible_actor, get_crucible_summary } from '../crucible-actions';
 import { petition_discussion_notifications } from '../petition-discussions';
 import { rollback_player_status, acknowledge_rollback_notice, rollback_affected } from '../rollback-policy';
@@ -9,6 +9,7 @@ import { get_alliance_chat_unread_count } from '../alliance_chat';
 import * as runtime from '../app-runtime';
 import type * as db_row from '../db/types/db_types';
 import type { HandlerResult, JsonObject } from '../http';
+import { read_adventure } from '../fighter-adventures';
 import { has_pending_inbox } from '../inbox';
 import { change_display_name } from '../audit';
 import { get_dev_badge_labels, get_account_tags } from '../account_tags';
@@ -18,7 +19,57 @@ import { review_economy_receipt } from '../economy';
 
 const { acknowledge_economy_receipt, db, db_execute, db_exists, display_icon_cache, display_name_cache, friend_request_cache, get_campaign_progress, get_client_gifts, get_client_resolved_trades, get_client_social_mode, get_client_social_mode_enforcement, get_client_trades, get_friend_requests, get_global_chat_unread_count, get_guild_applicants, get_guild_chat_unread_count, get_guild_member_social_modes, get_market_completed, get_minimum_supported_mod_version, get_released_mod_version, get_support_unread_count, get_trade_offer_meta, get_unread_chat_count, has_deletion_returns, has_global_chat_capability, has_guild_chat_capability, is_valid_avatar_icon_id, parse_display_name, pending_economy_receipts, session_get_route, session_post_route } = runtime;
 
+const preference_keys = ['chat_translation_preferences', 'chat_notification_preferences', 'listing_filters'] as const;
+
+function preference_record(value: unknown): value is JsonObject {
+	return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function parse_preference(key: typeof preference_keys[number], value: unknown, patch: boolean) {
+	if (key === 'listing_filters') return value === undefined ? null : parse_listing_filters(value);
+	if (!preference_record(value)) return null;
+	const entries = Object.entries(value);
+	if (entries.length > 512 || entries.some(([name, entry]) =>
+		!/^[a-z_]{1,32}(?::(?:[0-9]{1,16}|undefined|null)){0,2}$/.test(name) ||
+		!(entry === false || (patch && entry === null) ||
+			(key === 'chat_translation_preferences' && (entry === 'en' || entry === 'zh-CN'))))) return null;
+	return value;
+}
+
 export function register_general_routes(): void {
+	session_post_route('/api/client/preferences/sync', async (_req, _url, client_id, json) => {
+		const { legacy, changes } = json;
+		if (!preference_record(legacy) || !preference_record(changes) ||
+			[...Object.keys(legacy), ...Object.keys(changes)].some(key => !preference_keys.some(known => known === key))) return 400;
+		const read = db.query<{ value: string }, [number, string]>('SELECT value FROM client_preferences WHERE client_id=? AND key=?');
+		const write = db.query(`INSERT INTO client_preferences (client_id,key,value) VALUES (?,?,?)
+			ON CONFLICT(client_id,key) DO UPDATE SET value=excluded.value`);
+		return db.transaction(() => {
+			const preferences: JsonObject = {};
+			const imported: string[] = [], updated: string[] = [];
+			for (const key of preference_keys) {
+				const row = read.get(client_id, key);
+				const old = Object.hasOwn(legacy, key) ? parse_preference(key, legacy[key], false) : null;
+				const patch = Object.hasOwn(changes, key) ? parse_preference(key, changes[key], true) : null;
+				let value = row ? JSON.parse(row.value) : old;
+				if (old !== null) imported.push(key);
+				if (patch !== null) {
+					const next = key === 'listing_filters' ? patch :
+						Object.fromEntries(Object.entries({ ...value, ...patch }).filter(([, entry]) => entry !== null));
+					if (parse_preference(key, next, false) !== null) {
+						value = next;
+						updated.push(key);
+					}
+				}
+				if (value !== null) {
+					const serialized = JSON.stringify(value);
+					if (serialized !== row?.value) write.run(client_id, key, serialized);
+					preferences[key] = value;
+				}
+			}
+			return { preferences, imported, updated };
+		})();
+	});
 	session_get_route('/api/listing-filters/prompt', async (_req, _url, client_id) =>
 		({ pending: listing_filter_prompt_pending(db, client_id) }));
 	session_post_route('/api/listing-filters/prompt/acknowledge', async (_req, _url, client_id) => {
@@ -47,6 +98,8 @@ export function register_general_routes(): void {
 			crucible_summary: actor ? get_crucible_summary(actor, Date.now(), listing_filters) : null,
 			guild_revision: db.query<{ revision: number }, []>("SELECT revision FROM page_revisions WHERE section='guild'").get()!.revision
 		} : {};
+		const adventure = url.searchParams.get('adventures') === '1' ? read_adventure(db,client_id) : null;
+		const adventure_notice: JsonObject = url.searchParams.get('adventures') === '1' ? { adventure_unread: !!adventure && adventure.haul_revision > adventure.seen_revision, adventure_haul_revision: adventure?.haul_revision ?? 0, adventure_items_pending: db.query("SELECT 1 FROM inbox_items WHERE client_id=? AND source_type='fighter_adventures' LIMIT 1").get(client_id) !== null } : {};
 		const known_revision_value = url.searchParams.get('revision');
 		const known_revision = known_revision_value === null ? null : Number(known_revision_value);
 		if (known_revision !== null && (!Number.isSafeInteger(known_revision) || known_revision < 0))
@@ -55,7 +108,7 @@ export function register_general_routes(): void {
 			.get(client_id) as Pick<db_row.clients, 'event_revision'>;
 		if (known_revision === client.event_revision && (summaries.guild_revision === undefined ||
 			Number(url.searchParams.get('guild_revision')) === summaries.guild_revision))
-			return { ...rollback, ...summaries, revision: client.event_revision, unchanged: true, dev_badge_labels: get_dev_badge_labels(), released_mod_version: get_released_mod_version(),
+			return { ...rollback, ...summaries, ...adventure_notice, revision: client.event_revision, unchanged: true, dev_badge_labels: get_dev_badge_labels(), released_mod_version: get_released_mod_version(),
 				minimum_supported_mod_version: get_minimum_supported_mod_version() };
 		const announcement_unread = announcement_unread_count(client_id);
 		// Read-state initialization can advance this client's event revision.
@@ -77,7 +130,7 @@ export function register_general_routes(): void {
 		}
 
 		return {
-			...rollback, ...summaries, revision: client.event_revision, dev_badge_labels: get_dev_badge_labels(),
+			...rollback, ...summaries, ...adventure_notice, revision: client.event_revision, dev_badge_labels: get_dev_badge_labels(),
 			...(url.searchParams.get('pending_preview') === '1' ? { pending_preview: is_feature_tester(db, client_id, 'pending') ? pending_test_data() : null } : {}),
 			released_mod_version: get_released_mod_version(),
 			minimum_supported_mod_version: get_minimum_supported_mod_version(),
@@ -102,7 +155,7 @@ export function register_general_routes(): void {
 				'SELECT 1 FROM `banishment_returns` WHERE `client_id` = ? AND `completed_at` IS NULL LIMIT 1',
 				[client_id]
 			) || has_deletion_returns(client_id),
-			inbox_pending: has_pending_inbox(client_id),
+			inbox_pending: has_pending_inbox(client_id,url.searchParams.get('adventures') === '1'),
 			account_tags: get_account_tags(client_id),
 			alliance_access: has_alliance_access(client_id),
 			chat_unread: (has_alliance_access(client_id) ? get_alliance_chat_unread_count(client_id) : 0) + get_unread_chat_count(client_id) + get_support_unread_count(client_id) +

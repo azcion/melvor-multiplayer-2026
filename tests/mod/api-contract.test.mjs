@@ -58,7 +58,7 @@ test('discovery applies the selected server wiki after the session check', async
 	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
 	const source = main.slice(main.indexOf('async function discover_api_contract('), main.indexOf('\nfunction resolve_api_endpoint('));
 	let release;
-	const state = { wiki_url: DEFAULT_WIKI_URL };
+	const state = { wiki_url: DEFAULT_WIKI_URL, adventures: {supported: false} };
 	const links = [];
 	Object.assign(state, install_page_guide_actions({ state, queue_modal() {},
 		get_element: id => ({ classList: { contains: () => id !== 'mp-raid-page' } }),
@@ -78,8 +78,9 @@ test('discovery applies the selected server wiki after the session check', async
 	state.open_page_guide_wiki();
 	assert.equal(links.at(-1), DEFAULT_WIKI_URL + '/raids/');
 	await runInNewContext(source + '\ndiscover_api_contract()', { ...context,
-		service_fetch: async (_fetch, _url, _options, { consume }) => consume({ status: 200, json: async () => ({ api_versions: [2], wiki_url: 'https://two.example/wiki' }) }) });
+		service_fetch: async (_fetch, _url, _options, { consume }) => consume({ status: 200, json: async () => ({ api_versions: [2], wiki_url: 'https://two.example/wiki', capabilities: ['fighter-adventures-v1'] }) }) });
 	assert.equal(state.wiki_url, 'https://two.example/wiki');
+	assert.equal(state.adventures.supported, true);
 	state.open_page_guide_wiki();
 	assert.equal(links.at(-1), 'https://two.example/wiki/raids/');
 });

@@ -1,7 +1,4 @@
-import { PRACTICE_DEFINITIONS, PRACTICE_TIERS, PRACTICE_RULESET, PRACTICE_EFFECT_COPY, practice_available, practice_selection, practice_wave } from './combat/practice';
 import { combat_unlocks, raid_endpoint, raid_progress, grant_raid_tier, dungeon_available } from './combat-unlocks';
-import { createHash } from 'node:crypto';
-import type { JsonObject } from './http';
 import { combat_leaderboard } from './combat-leaderboard';
 import { DUNGEONS } from './combat/raids';
 import { tutorial_state, tutorial_victory } from './combat-tutorial';
@@ -13,22 +10,6 @@ import { FOOD_DEFINITIONS, food_access, food_available } from './combat-food';
 import type { CombatAdmission } from './combat/authority-client';
 import { rollback_held } from './rollback-policy';
 export type Encounter = { id: string; client_id: number; controller: string; food_id: string; used: number; status: string; registration_json: string; tutorial_trial: number | null; raid_endpoint: number | null; raid_completed: number; practice_id: string | null; practice_tier: number | null; practice_completed: number; raid_ruleset: string | null; created_at: number };
-// Definitions depend only on the process's ruleset, never a player's progression.
-const practice_catalog = PRACTICE_DEFINITIONS.map(definition => ({
-	id: definition.id, name: definition.name, category: definition.category, focus: definition.focus,
-	tiers: PRACTICE_TIERS.map(tier => ({ ...tier, encounter: `practice_${definition.id}_${tier.tier}`,
-		waves: definition.waves.map((_,stage) => practice_wave({definition,tier},stage).map(actor => ({
-			...actor, effect: actor.effect ?? null, effect_info: (actor.effect ? PRACTICE_EFFECT_COPY[actor.effect] : '') ?? ''
-		})))
-	}))
-}));
-const practice_catalog_revision = createHash('sha256').update(JSON.stringify(practice_catalog)).digest('hex');
-export function combat_inventory_response(response: JsonObject, url: URL): JsonObject {
-	if (url.searchParams.get('practice_catalog') !== practice_catalog_revision || !Array.isArray(response.practice)) return response;
-	return { ...response, practice: (response.practice as JsonObject[]).map(entry => ({ ...entry,
-		tiers: (entry.tiers as JsonObject[]).map(({ waves, ...dynamic }) => dynamic)
-	})) };
-}
 type DungeonActivity = { client_id: number; display_name: string; icon_id: string; status: string; tier: number; occurred_at: number };
 const dungeon_activity_page_size = 20;
 type DungeonActivityCursor = { occurred_at: number; id: string };
@@ -69,16 +50,8 @@ export function combat_state(database: Database, client: number, raid_page = 0, 
 	const selected = food_slot?.equipped_item;
 	const history = database.query<Encounter, [number]>('SELECT * FROM combat_encounters WHERE client_id=? ORDER BY created_at DESC LIMIT 30').all(client)
 		.map(row => ({ id: row.id, food_id: row.food_id, used: row.used, status: row.status }));
-	const unlocks = combat_unlocks(database, client), caps = unlocks.skill_caps;
-	const tutorial = tutorial_state(database, client), graduated = tutorial.complete;
-	const completions = database.query<{practice_id:string;tier:number},[number,string]>(
-		'SELECT practice_id,tier FROM combat_practice_completions WHERE client_id=? AND ruleset=?').all(client,PRACTICE_RULESET);
-	const practice = (graduated ? practice_catalog : []).map(definition => ({ ...definition,
-		tiers: definition.tiers.map(tier => ({ ...tier,
-			available: graduated && practice_available(caps,tier),
-			complete: completions.some(row => row.practice_id === definition.id && row.tier === tier.tier)
-		}))
-	}));
+	const unlocks = combat_unlocks(database, client);
+	const tutorial = tutorial_state(database, client);
 	const progress = new Map(Object.values(DUNGEONS).map(dungeon => [dungeon.id, raid_progress(database,client,dungeon.id)]));
 	const complete = (raid: string, index: number) => (progress.get(raid)?.find(row => row.tier === index+1)?.wins ?? 0) >= DUNGEONS[raid].tiers[index].wins_required;
 	const endpoint = (raid: string) => DUNGEONS[raid].tiers.findIndex((_,i) => !complete(raid,i)) + 1 || DUNGEONS[raid].tiers.length;
@@ -90,7 +63,7 @@ export function combat_state(database: Database, client: number, raid_page = 0, 
 			best: database.query<{elapsed_ms:number;achieved_at:number},[number,string,string]>('SELECT elapsed_ms,achieved_at FROM combat_raid_records WHERE client_id=? AND raid=? AND ruleset=?').get(client,dungeon.id,dungeon.ruleset)
 		}));
 	const golbins = dungeons.find(dungeon => dungeon.id === 'golbins')!;
-	return { test_profile: !!database.query('SELECT 1 FROM combat_test_profiles WHERE client_id=?').get(client), practice_catalog_revision, practice, character: combat_character(database, client), equipment_projects: equipment_project_state(database, client),
+	return { test_profile: !!database.query('SELECT 1 FROM combat_test_profiles WHERE client_id=?').get(client), character: combat_character(database, client), equipment_projects: equipment_project_state(database, client),
 		unlocks, dungeons, raid: { endpoint: golbins.endpoint, leaderboard: golbins.leaderboard, best: golbins.best },
 		tutorial, ep_micros: ep_balance(database, client), foods, food_id: selected && foods.some(food => food.id === selected) ? selected : '', history };
 }
@@ -105,17 +78,15 @@ export function reserve_combat(database: Database, client: number, controller: s
 		if (tutorial.complete && selection?.startsWith('tutorial_')) return null;
 		if (mode === 'raid' && (!Object.hasOwn(DUNGEONS, selection ?? '') || !tutorial.complete)) return null;
 		if (selection && DUNGEONS[selection]?.requires && (mode !== 'raid' || !dungeon_available(database,client,selection))) return null;
-		const practice = practice_selection(selection);
-		if (selection?.startsWith('practice_') && (!practice || mode !== 'once' || !tutorial.complete ||
-			!practice_available(combat_unlocks(database,client).skill_caps,practice.tier))) return null;
+		if (selection?.startsWith('practice_')) return null;
 		const endpoint = mode === 'raid' ? raid_endpoint(database, client, selection) : null;
 		const registration = combat_loadout(database, client);
 		if (!registration) return null;
 		const item = food_access(database, client)?.equipped_item;
 		if (item && !food_available(database, client, item)) return null;
 		const food = FOOD_DEFINITIONS.find(food => food.item_id === item);
-		database.query('INSERT INTO combat_encounters(id,client_id,controller,food_id,used,status,registration_json,created_at,tutorial_trial,raid_endpoint,raid_ruleset,practice_id,practice_tier) VALUES(?,?,?,?,0,?,?,?,?,?,?,?,?)')
-			.run(id, client, controller, food?.item_id ?? '', 'active', JSON.stringify(registration), Date.now(), tutorial.complete ? null : tutorial.victories, endpoint, endpoint ? DUNGEONS[selection!].ruleset : practice ? PRACTICE_RULESET : null, practice?.definition.id ?? null, practice?.tier.tier ?? null);
+		database.query('INSERT INTO combat_encounters(id,client_id,controller,food_id,used,status,registration_json,created_at,tutorial_trial,raid_endpoint,raid_ruleset) VALUES(?,?,?,?,0,?,?,?,?,?,?)')
+			.run(id, client, controller, food?.item_id ?? '', 'active', JSON.stringify(registration), Date.now(), tutorial.complete ? null : tutorial.victories, endpoint, endpoint ? DUNGEONS[selection!].ruleset : null);
 		return { registration, food_id: food?.item_id ?? '', heal: food?.heal ?? 0, auto_eat: combat_unlocks(database, client).auto_eat, ...(endpoint ? { raid_endpoint: endpoint } : {}) };
 	}).immediate();
 }
@@ -125,7 +96,8 @@ export function update_combat(database: Database, controller: string, id: string
 		if (!row || row.controller !== controller || !Number.isSafeInteger(used) || used < row.used || (!row.food_id && used > 0) ||
 			!['active','victory','defeat','draw','fled','expired','interrupted'].includes(status)) return false;
 		if (row.status !== 'active') return row.used === used && row.status === status;
-		if (rollback_held(database, row.client_id)) status = 'interrupted';
+		// Historical Practice encounters can only terminate; retained records never award new completions.
+		if (row.practice_id !== null || rollback_held(database, row.client_id)) status = 'interrupted';
 		if (row.raid_endpoint !== null && status !== 'interrupted') {
 			const dungeon = Object.values(DUNGEONS).find(dungeon => dungeon.ruleset === row.raid_ruleset);
 			if (!dungeon) return false;
@@ -149,17 +121,6 @@ export function update_combat(database: Database, controller: string, id: string
 					ON CONFLICT(client_id,raid,ruleset) DO UPDATE SET elapsed_ms=excluded.elapsed_ms,achieved_at=excluded.achieved_at
 					WHERE excluded.elapsed_ms<combat_raid_records.elapsed_ms`).run(row.client_id,dungeon.id,dungeon.ruleset,elapsed,now);
 			}
-		}
-		if (row.practice_id !== null && status !== 'interrupted') {
-			const practice = practice_selection(`practice_${row.practice_id}_${row.practice_tier}`);
-			if (!practice || row.raid_ruleset !== PRACTICE_RULESET || !Number.isSafeInteger(completed) ||
-				completed! < row.practice_completed || completed! > row.practice_completed + 1 || completed! > practice.definition.waves.length ||
-				(status === 'victory' && completed !== practice.definition.waves.length) ||
-				(status !== 'victory' && completed === practice.definition.waves.length) ||
-				(completed! > row.practice_completed && !['active','victory'].includes(status))) return false;
-			database.query('UPDATE combat_encounters SET practice_completed=? WHERE id=?').run(completed!,id);
-			if (status === 'victory') database.query(`INSERT OR IGNORE INTO combat_practice_completions(client_id,practice_id,tier,ruleset)
-				VALUES(?,?,?,?)`).run(row.client_id,row.practice_id,row.practice_tier,PRACTICE_RULESET);
 		}
 		if (status === 'victory' && row.tutorial_trial !== null && !tutorial_victory(database, row.client_id, row.tutorial_trial)) return false;
 		database.query('UPDATE combat_encounters SET used=?,status=?,completed_at=? WHERE id=?').run(used, status, status === 'active' ? null : now, id);

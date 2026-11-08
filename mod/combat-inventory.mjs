@@ -30,8 +30,8 @@ export function dungeon_select_next(view) {
 }
 
 export function create_combat_inventory({ view, scope, request, reconcile, can_mutate,
-	access = () => true, practice_sync = () => {}, wait = ms => new Promise(resolve => setTimeout(resolve, ms)) }) {
-	let loading = null, epoch = 0, settlement = null, practice_cache = null;
+	access = () => true, wait = ms => new Promise(resolve => setTimeout(resolve, ms)) }) {
+	let loading = null, epoch = 0, settlement = null;
 	const current_scope = () => `${scope()}:${epoch}`;
 	async function refresh({ fresh = false } = {}) {
 		const current = current_scope();
@@ -44,27 +44,12 @@ export function create_combat_inventory({ view, scope, request, reconcile, can_m
 		}
 		const work = (async () => {
 			try {
-				const known = practice_cache?.scope === current ? practice_cache : null;
 				const params = new URLSearchParams({ recovery: '1' });
 				if (view.raid_page) params.set('raid_page', view.raid_page);
 				if (view.page_tab === 'raid') params.set('dungeon_activity', '1');
-				if (known) params.set('practice_catalog', known.revision);
 				const result = await request('/api/combat/inventory' + (params.size ? '?' + params : ''));
 				if (current !== current_scope()) return false;
 				if (!Array.isArray(result?.foods)) { view.inventory_error = 'rejected'; return false; }
-				let practice = Array.isArray(result.practice) ? result.practice : [];
-				const revision = result.practice_catalog_revision;
-				if (practice.length && typeof revision === 'string') {
-					const waves = {};
-					practice = practice.map(entry => ({ ...entry, tiers: entry.tiers.map(tier => {
-						const full = Array.isArray(tier.waves) ? tier.waves : known?.revision === revision ? known.waves[tier.encounter] : null;
-						if (!Array.isArray(full)) throw new Error('Missing Practice definitions');
-						// Cache plain definitions separately from reactive view objects.
-						waves[tier.encounter] = full;
-						return { ...tier, waves: structuredClone(full) };
-					}) }));
-					practice_cache = { scope: current, revision, waves };
-				}
 				view.recovery = result.recovery ?? null; view.maintenance = result.combat_maintenance ?? null;
 				view.foods = result.foods; view.food_id = result.food_id;
 				if (view.character?.revision !== result.character?.revision) {
@@ -80,14 +65,11 @@ export function create_combat_inventory({ view, scope, request, reconcile, can_m
 				view.character = result.character; view.ep_micros = result.ep_micros;
 				const initialize_dungeons = !view.dungeons?.length;
 				view.history = result.history; view.dungeons = result.dungeons ?? []; view.raid = result.raid ?? null; view.unlocks = result.unlocks ?? null;
-				const initialize_practice = !view.practice?.length || view.tutorial?.complete !== true;
-				view.practice = practice;
 				view.tutorial = result.tutorial ?? null;
 				if (view.tutorial && !view.tutorial.complete) { view.mode = 'once'; view.encounter = view.tutorial.trial.id; }
-				else if (view.encounter?.startsWith('tutorial_')) { view.mode = 'once'; view.encounter = ''; }
-				practice_sync(view, { select_next: initialize_practice });
+				else if (view.encounter?.startsWith('tutorial_') || view.encounter?.startsWith('practice_')) { view.mode = 'once'; view.encounter = ''; }
 				if (initialize_dungeons) dungeon_select_next(view);
-				if (!access(view, 'page', view.page_tab)) view.page_tab = view.arena?.status === 'active' ? 'test_combat' : 'character';
+				if (!access(view, 'page', view.page_tab)) view.page_tab = view.arena?.status === 'active' ? view.combat_tab : 'character';
 				if (!access(view, 'tab', view.preparation_tab)) view.preparation_tab = 'levels';
 				view.debug_enabled = result.debug_enabled === true;
 				view.tutorial_debug_targets = result.tutorial_debug_targets ?? [];
@@ -112,7 +94,6 @@ export function create_combat_inventory({ view, scope, request, reconcile, can_m
 				if (attempt) await wait(attempt * 500);
 				if (current !== current_scope() || settlement !== entry) return false;
 				if (await refresh({ fresh: true })) {
-					if (String(arena.run?.selection ?? arena.encounter ?? '').startsWith('practice_')) practice_sync(view, { select_next: true });
 					if (arena.run?.mode === 'raid') dungeon_select_next(view);
 					return true;
 				}
@@ -195,6 +176,6 @@ export function create_combat_inventory({ view, scope, request, reconcile, can_m
 			if (result) { view.reset_confirm = false; view.level_quantities = {}; }
 			return result;
 		},
-		reset() { view.recovery = null; view.maintenance = null; view.recovery_notice = ''; view.recovery_supported = false; view.dungeon_debug_options = null; view.dungeon_debug_confirm = false; view.test_profile = false; epoch++; loading = null; settlement = null; practice_cache = null; view.foods = []; view.food_id = ''; view.level_quantities = {}; view.reset_confirm = false; view.equipment_reset_confirm = false; view.consumables_reset_confirm = false; view.equipment_set = 'melee'; view.preparation_tab = 'levels'; view.raid_page = 0; view.raid_loading = false; view.dungeons = []; view.raid = null; view.unlocks = null; view.tutorial = null; view.character = null; view.equipment_projects = null; view.ep_micros = 0; view.history = []; view.inventory_busy = false; view.debug_enabled = false; view.tutorial_debug_targets = []; view.tutorial_debug_confirm = false; view.tutorial_debug_target = 'start'; }
+		reset() { view.recovery = null; view.maintenance = null; view.recovery_notice = ''; view.recovery_supported = false; view.dungeon_debug_options = null; view.dungeon_debug_confirm = false; view.test_profile = false; epoch++; loading = null; settlement = null; view.foods = []; view.food_id = ''; view.level_quantities = {}; view.reset_confirm = false; view.equipment_reset_confirm = false; view.consumables_reset_confirm = false; view.equipment_set = 'melee'; view.preparation_tab = 'levels'; view.raid_page = 0; view.raid_loading = false; view.dungeons = []; view.raid = null; view.unlocks = null; view.tutorial = null; view.character = null; view.equipment_projects = null; view.ep_micros = 0; view.history = []; view.inventory_busy = false; view.debug_enabled = false; view.tutorial_debug_targets = []; view.tutorial_debug_confirm = false; view.tutorial_debug_target = 'start'; }
 	};
 }

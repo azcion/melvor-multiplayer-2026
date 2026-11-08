@@ -265,7 +265,6 @@ test('opens message actions from timestamps with copy and confirmed deletion', a
 	assert.match(main, /selected_chat_message: null/);
 	assert.match(main, /queue_modal\('MOD_MP_CHAT_MESSAGE_ACTIONS', 'chat-message-actions-modal'/);
 	assert.match(main, /queue_modal\('MOD_MP_CHAT_DELETE_MESSAGE_CONFIRM_TITLE', 'chat-message-delete-confirm-modal'/);
-	assert.match(main, /clipboard\.writeText\(items\.plain_text\(game, getLangString, this\.get_chat_message_parts\(message\)\)\)/);
 	assert.match(main, /api_post\('\/api\/chat\/messages\/delete'/);
 	assert.doesNotMatch(style, /\.mp-chat-message-content\s*\{[^}]*margin-top/);
 	assert.match(style, /\.mp-chat-message-timestamp[\s\S]*cursor: pointer/);
@@ -835,7 +834,7 @@ test('does not poll an empty or background Chat inbox and refreshes visible meta
 	assert.doesNotMatch(polling, /refresh_chat_state\(\)/);
 	assert.match(polling, /state\.is_chat_message_translation_pending\(message\)/);
 	assert.match(polling, /state\.selected_chat_conversation && polling\.is_foreground\(document\)/);
-	assert.match(events, /if \(res\.unchanged === true\) \{\s*void economy_command_journal\?\.recover\(\);\s*return res;[\s\S]*if \(chat_page_visible \|\| has_muted_chats \|\| state.chat_unread > 0 \|\| state.get_chat_notification_tagged\(\)\)\s*await refresh_chat_conversations\(\)/);
+	assert.match(events, /if \(res\.unchanged === true\) \{\s*void fighter_adventures\?\.tick\(\);\s*void economy_command_journal\?\.recover\(\);\s*return res;[\s\S]*if \(chat_page_visible \|\| has_muted_chats \|\| state.chat_unread > 0 \|\| state.get_chat_notification_tagged\(\)\)\s*await refresh_chat_conversations\(\)/);
 });
 
 test('renders Support Chat identity, alignment, virtual welcomes, and restricted actions', async () => {

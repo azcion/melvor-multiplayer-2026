@@ -35,7 +35,7 @@ test('quarry portraits use native assets with intended filters and numbered acto
 	const state={combat:{},get_item_name:String};
 	const start=main.indexOf('\tstate.combat_actor_image =');
 	const end=main.indexOf('\tstate.combat_gear =',start);
-	new Function('state','practice_module','assets',main.slice(start,end))(state,{practice_actor:()=>null},{getURI:path=>'resolved:'+path});
+	new Function('state','assets',main.slice(start,end))(state,{getURI:path=>'resolved:'+path});
 	for(const [id,path] of Object.entries({cinder_snail:'pets/harry.png',kiln_wisp:'monsters/fire_spirit.png',embercoil:'monsters/burning_snake.png',slagheart:'monsters/Lava_Golem.png'})) {
 		assert.equal(state.combat_actor_image(id+'_1'),'resolved:assets/media/'+path);
 		const filter = { kiln_wisp: 'hue-rotate(-10deg)', embercoil: 'hue-rotate(-20deg)' }[id];

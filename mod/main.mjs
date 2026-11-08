@@ -139,6 +139,11 @@ let apply_banishment_claim = null;
 let apply_inbox_claim = null;
 let combat_arena = null;
 let combat_inventory = null;
+let fighter_adventures = null;
+let adventures_module = null;
+let adventures_supported = false;
+let client_preferences_supported = false;
+let client_preferences = null;
 let equipment_evidence = null;
 let combat_page_visible = false;
 let load_inbox_delivery_state = null;
@@ -174,6 +179,9 @@ let economy_receipt_reviews = null;
 let identity_bindings = null;
 let identity_bootstrap = null;
 let identity_registration_supported = false;
+let identity_onboarding_supported = false;
+let identity_account_recovery_supported = false;
+let account_recovery = null;
 let active_identity_credentials = null;
 let instance_storage = null;
 let social_mode = null;
@@ -300,12 +308,33 @@ const state = ui.createStore({
 	// #region REACTIVE GLOBALS
 	TRANSFER_INVENTORY_MAX_LIMIT,
 
+	account_recovery_consent: false,
+	account_recovery_busy: false,
+	account_recovery_candidates: [],
+	account_recovery_selected: null,
+	account_recovery_loaded: false,
+	account_recovery_message: '',
+	account_recovery_enrolling: false,
+	account_recovery_server: '',
+	get account_recovery_available() { return identity_account_recovery_supported; },
+	open_account_recovery() {
+		if (!identity_account_recovery_supported || modal_queue_guard.pending_templates.has('account-recovery-modal') || modal_queue_guard.is_template_active('account-recovery-modal')) return;
+		state.close_modal();
+		account_recovery.open(state.is_connected);
+		this.account_recovery_server = server_host;
+		queue_modal('MOD_MP_ACCOUNT_RECOVERY_TITLE', 'account-recovery-modal', 'assets/multiplayer.svg', {
+			showConfirmButton: false, didClose: () => account_recovery.close()
+		});
+	},
+	run_account_recovery(action, client_id) { return account_recovery.run(action, client_id); },
+	account_recovery_last_active(value) { return value > 0 ? new Date(value).toLocaleString() : getLangString('MOD_MP_CRUCIBLE_TIME_UNKNOWN'); },
 	identity_code: '',
 	identity_error: '',
 	identity_create_confirmed: false,
 	identity_bootstrap_busy: false,
 	show_identity_recovery_code() { show_identity_recovery_code(); },
 	open_identity_bootstrap() { open_identity_bootstrap(); },
+	open_identity_code_recovery() { state.close_modal(); open_identity_bootstrap(); },
 	async connect_identity_code() {
 		if (this.identity_bootstrap_busy) return;
 		this.identity_bootstrap_busy = true;
@@ -434,6 +463,7 @@ const state = ui.createStore({
 	transfer_inventory: [],
 	inbox_items: [],
 	inbox_groups: [],
+	adventures: {supported:false,busy:false,areas:[],has_items:false,unread:false,haul_revision:0,seen_revision:0,inbox_open:false},
 	inbox_pending_claim: false,
 	inbox_loading: false,
 	inbox_claiming: false,
@@ -993,10 +1023,10 @@ const state = ui.createStore({
 
 	get has_transfer_access() {
 		if (this.is_social_only)
-			return this.inbox_items.length > 0 || this.inbox_pending_claim;
+			return this.inbox_items.length > 0 || this.inbox_pending_claim || this.adventures.has_items;
 		return this.is_guild_member || this.transfer_inventory.length > 0 || this.gifts.length > 0 ||
 			this.trades.length > 0 || this.resolved_trades.length > 0 || this.inbox_items.length > 0 ||
-			this.inbox_pending_claim || this.market_haggle_pending > 0;
+			this.inbox_pending_claim || this.adventures.has_items || this.market_haggle_pending > 0;
 	},
 
 	get has_destroyable_transfer_items() {
@@ -1158,11 +1188,10 @@ const state = ui.createStore({
 			current: this.crucible?.heat?.tier === index + 1 }));
 	},
 	load_crucible_heat_preference() {
-		this.crucible_panels_open.heat = get_instance_storage_item('crucible_heat_expanded') !== false;
+		this.crucible_panels_open.heat = true;
 	},
 	toggle_crucible_heat() {
 		this.crucible_panels_open.heat = !this.crucible_panels_open.heat;
-		set_instance_storage_item('crucible_heat_expanded', this.crucible_panels_open.heat);
 	},
 	get crucible_guide_length() { return CRUCIBLE_GUIDE_STEPS.length; },
 	get crucible_guide_title_id() { return CRUCIBLE_GUIDE_STEPS[this.crucible_guide_index][1]; },
@@ -1345,8 +1374,8 @@ function create_action_runtime() {
 		getLangString,
 		get_icon_object_by_id,
 		is_official_game_id,
-		get_instance_storage_item,
-		set_instance_storage_item,
+		get_instance_storage_item: read_client_preference,
+		set_instance_storage_item: write_client_preference,
 		has_local_unresolved_item,
 		hide_button_spinner,
 		hide_modal_error,
@@ -2931,6 +2960,128 @@ function get_instance_storage_keys() {
 		.map(key => key.slice(server_instance_storage_prefix.length));
 }
 
+const CLIENT_PREFERENCE_KEYS = ['chat_translation_preferences', 'chat_notification_preferences', 'listing_filters'];
+
+function current_client_preferences() {
+	return client_preferences?.generation === session_generation ? client_preferences : null;
+}
+
+function read_client_preference(key) {
+	if (!CLIENT_PREFERENCE_KEYS.includes(key)) return get_instance_storage_item(key);
+	const preferences = current_client_preferences();
+	return preferences ? preferences.values[key] : get_instance_storage_item(key);
+}
+
+function merge_client_preference(key, value, patch) {
+	return key === 'listing_filters' ? patch :
+		Object.fromEntries(Object.entries({ ...value, ...patch }).filter(([, entry]) => entry !== null));
+}
+
+function persist_client_preference_outbox(preferences) {
+	try {
+		if (Object.keys(preferences.pending).length)
+			localStorage.setItem(preferences.outbox, JSON.stringify(preferences.pending));
+		else
+			localStorage.removeItem(preferences.outbox);
+	} catch { /* Keep retrying in memory if device storage is unavailable. */ }
+}
+
+function write_client_preference(key, value) {
+	const preferences = current_client_preferences();
+	if (!preferences || !CLIENT_PREFERENCE_KEYS.includes(key)) return set_instance_storage_item(key, value);
+	let patch = value;
+	if (key !== 'listing_filters') {
+		const previous = preferences.values[key] ?? {};
+		patch = Object.fromEntries([...new Set([...Object.keys(previous), ...Object.keys(value)])]
+			.filter(name => previous[name] !== value[name]).map(name => [name, value[name] ?? null]));
+		if (!Object.keys(patch).length) return;
+		patch = { ...preferences.pending[key], ...patch };
+	}
+	preferences.pending[key] = patch;
+	preferences.values[key] = value;
+	persist_client_preference_outbox(preferences);
+	void sync_client_preferences();
+}
+
+function apply_client_preferences() {
+	state.load_chat_translation_preferences();
+	state.load_chat_notification_preferences();
+	const filters = read_client_preference('listing_filters');
+	state.listing_filters = Array.isArray(filters) ?
+		state.listing_filter_categories.filter(id => filters.includes(id)) : ['items'];
+	state.refresh_chat_cheat_badges?.();
+	state.chat_unread = state.get_chat_notification_unread();
+	update_chat_nav();
+}
+
+function start_client_preferences(client_id) {
+	if (!client_preferences_supported || !Number.isSafeInteger(client_id)) return;
+	const prefixes = [server_instance_storage_prefix, ...server_instance_storage_legacy_prefixes];
+	const legacy = {}, sources = {};
+	for (const key of CLIENT_PREFERENCE_KEYS) {
+		sources[key] = prefixes.map(prefix => prefix + key).filter(full_key => get_character_storage_item(full_key) !== undefined);
+		if (sources[key].length) legacy[key] = get_character_storage_item(sources[key][0]);
+	}
+	const outbox = `mp:preferences:${server_host}:${client_id}`;
+	let pending = {};
+	try {
+		const saved = JSON.parse(localStorage.getItem(outbox));
+		pending = Object.fromEntries(CLIENT_PREFERENCE_KEYS.filter(key => Object.hasOwn(saved ?? {}, key))
+			.map(key => [key, saved[key]]));
+	} catch { /* A missing or malformed outbox has no pending changes. */ }
+	if (client_preferences?.outbox === outbox)
+		pending = { ...pending, ...client_preferences.pending };
+	const values = { ...legacy };
+	for (const [key, patch] of Object.entries(pending)) values[key] = merge_client_preference(key, values[key], patch);
+	client_preferences = { generation: session_generation, outbox, pending, legacy, sources, values, loaded: false, busy: false };
+	apply_client_preferences();
+	void sync_client_preferences();
+}
+
+async function sync_client_preferences() {
+	const preferences = current_client_preferences();
+	if (!preferences || preferences.busy || (preferences.loaded && !Object.keys(preferences.pending).length)) return;
+	preferences.busy = true;
+	const changes = { ...preferences.pending };
+	try {
+		const response = await api_post_without_economy_journal('/api/client/preferences/sync', { legacy: preferences.legacy, changes });
+		if (preferences !== current_client_preferences() || !response?.preferences ||
+			!Array.isArray(response.imported) || !Array.isArray(response.updated)) return;
+		for (const key of CLIENT_PREFERENCE_KEYS) {
+			if (response.imported.includes(key) && Object.hasOwn(preferences.legacy, key)) {
+				for (const full_key of preferences.sources[key]) remove_character_storage_item(full_key);
+				delete preferences.legacy[key];
+			}
+			if (response.updated.includes(key)) {
+				if (preferences.pending[key] === changes[key]) delete preferences.pending[key];
+				else if (key !== 'listing_filters') {
+					const remaining = Object.fromEntries(Object.entries(preferences.pending[key] ?? {})
+						.filter(([name, value]) => changes[key][name] !== value));
+					if (Object.keys(remaining).length) preferences.pending[key] = remaining;
+					else delete preferences.pending[key];
+				}
+			}
+			const value = response.preferences[key] ?? preferences.legacy[key];
+			preferences.values[key] = Object.hasOwn(preferences.pending, key) ?
+				merge_client_preference(key, value, preferences.pending[key]) : value;
+		}
+		preferences.loaded = true;
+		persist_client_preference_outbox(preferences);
+		apply_client_preferences();
+	} catch (e) {
+		error('Failed to sync multiplayer preferences (%s)', e);
+	} finally {
+		preferences.busy = false;
+	}
+}
+
+function prune_obsolete_character_preferences() {
+	const obsolete = ['charity_timeout', 'charity_bonus_timeout', 'legacy_market_payout_migration_1_5_6',
+		'expedition_work_tracking_mode', 'social_mode', 'crucible_heat_expanded', 'adventure_target_choices'];
+	for (const prefix of ['', server_instance_storage_prefix, ...server_instance_storage_legacy_prefixes])
+		for (const key of obsolete) remove_character_storage_item(prefix + key);
+}
+
 function finish_pending_crucible_wish_action(key, pending, result) {
 	if (rollback_module.transient_rollback_failure(result)) return;
 	const retired_id = rollback_module.retired_rollback_command(result);
@@ -2976,7 +3127,7 @@ async function recover_pending_crucible_wish_actions() {
 }
 
 function load_social_mode() {
-	state.social_mode = social_mode.normalize_social_mode(get_instance_storage_item('social_mode'));
+	state.social_mode = social_mode.normalize_social_mode(undefined);
 }
 
 function leave_social_only_disabled_page() {
@@ -3008,7 +3159,6 @@ async function request_social_mode(next) {
 
 		remove_instance_storage_item(storage_key);
 		state.social_mode = social_mode.normalize_social_mode(result.social_mode);
-		set_instance_storage_item('social_mode', state.social_mode);
 		state.pending_preview = null;
 		state.gifts = [];
 		state.trades = [];
@@ -3608,6 +3758,7 @@ async function update_inbox() {
 					? [{ source_type: 'other', source_name: '', items: state.inbox_items.map(item => ({ ...item })) }]
 					: [];
 				state.inbox_pending_claim = res.pending_claim === true;
+				state.adventures.has_items = state.inbox_groups.some(group=>group.source_type==='fighter_adventures');
 			}
 			return res !== null;
 		} finally {
@@ -3867,10 +4018,11 @@ function update_transfer_inventory_nav() {
 		const num_transfer_offers = state.num_transfer_offers;
 		const has_items = state.transfer_inventory.length > 0;
 		const has_transfer_offers = num_transfer_offers > 0;
-		const has_inbox_items = state.inbox_items.length > 0;
+		const inbox_count = typeof adventures_module !== 'undefined' && adventures_module && adventures_supported ? adventures_module.adventure_inbox_count(state.inbox_groups, state.adventures.unread) : state.inbox_items.length;
+		const has_inbox_items = inbox_count > 0;
 		aside.textContent = has_transfer_offers
 			? String(num_transfer_offers)
-			: has_inbox_items ? String(state.inbox_items.length)
+			: has_inbox_items ? String(inbox_count)
 			: has_items ? state.transfer_inventory.length + ' / ' + TRANSFER_INVENTORY_MAX_LIMIT : '';
 		aside.hidden = !has_transfer_offers && !has_inbox_items && !has_items;
 		aside.classList.toggle('mp-transfer-action-nav', has_transfer_offers);
@@ -4374,6 +4526,10 @@ async function discover_api_contract() {
 	selected_api_major = null;
 	rollback_server_supported = false;
 	identity_registration_supported = false;
+	identity_onboarding_supported = false;
+	identity_account_recovery_supported = false;
+	adventures_supported = false;
+	client_preferences_supported = false;
 	let minimum_supported_mod_version = null;
 	let discovered_wiki_url = null;
 	const major = await service_fetch(fetch, origin + '/api/versions', { method: 'GET' }, {
@@ -4384,12 +4540,17 @@ async function discover_api_contract() {
 			discovered_wiki_url = body?.wiki_url;
 			page_snapshots_supported = body?.page_snapshots === true;
 			identity_registration_supported = Array.isArray(body?.capabilities) && body.capabilities.includes('identity-registration-v1');
+			identity_onboarding_supported = Array.isArray(body?.capabilities) && body.capabilities.includes('identity-onboarding-v1');
+			identity_account_recovery_supported = Array.isArray(body?.capabilities) && body.capabilities.includes('identity-account-recovery-v1');
 			rollback_server_supported = Array.isArray(body?.capabilities) && body.capabilities.includes('save-rollback-v1');
+			client_preferences_supported = Array.isArray(body?.capabilities) && body.capabilities.includes('client-preferences-v1');
+			adventures_supported = Array.isArray(body?.capabilities) && body.capabilities.includes('fighter-adventures-v1');
 			return api_contract.select_api_major(response.status, body);
 		}
 	});
 	if (origin !== server_host || generation !== session_generation)
 		throw new Error('Stale API discovery');
+	state.adventures.supported = adventures_supported;
 	selected_api_major = major;
 	state.wiki_url = api_contract.wiki_url(discovered_wiki_url);
 	enter_unsupported_multiplayer(minimum_supported_mod_version);
@@ -4553,7 +4714,7 @@ async function api_post_response_raw(endpoint, payload, request_session_token = 
 					(is_event_affecting_mutation(endpoint) || /^\/api\/(?:inbox\/|market\/haggle(?:\/|$)|client\/(?:set_display_name|set_icon)$)/.test(endpoint))) {
 					if (endpoint !== '/api/economy/receipts/acknowledge') {
 						const governance = /^\/api\/(?:guilds|alliances|banishment|social-mode|client)\//.test(endpoint);
-						const transfers_affected = /^\/api\/(?:inbox|market|gift|trade|crucible)\//.test(endpoint);
+						const transfers_affected = /^\/api\/(?:adventures|inbox|market|gift|trade|crucible)\//.test(endpoint);
 						if (governance || transfers_affected) read_cache.invalidate(key => governance || key.includes('transfers') || key.includes('page=transfers') ||
 							key.startsWith('/api/inbox') || key.startsWith('/api/market') || key.startsWith('/api/crucible'));
 					}
@@ -4686,7 +4847,7 @@ const EVENT_AFFECTING_MUTATIONS = new Set([
 ]);
 
 function is_event_affecting_mutation(endpoint) {
-	return EVENT_AFFECTING_MUTATIONS.has(endpoint.split('?')[0]);
+	return endpoint.startsWith('/api/adventures/') || EVENT_AFFECTING_MUTATIONS.has(endpoint.split('?')[0]);
 }
 
 async function refresh_identities() {
@@ -4760,6 +4921,7 @@ function set_session_token(token) {
 	combat_arena?.close();
 	state.clear_browser_links?.();
 	combat_inventory?.reset();
+	fighter_adventures?.reset();
 	state.combat_dungeons_visited = get_instance_storage_item('combat_dungeons_visited') === true;
 	events_refreshed_at = 0;
 	last_events_result = null;
@@ -4767,6 +4929,7 @@ function set_session_token(token) {
 	const saved_listing_filters = get_instance_storage_item('listing_filters');
 	state.listing_filters = Array.isArray(saved_listing_filters)
 		? state.listing_filter_categories.filter(id => saved_listing_filters.includes(id)) : ['items'];
+	state.refresh_chat_cheat_badges?.();
 	state.expedition_state = null;
 	state.expedition_loading = false;
 	expedition_work_prompt_gate?.reset();
@@ -4805,7 +4968,7 @@ function apply_dev_badge_labels(labels) {
 	if (JSON.stringify(next) === JSON.stringify(state.dev_badge_labels)) return;
 	state.dev_badge_labels = next;
 	for (const chip of document.querySelectorAll('.mp-chat-badge[data-feature-id]')) {
-		const label = chat_items.feature_name(game, getLangString, chip.dataset.featureId, next);
+		const label = chat_items.feature_name(game, getLangString, chip.dataset.featureId, next, state.listing_filters);
 		if (chip.firstChild?.nodeType === 3) chip.firstChild.nodeValue = label;
 	}
 }
@@ -5576,7 +5739,7 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 		? '/api/events?revision=' + client_event_revision + '&capabilities=' + CHAT_CAPABILITIES + '&pending_preview=1&summaries=1&guild_revision=' + last_guild_revision
 		: '/api/events?capabilities=' + CHAT_CAPABILITIES + '&pending_preview=1&summaries=1';
 	const listing_filters = state.listing_filters.join(',');
-	const res = await api_get(endpoint + '&listing_filters=' + encodeURIComponent(listing_filters));
+	const res = await api_get(endpoint + (adventures_supported ? '&adventures=1' : '') + '&listing_filters=' + encodeURIComponent(listing_filters));
 	if (res !== null && request_generation === session_generation) {
 		if (enter_unsupported_multiplayer(res.minimum_supported_mod_version))
 			return res;
@@ -5603,7 +5766,14 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 			client_events_hydrated = false; client_event_trailing = true;
 			return res;
 		}
+		if (typeof res.adventure_unread === 'boolean' && res.adventure_haul_revision >= state.adventures.haul_revision) {
+			state.adventures.has_items = res.adventure_items_pending === true;
+			state.adventures.unread = res.adventure_unread && res.adventure_haul_revision > state.adventures.seen_revision;
+			state.adventures.haul_revision = res.adventure_haul_revision;
+			update_transfer_inventory_nav();
+		}
 		if (res.unchanged === true) {
+			void fighter_adventures?.tick();
 			void economy_command_journal?.recover();
 			return res;
 		}
@@ -5644,7 +5814,6 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 			state.social_mode = res.social_mode;
 			state.social_mode_enforcement = ['identity', 'account', 'guild'].includes(res.social_mode_enforcement)
 				? res.social_mode_enforcement : null;
-			set_instance_storage_item('social_mode', state.social_mode);
 		}
 		reconcile_guild_member_social_modes(res.guild_member_social_modes);
 		update_transfer_inventory_nav();
@@ -5656,6 +5825,7 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 		}
 		else if (reconcile_gifts)
 			void reconcile_pending_gifts();
+		void fighter_adventures?.tick();
 		const pending_economy_receipts = res.economy_receipts;
 		if (!await reconcile_economy_receipts(pending_economy_receipts ?? []))
 			return res;
@@ -5670,7 +5840,7 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 			client_event_revision = res.revision;
 		client_events_hydrated = true;
 		void economy_command_journal?.recover();
-		if (res.inbox_pending === true || state.inbox_items.length > 0)
+		if (res.inbox_pending === true || res.adventure_items_pending === true || state.inbox_items.length > 0)
 			void update_inbox();
 		if (res.banishment_return_pending) {
 			await reconcile_banishment_returns();
@@ -5706,6 +5876,7 @@ async function poll_client_events(poll_id, scheduled_check = true) {
 	let succeeded = false;
 	try {
 		succeeded = await get_client_events() !== null;
+		if (succeeded) void sync_client_preferences();
 	} catch (e) {
 		error('Client event polling failed (%s)', e);
 	} finally {
@@ -5770,9 +5941,47 @@ export async function setup(ctx) {
 	listing_filter_prompt_module = await ctx.loadModule('listing-filter-prompt.mjs');
 	changelog_loader = await ctx.loadModule('changelog.mjs');
 	updates_loader = await ctx.loadModule('updates.mjs');
+	adventures_module = await ctx.loadModule('fighter-adventures.mjs');
+	Object.assign(state.adventures, adventures_module.create_adventure_view(), {supported: adventures_supported});
+	fighter_adventures = adventures_module.create_adventures({
+		view:state.adventures, scope:()=>`${server_host}:${session_generation}`,supported:()=>adventures_supported,
+		ready:()=>state.is_connected && rollback_client?.admitted() !== false,
+		request:(path,payload)=>payload?api_post(path,payload):api_get(path),
+		discovered:is_market_item_discovered,owned_dlc:()=>owned_dlc_namespaces,
+		changed:()=>{read_cache?.invalidate(key=>key.startsWith('/api/inbox')||key.includes('page=transfers'));update_transfer_inventory_nav(); if(state.is_transfer_page_visible) void update_inbox();}
+	});
+	state.adventure_drop_entries = [];
+	state.get_adventure_area_name = area => game.combatAreas.getObjectByID(area.id)?.name ?? area.name;
+	state.get_adventure_monster_name = monster => game.monsters.getObjectByID(monster.id)?.name ?? monster.name;
+	state.adventure_reason = reason => { const key = ({ 'Not available yet': 'MOD_MP_ADVENTURE_NOT_AVAILABLE', 'Prepare your Fighter first.': 'MOD_MP_ADVENTURE_PREPARE', 'More Hitpoints required.': 'MOD_MP_ADVENTURE_HP_REQUIRED', 'Select food in your first food slot.': 'MOD_MP_ADVENTURE_SELECT_FOOD', 'Selected food cannot keep up with incoming damage.': 'MOD_MP_ADVENTURE_FOOD_INSUFFICIENT' })[reason]; return key ? getLangString(key) : reason; };
+	state.get_adventure_monster_icon = id => game.monsters.getObjectByID(id)?.media ?? assets.getURI('assets/media/main/question.png');
+	state.get_adventure_fighter_icon = () => ctx.getResourceUrl('assets/colosseum.png');
+	state.get_adventure_area_icon = id => game.combatAreas.getObjectByID(id)?.media ?? '';
+	state.show_adventure_drops = area_id => {
+		const area = state.adventures.areas.find(area => area.id === area_id);
+		if (!area?.ready) return;
+		if (queue_modal(state.get_adventure_area_name(area), 'adventure-drops-modal', state.get_adventure_area_icon(area.id), {showCloseButton: true, buttonsStyling: false, customClass: {htmlContainer: 'mp-adventure-drops-content', confirmButton: 'btn btn-primary'}}, false, false))
+			state.adventure_drop_entries = area.expected_items.map(drop => ({...drop})).sort((a, b) => b.per_hour - a.per_hour);
+	};
+	state.adventure_edit_limit = enabled => {
+		if (state.adventures.busy) return;
+		state.adventures.editing_limit = enabled;
+		state.adventures.target = Math.min(99, state.adventures.capacity + 1);
+	};
+	state.adventure_set_target = target => {
+		if (state.adventures.busy) return;
+		state.adventures.target = Math.min(99, Math.max(state.adventures.capacity + 1, Math.trunc(Number(target)) || state.adventures.capacity + 1));
+	};
+	state.adventure_start = id=>fighter_adventures.start(id);
+	state.adventure_select = (area,id,enabled)=>fighter_adventures.select(area,id,enabled);
+	state.adventure_stop = ()=>fighter_adventures.stop();
+	state.adventure_opt_in = enabled=>fighter_adventures.opt_in(enabled);
+	state.adventure_upgrade = ()=>fighter_adventures.upgrade();
+	state.adventure_reset = ()=>fighter_adventures.reset_capacity();
+	state.adventure_cost = ()=>fighter_adventures.cost();
+	state.adventure_view_haul = ()=>{state.adventures.inbox_open=!state.adventures.inbox_open;if(state.adventures.inbox_open) void fighter_adventures.seen();};
 	const combat_module = await ctx.loadModule('combat-arena.mjs');
 	const tutorial_module = await ctx.loadModule('combat-tutorial.mjs');
-	const practice_module = await ctx.loadModule('combat-practice.mjs');
 	const combat_localized = (id, fallback) => { const value = getLangString(id); return !value || value === id ? fallback : value; };
 	const combat_localized_text = (id, fallback, values = {}) => combat_localized(id, fallback).replace(/\{([a-z_]+)\}/gi, (_, key) => String(values[key] ?? `{${key}}`));
 	const combat_inventory_module = await ctx.loadModule('combat-inventory.mjs');
@@ -5789,7 +5998,6 @@ export async function setup(ctx) {
 	state.equipment_tasks = () => expedition_tasks.equipment_tasks(state.expedition_state ?? state.expedition_personal);
 	state.equipment_model = () => state.combat?.equipment_projects ?? (state.expedition_state ?? state.expedition_personal)?.equipment_projects;
 	state.equipment_tracking = () => (state.expedition_state ?? state.expedition_personal)?.tracking;
-	state.equipment_discovered = id => { const item = game.items.getObjectByID(id); return !!item && game.stats.itemFindCount(item) > 0; };
 	state.equipment_slot = slot => state.equipment_model()?.slots?.find(entry => entry.slot === slot) ?? null;
 	state.equipment_access = slot => state.equipment_model()?.access?.find(entry => entry.slot === slot) ?? null;
 	state.equipment_tier_name = (tier, slot = null) => equipment_module.is_food_slot(slot) ? state.get_item_name(state.equipment_model()?.catalog?.find(item => item.slot === 'Food' && item.tier === tier)?.item_id ?? '') : getLangString(['MOD_MP_EQUIPMENT_TIER_BRONZE', 'MOD_MP_EQUIPMENT_TIER_IRON', 'MOD_MP_EQUIPMENT_TIER_STEEL', 'MOD_MP_EQUIPMENT_TIER_MITHRIL', 'MOD_MP_EQUIPMENT_TIER_ADAMANT', 'MOD_MP_EQUIPMENT_TIER_RUNE'][tier - 1] ?? 'MOD_MP_EQUIPMENT_TIER_UNKNOWN');
@@ -5800,11 +6008,8 @@ export async function setup(ctx) {
 	};
 	state.equipment_stage_name = index => state.equipment_project_stage_name(
 		state.equipment_model()?.catalog?.find(item => item.item_id === state.equipment_model()?.project?.item_id) ?? {}, index);
-	state.equipment_project_stage_name = (item, index) => {
-		if (item.slot === 'Food') return state.combat_name(index === 0 ? 'fishing' : 'cooking');
-		if (item.item_id?.endsWith('_Arrows')) return getLangString('MOD_MP_EQUIPMENT_ARROW_STAGE_' + index);
-		return getLangString(['MOD_MP_EQUIPMENT_GATHER', 'MOD_MP_EQUIPMENT_SMELT', 'MOD_MP_EQUIPMENT_CRAFT'][index] ?? 'MOD_MP_EQUIPMENT_STAGE');
-	};
+	state.equipment_project_stage_name = (item, index) => equipment_module.equipment_project_stage_name(item, index,
+		id => game.skills?.getObjectByID?.(id)?.name, getLangString('MOD_MP_EQUIPMENT_STAGE'));
 	state.equipment_project_started = id => state.equipment_model()?.project?.item_id === id;
 	state.equipment_project_completed = id => state.equipment_model()?.unlocked?.includes(id) === true;
 	state.equipment_item_slot = item => item.slot === 'Food' && equipment_module.is_food_slot(state.equipment_modal_slot) ? state.equipment_modal_slot : item.slot;
@@ -5819,14 +6024,13 @@ export async function setup(ctx) {
 			{ id: 'food', name: state.combat_name('food'), items: visible.filter(item => item.slot === 'Food') }
 		].filter(category => category.items.length);
 	};
-	state.equipment_project_can_start = item => state.combat_tutorial_access('project', item.item_id) && state.equipment_can_mutate() && !state.equipment_model()?.project &&
-		!state.equipment_project_completed(item.item_id) && state.equipment_discovered(item.item_id) &&
-		equipment_module.equipment_project_visible(state.equipment_model(), item);
+	state.equipment_project_can_start = item => state.combat_tutorial_access('project', item.item_id) && state.equipment_can_mutate() &&
+		equipment_module.equipment_project_startable(state.equipment_model(), item);
 	state.equipment_project_title = item => `${state.equipment_project_name(item)} · ${getLangString(
 		!state.combat_tutorial_access('project', item.item_id) ? 'MOD_MP_EQUIPMENT_SLOT_LOCKED' :
 		state.equipment_project_completed(item.item_id) ? 'MOD_MP_EQUIPMENT_UNLOCKED' :
 		state.equipment_project_started(item.item_id) ? 'MOD_MP_EQUIPMENT_IN_PROGRESS' :
-		state.equipment_discovered(item.item_id) ? 'MOD_MP_EQUIPMENT_BEGIN' : 'MOD_MP_EQUIPMENT_DISCOVER_FIRST')}`;
+		'MOD_MP_EQUIPMENT_BEGIN')}`;
 	state.equipment_grid = (group = state.combat.equipment_set ?? 'melee') => {
 		const model = state.equipment_model();
 		const native_slots = get_registered_game_objects(game.equipmentSlots);
@@ -5988,7 +6192,7 @@ export async function setup(ctx) {
 		if (await combat_inventory.equipment('cancel-project', { project_id: selected.id })) await refresh_expedition_state();
 	};
 	state.equipment_start = async id => {
-		if (!await combat_inventory.equipment('start-project', { item_id: id, discovered: state.equipment_discovered(id) })) return false;
+		if (!await combat_inventory.equipment('start-project', { item_id: id })) return false;
 		await refresh_expedition_state();
 		return true;
 	};
@@ -6072,12 +6276,11 @@ export async function setup(ctx) {
 		can_connect: () => state.is_connected && document.visibilityState !== 'hidden',
 		ticket: () => api_post('/api/combat/ticket', {})
 	});
-	combat_inventory = combat_inventory_module.create_combat_inventory({ view: state.combat, access: tutorial_module.tutorial_access,
-		practice_sync: practice_module.practice_sync,
+	combat_inventory = combat_inventory_module.create_combat_inventory({ view: state.combat, access: (view,kind,id)=>kind==='page'&&id==='adventures' ? !!view.character : tutorial_module.tutorial_access(view,kind,id),
 		scope: () => `${server_host}:${session_generation}`, can_mutate: () => economy_commands_ready && !economy_command_journal?.has_pending(),
 		request: (path,payload) => payload ? api_post(path,payload) : api_get(path), reconcile: reconcile_economy_receipts
 	});
-	state.refresh_combat_inventory = () => combat_inventory.refresh();
+	state.refresh_combat_inventory = () => { void fighter_adventures.refresh(); return combat_inventory.refresh(); };
 	state.prepare_combat = () => combat_inventory.prepare();
 	state.combat_skill_available = skill => (!state.combat.tutorial || state.combat.tutorial.complete) && combat_inventory_module.available_combat_skills.includes(skill);
 	state.combat_level_quote = skill => combat_inventory_module.combat_level_quote(state.combat.character, skill, state.combat.level_quantities[skill]);
@@ -6089,15 +6292,15 @@ export async function setup(ctx) {
 	state.combat_style_name = id => game.attackStyles.getObjectByID('melvorD:' + ({ accurate: 'Stab', aggressive: 'Slash', defensive: 'Block' }[id] ?? 'Stab'))?.name ?? state.combat_name(id);
 
 	state.start_combat = async () => {
-		if (!['test_combat', 'raid'].includes(state.combat.page_tab) || state.combat.recovery || state.combat.maintenance?.drain_at != null || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character || !state.is_connected || state.combat.arena?.status === 'active') return;
-		if (state.combat.page_tab === 'test_combat' && !state.combat_choices().some(choice => choice.id === state.combat.encounter)) return;
-		if (state.combat.page_tab === 'test_combat' && state.combat.tutorial?.complete && !state.combat_practice_tier()?.available) return;
+		if (!['character', 'raid'].includes(state.combat.page_tab) || state.combat.recovery || state.combat.maintenance?.drain_at != null || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character || !state.is_connected || state.combat.arena?.status === 'active') return;
+		if (state.combat.page_tab === 'character' && !state.combat_choices().some(choice => choice.id === state.combat.encounter)) return;
+		if (state.combat.page_tab === 'character' && (state.combat.tutorial?.complete !== false || !state.combat.tutorial.ready)) return;
 		const scope = `${server_host}:${session_generation}`;
 		state.combat.starting = true;
 		try {
 			// Refresh the server-owned food selection and access before admission.
-			if (await combat_inventory.refresh({ fresh: true }) && scope === `${server_host}:${session_generation}` && ['test_combat', 'raid'].includes(state.combat.page_tab) &&
-				(state.combat.page_tab === 'raid' || state.combat_choices().some(choice => choice.id === state.combat.encounter))) await combat_arena.connect(true);
+			if (await combat_inventory.refresh({ fresh: true }) && scope === `${server_host}:${session_generation}` && ['character', 'raid'].includes(state.combat.page_tab) &&
+				(state.combat.page_tab === 'raid' || (state.combat.tutorial?.ready === true && state.combat_choices().some(choice => choice.id === state.combat.encounter)))) await combat_arena.connect(true);
 		} finally {
 			if (scope === `${server_host}:${session_generation}` && state.combat.status !== 'connecting' && !state.combat.pending) state.combat.starting = false;
 		}
@@ -6118,7 +6321,7 @@ export async function setup(ctx) {
 	state.combat_cycle_opponents_view = () => combat_arena.cycle_opponents_view();
 	state.combat_opponents_compact = () => combat_module.combat_opponents_compact(state.combat);
 	state.combat_run_icon = () => assets.getURI('assets/media/skills/combat/run.png');
-	state.combat_inventory_error = () => state.combat.inventory_error === 'cap_locked' ? combat_localized('MOD_MP_COMBAT_PRACTICE_LOCKED', 'Clear Dungeon tiers to unlock the recommended skill caps.') : state.combat.inventory_error === 'tutorial_required' ? combat_localized('MOD_MP_COMBAT_TUTORIAL_REQUIRED', 'Complete training to unlock this action.') : state.combat_name(['food_locked', 'quote_changed', 'max_level', 'insufficient_ep', 'nothing_to_reset', 'active', 'discovery_required', 'project_unavailable', 'requirements_unmet', 'equip_current_tier', 'slot_locked', 'slot_conflict'].includes(state.combat.inventory_error) ? state.combat.inventory_error : 'inventory_rejected');
+	state.combat_inventory_error = () => state.combat.inventory_error === 'cap_locked' ? combat_localized('MOD_MP_COMBAT_CAP_LOCKED', 'Clear Dungeon tiers to unlock the recommended skill caps.') : state.combat.inventory_error === 'tutorial_required' ? combat_localized('MOD_MP_COMBAT_TUTORIAL_REQUIRED', 'Complete training to unlock this action.') : state.combat_name(['food_locked', 'quote_changed', 'max_level', 'insufficient_ep', 'nothing_to_reset', 'active', 'discovery_required', 'project_unavailable', 'requirements_unmet', 'equip_current_tier', 'slot_locked', 'slot_conflict'].includes(state.combat.inventory_error) ? state.combat.inventory_error : 'inventory_rejected');
 	state.combat_run_copy = key => key === 'start' || key === 'stop' ? getLangString('MOD_MP_COMBAT_BATTLE_' + key.toUpperCase()) : combat_localized('MOD_MP_COMBAT_RUN_' + String(key).toUpperCase(), combat_module.COMBAT_RUN_COPY[key] ?? key);
 	tutorial_module.install_tutorial_review_actions(state, getLangString, state.get_item_name, state.equipment_slot_name);
 	state.combat_dungeon_debug_select = target_id => {
@@ -6190,10 +6393,11 @@ export async function setup(ctx) {
 		if (guide && !state.combat.character) return { ...guide, action: 'prepare', tab: 'levels', text: getLangString('MOD_MP_COMBAT_TUTORIAL_PREPARE') };
 		return guide && state.combat.arena?.status === 'active' ? { ...guide, text: tutorial_module.tutorial_lesson(state.combat.tutorial.victories, getLangString) } : guide;
 	};
-	state.combat_tutorial_access = (kind, id) => tutorial_module.tutorial_access(state.combat, kind, id);
+	state.combat_tutorial_access = (kind, id) => kind === 'page' && id === 'adventures' ? !!state.combat.character : tutorial_module.tutorial_access(state.combat, kind, id);
 	state.combat_select_page = tab => {
 		if (!state.combat_tutorial_access('page', tab)) return;
 		state.combat.page_tab = tab;
+		if (tab === 'adventures') void fighter_adventures.refresh();
 		if (tab === 'raid') {
 			state.combat_dungeons_visited = true;
 			set_instance_storage_item('combat_dungeons_visited', true);
@@ -6201,7 +6405,7 @@ export async function setup(ctx) {
 			state.combat.encounter = state.combat.raid_selection;
 			combat_inventory.refresh({ fresh: true });
 		}
-		else if (tab === 'test_combat' && state.combat.mode === 'raid') { state.combat.mode = 'once'; state.combat.encounter = state.combat_choices()[0]?.id ?? ''; practice_module.practice_sync(state.combat); }
+		else if (tab === 'character' && state.combat.tutorial?.complete === false) { state.combat.mode = 'once'; state.combat.encounter = state.combat.tutorial.trial.id; }
 	};
 	state.combat_select_preparation = tab => { if (state.combat_tutorial_access('tab', tab)) state.combat.preparation_tab = tab; };
 	state.combat_tutorial_heading = () => {
@@ -6210,11 +6414,10 @@ export async function setup(ctx) {
 		return combat_localized_text('MOD_MP_COMBAT_TUTORIAL_HEADING', 'Training {number} / 7 · {name}', { number, name });
 	};
 	state.combat_tutorial_highlight = (kind, id = null) => {
-		if (kind === 'battles') return state.combat_tutorial_highlight('page', 'test_combat') || state.combat_tutorial_highlight('page', 'raid');
 		if (kind === 'page' && id === 'raid') return state.combat.tutorial?.complete === true && !state.combat_dungeons_visited;
 		const guide = state.combat_tutorial_guide();
 		if (!guide) return false;
-		if (kind === 'page') return state.combat_tutorial_access('page', id) && id === (guide.action === 'battle' ? 'test_combat' : 'character');
+		if (kind === 'page') return state.combat_tutorial_access('page', id) && id === 'character';
 		if (kind === 'eat') return state.combat.arena?.status === 'active' && state.combat.tutorial.victories === 4;
 		if (kind === 'slot') return guide.trial.slot === id && ['unlock-slot', 'unlock-tier', 'equip'].includes(guide.action);
 		if (kind === 'slot-action') return guide.trial.slot === id && ['unlock-slot', 'unlock-tier'].includes(guide.action);
@@ -6223,14 +6426,7 @@ export async function setup(ctx) {
 		if (kind === 'tab') return id === guide.tab && guide.action !== 'battle';
 		return kind === guide.action;
 	};
-	state.combat_choices = () => state.combat.tutorial && !state.combat.tutorial.complete ? [{ id: state.combat.tutorial.trial.id, name: tutorial_module.tutorial_name(state.combat.tutorial.trial.id, getLangString) ?? state.combat.tutorial.trial.name, actors: [state.combat.tutorial.trial.id], description: combat_localized_text('MOD_MP_COMBAT_TUTORIAL_PROGRESS', 'Training · {number} / 7', { number: state.combat.tutorial.victories + 1 }) }] : practice_module.practice_choices(state.combat, getLangString);
-	state.combat_practice_choices = () => state.combat.tutorial?.complete === true ? practice_module.practice_choices(state.combat, getLangString) : [];
-	state.combat_practice_cleared = entry => entry.tiers.filter(tier => tier.complete).length;
-	state.combat_practice_categories = practice_module.PRACTICE_CATEGORIES;
-	state.combat_practice_copy = key => practice_module.practice_copy(key, getLangString);
-	state.combat_practice_selected = () => practice_module.localize_practice_entry(practice_module.practice_selected(state.combat), getLangString);
-	state.combat_practice_material = material => combat_localized(`MOD_MP_EQUIPMENT_TIER_${String(material).toUpperCase()}`, material);
-	state.combat_practice_tier_label = tier => `${combat_localized('MOD_MP_COMBAT_PRACTICE_TIER', 'Tier')} ${practice_module.roman(tier.tier)}${!tier.available ? ' · ' + combat_localized('MOD_MP_COMBAT_PRACTICE_LOCKED_SHORT', 'Locked') : tier.complete ? ' · ' + combat_localized('MOD_MP_COMBAT_PRACTICE_CLEARED', 'Cleared') : ''}`;
+	state.combat_choices = () => state.combat.tutorial && !state.combat.tutorial.complete ? [{ id: state.combat.tutorial.trial.id, name: tutorial_module.tutorial_name(state.combat.tutorial.trial.id, getLangString) ?? state.combat.tutorial.trial.name, actors: [state.combat.tutorial.trial.id], description: combat_localized_text('MOD_MP_COMBAT_TUTORIAL_PROGRESS', 'Training · {number} / 7', { number: state.combat.tutorial.victories + 1 }) }] : [];
 	state.combat_tutorial_copy = key => combat_localized(`MOD_MP_COMBAT_TUTORIAL_${key}`, key);
 	state.combat_tutorial_target_name = target => {
 		if (target?.id === 'start') return state.combat_tutorial_copy('REVIEW_TARGET_START');
@@ -6245,12 +6441,9 @@ export async function setup(ctx) {
 		const trial_name = tutorial_module.tutorial_name(`tutorial_${number}`, getLangString) ?? '';
 		return `${number} · ${trial_name} · ${labeled_phase}`;
 	};
-	state.combat_practice_tier = () => state.combat_practice_selected()?.tiers?.find(tier => tier.tier === state.combat.practice_tier) ?? null;
-	state.combat_practice_select = (kind,value) => practice_module.practice_select(state.combat,kind,value);
-	state.combat_practice_effects = () => [...new Map((state.combat_practice_tier()?.waves.flat() ?? []).filter(actor => actor.effect).map(actor => [actor.effect,actor])).values()];
-	state.combat_encounter_name = () => practice_module.practice_title(state.combat, state.combat.arena, getLangString) ?? tutorial_module.tutorial_name(state.combat.arena?.encounter, getLangString) ?? combat_module.combat_run_title(state.combat.arena);
+	state.combat_encounter_name = () => tutorial_module.tutorial_name(state.combat.arena?.encounter, getLangString) ?? combat_module.combat_run_title(state.combat.arena);
 	state.combat_respawning = () => state.combat.arena?.status === 'active' && state.combat.arena?.run?.phase === 'respawning';
-	state.combat_name = id => practice_module.practice_actor(state.combat,id,getLangString)?.name ?? (/^(saltwing|reefbreaker|undertide_tendril|blob|bittertoad|bogmaw|drowned_root|cinder_snail|kiln_wisp|embercoil|slagheart)_\d+$/.test(id) ? state.combat_name(String(id).replace(/_\d+$/, '')) : null) ?? tutorial_module.tutorial_name(id,getLangString) ?? (/^(golbin|golbin_scout|mind_golbin)_\d+$/.test(id) ? state.combat_name(id.replace(/_\d+$/, '')) : null) ?? (String(id).startsWith('plant_') ? state.combat_name('plant') : getLangString('MOD_MP_COMBAT_' + String(id).toUpperCase()));
+	state.combat_name = id => (/^(saltwing|reefbreaker|undertide_tendril|blob|bittertoad|bogmaw|drowned_root|cinder_snail|kiln_wisp|embercoil|slagheart)_\d+$/.test(id) ? state.combat_name(String(id).replace(/_\d+$/, '')) : null) ?? tutorial_module.tutorial_name(id,getLangString) ?? (/^(golbin|golbin_scout|mind_golbin)_\d+$/.test(id) ? state.combat_name(id.replace(/_\d+$/, '')) : null) ?? (String(id).startsWith('plant_') ? state.combat_name('plant') : getLangString('MOD_MP_COMBAT_' + String(id).toUpperCase()));
 	state.combat_cap = skill => state.combat.character?.caps?.[skill] ?? 1;
 	state.combat_local_date = timestamp => combat_module.combat_local_date(timestamp, typeof setLang === 'string' ? setLang : 'en');
 	state.combat_raid_page = page => combat_inventory.raid_page(page);
@@ -6265,7 +6458,7 @@ export async function setup(ctx) {
 		const localized = ({start:'dungeon_start',entry:dungeon === 'quarry' ? 'quarry_entry' : dungeon === 'mire' ? 'mire_entry' : 'dungeon_entry',herring:'dungeon_herring',raids:'tab_raid',description:dungeon === 'quarry' ? 'quarry_description' : dungeon === 'mire' ? 'mire_description' : dungeon === 'tidal' ? 'tidal_description' : 'dungeon_description'})[key];
 		return localized ? state.combat_name(localized) : combat_localized('MOD_MP_COMBAT_DUNGEON_' + String(key).toUpperCase(), combat_module.COMBAT_RAID_COPY[key] ?? key);
 	};
-	state.combat_roman = practice_module.roman;
+	state.combat_roman = combat_module.combat_roman;
 	state.combat_time = combat_module.combat_time;
 	state.combat_duration = ticks => combat_module.combat_duration(ticks, state.combat.arena);
 	state.combat_interval = combat_module.combat_time;
@@ -6304,8 +6497,6 @@ export async function setup(ctx) {
 	state.combat_stances = combat_module.COMBAT_STANCES;
 	state.combat_actor_image_style = combat_module.combat_actor_image_style;
 	state.combat_actor_image = id => {
-		const human = practice_module.practice_actor(state.combat,id);
-		if (human) return game.thieving?.actions?.getObjectByID?.('melvorF:' + human.portrait)?.media ?? assets.getURI('assets/media/main/question.png');
 		const actor = String(id).replace(/_\d+$/, '');
 		const monster = ({saltwing:'melvorD:Seagull',reefbreaker:'melvorD:GiantCrab'})[actor];
 		if (monster) return game.monsters.getObjectByID(monster)?.media ?? assets.getURI('assets/media/main/question.png');
@@ -6368,6 +6559,22 @@ export async function setup(ctx) {
 	economy_command_module = await ctx.loadModule('economy-command-journal.mjs');
 	identity_bindings = await ctx.loadModule('identity-bindings.mjs');
 	identity_bootstrap = await ctx.loadModule('identity-bootstrap.mjs');
+	const account_recovery_module = await ctx.loadModule('account-recovery.mjs');
+	account_recovery = account_recovery_module.create_account_recovery({
+		state, scope: () => server_host + ':' + session_generation + ':' + state.chat_client_id,
+		read_login: () => {
+			const manager = typeof cloudManager === 'undefined' ? globalThis.cloudManager : cloudManager;
+			if (!manager?.isAuthenticated) return null;
+			return { melvor_token: globalThis.localStorage?.getItem('melvorCloudAuthToken'), character_name: game.characterName };
+		},
+		post: (endpoint, payload) => api_post_response(endpoint, payload),
+		reconnect: async credentials => {
+			const recovery_code = identity_bootstrap.encode_recovery_code(server_host, credentials);
+			await start_multiplayer_session({ recovery_code });
+			if (!state.is_connected) state.account_recovery_message = getLangString('MOD_MP_ACCOUNT_RECOVERY_FAILED');
+		},
+		translate: key => getLangString(key)
+	});
 	instance_storage = await ctx.loadModule('instance-storage.mjs');
 	social_mode = await ctx.loadModule('social-mode.mjs');
 	event_snapshots = await ctx.loadModule('event-snapshots.mjs');
@@ -6601,9 +6808,6 @@ export async function setup(ctx) {
 	await patch_localization(ctx, setup_page_guide_button);
 
 	install_social_mode_setting(ctx);
-	connection_diagnostics.install_loading_report(ctx, {
-		t: key => getLangString('MOD_MP_LOADING_REPORT_' + key), get_report: get_connection_report
-	});
 	transport_diagnostics.phase('setup', performance.now() - setup_started);
 	const mode_settings_section = ctx.settings.section(getLangString('MOD_MP_SETTINGS_MODE_SECTION'));
 	mode_settings_section.add({
@@ -6632,6 +6836,10 @@ export async function setup(ctx) {
 		hint: getLangString('MOD_MP_SETTINGS_COMBAT_KEYS_HINT')
 	});
 
+	connection_diagnostics.install_loading_report(ctx, {
+		t: key => getLangString('MOD_MP_LOADING_REPORT_' + key), get_report: get_connection_report
+	});
+
 	await ctx.loadTemplates('ui/templates.html');
 	document.addEventListener('visibilitychange', handle_runtime_visibility_change);
 	globalThis.addEventListener('pagehide', () => combat_arena?.close());
@@ -6657,6 +6865,7 @@ export async function setup(ctx) {
 		state.last_seen_mod_version = get_character_storage_item(UPDATES_LAST_SEEN_MOD_VERSION_KEY) ?? '';
 		state.updates_new = updates_loader.has_unseen_mod_version(MOD_VERSION, state.last_seen_mod_version);
 		apply_server_configuration();
+		prune_obsolete_character_preferences();
 		state.load_crucible_heat_preference();
 		state.load_chat_notification_preferences();
 		equipment_evidence.start(game);
@@ -6673,6 +6882,7 @@ export async function setup(ctx) {
 		combat_page_visible = false;
 		combat_arena?.close();
 		combat_inventory?.reset();
+		fighter_adventures?.reset();
 		state.combat_dungeons_visited = false;
 		listing_filter_prompt?.stop();
 		set_crucible_page_visible(false);
@@ -6909,6 +7119,7 @@ function apply_server_configuration() {
 		combat_arena?.close();
 		state.clear_browser_links?.();
 		combat_inventory?.reset();
+		fighter_adventures?.reset();
 		state.combat_dungeons_visited = get_instance_storage_item('combat_dungeons_visited') === true;
 		events_refreshed_at = 0;
 		last_events_result = null;
@@ -7254,6 +7465,7 @@ async function start_multiplayer_session(options = {}) {
 	combat_arena?.close();
 	state.clear_browser_links?.();
 	combat_inventory?.reset();
+	fighter_adventures?.reset();
 	state.combat_dungeons_visited = get_instance_storage_item('combat_dungeons_visited') === true;
 	events_refreshed_at = 0;
 	last_events_result = null;
@@ -7288,14 +7500,14 @@ async function start_multiplayer_session(options = {}) {
 		}
 		state.identity_error = '';
 		if (options.create === true) {
-			await register_multiplayer_identity(account, false);
+			await register_multiplayer_identity(account, false, true);
 			if (state.is_connected) state.close_modal();
 			return;
 		}
 		const using_legacy_credentials = credentials === legacy_credentials;
 
 		if (!identity_bootstrap.valid_identity_credentials(credentials)) {
-			queue_identity_notice('bootstrap');
+			await register_multiplayer_identity(account, false);
 			return;
 		}
 
@@ -7339,7 +7551,10 @@ async function start_multiplayer_session(options = {}) {
 		}
 
 		state.identity_error = state.service_status ? '' : getLangString('MOD_MP_IDENTITY_CONNECT_FAILED');
-		if (options.recovery_code === undefined && [401, 403, 409].includes(auth.response?.status)) queue_identity_notice('bootstrap');
+		if (options.recovery_code === undefined && auth.response?.status === 401 && !options.registration_replay) {
+			await register_multiplayer_identity(account, false);
+			return;
+		}
 		notify_error(auth.json?.identity_status === 'installation_revoked' ? 'MOD_MP_INSTALLATION_REVOKED' : 'MOD_MP_MULTIPLAYER_CONNECTION_ERR');
 		error('failed to authenticate client (%s), multiplayer features not available', auth.response?.status ?? 'transport');
 	} catch (e) {
@@ -7408,10 +7623,11 @@ function store_account_identity_binding(account, credentials) {
 		set_instance_storage_item('friend_code', credentials.friend_code);
 }
 
-async function register_multiplayer_identity(account, account_changed) {
+async function register_multiplayer_identity(account, account_changed, confirmed_new_profile = false) {
 	log('missing identity for current Melvor account, registering new identity...');
-	if (!identity_registration_supported) {
+	if (!identity_registration_supported || (!confirmed_new_profile && !identity_onboarding_supported)) {
 		state.identity_error = getLangString('MOD_MP_IDENTITY_HOST_UPGRADE');
+		queue_identity_notice('bootstrap');
 		return false;
 	}
 	const pending = identity_bootstrap.prepare_registration(get_instance_storage_item, set_instance_storage_item, account);
@@ -7420,10 +7636,16 @@ async function register_multiplayer_identity(account, account_changed) {
 	const registration = await api_post_response('/api/register', {
 		client_key,
 		registration_id: pending.client_identifier,
+		check_existing_profile: !confirmed_new_profile,
 		display_name: game.characterName,
+		character_name: game.characterName,
 		client_runtime: get_client_runtime_report(),
 		...account
 	});
+	if (registration.response?.status === 409 && registration.json?.identity_status === 'recovery_required') {
+		queue_identity_notice('bootstrap');
+		return false;
+	}
 	if (registration.response?.status === 409 && registration.json?.identity_status === 'registration_exists') {
 		// The server committed a previous attempt. Reconnect using the already persisted proof.
 		is_connecting = false;
@@ -7532,7 +7754,6 @@ function activate_multiplayer_identity(response, timing) {
 	state.social_mode = social_mode.normalize_social_mode(response.social_mode);
 	state.social_mode_enforcement = ['identity', 'account', 'guild'].includes(response.social_mode_enforcement)
 		? response.social_mode_enforcement : null;
-	set_instance_storage_item('social_mode', state.social_mode);
 	state.equipment_visible = response.equipment_visible !== false;
 	state.skills_visible = response.skills_visible !== false;
 	state.activity_visible = response.activity_visible !== false;
@@ -7551,6 +7772,7 @@ function activate_multiplayer_identity(response, timing) {
 	state.guild_chat_enabled = response.chat?.guild_chat_enabled !== false;
 	state.guild_chat_state = { affiliated: false, enabled: state.guild_chat_enabled };
 	state.chat_client_id = response.chat?.client_id ?? null;
+	start_client_preferences(state.chat_client_id);
 	state.chat_is_admin = false;
 	state.chat_can_highlight = false;
 	state.chat_highlight_drafts = {};

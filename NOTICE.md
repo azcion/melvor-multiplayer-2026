@@ -15,3 +15,8 @@ third-party material.
 
 The maintainer does not own the skill icons provided by this mod. Those icons were harvested from other mods, and the
 CC0 dedication does not cover them.
+
+The Adventure monster catalog contains a reviewed subset of numeric game data from Games by Malcs' official
+Melvor Idle data package. Its source URL and SHA-256 are recorded in `server/fighter-adventures-catalog.json`.
+Melvor Idle names and third-party game data remain the property of their respective owners and are excluded from
+this fork's CC0 dedication. The catalog does not include upstream runtime scripts or artwork.

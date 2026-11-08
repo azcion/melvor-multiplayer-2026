@@ -70,6 +70,8 @@ ROUTES.add('/api/market/claim-legacy-payouts');
 ROUTES.add('/api/versions');
 ROUTES.add('/api/chat/messages/reaction');
 ROUTES.add('/api/crucible/contents');
+for (const action of ['state', 'start', 'stop', 'check-in', 'capacity', 'reset-capacity', 'opt-in', 'seen'])
+	ROUTES.add(`/api/adventures/${action}`);
 export function diagnostic_route(url) {
 	try {
 		const path = new URL(url, 'https://diagnostic.invalid').pathname.replace(/^\/api\/v2\//, '/api/');

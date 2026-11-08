@@ -105,7 +105,7 @@ export function combat_opponents_compact(view) {
 }
 
 export function create_combat_view() {
-	return { recovery_notice: '', recovery: null, recovery_supported: false, maintenance: null, dungeon_debug_options: null, dungeon_debug_target: 'tidal:2', dungeon_debug_levels: {attack:12,strength:12,defence:12,hitpoints:12}, dungeon_debug_gear: {Weapon:'melvorD:Iron_Sword',Shield:'melvorD:Iron_Shield',Helmet:'melvorD:Iron_Helmet'}, dungeon_debug_food: 'melvorD:Herring', dungeon_debug_confirm: false, test_profile: false, practice: [], practice_category: 'duels', practice_selection: 'recruit', practice_tier: 1, practice_tab: 'picker', opponents_view: 'auto', result: null, raid_tab: 'raids', raid_selection: 'golbins', raid_page: 0, raid_loading: false, dungeons: [], raid: null, unlocks: null, tutorial_debug_targets: [], tutorial_debug_confirm: false, tutorial_debug_target: 'start', tutorial: null, mode: 'once', encounter: '', supported_encounters: [], status: 'idle', arena: null, pending: false, starting: false, error: '', latency: 0, foods: [], character: null, ep_micros: 0, level_quantities: {}, reset_confirm: false, equipment_set: 'melee', equipment_reset_confirm: false, consumables_reset_confirm: false, page_tab: 'character', combat_tab: 'test_combat', preparation_tab: 'levels', history: [], debug_enabled: false, inventory_busy: false, inventory_error: '', food_id: '', stance: 'accurate' };
+	return { recovery_notice: '', recovery: null, recovery_supported: false, maintenance: null, dungeon_debug_options: null, dungeon_debug_target: 'tidal:2', dungeon_debug_levels: {attack:12,strength:12,defence:12,hitpoints:12}, dungeon_debug_gear: {Weapon:'melvorD:Iron_Sword',Shield:'melvorD:Iron_Shield',Helmet:'melvorD:Iron_Helmet'}, dungeon_debug_food: 'melvorD:Herring', dungeon_debug_confirm: false, test_profile: false, opponents_view: 'auto', result: null, raid_tab: 'raids', raid_selection: 'golbins', raid_page: 0, raid_loading: false, dungeons: [], raid: null, unlocks: null, tutorial_debug_targets: [], tutorial_debug_confirm: false, tutorial_debug_target: 'start', tutorial: null, mode: 'once', encounter: '', supported_encounters: [], status: 'idle', arena: null, pending: false, starting: false, error: '', latency: 0, foods: [], character: null, ep_micros: 0, level_quantities: {}, reset_confirm: false, equipment_set: 'melee', equipment_reset_confirm: false, consumables_reset_confirm: false, page_tab: 'character', combat_tab: 'character', preparation_tab: 'levels', history: [], debug_enabled: false, inventory_busy: false, inventory_error: '', food_id: '', stance: 'accurate' };
 }
 
 export function combat_socket_url(origin) {
@@ -176,8 +176,8 @@ export function create_combat_controller({ view, get_scope, get_origin, can_conn
 					view.recovery_supported = message.capabilities?.includes('pve-recovery-v1') === true;
 					view.maintenance = message.maintenance ?? null;
 					if (view.recovery_supported) { recovering = true; send({type:'recover'}); }
-					if (!view.recovery_supported && auto_start && (!['test_combat', 'raid'].includes(view.page_tab) || !start())) {
-						if (['test_combat', 'raid'].includes(view.page_tab) && !view.error) view.error = 'rejected';
+					if (!view.recovery_supported && auto_start && (!['character', 'raid'].includes(view.page_tab) || !start())) {
+						if (['character', 'raid'].includes(view.page_tab) && !view.error) view.error = 'rejected';
 						close('idle', true); return;
 					}
 					heartbeat = timers.setInterval(() => {
@@ -222,7 +222,7 @@ export function create_combat_controller({ view, get_scope, get_origin, can_conn
 						if (saved?.state === 'paused' && ['resume','abandon'].includes(recovery_intent)) {
 							const action = recovery_intent; recovery_intent = null; auto_start = false;
 							view.encounter = saved.arena.run?.selection ?? saved.arena.encounter; view.mode = saved.arena.run?.mode ?? 'once';
-							view.combat_tab = view.mode === 'raid' ? 'raid' : 'test_combat';
+							view.combat_tab = view.mode === 'raid' ? 'raid' : 'character';
 							send({type:action,encounter:saved.arena.id}); return;
 						}
 						if (!saved && auto_start) { start(); return; }
@@ -345,7 +345,7 @@ export function combat_eat_opacity(arena, elapsed_ms = combat_elapsed_ms(arena))
 export function combat_time(ms) { return (Math.max(0, ms ?? 0) / 1000).toFixed(1) + 's'; }
 export function combat_duration(ticks, arena) { return combat_time(ticks * (arena?.step_ms || 100)); }
 
-// Practice currently contains only the server-owned tutorial.
+// Tutorial choices are server-owned; graduates enter Dungeons.
 export function combat_choices(mode) {
 	if (mode === 'raid') return [{ id: 'golbins', name: 'Golbin Horde', actors: ['golbin','golbin_scout','mind_golbin'], description: '', groups: [] }, { id: 'tidal', name: 'Tidal Caverns', actors: ['undertide'], description: '', groups: [] }, { id: 'mire', name: 'Sinking Mire', actors: ['blob','bittertoad','bogmaw','drowned_root'], description: '', groups: [] }, { id: 'quarry', name: 'Cinder Quarry', actors: ['cinder_snail','kiln_wisp','embercoil','slagheart'], description: '', groups: [] }];
 	return [];
@@ -432,7 +432,7 @@ export const COMBAT_RAID_COPY = {
 // Only announce access confirmed by the post-fight inventory; never infer rewards from a win.
 export function combat_result_details(arena, before, after) {
 	const elapsed = arena.run?.total_ms ?? arena.elapsed_ms ?? 0;
-	return { time: !String(arena.run?.selection ?? arena.encounter).startsWith('practice_') && ['victory', 'draw', 'fled'].includes(arena.status) ? (Math.max(0, elapsed) / 1000).toFixed(1) + 's' : null,
+	return { time: ['victory', 'draw', 'fled'].includes(arena.status) ? (Math.max(0, elapsed) / 1000).toFixed(1) + 's' : null,
 		unlocks: arena.status === 'victory' && before && after ? Object.entries(after)
 			.filter(([skill, cap]) => Number.isFinite(before[skill]) && cap > before[skill])
 			.map(([skill, cap]) => ({ skill, cap })) : [] };
@@ -488,3 +488,5 @@ export function create_combat_keydown({ enabled, active, get_slot }) {
 		if (control?.matches('button:enabled') && control.getClientRects().length) control.click();
 	};
 }
+
+export function combat_roman(value) { return ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'][value] ?? String(value); }

@@ -392,7 +392,7 @@ export function install_chat_actions(runtime) {
 		show_chat_feature_picker(composer) {
 			feature_picker_composer = composer;
 			this.chat_feature_search = '';
-			this.chat_feature_catalog = items.feature_catalog(game, getLangString, this.dev_badge_labels);
+			this.chat_feature_catalog = items.feature_catalog(game, getLangString, this.dev_badge_labels, this.listing_filters);
 			queue_modal('MOD_MP_CHAT_TAG_FEATURE', 'chat-feature-picker-modal', undefined, {
 				showConfirmButton: false,
 				customClass: { popup: 'mp-chat-item-picker-modal-popup' },
@@ -491,7 +491,10 @@ export function install_chat_actions(runtime) {
 				const name = document.createElement('span');
 				name.textContent = feature.name;
 				const badge = items.badge_feature(feature.id);
-				if (badge) name.className = `badge ${badge.class_name} mp-chat-badge`;
+				if (badge) {
+					name.dataset.featureId = feature.id;
+					name.className = `badge ${badge.class_name} mp-chat-badge${items.chat_badge_class(badge, state.listing_filters)}`;
+				}
 				button.append(name); fragment.append(button);
 			}
 			host.replaceChildren(fragment);
@@ -621,7 +624,7 @@ export function install_chat_actions(runtime) {
 		get_chat_message_document(message) { return JSON.stringify(this.get_chat_message_parts(message)); },
 
 		get_chat_plain_content(message) {
-			return items.plain_text(game, getLangString, message.parts ?? [{ type: 'text', text: message.content ?? '' }]);
+			return items.plain_text(game, getLangString, message.parts ?? [{ type: 'text', text: message.content ?? '' }], this.dev_badge_labels, this.listing_filters);
 		},
 
 		load_chat_notification_preferences() {
@@ -1277,7 +1280,7 @@ export function install_chat_actions(runtime) {
 			if (!clipboard?.writeText)
 				return show_modal_error(getLangString('MOD_MP_CHAT_COPY_FAILED'));
 			try {
-				await clipboard.writeText(items.plain_text(game, getLangString, this.get_chat_message_parts(message)));
+				await clipboard.writeText(items.plain_text(game, getLangString, this.get_chat_message_parts(message), this.dev_badge_labels, this.listing_filters));
 			} catch (e) {
 				log('Chat message copy failed (%s)', e);
 				return show_modal_error(getLangString('MOD_MP_CHAT_COPY_FAILED'));

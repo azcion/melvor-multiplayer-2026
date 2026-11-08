@@ -14,7 +14,27 @@
 		</a>
 	</div>
 </template>
+<template id="template-mp-account-recovery-modal">
+	<p class="mp-modal-text"><lang-string lang-id="MOD_MP_ACCOUNT_RECOVERY_NOTICE"></lang-string></p>
+	<p class="text-break">{{ state.account_recovery_server }}</p>
+	<p v-if="state.account_recovery_enrolling"><lang-string lang-id="MOD_MP_ACCOUNT_RECOVERY_ENROLL_INFO"></lang-string></p>
+	<label class="d-block"><input type="checkbox" v-model="state.account_recovery_consent" :disabled="state.account_recovery_busy"> <lang-string lang-id="MOD_MP_ACCOUNT_RECOVERY_CONSENT"></lang-string></label>
+	<div class="mp-account-recovery-list" v-if="!state.account_recovery_enrolling && state.account_recovery_candidates.length" @touchmove.stop>
+		<div class="mb-3" v-for="identity in state.account_recovery_candidates" :key="identity.client_id">
+			<label><input type="radio" name="mp-account-recovery-identity" :value="identity.client_id" v-model="state.account_recovery_selected" :disabled="state.account_recovery_busy"> <strong>{{ identity.display_name }}</strong></label>
+			<div><lang-string lang-id="MOD_MP_ACCOUNT_RECOVERY_LAST_ACTIVE"></lang-string>: {{ state.account_recovery_last_active(identity.last_active_at) }}</div>
+		</div>
+	</div>
+	<p v-if="state.account_recovery_loaded && !state.account_recovery_candidates.length"><lang-string lang-id="MOD_MP_ACCOUNT_RECOVERY_EMPTY"></lang-string></p>
+	<button v-if="state.account_recovery_candidates.length" type="button" class="btn btn-primary mb-3" :disabled="state.account_recovery_busy || !state.account_recovery_consent || !state.account_recovery_selected" @click="state.run_account_recovery('connect', state.account_recovery_selected)"><lang-string lang-id="MOD_MP_IDENTITY_CONNECT_ACTION"></lang-string></button>
+	<p role="status">{{ state.account_recovery_message }}</p>
+	<button type="button" class="btn btn-primary" :disabled="state.account_recovery_busy || !state.account_recovery_consent" @click="state.run_account_recovery(state.account_recovery_enrolling ? 'enroll' : 'list')"><lang-string :lang-id="state.account_recovery_enrolling ? 'MOD_MP_ACCOUNT_RECOVERY_ENABLE' : 'MOD_MP_ACCOUNT_RECOVERY_FIND'"></lang-string></button>
+	<button v-if="state.account_recovery_enrolling" type="button" class="btn btn-warning" :disabled="state.account_recovery_busy" @click="state.run_account_recovery('disable')"><lang-string lang-id="MOD_MP_ACCOUNT_RECOVERY_DISABLE"></lang-string></button>
+	<button v-if="!state.account_recovery_enrolling" type="button" class="btn btn-secondary" :disabled="state.account_recovery_busy" @click="state.open_identity_code_recovery()"><lang-string lang-id="MOD_MP_IDENTITY_CODE_LABEL"></lang-string></button>
+	<button type="button" class="btn btn-secondary ml-2" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
+</template>
 <template id="template-mp-identity-bootstrap-modal">
+	<button v-if="state.account_recovery_available" type="button" class="btn btn-primary mb-3" @click="state.open_account_recovery()"><lang-string lang-id="MOD_MP_ACCOUNT_RECOVERY_FIND"></lang-string></button>
 	<div class="mp-modal-text"><lang-string lang-id="MOD_MP_IDENTITY_CONNECT_INFO"></lang-string></div>
 	<label for="mp-identity-recovery-input"><lang-string lang-id="MOD_MP_IDENTITY_CODE_LABEL"></lang-string></label>
 	<textarea id="mp-identity-recovery-input" class="form-control mp-identity-code" v-model="state.identity_code" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
@@ -123,9 +143,9 @@
 							<div v-for="category in state.equipment_project_categories()" :key="category.id" class="mp-equipment-category">
 								<h4>{{ category.name }}</h4>
 								<div class="mp-equipment-project-icons" role="group" :aria-label="category.name">
-									<button v-for="project in category.items" :key="project.item_id" type="button" class="mp-equipment-project-icon" :disabled="!state.combat_tutorial_access('project', project.item_id)" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('project', project.item_id), 'mp-equipment-project-ready': state.equipment_project_can_start(project), 'mp-equipment-project-undiscovered': !state.equipment_discovered(project.item_id), 'mp-equipment-project-complete': state.equipment_project_completed(project.item_id), 'mp-equipment-project-active': state.equipment_project_started(project.item_id) }" :title="state.equipment_project_title(project)" :aria-label="state.equipment_project_title(project)" :aria-pressed="state.equipment_selected.project?.id === project.item_id" @click="state.equipment_select('project', 'project', project.item_id)">
+									<button v-for="project in category.items" :key="project.item_id" type="button" class="mp-equipment-project-icon" :disabled="!state.combat_tutorial_access('project', project.item_id)" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('project', project.item_id), 'mp-equipment-project-ready': state.equipment_project_can_start(project), 'mp-equipment-project-complete': state.equipment_project_completed(project.item_id), 'mp-equipment-project-active': state.equipment_project_started(project.item_id) }" :title="state.equipment_project_title(project)" :aria-label="state.equipment_project_title(project)" :aria-pressed="state.equipment_selected.project?.id === project.item_id" @click="state.equipment_select('project', 'project', project.item_id)">
 										<img :src="state.get_item_icon(project.item_id)" alt="" width="40" height="40">
-										<i v-if="!state.combat_tutorial_access('project', project.item_id) || !state.equipment_discovered(project.item_id)" class="fa fa-lock mp-equipment-project-lock" aria-hidden="true"></i>
+										<i v-if="!state.combat_tutorial_access('project', project.item_id)" class="fa fa-lock mp-equipment-project-lock" aria-hidden="true"></i>
 										<i v-else-if="state.equipment_project_completed(project.item_id)" class="fa fa-check mp-equipment-project-status" aria-hidden="true"></i>
 										<i v-else-if="state.equipment_project_started(project.item_id)" class="fa fa-hourglass-half mp-equipment-project-status" aria-hidden="true"></i>
 									</button>
@@ -414,16 +434,67 @@
 				<p role="status">{{ state.combat_tutorial_guide()?.text }}</p>
 				<button v-if="state.combat.tutorial?.skip_ep_micros != null" type="button" class="btn btn-sm btn-outline-secondary" :disabled="!state.combat_tutorial_skip_ready()" @click="state.combat_tutorial_skip_preview()"><lang-string lang-id="MOD_MP_COMBAT_TUTORIAL_SKIP"></lang-string></button></div>
 			</section>
-			<nav class="mp-combat-page-tabs mp-combat-desktop-tabs" role="tablist" :aria-label="getLangString('MOD_MP_COMBAT_PREPARATION')">
-				<button v-for="tab in ['character', 'test_combat', 'pvp', 'raid']" :key="tab" type="button" class="btn" role="tab" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('page', tab) }" :aria-selected="state.combat.page_tab === tab" :disabled="!state.combat_tutorial_access('page', tab)" @click="state.combat_select_page(tab)"><i v-show="!state.combat_tutorial_access('page', tab)" class="fa fa-lock" aria-hidden="true"></i>{{ getLangString('MOD_MP_COMBAT_TAB_' + tab.toUpperCase()) }}</button>
+			<nav class="mp-combat-page-tabs mp-combat-main-tabs" :class="{ 'mp-has-adventures': state.adventures.supported }" role="tablist" :aria-label="getLangString('MOD_MP_COMBAT_PREPARATION')">
+				<button v-for="tab in (state.adventures.supported ? ['character', 'pvp', 'raid', 'adventures'] : ['character', 'pvp', 'raid'])" :key="tab" type="button" class="btn" role="tab" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('page', tab) }" :aria-selected="state.combat.page_tab === tab" :disabled="!state.combat_tutorial_access('page', tab)" @click="state.combat_select_page(tab)"><i v-show="!state.combat_tutorial_access('page', tab)" class="fa fa-lock" aria-hidden="true"></i>{{ tab === 'adventures' ? getLangString('MOD_MP_ADVENTURE_TAB') : getLangString('MOD_MP_COMBAT_TAB_' + tab.toUpperCase()) }}</button>
 			</nav>
-			<nav class="mp-combat-page-tabs mp-combat-mobile-tabs" role="tablist" :aria-label="getLangString('MOD_MP_COMBAT_PREPARATION')">
-				<button type="button" class="btn" role="tab" :aria-selected="state.combat.page_tab === 'character'" :disabled="state.combat.arena?.status === 'active'" @click="state.combat_select_page('character')"><i v-show="state.combat.arena?.status === 'active'" class="fa fa-lock" aria-hidden="true"></i>{{ getLangString('MOD_MP_COMBAT_TAB_CHARACTER') }}</button>
-				<button type="button" class="btn" role="tab" :aria-selected="state.combat.page_tab !== 'character'" :disabled="!state.combat_tutorial_access('page', 'test_combat')" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('battles') }" @click="state.combat_select_page('test_combat')">{{ getLangString('MOD_MP_COMBAT_TAB_BATTLES') }}</button>
-			</nav>
-			<nav class="mp-combat-page-tabs mp-combat-mobile-tabs mp-combat-battle-tabs" role="tablist" :aria-label="getLangString('MOD_MP_COMBAT_TAB_BATTLES')" v-show="state.combat.page_tab !== 'character'">
-				<button v-for="tab in ['test_combat', 'pvp', 'raid']" :key="tab" type="button" class="btn" role="tab" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('page', tab) }" :aria-selected="state.combat.page_tab === tab" :disabled="!state.combat_tutorial_access('page', tab)" @click="state.combat_select_page(tab)"><i v-show="!state.combat_tutorial_access('page', tab)" class="fa fa-lock" aria-hidden="true"></i>{{ getLangString('MOD_MP_COMBAT_TAB_' + tab.toUpperCase()) }}</button>
-			</nav>
+			<div v-if="state.adventures.supported" v-show="state.combat.page_tab === 'adventures'">
+				<section class="mp-combat-panel" aria-labelledby="mp-adventures-title">
+					<header class="mp-combat-panel-header mp-combat-summary"><h3 id="mp-adventures-title"><lang-string lang-id="MOD_MP_ADVENTURE_TITLE"></lang-string></h3><span>{{ state.format_ep(state.adventures.ep_micros) }} EP</span></header>
+					<div class="mp-combat-panel-body">
+						<div class="mp-adventure-overview">
+						<div class="mp-adventure-limit"><div class="mp-combat-level-purchase">
+							<div class="mp-combat-level-heading"><div><strong><lang-string lang-id="MOD_MP_ADVENTURE_LIMIT"></lang-string></strong><div class="mp-combat-level-preview"><strong>{{ state.adventures.capacity }}<small> / 99</small></strong><span v-if="state.adventures.editing_limit" aria-hidden="true">→</span><strong v-if="state.adventures.editing_limit" class="mp-combat-level-target">{{ state.adventures.target }}<small> / 99</small></strong></div><small>{{ getLangString(state.adventures.capacity === 1 ? 'MOD_MP_ADVENTURE_HOUR_UNIT' : 'MOD_MP_ADVENTURE_HOURS_UNIT') }}</small></div></div>
+							<button v-if="state.adventures.capacity < 99 && !state.adventures.editing_limit" type="button" class="btn btn-secondary mp-combat-level-button" :disabled="state.adventures.busy || state.adventures.tutorial_complete === false" :aria-label="getLangString('MOD_MP_ADVENTURE_INCREASE')" @click="state.adventure_edit_limit(true)">+</button>
+							<div v-if="state.adventures.editing_limit" class="mp-listing-stepper mp-combat-level-stepper">
+								<button type="button" class="btn btn-secondary mp-combat-level-button" :disabled="state.adventures.busy || state.adventures.target <= state.adventures.capacity + 1" :aria-label="getLangString('MOD_MP_ADVENTURE_DECREASE')" @click="state.adventure_set_target(state.adventures.target - 1)">−</button>
+								<input type="number" :min="state.adventures.capacity + 1" max="99" step="1" :aria-label="getLangString('MOD_MP_ADVENTURE_NEW_LIMIT')" :disabled="state.adventures.busy" :value="state.adventures.target" @change="state.adventure_set_target(Number($event.target.value)); $event.target.value = state.adventures.target">
+								<button type="button" class="btn btn-secondary mp-combat-level-button" :disabled="state.adventures.busy || state.adventures.target >= 99" :aria-label="getLangString('MOD_MP_ADVENTURE_INCREASE')" @click="state.adventure_set_target(state.adventures.target + 1)">+</button>
+							</div>
+							<div v-if="state.adventures.editing_limit" class="mp-combat-level-order"><div class="mp-combat-level-cost"><small>{{ getLangString(state.adventures.target - state.adventures.capacity === 1 ? 'MOD_MP_ADVENTURE_HOUR' : 'MOD_MP_ADVENTURE_HOURS').replace('%s', '+' + (state.adventures.target - state.adventures.capacity)) }}</small><strong>{{ state.adventure_cost() }} EP</strong></div><div class="mp-combat-level-actions"><button type="button" class="btn btn-secondary mp-combat-level-button" :disabled="state.adventures.busy" :aria-label="getLangString('MOD_MP_ADVENTURE_CANCEL_UPGRADE')" @click="state.adventure_edit_limit(false)">×</button><button type="button" class="btn btn-sm btn-primary" :disabled="state.adventures.busy || state.adventures.tutorial_complete === false || !state.is_connected || !state.adventure_cost() || state.adventure_cost() * 1000000 > state.adventures.ep_micros" @click="state.adventure_upgrade()"><lang-string lang-id="MOD_MP_ADVENTURE_CONFIRM"></lang-string></button></div></div>
+						</div>
+						<details v-if="state.adventures.invested_micros > 0"><summary><lang-string lang-id="MOD_MP_ADVENTURE_RESET"></lang-string></summary><p>{{ getLangString('MOD_MP_ADVENTURE_REFUND').replace('%s', state.adventures.reset_refund_micros / 1000000) }} {{ state.adventures.free_reset ? getLangString('MOD_MP_ADVENTURE_FREE_RESET') : getLangString('MOD_MP_ADVENTURE_PAID_RESET') }}</p><button type="button" class="btn btn-outline-danger" :disabled="state.adventures.busy" @click="state.adventure_reset()"><lang-string lang-id="MOD_MP_ADVENTURE_RESET"></lang-string></button></details>
+						</div>
+					<div class="mp-adventure-description">
+					<p><lang-string lang-id="MOD_MP_ADVENTURE_DESCRIPTION"></lang-string></p>
+					<p><lang-string lang-id="MOD_MP_ADVENTURE_GROUP_DESCRIPTION"></lang-string></p>
+					<label v-if="state.adventures.social_only"><input type="checkbox" :checked="state.adventures.opted_in" :disabled="state.adventures.busy" @change="state.adventure_opt_in($event.target.checked)"><lang-string lang-id="MOD_MP_ADVENTURE_SOCIAL"></lang-string></label>
+					<p v-if="state.adventures.tutorial_complete === false" class="text-muted"><lang-string lang-id="MOD_MP_ADVENTURE_TUTORIAL"></lang-string></p>
+					<p v-show="state.adventures.error" role="alert">{{ state.adventures.error ? getLangString(state.adventures.error) : '' }}</p>
+						<button v-if="state.adventures.active_area" type="button" class="btn btn-secondary" :disabled="state.adventures.busy" @click="state.adventure_stop()"><lang-string lang-id="MOD_MP_ADVENTURE_STOP_ADVENTURE"></lang-string></button>
+						</div>
+						</div>
+					</div>
+				</section>
+				<section class="mp-combat-panel" aria-labelledby="mp-adventure-areas-title">
+					<header class="mp-combat-panel-header"><h3 id="mp-adventure-areas-title"><lang-string lang-id="MOD_MP_ADVENTURE_AREAS"></lang-string></h3></header>
+					<div class="mp-combat-panel-body">
+					<div class="mp-adventure-areas">
+						<article class="mp-combat-panel mp-adventure-area" v-for="area of state.adventures.areas" :key="area.id" :class="{ 'mp-adventure-area-active': state.adventures.active_area === area.id }">
+							<div class="mp-combat-panel-body">
+								<img v-if="state.get_adventure_area_icon(area.id)" class="mp-adventure-area-art" :src="state.get_adventure_area_icon(area.id)" alt="" aria-hidden="true">
+								<h4>{{ state.get_adventure_area_name(area) }} <span v-if="area.fighter_count > 0" class="mp-adventure-fighter-count"><img :src="state.get_adventure_fighter_icon()" :alt="getLangString('MOD_MP_ADVENTURE_FIGHTERS')" width="20" height="20"> {{ area.fighter_count }}</span></h4>
+								<div class="mp-adventure-monsters">
+									<div v-for="monster of area.monsters" :key="monster.id" class="mp-adventure-monster">
+										<button type="button" class="mp-adventure-monster-badge" :class="{ 'mp-selected': area.selected_ids.includes(monster.id) }" :aria-pressed="area.selected_ids.includes(monster.id)" :disabled="state.adventures.busy" @click="state.adventure_select(area.id, monster.id, !area.selected_ids.includes(monster.id))">
+											<img :src="state.get_adventure_monster_icon(monster.id)" width="40" height="40" alt="">
+											<span>{{ state.get_adventure_monster_name(monster) }}<small v-if="!monster.eligible" class="text-warning"><img v-if="monster.reason === 'More Hitpoints required.'" class="mp-adventure-hp-icon" :src="state.combat_skill_icon('hitpoints')" alt="" aria-hidden="true"> {{ state.adventure_reason(monster.reason) }}</small></span>
+										</button>
+									</div>
+								</div>
+								<p v-if="state.adventures.active_area" class="text-muted"><lang-string lang-id="MOD_MP_ADVENTURE_PROGRESS_WARNING"></lang-string></p>
+								<div class="mp-adventure-area-actions">
+								<button type="button" class="btn btn-primary mp-adventure-drops" :disabled="!area.ready" :aria-label="getLangString('COMBAT_MISC_104') + ': ' + state.get_adventure_area_name(area)" :title="getLangString('COMBAT_MISC_104')" @click="state.show_adventure_drops(area.id)"><img :src="state.get_raid_info_icon('drops')" width="20" height="20" alt=""></button>
+								<button v-if="state.adventures.active_area === area.id && area.selected_ids.length === state.adventures.active_monsters.length && area.selected_ids.every(id => state.adventures.active_monsters.includes(id))" type="button" class="btn btn-secondary" :disabled="state.adventures.busy" @click="state.adventure_stop()"><lang-string lang-id="MOD_MP_ADVENTURE_STOP"></lang-string></button>
+								<button v-else type="button" class="btn btn-primary" :disabled="state.adventures.busy || state.adventures.tutorial_complete === false || !area.ready || !state.adventures.character_ready || (state.adventures.social_only && !state.adventures.opted_in)" @click="state.adventure_start(area.id)">{{ state.adventures.active_area === area.id ? getLangString('MOD_MP_ADVENTURE_UPDATE') : getLangString('MOD_MP_ADVENTURE_START') }}</button>
+								<span v-show="area.ready" class="mp-adventure-rate"><template v-if="area.selected_ids.length > 1">{{ getLangString('MOD_MP_ADVENTURE_BOUTS_PER_HOUR').replace('%s', (area.kills_per_hour / area.selected_ids.length).toLocaleString(undefined, {maximumFractionDigits: 2})) }} · {{ getLangString('MOD_MP_ADVENTURE_TOTAL_KILLS_PER_HOUR').replace('%s', area.kills_per_hour.toLocaleString(undefined, {maximumFractionDigits: 2})) }}</template><template v-else>{{ getLangString('MOD_MP_ADVENTURE_KILLS_PER_HOUR').replace('%s', area.kills_per_hour.toLocaleString(undefined, {maximumFractionDigits: 2})) }}</template></span>
+								<span v-show="!area.selected_ids.length" class="text-muted"><lang-string lang-id="MOD_MP_ADVENTURE_SELECT_MONSTER"></lang-string></span>
+								</div>
+							</div>
+						</article>
+					</div>
+					</div>
+				</section>
+			</div>
 			<section class="mp-combat-panel" v-show="state.combat.recovery && state.combat.arena?.status !== 'active'" aria-live="polite">
 				<div class="mp-combat-panel-body">
 					<strong>{{ state.combat_recovery_copy(state.combat.recovery?.state === 'terminal' ? 'result' : state.combat.recovery?.state === 'paused' ? 'paused' : 'check') }}</strong>
@@ -437,6 +508,25 @@
 				<i class="fa fa-exclamation-triangle" aria-hidden="true"></i>
 				<div><strong>{{ state.combat_restart_minutes() > 0 ? state.combat_recovery_copy('restart', state.combat_restart_minutes()) : state.combat_recovery_copy('maintenance') }}</strong> <span v-show="state.combat.maintenance?.incompatible">{{ state.combat_recovery_copy('ending') }}</span></div>
 			</div>
+			<section class="mp-combat-panel" v-show="state.combat.page_tab === 'character' && !state.combat.tutorial?.complete && state.combat_choices().length > 0 && state.combat.arena?.status !== 'active'" aria-labelledby="mp-combat-picker-title">
+				<header class="mp-combat-panel-header"><h3 id="mp-combat-picker-title">{{ state.combat_run_copy('choose') }}</h3></header>
+				<div class="mp-combat-panel-body">
+					<div class="mp-combat-choice-grid" role="group" :aria-label="state.combat_run_copy('targets')">
+						<button type="button" class="mp-combat-choice" v-for="choice in state.combat_choices()" :key="state.combat.mode + ':' + choice.id" :aria-pressed="state.combat.encounter === choice.id" :disabled="state.combat.starting || state.combat.pending || state.combat.arena?.status === 'active'" @click="state.combat.encounter = choice.id">
+							<span class="mp-combat-choice-art"><img v-for="actor in choice.actors" :key="actor" :src="state.combat_actor_image(actor)" :style="state.combat_actor_image_style(actor)" alt="" width="48" height="48"></span>
+							<strong>{{ choice.name }}</strong><span v-if="choice.description">{{ choice.description }}</span>
+							<span class="mp-combat-composition"><span v-for="group in choice.groups" :key="group.type">{{ group.count }} <img :src="state.combat_attack_icon(group.type)" :alt="state.combat_name(group.type)" :title="state.combat_name(group.type)" width="22" height="22"></span></span>
+
+						</button>
+					</div>
+					<button type="button" class="btn btn-success" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('battle') }" :disabled="!!state.combat.recovery || state.combat.maintenance?.drain_at != null || (state.combat.page_tab === 'raid' && state.combat.raid_selection !== 'golbins' && state.combat_dungeon()?.available !== true) || (state.combat.tutorial && !state.combat.tutorial.complete && !state.combat.tutorial.ready) || !state.is_connected || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character || state.combat.arena?.status === 'active'" @click="state.start_combat()">{{ state.combat.starting ? state.combat_name('connecting') : state.combat_run_copy('start') }}</button>
+					<p class="text-warning mt-2" role="status" v-show="state.combat.status === 'unavailable'">{{ getLangString('MOD_MP_COMBAT_UNAVAILABLE_INFO') }}</p>
+					<p class="text-warning mt-2" role="status" v-show="state.combat.status === 'error'">{{ state.combat_name(state.combat.status) }}</p>
+					<p class="text-warning mt-2" role="status" v-show="state.combat.error">{{ state.combat_name(state.combat.error || 'rejected') }}</p>
+					<p class="text-warning mt-2" role="status" v-show="state.combat.inventory_error">{{ state.combat_inventory_error() }}</p>
+					<p class="text-warning mt-2" v-show="!state.is_connected"><lang-string lang-id="MOD_MP_COMBAT_CONNECT_REQUIRED"></lang-string></p>
+				</div>
+			</section>
 			<div class="mp-combat-arena-host" v-show="state.combat.arena">
 				<section class="mp-combat-panel mp-combat-arena" v-show="state.combat.page_tab === state.combat.combat_tab && state.combat.arena?.status === 'active'" :aria-label="state.combat_encounter_name()">
 					<header class="mp-combat-panel-header mp-combat-toolbar">
@@ -461,7 +551,6 @@
 					</header>
 					<div class="mp-combat-panel-body">
 						<p v-show="state.combat.arena?.run?.mode === 'raid'" role="status">{{ state.combat_raid_copy('tier') }} {{ state.combat_roman(state.combat.arena?.run?.tier) }} / {{ state.combat_roman(state.combat.arena?.run?.raid_endpoint) }} · {{ state.combat_raid_copy('wave') }} {{ state.combat.arena?.run?.stage + 1 }} / {{ state.combat.arena?.run?.stages }} · {{ state.combat_time(state.combat.arena?.run?.total_ms) }}</p>
-						<p v-if="state.combat.arena?.ruleset === 'practice-1' && state.combat.arena?.run?.stages !== 1" role="status">{{ state.combat_practice_copy('bout') }} {{ state.combat.arena?.run?.stage + 1 }} / {{ state.combat.arena?.run?.stages }}</p>
 						<div class="mp-combat-field">
 							<div class="mp-combat-actor mp-combat-player">
 								<div class="mp-combat-player-overview">
@@ -530,79 +619,6 @@
 					</div>
 				</section>
 			</div>
-			<section class="mp-combat-panel" v-show="state.combat.page_tab === 'test_combat' && !state.combat.tutorial?.complete && state.combat_choices().length > 0 && state.combat.arena?.status !== 'active'" aria-labelledby="mp-combat-picker-title">
-				<header class="mp-combat-panel-header"><h3 id="mp-combat-picker-title">{{ state.combat_run_copy('choose') }}</h3></header>
-				<div class="mp-combat-panel-body">
-					<div class="mp-combat-choice-grid" role="group" :aria-label="state.combat_run_copy('targets')">
-						<button type="button" class="mp-combat-choice" v-for="choice in state.combat_choices()" :key="state.combat.mode + ':' + choice.id" :aria-pressed="state.combat.encounter === choice.id" :disabled="state.combat.starting || state.combat.pending || state.combat.arena?.status === 'active'" @click="state.combat.encounter = choice.id">
-							<span class="mp-combat-choice-art"><img v-for="actor in choice.actors" :key="actor" :src="state.combat_actor_image(actor)" :style="state.combat_actor_image_style(actor)" alt="" width="48" height="48"></span>
-							<strong>{{ choice.name }}</strong><span v-if="choice.description">{{ choice.description }}</span>
-							<span class="mp-combat-composition"><span v-for="group in choice.groups" :key="group.type">{{ group.count }} <img :src="state.combat_attack_icon(group.type)" :alt="state.combat_name(group.type)" :title="state.combat_name(group.type)" width="22" height="22"></span></span>
-
-						</button>
-					</div>
-					<button type="button" class="btn btn-success" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('battle') }" :disabled="!!state.combat.recovery || state.combat.maintenance?.drain_at != null || (state.combat.raid_selection !== 'golbins' && state.combat_dungeon()?.available !== true) || (state.combat.tutorial && !state.combat.tutorial.complete && !state.combat.tutorial.ready) || !state.is_connected || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character || state.combat.arena?.status === 'active'" @click="state.start_combat()">{{ state.combat.starting ? state.combat_name('connecting') : state.combat_run_copy('start') }}</button>
-					<p class="text-warning mt-2" role="status" v-show="state.combat.status === 'unavailable'">{{ getLangString('MOD_MP_COMBAT_UNAVAILABLE_INFO') }}</p>
-					<p class="text-warning mt-2" role="status" v-show="state.combat.status === 'error'">{{ state.combat_name(state.combat.status) }}</p>
-					<p class="text-warning mt-2" role="status" v-show="state.combat.error">{{ state.combat_name(state.combat.error || 'rejected') }}</p>
-					<p class="text-warning mt-2" role="status" v-show="state.combat.inventory_error">{{ state.combat_inventory_error() }}</p>
-					<p class="text-warning mt-2" v-show="!state.is_connected"><lang-string lang-id="MOD_MP_COMBAT_CONNECT_REQUIRED"></lang-string></p>
-				</div>
-			</section>
-			<div class="mp-combat-practice" v-show="state.combat.page_tab === 'test_combat' && state.combat.tutorial?.complete && state.combat.arena?.status !== 'active'">
-				<nav class="mp-combat-page-tabs mp-combat-mobile-tabs mp-combat-practice-tabs" role="tablist" :aria-label="state.combat_practice_copy('picker')">
-					<button type="button" class="btn" role="tab" id="mp-practice-tab-picker" aria-controls="mp-practice-picker" :aria-selected="state.combat.practice_tab === 'picker'" @click="state.combat.practice_tab = 'picker'">{{ state.combat_practice_copy('picker') }}</button>
-					<button type="button" class="btn" role="tab" id="mp-practice-tab-selected" aria-controls="mp-practice-selected" :aria-selected="state.combat.practice_tab === 'selected'" @click="state.combat.practice_tab = 'selected'">{{ state.combat_practice_copy('selected') }}</button>
-				</nav>
-				<div class="mp-combat-practice-columns">
-					<section id="mp-practice-picker" class="mp-combat-panel" :class="{ 'mp-combat-practice-mobile-hidden': state.combat.practice_tab !== 'picker' }" aria-labelledby="mp-practice-picker-title">
-						<header class="mp-combat-panel-header"><h3 id="mp-practice-picker-title">{{ state.combat_practice_copy('opponents') }}</h3></header>
-						<div class="mp-combat-panel-body">
-							<nav class="mp-combat-page-tabs mp-combat-practice-categories" :aria-label="state.combat_practice_copy('categories')">
-								<button v-for="category in state.combat_practice_categories" :key="category" type="button" class="btn" :aria-pressed="state.combat.practice_category === category" :disabled="state.combat.starting || state.combat.pending" @click="state.combat_practice_select('category', category)">{{ state.combat_practice_copy(category) }}</button>
-							</nav>
-							<div class="mp-combat-practice-roster">
-								<button v-for="choice in state.combat_practice_choices()" :key="choice.selection" type="button" class="mp-combat-choice mp-combat-raid-choice" :aria-pressed="state.combat.practice_selection === choice.selection" :disabled="state.combat.starting || state.combat.pending" @click="state.combat_practice_select('encounter', choice.selection)">
-									<span class="mp-combat-choice-art"><img v-for="actor in choice.actors" :key="actor" :src="state.combat_actor_image(actor)" alt="" width="40" height="40"></span>
-									<strong>{{ choice.name }}</strong>
-									<span>{{ state.combat_practice_cleared(choice) }} / {{ choice.tiers.length }} {{ state.combat_practice_copy('tiers_cleared') }}</span>
-								</button>
-							</div>
-							<p v-if="!state.combat.practice.length" role="status">{{ state.combat_practice_copy('unavailable') }}</p>
-							<button v-if="!state.combat.practice.length" type="button" class="btn btn-secondary" :disabled="state.combat.inventory_busy" @click="state.refresh_combat_inventory()">{{ state.combat_name('refresh') }}</button>
-						</div>
-					</section>
-					<section id="mp-practice-selected" class="mp-combat-panel" :class="{ 'mp-combat-practice-mobile-hidden': state.combat.practice_tab !== 'selected' }" aria-labelledby="mp-practice-selected-title">
-						<header class="mp-combat-panel-header"><h3 id="mp-practice-selected-title">{{ state.combat_practice_selected()?.name ?? state.combat_practice_copy('selected') }}</h3></header>
-						<div class="mp-combat-panel-body" v-if="state.combat_practice_selected() && state.combat_practice_tier()">
-							<div class="mp-combat-practice-tier-picker" role="group" :aria-label="state.combat_practice_copy('tier')">
-								<button v-for="tier in state.combat_practice_selected().tiers" :key="tier.tier" type="button" class="btn mp-combat-tier-badge" :class="{ 'mp-combat-tier-complete': tier.complete, 'mp-combat-tier-locked': !tier.available }" :aria-pressed="state.combat.practice_tier === tier.tier" :aria-label="state.combat_practice_tier_label(tier)" :disabled="state.combat.starting || state.combat.pending" @click="state.combat_practice_select('tier', tier.tier)">
-									{{ state.combat_roman(tier.tier) }}<i v-if="!tier.available" class="fa fa-lock" aria-hidden="true"></i><i v-else-if="tier.complete" class="fa fa-check" aria-hidden="true"></i>
-								</button>
-							</div>
-							<p class="mp-combat-practice-preparation"><strong>{{ state.combat_practice_copy('recommendation') }}</strong><span class="mp-combat-practice-preparation-row"><span class="mp-combat-practice-skills"><img v-for="skill in ['attack', 'strength', 'defence']" :key="skill" :src="state.combat_skill_icon(skill)" :alt="state.combat_name(skill)" :title="state.combat_name(skill)" width="20" height="20"><img v-show="state.combat_practice_tier().hitpoints === state.combat_practice_tier().level" :src="state.combat_skill_icon('hitpoints')" :alt="state.combat_name('hitpoints')" :title="state.combat_name('hitpoints')" width="20" height="20"><span>{{ state.combat_practice_tier().level }}</span></span><span v-show="state.combat_practice_tier().hitpoints !== state.combat_practice_tier().level" class="mp-combat-practice-skills"><span aria-hidden="true">·</span><img :src="state.combat_skill_icon('hitpoints')" :alt="state.combat_name('hitpoints')" :title="state.combat_name('hitpoints')" width="20" height="20"><span>{{ state.combat_practice_tier().hitpoints }}</span></span><span aria-hidden="true">·</span><span>{{ state.combat_practice_material(state.combat_practice_tier().material) }}</span></span></p>
-							<p v-if="!state.combat_practice_tier().available" class="text-warning">{{ state.combat_practice_copy('locked') }}</p>
-							<h4>{{ state.combat_practice_copy('focus') }}</h4><p>{{ state.combat_practice_selected().focus }}</p>
-							<h4>{{ state.combat_practice_copy(state.combat_practice_selected().category === 'circuits' ? 'order' : 'opponents') }}</h4>
-							<ol class="mp-combat-practice-waves">
-								<li v-for="(wave,index) in state.combat_practice_tier().waves" :key="index">
-									<strong v-if="state.combat_practice_selected().category === 'circuits'">{{ state.combat_practice_copy('bout') }} {{ index + 1 }}</strong>
-									<small v-if="wave.length > 1">{{ state.combat_practice_copy('together') }}</small>
-									<div v-for="actor in wave" :key="actor.id" class="mp-combat-practice-actor"><img :src="state.combat_actor_image(actor.id)" alt="" width="36" height="36"><span><strong>{{ actor.name }}</strong><small><img :src="state.combat_attack_icon(actor.type)" :alt="state.combat_name(actor.type)" width="18" height="18"> {{ actor.hp }} HP · {{ state.combat_name('max_hit') }} {{ actor.max_hit }} · {{ state.combat_interval(actor.interval) }}</small></span></div>
-								</li>
-							</ol>
-							<h4>{{ state.combat_practice_copy('effects') }}</h4>
-							<p v-if="!state.combat_practice_effects().length">{{ state.combat_practice_copy('no_effects') }}</p>
-							<p v-for="actor in state.combat_practice_effects()" :key="actor.effect"><img :src="state.combat_effect_image(actor.effect)" alt="" width="20" height="20"> <strong>{{ state.combat_name(actor.effect) }}</strong>: {{ actor.effect_info }}</p>
-							<p><i v-if="state.combat_practice_tier().complete" class="fa fa-check text-success" aria-hidden="true"></i> {{ state.combat_practice_copy(state.combat_practice_tier().complete ? 'cleared' : 'uncleared') }}</p>
-							<button type="button" class="btn btn-success mp-combat-raid-start" :disabled="!!state.combat.recovery || state.combat.maintenance?.drain_at != null || !state.combat_practice_tier().available || !state.is_connected || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character" @click="state.start_combat()">{{ state.combat.starting ? state.combat_name('connecting') : state.combat_practice_copy('start') + ' · ' + state.combat_practice_copy('tier') + ' ' + state.combat_roman(state.combat.practice_tier) }}</button>
-							<p class="text-warning mt-2" role="status" v-show="state.combat.status === 'unavailable'">{{ getLangString('MOD_MP_COMBAT_UNAVAILABLE_INFO') }}</p>
-							<p class="text-warning mt-2" role="status" v-show="state.combat.error">{{ state.combat_name(state.combat.error || 'rejected') }}</p>
-							<p class="text-warning mt-2" role="status" v-show="state.combat.inventory_error">{{ state.combat_inventory_error() }}</p>
-						</div>
-					</section>
-				</div>
-			</div>
 			<div class="mp-combat-raids" v-show="state.combat.page_tab === 'raid' && state.combat.arena?.status !== 'active'">
 				<nav class="mp-combat-page-tabs mp-combat-mobile-tabs mp-combat-battle-tabs mp-combat-raid-tabs" role="tablist" :aria-label="state.combat_raid_copy('raids')">
 					<button v-for="tab in ['raids', 'details', 'leaderboard']" :key="tab" type="button" class="btn" role="tab" :id="'mp-combat-raid-tab-' + tab" :aria-controls="'mp-combat-raid-panel-' + tab" :aria-selected="state.combat.raid_tab === tab" @click="state.combat.raid_tab = tab">{{ state.combat_raid_copy(tab === 'details' ? 'selected' : tab) }}</button>
@@ -628,7 +644,7 @@
 							<div class="mp-combat-raid-unlocks"><div v-for="tier in state.combat_raid_tiers()" :key="tier.tier" class="mp-combat-raid-unlock" :class="{ 'mp-combat-raid-unlock-selected': tier.selected }"><span class="mp-combat-tier-badge" :class="{ 'mp-combat-tier-complete': tier.complete, 'mp-combat-tier-locked': tier.locked }" :aria-label="state.combat_raid_copy('tier') + ' ' + tier.numeral + (tier.locked ? ' · ' + state.combat_raid_copy('locked') : tier.complete ? ' · ' + state.combat_raid_copy('completed') : '')"><span>{{ tier.numeral }}</span><i class="fa fa-check" v-show="tier.complete && !tier.locked" aria-hidden="true"></i><i class="fa fa-lock" v-show="tier.locked" aria-hidden="true"></i></span><span class="mp-combat-raid-gains"><strong v-if="tier.name">{{ state.combat_name(state.combat.raid_selection + '_tier_' + tier.tier) }}</strong><span v-for="gain in tier.gains" :key="gain.skill"><img class="mp-combat-raid-skill-icon" :src="state.combat_skill_icon(gain.skill)" alt="" width="16" height="16">{{ state.combat_name(gain.skill) }}: <strong>{{ gain.cap }}</strong></span><span v-if="tier.material_cap" v-html="state.combat_material_access(tier.material_cap)"></span><span v-if="tier.food"><img class="mp-combat-raid-skill-icon" :src="state.get_item_icon(tier.food?.item_id)" alt="" width="16" height="16">{{ state.get_item_name(tier.food?.item_id) }} (+{{ tier.food?.heal }} HP)</span></span></div></div>
 							<p class="text-muted mp-combat-raid-qualification">{{ state.combat_raid_copy('qualification') }}</p>
 							<p v-if="state.combat_dungeon()?.best">{{ state.combat_raid_copy('best') }}: <strong>{{ state.combat_time(state.combat_dungeon()?.best?.elapsed_ms) }}</strong> · {{ state.combat_local_date(state.combat_dungeon()?.best?.achieved_at) }}</p>
-					<button type="button" class="btn btn-success mp-combat-raid-start" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('battle') }" :disabled="!!state.combat.recovery || state.combat.maintenance?.drain_at != null || (state.combat.raid_selection !== 'golbins' && state.combat_dungeon()?.available !== true) || (state.combat.tutorial && !state.combat.tutorial.complete && !state.combat.tutorial.ready) || !state.is_connected || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character || state.combat.arena?.status === 'active'" @click="state.start_combat()">{{ state.combat.starting ? state.combat_name('connecting') : state.combat_raid_copy('start') + ' · ' + state.combat_raid_copy('tier') + ' ' + state.combat_roman(state.combat_dungeon()?.endpoint ?? 1) }}</button>
+					<button type="button" class="btn btn-success mp-combat-raid-start" :class="{ 'mp-tutorial-highlight': state.combat_tutorial_highlight('battle') }" :disabled="!!state.combat.recovery || state.combat.maintenance?.drain_at != null || (state.combat.page_tab === 'raid' && state.combat.raid_selection !== 'golbins' && state.combat_dungeon()?.available !== true) || (state.combat.tutorial && !state.combat.tutorial.complete && !state.combat.tutorial.ready) || !state.is_connected || state.combat.starting || state.combat.pending || state.combat.inventory_busy || !state.combat.character || state.combat.arena?.status === 'active'" @click="state.start_combat()">{{ state.combat.starting ? state.combat_name('connecting') : state.combat_raid_copy('start') + ' · ' + state.combat_raid_copy('tier') + ' ' + state.combat_roman(state.combat_dungeon()?.endpoint ?? 1) }}</button>
 					<p class="text-warning mt-2" role="status" v-show="state.combat.status === 'unavailable'">{{ getLangString('MOD_MP_COMBAT_UNAVAILABLE_INFO') }}</p>
 					<p class="text-warning mt-2" role="status" v-show="state.combat.status === 'error'">{{ state.combat_name(state.combat.status) }}</p>
 					<p class="text-warning mt-2" role="status" v-show="state.combat.error">{{ state.combat_name(state.combat.error || 'rejected') }}</p>
@@ -654,12 +670,12 @@
 						<section v-if="state.combat_dungeon()?.activity" class="mp-combat-panel" aria-labelledby="mp-combat-dungeon-activity-title">
 							<header class="mp-combat-panel-header"><h3 id="mp-combat-dungeon-activity-title">{{ getLangString('MOD_MP_COMBAT_DUNGEON_ACTIVITY') }}</h3></header>
 							<div class="mp-combat-panel-body">
-								<p v-if="!state.combat_dungeon().activity.length">{{ getLangString('MOD_MP_COMBAT_DUNGEON_ACTIVITY_EMPTY') }}</p>
+								<p v-if="!state.combat_dungeon()?.activity?.length">{{ getLangString('MOD_MP_COMBAT_DUNGEON_ACTIVITY_EMPTY') }}</p>
 								<ul class="mp-combat-raid-records mp-combat-dungeon-activity">
-									<li v-for="(entry, index) in state.combat_dungeon().activity" :key="index"><img :src="state.get_avatar_icon(entry.icon_id)" alt="" width="36" height="36"><span class="mp-combat-raid-record-player"><strong>{{ entry.display_name }}</strong><small>{{ state.combat_local_date(entry.occurred_at) }}</small></span><span class="mp-combat-dungeon-activity-result"><strong :class="entry.status === 'victory' ? 'text-success' : 'text-danger'">{{ state.combat_name(entry.status) }}</strong><small>{{ state.combat_raid_copy('tier') }} {{ state.combat_roman(entry.tier) }}</small></span></li>
+									<li v-for="(entry, index) in state.combat_dungeon()?.activity" :key="index"><img :src="state.get_avatar_icon(entry.icon_id)" alt="" width="36" height="36"><span class="mp-combat-raid-record-player"><strong>{{ entry.display_name }}</strong><small>{{ state.combat_local_date(entry.occurred_at) }}</small></span><span class="mp-combat-dungeon-activity-result"><strong :class="entry.status === 'victory' ? 'text-success' : 'text-danger'">{{ state.combat_name(entry.status) }}</strong><small>{{ state.combat_raid_copy('tier') }} {{ state.combat_roman(entry.tier) }}</small></span></li>
 								</ul>
-								<p v-if="state.combat_dungeon().activity_error" class="text-warning" role="status">{{ state.combat_name('rejected') }}</p>
-								<button v-if="state.combat_dungeon().activity_next_cursor" type="button" class="btn btn-sm btn-secondary" :disabled="state.combat_dungeon().activity_loading" @click="state.combat_load_dungeon_activity()">{{ getLangString('MOD_MP_BUTTON_LOAD_MORE') }}</button>
+								<p v-if="state.combat_dungeon()?.activity_error" class="text-warning" role="status">{{ state.combat_name('rejected') }}</p>
+								<button v-if="state.combat_dungeon()?.activity_next_cursor" type="button" class="btn btn-sm btn-secondary" :disabled="state.combat_dungeon()?.activity_loading" @click="state.combat_load_dungeon_activity()">{{ getLangString('MOD_MP_BUTTON_LOAD_MORE') }}</button>
 							</div>
 						</section>
 					</div>
@@ -910,6 +926,7 @@
 		<template v-if="!state.member_actions_preview && (Number.isSafeInteger(state.chat_client_id) && state.chat_client_id > 0 && state.selected_guild_member.client_id === state.chat_client_id)">
 			<button type="button" class="btn btn-primary" @click="state.open_multiplayer_settings_from_options()"><lang-string lang-id="MOD_MP_MULTIPLAYER_SETTINGS"></lang-string></button>
 			<button type="button" class="btn btn-primary" @click="state.open_browser_chat_from_options()"><lang-string lang-id="MOD_MP_BROWSER_LINK_TITLE"></lang-string></button>
+			<button v-if="state.account_recovery_available" type="button" class="btn btn-primary" @click="state.open_account_recovery()"><lang-string lang-id="MOD_MP_ACCOUNT_RECOVERY_TITLE"></lang-string></button>
 			<button type="button" class="btn btn-primary" @click="state.show_identity_recovery_code()"><lang-string lang-id="MOD_MP_IDENTITY_BACKUP_TITLE"></lang-string></button>
 			<button type="button" class="btn btn-primary" @click="state.open_display_name_from_options()">
 				<lang-string lang-id="MOD_MP_MENU_CHANGE_DISPLAY_NAME"></lang-string>
@@ -1678,7 +1695,7 @@
 											<span class="badge badge-info" v-if="application.social_mode === 'social'">
 												<lang-string lang-id="MOD_MP_SOCIAL_MODE_SOCIAL"></lang-string>
 											</span>
-											<span class="badge mp-guild-cheats-badge" v-for="category in state.member_cheat_categories(application)" :key="category.id" role="button" tabindex="0"
+											<span class="badge mp-guild-cheats-badge" :class="{ 'mp-guild-cheats-badge-unfiltered': !state.listing_filters.includes(category.id) }" v-for="category in state.member_cheat_categories(application)" :key="category.id" role="button" tabindex="0"
 												@click="state.view_member_cheat_mods(application, $event, category.id)"
 												@keydown.enter.stop.prevent="state.view_member_cheat_mods(application, $event, category.id)"
 												@keydown.space.stop.prevent="state.view_member_cheat_mods(application, $event, category.id)">
@@ -1765,7 +1782,7 @@
 											<span class="badge badge-info" v-if="member.social_mode === 'social'">
 												<lang-string lang-id="MOD_MP_SOCIAL_MODE_SOCIAL"></lang-string>
 											</span>
-											<span class="badge mp-guild-cheats-badge" v-for="category in state.member_cheat_categories(member)" :key="category.id" role="button" tabindex="0"
+											<span class="badge mp-guild-cheats-badge" :class="{ 'mp-guild-cheats-badge-unfiltered': !state.listing_filters.includes(category.id) }" v-for="category in state.member_cheat_categories(member)" :key="category.id" role="button" tabindex="0"
 												@click="state.view_member_cheat_mods(member, $event, category.id)"
 												@keydown.enter.stop.prevent="state.view_member_cheat_mods(member, $event, category.id)"
 												@keydown.space.stop.prevent="state.view_member_cheat_mods(member, $event, category.id)">
@@ -2838,8 +2855,9 @@
 						<div id="mp-transfers-inbox-body" class="mp-transfer-panel-body" v-show="state.transfers_panels_open.inbox">
 							<div class="mp-inbox-groups" v-if="state.inbox_groups.length > 0">
 								<div class="mp-inbox-group" v-for="(group, group_index) of state.inbox_groups" :key="group.source_type + ':' + group.source_name">
-									<h4 class="mp-inbox-group-title">{{ state.get_inbox_group_title(group) }}</h4>
-									<div class="mp-transfer-item-grid mp-inbox-group-items">
+									<h4 class="mp-inbox-group-title" v-if="group.source_type !== 'fighter_adventures'">{{ state.get_inbox_group_title(group) }}</h4>
+									<button v-else type="button" class="mp-inbox-haul-toggle" :aria-expanded="state.adventures.inbox_open" @click="state.adventure_view_haul()"><lang-string lang-id="MOD_MP_ADVENTURE_HAUL"></lang-string> <i class="fa" :class="state.adventures.inbox_open ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i></button>
+									<div class="mp-transfer-item-grid mp-inbox-group-items" v-show="group.source_type !== 'fighter_adventures' || state.adventures.inbox_open">
 										<mp-item-icon v-for="item of group.items" class="mp-transfer-slot" :data-item-id="item.item_id" :key="item.item_id" tabindex="0" role="img" :aria-label="state.get_item_name(item.item_id) + ' ×' + formatNumber(item.qty)">
 											<span class="mp-transfer-item">
 												<img :src="state.get_item_icon(item.item_id)" alt="" draggable="false">
@@ -3621,7 +3639,7 @@
 		</section>
 		<section class="mp-listing-filters"><h3 v-show="state.multiplayer_settings_section !== 'listing_filters'"><lang-string lang-id="MOD_MP_LISTING_FILTERS"></lang-string></h3>
 			<p><lang-string lang-id="MOD_MP_LISTING_FILTERS_DESCRIPTION"></lang-string></p>
-			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" v-for="id in state.listing_filter_categories" :key="id" :aria-checked="state.listing_filters.includes(id)" @click.stop="state.toggle_listing_filter(id)"><span><span class="badge mp-guild-cheats-badge"><lang-string :lang-id="state.cheat_category_label(id)"></lang-string></span></span><span aria-hidden="true"></span></button>
+			<button type="button" class="mp-listing-row mp-listing-toggle" role="switch" v-for="id in state.listing_filter_categories" :key="id" :aria-checked="state.listing_filters.includes(id)" @click.stop="state.toggle_listing_filter(id)"><span><span class="badge mp-guild-cheats-badge" :class="{ 'mp-guild-cheats-badge-unfiltered': !state.listing_filters.includes(id) }"><lang-string :lang-id="state.cheat_category_label(id)"></lang-string></span></span><span aria-hidden="true"></span></button>
 		</section>
 		<div class="text-danger" role="alert" v-show="state.member_actions_error">{{ state.member_actions_error }}</div>
 		<button type="button" class="btn btn-primary mp-settings-close" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CLOSE"></lang-string></button>
@@ -3690,5 +3708,18 @@
 		<div v-if="state.combat.result.materials?.length" class="mp-combat-result-unlocks"><strong>{{ state.combat_raid_copy('unlocks') }}</strong><span v-for="gain in state.combat.result.materials" :key="gain.tier" v-html="state.combat_material_access(gain.tier)"></span></div>
 		<div v-if="state.combat.result.unlocks.length" class="mp-combat-result-unlocks"><strong>Unlocked</strong><span v-for="gain in state.combat.result.unlocks" :key="gain.skill"><img class="mp-combat-raid-skill-icon" :src="state.combat_skill_icon(gain.skill)" alt="" width="16" height="16">{{ state.combat_name(gain.skill) }} level cap: {{ gain.cap }}</span></div>
 		<strong v-if="state.combat.result.time" class="mp-combat-result-time">{{ state.combat.result.time }}</strong>
+	</div>
+</template>
+
+
+<template id="template-mp-adventure-drops-modal">
+	<p><lang-string lang-id="MOD_MP_ADVENTURE_DROPS_DESCRIPTION"></lang-string></p>
+	<div class="mp-adventure-drops-list">
+		<ul class="mp-raid-drop-list list-unstyled">
+			<li class="mp-raid-drop-row" v-for="drop of state.adventure_drop_entries" :key="drop.item_id">
+				<img class="skill-icon-xs" :src="state.get_item_icon(drop.item_id)" alt="">
+				<span class="mp-raid-drop-row-label" :class="{ 'mp-adventure-drop-unavailable': !drop.eligible }">{{ state.get_item_name(drop.item_id) }} · {{ getLangString('MOD_MP_ADVENTURE_DROP_PER_HOUR').replace('%s', drop.per_hour.toLocaleString(undefined, {maximumFractionDigits: 2})) }}<span v-if="!drop.eligible" class="sr-only"><lang-string lang-id="MOD_MP_ADVENTURE_NOT_DISCOVERED"></lang-string></span></span>
+			</li>
+		</ul>
 	</div>
 </template>

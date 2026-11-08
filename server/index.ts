@@ -1,3 +1,4 @@
+import { register_fighter_adventure_routes } from './routes/fighter-adventures';
 import { interrupt_combats } from './combat-inventory';
 import { start_combat_authority } from './combat-authority';
 import { read_combat_key } from './combat/tickets';
@@ -50,6 +51,7 @@ register_guilds_routes();
 register_alliance_routes();
 register_raids_routes();
 register_combat_routes();
+register_fighter_adventure_routes();
 register_equipment_routes();
 register_player_status_routes();
 register_icon_catalog_routes();

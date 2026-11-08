@@ -1,5 +1,4 @@
 import { apply_chamber_effects } from './chambers';
-import { practice_selection } from './practice';
 import { golbin_waves, GOLBIN_INTERVAL_OFFSETS, DUNGEONS, tidal_waves, TIDAL_PROFILES, mire_waves, MIRE_PROFILES, quarry_waves, QUARRY_PROFILES } from './raids';
 import { refresh_stance, command, create_registered_arena, is_encounter, step, STEP_MS, type Arena, type Encounter, type RunState } from './engine';
 import type { Registration } from './catalog';
@@ -7,7 +6,6 @@ import type { Registration } from './catalog';
 export const RESPAWN_MS = 3000;
 export type RunMode = RunState['mode'];
 export function valid_run(encounter: unknown, mode: unknown): encounter is Encounter {
-	if (practice_selection(encounter)) return mode === 'once';
 	return is_encounter(encounter) && ((!['tidal','mire','quarry'].includes(encounter) && (mode === 'once' || mode === 'repeat')) ||
 		(mode === 'raid' && !!DUNGEONS[encounter]) ||
 		(mode === 'playlist' && (encounter === 'plants' || encounter === 'golbins')));
@@ -19,10 +17,11 @@ function wave(selection: Encounter, mode: RunMode, stage: number): { encounter: 
 }
 export function create_run(registration: Registration, food: { heal: number; auto_eat?: boolean }, id: string,
 	selection: Encounter, mode: RunMode, endpoint = 1): Arena {
+	if (!valid_run(selection, mode)) throw new RangeError('Invalid combat selection');
 	const first = wave(selection, mode, 0);
 	const arena = create_registered_arena(registration, food, id, first.encounter, first.count);
 	arena.run = { mode, selection, phase: 'respawning', stage: 0,
-		stages: practice_selection(selection)?.definition.waves.length ?? (selection === 'tutorial_7' ? 2 : mode === 'playlist' ? (selection === 'plants' ? 6 : 4) : 1),
+		stages: selection === 'tutorial_7' ? 2 : mode === 'playlist' ? (selection === 'plants' ? 6 : 4) : 1,
 		completed: 0, respawn_ms: RESPAWN_MS, remaining_ms: RESPAWN_MS };
 	if (mode === 'raid') {
 		if (!Number.isInteger(endpoint) || endpoint < 1 || endpoint > DUNGEONS[selection].tiers.length) throw new RangeError('Invalid raid endpoint');
@@ -102,7 +101,7 @@ export function step_run(arena: Arena, random = Math.random): void {
 			apply_chamber_effects(arena.player, arena.chamber_effects ?? [], arena.registration!, arena.elapsed_ms / STEP_MS, STEP_MS);
 			// Neither actor gets a partially charged attack during the respawn countdown.
 			for (const [index, actor] of [arena.player, ...arena.enemies].entries())
-				actor.next_attack = arena.elapsed_ms + actor.interval + ((['tidal','mire','quarry'].includes(run.selection) || practice_selection(run.selection)) && index ? (index - 1) * 200 : 0);
+				actor.next_attack = arena.elapsed_ms + actor.interval + ((['tidal','mire','quarry'].includes(run.selection)) && index ? (index - 1) * 200 : 0);
 		}
 		return;
 	}
@@ -113,7 +112,7 @@ export function step_run(arena: Arena, random = Math.random): void {
 	if (run.mode === 'once' && run.completed === run.stages) return;
 	const stage = (run.stage + 1) % run.stages;
 	const next = wave(run.selection, run.mode, stage);
-	const fresh = create_registered_arena(arena.registration!, { heal: arena.food_policy.heal, auto_eat: arena.food_policy.auto_eat_percent > 0 }, arena.id, next.encounter, next.count, stage);
+	const fresh = create_registered_arena(arena.registration!, { heal: arena.food_policy.heal, auto_eat: arena.food_policy.auto_eat_percent > 0 }, arena.id, next.encounter, next.count);
 	fresh.player.hp = arena.player.hp;
 	if (run.selection === 'tutorial_7') {
 		const opponent = fresh.enemies[0];

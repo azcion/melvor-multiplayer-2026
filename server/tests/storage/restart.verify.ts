@@ -10,9 +10,9 @@ import { db_all } from '../support/persistence';
 test('rebuilds caches and preserves API state after a server restart', async () => {
 	await verify_browser_chat_restart();
 	const state = await read_restart_state();
-	const practice = await get_json_with_session<any>('/api/combat/inventory', state.first.session_token);
-	expect(practice.json.practice.find((entry:any) => entry.id === 'recruit').tiers[0].complete).toBe(true);
-	expect(practice.json.practice.find((entry:any) => entry.id === 'recruit').tiers[1].complete).toBe(false);
+	const inventory = await get_json_with_session<any>('/api/combat/inventory', state.first.session_token);
+	expect(inventory.json.practice).toBeUndefined();
+	expect(await db_all("SELECT practice_id,tier FROM combat_practice_completions WHERE client_id=?", [state.first_id])).toEqual([{practice_id:'recruit',tier:1}]);
 	await verify_expanded_restart(state.expedition_expansion);
 	await verify_preparation_restart(state.preparation);
 	await verify_rollback_restart(state.rollback);

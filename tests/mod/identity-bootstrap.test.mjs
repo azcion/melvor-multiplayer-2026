@@ -17,10 +17,10 @@ function harness({ storage = new Map(), server = new Map(), account_value = acco
 	const context = vm.createContext({
 		expedition_leaderboard: null, state, active_identity_credentials: null, cloudManager: {}, localStorage: {}, IS_DEV_MODE: true, is_creator_toolkit_local_mod: () => false, is_connecting: false, listing_filter_prompt: null,
 		close_expedition_work_prompt() {}, session_generation: 0, events_refreshed_at: 0, last_events_result: null,
-		combat_arena: null, combat_inventory: null, transfer_history_module: { create_transfer_history_state: () => ({}) }, economy_commands_ready: false,
+		combat_arena: null, combat_inventory: null, fighter_adventures: null, transfer_history_module: { create_transfer_history_state: () => ({}) }, economy_commands_ready: false,
 		economy_command_journal: null, rollback_client: null, selected_api_major: 1,
 		identity_bootstrap: bootstrap, identity_bindings: { ...bindings, read_melvor_account: () => account_value },
-		identity_registration_supported: supported, server_host: origin,
+		identity_registration_supported: supported, identity_onboarding_supported: supported, server_host: origin,
 		get_instance_storage_item: key => storage.get(key),
 		set_instance_storage_item: (key, value) => write ? write(key, value, storage) : storage.set(key, value),
 		remove_instance_storage_item: key => storage.delete(key),
@@ -50,13 +50,53 @@ function harness({ storage = new Map(), server = new Map(), account_value = acco
 }
 const response = (status, json = null) => ({ response: { status }, json });
 
-test('missing, malformed and rejected proof require an explicit choice without registration', async () => {
+test('missing, malformed and rejected proof automatically creates with duplicate protection', async () => {
 	for (const credentials of [null, { client_identifier: 'bad', client_key: 'bad' }, proof()]) {
 		const h = harness();
 		if (credentials) { h.storage.set('client_identifier', credentials.client_identifier); h.storage.set('client_key', credentials.client_key); }
 		await h.run();
+		assert.equal(h.state.is_connected, true);
+		assert.deepEqual(h.notices, []);
+		assert.equal(h.calls.find(call => call.path === '/api/register').payload.check_existing_profile, true);
+	}
+});
+
+test('only a same-account same-name server match opens automatic recovery, and creation requires confirmation', async () => {
+	const h = harness({ request: (path, payload) => path === '/api/register' && payload.check_existing_profile
+		? response(409, { identity_status: 'recovery_required' }) : null });
+	await h.run();
+	assert.equal(h.state.is_connected, false);
+	assert.deepEqual(h.notices, ['bootstrap']);
+	assert.equal(h.server.size, 0);
+	await h.run({ create: true });
+	assert.equal(h.state.is_connected, true);
+	assert.equal(h.calls.at(-1).payload.check_existing_profile, false);
+});
+
+test('revoked, disabled, account-required and transport failures never register or prompt automatically', async () => {
+	for (const [status, json] of [[403, { identity_status: 'installation_revoked' }], [403, null],
+		[409, { identity_status: 'melvor_account_required' }], [503, null], [0, null]]) {
+		const existing = proof();
+		const h = harness({ storage: new Map([['client_identifier', existing.client_identifier], ['client_key', existing.client_key]]),
+			request: () => response(status, json) });
+		await h.run();
+		assert.deepEqual(h.calls.map(c => c.path), ['/api/authenticate']);
+		assert.deepEqual(h.notices, []);
+		assert.equal(h.state.is_connected, false);
+	}
+});
+
+test('automatic creation waits for the onboarding capability on older servers', async () => {
+	for (const credentials of [null, { client_identifier: 'bad', client_key: 'bad' }, proof()]) {
+		const h = harness();
+		if (credentials) { h.storage.set('client_identifier', credentials.client_identifier); h.storage.set('client_key', credentials.client_key); }
+		h.context.identity_onboarding_supported = false;
+		await h.run();
+		assert.ok(h.calls.every(call => call.path === '/api/authenticate'));
 		assert.deepEqual(h.notices, ['bootstrap']);
-		assert.ok(h.calls.every(call => call.path !== '/api/register'));
+		assert.equal(h.state.identity_error, 'MOD_MP_IDENTITY_HOST_UPGRADE');
+		await h.run({ create: true });
+		assert.equal(h.state.is_connected, true);
 	}
 });
 
@@ -192,7 +232,7 @@ test('import persists the recovered binding without resurrecting an abandoned pe
 	assert.equal(reloaded.calls.length, 1);
 });
 
-test('only the established legacy account-mismatch exception creates a profile automatically', async () => {
+test('legacy account mismatch checks for duplicates while rejected recovery never registers', async () => {
 	const old = proof();
 	const h = harness({ request: path => path === '/api/authenticate' ? response(409, { identity_status: 'melvor_account_mismatch' }) : null });
 	h.storage.set('client_identifier', old.client_identifier); h.storage.set('client_key', old.client_key);

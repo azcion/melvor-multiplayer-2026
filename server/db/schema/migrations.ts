@@ -1,3 +1,6 @@
+import { identity_recovery_state_migration } from './migrations/identity-recovery-state';
+import { verified_identity_accounts_migration } from './migrations/verified-identity-accounts';
+import { fighter_adventures_migration } from './migrations/fighter-adventures';
 import { expedition_work_catalogs_migration } from './migrations/expedition-work-catalogs';
 import { browser_chat_auth_migration } from './migrations/browser-chat-auth';
 import { receipt_reviews_migration } from './migrations/receipt-reviews';
@@ -735,5 +738,154 @@ export const migrations: Migration[] = [
 		INSERT OR IGNORE INTO combat_activity_exclusions(client_id) SELECT client_id FROM combat_test_profiles;
 		CREATE INDEX combat_dungeon_activity ON combat_encounters(COALESCE(completed_at,created_at) DESC, id DESC)
 			WHERE raid_endpoint IS NOT NULL AND status IN ('victory','defeat');
+	` },
+	{ version: 220, sql: `
+		-- Fixed release targets: never derive historical migration behavior from runtime definitions.
+		CREATE TEMP TABLE final_project_tasks(item_id TEXT PRIMARY KEY, task_id TEXT);
+		INSERT INTO final_project_tasks VALUES
+			('melvorD:Bronze_Dagger','melvorD:Smithing|melvorD:Bronze_Dagger'),
+			('melvorD:Bronze_Sword','melvorD:Smithing|melvorD:Bronze_Sword'),
+			('melvorD:Bronze_Battleaxe','melvorD:Smithing|melvorD:Bronze_Battleaxe'),
+			('melvorD:Bronze_2H_Sword','melvorD:Smithing|melvorD:Bronze_2H_Sword'),
+			('melvorD:Bronze_Helmet','melvorD:Smithing|melvorD:Bronze_Helmet'),
+			('melvorD:Bronze_Boots','melvorD:Smithing|melvorD:Bronze_Boots'),
+			('melvorD:Bronze_Platelegs','melvorD:Smithing|melvorD:Bronze_Platelegs'),
+			('melvorD:Bronze_Platebody','melvorD:Smithing|melvorD:Bronze_Platebody'),
+			('melvorD:Bronze_Shield','melvorD:Smithing|melvorD:Bronze_Shield'),
+			('melvorD:Bronze_Scimitar','melvorD:Smithing|melvorD:Bronze_Scimitar'),
+			('melvorD:Bronze_Gloves','melvorD:Smithing|melvorD:Bronze_Gloves'),
+			('melvorD:Iron_Dagger','melvorD:Smithing|melvorD:Iron_Dagger'),
+			('melvorD:Iron_Sword','melvorD:Smithing|melvorD:Iron_Sword'),
+			('melvorD:Iron_Battleaxe','melvorD:Smithing|melvorD:Iron_Battleaxe'),
+			('melvorD:Iron_2H_Sword','melvorD:Smithing|melvorD:Iron_2H_Sword'),
+			('melvorD:Iron_Helmet','melvorD:Smithing|melvorD:Iron_Helmet'),
+			('melvorD:Iron_Boots','melvorD:Smithing|melvorD:Iron_Boots'),
+			('melvorD:Iron_Platelegs','melvorD:Smithing|melvorD:Iron_Platelegs'),
+			('melvorD:Iron_Platebody','melvorD:Smithing|melvorD:Iron_Platebody'),
+			('melvorD:Iron_Shield','melvorD:Smithing|melvorD:Iron_Shield'),
+			('melvorD:Iron_Scimitar','melvorD:Smithing|melvorD:Iron_Scimitar'),
+			('melvorD:Iron_Gloves','melvorD:Smithing|melvorD:Iron_Gloves'),
+			('melvorD:Steel_Dagger','melvorD:Smithing|melvorD:Steel_Dagger'),
+			('melvorD:Steel_Sword','melvorD:Smithing|melvorD:Steel_Sword'),
+			('melvorD:Steel_Battleaxe','melvorD:Smithing|melvorD:Steel_Battleaxe'),
+			('melvorD:Steel_2H_Sword','melvorD:Smithing|melvorD:Steel_2H_Sword'),
+			('melvorD:Steel_Helmet','melvorD:Smithing|melvorD:Steel_Helmet'),
+			('melvorD:Steel_Boots','melvorD:Smithing|melvorD:Steel_Boots'),
+			('melvorD:Steel_Platelegs','melvorD:Smithing|melvorD:Steel_Platelegs'),
+			('melvorD:Steel_Platebody','melvorD:Smithing|melvorD:Steel_Platebody'),
+			('melvorD:Steel_Shield','melvorD:Smithing|melvorD:Steel_Shield'),
+			('melvorD:Steel_Scimitar','melvorD:Smithing|melvorD:Steel_Scimitar'),
+			('melvorD:Steel_Gloves','melvorD:Smithing|melvorD:Steel_Gloves'),
+			('melvorD:Mithril_Dagger','melvorD:Smithing|melvorD:Mithril_Dagger'),
+			('melvorD:Mithril_Sword','melvorD:Smithing|melvorD:Mithril_Sword'),
+			('melvorD:Mithril_Battleaxe','melvorD:Smithing|melvorD:Mithril_Battleaxe'),
+			('melvorD:Mithril_2H_Sword','melvorD:Smithing|melvorD:Mithril_2H_Sword'),
+			('melvorD:Mithril_Helmet','melvorD:Smithing|melvorD:Mithril_Helmet'),
+			('melvorD:Mithril_Boots','melvorD:Smithing|melvorD:Mithril_Boots'),
+			('melvorD:Mithril_Platelegs','melvorD:Smithing|melvorD:Mithril_Platelegs'),
+			('melvorD:Mithril_Platebody','melvorD:Smithing|melvorD:Mithril_Platebody'),
+			('melvorD:Mithril_Shield','melvorD:Smithing|melvorD:Mithril_Shield'),
+			('melvorD:Mithril_Scimitar','melvorD:Smithing|melvorD:Mithril_Scimitar'),
+			('melvorD:Mithril_Gloves','melvorD:Smithing|melvorD:Mithril_Gloves'),
+			('melvorD:Adamant_Dagger','melvorD:Smithing|melvorD:Adamant_Dagger'),
+			('melvorD:Adamant_Sword','melvorD:Smithing|melvorD:Adamant_Sword'),
+			('melvorD:Adamant_Battleaxe','melvorD:Smithing|melvorD:Adamant_Battleaxe'),
+			('melvorD:Adamant_2H_Sword','melvorD:Smithing|melvorD:Adamant_2H_Sword'),
+			('melvorD:Adamant_Helmet','melvorD:Smithing|melvorD:Adamant_Helmet'),
+			('melvorD:Adamant_Boots','melvorD:Smithing|melvorD:Adamant_Boots'),
+			('melvorD:Adamant_Platelegs','melvorD:Smithing|melvorD:Adamant_Platelegs'),
+			('melvorD:Adamant_Platebody','melvorD:Smithing|melvorD:Adamant_Platebody'),
+			('melvorD:Adamant_Shield','melvorD:Smithing|melvorD:Adamant_Shield'),
+			('melvorD:Adamant_Scimitar','melvorD:Smithing|melvorD:Adamant_Scimitar'),
+			('melvorD:Adamant_Gloves','melvorD:Smithing|melvorD:Adamant_Gloves'),
+			('melvorD:Rune_Dagger','melvorD:Smithing|melvorD:Rune_Dagger'),
+			('melvorD:Rune_Sword','melvorD:Smithing|melvorD:Rune_Sword'),
+			('melvorD:Rune_Battleaxe','melvorD:Smithing|melvorD:Rune_Battleaxe'),
+			('melvorD:Rune_2H_Sword','melvorD:Smithing|melvorD:Rune_2H_Sword'),
+			('melvorD:Rune_Helmet','melvorD:Smithing|melvorD:Rune_Helmet'),
+			('melvorD:Rune_Boots','melvorD:Smithing|melvorD:Rune_Boots'),
+			('melvorD:Rune_Platelegs','melvorD:Smithing|melvorD:Rune_Platelegs'),
+			('melvorD:Rune_Platebody','melvorD:Smithing|melvorD:Rune_Platebody'),
+			('melvorD:Rune_Shield','melvorD:Smithing|melvorD:Rune_Shield'),
+			('melvorD:Rune_Scimitar','melvorD:Smithing|melvorD:Rune_Scimitar'),
+			('melvorD:Rune_Gloves','melvorD:Smithing|melvorD:Rune_Gloves'),
+			('melvorD:Bronze_Arrows','melvorD:Fletching|melvorF:Bronze_Arrows'),
+			('melvorD:Iron_Arrows','melvorD:Fletching|melvorF:Iron_Arrows'),
+			('melvorD:Steel_Arrows','melvorD:Fletching|melvorF:Steel_Arrows'),
+			('melvorD:Mithril_Arrows','melvorD:Fletching|melvorF:Mithril_Arrows'),
+			('melvorD:Adamant_Arrows','melvorD:Fletching|melvorF:Adamant_Arrows'),
+			('melvorD:Rune_Arrows','melvorD:Fletching|melvorF:Rune_Arrows'),
+			('melvorD:Shrimp','melvorD:Cooking|melvorD:Shrimp'),
+			('melvorD:Herring','melvorD:Cooking|melvorD:Herring'),
+			('melvorD:Trout','melvorD:Cooking|melvorD:Trout'),
+			('melvorD:Salmon','melvorD:Cooking|melvorD:Salmon'),
+			('melvorD:Lobster','melvorD:Cooking|melvorD:Lobster'),
+			('melvorD:Swordfish','melvorD:Cooking|melvorD:Swordfish'),
+			('melvorD:Crab','melvorD:Cooking|melvorD:Crab'),
+			('melvorD:Carp','melvorD:Cooking|melvorD:Carp');
+		CREATE TEMP TABLE completed_final_projects AS
+		SELECT project.id, project.client_id FROM combat_equipment_projects project
+		JOIN final_project_tasks task ON task.item_id=project.item_id
+		WHERE project.completed_at IS NULL
+		AND COALESCE(json_extract(project.progress_json, '$."' || task.task_id || '"'), 0) >= 30000;
+		-- Keep matching production sessions, but retire removed tasks and finished sessions.
+		DELETE FROM combat_project_tracking WHERE project_id IN (SELECT id FROM completed_final_projects)
+		OR EXISTS (SELECT 1 FROM combat_equipment_projects project JOIN final_project_tasks task ON task.item_id=project.item_id
+			WHERE project.id=combat_project_tracking.project_id AND task.task_id<>combat_project_tracking.task_id);
+		UPDATE combat_characters SET revision=revision+1
+		WHERE client_id IN (SELECT client_id FROM completed_final_projects);
+		UPDATE combat_equipment_projects SET completed_at=unixepoch()*1000
+		WHERE id IN (SELECT id FROM completed_final_projects);
+		DROP TABLE completed_final_projects;
+		DROP TABLE final_project_tasks;
+	` },
+	fighter_adventures_migration,
+	verified_identity_accounts_migration,
+	identity_recovery_state_migration,
+	{ version: 224, sql: `
+	CREATE TABLE adventure_participation(client_id INTEGER NOT NULL, area_id TEXT NOT NULL, started_at INTEGER NOT NULL, ended_at INTEGER);
+	CREATE INDEX adventure_participation_area ON adventure_participation(area_id,started_at,ended_at);
+	INSERT INTO adventure_participation SELECT client_id,area_id,last_at,NULL FROM fighter_adventures WHERE area_id IS NOT NULL;
+	CREATE TRIGGER adventure_join AFTER UPDATE OF area_id ON fighter_adventures WHEN NEW.area_id IS NOT OLD.area_id BEGIN
+	 UPDATE adventure_participation SET ended_at=NEW.last_at WHERE client_id=NEW.client_id AND ended_at IS NULL;
+	 INSERT INTO adventure_participation SELECT NEW.client_id,NEW.area_id,NEW.last_at,NULL WHERE NEW.area_id IS NOT NULL;
+	END;
+	CREATE TRIGGER adventure_leave BEFORE DELETE ON fighter_adventures BEGIN
+	 UPDATE adventure_participation SET ended_at=MAX(started_at,CAST(unixepoch('subsec')*1000 AS INTEGER)) WHERE client_id=OLD.client_id AND ended_at IS NULL;
+	END;
+	` },
+	{ version: 225, sql: `
+	CREATE INDEX adventure_participation_client ON adventure_participation(client_id,started_at);
+	DROP TRIGGER adventure_join;
+	DROP TRIGGER adventure_leave;
+	UPDATE adventure_participation SET ended_at=MAX(started_at, MIN(
+	 COALESCE((SELECT last_at + MAX(0,capacity*3600000-used_ms) FROM fighter_adventures f WHERE f.client_id=adventure_participation.client_id),started_at),
+	 COALESCE((SELECT deleted_at FROM clients c WHERE c.id=adventure_participation.client_id),9007199254740991))) WHERE ended_at IS NULL;
+	CREATE TRIGGER adventure_participation_update AFTER UPDATE OF area_id,last_at,used_ms,capacity ON fighter_adventures
+	WHEN NEW.area_id IS NOT OLD.area_id OR NEW.last_at != OLD.last_at OR NEW.used_ms != OLD.used_ms OR NEW.capacity != OLD.capacity BEGIN
+	 UPDATE adventure_participation SET ended_at=MAX(started_at,MIN(ended_at,NEW.last_at))
+	 WHERE client_id=NEW.client_id AND ended_at>NEW.last_at AND NEW.area_id IS NOT OLD.area_id;
+	 UPDATE adventure_participation SET ended_at=NEW.last_at+NEW.capacity*3600000-NEW.used_ms
+	 WHERE rowid=(SELECT rowid FROM adventure_participation WHERE client_id=NEW.client_id AND area_id=NEW.area_id
+	  AND started_at<=NEW.last_at AND ended_at>=NEW.last_at ORDER BY started_at DESC,rowid DESC LIMIT 1)
+	 AND NEW.area_id IS OLD.area_id AND NEW.used_ms<NEW.capacity*3600000;
+	 INSERT INTO adventure_participation SELECT NEW.client_id,NEW.area_id,NEW.last_at,NEW.last_at+NEW.capacity*3600000-NEW.used_ms
+	 WHERE NEW.area_id IS NOT NULL AND NEW.used_ms<NEW.capacity*3600000 AND EXISTS(SELECT 1 FROM clients WHERE id=NEW.client_id AND deleted_at IS NULL)
+	 AND NOT EXISTS(SELECT 1 FROM adventure_participation WHERE client_id=NEW.client_id AND area_id=NEW.area_id AND started_at<=NEW.last_at AND ended_at>NEW.last_at);
+	END;
+	CREATE TRIGGER adventure_participation_delete BEFORE DELETE ON fighter_adventures BEGIN
+	 UPDATE adventure_participation SET ended_at=MAX(started_at,MIN(ended_at,CAST(unixepoch('subsec')*1000 AS INTEGER))) WHERE client_id=OLD.client_id AND ended_at>CAST(unixepoch('subsec')*1000 AS INTEGER);
+	END;
+	CREATE TRIGGER adventure_identity_delete AFTER UPDATE OF deleted_at ON clients WHEN NEW.deleted_at IS NOT NULL AND OLD.deleted_at IS NULL BEGIN
+	 UPDATE adventure_participation SET ended_at=MAX(started_at,MIN(ended_at,NEW.deleted_at)) WHERE client_id=NEW.id AND ended_at>NEW.deleted_at;
+	END;
+	` },
+	{ version: 226, sql: `
+	CREATE TABLE client_preferences (
+		client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+		key TEXT NOT NULL,
+		value TEXT NOT NULL,
+		PRIMARY KEY (client_id, key)
+	);
 	` },
 ];

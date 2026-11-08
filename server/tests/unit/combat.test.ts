@@ -398,7 +398,7 @@ test('socket rejects retired and unknown encounters before reserve and advertise
 	} finally { a.ws.close(); await service.stop(); }
 });
 
-test('socket defaults an omitted encounter to Golbin', async () => {
+test('socket defaults a null encounter to Golbin', async () => {
 	const service = start_combat_service({ key, authority, port: 0, hostname: '127.0.0.1' });
 	const a = client(service.server.port!);
 	try {
@@ -406,7 +406,7 @@ test('socket defaults an omitted encounter to Golbin', async () => {
 		a.send({ type: 'authenticate', protocol: 4, ticket: issue_ticket(90, key) });
 		const ready = await a.next('ready');
 		expect(ready.encounters).toEqual([...SUPPORTED_ENCOUNTERS]);
-		a.send({ type: 'start', seq: 1, food_id: 'melvorD:Shrimp', budget: 8 });
+		a.send({ type: 'start', seq: 1, encounter: null, food_id: 'melvorD:Shrimp', budget: 8 });
 		expect((await a.next('ack')).accepted).toBe(true);
 		const arena = (await a.next('state')).arena;
 		expect(arena.encounter).toBe('golbin');
@@ -583,25 +583,14 @@ test('draw ends repeat and playlist runs without counting a victory or respawnin
 });
 
 
-test('real socket advertises and freezes a finite Practice circuit; commands cannot apply player effects', async () => {
-	const reservations: unknown[][]=[];
-	const practice_authority: CombatAuthority={...authority,reserve:async(...args)=>{
-		reservations.push(args);
-		return authority.reserve(...args);
-	}};
-	const service=start_combat_service({key,authority:practice_authority,port:0,hostname:'127.0.0.1'});
+test('real socket does not advertise or admit retired Practice', async () => {
+	const service=start_combat_service({key,authority,port:0,hostname:'127.0.0.1'});
 	const a=client(service.server.port!);
 	try {
-		await a.opened;a.send({type:'authenticate',protocol:4,ticket:issue_ticket(121,key)});
-		const ready=await a.next('ready');expect(ready.encounters).toContain('practice_circuit_1');
-		a.send({type:'start',seq:1,encounter:'practice_circuit_1',mode:'once',stats:{damage:999999}});
-		expect((await a.next('ack')).accepted).toBe(true);
-		const arena=(await a.next('state')).arena;
-		expect(reservations[0].slice(2)).toEqual(['practice_circuit_1','once']);
-		expect(arena.run.stages).toBe(4);expect(arena.enemies[0].id).toBe('human_recruit_1');
-		a.send({type:'command',seq:2,encounter:arena.id,action:'apply_effect',target:'poison'});
-		expect((await a.next('ack')).accepted).toBe(false);
-		a.send({type:'start',seq:3,encounter:'practice_circuit_2',mode:'once'});
+		await a.opened; a.send({type:'authenticate',protocol:4,ticket:issue_ticket(121,key)});
+		const ready=await a.next('ready');
+		expect(ready.encounters.some((id:string)=>id.startsWith('practice_'))).toBe(false);
+		a.send({type:'start',seq:1,encounter:'practice_circuit_1',mode:'once'});
 		expect((await a.next('ack')).accepted).toBe(false);
 	} finally {a.ws.close();await service.stop();}
 });

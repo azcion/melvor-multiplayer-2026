@@ -242,7 +242,7 @@ test('an automatic report does not retry or clear state after switching characte
 test('automatic work has no preference, prompt, start or stop controls', async () => {
 	const main = await read_client_source(root);
 	const html = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
-	assert.doesNotMatch(main, /expedition_work_tracking_mode|expedition_work_prompts_enabled|start_prompted_expedition_task/);
+	assert.doesNotMatch(main.replace(/function prune_obsolete_character_preferences\(\) \{[\s\S]*?\n\}/, ''), /expedition_work_tracking_mode|expedition_work_prompts_enabled|start_prompted_expedition_task/);
 	assert.doesNotMatch(html, /mp-expedition-work-modes|expedition-work-prompt-modal|MOD_MP_EXPEDITION_UI_TRACK_THIS_TASK|MOD_MP_EXPEDITION_UI_STOP_TRACKING/);
 	assert.match(html, /state.submit_expedition_work\('check-in'\)/);
 	assert.match(html, /state.equipment_action\('check-in'\)/);

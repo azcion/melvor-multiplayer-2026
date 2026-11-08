@@ -11,6 +11,7 @@ export function api_context(req: Request): RouteContext {
 }
 
 export const ECONOMY_COMMAND_KINDS: Readonly<Record<string, string>> = {
+
 	'/api/combat/debug-dungeon': 'combat-debug-dungeon',
 	'/api/combat/debug-tutorial': 'combat-debug-tutorial',
 	'/api/combat/debug-project': 'combat-debug-project',

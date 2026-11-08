@@ -97,7 +97,7 @@ export function start_combat_service(options: { key: string; port?: number; host
 					const admission = await authority.reserve(data.user,id,String(message.encounter ?? 'golbin'),String(message.mode ?? 'once'));
 					if (admission) {
 						if (!sockets.has(ws) && !data.recovery) { await authority.progress(id,0,'interrupted'); return; }
-						data.arena = create_run(admission.registration,{ heal: admission.heal, auto_eat: admission.auto_eat },id,message.encounter === undefined ? 'golbin' : message.encounter as Encounter, (message.mode ?? 'once') as RunMode, admission.raid_endpoint);
+						data.arena = create_run(admission.registration,{ heal: admission.heal, auto_eat: admission.auto_eat },id,(message.encounter ?? 'golbin') as Encounter, (message.mode ?? 'once') as RunMode, admission.raid_endpoint);
 						data.arena.food_id = admission.food_id;
 						if (message.stance !== undefined) run_command(data.arena,'stance',message.stance);
 						if (data.recovery) {

@@ -844,10 +844,10 @@ test('Chamber and personal equipment starts serialize into one tracked target wi
 		expect((await post_json<any>(`/api/combat/${action}`, { command_id: crypto.randomUUID(), revision, slot:'Weapon', item_id:'melvorD:Bronze_Dagger', discovered:true }, owner.session_token)).json.success).toBe(true);
 	}
 	const personal = (await get_json_with_session<any>('/api/expedition/personal', owner.session_token)).json;
-	const mining = { type:'skill', skill_id:'melvorD:Mining', action_id:'melvorD:Copper_Ore' };
-	const project = () => ({ source:'equipment', project_id:personal.equipment_projects.project.id, task_id:'melvorD:Mining|melvorD:Copper_Ore',
-		operation_id:crypto.randomUUID(), captured_at:Date.now(), actions:{ epoch:crypto.randomUUID(), time_ms:{'melvorD:Mining|melvorD:Copper_Ore':0} },
-		activities:[mining], statistics:{ version:1, time_ms:{'melvorD:Mining':0} } });
+	const production = { type:'skill', skill_id:'melvorD:Smithing', action_id:'melvorD:Bronze_Dagger' };
+	const project = () => ({ source:'equipment', project_id:personal.equipment_projects.project.id, task_id:'melvorD:Smithing|melvorD:Bronze_Dagger',
+		operation_id:crypto.randomUUID(), captured_at:Date.now(), actions:{ epoch:crypto.randomUUID(), time_ms:{'melvorD:Smithing|melvorD:Bronze_Dagger':0} },
+		activities:[production], statistics:{ version:1, time_ms:{'melvorD:Smithing':0} } });
 	const chamber = request(expedition_id,visit_id,'start',task);
 	const [a,b] = await Promise.all([
 		post_json<any>('/api/expedition/task/start',chamber,owner.session_token),

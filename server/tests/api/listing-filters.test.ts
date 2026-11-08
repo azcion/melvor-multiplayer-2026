@@ -78,3 +78,24 @@ test('filter prompt eligibility and acknowledgement persist across authenticatio
 	});
 	expect(auth.json.listing_filter_prompt_pending).toBe(false);
 });
+
+test('preference sync imports once, merges conversation edits and isolates identities', async () => {
+	const first = await register_client('Preferences First');
+	const second = await register_client('Preferences Second');
+	const sync = (token: string, legacy = {}, changes = {}) =>
+		post_json<any>('/api/client/preferences/sync', { legacy, changes }, token);
+	const initial = {
+		listing_filters: [],
+		chat_translation_preferences: { 'private:1': 'en', 'private:2': 'zh-CN' },
+		chat_notification_preferences: { 'private:1': false }
+	};
+	expect((await sync(first.session_token, initial)).json.preferences).toEqual(initial);
+	expect((await sync(first.session_token, initial, {
+		listing_filters: ['items'], chat_translation_preferences: { 'private:1': null, 'private:3': false }
+	})).json.preferences).toEqual({
+		...initial, listing_filters: ['items'], chat_translation_preferences: { 'private:2': 'zh-CN', 'private:3': false }
+	});
+	expect((await sync(first.session_token, initial)).json.preferences.listing_filters).toEqual(['items']);
+	expect((await sync(second.session_token)).json.preferences).toEqual({});
+	expect((await sync(first.session_token, {}, { listing_filters: ['invalid'] })).json.updated).toEqual([]);
+});

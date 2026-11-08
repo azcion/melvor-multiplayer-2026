@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { register_client, post_json, get_json_with_session, post } from '../support/http';
-for (const version of ['1.6.14', '1.6.15', '1.6.16', '1.6.17', '1.7.0'])
+for (const version of ['1.6.14', '1.6.15', '1.6.16', '1.6.17', '1.7.0', '1.7.5'])
 test(`${version} bootstrap communicates the floor and only supported clients receive ordinary state`, async () => {
 	const client=await register_client('Released Compatibility',undefined,version);
 	const auth=await post_json<any>('/api/authenticate',{
@@ -11,7 +11,7 @@ test(`${version} bootstrap communicates the floor and only supported clients rec
 	expect(auth.json.session_token).toBeString();
 	expect(auth.json.api_version).toBe(2);
 	expect(auth.json.minimum_supported_mod_version).toBe('1.7.0');
-	const supported = version === '1.7.0';
+	const supported = version === '1.7.0' || version === '1.7.5';
 	const session=auth.json.session_token;
 	const events=await get_json_with_session<any>('/api/events',session);
 	expect(events.response.status).toBe(200);

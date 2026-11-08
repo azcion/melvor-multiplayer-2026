@@ -82,7 +82,7 @@ test('tutorial navigation and spending open only as preparation progresses', () 
 	view.tutorial.next = 'equip';
 	assert.equal(tutorial_access(view, 'purchase', 'Weapon'), false);
 	view.tutorial.ready = true;
-	assert.equal(tutorial_access(view, 'page', 'test_combat'), true);
+	assert.equal(tutorial_access(view, 'page', 'test_combat'), false);
 	view.tutorial.victories = 1; view.tutorial.ready = false;
 	assert.equal(tutorial_access(view, 'page', 'test_combat'), false);
 	assert.equal(tutorial_access(view, 'slot', 'Shield'), true);
@@ -93,7 +93,7 @@ test('tutorial navigation and spending open only as preparation progresses', () 
 	assert.equal(tutorial_access(view, 'slot', 'Food2'), false);
 	assert.equal(tutorial_access(view, 'slot', 'Platebody'), false);
 	view.tutorial.complete = true;
-	assert.equal(tutorial_access(view, 'page', 'test_combat'), true);
+	assert.equal(tutorial_access(view, 'page', 'test_combat'), false);
 	assert.equal(tutorial_access(view, 'slot', 'Platebody'), true);
 	assert.equal(tutorial_access(view, 'page', 'pvp'), false);
 	view.arena = { status: 'active' };
@@ -210,17 +210,16 @@ test('tutorial opponents are human and empty on-hit status lines stay hidden', a
 });
 
 
-test('Practice keeps tutorial choices but cannot launch retired battles or fall back to Dungeons', async () => {
+test('Fighter launches only ready tutorial trials and rechecks graduation before admission', async () => {
 	const source = readFileSync(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
 	const choices = source.match(/state.combat_choices = (\(\) => [^\n]+);/)[1];
-	const state = { combat: { page_tab: 'test_combat', character: {}, tutorial: null, encounter: 'golbin' }, is_connected: true };
-	const practice_module = await import('../../mod/combat-practice.mjs');
+	const state = { combat: { page_tab: 'character', character: {}, tutorial: null, encounter: 'golbin' }, is_connected: true };
 	const tutorial_module = await import('../../mod/combat-tutorial.mjs');
 	const getLangString = id => id;
 	const combat_localized_text = (id, fallback, values = {}) => fallback.replace(/\{([a-z_]+)\}/gi, (_, key) => String(values[key] ?? `{${key}}`));
-	state.combat_choices = new Function('state', 'practice_module', 'tutorial_module', 'getLangString', 'combat_localized_text', `return ${choices}`)(state, practice_module, tutorial_module, getLangString, combat_localized_text);
+	state.combat_choices = new Function('state', 'tutorial_module', 'getLangString', 'combat_localized_text', `return ${choices}`)(state, tutorial_module, getLangString, combat_localized_text);
 	assert.deepEqual(state.combat_choices(), []);
-	state.combat.tutorial = { complete: false, victories: 0, trial: { id: 'tutorial_1', name: 'Training Partner' } };
+	state.combat.tutorial = { complete: false, ready: true, victories: 0, trial: { id: 'tutorial_1', name: 'Training Partner' } };
 	assert.deepEqual(state.combat_choices().map(choice => choice.id), ['tutorial_1']);
 	const start = source.split('state.start_combat = async () => {')[1].split('\n\t};')[0];
 	let connections = 0, refreshes = 0;
@@ -230,6 +229,9 @@ test('Practice keeps tutorial choices but cannot launch retired battles or fall 
 	await launch(); // A stale legacy selection cannot start even during the tutorial.
 	assert.equal(refreshes, 0);
 	state.combat.encounter = 'tutorial_1';
+	state.combat.tutorial.ready = false; await launch();
+	assert.equal(connections, 0); assert.equal(refreshes, 0);
+	state.combat.tutorial.ready = true;
 	await launch();
 	assert.equal(connections, 1);
 	state.combat.tutorial.complete = true;
@@ -242,12 +244,13 @@ test('Practice keeps tutorial choices but cannot launch retired battles or fall 
 	const select = source.split('state.combat_select_page = tab => {')[1].split('\n\t};')[0];
 	state.combat_tutorial_access = () => true;
 	state.combat.mode = 'raid'; state.combat.encounter = 'golbins';
-	new Function('state', 'tab', 'practice_module', 'getLangString', 'combat_localized_text', select)(state, 'test_combat', practice_module, getLangString, combat_localized_text);
-	assert.equal(state.combat.mode, 'once');
-	assert.equal(state.combat.encounter, '');
+	new Function('state', 'tab', 'getLangString', 'combat_localized_text', select)(state, 'character', getLangString, combat_localized_text);
+	assert.equal(state.combat.mode, 'raid');
+	assert.equal(state.combat.encounter, 'golbins');
+	state.combat.page_tab = 'character';
 	state.combat.encounter = 'tutorial_1'; state.combat.tutorial.complete = false;
 	combat_inventory.refresh = async () => { state.combat.tutorial.complete = true; return true; };
-	await launch(); // Graduation during the admission refresh must also cancel Practice admission.
+	await launch(); // Graduation during refresh cancels tutorial admission.
 	assert.equal(connections, 2);
 	const template = readFileSync(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
 	assert.doesNotMatch(template, /combat_run_modes|combat_select_mode/);
@@ -298,24 +301,19 @@ test('Dungeons glows after graduation until an allowed visit, surviving reload a
 	select('raid');
 	assert.equal(read('combat_dungeons_visited'), undefined);
 	assert.equal(state.combat.page_tab, 'character');
-	assert.equal(state.combat_tutorial_highlight('battles'), false);
 	state.combat.tutorial.complete = true; // Both graduation and skipping use this status.
 	assert.equal(state.combat_tutorial_highlight('page', 'raid'), true);
-	assert.equal(state.combat_tutorial_highlight('battles'), true);
 	select('character');
-	select('test_combat'); // Opening the mobile Battles parent does not dismiss Dungeons.
+	select('pvp'); // A disabled tab does not dismiss the Dungeon highlight.
 	assert.equal(state.combat_tutorial_highlight('page', 'raid'), true);
 	select('raid');
 	assert.equal(state.combat.page_tab, 'raid');
 	assert.equal(read('combat_dungeons_visited'), true);
 	assert.equal(state.combat_tutorial_highlight('page', 'raid'), false);
-	assert.equal(state.combat_tutorial_highlight('battles'), false);
 	reload_flag();
 	assert.equal(state.combat_tutorial_highlight('page', 'raid'), false);
 	server = 'second'; reload_flag();
 	assert.equal(state.combat_tutorial_highlight('page', 'raid'), true);
 	server = 'first'; reload_flag();
 	assert.equal(state.combat_tutorial_highlight('page', 'raid'), false);
-	const template = readFileSync(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
-	assert.match(template, /'mp-tutorial-highlight': state.combat_tutorial_highlight\('battles'\)/);
 });

@@ -76,8 +76,8 @@ test('hides the empty Transfer Inventory sidebar count', async () => {
 		main.indexOf('\n}\n', main.indexOf('function update_transfer_inventory_nav')) + 2
 	);
 
-	assert.match(nav_update, /const has_inbox_items = state\.inbox_items\.length > 0/);
-	assert.match(nav_update, /aside\.textContent = has_transfer_offers[\s\S]*has_inbox_items \? String\(state\.inbox_items\.length\)[\s\S]*state\.transfer_inventory\.length \+ ' \/ ' \+ TRANSFER_INVENTORY_MAX_LIMIT/);
+	assert.match(nav_update, /const has_inbox_items = inbox_count > 0/);
+	assert.match(nav_update, /aside\.textContent = has_transfer_offers[\s\S]*has_inbox_items \? String\(inbox_count\)[\s\S]*state\.transfer_inventory\.length \+ ' \/ ' \+ TRANSFER_INVENTORY_MAX_LIMIT/);
 	assert.match(nav_update, /aside\.hidden = !has_transfer_offers && !has_inbox_items && !has_items/);
 	assert.match(style, /\.mp-guild-member-button \{[\s\S]*min-height: 69px;/);
 });
@@ -314,8 +314,8 @@ test('prioritizes actionable Transfer / Gift work in the sidebar count', async (
 
 	assert.match(nav_update, /const num_transfer_offers = state\.num_transfer_offers/);
 	assert.match(nav_update, /const has_transfer_offers = num_transfer_offers > 0/);
-	assert.match(nav_update, /const has_inbox_items = state\.inbox_items\.length > 0/);
-	assert.match(nav_update, /aside\.textContent = has_transfer_offers[\s\S]*String\(num_transfer_offers\)[\s\S]*has_inbox_items \? String\(state\.inbox_items\.length\)[\s\S]*state\.transfer_inventory\.length \+ ' \/ ' \+ TRANSFER_INVENTORY_MAX_LIMIT/);
+	assert.match(nav_update, /const has_inbox_items = inbox_count > 0/);
+	assert.match(nav_update, /aside\.textContent = has_transfer_offers[\s\S]*String\(num_transfer_offers\)[\s\S]*has_inbox_items \? String\(inbox_count\)[\s\S]*state\.transfer_inventory\.length \+ ' \/ ' \+ TRANSFER_INVENTORY_MAX_LIMIT/);
 	assert.match(nav_update, /aside\.hidden = !has_transfer_offers && !has_inbox_items && !has_items/);
 	assert.match(nav_update, /aside\.classList\.toggle\('mp-transfer-action-nav', has_transfer_offers\)/);
 	assert.match(nav_update, /aside\.classList\.toggle\('mp-transfer-inbox-nav', !has_transfer_offers && has_inbox_items\)/);

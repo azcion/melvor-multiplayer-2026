@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { create_test_database } from './database';
 import { prepare_combat } from '../../combat-progression';
 import { debug_dungeon } from '../../combat-dungeon-debug';
-import { combat_state, combat_inventory_response, reserve_combat, update_combat } from '../../combat-inventory';
+import { combat_state, reserve_combat, update_combat } from '../../combat-inventory';
 import { equipment_catalog_response } from '../../equipment-projects';
 
 const seconds = Number(process.env.COMBAT_LOAD_STAGE_SECONDS ?? 15);
@@ -115,8 +115,8 @@ for (const clients of [25, 50, 100]) {
 		const inventory_burst = database ? setInterval(() => {
 			for (let client=1;client<=clients;client++) {
 				const before = performance.now(), state = combat_state(database,client);
-				const url = new URL(`http://localhost/api/combat/inventory?practice_catalog=${state.practice_catalog_revision}&equipment_catalog=${state.equipment_projects.catalog_revision}`);
-				inventory_bytes += JSON.stringify(combat_inventory_response(equipment_catalog_response(state,url),url)).length;
+				const url = new URL(`http://localhost/api/combat/inventory?equipment_catalog=${state.equipment_projects.catalog_revision}`);
+				inventory_bytes += JSON.stringify(equipment_catalog_response(state,url)).length;
 				reads++; read_times.push(performance.now()-before);
 			}
 		},5000) : null;

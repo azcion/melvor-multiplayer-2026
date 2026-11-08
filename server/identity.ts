@@ -41,8 +41,8 @@ export function associate_client_with_melvor_account(
 		return current_account_id === null ? 'matching' : 'required';
 	if (current_account_id !== null) {
 		const matching = db.query<{ id: number }, [number, string]>(
-			'SELECT `id` FROM `melvor_accounts` WHERE `id` = ? AND `playfab_id` = ?'
-		).get(current_account_id, account.playfab_id);
+			'SELECT `id` FROM `melvor_accounts` WHERE `id` = ? AND upper(trim(`playfab_id`)) = ?'
+		).get(current_account_id, account.playfab_id.trim().toUpperCase());
 		return matching === null ? 'mismatch' : 'matching';
 	}
 	const account_id = get_or_create_melvor_account(account);

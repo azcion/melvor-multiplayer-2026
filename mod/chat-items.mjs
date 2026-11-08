@@ -47,12 +47,12 @@ export const BADGE_FEATURES = Object.freeze({
 	Badge_Dev: { name: 'Dev', lang_id: 'MOD_MP_GUILD_DEV', class_name: 'mp-guild-new-member-badge mp-guild-dev-badge' },
 	Badge_SAE_Dev: { name: 'SAE Dev', lang_id: 'MOD_MP_GUILD_DEV_SAE', class_name: 'mp-guild-new-member-badge mp-guild-dev-badge' },
 	Badge_OSRS_Overhaul_Dev: { name: 'OSRS Overhaul Dev', lang_id: 'MOD_MP_GUILD_DEV_OSRS_OVERHAUL', class_name: 'mp-guild-new-member-badge mp-guild-dev-badge' },
-	Badge_Time_Cheats: { name: 'Time Cheats', lang_id: 'MOD_MP_CHEAT_CATEGORY_TIME', class_name: 'mp-guild-cheats-badge' },
-	Badge_Item_Cheats: { name: 'Item Cheats', lang_id: 'MOD_MP_CHEAT_CATEGORY_ITEMS', class_name: 'mp-guild-cheats-badge' },
-	Badge_Resource_Cheats: { name: 'Resource Cheats', lang_id: 'MOD_MP_CHEAT_CATEGORY_RESOURCES', class_name: 'mp-guild-cheats-badge' },
-	Badge_Multitasking: { name: 'Multitasking', lang_id: 'MOD_MP_CHEAT_CATEGORY_MULTITASKING', class_name: 'mp-guild-cheats-badge' },
-	Badge_Shop_Cheats: { name: 'Shop Cheats', lang_id: 'MOD_MP_CHEAT_CATEGORY_SHOPS', class_name: 'mp-guild-cheats-badge' },
-	Badge_Loot_Cheats: { name: 'Loot Cheats', lang_id: 'MOD_MP_CHEAT_CATEGORY_LOOT_RNG', class_name: 'mp-guild-cheats-badge' },
+	Badge_Time_Cheats: { name: 'Time Cheats', lang_id: 'MOD_MP_CHEAT_CATEGORY_TIME', class_name: 'mp-guild-cheats-badge', category: 'time' },
+	Badge_Item_Cheats: { name: 'Item Cheats', lang_id: 'MOD_MP_CHEAT_CATEGORY_ITEMS', class_name: 'mp-guild-cheats-badge', category: 'items' },
+	Badge_Resource_Cheats: { name: 'Resource Cheats', lang_id: 'MOD_MP_CHEAT_CATEGORY_RESOURCES', class_name: 'mp-guild-cheats-badge', category: 'resources' },
+	Badge_Multitasking: { name: 'Multitasking Cheats', lang_id: 'MOD_MP_CHEAT_CATEGORY_MULTITASKING', class_name: 'mp-guild-cheats-badge', category: 'multitasking' },
+	Badge_Shop_Cheats: { name: 'Shop Cheats', lang_id: 'MOD_MP_CHEAT_CATEGORY_SHOPS', class_name: 'mp-guild-cheats-badge', category: 'shops' },
+	Badge_Loot_Cheats: { name: 'Loot Cheats', lang_id: 'MOD_MP_CHEAT_CATEGORY_LOOT_RNG', class_name: 'mp-guild-cheats-badge', category: 'loot_rng' },
 	Badge_Social_Only: { name: 'Social Only', lang_id: 'MOD_MP_SOCIAL_MODE_SOCIAL', class_name: 'badge-info' },
 	Badge_Aye: { name: 'Aye', lang_id: 'MOD_MP_COUNCIL_AYE', class_name: 'badge-success' },
 	Badge_Nay: { name: 'Nay', lang_id: 'MOD_MP_COUNCIL_NAY', class_name: 'badge-danger' }
@@ -61,6 +61,17 @@ export const badge_feature = id => {
 	const key = id?.startsWith('multiplayer:') ? id.slice('multiplayer:'.length) : '';
 	return Object.hasOwn(BADGE_FEATURES, key) ? BADGE_FEATURES[key] : undefined;
 };
+export const chat_badge_class = (badge, filters) => badge?.category && Array.isArray(filters) && !filters.includes(badge.category)
+	? ' mp-guild-cheats-badge-unfiltered' : '';
+export function refresh_chat_cheat_badges(document, filters, getLangString) {
+	for (const node of document?.querySelectorAll('.mp-chat-badge[data-feature-id]') ?? []) {
+		const badge = badge_feature(node.dataset.featureId);
+		if (badge?.category) {
+			node.classList.toggle('mp-guild-cheats-badge-unfiltered', !!chat_badge_class(badge, filters));
+			node.textContent = feature_name({}, getLangString, node.dataset.featureId, undefined, filters);
+		}
+	}
+}
 const text_feature_name = id => {
 	const key = id?.startsWith('multiplayer:') ? id.slice('multiplayer:'.length) : '';
 	return Object.hasOwn(TEXT_FEATURE_NAMES, key) ? TEXT_FEATURE_NAMES[key] : undefined;
@@ -91,12 +102,15 @@ export const official_chat_feature = id => typeof id === 'string' &&
 export const fallback_feature_name = id => badge_feature(id)?.name ?? text_feature_name(id) ??
 	(id === 'melvorD:AltMagic' ? 'Alt. Magic' : undefined) ?? MULTIPLAYER_FEATURE_NAMES[id?.slice('multiplayer:'.length)] ??
 	id?.split(':')[1]?.replaceAll('_', ' ') ?? id;
-export function feature_name(game, getLangString, id, dev_labels) {
+export function feature_name(game, getLangString, id, dev_labels, filters) {
 	if (badge_feature(id) && valid_dev_badge_label(dev_labels?.[id])) return dev_labels[id];
 	const badge = badge_feature(id);
 	if (badge) {
-		const localized = getLangString?.(badge.lang_id);
-		return localized && localized !== badge.lang_id ? localized : badge.name;
+		const unfiltered = !!chat_badge_class(badge, filters);
+		const lang_id = unfiltered ? 'MOD_MP_MOD_CATEGORY_' + badge.category.toUpperCase() : badge.lang_id;
+		const localized = getLangString?.(lang_id);
+		const fallback = unfiltered ? badge.name.replace(/ Cheats$/, ' Mods') : badge.name;
+		return localized && localized !== lang_id ? localized : fallback;
 	}
 	const text_name = text_feature_name(id);
 	if (text_name) {
@@ -116,7 +130,7 @@ export function feature_media(game, id) {
 	if (id === 'melvorD:AltMagic') return game.skills?.getObjectByID?.('melvorD:Magic')?.media ?? null;
 	return game.skills?.getObjectByID?.(id)?.media ?? game.pages?.getObjectByID?.(id)?.media ?? null;
 }
-export function feature_catalog(game, getLangString, dev_labels) {
+export function feature_catalog(game, getLangString, dev_labels, filters) {
 	const ids = [
 		...Object.keys(MULTIPLAYER_FEATURE_NAMES).map(id => `multiplayer:${id}`),
 		...[...game.skills?.registeredObjects?.values?.() ?? []].map(skill => skill.id),
@@ -129,7 +143,7 @@ export function feature_catalog(game, getLangString, dev_labels) {
 		if (!official_chat_feature(id)) continue;
 		const media = feature_media(game, id);
 		if (!media && !text_feature_name(id) && !badge_feature(id)) continue;
-		catalog.push({ id, name: feature_name(game, getLangString, id, dev_labels), media });
+		catalog.push({ id, name: feature_name(game, getLangString, id, dev_labels, filters), media });
 	}
 	return catalog.sort((a, b) => (FEATURE_SIDEBAR_RANK.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
 			(FEATURE_SIDEBAR_RANK.get(b.id) ?? Number.MAX_SAFE_INTEGER) ||
@@ -168,11 +182,11 @@ export const fallback_text = parts => parts.map(part => {
 	}
 }).join('');
 // Display/copy text uses viewer-localized names, while fallback_text is the stable wire format.
-export const plain_text = (game, getLangString, parts, dev_labels) => parts.map(part => {
+export const plain_text = (game, getLangString, parts, dev_labels, filters) => parts.map(part => {
 	switch (part.type) {
 		case 'text': return part.text;
 		case 'person': return part.display_name;
-		case 'feature': return feature_name(game, getLangString, part.feature_id, dev_labels);
+		case 'feature': return feature_name(game, getLangString, part.feature_id, dev_labels, filters);
 		default: return game.items.getObjectByID(part.item_id)?.name ?? fallback_item_name(part.item_id);
 	}
 }).join('');
@@ -276,13 +290,13 @@ export function register_chat_elements({ game, state = {}, getLangString, docume
 		return chip;
 	}
 	function feature_node(part, editing = false) {
-		const name = feature_name(game, getLangString, part.feature_id, state.dev_badge_labels);
+		const name = feature_name(game, getLangString, part.feature_id, state.dev_badge_labels, state.listing_filters);
 		const badge = badge_feature(part.feature_id);
 		const chip = document.createElement(badge || editing ? 'span' : 'button');
 		chip.dataset.featureId = part.feature_id;
 		chip.contentEditable = 'false';
 		if (badge) {
-			chip.className = `badge ${badge.class_name} mp-chat-badge`;
+			chip.className = `badge ${badge.class_name} mp-chat-badge${chat_badge_class(badge, state.listing_filters)}`;
 			chip.append(document.createTextNode(name));
 			return chip;
 		}
@@ -535,7 +549,7 @@ export function register_chat_elements({ game, state = {}, getLangString, docume
 			if (start === end) return;
 			const prefix = replace_parts(this.parts, end, parts_length(this.parts), []);
 			const selected = replace_parts(prefix, 0, start, []);
-			const text = plain_text(game, getLangString, selected, state.dev_badge_labels);
+			const text = plain_text(game, getLangString, selected, state.dev_badge_labels, state.listing_filters);
 			event.preventDefault(); event.clipboardData?.setData('text/plain', text);
 			if (cut) this.replace_selection([], [start, end]);
 		}

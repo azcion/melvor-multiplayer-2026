@@ -10,7 +10,8 @@ export function expedition_leaderboard(database: Database, requested_page = 0, n
 	const earnings = `WITH earnings AS (
 		SELECT ledger.client_id, SUM(ledger.points_micros) AS points_micros
 		FROM expedition_ep_ledger AS ledger JOIN clients AS client ON client.id = ledger.client_id
-		WHERE ledger.created_at >= ? AND ledger.created_at <= ? AND client.deleted_at IS NULL AND client.disabled = 0
+		WHERE ledger.created_at >= ? AND ledger.created_at <= ? AND ledger.source_kind IN ('work', 'supply')
+			AND client.deleted_at IS NULL AND client.disabled = 0
 		GROUP BY ledger.client_id HAVING SUM(ledger.points_micros) > 0
 	)`;
 	return database.transaction(() => {

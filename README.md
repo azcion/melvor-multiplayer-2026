@@ -15,6 +15,14 @@ A community-maintained remaster of the Melvor Idle multiplayer mod, with source 
 - [Changelog](CHANGELOG.md)
 - [Copyright and licensing](NOTICE.md)
 
+## Account recovery privacy
+
+Normal Multiplayer startup uses its own saved credentials. Optional **Account recovery** sends your Melvor Cloud
+login token to your selected Multiplayer server only after explicit consent; the token grants access to your Melvor
+account, so use this only with a server you trust. The backend verifies it with Melvor and does not store or log the
+token or upstream response. Passwords are never requested. A connected profile must enable this feature first;
+existing saved credentials and recovery codes remain usable, and account recovery can be disabled in Options.
+
 ## Attribution
 
 Based on [Melvor Multiplayer](https://mod.io/g/melvoridle/m/melvor-multiplayer), originally created by Kruithne.

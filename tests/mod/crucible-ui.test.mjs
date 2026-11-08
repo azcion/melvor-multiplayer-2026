@@ -43,33 +43,17 @@ test('Heat guide uses hosted-compatible images and bounds its navigation', async
 	assert.match(css, /\.mp-crucible-heat-body \{ grid-template-columns: minmax\(0, 1fr\);/);
 });
 
-test('Heat starts expanded and restores each character and server preference across reloads', async () => {
+test('Heat starts expanded on load and can be collapsed for the current session', async () => {
 	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
 	const template = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
 	const methods = main.slice(main.indexOf('\tload_crucible_heat_preference()'), main.indexOf('\tget crucible_guide_length()'));
-	const saved = new Map();
-	let scope = 'character-a:server-a:';
-	const state = runInNewContext(`({ crucible_panels_open: { heat: true }, ${methods} })`, {
-		get_instance_storage_item: key => saved.get(scope + key),
-		set_instance_storage_item: (key, value) => saved.set(scope + key, value)
-	});
+	const state = runInNewContext(`({ crucible_panels_open: { heat: false }, ${methods} })`);
 	state.load_crucible_heat_preference();
 	assert.equal(state.crucible_panels_open.heat, true);
 	state.toggle_crucible_heat();
-	state.crucible_panels_open.heat = true;
+	assert.equal(state.crucible_panels_open.heat, false);
 	state.load_crucible_heat_preference();
-	assert.equal(state.crucible_panels_open.heat, false, 'collapsed choice survives reload');
-	for (scope of ['character-b:server-a:', 'character-a:server-b:']) {
-		state.load_crucible_heat_preference();
-		assert.equal(state.crucible_panels_open.heat, true, 'other characters and servers default open');
-	}
-	scope = 'character-a:server-a:';
-	state.load_crucible_heat_preference();
-	state.toggle_crucible_heat();
-	state.crucible_panels_open.heat = false;
-	state.load_crucible_heat_preference();
-	assert.equal(state.crucible_panels_open.heat, true, 'expanded choice survives reload');
-	assert.match(main, /apply_server_configuration\(\);\s*state\.load_crucible_heat_preference\(\);/);
+	assert.equal(state.crucible_panels_open.heat, true);
 	assert.match(template, /@click="state\.toggle_crucible_heat\(\)"/);
 });
 

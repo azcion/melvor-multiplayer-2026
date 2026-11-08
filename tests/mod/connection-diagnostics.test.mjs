@@ -50,6 +50,8 @@ test('reports are bounded, strip queries and unknown routes, and reconstruct an 
 	assert.equal(diagnostic_route('/api/events?secret=SECRET'), '/api/events');
 	assert.equal(diagnostic_route('/api/chat/global-participation?capabilities=global-chat-v1'), '/api/chat/global-participation');
 	assert.equal(diagnostic_route('/api/market/claim-legacy-payouts'), '/api/market/claim-legacy-payouts');
+	assert.equal(diagnostic_route('/api/v2/adventures/check-in?secret=SECRET'), '/api/adventures/check-in');
+	assert.equal(diagnostic_route('/api/adventures/SECRET'), 'other');
 });
 test('request observations separate HTTP, transport, response-body, and timeout failures without changing results', async () => {
 	const seen = [];

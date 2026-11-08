@@ -20,11 +20,11 @@ export type EquipmentDefinition = {
 	stages: EquipmentTaskDefinition[][];
 };
 
-// Tutorial recipes keep their native ingredient quantities at 45 seconds per ingredient.
-const tutorial_items = new Set(['melvorD:Bronze_Sword', 'melvorD:Bronze_Helmet', 'melvorD:Bronze_Shield', 'melvorD:Iron_Shield']);
-export const EQUIPMENT_DEFINITIONS = recipe_data.items.map(item => tutorial_items.has(item.item_id) ? {
-	...item, stages: item.stages.map(stage => stage.map(task => ({ ...task, target_ms: task.target_ms / 300_000 * 45_000 })))
-} : item);
+// Retain legacy evidence keys so queued reports from older clients remain parseable.
+export const LEGACY_EQUIPMENT_TASKS = recipe_data.items.flatMap(item => item.stages.flat());
+export const EQUIPMENT_DEFINITIONS = recipe_data.items.map(item => ({
+	...item, stages: [item.stages.at(-1)!.map(task => ({ ...task, target_ms: 30_000 }))]
+}));
 export const EQUIPMENT_SLOTS = ['Weapon', 'Shield', 'Helmet', 'Platebody', 'Platelegs', 'Boots', 'Gloves', 'Quiver'];
 export const EQUIPMENT_TIER_NAMES = TIER_NAMES;
 export const EQUIPMENT_UNLOCK_COST_MICROS = 1_000_000;

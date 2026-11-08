@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { EventEmitter } from 'node:events';
+import { readFileSync } from 'node:fs';
 import { native_work_action_id, is_skill_active } from '../../mod/status-activities.mjs';
-import { create_equipment_evidence, equipment_catalog_action_keys, pilot_action_keys, pack_equipment_evidence, unpack_equipment_evidence } from '../../mod/equipment-projects.mjs';
+import { create_equipment_evidence, equipment_project_startable, equipment_project_stage_name, equipment_catalog_action_keys, pilot_action_keys, pack_equipment_evidence, unpack_equipment_evidence } from '../../mod/equipment-projects.mjs';
 import { equipment_tasks, best_eligible_task, can_track_task, tracked_skill_ids, task_available_points_micros } from '../../mod/expedition-tasks.mjs';
 
 function fixture() {
@@ -630,4 +631,41 @@ test('second food slot shares best-first unlocks but purchases its own access', 
 	assert.equal(equipment_slot_purchase(model,'Food2',1e6).eligible,true);
 	assert.equal(equipment_slot_purchase(model,'Food',1e6).tier,1);
 	assert.equal(equipment_project_visible(model,shrimp),true);
+});
+
+
+test('undiscovered projects can start while slot, predecessor, completion and active-project gates remain', () => {
+	const bronze = { item_id: 'melvorD:Bronze_Sword', slot: 'Weapon', tier: 1 };
+	const iron = { item_id: 'melvorD:Iron_Sword', slot: 'Weapon', tier: 2 };
+	const model = { catalog: [bronze, iron], slots: [{ slot: 'Weapon', tier: 2 }], unlocked: [] };
+	assert.equal(equipment_project_startable(model, bronze), true);
+	assert.equal(equipment_project_startable(model, iron), false);
+	assert.equal(equipment_project_startable({ ...model, unlocked: [bronze.item_id] }, iron), true);
+	assert.equal(equipment_project_startable({ ...model, unlocked: [bronze.item_id] }, bronze), false);
+	assert.equal(equipment_project_startable({ ...model, slots: [] }, bronze), false);
+	assert.equal(equipment_project_startable({ ...model, caps: { material_caps: { Weapon: 0 } } }, bronze), false);
+	assert.equal(equipment_project_startable({ ...model, project: { item_id: iron.item_id } }, bronze), false);
+	const main = readFileSync(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const html = readFileSync(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
+	assert.doesNotMatch(main + html, /equipment_discovered|mp-equipment-project-undiscovered/);
+	const install = main.slice(main.indexOf('state.equipment_project_can_start ='), main.indexOf('state.equipment_project_title ='));
+	let tutorial = true, mutable = true;
+	const state = { combat_tutorial_access: () => tutorial, equipment_can_mutate: () => mutable, equipment_model: () => model };
+	new Function('state', 'equipment_module', install)(state, { equipment_project_startable });
+	assert.equal(state.equipment_project_can_start(bronze), true);
+	tutorial = false; assert.equal(state.equipment_project_can_start(bronze), false);
+	tutorial = true; mutable = false; assert.equal(state.equipment_project_can_start(bronze), false);
+});
+
+test('stage headings follow actual localized skills for final-only and legacy multi-stage recipes', () => {
+	const skill_name = id => ({ 'melvorD:Cooking': 'Cuisine', 'melvorD:Smithing': 'Forge', 'melvorD:Fletching': 'Empennage', 'melvorD:Mining': 'Minage' })[id];
+	for (const skill of ['Cooking', 'Smithing', 'Fletching']) {
+		const item = { stages: [[{ skill_id: `melvorD:${skill}` }]] };
+		assert.equal(equipment_project_stage_name(item, 0, skill_name, 'Travail'), skill_name(`melvorD:${skill}`));
+	}
+	const legacy = { stages: [[{ skill_id: 'melvorD:Mining' }, { skill_id: 'melvorD:Mining' }], [{ skill_id: 'melvorD:Smithing' }]] };
+	assert.equal(equipment_project_stage_name(legacy, 0, skill_name, 'Travail'), 'Minage');
+	assert.equal(equipment_project_stage_name(legacy, 1, skill_name, 'Travail'), 'Forge');
+	assert.equal(equipment_project_stage_name({ stages: [[{ skill_id: 'custom:Crafting' }]] }, 0, skill_name, 'Travail'), 'Crafting');
+	assert.equal(equipment_project_stage_name({}, 0, skill_name, 'Travail'), 'Travail');
 });

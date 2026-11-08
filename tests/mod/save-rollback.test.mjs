@@ -128,7 +128,7 @@ test('unchanged status release requires a full event snapshot, including no-cand
  const main=await readFile(new URL('../../mod/main.mjs',import.meta.url),'utf8');
  const source=main.slice(main.indexOf('async function get_client_events_request('),main.indexOf('\nfunction start_client_event_polling('));
  let event={unchanged:true,revision:7,rollback:status()},recoveries=0;
- const context={expedition_leaderboard: null, crucible_page_hydrating:false,server_host:'https://one.test',guild_revision_scope:null,last_guild_revision:null,economy_receipt_reviews: null, rollback_client:h.client,session_generation:1,client_events_hydrated:true,client_event_trailing:false,client_event_revision:7,CHAT_CAPABILITIES:'',
+ const context={adventures_supported:false,fighter_adventures:null,expedition_leaderboard: null, crucible_page_hydrating:false,server_host:'https://one.test',guild_revision_scope:null,last_guild_revision:null,economy_receipt_reviews: null, rollback_client:h.client,session_generation:1,client_events_hydrated:true,client_event_trailing:false,client_event_revision:7,CHAT_CAPABILITIES:'',
   state:{listing_filters:[],refresh_crucible:async()=>{},chat_notification_preferences:{},events:{},inbox_items:[],get_chat_notification_tagged:()=>false},
   api_get:async endpoint=>{assert.ok(!endpoint.includes('revision='));return event;},
   enter_unsupported_multiplayer:()=>false,check_released_mod_version(){},apply_dev_badge_labels(){},maybe_auto_check_in_expedition(){},
@@ -243,7 +243,7 @@ test('actual activation wires scoped admission into existing journal recovery an
   api_get_request:async()=>status('review'),api_post_response_raw:async()=>{sends++;return {response:{status:409},json:{error:'economy_review_pending'}};},reconcile_economy_receipts:async()=>true,
   interface_ready:false,addModalToQueue(){},Swal:{close(){}},getLangString:key=>key,client_event_request:null,get_client_events:async()=>{events++;},
   guild_state_refresh_id:0,social_mode:{normalize_social_mode:()=> 'full'},invalidate_status_icon_collection(){},check_released_mod_version(){},apply_dev_badge_labels(){},queue_identity_notice(){},queue_default_avatar_notice(){},
-  update_multiplayer_nav(){},start_gp_sampling(){},start_status_observer(){},start_client_event_polling(){},chat_page_visible:false,
+  start_client_preferences(){},update_multiplayer_nav(){},start_gp_sampling(){},start_status_observer(){},start_client_event_polling(){},chat_page_visible:false,
   refresh_initial_guild_state:async()=>{},raid_combat:null,refresh_raid_state:async()=>{},refresh_identities:async()=>{},schedule_equipment_sync(){},schedule_status_sync(){}};
  runInNewContext(source,context);
  context.activate_multiplayer_identity({...bootstrap(status('review'),false),session_token:'fixture',chat:{client_id:1}},timing);
@@ -342,4 +342,36 @@ test('failed notice storage shows once per controller, retries durable delivery 
  assert.equal(h.storage.has('https://one.test:rollback_notice_delivered:1:'+command),false);
  const reconnect=harness();reconnect.ready();reconnect.remote(status('review',{notice:{notice_id:notice,kind:'older_save'}}));
  await reconnect.client.bootstrap(bootstrap(status('review')),timing);assert.equal(reconnect.queued.length,1);
+});
+
+test('preference migration waits for acknowledgement and ignores a stale identity response', async () => {
+ const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+ const source = main.slice(main.indexOf('const CLIENT_PREFERENCE_KEYS'), main.indexOf('function prune_obsolete_character_preferences'));
+ const key = 'instance:release:listing_filters';
+ const save = new Map([[key, ['items']]]);
+ const requests = [];
+ const context = {
+  client_preferences: null, client_preferences_supported: true, session_generation: 1,
+  server_host: 'https://one.test', server_instance_storage_prefix: 'instance:release:', server_instance_storage_legacy_prefixes: [],
+  get_character_storage_item: key => save.get(key), remove_character_storage_item: key => save.delete(key),
+  state: { load_chat_translation_preferences(){}, load_chat_notification_preferences(){}, get_chat_notification_unread: () => 0,
+   listing_filter_categories: ['items'] }, update_chat_nav(){},
+  api_post_without_economy_journal: (_path, payload) => new Promise(resolve => requests.push({ payload, resolve }))
+ };
+ runInNewContext(source, context);
+ context.start_client_preferences(1);
+ requests[0].resolve(null);
+ await settle();
+ assert.equal(save.has(key), true);
+ const stale = context.sync_client_preferences();
+ context.session_generation++;
+ const response = { preferences: { listing_filters: [] }, imported: ['listing_filters'], updated: [] };
+ requests[1].resolve(response);
+ await stale;
+ assert.equal(save.has(key), true);
+ context.start_client_preferences(1);
+ requests[2].resolve(response);
+ await settle();
+ assert.equal(save.has(key), false);
+ assert.equal(context.state.listing_filters.length, 0);
 });

@@ -26,7 +26,7 @@ test('Dungeon selection follows available unfinished progression on load and aft
 	assert.equal(h.view.raid_selection,'mire');
 });
 
-test('Dungeon selection skips locked and empty dungeons without changing Practice', async()=>{
+test('Dungeon selection skips locked and empty dungeons and clears retired Practice selections', async()=>{
 	const h=harness({request:async()=>({foods:[],history:[],dungeons:[
 		{id:'golbins',available:true,tiers:[{complete:true}]},
 		{id:'tidal',available:false,tiers:[{complete:false}]},
@@ -34,7 +34,7 @@ test('Dungeon selection skips locked and empty dungeons without changing Practic
 		{id:'quarry',available:true,tiers:[{complete:false}]}
 	]})});
 	h.view.encounter='practice_recruit_1'; await h.controller.refresh();
-	assert.equal(h.view.raid_selection,'quarry'); assert.equal(h.view.encounter,'practice_recruit_1');
+	assert.equal(h.view.raid_selection,'quarry'); assert.equal(h.view.encounter,'');
 });
 
 test('Dungeon inventory requests activity only while viewing Dungeons', async()=>{
@@ -262,7 +262,7 @@ test('consumable reset requires its own confirmation and sends only its card sco
 test('fresh tutorial state returns stale navigation to the unlocked preparation step', async () => {
 	const { tutorial_access } = await import('../../mod/combat-tutorial.mjs');
 	const h = harness({ access: tutorial_access });
-	h.view.page_tab = 'test_combat'; h.view.preparation_tab = 'consumables';
+	h.view.page_tab = 'character'; h.view.preparation_tab = 'consumables';
 	await h.controller.refresh();
 	assert.equal(h.view.page_tab, 'character');
 	assert.equal(h.view.preparation_tab, 'levels');
@@ -300,21 +300,22 @@ test('graduation clears the last tutorial target without selecting a legacy Prac
 	assert.equal(h.view.mode, 'once');
 });
 
-test('all project types require the project item to be discovered', async () => {
+test('project controls offer Start without requiring native-save discovery', async () => {
 	const { readFile } = await import('node:fs/promises');
 	const { runInNewContext } = await import('node:vm');
+	const equipment_module = await import('../../mod/equipment-projects.mjs');
 	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
 	let discovered = false;
 	const state = { combat_tutorial_access: () => true, equipment_can_mutate: () => true,
-		equipment_model: () => ({}), equipment_project_completed: () => false, equipment_project_started: () => false,
+		equipment_model: () => ({slots:[{slot:'Weapon',tier:1},{slot:'Food',tier:1}]}), equipment_project_completed: () => false, equipment_project_started: () => false,
 		equipment_discovered: () => discovered, equipment_project_name: () => 'Item' };
 	runInNewContext(main.slice(main.indexOf('\tstate.equipment_project_can_start ='), main.indexOf('\tstate.equipment_grid =')),
-		{ state, equipment_module: { equipment_project_visible: () => true }, getLangString: String });
-	for (const slot of ['Weapon', 'Food', 'Potion']) {
-		const item = { slot, item_id: 'item' };
+		{ state, equipment_module, getLangString: String });
+	for (const slot of ['Weapon', 'Food']) {
+		const item = { slot, item_id: 'item', tier:1 };
 		discovered = false;
-		assert.equal(state.equipment_project_can_start(item), false);
-		assert.match(state.equipment_project_title(item), /DISCOVER_FIRST/);
+		assert.equal(state.equipment_project_can_start(item), true);
+		assert.match(state.equipment_project_title(item), /EQUIPMENT_BEGIN/);
 		discovered = true;
 		assert.equal(state.equipment_project_can_start(item), true);
 		assert.match(state.equipment_project_title(item), /EQUIPMENT_BEGIN/);

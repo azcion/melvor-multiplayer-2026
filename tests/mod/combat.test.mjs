@@ -97,7 +97,7 @@ test('one ticket admits socket; combat actions use it and have a single in-fligh
 
 test('one action connects and starts, retaining repeat runs until their terminal result', async () => {
 	const states = []; const h = harness({ on_state: arena => states.push(arena) });
-	h.view.page_tab = 'test_combat'; h.view.starting = true;
+	h.view.page_tab = 'character'; h.view.starting = true;
 	await h.controller.connect(true);
 	const ws = h.sockets[0]; ws.open(); ws.message({ type: 'ready', protocol: 4, encounters: ['golbin'] });
 	assert.equal(ws.sent[1].type, 'start'); assert.equal(ws.sent[1].mode, 'repeat');
@@ -163,15 +163,15 @@ test('Raid tab connects and starts its selected finite run after admission', asy
 });
 
 test('automatic start handles unavailable targets, rejection and navigation while connecting', async () => {
-	const unsupported = harness(); unsupported.view.page_tab = 'test_combat'; await unsupported.controller.connect(true);
+	const unsupported = harness(); unsupported.view.page_tab = 'character'; await unsupported.controller.connect(true);
 	const a = unsupported.sockets[0]; a.open(); a.message({ type: 'ready', protocol: 4, encounters: [] });
 	assert.equal(a.closed, true); assert.equal(unsupported.view.error, 'target_unavailable'); assert.equal(unsupported.view.starting, false);
-	const rejected = harness(); rejected.view.page_tab = 'test_combat'; await rejected.controller.connect(true);
+	const rejected = harness(); rejected.view.page_tab = 'character'; await rejected.controller.connect(true);
 	const b = rejected.sockets[0]; b.open(); b.message({ type: 'ready', protocol: 4, encounters: ['golbin'] });
 	b.message({ type: 'ack', seq: 1, accepted: false });
 	assert.equal(b.closed, true); assert.equal(rejected.view.error, 'rejected'); assert.equal(rejected.view.starting, false);
-	const navigated = harness(); navigated.view.page_tab = 'test_combat'; await navigated.controller.connect(true);
-	const c = navigated.sockets[0]; c.open(); navigated.view.page_tab = 'character'; c.message({ type: 'ready', protocol: 4, encounters: ['golbin'] });
+	const navigated = harness(); navigated.view.page_tab = 'character'; await navigated.controller.connect(true);
+	const c = navigated.sockets[0]; c.open(); navigated.view.page_tab = 'pvp'; c.message({ type: 'ready', protocol: 4, encounters: ['golbin'] });
 	assert.equal(c.closed, true); assert.equal(c.sent.length, 1); assert.equal(navigated.view.starting, false);
 });
 
@@ -520,17 +520,17 @@ test('combat keeps its originating tab and scrolls only when a run becomes activ
 	await h.controller.connect();
 	const ws = h.sockets[0]; ws.open();
 	ws.message({type:'ready',protocol:4,encounters:['golbin']});
-	h.view.page_tab = 'test_combat';
+	h.view.page_tab = 'character';
 	assert.equal(h.controller.start(), true);
 	h.view.page_tab = 'character';
 	ws.message({type:'state',arena:{status:'active',id:'one'}});
-	assert.equal(h.view.page_tab, 'test_combat');
-	assert.equal(h.view.combat_tab, 'test_combat');
+	assert.equal(h.view.page_tab, 'character');
+	assert.equal(h.view.combat_tab, 'character');
 	assert.equal(starts, 1);
 	ws.message({type:'state',arena:{status:'active',id:'one'}});
 	assert.equal(starts, 1);
 	ws.message({type:'state',arena:{status:'victory',id:'one'}});
-	assert.equal(h.view.page_tab, 'test_combat');
+	assert.equal(h.view.page_tab, 'character');
 	assert.equal(starts, 1);
 	h.controller.close();
 	assert.equal(h.view.arena, null);
@@ -785,7 +785,7 @@ test('recovery and maintenance bindings tolerate queued updates after resume and
 	const recovery_start = html.indexOf('<section class="mp-combat-panel" v-show="state.combat.recovery');
 	const warning_start = html.indexOf('<div v-show="state.combat.maintenance?.drain_at');
 	assert.ok(recovery_start >= 0 && warning_start >= 0);
-	const section = html.slice(recovery_start, html.indexOf('</section>',recovery_start)) + html.slice(warning_start,html.indexOf('<div class="mp-combat-arena-host"'));
+	const section = html.slice(recovery_start, html.indexOf('</section>',recovery_start)) + html.slice(warning_start,html.indexOf('<section class="mp-combat-panel" v-show="state.combat.page_tab'));
 	assert.ok(section.includes('mp-combat-maintenance'));
 	assert.equal(section.includes('v-if='),false,'keep recovery and warning descendants mounted through queued updates');
 	const expressions = [...section.matchAll(/\{\{(.*?)\}\}|(?:v-show|:disabled)="([^"]+)"/g)].map(match=>match[1] ?? match[2]);
@@ -842,7 +842,7 @@ test('Mire uses server-adjusted per-target max-hit markers and the exact portrai
 });
 
 test('recovery discovers a paused battle without auto-resuming and resumes only on explicit intent', async () => {
-	const h = harness(); h.view.page_tab = 'test_combat';
+	const h = harness(); h.view.page_tab = 'character';
 	await h.controller.connect(true); const ws=h.sockets[0]; ws.open();
 	ws.message({type:'ready',protocol:4,encounters:['golbin'],capabilities:['pve-recovery-v1']});
 	assert.equal(ws.sent.at(-1).type,'recover');

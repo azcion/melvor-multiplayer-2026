@@ -52,6 +52,7 @@ export function install_transfer_actions(runtime) {
 		get_mod_asset_url = media => ctx.getResourceUrl(media),
 		destroy_selected_transfer_inventory,
 		document,
+		chat_items,
 		error,
 		formatNumber,
 		game,
@@ -166,6 +167,7 @@ export function install_transfer_actions(runtime) {
 		},
 
 		get_inbox_group_title(group) {
+			if (group?.source_type === 'fighter_adventures') return getLangString('MOD_MP_ADVENTURE_FIGHTER_ADVENTURES');
 			if (group?.source_type === 'raid_assault') {
 				const tier = getLangString('MOD_MP_RAID_TIER').replace('%s', group.source_name);
 				return getLangString('MOD_MP_INBOX_SOURCE_RAID_ASSAULT').replace('%s', tier);
@@ -571,11 +573,16 @@ export function install_transfer_actions(runtime) {
 			}, true, false);
 		},
 
+		refresh_chat_cheat_badges() {
+			chat_items?.refresh_chat_cheat_badges(document, this.listing_filters, getLangString);
+		},
+
 		async toggle_listing_filter(id) {
 			if (!this.listing_filter_categories.includes(id)) return;
 			this.listing_filters = this.listing_filters.includes(id)
 				? this.listing_filters.filter(category => category !== id) : [...this.listing_filters, id];
 			set_instance_storage_item('listing_filters', [...this.listing_filters]);
+			this.refresh_chat_cheat_badges?.();
 			this.market_current_page = 1;
 			if (this.is_connected && this.is_guild_member && !this.is_social_only)
 				await Promise.all([update_market_search(), this.refresh_crucible(true)]);
@@ -759,7 +766,7 @@ export function install_transfer_actions(runtime) {
 				(!Number.isFinite(c.expires_at) || c.expires_at >= now)));
 		},
 
-		cheat_category_label(id) { return 'MOD_MP_CHEAT_CATEGORY_' + id.toUpperCase(); },
+		cheat_category_label(id) { return 'MOD_MP_' + (this.listing_filters?.includes(id) === false ? 'MOD' : 'CHEAT') + '_CATEGORY_' + id.toUpperCase(); },
 
 		view_member_cheat_mods(member, event, category_id = 'items') {
 			event.stopPropagation();

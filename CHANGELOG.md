@@ -1,6 +1,22 @@
 # Changelog
 
+## 1.7.7
+
+- Fighter Adventures are now available in all supported languages.
+
+## 1.7.6
+
+- Chat translation and notification preferences and Marketplace Listing Filters sync across devices on supported servers, freeing space in the Melvor character save.
+- Category badges in Guild rosters and Chat use “Mods” and a muted color when that category is not enabled in your Marketplace Listing Filters; selected categories use “Cheats” and red.
+- New players connect to Multiplayer automatically; recovery choices appear for a matching account and exact native character name, independently of the multiplayer display name. Older servers retain manual connection choices. Added optional Melvor-account recovery with exact-name profile selection, last-active dates and an option to disable it. Enable it once from a connected profile after explicit login-token consent, and refresh it after renaming your character. Older unverified profiles still need saved credentials or a recovery code first; recovery codes remain available as a fallback.
+- Added Fighter Adventures after completing or skipping the Fighter tutorial: choose supported monsters from the twelve base-game Combat Areas for native item drops, bones and GP while you play or are away. Monsters with magic or special attacks are shown but unavailable until their mechanics are modeled. Area artwork, monster drop previews and total hourly kill estimates help you choose. Fighters adventuring in the same area boost each other’s kills and loot while they have accumulation capacity remaining. Levels, equipment and selected food determine readiness and farming speed, and EP increases the accumulation limit from 1 hour up to 99 hours. Adventures award only previously discovered items, with optional participation in Social Only mode. Rewards arrive in Inbox; returning-player hauls have a separate indicator that clears when viewed.
+- Expedition’s seven-day EP leaderboard now counts work and supply earnings, excluding claimed completion bonuses.
+- Removed Colosseum Practice battles. Tutorial battles now run directly in Fighter, and desktop and mobile both use Fighter, PvP and Dungeons tabs.
+- Colosseum Equipment Projects no longer require finding or crafting the item in your native save before starting. Project stage headings now show the actual skills, including Cooking, Smithing, and Fletching.
+
 ## 1.7.5
+
+- Colosseum Equipment Projects now require only 30 seconds of the final production activity, including Cooking for food and Smithing for equipment. Gathering and intermediate tasks are removed; completed unlocks and saved production progress are preserved. Older clients still require item discovery and may show outdated stage headings.
 
 - Slag progressively reveals Offerings as they Meld. Revealed Offerings may be covered again when their stack changes; Weird Gloop and currencies are always visible.
 - After completing or skipping the Colosseum tutorial, Dungeons glows until your first visit. The glow also highlights Battles on mobile and stays dismissed for that character on that server.

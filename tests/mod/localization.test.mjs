@@ -116,6 +116,23 @@ test('every locale covers the English dictionary and preserves formatting placeh
 	}
 });
 
+test('Adventure copy is translated in every packaged locale with matching placeholders', async () => {
+	const english = JSON.parse(await readFile(new URL('mod/data/lang/en.json', root), 'utf8'));
+	const keys = Object.keys(english).filter(key => key.startsWith('MOD_MP_ADVENTURE_'));
+	assert.ok(keys.length >= 20, 'Adventure copy must have dedicated language keys');
+	for (const language of MULTIPLAYER_SUPPORTED_LANGUAGES.filter(language => language !== 'en')) {
+		const translations = JSON.parse(await readFile(new URL(`mod/data/lang/${language}.json`, root), 'utf8'));
+		for (const key of keys) {
+			assert.ok(translations[key]?.trim(), `${language}:${key} must be present`);
+			assert.equal(placeholder_signature(translations[key]), placeholder_signature(english[key]),
+				`${language}:${key} placeholders must match English`);
+		}
+		// Whole sentences cannot reasonably be identical to English in any supported locale.
+		for (const key of ['MOD_MP_ADVENTURE_SYNC_ERROR', 'MOD_MP_ADVENTURE_CONFIRM_ERROR', 'MOD_MP_ADVENTURE_REOPEN_ERROR'])
+			assert.notEqual(translations[key], english[key], `${language}:${key} must be localized`);
+	}
+});
+
 test('iconless feature tags resolve every packaged locale while preserving IDs and English wire labels', async () => {
 	const dictionaries = {};
 	for (const language of MULTIPLAYER_SUPPORTED_LANGUAGES)
@@ -131,6 +148,13 @@ test('iconless feature tags resolve every packaged locale while preserving IDs a
 			const localized = dictionaries[locale][lang_id];
 			assert.ok(localized?.trim(), `${locale}:${lang_id} must be translated`);
 			assert.equal(feature_name({}, getLangString, id), localized);
+			const badge = BADGE_FEATURES[key];
+			if (badge.category) {
+				const mod_key = 'MOD_MP_MOD_CATEGORY_' + badge.category.toUpperCase();
+				assert.ok(dictionaries[locale][mod_key]?.trim(), `${locale}:${mod_key} must be translated`);
+				assert.equal(feature_name({}, getLangString, id, undefined, []), dictionaries[locale][mod_key]);
+				assert.equal(feature_name({}, getLangString, id, undefined, [badge.category]), localized);
+			}
 			assert.deepEqual(catalog.find(feature => feature.id === id), { id, name: localized, media: null });
 			assert.equal(fallback_feature_name(id), english);
 		}
@@ -367,6 +391,7 @@ test('templates contain no static English placeholders or reviewed text literals
 	const templates = await readFile(new URL('mod/ui/templates.html', root), 'utf8');
 	assert.match(templates, /<template id="template-mp-expedition-page">/);
 	// Expedition's preview page and modals intentionally use English copy with locale fallback.
+	assert.doesNotMatch(templates, /fighter-adventures-english:(?:start|end)/);
 	const localized_templates = templates.replace(/<template id="template-mp-expedition-[^"]+">[\s\S]*?<\/template>/g, '');
 	assert.doesNotMatch(localized_templates, /\splaceholder="[A-Za-z]/);
 	assert.doesNotMatch(localized_templates, /\s(?:aria-label|title)="[A-Za-z]/);
@@ -398,6 +423,8 @@ test('localization inventory tracks runtime references and the unresolved baseli
 	const literals = new Set([...sources.matchAll(/['"](MOD_MP_[A-Z0-9_]+)['"]/g)].map(match => match[1]));
 	// These families are assembled at runtime, including inside HTML bindings.
 	const dynamic = new Set(PAGE_GUIDES.flatMap(entry => [entry.summary_lang, entry.how_to_lang]));
+	for (const category of ['TIME', 'ITEMS', 'RESOURCES', 'MULTITASKING', 'SHOPS', 'LOOT_RNG']) dynamic.add('MOD_MP_MOD_CATEGORY_' + category);
+	for (const tab of ['character','pvp','raid']) dynamic.add('MOD_MP_COMBAT_TAB_' + tab.toUpperCase());
 	for (const key of ['paused','resume','abandon','check','result','retention','restart','ending','maintenance','expired']) dynamic.add('MOD_MP_COMBAT_RECOVERY_' + key.toUpperCase());
 	// Combat names are built by state.combat_name from target IDs and error values.
 	for (const name of ['target_unavailable', 'golbin', 'golbin_scout', 'mind_golbin', 'golbins', 'plants', 'plant',

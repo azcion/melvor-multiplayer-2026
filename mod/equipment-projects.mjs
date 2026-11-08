@@ -13,6 +13,16 @@ export function equipment_project_visible(model, item) {
 	return !!previous && model.unlocked?.includes(previous.item_id) === true;
 }
 
+// Discovery in the native save is independent of Colosseum project access.
+export function equipment_project_startable(model, item) {
+	return !model?.project && !model?.unlocked?.includes(item.item_id) && equipment_project_visible(model, item);
+}
+
+export function equipment_project_stage_name(item, index, skill_name, fallback) {
+	const skills = [...new Set((item.stages?.[index] ?? []).map(task => task.skill_id).filter(Boolean))];
+	return skills.map(id => skill_name(id) ?? id.split(':').at(-1)).join(' / ') || fallback;
+}
+
 export function equipment_slot_purchase(model, slot_id, ep_micros = 0) {
 	const access = model?.access?.find(entry => entry.slot === slot_id);
 	if (!access) return null;

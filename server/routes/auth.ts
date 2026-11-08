@@ -1,3 +1,4 @@
+import { create_identity_recovery_service } from '../identity-recovery';
 import { get_chat_reaction_choices } from '../chat_reactions';
 import { listing_filter_prompt_pending } from '../listing-filters';
 import { admit_rollback_load } from '../rollback-admission';
@@ -29,8 +30,19 @@ function get_wiki_url(): string {
 }
 
 export function register_auth_routes(): void {
+	const recovery = create_identity_recovery_service(db);
+	for (const action of ['list', 'connect'] as const) {
+		server.route('/api/identity-recovery/' + action, allow_browser_access(require_source_capacity(require_service_available(
+			validate_json_request((_req, _url, json) => recovery[action](json))
+		))), ['POST', 'OPTIONS']);
+	}
+	runtime.session_post_route('/api/identity-recovery/disable', (_req, _url, client_id) => recovery.disable(client_id));
+	runtime.session_post_route('/api/identity-recovery/enroll', (req, _url, client_id, json) => recovery.enroll(client_id, json,
+		() => db.query('SELECT 1 FROM client_sessions WHERE session_token=? AND client_id=?')
+			.get(req.headers.get('X-Session-Token'), client_id) !== null));
+
 	server.route('/api/versions', allow_browser_access(require_source_capacity(require_service_available(() => ({
-		page_snapshots: true, capabilities:['save-rollback-v1', 'identity-registration-v1'], api_versions: API_VERSIONS, preferred_api_version: API_VERSIONS[API_VERSIONS.length - 1],
+		page_snapshots: true, capabilities:['save-rollback-v1', 'identity-registration-v1', 'identity-onboarding-v1', 'identity-account-recovery-v1', 'fighter-adventures-v1', 'client-preferences-v1'], api_versions: API_VERSIONS, preferred_api_version: API_VERSIONS[API_VERSIONS.length - 1],
 		minimum_supported_mod_version: get_minimum_supported_mod_version(), wiki_url: get_wiki_url()
 	})))), ['GET', 'OPTIONS']);
 	server.route('/health', require_source_capacity(() => ({ status: 'ok', backend_version: BACKEND_VERSION })));
@@ -154,6 +166,8 @@ export function register_auth_routes(): void {
 			mark_rejection(req, 'invalid_runtime');
 			return 400; // Bad Request
 		}
+		if (json.check_existing_profile !== undefined && typeof json.check_existing_profile !== 'boolean') return 400;
+		if (json.character_name !== undefined && (typeof json.character_name !== 'string' || json.character_name.length < 1 || json.character_name.length > 100)) return 400;
 		const friend_code = await generate_friend_code();
 		const display_name = validate_display_name(json.display_name);
 
@@ -165,13 +179,17 @@ export function register_auth_routes(): void {
 			display_name,
 			DEFAULT_USER_ICON_ID,
 			melvor_account,
-			client_runtime?.device ?? null
+			client_runtime?.device ?? null,
+			json.check_existing_profile === true,
+			typeof json.character_name === 'string' ? json.character_name : display_name
 		);
 
 		// Replays authenticate through the ordinary route so preferences, revocation and sessions
 		// have exactly the same checks as every other login. Never return fresh-profile defaults.
 		if (registration.status === 'replayed')
 			return Response.json({ identity_status: 'registration_exists' }, { status: 409 });
+		if (registration.status === 'recovery_required')
+			return Response.json({ identity_status: 'recovery_required' }, { status: 409 });
 		if (registration.status === 'conflict') return 401;
 		if (registration.status !== 'created')
 			return temporary_unavailable();

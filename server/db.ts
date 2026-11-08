@@ -22,7 +22,8 @@ export type ClientRegistration =
 	| { status: 'created'; client_id: number }
 	| { status: 'replayed'; client_id: number }
 	| { status: 'conflict' }
-	| { status: 'closed' };
+	| { status: 'closed' }
+	| { status: 'recovery_required' };
 
 const database_path = process.env.DB_PATH ?? './data/melvor-multiplayer.sqlite';
 mkdirSync(dirname(database_path), { recursive: true });
@@ -153,7 +154,9 @@ export function register_client(
 	display_name: string,
 	icon_id: string,
 	melvor_account: MelvorAccountInput | null = null,
-	device: DeviceDiagnostics | null = null
+	device: DeviceDiagnostics | null = null,
+	check_existing_profile = false,
+	character_name = display_name
 ): ClientRegistration {
 	const transaction = db.transaction((): ClientRegistration => {
 		const existing = db.query<{ id: number; client_key: string; melvor_account_id: number | null; disabled: number; deleted_at: number | null }, [string]>(
@@ -161,20 +164,34 @@ export function register_client(
 		).get(client_identifier);
 		if (existing) {
 			const matching_account = melvor_account === null ? existing.melvor_account_id === null :
-				db.query('SELECT 1 FROM melvor_accounts WHERE id = ? AND playfab_id = ?')
-					.get(existing.melvor_account_id, melvor_account.playfab_id) !== null;
+				db.query('SELECT 1 FROM melvor_accounts WHERE id = ? AND upper(trim(playfab_id)) = ?')
+					.get(existing.melvor_account_id, melvor_account.playfab_id.trim().toUpperCase()) !== null;
 			return existing.client_key === client_key && matching_account && !existing.disabled && existing.deleted_at === null
 				? { status: 'replayed', client_id: existing.id } : { status: 'conflict' };
 		}
 		if (get_service_setting('registrations_open') !== '1')
 			return { status: 'closed' };
 
+		// Run inside the insertion transaction: concurrent first connections must not both create.
+		// This is only a recovery hint; account/name observations never grant access to a Client.
+		if (check_existing_profile && melvor_account !== null) {
+			const candidates = db.query<{ display_name: string; original_name: string | null; character_name: string | null; registration_character_name: string | null }, [string]>(
+				'SELECT c.display_name, (SELECT h.display_name FROM client_display_name_history h ' +
+				'WHERE h.client_id = c.id ORDER BY h.valid_from, h.id LIMIT 1) AS original_name, v.character_name, c.registration_character_name ' +
+				'FROM clients c JOIN melvor_accounts a ON a.id = c.melvor_account_id LEFT JOIN verified_identity_accounts v ON v.client_id=c.id ' +
+				'WHERE upper(trim(a.playfab_id)) = ?'
+			).all(melvor_account.playfab_id.trim().toUpperCase());
+			if (candidates.some(candidate => [candidate.display_name, candidate.original_name, candidate.character_name, candidate.registration_character_name].some(
+				name => name !== null && name === character_name)))
+				return { status: 'recovery_required' };
+		}
+
 		const melvor_account_id = melvor_account === null ? null : get_or_create_melvor_account(melvor_account);
 
 		const result = db.query(
 			'INSERT INTO `clients` (`client_identifier`, `client_key`, `friend_code`, `display_name`, `icon_id`, ' +
-			'`melvor_account_id`) VALUES(?, ?, ?, ?, ?, ?)'
-		).run(client_identifier, client_key, friend_code, display_name, icon_id, melvor_account_id);
+			'`melvor_account_id`, `registration_character_name`) VALUES(?, ?, ?, ?, ?, ?, ?)'
+		).run(client_identifier, client_key, friend_code, display_name, icon_id, melvor_account_id, character_name);
 		const client_id = Number(result.lastInsertRowid);
 		const created_at = Date.now();
 		const audit_event = db.query<{ id: number }, [

@@ -12,7 +12,7 @@ test('Crucible client has no retired Charitree handlers, styles, templates or tr
 		readFile(new URL('mod/ui/templates.html', root), 'utf8'), readdir(new URL('mod/assets/', root))
 	]);
 	for (const source of [client, crucible, css, templates])
-		assert.doesNotMatch(source, /charitree|charity/i);
+		assert.doesNotMatch(source.replace(/function prune_obsolete_character_preferences\(\) \{[\s\S]*?\n\}/, ''), /charitree|charity/i);
 	assert.equal(assets.includes('charity_tree.svg'), false);
 	assert.ok(assets.includes('pet_charity_spirit.svg'));
 	const pets = JSON.parse(await readFile(new URL('mod/data/pets.json', root), 'utf8'));

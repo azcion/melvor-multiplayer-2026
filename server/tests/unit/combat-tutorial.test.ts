@@ -152,7 +152,8 @@ test('skip before preparation creates an unequipped fighter with the full nine E
 		expect(skip_tutorial(db,101,9_000_000)).toEqual({ success:true });
 		expect(combat_character(db,101)?.gear).toEqual({});
 		expect(tutorial_state(db,101)).toMatchObject({ complete:true });
-		expect(reserve_combat(db,101,'owner','practice','practice_recruit_1')).not.toBeNull();
+		expect(reserve_combat(db,101,'owner','practice','practice_recruit_1')).toBeNull();
+		expect(reserve_combat(db,101,'owner','dungeon','golbins','raid')).not.toBeNull();
 		expect(skip_tutorial(db,101,9_000_000)).toMatchObject({ success:false });
 		expect(db.query('SELECT points_micros FROM expedition_ep_balances').get()).toEqual({ points_micros:9_000_000 });
 	} finally { db.close(); }

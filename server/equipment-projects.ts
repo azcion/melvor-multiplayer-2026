@@ -12,6 +12,7 @@ import { combat_character, combat_reset_balance } from './combat-progression';
 import { COMBAT_CATALOG, WOODEN_EQUIPMENT } from './combat/catalog';
 import {
 	EQUIPMENT_DEFINITIONS,
+	LEGACY_EQUIPMENT_TASKS,
 	EQUIPMENT_SLOTS,
 	EQUIPMENT_TIER_COST_MICROS,
 	EQUIPMENT_TIER_NAMES,
@@ -19,10 +20,14 @@ import {
 	type EquipmentDefinition
 } from './equipment-recipes';
 
-// Keep the existing Bronze Dagger task keys and progress structure stable for pilot saves.
+// Final task keys keep saved production progress stable.
 export const EQUIPMENT_PROJECTS = [...EQUIPMENT_DEFINITIONS, ...FOOD_DEFINITIONS];
 export const equipment_task_key = (task: { skill_id: string; action_id: string }) => `${task.skill_id}|${task.action_id}`;
-const task_keys = new Set(EQUIPMENT_PROJECTS.flatMap(project => project.stages.flat().map(equipment_task_key)));
+const task_keys = new Set([
+	...LEGACY_EQUIPMENT_TASKS.map(equipment_task_key),
+	...EQUIPMENT_PROJECTS.flatMap(project => project.stages.flat().map(equipment_task_key)),
+	...FOOD_DEFINITIONS.map(food => `melvorD:Fishing|melvorD:Raw_${food.name}`)
+]);
 type Project = { id: number; item_id: string; progress_json: string; completed_at: number | null };
 type Tracking = { project_id: number; task_id: string; started_at: number; start_clock_offset_ms: number;
 	epoch: string; counter_ms: number; statistics_json: string };
@@ -190,7 +195,7 @@ export function change_equipment(database: Database, client: number, command: st
 	} else if (action === 'start-project') {
 		const definition = EQUIPMENT_PROJECTS.find(entry => entry.item_id === input.item_id);
 		if (definition && definition.tier > (definition.slot === 'Food' ? combat_unlocks(database, client).food_cap : combat_unlocks(database, client).material_caps[definition.slot])) return { success: false, error: 'cap_locked' };
-		if (!definition || input.discovered !== true) return { success: false, error: 'discovery_required' };
+		if (!definition) return { success: false, error: 'project_unavailable' };
 		const tier = definition.slot === 'Food' ? Math.max(...FOOD_SLOTS.map(slot => food_access(database, client, slot)?.tier ?? -1)) : database.query<{ tier: number }, [number, string]>('SELECT tier FROM combat_equipment_slots WHERE client_id=? AND slot=?').get(client, definition.slot)?.tier ?? -1;
 		const previous = previous_tier_definition(definition);
 		if (tier < definition.tier || (previous !== null && (!previous || !item_is_unlocked(database, client, previous.item_id))) ||
@@ -267,8 +272,8 @@ export function change_equipment_work(database: Database, client: number, operat
 			const start = JSON.parse(existing.statistics_json) as Record<string, number>;
 			const total = Object.entries(request.statistics.time_ms).reduce((sum, [skill, ms]) => sum + Math.min(elapsed + Math.max(30000, elapsed * .02), Math.max(0, ms - (start[skill] ?? ms))), 0);
 			const concurrency = elapsed > 0 ? Math.max(1, total / elapsed) : 1;
-			const task = definition.stages.flat().find(task => equipment_task_key(task) === existing.task_id)!;
-			credited_ms = elapsed <= 4 * 86400000 && delta >= 0 && !rollback_held(database, client)
+			const task = definition.stages.flat().find(task => equipment_task_key(task) === existing.task_id);
+			credited_ms = task && elapsed <= 4 * 86400000 && delta >= 0 && !rollback_held(database, client)
 				? Math.max(0, Math.min(task.target_ms - (progress[existing.task_id] ?? 0), Math.floor(Math.min(elapsed, delta) / concurrency))) : 0;
 			progress[existing.task_id] = (progress[existing.task_id] ?? 0) + credited_ms;
 			database.query('DELETE FROM combat_project_tracking WHERE client_id=?').run(client);

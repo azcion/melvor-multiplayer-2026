@@ -117,6 +117,8 @@ export type clients = {
 	client_key: string,
 	friend_code: string,
 	display_name: string,
+	registration_character_name: string | null,
+	account_recovery_revocation: string,
 	icon_id: string,
 	disabled: number,
 	equipment_visible: number,

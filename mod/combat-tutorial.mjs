@@ -95,10 +95,10 @@ export function install_tutorial_review_actions(state, get_lang = null, get_item
 }
 export function tutorial_access(view, kind, id) {
 	if (kind === 'page') {
-		if (id === 'character') return view.arena?.status !== 'active';
+		if (view.arena?.status !== 'active' && id === 'character') return true;
 		if (view.arena?.status === 'active' && view.combat_tab) return id === view.combat_tab;
 		if (id === 'raid') return !!view.character && view.tutorial?.complete === true;
-		return id === 'test_combat' && !!view.character && (view.arena?.status === 'active' || view.tutorial?.complete === true || view.tutorial?.ready === true);
+		return false;
 	}
 	if (kind === 'tab' && id === 'levels') return true;
 	if (!view.character || !view.tutorial) return false;

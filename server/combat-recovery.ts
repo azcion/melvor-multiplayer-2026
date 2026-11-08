@@ -93,7 +93,7 @@ export function read_recovery(db: Database, client: number) {
 	let row = db.query<Saved,[number]>('SELECT * FROM combat_recovery WHERE client_id=?').get(client);
 	if (!row) return null;
 	const owner = db.query<Encounter,[string]>('SELECT * FROM combat_encounters WHERE id=?').get(row.encounter_id)!;
-	if ((row.format !== RECOVERY_FORMAT || owner.status !== 'active') && row.state !== 'terminal') { finish(db,row,'interrupted'); row = db.query<Saved,[number]>('SELECT * FROM combat_recovery WHERE client_id=?').get(client)!; }
+	if ((row.format !== RECOVERY_FORMAT || owner.status !== 'active' || owner.practice_id !== null) && row.state !== 'terminal') { finish(db,row,'interrupted'); row = db.query<Saved,[number]>('SELECT * FROM combat_recovery WHERE client_id=?').get(client)!; }
 	return { arena: JSON.parse(row.checkpoint) as Arena, state: row.state, revision: row.revision,
 		remaining_ms: Math.max(0,row.expires-combat_availability(db).clock) };
 }

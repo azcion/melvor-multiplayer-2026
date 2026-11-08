@@ -98,9 +98,9 @@ export function get_inbox(client_id: number): { items: JsonObject[]; groups: Jso
 	};
 }
 
-export function has_pending_inbox(client_id: number): boolean {
+export function has_pending_inbox(client_id: number, quiet_adventures = false): boolean {
 	return db.query(
-		' SELECT 1 FROM `inbox_items` WHERE `client_id` = ? LIMIT 1'
+		' SELECT 1 FROM `inbox_items` WHERE `client_id` = ?' + (quiet_adventures ? " AND source_type != 'fighter_adventures'" : '') + ' LIMIT 1'
 	).get(client_id) !== null || db.query(
 		' SELECT 1 FROM `inbox_claims` WHERE `client_id` = ? AND `acknowledged_at` IS NULL ' +
 		'LIMIT 1'

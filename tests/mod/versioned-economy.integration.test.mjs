@@ -77,7 +77,7 @@ test('real API and mod recovery flag a blocked receipt while Gifts and new trans
 	const source = main.slice(main.indexOf('async function get_client_events_request('), main.indexOf('\nfunction start_client_event_polling('));
 	const state = { listing_filters: [], refresh_crucible: async () => {}, chat_notification_preferences: {}, events: {}, gifts: [], trades: [], resolved_trades: [], inbox_items: [], get_chat_notification_tagged: () => false };
 	let contents, chat_refreshes = 0;
-	const context = {
+	const context = { adventures_supported:false, fighter_adventures:null,
 		economy_receipt_reviews: reviews, rollback_client: null, expedition_leaderboard: null, server_host: 'https://test.invalid', guild_revision_scope: null, last_guild_revision: null, apply_dev_badge_labels() {},
 		update_crucible_nav() {}, recover_paid_wish_actions: async () => {}, crucible_page_visible: false, crucible_page_hydrating: false, guild_page_visible: false, refresh_guild_state: async () => {},
 		state, client_events_hydrated: false, session_generation: 1, client_event_revision: 0, CHAT_CAPABILITIES: '', chat_page_visible: false,

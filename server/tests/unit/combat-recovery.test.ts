@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { issue_ticket } from '../../combat/tickets';
+import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { create_test_database } from '../support/database';
 import { prepare_combat } from '../../combat-progression';
@@ -179,13 +180,22 @@ test('real processes recover after combat SIGKILL, authority SIGKILL and gracefu
 		let authority=await launch('authority',path), service=await launch('service',`ws://127.0.0.1:${authority.port}/authority`);
 		await Bun.sleep(200);
 		let client=await open(service.port); await client.command({type:'start',encounter:'golbin',mode:'once'});
-		await until(()=>client.messages.some(m=>m.arena?.elapsed_ms>=2200));
+		await until(()=>client.messages.some(m=>m.arena));
 		const id=client.messages.find(m=>m.arena).arena.id;
+		const observer = new Database(path, { readonly:true });
+		let confirmed_elapsed = 0;
+		try {
+			await until(() => {
+				const row = observer.query<{checkpoint:string}, [string]>('SELECT checkpoint FROM combat_recovery WHERE encounter_id=?').get(id);
+				confirmed_elapsed = row ? JSON.parse(row.checkpoint).elapsed_ms : 0;
+				return confirmed_elapsed >= 2000;
+			});
+		} finally { observer.close(); }
 		service.child.kill('SIGKILL'); await service.child.exited; await Bun.sleep(200);
 		service=await launch('service',`ws://127.0.0.1:${authority.port}/authority`); await Bun.sleep(200);
 		client=await open(service.port);await client.command({type:'recover'});
 		const saved=client.messages.find(m=>m.type==='recovery').saved;
-		expect(saved.state).toBe('paused'); expect(saved.arena.id).toBe(id);expect(saved.arena.elapsed_ms).toBeGreaterThanOrEqual(2000);
+		expect(saved.state).toBe('paused'); expect(saved.arena.id).toBe(id);expect(saved.arena.elapsed_ms).toBeGreaterThanOrEqual(confirmed_elapsed);
 		await Bun.sleep(250);expect(client.messages.some(m=>m.type==='state'&&m.arena?.status==='active')).toBe(false);
 		await client.command({type:'resume',encounter:id});
 		await until(()=>client.messages.some(m=>m.arena?.status==='active'));

@@ -66,8 +66,10 @@ test('both badge surfaces retain keyboard activation, wrapping and native modal 
 	const css = readFileSync(new URL('../../mod/ui/style.css', import.meta.url), 'utf8');
 	for (const surface of ['application', 'member']) {
 		assert.ok(html.includes(`v-for="category in state.member_cheat_categories(${surface})"`));
+		assert.match(html, /:class="\{ 'mp-guild-cheats-badge-unfiltered': !state.listing_filters.includes\(category.id\) \}"/);
 		for (const key of ['enter','space']) assert.ok(html.includes(`@keydown.${key}.stop.prevent="state.view_member_cheat_mods(${surface}, $event, category.id)"`));
 	}
+	assert.match(css, /\.mp-guild-cheats-badge-unfiltered \{[^}]*background-color: #846e6e/s);
 	assert.match(css, /\.mp-guild-member-tags \{[^}]*flex-wrap: wrap/s);
 	assert.match(css, /\.mp-guild-cheats-badge \{[^}]*white-space: nowrap;[^}]*background-color: #8f3030/s);
 	assert.match(css, /\.mp-cheat-details \{[^}]*overflow-wrap: anywhere/s);
@@ -78,7 +80,7 @@ test('both badge surfaces retain keyboard activation, wrapping and native modal 
 	assert.match(modal, /<\/div>\s*<button type="button"/);
 	assert.ok(!modal.includes('v-html'));
 	const en = JSON.parse(readFileSync(new URL('../../mod/data/lang/en.json', import.meta.url)));
-	assert.deepEqual(['TIME','ITEMS','RESOURCES','MULTITASKING','SHOPS','LOOT_RNG'].map(id => en['MOD_MP_CHEAT_CATEGORY_'+id]), ['Time Cheats','Item Cheats','Resource Cheats','Multitasking','Shop Cheats','Loot Cheats']);
+	assert.deepEqual(['TIME','ITEMS','RESOURCES','MULTITASKING','SHOPS','LOOT_RNG'].map(id => en['MOD_MP_CHEAT_CATEGORY_'+id]), ['Time Cheats','Item Cheats','Resource Cheats','Multitasking Cheats','Shop Cheats','Loot Cheats']);
 });
 
 test('missing descriptions keep the named mod, report age and expiry without unavailable details', () => {

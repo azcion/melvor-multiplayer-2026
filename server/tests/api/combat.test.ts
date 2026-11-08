@@ -20,8 +20,8 @@ test('Social Mode can skip the tutorial and unlock Colosseum', async () => {
 	expect((await post_json<any>('/api/combat/skip-tutorial', payload, owner.session_token)).json).toEqual(skipped);
 	const inventory = (await get_json_with_session<any>('/api/combat/inventory', owner.session_token)).json;
 	expect(inventory).toMatchObject({ tutorial:{ complete:true }, ep_micros:9_000_000 });
-	expect(inventory.practice.length).toBeGreaterThan(0);
-	expect(inventory.dungeons.some(dungeon => dungeon.available)).toBe(true);
+	expect(inventory.practice).toBeUndefined();
+	expect(inventory.dungeons.some((dungeon: {available:boolean}) => dungeon.available)).toBe(true);
 });
 
 test('combat food custody routes are retired and preparation needs no deposit enrollment', async()=>{
@@ -137,10 +137,10 @@ test('guildless personal equipment commands replay without Bank effects and exac
 	expect(legacy_report.equipment_projects.catalog).toEqual(personal.equipment_projects.catalog);
 	expect((await post_json<any>('/api/expedition/task/start', payload, owner.session_token)).json).toEqual(started);
 	expect((await post_json<any>('/api/expedition/task/start', { ...payload, operation_id: crypto.randomUUID() }, owner.session_token)).json.error).toBe('tracking_busy');
-	await db_run('UPDATE combat_project_tracking SET started_at=started_at-300000,start_clock_offset_ms=0 WHERE client_id=?', [owner.client_id]);
-	const stop = { ...payload, operation_id: crypto.randomUUID(), captured_at: Date.now(), actions: { epoch, time_ms: { [key]: 300000 } }, statistics: { version: 1, time_ms: { [task.skill_id]: 300000 } } };
+	await db_run('UPDATE combat_project_tracking SET started_at=started_at-10000,start_clock_offset_ms=0 WHERE client_id=?', [owner.client_id]);
+	const stop = { ...payload, operation_id: crypto.randomUUID(), captured_at: Date.now(), actions: { epoch, time_ms: { [key]: 10000 } }, statistics: { version: 1, time_ms: { [task.skill_id]: 10000 } } };
 	const settled = (await post_json<any>('/api/expedition/task/stop', stop, owner.session_token)).json;
-	expect(settled.settlement.credited_ms).toBe(300000); expect(settled.tracking).toBeNull();
+	expect(settled.settlement.credited_ms).toBe(10000); expect(settled.tracking).toBeNull();
 	expect((await post_json<any>('/api/expedition/task/stop', stop, owner.session_token)).json).toEqual(settled);
 	expect((await get_json_with_session<any>('/api/expedition/personal', other.session_token)).json.equipment_projects.project).toBeNull();
 	expect(await db_all('SELECT points_micros FROM expedition_ep_balances WHERE client_id=?', [owner.client_id])).toEqual([{ points_micros: 3000000 }]);
@@ -173,8 +173,8 @@ test('all Bronze through Rune equipment recipes are server catalog data and equi
 	const two_handed = state.equipment_projects.catalog.find((item: any) => item.item_id === 'melvorD:Bronze_2H_Sword');
 	expect(two_handed).toMatchObject({ slot: 'Weapon', tier: 1, occupies: ['Shield'] });
 	expect(two_handed.stats).toContainEqual({ key: 'attackSpeed', value: 3600 });
-	expect(state.equipment_projects.catalog.find((item: any) => item.item_id === 'melvorD:Rune_Gloves').stages[1][0]).toMatchObject({
-		action_id: 'melvorD:Runite_Bar', target_ms: 600000
+	expect(state.equipment_projects.catalog.find((item: any) => item.item_id === 'melvorD:Rune_Gloves').stages[0][0]).toMatchObject({
+		action_id: 'melvorD:Rune_Gloves', target_ms: 30000
 	});
 	expect(state.equipment_projects.access.find((entry: any) => entry.slot === 'Gloves')).toEqual({
 		slot: 'Gloves', unlock_cost_micros: 1000000,
@@ -421,28 +421,14 @@ test('actual tutorial controls require admin, stay self-scoped and replay withou
 	expect((await db_all<{n:number}>("SELECT COUNT(*) AS n FROM audit_events WHERE actor_client_id=? AND event_type='combat-tutorial-test'",[admin.client_id]))[0].n).toBe(2);
 });
 
-test('Practice preview negotiation keeps progression fresh and falls back to full definitions for old revisions', async () => {
-	const owner = await register_client('Practice Cache', undefined, '1.7.0');
+test('inventory omits retired Practice even when an older client requests its catalog', async () => {
+	const owner = await register_client('Retired Practice', undefined, '1.7.0');
 	await post_json('/api/combat/prepare', {command_id:crypto.randomUUID()}, owner.session_token);
 	await db_run('UPDATE combat_tutorial SET victories=7 WHERE client_id=?', [owner.client_id]);
-	const read = (query = '') => get_json_with_session<any>('/api/combat/inventory' + query, owner.session_token).then(result => result.json);
-	const full = await read();
-	expect(full.practice_catalog_revision).toMatch(/^[a-f0-9]{64}$/);
-	expect(full.practice[0].tiers[0].waves.length).toBeGreaterThan(0);
-	const compact = await read('?practice_catalog=' + full.practice_catalog_revision + '&equipment_catalog=' + full.equipment_projects.catalog_revision);
-	expect(compact.practice[0].tiers[0].waves).toBeUndefined();
+	const full = (await get_json_with_session<any>('/api/combat/inventory?practice_catalog=outdated', owner.session_token)).json;
+	expect(full.practice).toBeUndefined();
+	expect(full.practice_catalog_revision).toBeUndefined();
+	expect(full.dungeons.length).toBeGreaterThan(0);
+	const compact = (await get_json_with_session<any>('/api/combat/inventory?equipment_catalog=' + full.equipment_projects.catalog_revision, owner.session_token)).json;
 	expect(compact.equipment_projects.catalog).toBeUndefined();
-	const restored = compact.practice.map((entry:any,index:number) => ({...entry, tiers:entry.tiers.map((tier:any,i:number) => ({...tier,waves:full.practice[index].tiers[i].waves}))}));
-	expect(restored).toEqual(full.practice);
-	expect(JSON.stringify(compact.practice).length).toBeLessThan(JSON.stringify(full.practice).length / 2);
-	await db_run('INSERT INTO combat_practice_completions(client_id,practice_id,tier,ruleset) VALUES(?,?,?,?)', [owner.client_id,'recruit',1,'practice-1']);
-	const changed = await read('?practice_catalog=' + full.practice_catalog_revision);
-	expect(changed.practice[0].tiers[0].complete).toBe(true);
-	expect(changed.practice[0].tiers[1].complete).toBe(false);
-	const outdated = await read('?practice_catalog=outdated');
-	expect(outdated.practice[0].tiers[0].waves).toEqual(full.practice[0].tiers[0].waves);
-	const legacy = await read();
-	expect(legacy.practice[0].tiers[0].waves).toEqual(full.practice[0].tiers[0].waves);
-	await db_run('UPDATE combat_tutorial SET victories=0 WHERE client_id=?', [owner.client_id]);
-	expect((await read('?practice_catalog=' + full.practice_catalog_revision)).practice).toEqual([]);
 });

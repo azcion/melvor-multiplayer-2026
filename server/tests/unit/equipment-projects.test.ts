@@ -24,15 +24,15 @@ function start(db: ReturnType<typeof fixture>) {
 	return equipment_project_state(db,101).project!;
 }
 
-test('slot and Bronze gates cost EP exactly once; discovery required; only one personal project', () => {
+test('slot and Bronze gates cost EP exactly once; discovery optional; only one personal project', () => {
 	const db=fixture();try {
 		expect(unlock(db,'unlock-tier').success).toBe(false);
 		expect(unlock(db,'unlock-slot').success).toBe(true);
 		expect(unlock(db,'unlock-slot').success).toBe(false);
 		expect(unlock(db,'start-project',{item_id:'melvorD:Bronze_Dagger',discovered:true}).success).toBe(false);
 		expect(unlock(db,'unlock-tier').success).toBe(true);
-		expect(unlock(db,'start-project',{item_id:'melvorD:Bronze_Dagger'}).success).toBe(false);
-		expect(unlock(db,'start-project',{item_id:'melvorD:Bronze_Dagger',discovered:true}).success).toBe(true);
+		expect(unlock(db,'start-project',{item_id:'missing:Item'}).error).toBe('project_unavailable');
+		expect(unlock(db,'start-project',{item_id:'melvorD:Bronze_Dagger'}).success).toBe(true);
 		expect(unlock(db,'start-project',{item_id:'melvorD:Bronze_Dagger',discovered:true}).success).toBe(false);
 		expect(ep_balance(db,101)).toBe(8000000);
 		expect(equipment_project_state(db,102).project).toBeNull();
@@ -129,27 +129,20 @@ test('each slot advances sequentially through all six server-priced tiers and re
 	}finally{db.close();}
 });
 
-test('exact actions, ordered stages, offline counter evidence, replay and permanent reusable equipment never award EP', () => {
+test('only final production actions credit 30 seconds; replay and reusable equipment never award EP', () => {
 	const db=fixture();try {
-		const project=start(db), epoch=crypto.randomUUID(); let now=1000000;
-		const counters: Record<string,number>={}, skills: Record<string,number>={};
-		const report=(kind:'start'|'check-in'|'stop',task:typeof EQUIPMENT_PROJECTS[number]['stages'][number][number],delta=0,operation=crypto.randomUUID())=>{
-			const key=equipment_task_key(task); counters[key]=(counters[key]??0)+delta;skills[task.skill_id]=(skills[task.skill_id]??0)+delta; now+=delta;
-			const request={kind,project_id:project.id,task_id:key,captured_at:now,actions:{epoch,time_ms:{...counters}},statistics:{time_ms:{...skills}},activities:[{type:'skill',skill_id:task.skill_id,action_id:task.action_id}]};
-			return {result:change_equipment_work(db,101,operation,request,now),request,operation};
-		};
-		const [gather,smelt,craft]=EQUIPMENT_PROJECTS[0].stages;
-		expect(report('start',craft[0]).result.success).toBe(false);
-		// Tin before Copper is valid; Copper work cannot advance Tin.
-		expect(report('start',gather[1]).result.success).toBe(true);
-		const wrong=report('check-in',gather[0],300000);expect(wrong.result.settlement.credited_ms).toBe(0);
-		expect(report('start',gather[1]).result.success).toBe(true);
-		const tin=report('check-in',gather[1],300000);expect(tin.result.settlement.credited_ms).toBe(300000);
-		expect(change_equipment_work(db,101,tin.operation,tin.request,now+1000)).toEqual(tin.result);
-		expect(change_equipment_work(db,101,tin.operation,{...tin.request,kind:'stop'},now).error).toBe('operation_conflict');
-		expect(report('start',gather[0]).result.success).toBe(true);
-		expect(report('stop',gather[0],300000).result.settlement.credited_ms).toBe(300000);
-		for(const task of [...smelt,...craft]) {expect(report('start',task).result.success).toBe(true);expect(report('check-in',task,300000).result.settlement.credited_ms).toBe(300000);}
+		const project=start(db), task=project.stages[0][0], key=task.task_id, epoch=crypto.randomUUID();
+		const request={kind:'start' as const,project_id:project.id,task_id:key,captured_at:1000,
+			actions:{epoch,time_ms:{[key]:0}},statistics:{time_ms:{[task.skill_id]:0}},activities:[{type:'skill',skill_id:task.skill_id,action_id:task.action_id}]};
+		for (const action of ['melvorD:Copper_Ore','melvorD:Bronze_Bar']) {
+			expect(change_equipment_work(db,101,crypto.randomUUID(),{...request,activities:[{type:'skill',skill_id:task.skill_id,action_id:action}]},1000).error).toBe('activity_required');
+		}
+		expect(change_equipment_work(db,101,crypto.randomUUID(),request,1000).success).toBe(true);
+		const stop={...request,kind:'stop' as const,captured_at:61000,actions:{epoch,time_ms:{[key]:60000}},statistics:{time_ms:{[task.skill_id]:60000}}};
+		const operation=crypto.randomUUID(), result=change_equipment_work(db,101,operation,stop,61000);
+		expect(result.settlement.credited_ms).toBe(30000);
+		expect(change_equipment_work(db,101,operation,stop,62000)).toEqual(result);
+		expect(change_equipment_work(db,101,operation,{...stop,kind:'check-in'},62000).error).toBe('operation_conflict');
 		expect(equipment_project_state(db,101).unlocked).toEqual(['multiplayer:Wooden_Sword', 'melvorD:Bronze_Dagger']);
 		expect(equipment_project_state(db,101).project).toBeNull();
 		expect(ep_balance(db,101)).toBe(8000000);
@@ -242,10 +235,10 @@ test('project progress, active evidence and report replay survive reopening the 
 		expect(change_equipment_work(db,101,crypto.randomUUID(),request,1000).success).toBe(true);
 		db.close(); db = new Database(path, { strict:true }); db.run('PRAGMA foreign_keys=ON');
 		const operation = crypto.randomUUID();
-		const stop = { ...request, kind:'stop' as const, captured_at:301000,
-			actions:{epoch,time_ms:{[key]:300000}},statistics:{time_ms:{[task.skill_id]:300000}} };
-		const result = change_equipment_work(db,101,operation,stop,301000);
-		expect(result.settlement.credited_ms).toBe(300000);
+		const stop = { ...request, kind:'stop' as const, captured_at:11000,
+			actions:{epoch,time_ms:{[key]:10000}},statistics:{time_ms:{[task.skill_id]:10000}} };
+		const result = change_equipment_work(db,101,operation,stop,11000);
+		expect(result.settlement.credited_ms).toBe(10000);
 		const stored = db.query<{response:string},[string]>('SELECT response FROM combat_project_reports WHERE operation_id=?').get(operation)!.response;
 		expect(stored.length).toBeLessThan(5000);
 		expect(JSON.parse(stored).equipment_projects.catalog).toBeUndefined();
@@ -253,7 +246,7 @@ test('project progress, active evidence and report replay survive reopening the 
 		expect(result.equipment_projects.catalog.length).toBe(EQUIPMENT_PROJECTS.length + 2);
 		db.close(); db = new Database(path, { strict:true });
 		expect(change_equipment_work(db,101,operation,stop,302000)).toEqual(result);
-		expect(equipment_project_state(db,101).project!.stages[0][0].player_ms).toBe(300000);
+		expect(equipment_project_state(db,101).project!.stages[0][0].player_ms).toBe(10000);
 		expect(ep_balance(db,101)).toBe(8000000);
 	} finally { db.close(); rmSync(directory,{recursive:true,force:true}); }
 });
@@ -265,19 +258,16 @@ test('admin project completion is scoped, capped, ordered and audited without EP
 			{ project_id: project.id, revision: combat_character(db,101)!.revision, task_id: null, ...extras })).immediate();
 		expect(run({ project_id: project.id + 999 }).success).toBe(false);
 		expect(run({ revision: -1 }).success).toBe(false);
-		expect(run({ task_id: project.stages[1][0].task_id }).success).toBe(false);
+		expect(run({ task_id: 'melvorD:Mining|melvorD:Copper_Ore' }).success).toBe(false);
 		expect(debug_equipment_project(db,102,crypto.randomUUID(),{project_id:project.id,revision:0,task_id:null}).success).toBe(false);
 		const task = project.stages[0][0];
 		expect(run({task_id:task.task_id}).success).toBe(true);
-		expect(equipment_project_state(db,101).project!.stages[0][0].player_ms).toBe(task.target_ms);
 		expect(run({task_id:task.task_id}).success).toBe(false);
-		expect(equipment_project_state(db,101).unlocked).toEqual(['multiplayer:Wooden_Sword']);
-		expect(run().success).toBe(true);
 		expect(equipment_project_state(db,101).project).toBeNull();
 		expect(equipment_project_state(db,101).unlocked).toEqual(['multiplayer:Wooden_Sword', 'melvorD:Bronze_Dagger']);
 		expect(run().success).toBe(false);
 		expect(ep_balance(db,101)).toBe(before);
-		expect(db.query('SELECT COUNT(*) AS n FROM audit_events WHERE event_type=?').get('combat-project-test')).toEqual({n:2});
+		expect(db.query('SELECT COUNT(*) AS n FROM audit_events WHERE event_type=?').get('combat-project-test')).toEqual({n:1});
 		expect(equipment_project_state(db,102).unlocked).toEqual([]);
 	} finally { db.close(); }
 });
@@ -306,8 +296,7 @@ test('arrow projects use Quiver gates, staged native work and permanent unlimite
 		const bronze = EQUIPMENT_PROJECTS.find(item => item.item_id === 'melvorD:Bronze_Arrows')!;
 		expect(unlock(db,'start-project',{item_id:bronze.item_id,discovered:true}).success).toBe(false);
 		unlock(db,'unlock-slot',{slot:'Quiver'}); unlock(db,'unlock-tier',{slot:'Quiver'});
-		expect(unlock(db,'start-project',{item_id:bronze.item_id,discovered:false}).error).toBe('discovery_required');
-		expect(unlock(db,'start-project',{item_id:bronze.item_id,discovered:true}).success).toBe(true);
+		expect(unlock(db,'start-project',{item_id:bronze.item_id,discovered:false}).success).toBe(true);
 		const project = equipment_project_state(db,101).project!;
 		let now=1000; const epoch=crypto.randomUUID(), counters:Record<string,number>={}, skills:Record<string,number>={};
 		const report = (kind:'start'|'stop', task:typeof bronze.stages[number][number], delta=0) => {
@@ -315,7 +304,7 @@ test('arrow projects use Quiver gates, staged native work and permanent unlimite
 			return change_equipment_work(db,101,crypto.randomUUID(),{kind,project_id:project.id,task_id:key,captured_at:now,
 				actions:{epoch,time_ms:{...counters}},statistics:{time_ms:{...skills}},activities:[{type:'skill',skill_id:task.skill_id,action_id:task.action_id==='multiplayer:Any_Woodcutting'?'melvorD:Redwood':task.action_id}]},now);
 		};
-		expect(report('start',bronze.stages[3][0]).error).toBe('activity_required');
+		expect(report('start',{skill_id:'melvorD:Woodcutting',action_id:'multiplayer:Any_Woodcutting',target_ms:30000}).error).toBe('activity_required');
 		for (const task of bronze.stages.flat()) {
 			expect(report('start',task).success).toBe(true);
 			expect(report('stop',task,task.target_ms).settlement.credited_ms).toBe(task.target_ms);
@@ -466,12 +455,10 @@ test('food access costs exactly 1 EP per sequential tier, requires completion, a
 			expect(unlock(db,'unlock-tier',{slot:'Food'}).success).toBe(true);
 			expect(ep_balance(db,101)).toBe(10000000-(index+1)*1000000);
 			expect(unlock(db,'unlock-tier',{slot:'Food'}).success).toBe(false);
-			expect(unlock(db,'start-project',{item_id:`melvorD:${name}`,discovered:false}).error).toBe('discovery_required');
-			expect(unlock(db,'start-project',{item_id:`melvorD:${name}`,discovered:true}).success).toBe(true);
+			expect(unlock(db,'start-project',{item_id:`melvorD:${name}`,discovered:false}).success).toBe(true);
 			const project=equipment_project_state(db,101).project!;
-			expect(project.stages.map(group=>group[0].target_ms)).toEqual(index === 0 ? [45000,45000] : [1800000,1800000]);
-			expect(project.stages[0][0].action_id).toBe(`melvorD:Raw_${name}`);
-			expect(project.stages[1][0].action_id).toBe(`melvorD:${name}`);
+			expect(project.stages).toHaveLength(1);
+			expect(project.stages[0][0]).toMatchObject({skill_id:'melvorD:Cooking',action_id:`melvorD:${name}`,target_ms:30000});
 			expect(unlock(db,'equip',{slot:'Food',item_id:`melvorD:${name}`}).success).toBe(false);
 			expect(debug_equipment_project(db,101,crypto.randomUUID(),{revision:combat_character(db,101)!.revision,project_id:project.id,task_id:null}).success).toBe(true);
 			expect(unlock(db,'equip',{slot:'Food',item_id:`melvorD:${name}`}).success).toBe(true);
@@ -489,7 +476,7 @@ test('food access costs exactly 1 EP per sequential tier, requires completion, a
 	} finally {db.close();}
 });
 
-test('food work settles exact sequential 45-second Shrimp action-time evidence, including offline reports', () => {
+test('food work settles exact 30-second Cooking action-time evidence, including offline reports', () => {
 	const db=fixture(); try {
 		unlock(db,'unlock-tier',{slot:'Food'});unlock(db,'start-project',{item_id:'melvorD:Shrimp',discovered:true});
 		const project=equipment_project_state(db,101).project!;
@@ -498,13 +485,13 @@ test('food work settles exact sequential 45-second Shrimp action-time evidence, 
 			const task=group[0], key=task.task_id;
 			const request={kind:'start' as const,project_id:project.id,task_id:key,captured_at:clock,
 				actions:{epoch,time_ms:{[key]:0}},activities:[{type:'skill',skill_id:task.skill_id,action_id:task.action_id}],statistics:{time_ms:{[task.skill_id]:0}}};
-			if(index===0) expect(change_equipment_work(db,101,crypto.randomUUID(),{...request,task_id:project.stages[1][0].task_id},clock).success).toBe(false);
+			if(index===0) expect(change_equipment_work(db,101,crypto.randomUUID(),{...request,task_id:'melvorD:Mining|melvorD:Copper_Ore'},clock).success).toBe(false);
 			expect(change_equipment_work(db,101,crypto.randomUUID(),request,clock).success).toBe(true);
-			clock+=45000;
+			clock+=30000;
 			const operation=crypto.randomUUID();
-			const stopped={...request,kind:'stop' as const,captured_at:clock,actions:{epoch,time_ms:{[key]:45000}},statistics:{time_ms:{[task.skill_id]:45000}}};
+			const stopped={...request,kind:'stop' as const,captured_at:clock,actions:{epoch,time_ms:{[key]:30000}},statistics:{time_ms:{[task.skill_id]:30000}}};
 			const result=change_equipment_work(db,101,operation,stopped,clock);
-			expect(result.settlement?.credited_ms).toBe(45000);
+			expect(result.settlement?.credited_ms).toBe(30000);
 			expect(change_equipment_work(db,101,operation,stopped,clock)).toEqual(result);
 			clock+=1000;
 		}
@@ -578,24 +565,20 @@ test('freshness is transport-only; replay retains settlement and forces a curren
 	} finally { db.close(); }
 });
 
-test('only tutorial equipment recipes use 45 seconds per native ingredient', () => {
-	const original = JSON.parse(readFileSync(new URL('../../equipment-recipes-v1.json', import.meta.url), 'utf8'));
-	const tutorial = new Set(['melvorD:Bronze_Sword', 'melvorD:Bronze_Helmet', 'melvorD:Bronze_Shield', 'melvorD:Iron_Shield']);
+test('all equipment projects retain only the final native recipe action at a flat 30 seconds', () => {
+	const original = JSON.parse(readFileSync(new URL('../../equipment-recipes-v1.json', import.meta.url), 'utf8')) as {items: (typeof EQUIPMENT_PROJECTS[number])[]};
 	for (const item of original.items) {
 		const actual = EQUIPMENT_PROJECTS.find(entry => entry.item_id === item.item_id)!;
-		const expected = structuredClone(item);
-		if (tutorial.has(item.item_id)) for (const task of expected.stages.flat()) task.target_ms = task.target_ms / 300000 * 45000;
-		expect(actual).toEqual(expected);
+		expect(actual).toEqual({...item,stages:[item.stages.at(-1)!.map(task=>({...task,target_ms:30000}))]});
 	}
-	expect(EQUIPMENT_PROJECTS.find(item => item.item_id === 'melvorD:Bronze_Sword')!.stages[2][0].target_ms).toBe(45000);
-	expect(EQUIPMENT_PROJECTS.find(item => item.item_id === 'melvorD:Bronze_Shield')!.stages[2][0].target_ms).toBe(135000);
 });
-
 
 test('shorter tutorial upgrade completes satisfied saved projects and preserves partial work', async () => {
 	const { migrations } = await import('../../db/schema');
 	const db = fixture(); try {
-		const item = EQUIPMENT_PROJECTS.find(item => item.item_id === 'melvorD:Bronze_Shield')!;
+		const original = JSON.parse(readFileSync(new URL('../../equipment-recipes-v1.json', import.meta.url), 'utf8')) as {items: (typeof EQUIPMENT_PROJECTS[number])[]};
+		const item = original.items.find(item => item.item_id === 'melvorD:Bronze_Shield')!;
+		for (const task of item.stages.flat()) task.target_ms = task.target_ms / 300000 * 45000;
 		const progress = Object.fromEntries(item.stages.flat().map(task => [equipment_task_key(task), task.target_ms + 1000]));
 		const insert = db.query('INSERT INTO combat_equipment_projects(client_id,item_id,progress_json,created_at) VALUES(?,?,?,1)');
 		insert.run(101,item.item_id,JSON.stringify(progress));
@@ -606,7 +589,51 @@ test('shorter tutorial upgrade completes satisfied saved projects and preserves 
 		expect(equipment_project_state(db,101).unlocked).toContain(item.item_id);
 		expect(equipment_project_state(db,101).project).toBeNull();
 		expect(combat_character(db,101)!.revision).toBe(before + 1);
-		expect(equipment_project_state(db,102).project!.stage).toBe(2);
-		expect(equipment_project_state(db,102).project!.stages[2][0].player_ms).toBe(1000);
+		expect(equipment_project_state(db,102).project!.stage).toBe(0);
+		expect(equipment_project_state(db,102).project!.stages[0][0].player_ms).toBe(1000);
 	} finally { db.close(); }
+});
+
+
+test('final-task migration preserves unlocks and production progress, retires gathering, and completes satisfied projects', async () => {
+	const { migrations } = await import('../../db/schema');
+	for (const [item, key] of [
+		['melvorD:Bronze_Shield','melvorD:Smithing|melvorD:Bronze_Shield'],
+		['melvorD:Herring','melvorD:Cooking|melvorD:Herring'],
+		['melvorD:Bronze_Arrows','melvorD:Fletching|melvorF:Bronze_Arrows']
+	]) for (const progress of [10000,30000,60000]) for (const removed of [false,true]) {
+		const db=fixture();try {
+			const legacy='melvorD:Mining|melvorD:Copper_Ore';
+			db.query("INSERT INTO combat_equipment_projects(client_id,item_id,progress_json,created_at) VALUES(101,?,?,1)").run(item,JSON.stringify({[key]:progress,[legacy]:100000}));
+			const project=equipment_project_state(db,101).project!;
+			db.query("INSERT INTO combat_equipment_projects(client_id,item_id,progress_json,created_at,completed_at) VALUES(102,?,'{}',1,2)").run(item);
+			db.query('INSERT INTO combat_project_tracking VALUES(101,?,?,1000,0,?,0,?)').run(project.id,removed?legacy:key,crypto.randomUUID(),'{}');
+			const before=combat_character(db,101)!.revision, balance=ep_balance(db,101);
+			db.transaction(()=>db.run(migrations.find(row=>row.version===220)!.sql)).immediate();
+			const state=equipment_project_state(db,101);
+			expect(state.unlocked.includes(item)).toBe(progress>=30000);
+			expect(combat_character(db,101)!.revision).toBe(before+(progress>=30000?1:0));
+			expect(ep_balance(db,101)).toBe(balance);
+			expect(equipment_project_state(db,102).unlocked).toContain(item);
+			expect(db.query('SELECT completed_at FROM combat_equipment_projects WHERE client_id=102').get()).toEqual({completed_at:2});
+			const tracking=db.query('SELECT task_id FROM combat_project_tracking WHERE client_id=101').get();
+			expect(tracking).toEqual(progress<30000&&!removed?{task_id:key}:null);
+			if(progress<30000) expect(state.project!.stages[0][0].player_ms).toBe(progress);
+			expect(db.query('PRAGMA foreign_key_check').all()).toEqual([]);
+		}finally{db.close();}
+	}
+});
+
+test('legacy evidence remains parseable and removed tracking settles zero without granting production work', () => {
+	const db=fixture();try {
+		const project=start(db), key='melvorD:Mining|melvorD:Copper_Ore', epoch=crypto.randomUUID();
+		expect(parse_action_statistics({epoch,time_ms:{[key]:30000,'melvorD:Fishing|melvorD:Raw_Herring':30000}})).not.toBeNull();
+		db.query('INSERT INTO combat_project_tracking VALUES(101,?,?,1000,0,?,0,?)').run(project.id,key,epoch,'{}');
+		const result=change_equipment_work(db,101,crypto.randomUUID(),{kind:'stop',project_id:project.id,task_id:key,captured_at:31000,
+			actions:{epoch,time_ms:{[key]:30000}},statistics:{time_ms:{'melvorD:Mining':30000}},activities:[]},31000);
+		expect(result.success).toBe(true);
+		expect(result.settlement.credited_ms).toBe(0);
+		expect(result.tracking).toBeNull();
+		expect(result.equipment_projects.project!.stages[0][0].player_ms).toBe(0);
+	}finally{db.close();}
 });

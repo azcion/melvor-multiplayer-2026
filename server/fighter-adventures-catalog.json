@@ -1,0 +1,3262 @@
+{
+  "version": 3,
+  "pace": 1,
+  "spawn_ms": 3000,
+  "source": {
+    "description": "Official Melvor Idle base-game Combat Area and monster numeric data; monsters with unmodeled mechanics are unavailable; no game modifiers, pets or global drops",
+    "retrieved": "2026-11-07",
+    "files": [
+      {
+        "url": "https://melvoridle.com/assets/data/melvorDemo.json",
+        "sha256": "ba3832348dc252c925c7ea5c7560d23bb58c1f49effe41cb0fc5ce229c0d1a06"
+      }
+    ]
+  },
+  "areas": [
+    {
+      "id": "melvorD:Goblin_Village",
+      "name": "Golbin Village",
+      "monsters": [
+        {
+          "name": "Golbin",
+          "levels": {
+            "Hitpoints": 5,
+            "Attack": 1,
+            "Strength": 1,
+            "Defence": 1,
+            "Ranged": 1,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 3000
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Water_Rune",
+              "minQuantity": 1,
+              "maxQuantity": 4,
+              "weight": 7
+            },
+            {
+              "itemID": "melvorD:Body_Rune",
+              "minQuantity": 1,
+              "maxQuantity": 4,
+              "weight": 7
+            },
+            {
+              "itemID": "melvorD:Raw_Shrimp",
+              "minQuantity": 1,
+              "maxQuantity": 3,
+              "weight": 6
+            },
+            {
+              "itemID": "melvorD:Garum_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Bronze_Shield",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Bronze_Battleaxe",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 2,
+              "max": 10
+            }
+          ],
+          "id": "melvorD:Golbin"
+        },
+        {
+          "name": "Ranged Golbin",
+          "levels": {
+            "Hitpoints": 10,
+            "Attack": 5,
+            "Strength": 5,
+            "Defence": 5,
+            "Ranged": 5,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 3000
+            }
+          ],
+          "attackType": "ranged",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Bronze_Arrows",
+              "minQuantity": 1,
+              "maxQuantity": 4,
+              "weight": 15
+            },
+            {
+              "itemID": "melvorD:Raw_Shrimp",
+              "minQuantity": 1,
+              "maxQuantity": 3,
+              "weight": 13
+            },
+            {
+              "itemID": "melvorD:Garum_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Normal_Shortbow",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 8
+            },
+            {
+              "itemID": "melvorD:Slingshot",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 4
+            },
+            {
+              "itemID": "melvorD:Oak_Shortbow",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 2,
+              "max": 10
+            }
+          ],
+          "id": "melvorD:RangedGolbin"
+        }
+      ]
+    },
+    {
+      "id": "melvorD:Wet_Forest",
+      "name": "Wet Forest",
+      "monsters": [
+        {
+          "name": "Leech",
+          "levels": {
+            "Hitpoints": 20,
+            "Attack": 20,
+            "Strength": 20,
+            "Defence": 10,
+            "Ranged": 1,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2600
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Garum_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 100
+            },
+            {
+              "itemID": "melvorD:Chest_of_Witwix",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 10
+            }
+          ],
+          "id": "melvorD:Leech"
+        },
+        {
+          "name": "Sweaty Monster",
+          "levels": {
+            "Hitpoints": 28,
+            "Attack": 22,
+            "Strength": 24,
+            "Defence": 24,
+            "Ranged": 20,
+            "Magic": 20
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2400
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Mithril_Ore",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Adamantite_Ore",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Silver_Ore",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Raw_Lobster",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Lobster",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Shark",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Salmon",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Mithril_Bar",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 2
+            },
+            {
+              "itemID": "melvorD:Gold_Bar",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 4
+            },
+            {
+              "itemID": "melvorD:Steel_Bar",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Maple_Logs",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Teak_Logs",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Yew_Logs",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Topaz",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 3
+            },
+            {
+              "itemID": "melvorD:Raw_Trout",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Raw_Salmon",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Amulet_of_Accuracy",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Oxilyme_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 2,
+              "weight": 5
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 20,
+              "max": 80
+            }
+          ],
+          "id": "melvorD:SweatyMonster"
+        },
+        {
+          "name": "Wet Monster",
+          "levels": {
+            "Hitpoints": 30,
+            "Attack": 30,
+            "Strength": 30,
+            "Defence": 30,
+            "Ranged": 20,
+            "Magic": 20
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 3600
+            },
+            {
+              "key": "stabAttackBonus",
+              "value": 33
+            },
+            {
+              "key": "meleeStrengthBonus",
+              "value": 31
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Mithril_Ore",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Adamantite_Ore",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Silver_Ore",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Raw_Lobster",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Lobster",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Shark",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Salmon",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Mithril_Bar",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 2
+            },
+            {
+              "itemID": "melvorD:Gold_Bar",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 4
+            },
+            {
+              "itemID": "melvorD:Steel_Bar",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Maple_Logs",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Teak_Logs",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Yew_Logs",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Topaz",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 3
+            },
+            {
+              "itemID": "melvorD:Raw_Trout",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Raw_Salmon",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Amulet_of_Defence",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Mantalyme_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 2,
+              "weight": 5
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 20,
+              "max": 80
+            }
+          ],
+          "id": "melvorD:WetMonster"
+        },
+        {
+          "name": "Moist Monster",
+          "levels": {
+            "Hitpoints": 25,
+            "Attack": 40,
+            "Strength": 20,
+            "Defence": 40,
+            "Ranged": 20,
+            "Magic": 20
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2400
+            },
+            {
+              "key": "meleeDefenceBonus",
+              "value": 15
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Mithril_Ore",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Adamantite_Ore",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Silver_Ore",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Raw_Lobster",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Lobster",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Shark",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Salmon",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Mithril_Bar",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 2
+            },
+            {
+              "itemID": "melvorD:Gold_Bar",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 4
+            },
+            {
+              "itemID": "melvorD:Steel_Bar",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Maple_Logs",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Teak_Logs",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Yew_Logs",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Topaz",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 3
+            },
+            {
+              "itemID": "melvorD:Raw_Trout",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Raw_Salmon",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Amulet_of_Strength",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Lemontyle_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 2,
+              "weight": 5
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 20,
+              "max": 80
+            }
+          ],
+          "id": "melvorD:MoistMonster"
+        }
+      ]
+    },
+    {
+      "id": "melvorD:Farmlands",
+      "name": "Farmlands",
+      "monsters": [
+        {
+          "name": "Plant",
+          "levels": {
+            "Hitpoints": 2,
+            "Attack": 1,
+            "Strength": 1,
+            "Defence": 1,
+            "Ranged": 1,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2400
+            },
+            {
+              "key": "stabAttackBonus",
+              "value": -47
+            },
+            {
+              "key": "meleeStrengthBonus",
+              "value": -42
+            },
+            {
+              "key": "meleeDefenceBonus",
+              "value": -42
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Potatoes",
+              "minQuantity": 1,
+              "maxQuantity": 3,
+              "weight": 1
+            }
+          ],
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 5
+            }
+          ],
+          "id": "melvorD:Plant"
+        },
+        {
+          "name": "Chicken",
+          "levels": {
+            "Hitpoints": 3,
+            "Attack": 1,
+            "Strength": 1,
+            "Defence": 1,
+            "Ranged": 1,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2400
+            },
+            {
+              "key": "stabAttackBonus",
+              "value": -47
+            },
+            {
+              "key": "meleeStrengthBonus",
+              "value": -42
+            },
+            {
+              "key": "meleeDefenceBonus",
+              "value": -42
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Feathers",
+              "minQuantity": 1,
+              "maxQuantity": 90,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Raw_Chicken",
+              "minQuantity": 1,
+              "maxQuantity": 4,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 5
+            }
+          ],
+          "id": "melvorD:Chicken"
+        },
+        {
+          "name": "Cow",
+          "levels": {
+            "Hitpoints": 8,
+            "Attack": 1,
+            "Strength": 1,
+            "Defence": 1,
+            "Ranged": 1,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2400
+            },
+            {
+              "key": "stabAttackBonus",
+              "value": -15
+            },
+            {
+              "key": "meleeStrengthBonus",
+              "value": -15
+            },
+            {
+              "key": "meleeDefenceBonus",
+              "value": -21
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Leather",
+              "minQuantity": 1,
+              "maxQuantity": 6,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Raw_Beef",
+              "minQuantity": 1,
+              "maxQuantity": 6,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 5
+            }
+          ],
+          "id": "melvorD:Cow"
+        },
+        {
+          "name": "Junior Farmer",
+          "levels": {
+            "Hitpoints": 8,
+            "Attack": 5,
+            "Strength": 5,
+            "Defence": 5,
+            "Ranged": 1,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2400
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Potato_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 3,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Garum_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 2,
+              "weight": 6
+            },
+            {
+              "itemID": "melvorD:Onion_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 3,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Cabbage_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 3,
+              "weight": 3
+            },
+            {
+              "itemID": "melvorD:Tomato_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 3,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 5
+            }
+          ],
+          "id": "melvorD:JuniorFarmer"
+        },
+        {
+          "name": "Adult Farmer",
+          "levels": {
+            "Hitpoints": 20,
+            "Attack": 20,
+            "Strength": 20,
+            "Defence": 20,
+            "Ranged": 20,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2400
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Onion_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 5,
+              "weight": 180
+            },
+            {
+              "itemID": "melvorD:Cabbage_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 5,
+              "weight": 140
+            },
+            {
+              "itemID": "melvorD:Tomato_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 5,
+              "weight": 110
+            },
+            {
+              "itemID": "melvorD:Sourweed_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 2,
+              "weight": 105
+            },
+            {
+              "itemID": "melvorD:Mantalyme_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 2,
+              "weight": 90
+            },
+            {
+              "itemID": "melvorD:Sweetcorn_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 5,
+              "weight": 80
+            },
+            {
+              "itemID": "melvorD:Strawberry_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 5,
+              "weight": 50
+            },
+            {
+              "itemID": "melvorD:Watermelon_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 5,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Compost",
+              "minQuantity": 1,
+              "maxQuantity": 5,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Snape_Grass_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 5,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Oak_Tree_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 5,
+              "weight": 20
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 5
+            }
+          ],
+          "id": "melvorD:AdultFarmer"
+        },
+        {
+          "name": "Master Farmer",
+          "levels": {
+            "Hitpoints": 28,
+            "Attack": 45,
+            "Strength": 45,
+            "Defence": 45,
+            "Ranged": 30,
+            "Magic": 20
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2400
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Tomato_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 8,
+              "weight": 110
+            },
+            {
+              "itemID": "melvorD:Sweetcorn_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 8,
+              "weight": 80
+            },
+            {
+              "itemID": "melvorD:Strawberry_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 8,
+              "weight": 50
+            },
+            {
+              "itemID": "melvorD:Lemontyle_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 2,
+              "weight": 60
+            },
+            {
+              "itemID": "melvorD:Oxilyme_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 2,
+              "weight": 50
+            },
+            {
+              "itemID": "melvorD:Watermelon_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 8,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Compost",
+              "minQuantity": 1,
+              "maxQuantity": 8,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Snape_Grass_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 8,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Oak_Tree_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 8,
+              "weight": 80
+            },
+            {
+              "itemID": "melvorD:Willow_Tree_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 8,
+              "weight": 30
+            },
+            {
+              "itemID": "melvorD:Maple_Tree_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 8,
+              "weight": 15
+            },
+            {
+              "itemID": "melvorD:Yew_Tree_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 8,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Magic_Tree_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 8,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Bobs_Rake",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 5
+            }
+          ],
+          "id": "melvorD:MasterFarmer"
+        }
+      ]
+    },
+    {
+      "id": "melvorD:Dragon_Valley",
+      "name": "Dragon Valley",
+      "monsters": [
+        {
+          "name": "Green Dragon",
+          "levels": {
+            "Hitpoints": 75,
+            "Attack": 68,
+            "Strength": 68,
+            "Defence": 68,
+            "Ranged": 60,
+            "Magic": 60
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 3000
+            },
+            {
+              "key": "stabAttackBonus",
+              "value": 20
+            },
+            {
+              "key": "meleeStrengthBonus",
+              "value": 40
+            },
+            {
+              "key": "meleeDefenceBonus",
+              "value": 40
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Green_Dragonhide",
+              "minQuantity": 1,
+              "maxQuantity": 15,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Dragon_Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 100
+            }
+          ],
+          "id": "melvorD:GreenDragon",
+          "unmodeled_mechanics": true
+        },
+        {
+          "name": "Blue Dragon",
+          "levels": {
+            "Hitpoints": 90,
+            "Attack": 75,
+            "Strength": 75,
+            "Defence": 75,
+            "Ranged": 70,
+            "Magic": 70
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 3000
+            },
+            {
+              "key": "stabAttackBonus",
+              "value": 30
+            },
+            {
+              "key": "meleeStrengthBonus",
+              "value": 50
+            },
+            {
+              "key": "meleeDefenceBonus",
+              "value": 50
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Blue_Dragonhide",
+              "minQuantity": 1,
+              "maxQuantity": 20,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Dragon_Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 175
+            }
+          ],
+          "id": "melvorD:BlueDragon",
+          "unmodeled_mechanics": true
+        },
+        {
+          "name": "Red Dragon",
+          "levels": {
+            "Hitpoints": 100,
+            "Attack": 90,
+            "Strength": 90,
+            "Defence": 90,
+            "Ranged": 80,
+            "Magic": 80
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 3000
+            },
+            {
+              "key": "damageReduction",
+              "value": 5
+            },
+            {
+              "key": "stabAttackBonus",
+              "value": 45
+            },
+            {
+              "key": "meleeStrengthBonus",
+              "value": 60
+            },
+            {
+              "key": "meleeDefenceBonus",
+              "value": 60
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Red_Dragonhide",
+              "minQuantity": 1,
+              "maxQuantity": 25,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Dragon_Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 325
+            }
+          ],
+          "id": "melvorD:RedDragon",
+          "unmodeled_mechanics": true
+        },
+        {
+          "name": "Black Dragon",
+          "levels": {
+            "Hitpoints": 120,
+            "Attack": 100,
+            "Strength": 100,
+            "Defence": 100,
+            "Ranged": 90,
+            "Magic": 90
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 3000
+            },
+            {
+              "key": "damageReduction",
+              "value": 5
+            },
+            {
+              "key": "stabAttackBonus",
+              "value": 60
+            },
+            {
+              "key": "meleeStrengthBonus",
+              "value": 80
+            },
+            {
+              "key": "meleeDefenceBonus",
+              "value": 80
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Black_Dragonhide",
+              "minQuantity": 1,
+              "maxQuantity": 30,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Dragon_Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 600
+            }
+          ],
+          "id": "melvorD:BlackDragon",
+          "unmodeled_mechanics": true
+        }
+      ]
+    },
+    {
+      "id": "melvorD:Wizard_Tower",
+      "name": "Wizard Tower",
+      "monsters": [
+        {
+          "name": "Wizard",
+          "levels": {
+            "Hitpoints": 30,
+            "Attack": 20,
+            "Strength": 20,
+            "Defence": 20,
+            "Ranged": 20,
+            "Magic": 40
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2400
+            },
+            {
+              "key": "magicAttackBonus",
+              "value": 20
+            },
+            {
+              "key": "magicDamageBonus",
+              "value": -6
+            }
+          ],
+          "attackType": "magic",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Air_Rune",
+              "minQuantity": 1,
+              "maxQuantity": 10,
+              "weight": 100
+            },
+            {
+              "itemID": "melvorD:Water_Rune",
+              "minQuantity": 1,
+              "maxQuantity": 10,
+              "weight": 80
+            },
+            {
+              "itemID": "melvorD:Earth_Rune",
+              "minQuantity": 1,
+              "maxQuantity": 10,
+              "weight": 60
+            },
+            {
+              "itemID": "melvorD:Fire_Rune",
+              "minQuantity": 1,
+              "maxQuantity": 10,
+              "weight": 40
+            },
+            {
+              "itemID": "melvorD:Green_Wizard_Hat",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 40
+            },
+            {
+              "itemID": "melvorD:Green_Wizard_Robes",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 40
+            },
+            {
+              "itemID": "melvorD:Green_Wizard_Bottoms",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 40
+            },
+            {
+              "itemID": "melvorD:Green_Wizard_Boots",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 40
+            },
+            {
+              "itemID": "melvorD:Blue_Wizard_Hat",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Blue_Wizard_Robes",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Blue_Wizard_Bottoms",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Blue_Wizard_Boots",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Magic_Wand_Basic",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 10,
+              "max": 50
+            }
+          ],
+          "id": "melvorD:Wizard",
+          "unmodeled_mechanics": true
+        },
+        {
+          "name": "Master Wizard",
+          "levels": {
+            "Hitpoints": 60,
+            "Attack": 20,
+            "Strength": 20,
+            "Defence": 20,
+            "Ranged": 20,
+            "Magic": 75
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2400
+            },
+            {
+              "key": "magicAttackBonus",
+              "value": 40
+            },
+            {
+              "key": "magicDefenceBonus",
+              "value": 40
+            },
+            {
+              "key": "magicDamageBonus",
+              "value": -9
+            }
+          ],
+          "attackType": "magic",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Mind_Rune",
+              "minQuantity": 1,
+              "maxQuantity": 15,
+              "weight": 250
+            },
+            {
+              "itemID": "melvorD:Chaos_Rune",
+              "minQuantity": 1,
+              "maxQuantity": 15,
+              "weight": 100
+            },
+            {
+              "itemID": "melvorD:Death_Rune",
+              "minQuantity": 1,
+              "maxQuantity": 15,
+              "weight": 30
+            },
+            {
+              "itemID": "melvorD:Air_Battlestaff",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Amulet_of_Magic",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 15
+            },
+            {
+              "itemID": "melvorD:Water_Battlestaff",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 15
+            },
+            {
+              "itemID": "melvorD:Earth_Battlestaff",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Fire_Battlestaff",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Enchanted_Cape",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 100,
+              "max": 250
+            }
+          ],
+          "id": "melvorD:MasterWizard",
+          "unmodeled_mechanics": true
+        },
+        {
+          "name": "Dark Wizard",
+          "levels": {
+            "Hitpoints": 110,
+            "Attack": 90,
+            "Strength": 90,
+            "Defence": 90,
+            "Ranged": 90,
+            "Magic": 90
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2400
+            },
+            {
+              "key": "damageReduction",
+              "value": 5
+            },
+            {
+              "key": "magicAttackBonus",
+              "value": 50
+            },
+            {
+              "key": "magicDamageBonus",
+              "value": 7
+            },
+            {
+              "key": "magicDefenceBonus",
+              "value": 70
+            }
+          ],
+          "attackType": "magic",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Chaos_Rune",
+              "minQuantity": 1,
+              "maxQuantity": 10,
+              "weight": 250
+            },
+            {
+              "itemID": "melvorD:Death_Rune",
+              "minQuantity": 1,
+              "maxQuantity": 10,
+              "weight": 100
+            },
+            {
+              "itemID": "melvorD:Black_Wizard_Hat",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Black_Wizard_Robes",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Black_Wizard_Bottoms",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Black_Wizard_Boots",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Magic_Wand_Powerful",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Enchanted_Shield",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 20
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Magic_Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 100,
+              "max": 250
+            }
+          ],
+          "id": "melvorD:DarkWizard",
+          "unmodeled_mechanics": true
+        }
+      ]
+    },
+    {
+      "id": "melvorD:Castle_of_Kings",
+      "name": "Castle of Kings",
+      "monsters": [
+        {
+          "name": "Steel Knight",
+          "levels": {
+            "Hitpoints": 15,
+            "Attack": 10,
+            "Strength": 10,
+            "Defence": 10,
+            "Ranged": 1,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2600
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Steel_Boots",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 50
+            },
+            {
+              "itemID": "melvorD:Steel_Helmet",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 30
+            },
+            {
+              "itemID": "melvorD:Steel_Shield",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Steel_Sword",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Steel_Scimitar",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 8
+            },
+            {
+              "itemID": "melvorD:Steel_Platelegs",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Steel_Platebody",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 10
+            }
+          ],
+          "id": "melvorD:SteelKnight"
+        },
+        {
+          "name": "Black Knight",
+          "levels": {
+            "Hitpoints": 20,
+            "Attack": 20,
+            "Strength": 20,
+            "Defence": 20,
+            "Ranged": 1,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2600
+            },
+            {
+              "key": "stabAttackBonus",
+              "value": 10
+            },
+            {
+              "key": "meleeDefenceBonus",
+              "value": 20
+            },
+            {
+              "key": "rangedDefenceBonus",
+              "value": 20
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 10,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Black_Boots",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 50
+            },
+            {
+              "itemID": "melvorD:Black_Helmet",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 30
+            },
+            {
+              "itemID": "melvorD:Black_Dagger",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 30
+            },
+            {
+              "itemID": "melvorD:Black_Shield",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Black_Sword",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Black_Battleaxe",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Black_Scimitar",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 8
+            },
+            {
+              "itemID": "melvorD:Black_2H_Sword",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Black_Platelegs",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Black_Platebody",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 10,
+              "max": 50
+            }
+          ],
+          "id": "melvorD:BlackKnight"
+        },
+        {
+          "name": "Mithril Knight",
+          "levels": {
+            "Hitpoints": 25,
+            "Attack": 30,
+            "Strength": 30,
+            "Defence": 30,
+            "Ranged": 10,
+            "Magic": 10
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2600
+            },
+            {
+              "key": "stabAttackBonus",
+              "value": 10
+            },
+            {
+              "key": "meleeDefenceBonus",
+              "value": 20
+            },
+            {
+              "key": "rangedDefenceBonus",
+              "value": 20
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 25,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Mithril_Boots",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 50
+            },
+            {
+              "itemID": "melvorD:Mithril_Helmet",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 30
+            },
+            {
+              "itemID": "melvorD:Mithril_Shield",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Mithril_Sword",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Mithril_Scimitar",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 8
+            },
+            {
+              "itemID": "melvorD:Mithril_Platelegs",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Mithril_Platebody",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 10,
+              "max": 50
+            }
+          ],
+          "id": "melvorD:MithrilKnight"
+        },
+        {
+          "name": "Adamant Knight",
+          "levels": {
+            "Hitpoints": 60,
+            "Attack": 60,
+            "Strength": 60,
+            "Defence": 60,
+            "Ranged": 60,
+            "Magic": 60
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2600
+            },
+            {
+              "key": "stabAttackBonus",
+              "value": 50
+            },
+            {
+              "key": "meleeStrengthBonus",
+              "value": 30
+            },
+            {
+              "key": "meleeDefenceBonus",
+              "value": 70
+            },
+            {
+              "key": "rangedDefenceBonus",
+              "value": 70
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 15,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Adamant_Boots",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Adamant_Helmet",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Adamant_Shield",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Adamant_Sword",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Adamant_Scimitar",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Adamant_Platelegs",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Adamant_Platebody",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Obsidian_Cape",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 30,
+              "max": 100
+            }
+          ],
+          "id": "melvorD:AdamantKnight"
+        },
+        {
+          "name": "Rune Knight",
+          "levels": {
+            "Hitpoints": 80,
+            "Attack": 90,
+            "Strength": 90,
+            "Defence": 90,
+            "Ranged": 90,
+            "Magic": 90
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2600
+            },
+            {
+              "key": "damageReduction",
+              "value": 5
+            },
+            {
+              "key": "stabAttackBonus",
+              "value": 80
+            },
+            {
+              "key": "meleeStrengthBonus",
+              "value": 60
+            },
+            {
+              "key": "meleeDefenceBonus",
+              "value": 120
+            },
+            {
+              "key": "rangedDefenceBonus",
+              "value": 120
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 5,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Rune_Boots",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Rune_Helmet",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Rune_Shield",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Rune_Sword",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Rune_Scimitar",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Rune_Platelegs",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Rune_Platebody",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Amulet_of_Glory",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 100,
+              "max": 250
+            }
+          ],
+          "id": "melvorD:RuneKnight"
+        }
+      ]
+    },
+    {
+      "id": "melvorD:Bandit_Hideout",
+      "name": "Bandit Hideout",
+      "monsters": [
+        {
+          "name": "Bandit Trainee",
+          "levels": {
+            "Hitpoints": 20,
+            "Attack": 20,
+            "Strength": 20,
+            "Defence": 20,
+            "Ranged": 20,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2000
+            },
+            {
+              "key": "rangedAttackBonus",
+              "value": 15
+            }
+          ],
+          "attackType": "ranged",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Bronze_Arrows",
+              "minQuantity": 1,
+              "maxQuantity": 10,
+              "weight": 30
+            },
+            {
+              "itemID": "melvorD:Iron_Arrows",
+              "minQuantity": 1,
+              "maxQuantity": 10,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Steel_Arrows",
+              "minQuantity": 1,
+              "maxQuantity": 10,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Lemontyle_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 5,
+              "weight": 5
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 30
+            }
+          ],
+          "id": "melvorD:BanditTrainee"
+        },
+        {
+          "name": "Bandit",
+          "levels": {
+            "Hitpoints": 40,
+            "Attack": 20,
+            "Strength": 20,
+            "Defence": 20,
+            "Ranged": 60,
+            "Magic": 10
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2000
+            },
+            {
+              "key": "rangedAttackBonus",
+              "value": 30
+            }
+          ],
+          "attackType": "ranged",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Steel_Arrows",
+              "minQuantity": 1,
+              "maxQuantity": 15,
+              "weight": 30
+            },
+            {
+              "itemID": "melvorD:Mithril_Arrows",
+              "minQuantity": 1,
+              "maxQuantity": 15,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Adamant_Arrows",
+              "minQuantity": 1,
+              "maxQuantity": 15,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Oxilyme_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 5,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Amulet_of_Ranged",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 30
+            }
+          ],
+          "id": "melvorD:Bandit"
+        }
+      ]
+    },
+    {
+      "id": "melvorD:Giant_Dungeon",
+      "name": "Giant Dungeon",
+      "monsters": [
+        {
+          "name": "Hill Giant",
+          "levels": {
+            "Hitpoints": 35,
+            "Attack": 18,
+            "Strength": 22,
+            "Defence": 26,
+            "Ranged": 1,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 3000
+            },
+            {
+              "key": "stabAttackBonus",
+              "value": 18
+            },
+            {
+              "key": "meleeStrengthBonus",
+              "value": 16
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Iron_Arrows",
+              "minQuantity": 1,
+              "maxQuantity": 15,
+              "weight": 25
+            },
+            {
+              "itemID": "melvorD:Steel_Arrows",
+              "minQuantity": 1,
+              "maxQuantity": 15,
+              "weight": 25
+            },
+            {
+              "itemID": "melvorD:Onion_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 10,
+              "weight": 25
+            },
+            {
+              "itemID": "melvorD:Cabbage_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 10,
+              "weight": 25
+            },
+            {
+              "itemID": "melvorD:Mantalyme_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 25
+            },
+            {
+              "itemID": "melvorD:Watermelon_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 5,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Sapphire",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Ruby",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Big_Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 8,
+              "max": 24
+            }
+          ],
+          "id": "melvorD:HillGiant"
+        },
+        {
+          "name": "Moss Giant",
+          "levels": {
+            "Hitpoints": 60,
+            "Attack": 50,
+            "Strength": 50,
+            "Defence": 50,
+            "Ranged": 1,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 3000
+            },
+            {
+              "key": "stabAttackBonus",
+              "value": 33
+            },
+            {
+              "key": "meleeStrengthBonus",
+              "value": 50
+            },
+            {
+              "key": "meleeDefenceBonus",
+              "value": 30
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 75,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Steel_Arrows",
+              "minQuantity": 1,
+              "maxQuantity": 20,
+              "weight": 25
+            },
+            {
+              "itemID": "melvorD:Mithril_Arrows",
+              "minQuantity": 1,
+              "maxQuantity": 15,
+              "weight": 15
+            },
+            {
+              "itemID": "melvorD:Earth_Rune",
+              "minQuantity": 1,
+              "maxQuantity": 15,
+              "weight": 25
+            },
+            {
+              "itemID": "melvorD:Strawberry_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 8,
+              "weight": 25
+            },
+            {
+              "itemID": "melvorD:Fire_Rune",
+              "minQuantity": 1,
+              "maxQuantity": 10,
+              "weight": 25
+            },
+            {
+              "itemID": "melvorD:Lemontyle_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 25
+            },
+            {
+              "itemID": "melvorD:Oxilyme_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 15
+            },
+            {
+              "itemID": "melvorD:Snape_Grass_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 5,
+              "weight": 11
+            },
+            {
+              "itemID": "melvorD:Chaos_Rune",
+              "minQuantity": 1,
+              "maxQuantity": 5,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Death_Rune",
+              "minQuantity": 1,
+              "maxQuantity": 5,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Emerald",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Yew_Tree_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Big_Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 28,
+              "max": 65
+            }
+          ],
+          "id": "melvorD:MossGiant"
+        }
+      ]
+    },
+    {
+      "id": "melvorD:Sandy_Shores",
+      "name": "Sandy Shores",
+      "monsters": [
+        {
+          "name": "Seagull",
+          "levels": {
+            "Hitpoints": 6,
+            "Attack": 1,
+            "Strength": 1,
+            "Defence": 1,
+            "Ranged": 1,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2400
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Feathers",
+              "minQuantity": 1,
+              "maxQuantity": 55,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 5
+            }
+          ],
+          "id": "melvorD:Seagull"
+        },
+        {
+          "name": "Tentacle",
+          "levels": {
+            "Hitpoints": 25,
+            "Attack": 10,
+            "Strength": 10,
+            "Defence": 5,
+            "Ranged": 1,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2400
+            },
+            {
+              "key": "stabAttackBonus",
+              "value": 5
+            },
+            {
+              "key": "meleeStrengthBonus",
+              "value": 5
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Iron_Ore",
+              "minQuantity": 1,
+              "maxQuantity": 5,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Coal_Ore",
+              "minQuantity": 1,
+              "maxQuantity": 5,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Raw_Sardine",
+              "minQuantity": 1,
+              "maxQuantity": 3,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Raw_Herring",
+              "minQuantity": 1,
+              "maxQuantity": 3,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Burnt_Cave_Fish",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 20
+            }
+          ],
+          "id": "melvorD:Tentacle"
+        },
+        {
+          "name": "Giant Crab",
+          "levels": {
+            "Hitpoints": 60,
+            "Attack": 20,
+            "Strength": 15,
+            "Defence": 30,
+            "Ranged": 1,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2400
+            },
+            {
+              "key": "stabAttackBonus",
+              "value": 5
+            },
+            {
+              "key": "meleeStrengthBonus",
+              "value": 10
+            },
+            {
+              "key": "meleeDefenceBonus",
+              "value": 10
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Raw_Crab",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 100
+            },
+            {
+              "itemID": "melvorD:Treasure_Chest",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 10,
+              "max": 30
+            }
+          ],
+          "id": "melvorD:GiantCrab"
+        },
+        {
+          "name": "Confused Pirate",
+          "levels": {
+            "Hitpoints": 40,
+            "Attack": 40,
+            "Strength": 20,
+            "Defence": 20,
+            "Ranged": 1,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 3600
+            },
+            {
+              "key": "stabAttackBonus",
+              "value": 30
+            },
+            {
+              "key": "meleeStrengthBonus",
+              "value": 8
+            },
+            {
+              "key": "meleeDefenceBonus",
+              "value": 10
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 20,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Steel_Scimitar",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 50
+            },
+            {
+              "itemID": "melvorD:Black_Scimitar",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 30
+            },
+            {
+              "itemID": "melvorD:Mithril_Scimitar",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 8
+            },
+            {
+              "itemID": "melvorD:Adamant_Scimitar",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 10,
+              "max": 80
+            }
+          ],
+          "id": "melvorD:ConfusedPirate"
+        }
+      ]
+    },
+    {
+      "id": "melvorD:Icy_Hills",
+      "name": "Icy Hills",
+      "monsters": [
+        {
+          "name": "Frozen Archer",
+          "levels": {
+            "Hitpoints": 30,
+            "Attack": 1,
+            "Strength": 1,
+            "Defence": 1,
+            "Ranged": 40,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2000
+            },
+            {
+              "key": "rangedAttackBonus",
+              "value": 10
+            },
+            {
+              "key": "rangedStrengthBonus",
+              "value": 15
+            },
+            {
+              "key": "rangedDefenceBonus",
+              "value": 20
+            },
+            {
+              "key": "magicDefenceBonus",
+              "value": 20
+            }
+          ],
+          "attackType": "ranged",
+          "lootChance": 20,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Ice_Arrows",
+              "minQuantity": 1,
+              "maxQuantity": 20,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 50,
+              "max": 100
+            }
+          ],
+          "id": "melvorD:FrozenArcher",
+          "unmodeled_mechanics": true
+        },
+        {
+          "name": "Frozen Mammoth",
+          "levels": {
+            "Hitpoints": 70,
+            "Attack": 20,
+            "Strength": 60,
+            "Defence": 60,
+            "Ranged": 1,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 3000
+            },
+            {
+              "key": "stabAttackBonus",
+              "value": 20
+            },
+            {
+              "key": "meleeStrengthBonus",
+              "value": 50
+            },
+            {
+              "key": "meleeDefenceBonus",
+              "value": 50
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 1,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Ice_Shield",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Big_Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 200,
+              "max": 300
+            }
+          ],
+          "id": "melvorD:FrozenMammoth",
+          "unmodeled_mechanics": true
+        },
+        {
+          "name": "Ice Monster",
+          "levels": {
+            "Hitpoints": 50,
+            "Attack": 70,
+            "Strength": 70,
+            "Defence": 70,
+            "Ranged": 1,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 3000
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 10,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Ice_Sword",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 100,
+              "max": 250
+            }
+          ],
+          "id": "melvorD:IceMonster",
+          "unmodeled_mechanics": true
+        }
+      ]
+    },
+    {
+      "id": "melvorD:Graveyard",
+      "name": "Graveyard",
+      "monsters": [
+        {
+          "name": "Skeleton",
+          "levels": {
+            "Hitpoints": 10,
+            "Attack": 1,
+            "Strength": 1,
+            "Defence": 1,
+            "Ranged": 10,
+            "Magic": 10
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2600
+            }
+          ],
+          "attackType": "ranged",
+          "lootChance": 50,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Headless_Arrows",
+              "minQuantity": 1,
+              "maxQuantity": 5,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 10
+            }
+          ],
+          "id": "melvorD:Skeleton"
+        },
+        {
+          "name": "Zombie Hand",
+          "levels": {
+            "Hitpoints": 20,
+            "Attack": 20,
+            "Strength": 20,
+            "Defence": 20,
+            "Ranged": 1,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 3000
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Bronze_Platebody",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Bronze_Platelegs",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Iron_Platebody",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Iron_Platelegs",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 20,
+              "max": 80
+            }
+          ],
+          "id": "melvorD:ZombieHand"
+        },
+        {
+          "name": "Zombie",
+          "levels": {
+            "Hitpoints": 30,
+            "Attack": 30,
+            "Strength": 30,
+            "Defence": 30,
+            "Ranged": 1,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 3000
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 100,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Garum_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 3,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Iron_Platebody",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Iron_Boots",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Steel_Platebody",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            },
+            {
+              "itemID": "melvorD:Steel_Boots",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 20,
+              "max": 80
+            }
+          ],
+          "id": "melvorD:Zombie"
+        },
+        {
+          "name": "Ghost",
+          "levels": {
+            "Hitpoints": 40,
+            "Attack": 40,
+            "Strength": 40,
+            "Defence": 40,
+            "Ranged": 1,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2400
+            },
+            {
+              "key": "stabAttackBonus",
+              "value": 20
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 25,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Oxilyme_Seed",
+              "minQuantity": 1,
+              "maxQuantity": 5,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 10
+            }
+          ],
+          "id": "melvorD:Ghost"
+        }
+      ]
+    },
+    {
+      "id": "melvorD:ElerineBattlegrounds",
+      "name": "Elerine Battlegrounds",
+      "monsters": [
+        {
+          "name": "Elerine Archer",
+          "levels": {
+            "Hitpoints": 50,
+            "Attack": 1,
+            "Strength": 1,
+            "Defence": 50,
+            "Ranged": 100,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2600
+            },
+            {
+              "key": "rangedAttackBonus",
+              "value": 5
+            }
+          ],
+          "attackType": "ranged",
+          "lootChance": 20,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Maple_Shortbow",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Yew_Shortbow",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Magic_Shortbow",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Elerine_Longbow",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 75
+            }
+          ],
+          "id": "melvorD:ElerineArcher",
+          "unmodeled_mechanics": true
+        },
+        {
+          "name": "Elerine Warrior",
+          "levels": {
+            "Hitpoints": 65,
+            "Attack": 85,
+            "Strength": 100,
+            "Defence": 80,
+            "Ranged": 1,
+            "Magic": 1
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 2800
+            },
+            {
+              "key": "stabAttackBonus",
+              "value": 5
+            }
+          ],
+          "attackType": "melee",
+          "lootChance": 20,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Mithril_Battleaxe",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 20
+            },
+            {
+              "itemID": "melvorD:Adamant_Battleaxe",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Rune_2H_Sword",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 5
+            },
+            {
+              "itemID": "melvorD:Elerine_Spear",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 100
+            }
+          ],
+          "id": "melvorD:ElerineWarrior",
+          "unmodeled_mechanics": true
+        },
+        {
+          "name": "Elerine Mage",
+          "levels": {
+            "Hitpoints": 75,
+            "Attack": 1,
+            "Strength": 1,
+            "Defence": 75,
+            "Ranged": 1,
+            "Magic": 135
+          },
+          "equipmentStats": [
+            {
+              "key": "attackSpeed",
+              "value": 3000
+            },
+            {
+              "key": "damageReduction",
+              "value": 5
+            },
+            {
+              "key": "magicDamageBonus",
+              "value": -18
+            }
+          ],
+          "attackType": "magic",
+          "lootChance": 15,
+          "lootTable": [
+            {
+              "itemID": "melvorD:Air_Battlestaff",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 10
+            },
+            {
+              "itemID": "melvorD:Water_Battlestaff",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 8
+            },
+            {
+              "itemID": "melvorD:Earth_Battlestaff",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 6
+            },
+            {
+              "itemID": "melvorD:Fire_Battlestaff",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 4
+            },
+            {
+              "itemID": "melvorD:Natures_Call_Staff_Top",
+              "minQuantity": 1,
+              "maxQuantity": 1,
+              "weight": 1
+            }
+          ],
+          "bones": {
+            "itemID": "melvorD:Bones",
+            "quantity": 1
+          },
+          "currencyDrops": [
+            {
+              "currencyID": "melvorD:GP",
+              "min": 1,
+              "max": 150
+            }
+          ],
+          "id": "melvorD:ElerineMage",
+          "unmodeled_mechanics": true
+        }
+      ]
+    }
+  ]
+}

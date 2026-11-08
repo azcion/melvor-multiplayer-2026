@@ -660,3 +660,25 @@ test('Chat links only exact allowed HTTPS hosts and preserves untrusted text', a
 		assert.equal(children.filter(child => child.tag === 'a').length, 4);
 	}
 });
+
+
+test('cheat badge colors follow each listing filter and update existing chat tags', () => {
+	const mapping = { Badge_Time_Cheats: 'time', Badge_Item_Cheats: 'items', Badge_Resource_Cheats: 'resources',
+		Badge_Multitasking: 'multitasking', Badge_Shop_Cheats: 'shops', Badge_Loot_Cheats: 'loot_rng' };
+	const nodes = Object.entries(mapping).map(([key, category]) => {
+		const badge = items.badge_feature(`multiplayer:${key}`);
+		assert.equal(badge.category, category);
+		assert.equal(items.chat_badge_class(badge, [category]), '');
+		assert.equal(items.chat_badge_class(badge, []), ' mp-guild-cheats-badge-unfiltered');
+		return { dataset: { featureId: `multiplayer:${key}` }, classList: { toggle(name, enabled) { this[name] = enabled; } } };
+	});
+	items.refresh_chat_cheat_badges({ querySelectorAll: () => nodes }, ['items']);
+	assert.deepEqual(nodes.map(node => node.classList['mp-guild-cheats-badge-unfiltered']), [true, false, true, true, true, true]);
+	assert.equal(nodes[0].textContent, 'Time Mods');
+	assert.equal(nodes[1].textContent, 'Item Cheats');
+	items.refresh_chat_cheat_badges({ querySelectorAll: () => nodes }, ['time']);
+	assert.deepEqual(nodes.map(node => node.classList['mp-guild-cheats-badge-unfiltered']), [false, true, true, true, true, true]);
+	assert.equal(nodes[0].textContent, 'Time Cheats');
+	assert.equal(nodes[1].textContent, 'Item Mods');
+	assert.equal(items.chat_badge_class(items.badge_feature('multiplayer:Badge_Dev'), []), '');
+});

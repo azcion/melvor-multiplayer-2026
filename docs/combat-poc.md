@@ -19,10 +19,12 @@ character revision and balance. Purchases and resets use UUID command replay pro
 Resetting all levels normally returns 90% of invested EP. If a banked free reset is available, the reset consumes
 one and returns 100%; the confirmation shows the applicable fee and refund. An empty reset does not use a free reset.
 Free reset grants are personal and can be banked before character creation. EP is displayed to two decimal
-places. The page opens on Fighter, with Practice, PvP and Dungeons beside it on desktop; PvP stays locked; Dungeons opens after graduation.
-On mobile, Fighter and Battles are the top-level tabs, with Practice, PvP and Dungeons beneath Battles. Fighter separates
-Levels, Equipment and Consumables into three desktop columns and mounted mobile tabs; food and equipment controls
-appear only after creating an Online character. Practice preserves the mandatory tutorial and offers tiered human Duels, Groups and Circuits after graduation; Dungeons owns Golbin Horde, Tidal Caverns, Sinking Mire and Cinder Quarry, with separate time leaderboards. The arena omits post-combat summary, history, log and Food Policy cards. Its square toolbar controls use separated groups without dividers; the player portrait uses the Colosseum sidebar icon and zero-damage attacks display Miss. The food cooldown fills gray from the bottom, then fades over 100 ms.
+places. Desktop and mobile both open on Fighter, with PvP and Dungeons beside it. PvP stays locked;
+Dungeons opens after completing or skipping the tutorial. Fighter hosts the current tutorial trial, Start Battle
+and tutorial arena above preparation. Levels, Equipment and Consumables use three desktop columns and mounted
+mobile tabs; food and equipment controls appear only after creating a fighter. Dungeons owns Golbin Horde,
+Tidal Caverns, Sinking Mire and Cinder Quarry, with separate time leaderboards. Mobile Dungeons retains its
+Dungeons, Selected and Leaderboard tabs. The arena omits post-combat summary, history, log and Food Policy cards. Its square toolbar controls use separated groups without dividers; the player portrait uses the Colosseum sidebar icon and zero-damage attacks display Miss. The food cooldown fills gray from the bottom, then fades over 100 ms.
 Starting combat scrolls the visible page to the top, keeps its originating tab selected and locks the other tabs.
 Only the active combat card remains visible until the run finishes, when setup and post-combat cards return
 within the same tab.
@@ -199,34 +201,17 @@ ordering survives, resolve the original order; player death means defeat unless 
 A single 70-damage hit at 60/100 HP is lethal; separate hits of 70 and 30 can survive as 30, heal by 45, then 70. At most one eating activation can occur in a tick.
 The authority records the eating count and terminal status before those states are published.
 
-## Encounter selection and repeating runs
+## Tutorial and encounter selection
 
-Practice preserves the seven mandatory tutorial trials. After graduation, the picker offers seven human
-Duels (Guard Recruit, Shield Veteran, Heavy Mauler, Quickblade and three effect specialists), three Groups
-(Two Recruits, Veteran and Apprentice, Mixed Patrol), and The Proving Circuit. Mixed Patrol combines melee,
-ranged and magic opponents; players continue using melee. The circuit runs Recruit → Veteran → Mauler →
-Two Recruits. It carries HP, stance, food usage and eating cooldown without healing, clearing temporary effects
-between bouts. A full circuit victory is required for its completion mark.
+The seven mandatory tutorial trials run within Fighter. Only the current server-owned trial is selectable;
+starting requires the correct loadout, and graduation removes the trial controls. Dungeons is the regular battle
+selection after graduation. There is no Practice tab, roster, category, tier selector or completion display.
 
-Desktop uses two equal-width cards, with category tabs confined to the left picker and selection/tier details
-on the right. Mobile uses Roster and Selected tabs. The picker card is titled Opponents; the detail card shows the encounter name. Twelve authored tiers recommend ASDH levels
-1 (H3), 3, 6, 9, 12, 15, 20, 30, 40, 60, 80 and 99. Availability follows permanent Dungeon skill caps,
-independently of purchased levels or Practice completion. Future bands remain locked until Dungeons grant
-those caps; current Dungeon content reaches level 25. The level-20 Practice band recommends Iron, matching
-the equipment available through Sinking Mire. Lower tiers remain independently replayable. Preparation
-is a recommendation, not a gear gate. Enemy stats never scale to the entering player.
-
-Serrated Duelist, Venom Sparrer and Hammer Veteran introduce bleed, poison and slow from Tier II; Tier I is
-effect-free. Each specialist has a 35% proc chance on a successful hit. Poison deals 1% maximum HP every
-0.5 seconds for five seconds; bleed damages the player on their next two attacks for 10% current maximum hit;
-slow reduces attack speed by 25% for two attacks. Effects do not stack with themselves, and eating remains
-available. The picker describes effects before entry; players cannot apply effects.
-
-Practice records only identity-owned encounter/tier/ruleset completion, atomically with final victory.
-It grants no EP, loot, levels, equipment, caps or leaderboard records and displays no personal-best timer.
-Interruption, surrender, defeat or draw grant no completion. Tutorial rewards and Dungeon progression are unchanged.
-Previous Plant/Golbin Practice choices and Repeat/Growing/Once categories remain absent from the picker.
-Legacy socket run modes remain compatible; their engine behavior below is retained for reference.
+Ordinary Practice encounters are retired in 1.7.6. The backend no longer serves their catalog or accepts new
+Practice fights. Historical encounter and completion records remain stored without new completion awards.
+A saved Practice fight becomes interrupted and can be acknowledged through normal recovery, releasing its
+admission lock. Tutorial rewards, project requirements, manual eating and Dungeon progression remain unchanged.
+Legacy non-Practice socket run modes retain their engine behavior below for compatibility.
 
 Every Start, including one-off, waits a server-owned 3000 ms respawn interval before attacks begin. Repeat and playlist
 victories queue the next wave after the same delay; each actor then starts a full attack interval. The low-level fight
@@ -457,7 +442,7 @@ selector, automatic extension of a newly cleared endpoint, or purchase prerequis
 | III | 3M3R / 6R / 6M | ASDH 9 |
 
 Raid attack intervals differ by style: melee/ranged/magic use 3.8/4.0/4.2 seconds in tiers I and III,
-and 4.0/4.2/4.4 seconds in tier II. Practice intervals are unchanged. Previous ruleset records are retained
+and 4.0/4.2/4.4 seconds in tier II. Previous ruleset records are retained
 but do not compete with the revised balance; permanent tier unlocks are unaffected.
 
 The server supplies each actor's `possible_effects`, covering effects received from opponents or itself.
@@ -489,7 +474,7 @@ skill-cap gains vertically, with its compact badge aligned at the top left: Tier
 raid actors). All three Golbin styles use distinct, muted, darker portrait treatments.
 
 The 1.6.17 client has no Online Combat controller. Its v2 APIs, payloads and minimum support policy remain intact;
-legacy socket Practice modes also retain their existing full-snapshot path.
+legacy socket run modes also retain their existing full-snapshot path.
 
 
 ## Tidal Caverns
@@ -641,3 +626,124 @@ with no expiry or attack count; ordinary applications retain their timers and at
 sources coexist but identical effect IDs contribute speed and damage once. Persistent sources take
 precedence for damage pulses; attack-inflicted timers still progress independently. Removing a source
 leaves other sources intact. Every battle starts fresh and reapplies its chamber definitions.
+
+## Fighter Adventures
+
+The Adventures tab follows the server capability advertisement, independently of reward refresh or economy-command
+readiness, and retains that availability through reconnect resets.
+
+The Adventure card gives Offline Limit one-third of the desktop width and its description two-thirds,
+separated by a rule; mobile stacks them vertically. Offline Limit initially shows its current level and a plus
+button. The target preview, stepper, EP cost, Cancel and Confirm controls appear only after pressing plus.
+Successful upgrades close the editor. A separate Areas card contains the area cards with native
+artwork in the top-right backdrop. Monster icon/name badges wrap horizontally and toggle selection through
+pressed styling, without checkbox icons. One chest below each area’s monster list opens the combined hourly
+drops for its current selection; drops are not listed inside the area card. The drop modal shows undiscovered items
+crossed out in red, explains that they cannot be looted, and keeps GP available. It uses `/h`, sorts quantities highest-first, and has a top-right close button with no nested
+scroll surface. Each area places its chest, Send Fighter action and wrapping estimate on one row.
+
+Adventures lists all twelve base-game Combat Areas, with an explicit selection of one or more monsters. Monsters
+with magic or special attacks are unavailable until those mechanics are modeled. The server owns
+all monster stats, loot weights, quantities, bones and GP ranges. Rewards use native, unmodified monster drop tables;
+there are no authored resource pools, Marketplace rotations, global rare drops, pets, XP or combat progression rewards.
+Only items already discovered in the character's save are eligible. Undiscovered outcomes are discarded without
+rerolling or increasing the odds of another item. Bones use the same discovery rule; GP needs no discovery entry.
+
+The Fighter uses the ordinary Colosseum melee stats in accurate stance, including weapon speed, defensive bonuses
+and the Standard triangle. Each selected opponent must have a maximum single hit below maximum Fighter HP, and
+selected first-slot Colosseum food must sustain its average incoming damage. Defence affects enemy accuracy;
+resistance affects damage on a hit. No food is substituted from the second slot or from higher unlocks.
+The readiness estimate does not simulate unlucky bursts. Adventures consumes no HP or food and can run alongside
+ordinary battles.
+
+The server solves expected attacks against each opponent's finite HP, including misses, damage rounding and overkill.
+Let `T` be expected attack time, `D` expected incoming damage per second and `H` healing per portion. Eating adds
+`T * D / (H - D)` seconds when `H > D`, charging a flat second per estimated portion while enemies keep attacking.
+A damaging opponent requires selected food even when one fight might finish before eating is necessary. The ordinary
+unmodified native spawn delay is three seconds. Sum these times across selected opponents to obtain one cycle.
+Each selected monster earns equal fractional kill credit at `elapsed_seconds / cycle_seconds`. Whole credits become
+independent loot rolls; ordinary payout boundaries retain fractions. The editable pace multiplier starts at 1.
+Displayed hourly rates are expectations, not guaranteed quantities.
+
+Assignments accrue capped real time, including downtime. Online five-minute check-ins and reconnect settlement
+move rewards automatically to the separate Adventures Inbox section. Routine online deliveries are quiet; a returning
+player's haul has one notification cleared by viewing that section. Claims use the existing durable Inbox protocol,
+including bank-slot-free GP, replay and owner acknowledgement. Participation is character-owned, Guild-independent,
+and explicitly opt-in for Social Only players.
+
+Adventure actions commit entirely on the server. Assignment, check-in and capacity requests use the revision
+from the Adventure state they were based on. A stale request cannot repeat a payout, charge or assignment
+change. Reading the Inbox section acknowledges only the observed haul revision. Discovery is sent with start
+and check-in and stays out of the character's economy journal. Adventure loot remains in server custody until
+an Inbox claim.
+
+Accumulation starts at one hour and can be increased with EP to 99 hours. Upgrades retain used time and never restore
+time already lost at the old cap. Capacity resets retain the existing refund and banked-reset rules. Delivery releases
+capacity immediately; claiming items later does not affect the production clock. A Fighter contributes to the
+shared-area bonus only until their capacity runs out. A later check-in restarts their contribution from that time;
+the capped gap does not grant bonuses retroactively. Deleted characters stop contributing at deletion.
+
+Fighter, gear, food and discovery changes first settle elapsed time against the saved rate and eligibility. Eligible
+loadout changes preserve fractional credits. An ineligible selected opponent ends the whole assignment after earned
+rewards reach Inbox. Changing monster selection or stopping also pays earned rewards, then discards fractions.
+Catalog changes follow the same end-and-restart rule: settle saved monster data, deliver earned rewards and end the
+assignment. A fingerprint includes all catalog inputs, so changing data without changing its version still ends an
+old assignment. Delivered rewards remain claimable.
+
+### Native data and performance verification
+
+`server/fighter-adventures-catalog.json` records the official source URL, acquisition date and SHA-256. Its Demo hash
+matches the existing reviewed Colosseum equipment package. Monsters with unmodeled magic, special attacks or passives
+remain unavailable until their mechanics and admission rules are reviewed. No upstream runtime scripts or artwork
+are copied into this catalog. Third-party data is excluded from this fork's CC0 dedication.
+
+To reproduce the reviewed subset from the unmodified official download:
+
+```sh
+python3 scripts/extract-adventure-catalog.py melvorDemo.json /tmp/adventure-catalog.json
+cmp server/fighter-adventures-catalog.json /tmp/adventure-catalog.json
+```
+
+The extractor rejects an unreviewed source hash. Source updates require reviewing native mechanics, modifiers and
+reward channels before replacing the pin. The retained source has no package build number; do not infer one from
+its retrieval date. Runtime references from build 12097 establish the ordinary three-second spawn delay and the
+unmodified item-table, bone and currency roll paths.
+
+Loot sampling draws binomial counts by enumerating probability mass outwards from its mode, then uses conditional
+binomials for weighted tables and uniform quantity sums. It uses no per-kill simulation, normal approximation or
+unbounded rejection loop. Catalog limits bound monster count, table rows, quantity ranges and pace. At 99 hours,
+maximum supported pace and the minimum spawn delay, one monster cannot exceed 1,188,000 credited kills per settlement.
+The synthetic benchmark in `server/tests/benchmarks/fighter-adventures.ts` measures real SQLite settlement, cached
+state reads, maximum supported table/quantity sampling and adversarial binomial tail quantiles. It uses an in-memory
+fixture. Set `DB_PATH=:memory:` so transitive module initialization also stays in memory; never supply a live
+application database path.
+
+Local ARM64 Docker/Bun 1.4.4 evaluation on 2026-11-07 (20 samples per workload): 99h Wet Forest settlement
+p50 0.94 ms / p95 3.69 ms; bounded maximum loot workload p50 3.85 ms / p95 5.27 ms. These are laptop
+measurements, not Pi capacity evidence.
+
+The user-approved isolated Raspberry Pi 5 evaluation on 2026-11-07 used Bun 1.4.4, 20 samples per workload,
+a half-CPU limit and 256 MB memory limit. The container had no network, a read-only root/source mount and no live
+database or deployment mounts; temporary source and the container were removed after completion.
+
+| Workload | Median (ms) | p95 / maximum (ms) |
+| --- | ---: | ---: |
+| 99h Wet Forest settlement with SQLite Inbox delivery | 3.31 | 69.35 |
+| Cached state and hourly estimates | 0.20 | 2.69 |
+| Maximum supported loot sampler | 12.00 | 81.38 |
+| Adversarial binomial tail quantile | 1.86 | 67.87 |
+
+These wall-clock measurements include scheduling under the CPU quota. With 20 samples, the reported p95 is the
+maximum sample. This isolated workload does not establish live-server concurrency capacity.
+
+At pace 1, selecting every monster in an area produces these expected hourly outputs before discovery filtering.
+Bones below assume Bones has been discovered; GP is always eligible. Other item drops are additional native rolls.
+
+| Fighter and food | Golbin Village kills of each monster/h | Golbin Village GP/h | Wet Forest kills of each monster/h | Wet Forest GP/h |
+| --- | ---: | ---: | ---: | ---: |
+| Attack/Strength/Defence 1, HP 3, no gear, Shrimp | 35.11 | 421.35 | Ineligible | — |
+| All four levels 20, Bronze Sword and Shield, Shrimp | 126.65 | 1,519.80 | 11.78 | 1,832.34 |
+| All four levels 99, Rune Scimitar, Carp | 273.00 | 3,275.96 | 73.25 | 11,391.09 |
+
+The chosen 100% pace remains the evaluation baseline. These estimates establish the comparison for subsequent
+balance review; they do not constitute final production-rate acceptance.

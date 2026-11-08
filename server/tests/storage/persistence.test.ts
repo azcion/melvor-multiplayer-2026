@@ -11,6 +11,7 @@ describe('SQLite persistence probe', () => {
 		const tables = rows.map(row => row.name).sort();
 
 		expect(tables).toEqual([
+			'adventure_participation',
 			'alliance_ballots',
 			'alliance_chat_message_moderation',
 			'alliance_chat_message_reactions',
@@ -66,6 +67,7 @@ describe('SQLite persistence probe', () => {
 			'client_display_name_history',
 			'client_installations',
 			'client_mod_observations',
+			'client_preferences',
 			'client_runtime_snapshots',
 			'client_sessions',
 			'clients',
@@ -151,6 +153,7 @@ describe('SQLite persistence probe', () => {
 			'expedition_work_operations',
 			'expedition_work_sessions',
 			'expeditions',
+			'fighter_adventures',
 			'friend_requests',
 			'friends',
 			'gift_items',
@@ -249,6 +252,7 @@ describe('SQLite persistence probe', () => {
 			'transfer_history_items',
 			'update_section_translations',
 			'update_sections',
+			'verified_identity_accounts',
 			'wish_capacities',
 			'wish_ep_spends'
 		]);

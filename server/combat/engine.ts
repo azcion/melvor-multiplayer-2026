@@ -1,5 +1,4 @@
 import type { ChamberEffect } from './chambers';
-import { PRACTICE_ENCOUNTERS, practice_selection, practice_wave, type PracticeEncounter } from './practice';
 import { apply_effect, clear_effects, trigger_effects, type EffectActor, type EffectID } from './effects';
 import { favorable_damage_order } from './damage';
 import { COMBAT_CATALOG, registration_stats, type Registration } from './catalog';
@@ -16,9 +15,9 @@ type Loadout = keyof typeof LOADOUTS;
 type CombatStats = { attack_type: 'melee' | 'ranged' | 'magic'; min_hit: number; max_hit: number; hit_chance: number };
 export type EnemyLevels = { defence: number; strength: number; ranged: number; magic: number; attack: number; hitpoints: number };
 export const ENCOUNTERS = ['golbin', 'golbin_scout', 'mind_golbin', 'golbins', 'tidal', 'mire', 'quarry', 'plants', 'tutorial_1', 'tutorial_2', 'tutorial_3', 'tutorial_4', 'tutorial_5', 'tutorial_6', 'tutorial_7'] as const;
-export type Encounter = typeof ENCOUNTERS[number] | PracticeEncounter;
-export const SUPPORTED_ENCOUNTERS = [...ENCOUNTERS, ...PRACTICE_ENCOUNTERS];
-export function is_encounter(value: unknown): value is Encounter { return typeof value === 'string' && (ENCOUNTERS.some(id => id === value) || practice_selection(value) !== null); }
+export type Encounter = typeof ENCOUNTERS[number];
+export const SUPPORTED_ENCOUNTERS = [...ENCOUNTERS];
+export function is_encounter(value: unknown): value is Encounter { return typeof value === 'string' && ENCOUNTERS.some(id => id === value); }
 // Effects this actor can receive during this battle, from opponents or itself.
 export type Actor = EffectActor & { possible_effects: EffectID[]; on_hit_effect?: EffectID; on_hit_effects?: readonly { effect: EffectID; chance: number }[]; bronze_corrosion?: boolean; player_max_hit?: number; levels?: EnemyLevels; base_damage?: { min_hit: number; max_hit: number }; id: string; hp: number; max_hp: number; interval: number; next_attack: number; stats: CombatStats };
 const BRONZE_ITEMS = new Set(Object.entries(COMBAT_CATALOG.items)
@@ -229,7 +228,7 @@ export function refresh_stance(arena: Arena) {
 
 // Training actors have authored levels/timers and no equipment bonuses. Magic retains an authored
 // spell maximum until spell support exists; melee and ranged use the native standard max-hit formula.
-export function create_registered_arena(registration: Registration, food: { heal: number; auto_eat?: boolean }, id: string, encounter: Encounter = 'golbin', plant_count = 6, practice_stage = 0): Arena {
+export function create_registered_arena(registration: Registration, food: { heal: number; auto_eat?: boolean }, id: string, encounter: Encounter = 'golbin', plant_count = 6): Arena {
 	const arena = create_arena({ ...registration.levels, loadout: 'sword' }, id);
 	const stats = registration_stats(registration);
 	arena.ruleset = 'native-melee-1';
@@ -265,19 +264,6 @@ export function create_registered_arena(registration: Registration, food: { heal
 			actor.base_damage = { min_hit: 0, max_hit: index === 0 ? 0 : index < 4 ? 1 : index === 5 ? 4 : 2 };
 			return actor;
 		});
-	}
-	const practice = practice_selection(encounter);
-	if (practice) {
-		arena.ruleset = 'practice-1';
-		arena.enemies = practice_wave(practice, practice_stage).map(profile => {
-			const actor = training(profile.id, profile.type, profile.interval / STEP_MS,
-				levels(profile.defence, 1, profile.attack, profile.attack, profile.attack, 1));
-			actor.hp = actor.max_hp = profile.hp;
-			actor.base_damage = { min_hit: 1, max_hit: profile.max_hit };
-			actor.on_hit_effect = profile.effect;
-			return actor;
-		});
-		arena.player.possible_effects = [...new Set(arena.enemies.flatMap(actor => actor.on_hit_effect ? [actor.on_hit_effect] : []))];
 	}
 	arena.target = arena.enemies[0].id;
 	refresh_stance(arena);
