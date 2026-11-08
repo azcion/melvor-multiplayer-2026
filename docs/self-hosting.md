@@ -51,6 +51,25 @@ docker compose --project-name melvor-selfhost down --volumes
 For a second blank-slate scenario, use a different unused project name after stopping the first server. This avoids
 reusing its database without deleting it.
 
+## Update an existing backend
+
+In the source checkout used for the server, get the newer version. If the checkout follows `main`, run:
+
+```sh
+git pull --ff-only
+```
+
+If you checked out a release tag, switch to the newer tag instead. Back up the database before updating. Then rebuild
+and start the server using the same Compose project name as before:
+
+```sh
+docker compose --project-name melvor-selfhost up --build --detach --wait server
+```
+
+Use your existing project name in place of `melvor-selfhost`; changing it creates a separate database volume. This
+command keeps the current database and applies the newer backend source. Do not add `down --volumes`, which deletes
+the database.
+
 ## Connect the published mod on the same machine
 
 1. Enable the published Melvor Multiplayer Remastered mod. Disable the original Multiplayer mod and any local
