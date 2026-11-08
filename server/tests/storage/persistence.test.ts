@@ -22,6 +22,7 @@ describe('SQLite persistence probe', () => {
 			'alliance_process_petitions',
 			'alliance_processes',
 			'alliances',
+			'announcement_audience_read_state',
 			'announcement_reactions',
 			'announcement_read_state',
 			'audit_event_links',

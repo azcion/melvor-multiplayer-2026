@@ -50,7 +50,10 @@ function production(database:Database,client:number,monsters:AdventureMonster[],
 export function adventure_efficiency(database:Database,client:number,area:AdventureArea):number {
 	return production(database,client,area.monsters,ADVENTURE_CATALOG);
 }
-export function adventure_multiplier(others:number):number {return 1+others*(others+1)/2*0.01;}
+export function adventure_multiplier(others:number):number {
+	const players=Math.min(25,Math.max(1,others+1));
+	return 1+(players-1)*(50-players)/200;
+}
 function boosted_elapsed(database:Database,client:number,area:string,start:number,end:number):number {
  const rows=database.query<{started_at:number;ended_at:number|null},[string,number,number,number]>(
   'SELECT started_at,ended_at FROM adventure_participation WHERE area_id=? AND client_id!=? AND started_at<? AND (ended_at IS NULL OR ended_at>?)').all(area,client,end,start);
@@ -129,7 +132,12 @@ export function adventure_state(database: Database, client: number, now = Date.n
 		areas:catalog.areas.map(area=>{
 			const monsters=area.monsters.map(m=>({...estimate_monster(loadout,heal,m,catalog),id:m.id,name:m.name,rewards:monster_rewards(m)}));
 			const others=database.query<{n:number},[string,number,number,number]>('SELECT COUNT(*) AS n FROM adventure_participation WHERE area_id=? AND client_id!=? AND started_at<=? AND ended_at>?').get(area.id,client,now,now)!.n;
-			return {id:area.id,name:area.name,fighter_count:others+(row?.area_id===area.id && row.last_at+Math.max(0,row.capacity*ADVENTURE_HOUR-row.used_ms)>now?1:0),kill_multiplier:adventure_multiplier(others),monsters,items:adventure_items(area).map(item_id=>({item_id,dlc:null,eligible:report.discovered.includes(item_id)}))};
+			const fighters=database.query<{client_id:number;display_name:string;icon_id:string},[string,number,number,number]>(
+				`SELECT c.id AS client_id,c.display_name,c.icon_id FROM adventure_participation p JOIN clients c ON c.id=p.client_id
+				 WHERE p.area_id=? AND p.started_at<=? AND p.ended_at>? ORDER BY (c.id=?) DESC,c.display_name COLLATE NOCASE,c.id`
+			).all(area.id,now,now,client);
+			const fighter_count=others+(row?.area_id===area.id && row.last_at+Math.max(0,row.capacity*ADVENTURE_HOUR-row.used_ms)>now?1:0);
+			return {id:area.id,name:area.name,fighter_count,fighters,group_multiplier:adventure_multiplier(Math.max(0,fighter_count-1)),kill_multiplier:adventure_multiplier(others),monsters,items:adventure_items(area).map(item_id=>({item_id,dlc:null,eligible:report.discovered.includes(item_id)}))};
 		}) };
 
 }

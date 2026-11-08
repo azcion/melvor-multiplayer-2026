@@ -1335,12 +1335,13 @@ export function install_chat_actions(runtime) {
 			this.chat_sending_conversations[conversation_key] = true;
 			this.chat_error = '';
 			const conversation_kind = conversation.conversation_kind ?? 'private';
+			const audience = conversation_kind === 'announcements' && conversation.announcement_audiences?.includes(this.chat_announcement_audience) ? this.chat_announcement_audience : '';
 			const pending = this.chat_pending_sends[conversation_key];
 			const idempotency_key = pending?.conversation_kind === conversation_kind &&
 				pending?.conversation_id === conversation.conversation_id &&
 				pending.support_team_id === conversation.support_team_id &&
 				pending.client_id === conversation.participant.client_id && pending.content === content &&
-				(pending.parts_key ?? 'null') === parts_key && (pending.highlight_color ?? null) === highlight_color
+				(pending.parts_key ?? 'null') === parts_key && (pending.highlight_color ?? null) === highlight_color && (pending.audience ?? '') === audience
 				? pending.idempotency_key
 				: crypto.randomUUID();
 			this.chat_pending_sends[conversation_key] = {
@@ -1351,6 +1352,7 @@ export function install_chat_actions(runtime) {
 				content,
 				parts_key,
 				highlight_color,
+				audience,
 				idempotency_key
 			};
 			let res = null;
@@ -1366,6 +1368,7 @@ export function install_chat_actions(runtime) {
 					client_id: conversation.participant.client_id,
 					idempotency_key,
 					content,
+					...(conversation_kind === 'announcements' ? { audience } : {}),
 					...(parts ? { parts } : {}),
 					...(highlight_color ? { highlight_color } : {})
 				});

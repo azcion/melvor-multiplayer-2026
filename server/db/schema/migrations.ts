@@ -888,4 +888,22 @@ export const migrations: Migration[] = [
 		PRIMARY KEY (client_id, key)
 	);
 	` },
+	{ version: 227, sql: `
+		ALTER TABLE polls ADD COLUMN audience TEXT NOT NULL DEFAULT '' CHECK(length(audience)<=64);
+	` },
+	{ version: 228, sql: `
+		CREATE TABLE announcement_audience_read_state (
+			client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+			audience TEXT NOT NULL CHECK(length(audience) BETWEEN 1 AND 64),
+			last_read_message_id INTEGER NOT NULL CHECK(last_read_message_id BETWEEN 0 AND 9007199254740991),
+			PRIMARY KEY(client_id, audience)
+		) STRICT;
+		CREATE TRIGGER event_announcement_audience_read_insert AFTER INSERT ON announcement_audience_read_state BEGIN
+			UPDATE clients SET event_revision=event_revision+1 WHERE id=NEW.client_id;
+		END;
+		CREATE TRIGGER event_announcement_audience_read_update AFTER UPDATE OF last_read_message_id ON announcement_audience_read_state
+		WHEN NEW.last_read_message_id!=OLD.last_read_message_id BEGIN
+			UPDATE clients SET event_revision=event_revision+1 WHERE id=NEW.client_id;
+		END;
+	` },
 ];

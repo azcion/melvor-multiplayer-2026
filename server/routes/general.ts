@@ -19,7 +19,7 @@ import { review_economy_receipt } from '../economy';
 
 const { acknowledge_economy_receipt, db, db_execute, db_exists, display_icon_cache, display_name_cache, friend_request_cache, get_campaign_progress, get_client_gifts, get_client_resolved_trades, get_client_social_mode, get_client_social_mode_enforcement, get_client_trades, get_friend_requests, get_global_chat_unread_count, get_guild_applicants, get_guild_chat_unread_count, get_guild_member_social_modes, get_market_completed, get_minimum_supported_mod_version, get_released_mod_version, get_support_unread_count, get_trade_offer_meta, get_unread_chat_count, has_deletion_returns, has_global_chat_capability, has_guild_chat_capability, is_valid_avatar_icon_id, parse_display_name, pending_economy_receipts, session_get_route, session_post_route } = runtime;
 
-const preference_keys = ['chat_translation_preferences', 'chat_notification_preferences', 'listing_filters'] as const;
+const preference_keys = ['chat_translation_preferences', 'chat_notification_preferences', 'listing_filters', 'adventure_selections', 'crucible_heat_expanded'] as const;
 
 function preference_record(value: unknown): value is JsonObject {
 	return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -27,8 +27,16 @@ function preference_record(value: unknown): value is JsonObject {
 
 function parse_preference(key: typeof preference_keys[number], value: unknown, patch: boolean) {
 	if (key === 'listing_filters') return value === undefined ? null : parse_listing_filters(value);
+	if (key === 'crucible_heat_expanded') return typeof value === 'boolean' ? value : null;
 	if (!preference_record(value)) return null;
 	const entries = Object.entries(value);
+	if (key === 'adventure_selections') {
+		const valid_id = (id: unknown) => typeof id === 'string' && id.length <= 256 && /^[A-Za-z0-9_-]+:[A-Za-z0-9_-]+$/.test(id);
+		if (entries.length > 100 || entries.some(([area, monsters]) => !valid_id(area) ||
+			!(patch && monsters === null) && (!Array.isArray(monsters) || monsters.length > 100 ||
+				monsters.some(id => !valid_id(id)) || new Set(monsters).size !== monsters.length))) return null;
+		return value;
+	}
 	if (entries.length > 512 || entries.some(([name, entry]) =>
 		!/^[a-z_]{1,32}(?::(?:[0-9]{1,16}|undefined|null)){0,2}$/.test(name) ||
 		!(entry === false || (patch && entry === null) ||
@@ -54,8 +62,9 @@ export function register_general_routes(): void {
 				let value = row ? JSON.parse(row.value) : old;
 				if (old !== null) imported.push(key);
 				if (patch !== null) {
-					const next = key === 'listing_filters' ? patch :
-						Object.fromEntries(Object.entries({ ...value, ...patch }).filter(([, entry]) => entry !== null));
+					const next = key === 'listing_filters' || key === 'crucible_heat_expanded' ? patch :
+						Object.fromEntries(Object.entries({ ...(preference_record(value) ? value : {}), ...(preference_record(patch) ? patch : {}) })
+							.filter(([, entry]) => entry !== null));
 					if (parse_preference(key, next, false) !== null) {
 						value = next;
 						updated.push(key);

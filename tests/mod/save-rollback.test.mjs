@@ -351,10 +351,10 @@ test('preference migration waits for acknowledgement and ignores a stale identit
  const save = new Map([[key, ['items']]]);
  const requests = [];
  const context = {
-  client_preferences: null, client_preferences_supported: true, session_generation: 1,
+  client_preferences: null, client_preferences_supported: true, extended_preferences_supported: false, fighter_adventures: null, session_generation: 1,
   server_host: 'https://one.test', server_instance_storage_prefix: 'instance:release:', server_instance_storage_legacy_prefixes: [],
   get_character_storage_item: key => save.get(key), remove_character_storage_item: key => save.delete(key),
-  state: { load_chat_translation_preferences(){}, load_chat_notification_preferences(){}, get_chat_notification_unread: () => 0,
+  state: { load_chat_translation_preferences(){}, load_chat_notification_preferences(){}, load_crucible_heat_preference(){}, get_chat_notification_unread: () => 0,
    listing_filter_categories: ['items'] }, update_chat_nav(){},
   api_post_without_economy_journal: (_path, payload) => new Promise(resolve => requests.push({ payload, resolve }))
  };
@@ -374,4 +374,200 @@ test('preference migration waits for acknowledgement and ignores a stale identit
  await settle();
  assert.equal(save.has(key), false);
  assert.equal(context.state.listing_filters.length, 0);
+});
+
+test('preference sync batches rapid edits, including during requests, and refreshes connected clients', async () => {
+ const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+ const source = main.slice(main.indexOf('const CLIENT_PREFERENCE_KEYS'), main.indexOf('function prune_obsolete_character_preferences'));
+ const requests = [], refreshes = [], timers = [];
+ const context = {
+  client_preferences: null, client_preferences_supported: true, extended_preferences_supported: false, fighter_adventures: null, session_generation: 1,
+  server_host: 'https://one.test', server_instance_storage_prefix: 'instance:release:', server_instance_storage_legacy_prefixes: [],
+  get_character_storage_item: () => undefined, remove_character_storage_item(){},
+  setTimeout: (callback, delay) => { assert.equal(delay, 1000); timers.push(callback); return timers.length; },
+  state: { load_chat_translation_preferences(){}, load_chat_notification_preferences(){}, load_crucible_heat_preference(){}, get_chat_notification_unread: () => 0,
+   listing_filter_categories: ['items', 'time'], listing_filters: ['items'], is_connected: true, is_guild_member: true,
+   refresh_crucible: async force => refreshes.push(['crucible', force]) },
+  update_chat_nav(){}, update_market_search: async () => refreshes.push(['market']), error(e){ throw Error(e); },
+  api_post_without_economy_journal: (_path, payload) => new Promise(resolve => requests.push({ payload, resolve }))
+ };
+ runInNewContext(source, context);
+ context.start_client_preferences(1);
+ context.write_client_preference('chat_translation_preferences', { 'private:1': 'en' });
+ context.write_client_preference('chat_translation_preferences', { 'private:1': 'fr' });
+ context.write_client_preference('chat_translation_preferences', { 'private:1': 'en' });
+ await context.sync_client_preferences();
+ assert.equal(requests.length, 1);
+ requests[0].resolve({ preferences: { listing_filters: ['items'] }, imported: [], updated: [] });
+ await settle();
+ assert.equal(requests.length, 1);
+ timers.shift()();
+ assert.equal(requests.length, 2);
+ assert.equal(requests[1].payload.changes.chat_translation_preferences['private:1'], 'en');
+ context.write_client_preference('chat_translation_preferences', { 'private:1': 'zh-CN', 'private:2': false });
+ requests[1].resolve({ preferences: { listing_filters: ['items'], chat_translation_preferences: { 'private:1': 'en' } },
+  imported: [], updated: ['chat_translation_preferences'] });
+ await settle();
+ assert.equal(requests.length, 2);
+ timers.shift()();
+ assert.equal(requests.length, 3);
+ assert.equal(requests[2].payload.changes.chat_translation_preferences['private:1'], 'zh-CN');
+ assert.equal(requests[2].payload.changes.chat_translation_preferences['private:2'], false);
+ context.write_client_preference('chat_translation_preferences', { 'private:1': 'fr', 'private:2': false });
+ timers.shift()();
+ assert.equal(requests.length, 3, 'a slow in-flight request prevents overlap');
+ requests[2].resolve({ preferences: { listing_filters: ['items'], chat_translation_preferences: { 'private:1': 'zh-CN', 'private:2': false } },
+  imported: [], updated: ['chat_translation_preferences'] });
+ await settle();
+ assert.equal(requests.length, 3);
+ timers.shift()();
+ assert.equal(requests[3].payload.changes.chat_translation_preferences['private:1'], 'fr');
+ requests[3].resolve({ preferences: { listing_filters: ['items'], chat_translation_preferences: { 'private:1': 'fr', 'private:2': false } },
+  imported: [], updated: ['chat_translation_preferences'] });
+ await settle();
+ const poll = context.sync_client_preferences();
+ assert.equal(requests.length, 5);
+ requests[4].resolve({ preferences: { listing_filters: ['time'], chat_translation_preferences: { 'private:1': 'en' } }, imported: [], updated: [] });
+ await poll;
+ assert.deepEqual([...context.state.listing_filters], ['time']);
+ assert.equal(context.read_client_preference('chat_translation_preferences')['private:1'], 'en');
+ assert.equal(context.state.market_current_page, 1);
+ assert.deepEqual(refreshes, [['market'], ['crucible', true]]);
+});
+
+test('extended preferences use local fallback on older servers and merge queued area patches on newer servers', async () => {
+ const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+ const source = main.slice(main.indexOf('const CLIENT_PREFERENCE_KEYS'), main.indexOf('function prune_obsolete_character_preferences'));
+ const local = new Map([['adventure_target_choices', { 'melvorD:Old': ['melvorD:OldMonster'] }]]), requests = [], timers = [];
+ const outbox = new Map([['mp:preferences:https://one.test:1', JSON.stringify({ crucible_heat_expanded: true })]]);
+ let heat;
+ const context = {
+  client_preferences: null, client_preferences_supported: true, extended_preferences_supported: false, fighter_adventures: null, session_generation: 1,
+  server_host: 'https://one.test', server_instance_storage_prefix: 'instance:release:', server_instance_storage_legacy_prefixes: [],
+  get_instance_storage_item: key => local.get(key), set_instance_storage_item: (key, value) => local.set(key, value),
+  setTimeout: callback => { timers.push(callback); return timers.length; },
+  get_character_storage_item: key => local.get(key.replace('instance:release:', '')),
+  remove_character_storage_item: key => local.delete(key.replace('instance:release:', '')),
+  localStorage: { getItem: key => outbox.get(key) ?? null, setItem: (key, value) => outbox.set(key, value), removeItem: key => outbox.delete(key) },
+  state: { load_chat_translation_preferences(){}, load_chat_notification_preferences(){}, load_crucible_heat_preference(){ heat = context.read_client_preference('crucible_heat_expanded'); },
+   get_chat_notification_unread: () => 0, listing_filter_categories: ['items'], listing_filters: ['items'] }, update_chat_nav(){},
+  api_post_without_economy_journal: (_path, payload) => new Promise(resolve => requests.push({ payload, resolve }))
+ };
+ runInNewContext(source, context);
+ context.start_client_preferences(1);
+ assert.equal(context.read_client_preference('adventure_selections')['melvorD:Old'][0], 'melvorD:OldMonster');
+ context.patch_client_preference('adventure_selections', { 'melvorD:Area': ['melvorD:Monster'] });
+ context.write_client_preference('crucible_heat_expanded', false);
+ assert.equal(local.get('adventure_selections')['melvorD:Area'][0], 'melvorD:Monster');
+ assert.equal(local.get('adventure_selections')['melvorD:Old'][0], 'melvorD:OldMonster');
+ assert.equal(local.get('crucible_heat_expanded'), false);
+ assert.equal(Object.keys(requests[0].payload.changes).length, 0);
+ assert.equal(JSON.parse(outbox.get('mp:preferences:https://one.test:1')).crucible_heat_expanded, false);
+ requests[0].resolve({ preferences: {}, imported: [], updated: [] });
+ await settle();
+ context.extended_preferences_supported = true;
+ context.start_client_preferences(1);
+ assert.equal(requests[1].payload.legacy.adventure_selections['melvorD:Old'][0], 'melvorD:OldMonster');
+ assert.equal(requests[1].payload.changes.crucible_heat_expanded, false);
+ assert.equal(local.has('adventure_target_choices'), true);
+ context.patch_client_preference('adventure_selections', { 'melvorD:Area': ['melvorD:Monster'] });
+ requests[1].resolve({ preferences: { adventure_selections: { 'melvorD:Other': ['melvorD:OtherMonster'] }, crucible_heat_expanded: false },
+  imported: ['adventure_selections', 'crucible_heat_expanded'], updated: ['crucible_heat_expanded'] });
+ await settle();
+ assert.equal(local.has('adventure_target_choices'), false);
+ assert.equal(heat, false);
+ timers.shift()();
+ assert.equal(requests[2].payload.changes.adventure_selections['melvorD:Area'][0], 'melvorD:Monster');
+ assert.equal(context.read_client_preference('adventure_selections')['melvorD:Other'][0], 'melvorD:OtherMonster');
+ requests[2].resolve({ preferences: { adventure_selections: { 'melvorD:Other': ['melvorD:OtherMonster'], 'melvorD:Area': ['melvorD:Monster'] } },
+  imported: [], updated: ['adventure_selections'] });
+ await settle();
+});
+
+test('edits made during a preference capability downgrade survive the upgrade', async () => {
+ const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+ const source = main.slice(main.indexOf('const CLIENT_PREFERENCE_KEYS'), main.indexOf('function prune_obsolete_character_preferences'));
+ const local = new Map(), outbox = new Map(), requests = [];
+ const context = {
+  client_preferences: null, client_preferences_supported: true, extended_preferences_supported: true, fighter_adventures: null, session_generation: 1,
+  server_host: 'https://one.test', server_instance_storage_prefix: 'instance:release:', server_instance_storage_legacy_prefixes: [],
+  get_instance_storage_item: key => local.get(key), set_instance_storage_item: (key, value) => local.set(key, value),
+  get_character_storage_item: key => local.get(key.replace('instance:release:', '')),
+  remove_character_storage_item: key => local.delete(key.replace('instance:release:', '')),
+  localStorage: { getItem: key => outbox.get(key) ?? null, setItem: (key, value) => outbox.set(key, value), removeItem: key => outbox.delete(key) },
+  state: { load_chat_translation_preferences(){}, load_chat_notification_preferences(){}, load_crucible_heat_preference(){},
+   get_chat_notification_unread: () => 0, listing_filter_categories: ['items'], listing_filters: ['items'] }, update_chat_nav(){},
+  api_post_without_economy_journal: (_path, payload) => new Promise(resolve => requests.push({ payload, resolve }))
+ };
+ runInNewContext(source, context);
+ context.start_client_preferences(1);
+ requests[0].resolve({ preferences: { crucible_heat_expanded: true, adventure_selections: { 'melvorD:Area': ['melvorD:Old'] } }, imported: [], updated: [] });
+ await settle();
+ context.extended_preferences_supported = false;
+ context.session_generation++;
+ context.start_client_preferences(1);
+ context.write_client_preference('crucible_heat_expanded', false);
+ context.patch_client_preference('adventure_selections', { 'melvorD:Area': ['melvorD:New'] });
+ requests[1].resolve({ preferences: {}, imported: [], updated: [] });
+ await settle();
+ assert.equal(requests.length, 2, 'unsupported edits do not trigger repeated requests');
+ const oldServerPoll = context.sync_client_preferences();
+ assert.equal(Object.keys(requests[2].payload.changes).length, 0);
+ requests[2].resolve({ preferences: {}, imported: [], updated: [] });
+ await oldServerPoll;
+ context.extended_preferences_supported = true;
+ context.session_generation++;
+ context.start_client_preferences(1);
+ assert.equal(requests[3].payload.changes.crucible_heat_expanded, false);
+ assert.equal(requests[3].payload.changes.adventure_selections['melvorD:Area'][0], 'melvorD:New');
+ requests[3].resolve({ preferences: { crucible_heat_expanded: false, adventure_selections: { 'melvorD:Area': ['melvorD:New'] } },
+  imported: ['crucible_heat_expanded', 'adventure_selections'], updated: ['crucible_heat_expanded', 'adventure_selections'] });
+ await settle();
+ assert.equal(context.read_client_preference('crucible_heat_expanded'), false);
+ assert.equal(context.read_client_preference('adventure_selections')['melvorD:Area'][0], 'melvorD:New');
+ assert.equal(outbox.size, 0);
+});
+
+test('edits on a server without preference sync are queued until support returns', async () => {
+ const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+ const source = main.slice(main.indexOf('const CLIENT_PREFERENCE_KEYS'), main.indexOf('function prune_obsolete_character_preferences'));
+ const local = new Map(), outbox = new Map(), requests = [];
+ const context = {
+  client_preferences: null, client_preferences_supported: true, extended_preferences_supported: true, fighter_adventures: null, session_generation: 1,
+  server_host: 'https://one.test', server_instance_storage_prefix: 'instance:release:', server_instance_storage_legacy_prefixes: [],
+  get_instance_storage_item: key => local.get(key), set_instance_storage_item: (key, value) => local.set(key, value),
+  get_character_storage_item: key => local.get(key.replace('instance:release:', '')),
+  remove_character_storage_item: key => local.delete(key.replace('instance:release:', '')),
+  localStorage: { getItem: key => outbox.get(key) ?? null, setItem: (key, value) => outbox.set(key, value), removeItem: key => outbox.delete(key) },
+  state: { load_chat_translation_preferences(){}, load_chat_notification_preferences(){}, load_crucible_heat_preference(){},
+   get_chat_notification_unread: () => 0, listing_filter_categories: ['items'], listing_filters: ['items'] }, update_chat_nav(){},
+  api_post_without_economy_journal: (_path, payload) => new Promise(resolve => requests.push({ payload, resolve }))
+ };
+ runInNewContext(source, context);
+ context.start_client_preferences(1);
+ requests[0].resolve({ preferences: { crucible_heat_expanded: true, chat_translation_preferences: { 'private:1': 'en' } }, imported: [], updated: [] });
+ await settle();
+ context.client_preferences_supported = false;
+ context.extended_preferences_supported = false;
+ context.session_generation++;
+ context.start_client_preferences(1);
+ context.write_client_preference('crucible_heat_expanded', false);
+ context.write_client_preference('chat_translation_preferences', { 'private:1': 'zh-CN' });
+ context.patch_client_preference('adventure_selections', { 'melvorD:Area': ['melvorD:New'] });
+ await context.sync_client_preferences();
+ assert.equal(requests.length, 1, 'unsupported servers receive no preference requests');
+ assert.equal(local.get('crucible_heat_expanded'), false);
+ assert.ok(outbox.size);
+ context.client_preferences_supported = true;
+ context.extended_preferences_supported = true;
+ context.session_generation++;
+ context.start_client_preferences(1);
+ assert.equal(requests[1].payload.changes.crucible_heat_expanded, false);
+ assert.equal(requests[1].payload.changes.chat_translation_preferences['private:1'], 'zh-CN');
+ assert.equal(requests[1].payload.changes.adventure_selections['melvorD:Area'][0], 'melvorD:New');
+ requests[1].resolve({ preferences: { crucible_heat_expanded: false, chat_translation_preferences: { 'private:1': 'zh-CN' },
+  adventure_selections: { 'melvorD:Area': ['melvorD:New'] } }, imported: ['crucible_heat_expanded', 'chat_translation_preferences', 'adventure_selections'],
+  updated: ['crucible_heat_expanded', 'chat_translation_preferences', 'adventure_selections'] });
+ await settle();
+ assert.equal(outbox.size, 0);
 });

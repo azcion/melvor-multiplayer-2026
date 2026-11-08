@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.8
+
+- SAE Devs can post SAE-only announcements, visible to players using Super Awesome Expansion and admins.
+- Adventure area Fighter counts now show who is adventuring there and their current loot multiplier. Fixed monster selections disappearing after loading a save, and restored saved choices for other areas.
+- Fixed the shared Adventure bonus so Fighters in the same area receive the intended increase to kills and loot, up to 4× with 25 Fighters.
+- Restored the Crucible Heat panel's expanded or collapsed preference.
+- Improved syncing of Chat preferences and Marketplace Listing Filters when changes are made across devices or while another update is in progress.
+
 ## 1.7.7
 
 - Fighter Adventures are now available in all supported languages.

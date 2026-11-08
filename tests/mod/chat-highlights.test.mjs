@@ -69,3 +69,20 @@ test('lost response retains color and key for exact retry; changing the color cr
 	state.chat_can_highlight = false; await state.send_chat_message();
 	assert.equal('highlight_color' in payloads[3], false);
 });
+test('announcement audience follows eligibility and changes the retry identity', async () => {
+	const { state, payloads } = fixture(async () => null);
+	state.selected_chat_conversation = { conversation_kind: 'announcements', conversation_id: 1, participant: { client_id: null }, can_send: true, announcement_audiences: ['sae'] };
+	state.chat_announcement_audience = 'sae';
+	await state.send_chat_message();
+	assert.equal(payloads[0].audience, 'sae');
+	await state.send_chat_message();
+	assert.equal(payloads[1].idempotency_key, payloads[0].idempotency_key);
+	state.chat_announcement_audience = '';
+	await state.send_chat_message();
+	assert.equal(payloads[2].audience, '');
+	assert.notEqual(payloads[2].idempotency_key, payloads[0].idempotency_key);
+	state.chat_announcement_audience = 'sae';
+	state.selected_chat_conversation.announcement_audiences = [];
+	await state.send_chat_message();
+	assert.equal(payloads[3].audience, '');
+});

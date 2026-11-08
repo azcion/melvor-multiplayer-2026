@@ -3,7 +3,7 @@ import {Database} from 'bun:sqlite';
 import { create_test_database } from '../support/database';
 import { prepare_combat } from '../../combat-progression';
 import { sample_binomial } from '../../fighter-adventures-loot';
-import { adventure_action, adventure_state, read_adventure, accrue_adventure, refresh_adventure_efficiency } from '../../fighter-adventures';
+import { adventure_action, adventure_state, read_adventure, accrue_adventure, refresh_adventure_efficiency, adventure_multiplier } from '../../fighter-adventures';
 import { ADVENTURE_HOUR as H, ADVENTURE_CATALOG, adventure_items } from '../../fighter-adventures-catalog';
 function fixture() {
 	const db=create_test_database();
@@ -14,6 +14,12 @@ const eligibility={discovered:['melvorD:Bones'],owned_dlc:[]};
 const start={area_id:'melvorD:Goblin_Village',monster_ids:['melvorD:Golbin'],eligibility};
 const act=(db: ReturnType<typeof fixture>,action:string,input:Record<string,unknown>,now:number)=>db.transaction(()=>adventure_action(db,101,action,{revision:read_adventure(db,101)?.revision??0,...input},now))();
 const total=(db: ReturnType<typeof fixture>)=>db.query<{qty:number},[]>("SELECT SUM(qty) AS qty FROM inbox_items WHERE item_id='melvorD:Bones'").get()?.qty??0;
+test('shared area multiplier follows the intended progression and caps at 25 fighters',()=>{
+ const expected=[1,1.24,1.47,1.69,1.90,2.10,2.29,2.47,2.64,2.80,2.95,3.09,3.22,3.34,3.45,3.55,3.64,3.72,3.79,3.85,3.90,3.94,3.97,3.99,4];
+ expected.forEach((value,others)=>expect(adventure_multiplier(others)).toBeCloseTo(value,10));
+ expect(adventure_multiplier(-1)).toBe(1);
+ expect(adventure_multiplier(25)).toBe(4);
+});
 test('elapsed time caps at one hour, survives saved snapshots, and login alone marks unread',()=>{
 	const db=fixture(); try {
 	expect(act(db,'start',start,H).success).toBe(true);
@@ -250,8 +256,8 @@ test('area companions apply prospectively across hourly offline segments',()=>{
  db.run('UPDATE fighter_adventures SET area_id=? WHERE client_id=102',[start.area_id]);
  const rate=read_adventure(db,101)!.efficiency;
  act(db,'check-in',{reason:'login',eligibility},2*H);
- expect(total(db)).toBe(Math.floor(3600*rate*1.005));
- expect(adventure_state(db,101,2*H).areas[0].kill_multiplier).toBe(1.01);
+ expect(total(db)).toBe(Math.floor(3600*rate*1.12));
+ expect(adventure_state(db,101,2*H).areas[0].kill_multiplier).toBe(1.24);
  db.run('UPDATE fighter_adventures SET area_id=NULL,last_at=? WHERE client_id=102',[2*H]);
  expect(adventure_state(db,101,2*H).areas[0].kill_multiplier).toBe(1);
  }finally{db.close();}
@@ -268,12 +274,18 @@ test('companion bonuses stop at capacity and resume only at check-in, preserving
  act(db,'capacity',{target:4,revision:0},H);act(db,'start',start,H);
  expect(companion('start',start,H).success).toBe(true);
  expect(adventure_state(db,101,H+H/2).areas[0].fighter_count).toBe(2);
+ const together=adventure_state(db,101,H+H/2).areas[0];
+ expect(together.fighters.map(player=>player.client_id)).toEqual([101,102]);
+ expect(together.group_multiplier).toBe(1.24);
+ expect(adventure_state(db,102,H+H/2).areas[0].fighters.map(player=>player.client_id)).toEqual([102,101]);
  expect(adventure_state(db,101,2*H).areas[0].fighter_count).toBe(1);
+ expect(adventure_state(db,101,2*H).areas[0].fighters.map(player=>player.client_id)).toEqual([101]);
+ expect(adventure_state(db,101,2*H).areas[0].group_multiplier).toBe(1);
  expect(companion('check-in',{reason:'login',eligibility},3*H).success).toBe(true);
  expect(adventure_state(db,101,3*H).areas[0].fighter_count).toBe(2);
  const rate=read_adventure(db,101)!.efficiency;
  act(db,'check-in',{reason:'login',eligibility},5*H);
- expect(JSON.parse(read_adventure(db,101)!.progress_json)['melvorD:Golbin'].serial).toBe(Math.floor(rate*3600*4.02));
+ expect(JSON.parse(read_adventure(db,101)!.progress_json)['melvorD:Golbin'].serial).toBe(Math.floor(rate*3600*4.48));
  }finally{db.close();}
 });
 test('identity deletion ends an active contribution at deletion and retains earlier history',()=>{
@@ -285,7 +297,7 @@ test('identity deletion ends an active contribution at deletion and retains earl
  db.run('UPDATE clients SET deleted_at=? WHERE id=102',[H+H/2]);
  const rate=read_adventure(db,101)!.efficiency;
  act(db,'check-in',{reason:'login',eligibility},2*H);
- expect(total(db)).toBe(Math.floor(rate*3600*1.005));
+ expect(total(db)).toBe(Math.floor(rate*3600*1.12));
  expect(adventure_state(db,101,2*H).areas[0].fighter_count).toBe(1);
  }finally{db.close();}
 });
@@ -320,7 +332,7 @@ test('large boosted 99-hour haul settles and can stop',()=>{
  for(let id=200;id<215;id++) db.run('INSERT INTO adventure_participation VALUES(?,?,?,?)',[id,start.area_id,H,100*H]);
  expect(act(db,'stop',{},100*H).success).toBe(true);
  expect(read_adventure(db,101)!.area_id).toBeNull();
- expect(total(db)).toBe(Math.floor(99*3600*5*2.2));
+ expect(total(db)).toBe(Math.floor(99*3600*5*3.55));
  }finally{db.close();}
 });
 

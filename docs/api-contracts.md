@@ -640,3 +640,12 @@ replaces its array. Chat updates merge by conversation key, with `null`
 removing an entry. The response returns the saved `preferences` and the
 `imported` and `updated` field names the server accepted. The client uses
 these acknowledgements to retire imported save values and pending edits.
+
+`client-preferences-v2` additionally supports boolean `crucible_heat_expanded`
+and `adventure_selections`, an object mapping namespaced area IDs to arrays of
+namespaced monster IDs. Adventure changes merge by area, with `null` removing
+an area; Heat updates replace the boolean. Area and monster IDs are at most
+256 characters, with up to 100 areas and 100 distinct monsters per area.
+Clients send these fields only when the v2 capability is advertised. Older
+servers retain device-local, server-scoped values, and pending extended edits
+remain queued until a supporting server is available.

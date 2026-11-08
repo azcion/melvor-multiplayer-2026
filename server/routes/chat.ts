@@ -382,8 +382,8 @@ function register_scoped_chat_routes(scope: ChatScope): void {
 		if (highlight_color !== null && !get_dev_tag_visibility(client_id).eligible) return 403;
 		const color = typeof highlight_color === 'string' ? highlight_color.toUpperCase() : null;
 		const content = parts ? parts_text(parts) : json.content;
-		if (kind === 'announcements' && json.conversation_id !== 1) return 400;
-		const result = kind === 'announcements' ? create_announcement(client_id, json.idempotency_key, content, Date.now(), parts, color)
+		if (kind === 'announcements' && (json.conversation_id !== 1 || (json.audience !== undefined && typeof json.audience !== 'string'))) return 400;
+		const result = kind === 'announcements' ? create_announcement(client_id, json.idempotency_key, content, Date.now(), parts, color, typeof json.audience === 'string' ? json.audience : '')
 		: kind === 'announcement-discussion' ? send_poll_discussion_message(client_id, json.conversation_id as number, json.idempotency_key, content, Date.now(), parts, color, true)
 		: kind === 'alliance' ? send_alliance_chat_message(client_id, json.conversation_id as number, json.idempotency_key, content, Date.now(), parts, color)
 		: kind === 'petition-discussion' ? send_petition_discussion_message(client_id, json.conversation_id as number, json.idempotency_key, content, Date.now(), parts, color)

@@ -42,7 +42,7 @@ export function register_auth_routes(): void {
 			.get(req.headers.get('X-Session-Token'), client_id) !== null));
 
 	server.route('/api/versions', allow_browser_access(require_source_capacity(require_service_available(() => ({
-		page_snapshots: true, capabilities:['save-rollback-v1', 'identity-registration-v1', 'identity-onboarding-v1', 'identity-account-recovery-v1', 'fighter-adventures-v1', 'client-preferences-v1'], api_versions: API_VERSIONS, preferred_api_version: API_VERSIONS[API_VERSIONS.length - 1],
+		page_snapshots: true, capabilities:['save-rollback-v1', 'identity-registration-v1', 'identity-onboarding-v1', 'identity-account-recovery-v1', 'fighter-adventures-v1', 'client-preferences-v1', 'client-preferences-v2'], api_versions: API_VERSIONS, preferred_api_version: API_VERSIONS[API_VERSIONS.length - 1],
 		minimum_supported_mod_version: get_minimum_supported_mod_version(), wiki_url: get_wiki_url()
 	})))), ['GET', 'OPTIONS']);
 	server.route('/health', require_source_capacity(() => ({ status: 'ok', backend_version: BACKEND_VERSION })));

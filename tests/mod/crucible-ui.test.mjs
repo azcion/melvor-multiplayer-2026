@@ -3,6 +3,7 @@ import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { readFile } from 'node:fs/promises';
 import { install_crucible_actions } from '../../mod/client-crucible.mjs';
+import { migrate_unscoped_server_storage } from '../../mod/instance-storage.mjs';
 import * as crucible_rules from '../../mod/crucible-rules.mjs';
 import * as transfer_currency_support from '../../mod/transfer-currencies.mjs';
 
@@ -43,17 +44,37 @@ test('Heat guide uses hosted-compatible images and bounds its navigation', async
 	assert.match(css, /\.mp-crucible-heat-body \{ grid-template-columns: minmax\(0, 1fr\);/);
 });
 
-test('Heat starts expanded on load and can be collapsed for the current session', async () => {
+test('Heat expanded state persists per selected server and restores its legacy default-server value', async () => {
 	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
 	const template = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
 	const methods = main.slice(main.indexOf('\tload_crucible_heat_preference()'), main.indexOf('\tget crucible_guide_length()'));
-	const state = runInNewContext(`({ crucible_panels_open: { heat: false }, ${methods} })`);
-	state.load_crucible_heat_preference();
-	assert.equal(state.crucible_panels_open.heat, true);
-	state.toggle_crucible_heat();
-	assert.equal(state.crucible_panels_open.heat, false);
-	state.load_crucible_heat_preference();
-	assert.equal(state.crucible_panels_open.heat, true);
+	const values = new Map([['crucible_heat_expanded', false]]);
+	const default_prefix = 'instance:default:';
+	const custom_prefix = 'instance:custom:';
+	const migration_keys = runInNewContext(main.match(/const SERVER_SCOPED_LEGACY_STORAGE_KEYS = (\[[\s\S]*?\]);/)[1]);
+	assert.ok(migration_keys.includes('crucible_heat_expanded'));
+	migrate_unscoped_server_storage(key => values.get(key), (key, value) => values.set(key, value), default_prefix, migration_keys);
+	const instance = prefix => ({
+		read_client_preference: key => values.get(prefix + key),
+		write_client_preference: (key, value) => values.set(prefix + key, value)
+	});
+	const state_for = prefix => runInNewContext(`({ crucible_panels_open: { heat: true }, ${methods} })`, instance(prefix));
+	const default_state = state_for(default_prefix);
+	default_state.load_crucible_heat_preference();
+	assert.equal(default_state.crucible_panels_open.heat, false, 'legacy preference is migrated and restored');
+	default_state.toggle_crucible_heat();
+	assert.equal(values.get(default_prefix + 'crucible_heat_expanded'), true);
+	const reloaded_default = state_for(default_prefix);
+	reloaded_default.load_crucible_heat_preference();
+	assert.equal(reloaded_default.crucible_panels_open.heat, true, 'reload restores the latest preference');
+	const custom_state = state_for(custom_prefix);
+	custom_state.load_crucible_heat_preference();
+	assert.equal(custom_state.crucible_panels_open.heat, true, 'custom server starts expanded without inheriting default state');
+	custom_state.toggle_crucible_heat();
+	assert.equal(values.get(custom_prefix + 'crucible_heat_expanded'), false);
+	assert.equal(values.get(default_prefix + 'crucible_heat_expanded'), true, 'custom server writes stay isolated');
+	const obsolete = main.match(/const obsolete = (\[[\s\S]*?\]);/)[1];
+	assert.doesNotMatch(obsolete, /crucible_heat_expanded/, 'load cleanup must not erase the preference');
 	assert.match(template, /@click="state\.toggle_crucible_heat\(\)"/);
 });
 

@@ -99,3 +99,18 @@ test('preference sync imports once, merges conversation edits and isolates ident
 	expect((await sync(second.session_token)).json.preferences).toEqual({});
 	expect((await sync(first.session_token, {}, { listing_filters: ['invalid'] })).json.updated).toEqual([]);
 });
+
+test('extended preferences merge independent Adventure areas and preserve boolean Heat state', async () => {
+	const client = await register_client('Extended Preferences');
+	const sync = (changes: object = {}, legacy: object = {}) =>
+		post_json<any>('/api/client/preferences/sync', { legacy, changes }, client.session_token);
+	const first = { 'melvorD:Golbin_Village': ['melvorD:Golbin'] };
+	expect((await sync({}, { adventure_selections: first, crucible_heat_expanded: false })).json.preferences)
+		.toMatchObject({ adventure_selections: first, crucible_heat_expanded: false });
+	expect((await sync({ adventure_selections: { 'melvorD:Wet_Forest': ['melvorD:Plant'] }, crucible_heat_expanded: true })).json.preferences)
+		.toMatchObject({ adventure_selections: { ...first, 'melvorD:Wet_Forest': ['melvorD:Plant'] }, crucible_heat_expanded: true });
+	expect((await sync({ adventure_selections: { 'melvorD:Golbin_Village': null }, crucible_heat_expanded: false })).json.preferences)
+		.toMatchObject({ adventure_selections: { 'melvorD:Wet_Forest': ['melvorD:Plant'] }, crucible_heat_expanded: false });
+	expect((await sync({ adventure_selections: { invalid: ['melvorD:Plant'] }, crucible_heat_expanded: 'true' })).json.updated).toEqual([]);
+	expect((await sync()).json.preferences).toMatchObject({ adventure_selections: { 'melvorD:Wet_Forest': ['melvorD:Plant'] }, crucible_heat_expanded: false });
+});

@@ -6,7 +6,7 @@ test('publishes only the v2 API contract', async () => {
 	const versions = await request('/api/versions');
 	expect(versions.status).toBe(200);
 	expect(await versions.json()).toEqual({ page_snapshots: true, api_versions: [2], preferred_api_version: 2,
-		minimum_supported_mod_version: '1.7.0', wiki_url: 'https://melvor.azcn.io/wiki', capabilities: ['save-rollback-v1', 'identity-registration-v1', 'identity-onboarding-v1', 'identity-account-recovery-v1', 'fighter-adventures-v1', 'client-preferences-v1'] });
+		minimum_supported_mod_version: '1.7.0', wiki_url: 'https://melvor.azcn.io/wiki', capabilities: ['save-rollback-v1', 'identity-registration-v1', 'identity-onboarding-v1', 'identity-account-recovery-v1', 'fighter-adventures-v1', 'client-preferences-v1', 'client-preferences-v2'] });
 	const auth = await post_json<Record<string, any>>('/api/v2/register', {
 		client_key: crypto.randomUUID(), display_name: 'V2 Bootstrap'
 	});

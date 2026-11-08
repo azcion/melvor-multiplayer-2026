@@ -77,11 +77,50 @@ test('selection drafts survive refresh and submit only the selected monster IDs'
  const view=create_adventure_view(),calls=[];
  const data={supported:true,active_area:'area',active_monsters:['a'],areas:[{id:'area',items:[],monsters:[{id:'a',eligible:true,seconds:10},{id:'b',eligible:true,seconds:20}]}]};
  const c=create_adventures({view,scope:()=> 'one',supported:()=>true,ready:()=>true,discovered:()=>true,owned_dlc:()=>[],changed:()=>{},request:async(path,payload)=>{if(!payload)return structuredClone(data);calls.push(payload);return {success:true};}});
- await c.refresh();assert.deepEqual(view.areas[0].selected_ids,[]);
- c.select('area','a',true);
+ await c.refresh();assert.deepEqual(view.areas[0].selected_ids,['a']);
  c.select('area','a',false);await c.refresh();assert.deepEqual(view.areas[0].selected_ids,[]);
  assert.equal(await c.start('area'),false);assert.equal(calls.length,0);
  c.select('area','b',true);assert.equal(await c.start('area'),true);assert.deepEqual(calls[0].monster_ids,['b']);
+});
+test('reload restores the active pool before saved choices and retains in-session drafts',async()=>{
+ const data={supported:true,active_area:'active',active_monsters:['b','missing'],areas:[
+  {id:'active',items:[],monsters:[{id:'a',eligible:true,seconds:10},{id:'b',eligible:true,seconds:20}]},
+  {id:'other',items:[],monsters:[{id:'c',eligible:true,seconds:10}]}]};
+ const view=create_adventure_view();
+ const c=create_adventures({view,scope:()=> 'one',supported:()=>true,ready:()=>true,discovered:()=>true,owned_dlc:()=>[],changed:()=>{},read_selections:()=>({active:['a'],other:['c']}),request:async()=>structuredClone(data)});
+ await c.refresh();assert.deepEqual(view.areas.map(a=>a.selected_ids),[['b'],['c']]);
+ c.select('active','b',false);c.select('active','a',true);
+ await c.refresh();assert.deepEqual(view.areas[0].selected_ids,['a']);
+ c.select('active','a',false);await c.refresh();assert.deepEqual(view.areas[0].selected_ids,[]);
+});
+test('late preference hydration fills untouched inactive areas without overwriting edits',async()=>{
+ let saved;const patches=[];const view=create_adventure_view();
+ const areas=['active','edited','untouched'].map(id=>({id,items:[],monsters:[{id:'a',eligible:true,seconds:10},{id:'b',eligible:true,seconds:10}]}));
+ const c=create_adventures({view,scope:()=> 'one',supported:()=>true,ready:()=>true,discovered:()=>true,owned_dlc:()=>[],changed:()=>{},read_selections:()=>saved,write_selections:patch=>patches.push(patch),request:async()=>({supported:true,active_area:'active',active_monsters:['a'],areas:structuredClone(areas)})});
+ await c.refresh();c.select('edited','a',true);
+ assert.deepEqual(patches,[{edited:['a']}]);
+ saved={active:['b'],edited:['b'],untouched:['b']};c.apply_selections();
+ assert.deepEqual(view.areas.map(a=>a.selected_ids),[['a'],['a'],['b']]);
+ saved={active:['b'],edited:['b'],untouched:['a']};c.apply_selections();
+ assert.deepEqual(view.areas.map(a=>a.selected_ids),[['a'],['a'],['a']]);
+ await c.refresh();assert.deepEqual(view.areas.map(a=>a.selected_ids),[['a'],['a'],['a']]);
+});
+test('server assignment changes update untouched selections but preserve edited drafts',async()=>{
+ const view=create_adventure_view(),data={supported:true,active_area:'one',active_monsters:['a'],areas:['one','two'].map(id=>({id,items:[],monsters:[{id:'a',eligible:true,seconds:10},{id:'b',eligible:true,seconds:10}]}))};
+ const c=create_adventures({view,scope:()=> 'one',supported:()=>true,ready:()=>true,discovered:()=>true,owned_dlc:()=>[],changed:()=>{},request:async()=>structuredClone(data)});
+ await c.refresh();data.active_area='two';data.active_monsters=['b'];await c.refresh();
+ assert.deepEqual(view.areas[1].selected_ids,['b']);
+ c.select('two','a',true);data.active_monsters=['a'];await c.refresh();
+ assert.deepEqual(view.areas[1].selected_ids,['a','b']);
+});
+test('a successfully started selection follows later server assignments',async()=>{
+ const view=create_adventure_view(),data={supported:true,active_area:'area',active_monsters:['a'],areas:[{id:'area',items:[],monsters:[{id:'a',eligible:true,seconds:10},{id:'b',eligible:true,seconds:10}]}]};
+ const c=create_adventures({view,scope:()=> 'one',supported:()=>true,ready:()=>true,discovered:()=>true,owned_dlc:()=>[],changed:()=>{},request:async(_path,payload)=>{
+  if(payload){data.active_monsters=[...payload.monster_ids];return {success:true};}return structuredClone(data);
+ }});
+ await c.refresh();c.select('area','a',false);c.select('area','b',true);
+ assert.equal(await c.start('area'),true);
+ data.active_monsters=['a'];await c.refresh();assert.deepEqual(view.areas[0].selected_ids,['a']);
 });
 test('switching servers cannot submit a selection captured from the previous instance',async()=>{
  const view=create_adventure_view();let server='first',writes=0;
@@ -101,7 +140,7 @@ test('server capability keeps the tab visible before rewards are ready and acros
 
 test('empty defaults and saved per-area choices survive controller recreation and areas rank by population',async()=>{
  let saved={};
- const options={scope:()=> 'one',supported:()=>true,ready:()=>true,discovered:()=>true,owned_dlc:()=>[],changed:()=>{},read_selections:()=>saved,write_selections:value=>{saved=structuredClone(value);},request:async()=>({supported:true,areas:[{id:'quiet',fighter_count:1,items:[],monsters:[{id:'a',eligible:true,seconds:10}]},{id:'busy',fighter_count:4,items:[],monsters:[{id:'b',eligible:true,seconds:10}]}]})};
+ const options={scope:()=> 'one',supported:()=>true,ready:()=>true,discovered:()=>true,owned_dlc:()=>[],changed:()=>{},read_selections:()=>saved,write_selections:value=>{saved={...saved,...structuredClone(value)};},request:async()=>({supported:true,areas:[{id:'quiet',fighter_count:1,items:[],monsters:[{id:'a',eligible:true,seconds:10}]},{id:'busy',fighter_count:4,items:[],monsters:[{id:'b',eligible:true,seconds:10}]}]})};
  const first=create_adventure_view(),controller=create_adventures({...options,view:first});
  await controller.refresh();assert.deepEqual(first.areas.map(a=>a.id),['busy','quiet']);assert.deepEqual(first.areas.map(a=>a.selected_ids),[[],[]]);
  controller.select('quiet','a',true);

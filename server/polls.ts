@@ -2,6 +2,7 @@ import { save_chat_parts, same_chat_parts, type ChatPart } from './chat_parts';
 import { chat_shadow_visibility, is_chat_shadowbanned } from './chat_shadowban';
 import { attach_translations } from './chat_translation';
 import { db } from './db';
+import { announcement_audience_sql } from './announcement-audience';
 import { get_poll_owner_key } from './poll-ownership';
 import { is_admin } from './admin_identity';
 
@@ -312,5 +313,5 @@ export function send_poll_discussion_message(client_id: number, poll_id: number,
 // Storage and translations are shared; audience and lifecycle remain domain-scoped.
 export function discussion_access(client_id: number, id: number, announcement = false): boolean {
 	return db.query(`SELECT 1 FROM polls WHERE id=? AND announcement=?
-		AND (deleted_at IS NULL OR ?=1)`).get(id, Number(announcement), Number(is_admin(client_id))) !== null;
+		AND (deleted_at IS NULL OR ?=1) AND (announcement=0 OR ${announcement_audience_sql(client_id, 'polls')})`).get(id, Number(announcement), Number(is_admin(client_id))) !== null;
 }

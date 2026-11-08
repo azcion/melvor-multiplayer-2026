@@ -4944,3 +4944,10 @@ header.mp-combat-toolbar { box-sizing: border-box; }
  .mp-adventure-overview { grid-template-columns: minmax(0, 1fr); }
  .mp-adventure-description { border-left: 0; border-top: 1px solid var(--mp-border-color,rgba(127,127,127,.2)); padding-left: 0; padding-top: 1.25rem; }
 }
+
+.mp-adventure-fighter-count { border: 0; border-radius: .35rem; padding: .2rem .45rem; color: inherit; background: rgba(255,255,255,.1); cursor: pointer; }
+.mp-adventure-fighter-count:disabled { cursor: default; }
+.swal2-html-container.mp-adventure-fighters-content { overflow: visible; max-height: none; }
+.mp-adventure-fighters-list { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; }
+.mp-adventure-fighter-badge { display: inline-flex; align-items: center; gap: .45rem; padding: .4rem .65rem; border-radius: .4rem; background: rgba(255,255,255,.1); }
+.mp-adventure-fighter-badge img { object-fit: contain; flex-shrink: 0; }

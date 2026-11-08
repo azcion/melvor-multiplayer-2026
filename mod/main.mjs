@@ -13,7 +13,8 @@ const SERVER_SCOPED_LEGACY_STORAGE_KEYS = [
 	'processed_economy_receipt_ids',
 	'processed_raid_cache_ids',
 	'raid_terminal_result',
-	'transfer_inventory'
+	'transfer_inventory',
+	'crucible_heat_expanded'
 ];
 const LOG_PREFIX = '[multiplayer] ';
 
@@ -143,6 +144,7 @@ let fighter_adventures = null;
 let adventures_module = null;
 let adventures_supported = false;
 let client_preferences_supported = false;
+let extended_preferences_supported = false;
 let client_preferences = null;
 let equipment_evidence = null;
 let combat_page_visible = false;
@@ -607,6 +609,8 @@ const state = ui.createStore({
 	chat_item_catalog: [],
 	chat_item_order_ids: [],
 	chat_recent_items: [],
+	announcement_audience_choices: [{ id: 'sae', label: 'MOD_MP_ANNOUNCEMENTS_SAE_ONLY' }],
+	chat_announcement_audience: 'sae',
 	chat_pending_sends: {},
 	chat_sending_conversations: {},
 	chat_reaction_choices: ['👍', '👎', '❤️', '😂', '😭', '💀', '👀', '🔥', '💯', '🎉', '🤔', '😮', '😬', '😡', '🗿', '👋', '👏', '😎'],
@@ -1188,10 +1192,12 @@ const state = ui.createStore({
 			current: this.crucible?.heat?.tier === index + 1 }));
 	},
 	load_crucible_heat_preference() {
-		this.crucible_panels_open.heat = true;
+		const saved = read_client_preference('crucible_heat_expanded');
+		this.crucible_panels_open.heat = typeof saved === 'boolean' ? saved : true;
 	},
 	toggle_crucible_heat() {
 		this.crucible_panels_open.heat = !this.crucible_panels_open.heat;
+		write_client_preference('crucible_heat_expanded', this.crucible_panels_open.heat);
 	},
 	get crucible_guide_length() { return CRUCIBLE_GUIDE_STEPS.length; },
 	get crucible_guide_title_id() { return CRUCIBLE_GUIDE_STEPS[this.crucible_guide_index][1]; },
@@ -2961,19 +2967,37 @@ function get_instance_storage_keys() {
 }
 
 const CLIENT_PREFERENCE_KEYS = ['chat_translation_preferences', 'chat_notification_preferences', 'listing_filters'];
+const EXTENDED_CLIENT_PREFERENCE_KEYS = ['adventure_selections', 'crucible_heat_expanded'];
+const CLIENT_PREFERENCE_BATCH_MS = 1000;
+
+function schedule_client_preference_sync(preferences) {
+	if (preferences.timer != null) return;
+	preferences.timer = setTimeout(() => {
+		preferences.timer = null;
+		if (preferences === current_client_preferences()) void sync_client_preferences();
+	}, CLIENT_PREFERENCE_BATCH_MS);
+}
+
+function client_preference_keys() {
+	if (!client_preferences_supported) return [];
+	return extended_preferences_supported ? [...CLIENT_PREFERENCE_KEYS, ...EXTENDED_CLIENT_PREFERENCE_KEYS] : CLIENT_PREFERENCE_KEYS;
+}
 
 function current_client_preferences() {
 	return client_preferences?.generation === session_generation ? client_preferences : null;
 }
 
 function read_client_preference(key) {
-	if (!CLIENT_PREFERENCE_KEYS.includes(key)) return get_instance_storage_item(key);
+	if (!client_preference_keys().includes(key)) {
+		const value = get_instance_storage_item(key);
+		return key === 'adventure_selections' && value === undefined ? get_instance_storage_item('adventure_target_choices') : value;
+	}
 	const preferences = current_client_preferences();
 	return preferences ? preferences.values[key] : get_instance_storage_item(key);
 }
 
 function merge_client_preference(key, value, patch) {
-	return key === 'listing_filters' ? patch :
+	return key === 'listing_filters' || key === 'crucible_heat_expanded' ? patch :
 		Object.fromEntries(Object.entries({ ...value, ...patch }).filter(([, entry]) => entry !== null));
 }
 
@@ -2986,11 +3010,43 @@ function persist_client_preference_outbox(preferences) {
 	} catch { /* Keep retrying in memory if device storage is unavailable. */ }
 }
 
+function patch_client_preference(key, patch) {
+	const preferences = current_client_preferences();
+	if (!preferences || !client_preference_keys().includes(key)) {
+		set_instance_storage_item(key, merge_client_preference(key, read_client_preference(key), patch));
+		if (preferences && [...CLIENT_PREFERENCE_KEYS, ...EXTENDED_CLIENT_PREFERENCE_KEYS].includes(key)) {
+			preferences.pending[key] = { ...preferences.pending[key], ...patch };
+			persist_client_preference_outbox(preferences);
+		}
+		return;
+	}
+	preferences.pending[key] = { ...preferences.pending[key], ...patch };
+	preferences.values[key] = merge_client_preference(key, preferences.values[key], patch);
+	preferences.edit_revision++;
+	persist_client_preference_outbox(preferences);
+	schedule_client_preference_sync(preferences);
+}
+
 function write_client_preference(key, value) {
 	const preferences = current_client_preferences();
-	if (!preferences || !CLIENT_PREFERENCE_KEYS.includes(key)) return set_instance_storage_item(key, value);
+	if (!preferences || !client_preference_keys().includes(key)) {
+		const previous = read_client_preference(key);
+		set_instance_storage_item(key, value);
+		if (preferences && [...CLIENT_PREFERENCE_KEYS, ...EXTENDED_CLIENT_PREFERENCE_KEYS].includes(key)) {
+			if (key === 'listing_filters' || key === 'crucible_heat_expanded') preferences.pending[key] = value;
+			else {
+				const before = previous ?? {};
+				const patch = Object.fromEntries([...new Set([...Object.keys(before), ...Object.keys(value)])]
+					.filter(name => before[name] !== value[name]).map(name => [name, value[name] ?? null]));
+				if (!Object.keys(patch).length) return;
+				preferences.pending[key] = { ...preferences.pending[key], ...patch };
+			}
+			persist_client_preference_outbox(preferences);
+		}
+		return;
+	}
 	let patch = value;
-	if (key !== 'listing_filters') {
+	if (key !== 'listing_filters' && key !== 'crucible_heat_expanded') {
 		const previous = preferences.values[key] ?? {};
 		patch = Object.fromEntries([...new Set([...Object.keys(previous), ...Object.keys(value)])]
 			.filter(name => previous[name] !== value[name]).map(name => [name, value[name] ?? null]));
@@ -2999,62 +3055,76 @@ function write_client_preference(key, value) {
 	}
 	preferences.pending[key] = patch;
 	preferences.values[key] = value;
+	preferences.edit_revision++;
 	persist_client_preference_outbox(preferences);
-	void sync_client_preferences();
+	schedule_client_preference_sync(preferences);
 }
 
 function apply_client_preferences() {
+	fighter_adventures?.apply_selections();
 	state.load_chat_translation_preferences();
 	state.load_chat_notification_preferences();
+	state.load_crucible_heat_preference();
 	const filters = read_client_preference('listing_filters');
+	const previous_filters = state.listing_filters;
 	state.listing_filters = Array.isArray(filters) ?
 		state.listing_filter_categories.filter(id => filters.includes(id)) : ['items'];
 	state.refresh_chat_cheat_badges?.();
 	state.chat_unread = state.get_chat_notification_unread();
 	update_chat_nav();
+	if (Array.isArray(previous_filters) && previous_filters.join(',') !== state.listing_filters.join(',')) {
+		state.market_current_page = 1;
+		if (state.is_connected && state.is_guild_member && !state.is_social_only)
+			void Promise.all([update_market_search(), state.refresh_crucible(true)])
+				.catch(e => error('Failed to refresh listing filters (%s)', e));
+	}
 }
 
 function start_client_preferences(client_id) {
-	if (!client_preferences_supported || !Number.isSafeInteger(client_id)) return;
+	if (!Number.isSafeInteger(client_id)) return;
 	const prefixes = [server_instance_storage_prefix, ...server_instance_storage_legacy_prefixes];
 	const legacy = {}, sources = {};
-	for (const key of CLIENT_PREFERENCE_KEYS) {
-		sources[key] = prefixes.map(prefix => prefix + key).filter(full_key => get_character_storage_item(full_key) !== undefined);
+	for (const key of client_preference_keys()) {
+		const legacy_keys = key === 'adventure_selections' ? [key, 'adventure_target_choices'] : [key];
+		sources[key] = legacy_keys.flatMap(name => prefixes.map(prefix => prefix + name))
+			.filter(full_key => get_character_storage_item(full_key) !== undefined);
 		if (sources[key].length) legacy[key] = get_character_storage_item(sources[key][0]);
 	}
 	const outbox = `mp:preferences:${server_host}:${client_id}`;
 	let pending = {};
 	try {
 		const saved = JSON.parse(localStorage.getItem(outbox));
-		pending = Object.fromEntries(CLIENT_PREFERENCE_KEYS.filter(key => Object.hasOwn(saved ?? {}, key))
+		pending = Object.fromEntries([...CLIENT_PREFERENCE_KEYS, ...EXTENDED_CLIENT_PREFERENCE_KEYS].filter(key => Object.hasOwn(saved ?? {}, key))
 			.map(key => [key, saved[key]]));
 	} catch { /* A missing or malformed outbox has no pending changes. */ }
 	if (client_preferences?.outbox === outbox)
 		pending = { ...pending, ...client_preferences.pending };
 	const values = { ...legacy };
-	for (const [key, patch] of Object.entries(pending)) values[key] = merge_client_preference(key, values[key], patch);
-	client_preferences = { generation: session_generation, outbox, pending, legacy, sources, values, loaded: false, busy: false };
+	for (const [key, patch] of Object.entries(pending))
+		if (client_preference_keys().includes(key)) values[key] = merge_client_preference(key, values[key], patch);
+	client_preferences = { generation: session_generation, outbox, pending, legacy, sources, values, loaded: false, busy: false, edit_revision: 0, timer: null };
 	apply_client_preferences();
 	void sync_client_preferences();
 }
 
 async function sync_client_preferences() {
 	const preferences = current_client_preferences();
-	if (!preferences || preferences.busy || (preferences.loaded && !Object.keys(preferences.pending).length)) return;
+	if (!preferences || !client_preferences_supported || preferences.busy || preferences.timer != null) return;
 	preferences.busy = true;
-	const changes = { ...preferences.pending };
+	const changes = Object.fromEntries(Object.entries(preferences.pending).filter(([key]) => client_preference_keys().includes(key)));
+	const edit_revision = preferences.edit_revision;
 	try {
 		const response = await api_post_without_economy_journal('/api/client/preferences/sync', { legacy: preferences.legacy, changes });
 		if (preferences !== current_client_preferences() || !response?.preferences ||
 			!Array.isArray(response.imported) || !Array.isArray(response.updated)) return;
-		for (const key of CLIENT_PREFERENCE_KEYS) {
+		for (const key of client_preference_keys()) {
 			if (response.imported.includes(key) && Object.hasOwn(preferences.legacy, key)) {
 				for (const full_key of preferences.sources[key]) remove_character_storage_item(full_key);
 				delete preferences.legacy[key];
 			}
 			if (response.updated.includes(key)) {
 				if (preferences.pending[key] === changes[key]) delete preferences.pending[key];
-				else if (key !== 'listing_filters') {
+				else if (key !== 'listing_filters' && key !== 'crucible_heat_expanded') {
 					const remaining = Object.fromEntries(Object.entries(preferences.pending[key] ?? {})
 						.filter(([name, value]) => changes[key][name] !== value));
 					if (Object.keys(remaining).length) preferences.pending[key] = remaining;
@@ -3072,12 +3142,14 @@ async function sync_client_preferences() {
 		error('Failed to sync multiplayer preferences (%s)', e);
 	} finally {
 		preferences.busy = false;
+		if (preferences === current_client_preferences() && preferences.edit_revision !== edit_revision &&
+			Object.keys(preferences.pending).some(key => client_preference_keys().includes(key))) schedule_client_preference_sync(preferences);
 	}
 }
 
 function prune_obsolete_character_preferences() {
 	const obsolete = ['charity_timeout', 'charity_bonus_timeout', 'legacy_market_payout_migration_1_5_6',
-		'expedition_work_tracking_mode', 'social_mode', 'crucible_heat_expanded', 'adventure_target_choices'];
+		'expedition_work_tracking_mode', 'social_mode'];
 	for (const prefix of ['', server_instance_storage_prefix, ...server_instance_storage_legacy_prefixes])
 		for (const key of obsolete) remove_character_storage_item(prefix + key);
 }
@@ -4530,6 +4602,7 @@ async function discover_api_contract() {
 	identity_account_recovery_supported = false;
 	adventures_supported = false;
 	client_preferences_supported = false;
+	extended_preferences_supported = false;
 	let minimum_supported_mod_version = null;
 	let discovered_wiki_url = null;
 	const major = await service_fetch(fetch, origin + '/api/versions', { method: 'GET' }, {
@@ -4544,6 +4617,7 @@ async function discover_api_contract() {
 			identity_account_recovery_supported = Array.isArray(body?.capabilities) && body.capabilities.includes('identity-account-recovery-v1');
 			rollback_server_supported = Array.isArray(body?.capabilities) && body.capabilities.includes('save-rollback-v1');
 			client_preferences_supported = Array.isArray(body?.capabilities) && body.capabilities.includes('client-preferences-v1');
+			extended_preferences_supported = client_preferences_supported && body.capabilities.includes('client-preferences-v2');
 			adventures_supported = Array.isArray(body?.capabilities) && body.capabilities.includes('fighter-adventures-v1');
 			return api_contract.select_api_major(response.status, body);
 		}
@@ -5948,15 +6022,28 @@ export async function setup(ctx) {
 		ready:()=>state.is_connected && rollback_client?.admitted() !== false,
 		request:(path,payload)=>payload?api_post(path,payload):api_get(path),
 		discovered:is_market_item_discovered,owned_dlc:()=>owned_dlc_namespaces,
+		read_selections:()=>read_client_preference('adventure_selections'),
+		write_selections:patch=>patch_client_preference('adventure_selections',patch),
 		changed:()=>{read_cache?.invalidate(key=>key.startsWith('/api/inbox')||key.includes('page=transfers'));update_transfer_inventory_nav(); if(state.is_transfer_page_visible) void update_inbox();}
 	});
 	state.adventure_drop_entries = [];
+	state.adventure_fighters = [];
+	state.adventure_fighters_multiplier = '1.00×';
 	state.get_adventure_area_name = area => game.combatAreas.getObjectByID(area.id)?.name ?? area.name;
 	state.get_adventure_monster_name = monster => game.monsters.getObjectByID(monster.id)?.name ?? monster.name;
 	state.adventure_reason = reason => { const key = ({ 'Not available yet': 'MOD_MP_ADVENTURE_NOT_AVAILABLE', 'Prepare your Fighter first.': 'MOD_MP_ADVENTURE_PREPARE', 'More Hitpoints required.': 'MOD_MP_ADVENTURE_HP_REQUIRED', 'Select food in your first food slot.': 'MOD_MP_ADVENTURE_SELECT_FOOD', 'Selected food cannot keep up with incoming damage.': 'MOD_MP_ADVENTURE_FOOD_INSUFFICIENT' })[reason]; return key ? getLangString(key) : reason; };
 	state.get_adventure_monster_icon = id => game.monsters.getObjectByID(id)?.media ?? assets.getURI('assets/media/main/question.png');
 	state.get_adventure_fighter_icon = () => ctx.getResourceUrl('assets/colosseum.png');
 	state.get_adventure_area_icon = id => game.combatAreas.getObjectByID(id)?.media ?? '';
+	state.show_adventure_fighters = async area_id => {
+		if (!await fighter_adventures.refresh()) return;
+		const area = state.adventures.areas.find(area => area.id === area_id);
+		if (!area?.fighters) return;
+		if (queue_modal(state.get_adventure_area_name(area), 'adventure-fighters-modal', '', {showCloseButton: true, confirmButtonText: getLangString('MOD_MP_BUTTON_CLOSE'), buttonsStyling: false, width: '440px', customClass: {htmlContainer: 'mp-adventure-fighters-content', confirmButton: 'btn btn-primary'}}, false, false)) {
+			state.adventure_fighters = area.fighters;
+			state.adventure_fighters_multiplier = Number(area.group_multiplier ?? 1).toFixed(2) + '×';
+		}
+	};
 	state.show_adventure_drops = area_id => {
 		const area = state.adventures.areas.find(area => area.id === area_id);
 		if (!area?.ready) return;

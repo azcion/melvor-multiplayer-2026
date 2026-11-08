@@ -2,6 +2,7 @@ import { DEV_BADGES, get_dev_badge_labels } from './account_tags';
 import { petition_discussion_id } from './petition-discussions';
 import { petition_discussion_visibility } from './petition-discussion-visibility';
 import { db } from './db';
+import { announcement_audience_sql, announcement_read_watermark_sql } from './announcement-audience';
 import { shadowed_cutoff } from './shadowed';
 import { chat_shadow_visibility } from './chat_shadowban';
 import { protected_text_ranges, chinese_term_ranges } from './translation_terms';
@@ -262,15 +263,15 @@ export function has_unread_person_tag(viewer_id: number, conversation: {
 }): boolean {
 	if (conversation.unread_count <= 0 || conversation.conversation_id < 1) return false;
 	const kind = conversation.conversation_kind;
-	if (kind === 'announcements') return db.query<{ tagged: number }, [number, number, number]>(`
+	if (kind === 'announcements') return db.query<{ tagged: number }, [number, number, number, number]>(`
 		SELECT EXISTS(SELECT 1 FROM polls message
 		JOIN poll_translation_jobs job ON job.source_kind='poll' AND job.content_id=message.id
 		JOIN poll_message_bodies body ON body.job_id=job.id
-		WHERE message.announcement=1 AND message.deleted_at IS NULL AND message.creator_id!=?
-		AND message.id>COALESCE((SELECT last_read_message_id FROM announcement_read_state WHERE client_id=?),0)
+		WHERE message.announcement=1 AND message.deleted_at IS NULL AND ${announcement_audience_sql(viewer_id, 'message')} AND message.creator_id!=?
+		AND message.id>${announcement_read_watermark_sql('message')}
 		AND EXISTS(SELECT 1 FROM json_each(body.parts) part WHERE json_extract(part.value,'$.type')='person'
 			AND json_extract(part.value,'$.client_id')=?)) AS tagged
-	`).get(viewer_id, viewer_id, viewer_id)?.tagged === 1;
+	`).get(viewer_id, viewer_id, viewer_id, viewer_id)?.tagged === 1;
 	const domains: Record<string, [string, string]> = {
 		private: ['chat', 'conversation_id'], guild: ['guild_chat', 'guild_id'],
 		alliance: ['alliance_chat', 'alliance_id'], global: ['global_chat', 'channel'],

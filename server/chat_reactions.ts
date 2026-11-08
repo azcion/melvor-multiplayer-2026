@@ -3,6 +3,7 @@ import { petition_discussion_visibility } from './petition-discussion-visibility
 import { is_admin } from './admin_identity';
 import { discussion_access } from './polls';
 import { can_delete_announcement } from './announcements';
+import { announcement_audience_sql } from './announcement-audience';
 import { db } from './db';
 import { chat_shadow_visibility } from './chat_shadowban';
 import { can_access_support_conversation } from './support_chat';
@@ -68,7 +69,7 @@ const conversation_columns: Record<Exclude<ChatMessageKind, 'global' | 'testers'
 export function message_is_visible(client_id: number, kind: ChatMessageKind, conversation_id: number, message_id: number, include_moderated = false): boolean {
 	if (kind === 'petition-discussion') conversation_id = petition_discussion_id(conversation_id) ?? conversation_id;
 	if (kind === 'testers') return false;
-	if (kind === 'announcements') return conversation_id === 1 && db.query(`SELECT 1 FROM polls WHERE id=? AND announcement=1 AND (deleted_at IS NULL OR ?=1)`).get(message_id, Number(include_moderated || is_admin(client_id))) !== null;
+	if (kind === 'announcements') return conversation_id === 1 && db.query(`SELECT 1 FROM polls WHERE id=? AND announcement=1 AND (deleted_at IS NULL OR ?=1) AND ${announcement_audience_sql(client_id, 'polls')}`).get(message_id, Number(include_moderated || is_admin(client_id))) !== null;
 	if (kind === 'private') {
 		return db.query<{ visible: number }, [number, number, number, number, number, number]>(
 			'SELECT EXISTS(SELECT 1 FROM `chat_messages` AS message ' +
@@ -261,7 +262,7 @@ export function message_details(viewer_id: number, kind: ChatMessageKind, conver
 		WHERE reaction.message_id = ? ORDER BY reaction.created_at, client.id`
 	).all(message_id);
 	let reads: string;
-	let values: number[];
+	let values: (number | string)[];
 	if (kind === 'private') {
 		reads = 'SELECT client_id FROM chat_message_reads WHERE message_id = ?';
 		values = [message_id];
@@ -270,6 +271,11 @@ export function message_details(viewer_id: number, kind: ChatMessageKind, conver
 			UNION SELECT membership.client_id FROM support_member_message_reads read
 			JOIN support_team_memberships membership ON membership.id = read.membership_id WHERE read.message_id = ?`;
 		values = [message_id, message_id];
+	} else if (kind === 'announcements') {
+		reads = `SELECT client_id FROM announcement_read_state WHERE ?='' AND last_read_message_id >= ?
+			UNION SELECT client_id FROM announcement_audience_read_state WHERE audience=? AND last_read_message_id >= ?`;
+		const audience = db.query<{ audience: string }, [number]>('SELECT audience FROM polls WHERE id=?').get(message_id)!.audience;
+		values = [audience, message_id, audience, message_id];
 	} else {
 		const table = kind === 'petition-discussion' ? 'petition_discussion_read_state' : kind === 'poll-discussion' || kind === 'announcement-discussion' ? 'poll_discussion_read_state' :
 			kind === 'announcements' ? 'announcement_read_state' : kind === 'testers' ? 'tester_chat_read_state' : kind + '_chat_read_state';
@@ -277,7 +283,7 @@ export function message_details(viewer_id: number, kind: ChatMessageKind, conver
 		reads = `SELECT client_id FROM ${table} WHERE last_read_message_id >= ?${scope}`;
 		values = scope ? [message_id, conversation_id] : [message_id];
 	}
-	const seen = db.query<{ client_id: number; display_name: string; icon_id: string }, number[]>(
+	const seen = db.query<{ client_id: number; display_name: string; icon_id: string }, (number | string)[]>(
 		`SELECT id AS client_id, display_name, icon_id FROM clients WHERE id IN (${reads}) ORDER BY display_name COLLATE NOCASE, id`
 	).all(...values);
 	return { reactions, seen };

@@ -472,7 +472,7 @@
 						<article class="mp-combat-panel mp-adventure-area" v-for="area of state.adventures.areas" :key="area.id" :class="{ 'mp-adventure-area-active': state.adventures.active_area === area.id }">
 							<div class="mp-combat-panel-body">
 								<img v-if="state.get_adventure_area_icon(area.id)" class="mp-adventure-area-art" :src="state.get_adventure_area_icon(area.id)" alt="" aria-hidden="true">
-								<h4>{{ state.get_adventure_area_name(area) }} <span v-if="area.fighter_count > 0" class="mp-adventure-fighter-count"><img :src="state.get_adventure_fighter_icon()" :alt="getLangString('MOD_MP_ADVENTURE_FIGHTERS')" width="20" height="20"> {{ area.fighter_count }}</span></h4>
+								<h4>{{ state.get_adventure_area_name(area) }} <button v-if="area.fighter_count > 0" type="button" class="mp-adventure-fighter-count" :disabled="!area.fighters" :aria-label="getLangString('MOD_MP_ADVENTURE_FIGHTERS') + ' · ' + area.fighter_count" @click="state.show_adventure_fighters(area.id)"><img :src="state.get_adventure_fighter_icon()" alt="" width="20" height="20"> {{ area.fighter_count }}</button></h4>
 								<div class="mp-adventure-monsters">
 									<div v-for="monster of area.monsters" :key="monster.id" class="mp-adventure-monster">
 										<button type="button" class="mp-adventure-monster-badge" :class="{ 'mp-selected': area.selected_ids.includes(monster.id) }" :aria-pressed="area.selected_ids.includes(monster.id)" :disabled="state.adventures.busy" @click="state.adventure_select(area.id, monster.id, !area.selected_ids.includes(monster.id))">
@@ -1218,6 +1218,7 @@
 					<div class="mp-chat-message" :class="{ 'mp-chat-message-deleted': message.deleted === true, 'mp-chat-message-own': message.sent_by_viewer === true || (message.sent_by_viewer === undefined && message.sender_id === state.chat_client_id) }" v-for="message in state.chat_messages" :key="message.message_id">
 						<div class="mp-chat-message-meta"><button type="button" class="mp-chat-message-author" @click="state.show_chat_message_member(message)" :disabled="!message.sender_id"><img class="mp-chat-message-avatar" :src="state.get_chat_message_icon(message)" alt=""><span class="font-w600">{{ message.sender.display_name }}</span></button><button type="button" class="mp-chat-message-timestamp" @click="state.show_chat_message_actions(message)"><time :datetime="state.format_chat_datetime(message.created_at)">{{ state.format_chat_time(message.created_at) }}</time></button></div>
 						<div class="mp-chat-message-bubble">
+							<div class="mp-chat-deleted-label" v-for="option in state.announcement_audience_choices.filter(option => option.id === message.audience)" :key="option.id"><lang-string :lang-id="option.label"></lang-string></div>
 							<div class="mp-chat-deleted-label" v-if="message.deleted"><lang-string lang-id="MOD_MP_CHAT_DELETED"></lang-string></div>
 							<div class="mp-chat-message-content" v-if="message.petition_event === 'aye' || message.petition_event === 'nay'"><span class="badge" :class="message.petition_event === 'aye' ? 'badge-success' : 'badge-danger'"><lang-string :lang-id="message.petition_event === 'aye' ? 'MOD_MP_COUNCIL_AYE' : 'MOD_MP_COUNCIL_NAY'"></lang-string></span></div>
 							<div class="mp-chat-message-content" :style="state.get_chat_highlight_style(message)" :class="{ 'mp-chat-tagged': state.is_chat_message_tagged(message), 'mp-chat-message-translating': state.get_chat_message_content(message) === getLangString('MOD_MP_CHAT_TRANSLATING') }" v-else><mp-chat-message-body :parts="state.get_chat_message_document(message)"></mp-chat-message-body></div>
@@ -1243,6 +1244,7 @@
 					</div>
 					<form v-else @submit="state.send_chat_message($event)">
 						<div class="mp-chat-highlight-preview" :style="state.get_chat_draft_highlight_style()"><mp-chat-composer :value="state.get_chat_draft_document()" :disabled="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && !state.messaging_enabled ? 'disabled' : null" :placeholder="state.get_chat_compose_placeholder()"></mp-chat-composer></div>
+						<label v-for="option in state.announcement_audience_choices.filter(option => state.selected_chat_conversation?.conversation_kind === 'announcements' && state.selected_chat_conversation?.announcement_audiences?.includes(option.id))" :key="option.id"><input type="checkbox" :checked="state.chat_announcement_audience === option.id" @change="state.chat_announcement_audience = $event.target.checked ? option.id : ''" :disabled="state.chat_sending"> <lang-string :lang-id="option.label"></lang-string></label>
 						<div class="mp-chat-compose-actions">
 							<div class="mp-chat-compose-tools">
 								<button type="button" class="btn btn-secondary mp-chat-insert-person" @mousedown.prevent @click="state.open_chat_person_picker()" :disabled="(state.selected_chat_conversation?.conversation_kind || 'private') === 'private' && !state.messaging_enabled"><lang-string lang-id="MOD_MP_CHAT_TAG_PERSON">@Person</lang-string></button>
@@ -1257,7 +1259,7 @@
 									<img class="skill-icon-xxs" :src="state.get_item_icon('melvorD:Message_In_A_Bottle')" alt="">
 									<span class="spinner-border spinner-border-sm text-primary" role="status" v-if="state.chat_budget.credits < state.chat_budget.maximum"></span>
 								</button>
-								<button type="submit" class="btn btn-primary" :disabled="!state.chat_can_send"><span class="spinner-border spinner-border-sm text-light mr-2" role="status" v-if="state.chat_sending"></span><lang-string :lang-id="state.selected_chat_conversation?.conversation_kind === 'announcements' ? 'MOD_MP_ANNOUNCEMENTS_POST' : 'MOD_MP_CHAT_SEND'"></lang-string></button>
+								<button type="submit" class="btn btn-primary" :disabled="!state.chat_can_send"><span class="spinner-border spinner-border-sm text-light mr-2" role="status" v-if="state.chat_sending"></span><lang-string lang-id="MOD_MP_CHAT_SEND"></lang-string></button>
 							</div>
 						</div>
 					</form>
@@ -3721,5 +3723,12 @@
 				<span class="mp-raid-drop-row-label" :class="{ 'mp-adventure-drop-unavailable': !drop.eligible }">{{ state.get_item_name(drop.item_id) }} · {{ getLangString('MOD_MP_ADVENTURE_DROP_PER_HOUR').replace('%s', drop.per_hour.toLocaleString(undefined, {maximumFractionDigits: 2})) }}<span v-if="!drop.eligible" class="sr-only"><lang-string lang-id="MOD_MP_ADVENTURE_NOT_DISCOVERED"></lang-string></span></span>
 			</li>
 		</ul>
+	</div>
+</template>
+
+<template id="template-mp-adventure-fighters-modal">
+	<p v-if="state.adventure_fighters.length > 1">{{ getLangString('MOD_MP_ADVENTURE_FIGHTERS_DESCRIPTION').replace('%s', state.adventure_fighters_multiplier) }}</p>
+	<div class="mp-adventure-fighters-list">
+		<span class="mp-adventure-fighter-badge" v-for="fighter of state.adventure_fighters" :key="fighter.client_id"><img :src="state.get_avatar_icon(fighter.icon_id)" alt="" width="32" height="32"><strong>{{ fighter.display_name }}</strong></span>
 	</div>
 </template>

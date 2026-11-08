@@ -105,3 +105,83 @@ test('pages incremental announcements without skipping an intervening batch', as
  expect(next.json.messages.map((message:any)=>message.message_id)).toEqual(ids.slice(20));
  expect(next.json.has_more).toBe(false);
 });
+
+test('limits SAE-only announcements, discussion and unread state to SAE users and admins', async () => {
+ const author = await register_client('SAE author', undefined, '1.7.0');
+ const sae = await register_client('SAE reader', undefined, '1.7.0');
+ const reader = await register_client('Ordinary reader', undefined, '1.7.0');
+ const admin = await register_client('SAE admin', undefined, '1.7.0');
+ await db_run("INSERT INTO melvor_accounts(id,cloud_username,playfab_id,created_at) VALUES(12,'sae-dev','sae-dev',1)");
+ await db_run('UPDATE clients SET melvor_account_id=12 WHERE id=?',[author.client_id]);
+ await db_run("UPDATE clients SET client_identifier='ANNOUNCEMENT-ADMIN-OLDER' WHERE client_identifier='ANNOUNCEMENT-ADMIN'");
+ await db_run("UPDATE clients SET client_identifier='ANNOUNCEMENT-ADMIN' WHERE id=?",[admin.client_id]);
+ await db_run("INSERT INTO client_runtime_snapshots(client_id,mod_version,active_mods,reported_at) VALUES(?,'1.7.0',?,1) ON CONFLICT(client_id) DO UPDATE SET active_mods=excluded.active_mods",[sae.client_id,JSON.stringify(['Super Awesome Expansion!'])]);
+ const author_inbox = await get_json_with_session<any>('/api/chat/conversations',author.session_token);
+ const reader_inbox = await get_json_with_session<any>('/api/chat/conversations',reader.session_token);
+ const sae_before = await get_json_with_session<any>('/api/chat/conversations',sae.session_token);
+ expect(author_inbox.json.conversations.find((c:any)=>c.conversation_kind==='announcements').announcement_audiences).toContain('sae');
+ expect(reader_inbox.json.conversations.find((c:any)=>c.conversation_kind==='announcements').announcement_audiences).not.toContain('sae');
+ const body={conversation_kind:'announcements',conversation_id:1,content:'SAE news',audience:'sae',idempotency_key:crypto.randomUUID()};
+ expect((await post(send,body,reader.session_token)).status).toBe(403);
+ const posted=await post_json<any>(send,body,author.session_token);
+ expect(posted.response.status).toBe(200);
+ const id=posted.json.message.message_id;
+ expect(posted.json.message.audience).toBe('sae');
+ const hidden_inbox = await get_json_with_session<any>('/api/chat/conversations',reader.session_token);
+ const sae_inbox = await get_json_with_session<any>('/api/chat/conversations',sae.session_token);
+ const announcement = (result:any) => result.json.conversations.find((c:any)=>c.conversation_kind==='announcements');
+ expect(announcement(hidden_inbox).unread_count).toBe(announcement(reader_inbox).unread_count);
+ expect(announcement(hidden_inbox).latest_message?.message_id).not.toBe(id);
+ expect(announcement(sae_inbox).unread_count).toBe(announcement(sae_before).unread_count+1);
+ expect(announcement(sae_inbox).latest_message.message_id).toBe(id);
+ expect((await post(send,{...body,audience:''},author.session_token)).status).toBe(400);
+ const hidden=await get_json_with_session<any>(feed,reader.session_token);
+ expect(hidden.json.messages.some((m:any)=>m.message_id===id)).toBe(false);
+ expect(hidden.json.discussion_unread_counts[id]).toBeUndefined();
+ for (const viewer of [sae,admin]) {
+  const visible=await get_json_with_session<any>(feed,viewer.session_token);
+  expect(visible.json.messages).toContainEqual(expect.objectContaining({message_id:id,audience:'sae'}));
+ }
+ const discussion='/api/chat/messages?conversation_kind=announcement-discussion&conversation_id='+id;
+ expect((await get_json_with_session<any>(discussion,reader.session_token)).json.messages).toBeUndefined();
+ expect((await post_json<any>('/api/chat/messages/reaction',{conversation_kind:'announcements',conversation_id:1,message_id:id,reaction:'👍',reacted:true},reader.session_token)).json.success).not.toBe(true);
+ expect((await post(send,{conversation_kind:'announcement-discussion',conversation_id:id,content:'Reply',idempotency_key:crypto.randomUUID()},reader.session_token)).status).toBe(400);
+});
+
+test('keeps targeted announcements unread until the eligible audience is read', async () => {
+ const author = await register_client('Audience transition author', undefined, '1.7.0');
+ const reader = await register_client('Audience transition reader', undefined, '1.7.0');
+ await db_run('UPDATE clients SET melvor_account_id=12 WHERE id=?',[author.client_id]);
+ const mods = JSON.stringify(['Super Awesome Expansion!']);
+ const set_mods = async (client_id:number, active_mods:string) => db_run(
+  "INSERT INTO client_runtime_snapshots(client_id,mod_version,active_mods,reported_at) VALUES(?,'1.7.0',?,1) ON CONFLICT(client_id) DO UPDATE SET active_mods=excluded.active_mods", [client_id, active_mods]);
+ await set_mods(author.client_id, mods);
+ const targeted = await post_json<any>(send,{conversation_kind:'announcements',conversation_id:1,
+  content:'Audience mention',parts:[{type:'text',text:'Hello '},{type:'person',client_id:reader.client_id}],
+  audience:'sae',idempotency_key:crypto.randomUUID()},author.session_token);
+ const id = targeted.json.message.message_id;
+ const public_post = await post_json<any>(send,{conversation_kind:'announcements',conversation_id:1,
+  content:'Public news',idempotency_key:crypto.randomUUID()},author.session_token);
+ expect(public_post.json.message.message_id).toBeGreaterThan(id);
+ for (let index=0;index<20;index++) await post_json<any>(send,{conversation_kind:'announcements',conversation_id:1,
+  content:'Newer public news '+index,idempotency_key:crypto.randomUUID()},author.session_token);
+ await get_json_with_session<any>(feed,reader.session_token);
+ const details = `/api/chat/messages/details?conversation_kind=announcements&conversation_id=1&message_id=${id}`;
+ expect((await get_json_with_session<any>(details,author.session_token)).json.seen.some((c:any)=>c.client_id===reader.client_id)).toBe(false);
+ await set_mods(reader.client_id, mods);
+ const inbox = await get_json_with_session<any>('/api/chat/conversations',reader.session_token);
+ const announcements = inbox.json.conversations.find((c:any)=>c.conversation_kind==='announcements');
+ expect(announcements.unread_count).toBeGreaterThan(0);
+ expect(announcements.unread_tagged).toBe(true);
+ const newest = await get_json_with_session<any>(feed,reader.session_token);
+ expect(newest.json.messages.some((m:any)=>m.message_id===id)).toBe(false);
+ const older = await get_json_with_session<any>(feed+'&before='+newest.json.messages[0].message_id,reader.session_token);
+ expect(older.json.messages.some((m:any)=>m.message_id===id)).toBe(true);
+ const read_inbox = await get_json_with_session<any>('/api/chat/conversations',reader.session_token);
+ expect(read_inbox.json.conversations.find((c:any)=>c.conversation_kind==='announcements').unread_count).toBe(0);
+ expect((await get_json_with_session<any>(details,author.session_token)).json.seen.some((c:any)=>c.client_id===reader.client_id)).toBe(true);
+ await set_mods(reader.client_id, '[]');
+ await set_mods(reader.client_id, mods);
+ const reenabled = await get_json_with_session<any>('/api/chat/conversations',reader.session_token);
+ expect(reenabled.json.conversations.find((c:any)=>c.conversation_kind==='announcements').unread_count).toBe(0);
+});

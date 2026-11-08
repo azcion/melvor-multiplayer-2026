@@ -25,9 +25,10 @@ export function create_adventure_view() {
 }
 export function create_adventures({view,scope,supported,ready,request,discovered,owned_dlc,changed,read_selections=()=>({}),write_selections=()=>{},now=Date.now}) {
 	let current='',epoch=0,login=true,last=0,refresh_sequence=0;
+	const edited_areas=new Set();
 	function sync() {
 		const next=scope(); if(next===current) {view.supported=supported();return;}
-		current=next;epoch++;login=true;last=0;Object.assign(view,create_adventure_view(),{supported:supported()});
+		current=next;epoch++;login=true;last=0;edited_areas.clear();Object.assign(view,create_adventure_view(),{supported:supported()});
 	}
 	async function refresh() {
 		sync(); if(!supported()) return false;
@@ -39,8 +40,13 @@ export function create_adventures({view,scope,supported,ready,request,discovered
 			const previous=view.areas.find(a=>a.id===area.id);
 			const saved=read_selections();
 			area.monsters??=[];
-			area.selected_ids=previous?.selected_ids?.filter(id=>area.monsters.some(m=>m.id===id))??
-				(Array.isArray(saved?.[area.id])?saved[area.id].filter(id=>area.monsters.some(m=>m.id===id)):[]);
+			const initial=area.id===data.active_area&&Array.isArray(data.active_monsters)?data.active_monsters:saved?.[area.id];
+			const assignment_changed=area.id===data.active_area&&Array.isArray(data.active_monsters)&&
+				(view.active_area!==data.active_area||view.active_monsters.length!==data.active_monsters.length||
+					data.active_monsters.some(id=>!view.active_monsters.includes(id)));
+			const selection=assignment_changed&&!edited_areas.has(area.id)?data.active_monsters:previous?.selected_ids;
+			area.selected_ids=(selection??(Array.isArray(initial)?initial:[]))
+				.filter(id=>area.monsters.some(m=>m.id===id));
 			update_area_estimate(area);
 		}
 		data.areas.sort((a,b)=>(b.fighter_count??0)-(a.fighter_count??0));
@@ -71,6 +77,7 @@ export function create_adventures({view,scope,supported,ready,request,discovered
 			if(name==='start') {
 				const selected_area=view.areas.find(a=>a.id===payload.area_id);
 				if(selected_area)selected_area.selected_ids=[...payload.monster_ids];
+				edited_areas.delete(payload.area_id);
 			}
 			await refresh();return generation===epoch;
 		} catch {sync();if(generation===epoch&&name!=='check-in')view.error='MOD_MP_ADVENTURE_REOPEN_ERROR';return false;}
@@ -78,7 +85,16 @@ export function create_adventures({view,scope,supported,ready,request,discovered
 	}
 	return {
 		refresh,
-		reset() { current=scope();epoch++;login=true;last=0;Object.assign(view,create_adventure_view(),{supported:supported()}); },
+		reset() { current=scope();epoch++;login=true;last=0;edited_areas.clear();Object.assign(view,create_adventure_view(),{supported:supported()}); },
+		apply_selections() {
+			sync();const saved=read_selections();let updated=false;
+			for(const area of view.areas) {
+				if(area.id===view.active_area||edited_areas.has(area.id)||!Array.isArray(saved?.[area.id]))continue;
+				area.selected_ids=saved[area.id].filter(id=>area.monsters.some(m=>m.id===id));
+				update_area_estimate(area);updated=true;
+			}
+			if(updated)changed();
+		},
 		async tick() {
 			sync();if(!supported()||!ready()||view.busy||(!login&&now()-last<300000))return;
 			try {
@@ -102,7 +118,8 @@ export function create_adventures({view,scope,supported,ready,request,discovered
 			const area=view.areas.find(a=>a.id===area_id);
 			if(!area?.monsters.some(m=>m.id===monster_id))return;
 			area.selected_ids=area.monsters.filter(m=>m.id===monster_id?enabled:area.selected_ids.includes(m.id)).map(m=>m.id);
-			write_selections(Object.fromEntries(view.areas.map(a=>[a.id,[...a.selected_ids]])));
+			edited_areas.add(area_id);
+			write_selections({[area_id]:[...area.selected_ids]});
 			update_area_estimate(area);changed();
 		},
 		stop:()=>action('stop'),
