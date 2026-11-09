@@ -8,10 +8,10 @@ const send = '/api/chat/messages/send?capabilities=global-chat-v1,guild-chat-v1,
 const del = '/api/chat/messages/delete';
 
 test('serves the mandatory feed to supported clients, shares Highlight eligibility and preserves announcements and discussion', async () => {
- const author = await register_client('Announcement author',undefined,'1.7.0');
- const sibling = await register_client('Author sibling',undefined,'1.7.0');
- const reader = await register_client('Announcement reader',undefined,'1.7.0');
- const admin = await register_client('Announcement admin',undefined,'1.7.0');
+ const author = await register_client('Announcement author',undefined,'1.7.9');
+ const sibling = await register_client('Author sibling',undefined,'1.7.9');
+ const reader = await register_client('Announcement reader',undefined,'1.7.9');
+ const admin = await register_client('Announcement admin',undefined,'1.7.9');
  await db_run("INSERT INTO melvor_accounts(id,cloud_username,playfab_id,created_at) VALUES(15,'announcement-dev','announcement-dev',1)");
  await db_run('UPDATE clients SET melvor_account_id=15,dev_tag_visible=0 WHERE id IN (?,?)',[author.client_id,sibling.client_id]);
  await db_run("UPDATE clients SET client_identifier='ANNOUNCEMENT-ADMIN' WHERE id=?",[admin.client_id]);
@@ -58,8 +58,8 @@ test('serves the mandatory feed to supported clients, shares Highlight eligibili
 });
 
 test('authors delete ordinary messages globally while retaining rows and historical personal hides',async()=>{
- const pair=await make_guildmates('Deleting admin','Deleting author','Deletion Guild',{first:'1.7.0',second:'1.7.0'});
- const outsider=await register_client('Deletion outsider',undefined,'1.7.0');
+ const pair=await make_guildmates('Deleting admin','Deleting author','Deletion Guild',{first:'1.7.9',second:'1.7.9'});
+ const outsider=await register_client('Deletion outsider',undefined,'1.7.9');
  // Release the earlier fixture's configured identifier before assigning it to this participant.
  await db_run("UPDATE clients SET client_identifier='ANNOUNCEMENT-ADMIN-PREVIOUS' WHERE client_identifier='ANNOUNCEMENT-ADMIN'");
  await db_run("UPDATE clients SET client_identifier='ANNOUNCEMENT-ADMIN' WHERE id=?",[pair.first_id]);
@@ -89,8 +89,8 @@ test('authors delete ordinary messages globally while retaining rows and histori
 });
 
 test('pages incremental announcements without skipping an intervening batch', async () => {
- const author = await register_client('Pagination author', undefined, '1.7.0');
- const reader = await register_client('Pagination reader', undefined, '1.7.0');
+ const author = await register_client('Pagination author', undefined, '1.7.9');
+ const reader = await register_client('Pagination reader', undefined, '1.7.9');
  await db_run('UPDATE clients SET melvor_account_id=15 WHERE id=?',[author.client_id]);
  const ids: number[] = [];
  for (let index=0;index<25;index++) {
@@ -107,15 +107,15 @@ test('pages incremental announcements without skipping an intervening batch', as
 });
 
 test('limits SAE-only announcements, discussion and unread state to SAE users and admins', async () => {
- const author = await register_client('SAE author', undefined, '1.7.0');
- const sae = await register_client('SAE reader', undefined, '1.7.0');
- const reader = await register_client('Ordinary reader', undefined, '1.7.0');
- const admin = await register_client('SAE admin', undefined, '1.7.0');
+ const author = await register_client('SAE author', undefined, '1.7.9');
+ const sae = await register_client('SAE reader', undefined, '1.7.9');
+ const reader = await register_client('Ordinary reader', undefined, '1.7.9');
+ const admin = await register_client('SAE admin', undefined, '1.7.9');
  await db_run("INSERT INTO melvor_accounts(id,cloud_username,playfab_id,created_at) VALUES(12,'sae-dev','sae-dev',1)");
  await db_run('UPDATE clients SET melvor_account_id=12 WHERE id=?',[author.client_id]);
  await db_run("UPDATE clients SET client_identifier='ANNOUNCEMENT-ADMIN-OLDER' WHERE client_identifier='ANNOUNCEMENT-ADMIN'");
  await db_run("UPDATE clients SET client_identifier='ANNOUNCEMENT-ADMIN' WHERE id=?",[admin.client_id]);
- await db_run("INSERT INTO client_runtime_snapshots(client_id,mod_version,active_mods,reported_at) VALUES(?,'1.7.0',?,1) ON CONFLICT(client_id) DO UPDATE SET active_mods=excluded.active_mods",[sae.client_id,JSON.stringify(['Super Awesome Expansion!'])]);
+ await db_run("INSERT INTO client_runtime_snapshots(client_id,mod_version,active_mods,reported_at) VALUES(?,'1.7.9',?,1) ON CONFLICT(client_id) DO UPDATE SET active_mods=excluded.active_mods",[sae.client_id,JSON.stringify(['Super Awesome Expansion!'])]);
  const author_inbox = await get_json_with_session<any>('/api/chat/conversations',author.session_token);
  const reader_inbox = await get_json_with_session<any>('/api/chat/conversations',reader.session_token);
  const sae_before = await get_json_with_session<any>('/api/chat/conversations',sae.session_token);
@@ -149,12 +149,12 @@ test('limits SAE-only announcements, discussion and unread state to SAE users an
 });
 
 test('keeps targeted announcements unread until the eligible audience is read', async () => {
- const author = await register_client('Audience transition author', undefined, '1.7.0');
- const reader = await register_client('Audience transition reader', undefined, '1.7.0');
+ const author = await register_client('Audience transition author', undefined, '1.7.9');
+ const reader = await register_client('Audience transition reader', undefined, '1.7.9');
  await db_run('UPDATE clients SET melvor_account_id=12 WHERE id=?',[author.client_id]);
  const mods = JSON.stringify(['Super Awesome Expansion!']);
  const set_mods = async (client_id:number, active_mods:string) => db_run(
-  "INSERT INTO client_runtime_snapshots(client_id,mod_version,active_mods,reported_at) VALUES(?,'1.7.0',?,1) ON CONFLICT(client_id) DO UPDATE SET active_mods=excluded.active_mods", [client_id, active_mods]);
+  "INSERT INTO client_runtime_snapshots(client_id,mod_version,active_mods,reported_at) VALUES(?,'1.7.9',?,1) ON CONFLICT(client_id) DO UPDATE SET active_mods=excluded.active_mods", [client_id, active_mods]);
  await set_mods(author.client_id, mods);
  const targeted = await post_json<any>(send,{conversation_kind:'announcements',conversation_id:1,
   content:'Audience mention',parts:[{type:'text',text:'Hello '},{type:'person',client_id:reader.client_id}],

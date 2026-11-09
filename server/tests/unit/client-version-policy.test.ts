@@ -10,8 +10,8 @@ test('compares strict semantic client versions', () => {
 });
 
 test('validates operator support floors at the compiled support baseline', () => {
-	expect(is_minimum_supported_version('1.7.0')).toBe(true);
-	expect(is_minimum_supported_version('1.7.1')).toBe(true);
+	expect(is_minimum_supported_version('1.7.9')).toBe(true);
+	expect(is_minimum_supported_version('1.7.10')).toBe(true);
 	expect(is_minimum_supported_version('2.0.0')).toBe(true);
 	expect(is_minimum_supported_version('1.5.9')).toBe(false);
 	expect(is_minimum_supported_version('latest')).toBe(false);
@@ -27,7 +27,7 @@ test('classifies every client below the configured floor, including unknown vers
 });
 
 test('operator overrides cannot reopen retired contracts', () => {
-	for (const value of [undefined, null, '', 'latest', '1.7.0-beta.1', '1.6.17', '1.6.14', '1.6.13', '1.5.10'])
-		expect(effective_minimum_client_version(value)).toBe('1.7.0');
-	expect(effective_minimum_client_version('1.7.1')).toBe('1.7.1');
+	for (const value of [undefined, null, '', 'latest', '1.7.9-beta.1', '1.7.8', '1.6.17', '1.6.14', '1.6.13', '1.5.10'])
+		expect(effective_minimum_client_version(value)).toBe('1.7.9');
+	expect(effective_minimum_client_version('1.7.10')).toBe('1.7.10');
 });

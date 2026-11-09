@@ -75,7 +75,7 @@ async function wait_for_listing(
 describe('market API', () => {
 	test('retains completed listings until the history window expires', async () => {
 		const pair = await make_guildmates('Market History Buyer', 'Market History Seller', 'Market History Guild',
-			{ first: '1.7.0', second: '1.7.0' });
+			{ first: '1.7.9', second: '1.7.9' });
 		const item_id = 'melvorD:History_Apple';
 		await post_json('/api/market/sell', { item_id, item_qty: 10, item_sell_price: 5 }, pair.second.session_token);
 		const listing = await wait_for_listing(pair.second, item_id);
@@ -100,7 +100,7 @@ describe('market API', () => {
 	});
 
 	test('keeps completed owned listings visible only for unpaid adjusted sell proceeds', async () => {
-		const owner = await register_guild_client('Unpaid Listing Owner', 'Unpaid Listing Guild', '1.7.0');
+		const owner = await register_guild_client('Unpaid Listing Owner', 'Unpaid Listing Guild', '1.7.9');
 		const item_id = 'melvorD:Unpaid_Listing_Item';
 		await post_json('/api/market/sell', { item_id, item_qty: 4, item_sell_price: 5 }, owner.session_token);
 		const listing = await wait_for_listing(owner, item_id);
@@ -115,8 +115,8 @@ describe('market API', () => {
 
 	test('retains filled buy orders and zero-available listings held by active Haggles', async () => {
 		const pair = await make_guildmates('History Order Owner', 'History Order Seller', 'History Order Guild',
-			{ first: '1.7.0', second: '1.7.0' });
-		const viewer = await register_client('History Order Viewer', undefined, '1.7.0');
+			{ first: '1.7.9', second: '1.7.9' });
+		const viewer = await register_client('History Order Viewer', undefined, '1.7.9');
 		await db_run('INSERT INTO `guild_memberships` (`guild_id`, `client_id`) VALUES (?, ?)',
 			[pair.guild_id, viewer.client_id]);
 		const item_id = 'melvorD:History_Order_Apple';
@@ -718,7 +718,7 @@ describe('market API', () => {
 
 	test('hides a fully fulfilled buy order and keeps the retained row and buyer delivery durable', async () => {
 		const pair = await make_guildmates('Complete Buy Order Buyer', 'Complete Buy Order Seller', 'Complete Order Guild',
-			{ first: '1.7.0', second: '1.7.0' });
+			{ first: '1.7.9', second: '1.7.9' });
 		const [buyer, seller] = [pair.first, pair.second];
 		const item_id = 'melvorD:Complete_Buy_Order_Item';
 		const created = await post_json<{ receipt: { id: string } }>('/api/market/buy-order', {

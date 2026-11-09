@@ -6,14 +6,14 @@ async function new_client() {
 	const client_key = crypto.randomUUID();
 	const installation_id = crypto.randomUUID();
 	const registered = await post_json<any>('/api/register', { client_key, display_name: 'Installations',
-		client_runtime: { mod_version: '1.7.0', active_mods: [], device: { installation_id, platform: 'android' } } });
+		client_runtime: { mod_version: '1.7.9', active_mods: [], device: { installation_id, platform: 'android' } } });
 	return { ...registered.json, client_key, installation_id, installation_key: crypto.randomUUID() };
 }
 async function enroll(client: any) {
 	return post('/api/installations/enroll', { installation_id: client.installation_id, installation_key: client.installation_key }, client.session_token);
 }
 function installation_auth(client: any, extra = {}) {
-	return post('/api/authenticate', { client_runtime: { mod_version: '1.7.0', active_mods: [] }, client_identifier: client.client_identifier,
+	return post('/api/authenticate', { client_runtime: { mod_version: '1.7.9', active_mods: [] }, client_identifier: client.client_identifier,
 		installation_id: client.installation_id, installation_key: client.installation_key, ...extra });
 }
 
@@ -42,7 +42,7 @@ test('independent installations remain connected and same-installation authentic
 	await enroll(first);
 	const second = { ...first, installation_id: crypto.randomUUID(), installation_key: crypto.randomUUID() };
 	const legacy = await post_json<any>('/api/authenticate', { client_identifier: first.client_identifier, client_key: first.client_key,
-		client_runtime: { mod_version: '1.7.0', active_mods: [], device: { installation_id: second.installation_id } } });
+		client_runtime: { mod_version: '1.7.9', active_mods: [], device: { installation_id: second.installation_id } } });
 	second.session_token = legacy.json.session_token;
 	expect((await enroll(second)).status).toBe(200);
 	const attempts = await Promise.all([installation_auth(first), installation_auth(second)]);
@@ -60,7 +60,7 @@ test('independent installations remain connected and same-installation authentic
 	expect(sessions[0].count).toBe(2);
 	const creds = await db_all<any>('SELECT COUNT(*) AS count FROM installation_credentials WHERE client_id = ?', [first.chat.client_id]);
 	expect(creds[0].count).toBe(2);
-	const legacy_again = await post('/api/authenticate', { client_runtime: { mod_version: '1.7.0', active_mods: [] }, client_identifier: first.client_identifier, client_key: first.client_key });
+	const legacy_again = await post('/api/authenticate', { client_runtime: { mod_version: '1.7.9', active_mods: [] }, client_identifier: first.client_identifier, client_key: first.client_key });
 	expect(legacy_again.status).toBe(200);
 	expect((await get_with_session('/api/events', connected[1])).status).toBe(200);
 	await db_run('UPDATE installation_credentials SET revoked_at = 1 WHERE client_id = ? AND installation_id = ?', [first.chat.client_id, first.installation_id]);
@@ -115,7 +115,7 @@ test('supported save sync moves a duplicate device onto the keeper without regis
 	async function register_copy(platform: string) {
 		const client_key = crypto.randomUUID(), installation_id = crypto.randomUUID();
 		const registered = await post_json<any>('/api/register', { client_key, display_name: 'Same Save', ...account,
-			client_runtime: { mod_version: '1.7.0', active_mods: [], device: { installation_id, platform } } });
+			client_runtime: { mod_version: '1.7.9', active_mods: [], device: { installation_id, platform } } });
 		expect(registered.response.status).toBe(200);
 		return { ...registered.json, client_key, installation_id, installation_key: crypto.randomUUID() };
 	}
@@ -127,7 +127,7 @@ test('supported save sync moves a duplicate device onto the keeper without regis
 	// This device's old duplicate installation key must not be sent for the imported keeper identifier.
 	const imported = await post_json<any>('/api/authenticate', {
 		client_identifier: keeper.client_identifier, client_key: keeper.client_key, ...account,
-		client_runtime: { mod_version: '1.7.0', active_mods: [], device: { installation_id: duplicate.installation_id, platform: 'ios' } }
+		client_runtime: { mod_version: '1.7.9', active_mods: [], device: { installation_id: duplicate.installation_id, platform: 'ios' } }
 	});
 	expect(imported.response.status).toBe(200);
 	expect(imported.json.chat.client_id).toBe(keeper.chat.client_id);

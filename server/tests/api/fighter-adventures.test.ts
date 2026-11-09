@@ -3,8 +3,8 @@ import { register_client, post, post_json, get_json_with_session } from '../supp
 import { db_all, db_run } from '../support/persistence';
 test('Adventure revisions reject duplicate settlement and preserve owner-only Inbox delivery',async()=>{
 	expect((await post('/api/adventures/start',{})).status).toBe(401);
-	const owner=await register_client('Adventurer',undefined,'1.7.6');
-	const other=await register_client('Legacy adventurer',undefined,'1.7.5');
+	const owner=await register_client('Adventurer',undefined,'1.7.9');
+	const other=await register_client('Other adventurer',undefined,'1.7.9');
 	await post_json('/api/combat/prepare',{command_id:crypto.randomUUID()},owner.session_token);
 	const state_before=(await get_json_with_session<any>('/api/adventures/state',owner.session_token)).json;
 	expect(state_before.tutorial_complete).toBe(false);
@@ -57,7 +57,7 @@ test('Adventure revisions reject duplicate settlement and preserve owner-only In
  expect((await get_json_with_session<any>('/api/events?adventures=1',owner.session_token)).json.adventure_unread).toBe(true);
 });
 test('Social Only and capacity mutations reject stale writes without repeating EP charges or refunds',async()=>{
-	const owner=await register_client('Social adventurer',undefined,'1.7.6');
+	const owner=await register_client('Social adventurer',undefined,'1.7.9');
 	const send=async(action:string,payload:Record<string,unknown>)=>(await post_json<any>(`/api/adventures/${action}`,payload,owner.session_token)).json;
 	await post_json('/api/combat/prepare',{command_id:crypto.randomUUID()},owner.session_token);
 	await db_run('UPDATE combat_tutorial SET victories=7 WHERE client_id=?',[owner.client_id]);
@@ -93,7 +93,7 @@ test('Social Only and capacity mutations reject stale writes without repeating E
 	expect((await state()).revision).toBe(held_revision);
 });
 test('ordinary food equip commands settle saved production and end an ineligible Adventure once',async()=>{
- const owner=await register_client('Adventure food boundary',undefined,'1.7.6');
+ const owner=await register_client('Adventure food boundary',undefined,'1.7.9');
  await post_json('/api/combat/prepare',{command_id:crypto.randomUUID()},owner.session_token);
  await db_run('UPDATE combat_tutorial SET victories=7 WHERE client_id=?',[owner.client_id]);
  await db_run('UPDATE combat_characters SET hitpoints=3 WHERE client_id=?',[owner.client_id]);

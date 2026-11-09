@@ -1586,6 +1586,7 @@
 	"MOD_MP_EQUIPMENT_GO_TO_PROJECTS": "前往專案",
 	"MOD_MP_EQUIPMENT_PERSONAL_INFO": "個人工作可解鎖可重複使用的競技場裝備。專案不會獎勵EP，也不會計入公會工作。原版材料和產物仍留在原版遊戲中。",
 	"MOD_MP_EQUIPMENT_CREATE_FIRST": "請先在競技場建立戰鬥角色，才能開始裝備專案。",
+	"MOD_MP_EQUIPMENT_SKIP_TASK": "花費 %s EP 跳過",
 	"MOD_MP_EQUIPMENT_CANCEL_PROJECT": "取消專案",
 	"MOD_MP_EQUIPMENT_CANCEL_PROJECT_INFO": "要取消目前專案並捨棄所有進度嗎？此專案的工作追蹤也會停止。永久解鎖內容會保留。",
 	"MOD_MP_EQUIPMENT_CATALOG": "可用專案",

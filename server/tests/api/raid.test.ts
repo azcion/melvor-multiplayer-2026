@@ -127,7 +127,7 @@ describe('Guild Raids', () => {
 
 	test('returns tier progress once at authentication', async () => {
 		const member = await register_client('Raid Settings');
-		const authenticated = await post_json<{ raid_tier_progress: Record<number, number>; raid_monster_drops: ReturnType<typeof get_raid_monster_drops> }>('/api/authenticate', { client_runtime: { mod_version: '1.7.0', active_mods: [] },
+		const authenticated = await post_json<{ raid_tier_progress: Record<number, number>; raid_monster_drops: ReturnType<typeof get_raid_monster_drops> }>('/api/authenticate', { client_runtime: { mod_version: '1.7.9', active_mods: [] },
 			client_identifier: member.client_identifier, client_key: member.client_key
 		});
 		expect(authenticated.json.raid_tier_progress).toEqual(RAID_TIER_PROGRESS);
@@ -139,7 +139,7 @@ describe('Guild Raids', () => {
 		const client_key = crypto.randomUUID();
 		const registered = await post_json<Bootstrap>('/api/register', {
 			client_key, display_name: 'Raid Drop Odds',
-			client_runtime: { mod_version: '1.7.0', active_mods: [], owned_dlc: ['melvorTotH'] }
+			client_runtime: { mod_version: '1.7.9', active_mods: [], owned_dlc: ['melvorTotH'] }
 		});
 		expect(registered.response.status).toBe(200);
 		expect(registered.json.raid_monster_drops[4]).toEqual([
@@ -150,7 +150,7 @@ describe('Guild Raids', () => {
 		]);
 		const authenticated = await post_json<Bootstrap>('/api/authenticate', {
 			client_identifier: registered.json.client_identifier, client_key,
-			client_runtime: { mod_version: '1.7.0', active_mods: [], owned_dlc: [] }
+			client_runtime: { mod_version: '1.7.9', active_mods: [], owned_dlc: [] }
 		});
 		expect(authenticated.response.status).toBe(200);
 		expect(authenticated.json.raid_monster_drops[4]).toEqual(get_raid_monster_drops(-1)[4]);
@@ -273,7 +273,7 @@ describe('Guild Raids', () => {
 
 	test('delivers one tier roll per win and fixes each participant cache by TotH ownership', async () => {
 		const guild = await make_guildmates('Raid Base Reward', 'Raid TotH Reward', 'Raid Inbox Rewards',
-			{ first: '1.7.0', second: '1.7.0' });
+			{ first: '1.7.9', second: '1.7.9' });
 		await seed_raid_unlock(guild.first.client_id, 4);
 		await seed_raid_unlock(guild.second.client_id, 4);
 		await db_run('UPDATE `client_runtime_snapshots` SET `owned_dlc` = ? WHERE `client_id` = ?',
@@ -313,7 +313,7 @@ describe('Guild Raids', () => {
 	});
 
 	test('keeps pending pre-change legacy cache contents after the reward migration', async () => {
-		const member = await register_guild_client('Raid Legacy Cache', 'Legacy Cache Guild', '1.7.0');
+		const member = await register_guild_client('Raid Legacy Cache', 'Legacy Cache Guild', '1.7.9');
 		await enter_transition_raid('/api/raids/activate', {}, member.session_token);
 		const cache_id = crypto.randomUUID();
 		await db_run(
@@ -663,7 +663,7 @@ describe('Guild Raids', () => {
 	});
 
 	test('preserves cutover payouts and enforces the cooldown', async () => {
-		const participant = await register_guild_client('Raid Cutover Winner', 'Raid Cutover Guild', '1.7.0');
+		const participant = await register_guild_client('Raid Cutover Winner', 'Raid Cutover Guild', '1.7.9');
 		await enter_transition_raid('/api/raids/activate', {}, participant.session_token);
 		await settle(participant.session_token, await reserve(participant.session_token, 1));
 		const cutover_at = Date.now();

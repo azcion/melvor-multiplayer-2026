@@ -13,7 +13,7 @@ for (const path of ['/chat', '/chat/assets/chat.mjs', '/chat/assets/chat.css', '
 }
 const registration = await request(backend, '/api/v2/register', jsonPost({
 	client_key: crypto.randomUUID(), display_name: 'Self-host acceptance',
-	client_runtime: { mod_version: '1.7.0', active_mods: [] }
+	client_runtime: { mod_version: '1.7.9', active_mods: [] }
 }));
 assert.equal(registration.status, 200);
 const player = await registration.json();

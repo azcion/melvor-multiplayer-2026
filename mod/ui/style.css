@@ -4608,6 +4608,9 @@ header.mp-combat-panel-header { display: flex; align-items: center; }
 .mp-equipment-stage progress { width: 100%; accent-color: #6bc296; }
 .mp-equipment-stage small { display: block; margin: .3rem 0; }
 .mp-equipment-task { position: relative; }
+.mp-equipment-task-footer { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.mp-equipment-task-skip { position: relative; z-index: 1; margin-inline-start: auto; }
+.mp-equipment-task-skip:disabled { pointer-events: auto; }
 .mp-equipment-task-link {
 	position: absolute;
 	inset: 0;

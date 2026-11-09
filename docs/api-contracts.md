@@ -1,6 +1,6 @@
 # Multiplayer API contracts
 
-The compiled minimum supported mod version is 1.7.0. The API exposes one current wire contract, API v2;
+The compiled minimum supported mod version is 1.7.9. The API exposes one current wire contract, API v2;
 backend deployment versions remain independent of mod releases.
 
 The operator may raise the minimum supported version; clearing an override restores the compiled baseline. Empty,
@@ -31,14 +31,19 @@ eligibility regardless of public badge visibility. Game and browser Chat sends a
 as `#RRGGBB` (six hexadecimal digits, no alpha). Null or omission means no highlight; malformed values return
 400 and a non-Dev requesting a color receives 403. Accepted values normalize to uppercase. The color is immutable
 per Message, participates in idempotency matching, and appears as optional `highlight_color` on Messages in send,
-history and inbox responses. Highlighting grants no additional conversation access. Existing 1.6.15 clients
-may omit the field and ignore it on reads.
+history and inbox responses. Highlighting grants no additional conversation access.
 
 ## Selection
 
 `GET /api/versions` returns `api_versions: [2]` and `preferred_api_version: 2`. Clients select before authentication,
 then use `/api/v2/register` or `/api/v2/authenticate`. Successful bootstrap responses include `api_version: 2` and
-`api_versions: [2]`.
+`api_versions: [2]`. Discovery and bootstrap also report `minimum_supported_mod_version`.
+
+After bootstrap, ordinary authenticated game routes return HTTP 426 with
+`{ "minimum_supported_mod_version": "1.7.9" }` for clients below the effective floor or with a missing or malformed
+version. `GET /api/v2/events` returns only `revision: 0`, `unchanged: true`, and the effective floor to unsupported
+clients that report a valid version of at least 1.5.10. Older or unreported clients receive HTTP 426 there as well.
+Public Updates remain readable at `GET /api/v2/updates`.
 
 Logical `/api/...` names are mapped to `/api/v2/...` by the current client/test transport. Unversioned and `/api/v1/...`
 wire paths are not registered. Unknown majors return 404; invalid methods on known paths return 405. `/health` is
@@ -190,7 +195,7 @@ Retired IDs are bounded to the latest 64 commands; exact journal replay remains 
 No affected items, amounts, candidate events, counts or cleanup results appear in the status or notice.
 
 On a new opted-in load, wait for the original handshake's clock report and a non-held status before recovering outgoing
-receipts or submitting new economy commands. `/api/events` withholds outgoing effects during a shared Client hold,
+receipts or submitting new economy commands. `/api/v2/events` withholds outgoing effects during a shared Client hold,
 but keeps valid incoming receipts. Eligibility is applied before the 64-receipt limit. Affected unsupported sessions
 also withhold unretired outgoing effects after admission release or enforcement disable; each session's retained
 capability controls this recovery, independently of the latest runtime snapshot. A new client connecting to an older backend must treat absent capability/status
@@ -222,7 +227,7 @@ acknowledgement.
 
 ## Profile registration and recovery
 
-`GET /api/versions` advertises `identity-registration-v1`. `POST /api/register` optionally accepts a UUID
+`GET /api/versions` advertises `identity-registration-v1`. `POST /api/v2/register` optionally accepts a UUID
 `registration_id`, used as the new `client_identifier`. Clients persist and read-verify a pending UUID identifier plus
 `client_key` in origin/account-scoped character storage and require a verified native save before sending. Requests
 without this field retain the generated-identifier contract for older clients.
@@ -234,7 +239,7 @@ Clients without explicit profile recovery may still register automatically when 
 
 The registration transaction checks for an existing identifier before insertion. Repeating the same identifier,
 save proof and exact account association returns HTTP 409 with `{identity_status: "registration_exists"}`;
-the client then uses `/api/authenticate` to obtain the retained profile and preferences through normal authorization.
+the client then uses `/api/v2/authenticate` to obtain the retained profile and preferences through normal authorization.
 A different proof/account, or a disabled/deleted existing profile, returns 401 without changing it. A replay never
 creates another registration audit event. Pending authentication uses that same saved proof after a lost response;
 registration replay is bounded to one authentication attempt per connection attempt. No schema migration is required.
@@ -261,10 +266,10 @@ servers it opens manual recovery/create choices with the host-upgrade error, whi
 
 | POST route | Authority and result |
 | --- | --- |
-| `/api/identity-recovery/enroll` | Current multiplayer session plus verified Melvor login enables/refreshes recovery for that Client and exact native name. |
-| `/api/identity-recovery/disable` | Current multiplayer session removes only its own recovery binding. No Melvor token needed. |
-| `/api/identity-recovery/list` | Verified Melvor login returns up to 50 enabled, active exact-name matches, newest activity first: `{identities:[{client_id,display_name,last_active_at}]}`. Zero activity means unknown. |
-| `/api/identity-recovery/connect` | Reverify login and exact-name ownership of selected `client_id`; return `{credentials:{client_identifier,client_key}}` for ordinary authentication. |
+| `/api/v2/identity-recovery/enroll` | Current multiplayer session plus verified Melvor login enables/refreshes recovery for that Client and exact native name. |
+| `/api/v2/identity-recovery/disable` | Current multiplayer session removes only its own recovery binding. No Melvor token needed. |
+| `/api/v2/identity-recovery/list` | Verified Melvor login returns up to 50 enabled, active exact-name matches, newest activity first: `{identities:[{client_id,display_name,last_active_at}]}`. Zero activity means unknown. |
+| `/api/v2/identity-recovery/connect` | Reverify login and exact-name ownership of selected `client_id`; return `{credentials:{client_identifier,client_key}}` for ordinary authentication. |
 
 Except disable, requests contain `melvor_token` and `character_name` (1–100 UTF-16 code units). Connect additionally
 requires a positive safe-integer `client_id`. Name comparison is exact and case-sensitive; selection never normalizes
@@ -294,17 +299,19 @@ warns against sharing codes or credential-bearing saves. Neither codes nor authe
 
 ## Recovery
 
-A logical command retains its original UUID, payload, command kind, and originating API major across retries and
-reloads. The client stores one unresolved outgoing command per identity within its server-origin storage namespace.
-It reconciles pending receipts before allowing new spending; the first event read requests a full snapshot. In 1.6.16,
-blocked/invalid receipts and failed acknowledgements instead enter a durable server/Client-scoped review queue,
-allowing unrelated transactions to continue. Unknown command outcomes still require same-ID recovery.
+A logical command retains its original UUID, payload and command kind across retries and reloads. The client
+stores one unresolved outgoing command per identity and server origin, together with the selected API major.
+The first Events read requests a full snapshot, and pending receipts are reconciled before new spending. Blocked
+or invalid receipts and failed acknowledgements enter a durable server/Client-scoped review queue, allowing
+unrelated transactions to continue. Unknown command outcomes still require same-ID recovery.
 
 All retries share the same server journal. Owner-and-command-kind replay precedes domain input validation
 so a changed runtime report cannot prevent retrieval of an already committed result. Acknowledged replay returns no receipt effects. Upgrading does
 not create new identity namespaces or discard processed IDs, pending Inbox/return claims, or local Transfer Inventory.
-Existing saved Social Only commands without protocol metadata recover through v1. Automatic unavailable-item Gift
-declines and Charity confirmations also retain their pending action until a definitive outcome.
+Before sending a saved v1 command, both submission and recovery persist the switch to v2 and verify the stored
+record. They reuse its exact command ID and payload. Acknowledged replays explicitly return `receipt: null`; an
+omitted receipt leaves the command pending. Automatic unavailable-item Gift declines and Charity confirmations
+also retain their pending action until a definitive outcome.
 
 The client saves and read-verifies review markers before releasing the affected journal or advancing the event
 revision. Markers survive reloads and suppress stale response effects, even if the Bank or Transfer Inventory later
@@ -316,8 +323,7 @@ original recovery gate; explicit rollback holds and retired-command protection s
 the authenticated Client. Reports are idempotent and retain the first reason/time in `economy_receipt_reviews`.
 They do not alter the original receipt, acknowledge its effects, forgive a debt, or reverse shared transactions.
 Flagged receipts are excluded before the pending-event page limit; command replay returns the original result with
-`receipt:null,receipt_review_pending:true`. Review dispositions require separate operator investigation. Deploy the
-supporting backend with 1.6.16 so local review queues can be recorded in the database.
+`receipt:null,receipt_review_pending:true`. Review dispositions require separate operator investigation.
 
 Crucible Wish creation uses the Economy Receipt journal (`crucible-wish-make`).
 Make submits `{command_id,item_id,qty,ep_micros,gp,gp_balance}`. The server validates the current integer quote,
@@ -327,9 +333,9 @@ costs 2 EP, then 3, 4, and so on, in addition to 1 EP; partial increments are pr
 upward to 0.001 EP. For example, 101 items at base 100 costs 1.020 EP. GP is half the full funding requirement, rounded upward
 to whole GP. Funding progress starts at zero. Cancellation refunds neither charge.
 
-`/api/crucible/contents` includes `capacity`: base, expiry, renewal enabled/paused flags, exact EP balance,
-renewal price and tier purchase/full prices in micro-EP. `/api/crucible/wish/capacity` submits
-`{command_id,base,ep_micros,auto_renew}`; `/api/crucible/wish/renewal` submits
+`/api/v2/crucible/contents` includes `capacity`: base, expiry, renewal enabled/paused flags, exact EP balance,
+renewal price and tier purchase/full prices in micro-EP. `/api/v2/crucible/wish/capacity` submits
+`{command_id,base,ep_micros,auto_renew}`; `/api/v2/crucible/wish/renewal` submits
 `{command_id,ep_micros,auto_renew}`, where `ep_micros` confirms the current full renewal price.
 Both use receipt journals with no local effects. Character capacity defaults to 100; tiers 200/300/400/500 cost
 10/30/60/100 EP outright, or the difference for an active upgrade. Every purchase sets expiry to 30 days from
@@ -382,13 +388,13 @@ out and Alliance Chat excluded from conversations and unread totals. Both partic
 Marketplace access. Runtime headers and character display names cannot bypass these gates. Ordinary Free Fellowship
 Council features remain available to supported clients.
 
-- `GET /api/alliances` returns current Guild summary, membership, affiliation-pending state, and bounded process history
+- `GET /api/v2/alliances` returns current Guild summary, membership, affiliation-pending state, and bounded process history
   prioritizing unfinished processes. Collective tallies contain eligible/Aye/Nay totals and the viewer's own Guild ballot.
-- `GET /api/alliances/discover?mode=found|join&page=0` returns 20 candidates and `has_more`.
-- `GET /api/alliances/guild-preview?guild_id=ID` returns basic Guild identity, member count, establishment and policy Tags. An absent Guild returns HTTP 200 with `{ "guild": null }`, allowing historical references without browser 404 errors. Invalid IDs and access failures retain their error statuses.
-- `POST /api/alliances/propose` accepts `{kind, target_id?, name?}`; kinds are `found`, `join`, `leave`, `remove`,
+- `GET /api/v2/alliances/discover?mode=found|join&page=0` returns 20 candidates and `has_more`.
+- `GET /api/v2/alliances/guild-preview?guild_id=ID` returns basic Guild identity, member count, establishment and policy Tags. An absent Guild returns HTTP 200 with `{ "guild": null }`, allowing historical references without browser 404 errors. Invalid IDs and access failures retain their error statuses.
+- `POST /api/v2/alliances/propose` accepts `{kind, target_id?, name?}`; kinds are `found`, `join`, `leave`, `remove`,
   `market_enable`, and `market_disable`. Successful creation returns `process_id` and the local `petition_id`.
-- `POST /api/alliances/consider` and `/withdraw` accept `{process_id}` and return a Council `petition_id`.
+- `POST /api/v2/alliances/consider` and `/withdraw` accept `{process_id}` and return a Council `petition_id`.
 - Existing Council vote routes handle linked Alliance Petitions. New individual ballots reset a common 24-hour
   inactivity deadline; frozen electorates and resolved Guild ballots remain unchanged.
 - Destructive Alliance decisions (`leave`, `remove`, `market_disable`) require Aye to outnumber Nay;
@@ -397,7 +403,7 @@ Council features remain available to supported clients.
   from their current tallies and record their Alliance votes. They are not marked withdrawn. Completed history
   remains unchanged; cancellation, expiry, and explicit withdrawal retain their existing behavior.
 - Existing Chat routes accept `conversation_kind: "alliance"` and the Alliance ID. Participation is independent through
-  `POST /api/chat/alliance-participation` with `{enabled}`. Membership authorizes every operation.
+  `POST /api/v2/chat/alliance-participation` with `{enabled}`. Membership authorizes every operation.
 
 Shared Marketplace uses existing Buy, Buy Order, fulfill and Haggle commands and Economy Receipts. Cross-Guild
 permissions are checked in the same transaction as settlement; losing access restores active reservations and escrow
@@ -526,8 +532,7 @@ of two simultaneous accepted skills earns 30 minutes of credit and 0.5 EP; seque
 The same rule covers retained dissolution claims. Existing activity eligibility, clock, offline, cutoff and reward
 allowance limits still apply. Aggregate offline statistics cannot reconstruct exact activity overlap.
 
-This correction needs only a backend update: the 1.6.17 request fields and response contract remain supported.
-Already settled operations replay unchanged; open segments use the corrected rule at settlement.
+Already settled operations replay unchanged. Open segments use this rule at settlement.
 
 ## Expedition EP leaderboard
 
@@ -537,16 +542,22 @@ It returns `{page, total, players, since, as_of}`. Each player has `client_id`, 
 Only positive totals from enabled, non-deleted identities appear, across every Guild. Spending and refunds do
 not change earned totals. Results sort by earned EP descending, then Client ID ascending, with ten per page.
 `page` is a non-negative safe integer; invalid values return 400 and out-of-range pages clamp to the last page.
-The 1.7.0 client refreshes the visible leaderboard every five minutes and requests page changes immediately.
+The client refreshes the visible leaderboard every five minutes and requests page changes immediately.
 
-### Announcements and retained Message deletion
+## Announcements and retained Message deletion
 
-All supported game clients receive `announcements` (conversation ID 1) through the existing Chat inbox/history/send,
+Supported game clients can access `announcements` (conversation ID 1) through the Chat inbox, history, send,
 reaction and details endpoints. `announcement-discussion` uses its announcement ID as the conversation ID.
 Browser links exclude these kinds, and Poll APIs cannot access them. The game support gate rejects older
 authenticated sessions before the Chat handlers. Announcement publication and account-wide author deletion require
 Highlight eligibility; admins retain deletion authority. Announcements cannot be opted out of or muted. History responses include independent
 `discussion_unread_counts`; discussion replies never contribute to the aggregate Chat unread count.
+
+The Announcements conversation includes `announcement_audiences`, the targeted audience IDs the author may select.
+An omitted `audience` publishes to everyone. The current targeted ID, `sae`, is available to eligible Super Awesome
+Expansion developers. Targeted announcements and their discussions are visible to players who report that mod
+active and to administrators. History keeps independent read watermarks for public announcements and each
+targeted audience.
 
 `messages/delete` and the compatible game `messages/delete-for-all` action now retain the original row and hide
 an ordinary Message for everyone except authorized admins. Authors may delete their own Messages in every Chat
@@ -558,10 +569,9 @@ Deleted content is read-only. Existing personal-hide records keep their original
 `combat/inventory`, `expedition/state` (including `view=tracking`), `expedition/personal` and equipment
 `expedition/task/start|check-in|stop` responses include `equipment_projects.catalog_revision`, a content hash of
 static `catalog` and `access` definitions. An optional `equipment_catalog=HASH` query omits those two fields only
-when the hash matches. Missing or outdated hashes return the complete definitions; all dynamic player fields remain.
+when the hash matches. An omitted query or an outdated hash returns the complete definitions. All dynamic player fields remain.
 Clients cache only definitions in memory per selected server/session and hydrate each response against the hash
-advertised by that request. `equipment_catalog=full` requests the complete initial model. Existing 1.6.17 callers
-need no changes and retain full responses.
+advertised by that request. `equipment_catalog=full` explicitly requests the complete initial model.
 
 Equipment work requests with this query also receive `equipment_work_current`: true for a newly executed operation,
 false for an idempotent replay. The marker is transport-only and is not persisted in the replay record. Updated clients
@@ -569,14 +579,14 @@ apply fresh equipment results without an immediate Expedition GET; replay, unkno
 retain their refresh. The independent chamber refresh clock remains active. Query negotiation never changes the
 saved work payload, operation identity, settlement, or replay hash.
 
-## Fighter Adventures (1.7.6)
+## Fighter Adventures
 
 `GET /api/versions` advertises `fighter-adventures-v1`. Clients without this capability continue using their
 existing Colosseum and Inbox contracts. Adventures are character-owned and independent of Guild membership.
 
-`GET /api/adventures/state` returns the current assignment, capacity, EP balance, reset quote, area efficiencies,
+`GET /api/v2/adventures/state` returns the current assignment, capacity, EP balance, reset quote, area efficiencies,
 reward previews and haul read state. Mutation routes are `start`, `stop`, `check-in`, `capacity`, `reset-capacity`,
-`opt-in` and `seen` under `/api/adventures/`. All except `seen` require the returned `revision`. Mutations
+`opt-in` and `seen` under `/api/v2/adventures/`. All except `seen` require the returned `revision`. Mutations
 commit entirely on the server and reject `command_id`. A stale revision cannot repeat a committed mutation.
 Refresh state after an uncertain response before deciding whether to submit a new action.
 Purchases accept an integer `target` up to 99;
@@ -589,10 +599,10 @@ report. Online check-ins settle at most once per five minutes. Area, level and e
 changes preserve earned production and used capacity. Stop and opt-out settle before ending the assignment.
 
 Settled items enter the existing claimable Inbox with `source_type: "fighter_adventures"`. For clients requesting
-`GET /api/events?adventures=1`, Adventure items are excluded from `inbox_pending`, and separate
+`GET /api/v2/events?adventures=1`, Adventure items are excluded from `inbox_pending`, and separate
 `adventure_items_pending`, `adventure_unread` and `adventure_haul_revision` fields are returned, including unchanged
 responses. `seen` accepts `haul_revision`, clears only that observed login-haul indicator and leaves items claimable.
-Without this query parameter, the legacy Inbox pending behavior is preserved.
+Without this query parameter, `inbox_pending` includes Adventure items.
 
 The versioned `server/fighter-adventures-catalog.json` defines supported base-game Combat Areas, monsters and
 native loot. A catalog change ends the affected assignment after settling production using its saved snapshot.

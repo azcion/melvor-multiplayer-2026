@@ -1586,6 +1586,7 @@
 	"MOD_MP_EQUIPMENT_GO_TO_PROJECTS": "프로젝트로 이동",
 	"MOD_MP_EQUIPMENT_PERSONAL_INFO": "개인 작업으로 투기장 재사용 장비를 해금합니다. 프로젝트는 EP를 주지 않으며 길드 작업에도 포함되지 않습니다. 원작 재료와 제작품은 원작 게임에 그대로 남습니다.",
 	"MOD_MP_EQUIPMENT_CREATE_FIRST": "장비 프로젝트를 시작하려면 투기장에서 전투 캐릭터를 생성하세요.",
+	"MOD_MP_EQUIPMENT_SKIP_TASK": "%s EP로 건너뛰기",
 	"MOD_MP_EQUIPMENT_CANCEL_PROJECT": "프로젝트 취소",
 	"MOD_MP_EQUIPMENT_CANCEL_PROJECT_INFO": "진행 중인 프로젝트를 취소하고 모든 작업을 버릴까요? 이 프로젝트 추적도 중지됩니다. 영구 해금은 유지됩니다.",
 	"MOD_MP_EQUIPMENT_CATALOG": "사용 가능한 프로젝트",

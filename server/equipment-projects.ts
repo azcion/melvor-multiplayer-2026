@@ -28,6 +28,8 @@ const task_keys = new Set([
 	...EQUIPMENT_PROJECTS.flatMap(project => project.stages.flat().map(equipment_task_key)),
 	...FOOD_DEFINITIONS.map(food => `melvorD:Fishing|melvorD:Raw_${food.name}`)
 ]);
+const PROJECT_TASK_SKIP_COST_MICROS = 500_000;
+
 type Project = { id: number; item_id: string; progress_json: string; completed_at: number | null };
 type Tracking = { project_id: number; task_id: string; started_at: number; start_clock_offset_ms: number;
 	epoch: string; counter_ms: number; statistics_json: string };
@@ -88,6 +90,7 @@ export function equipment_project_state(database: Database, client: number) {
 	return { ...equipment_catalog, catalog_revision, caps: combat_unlocks(database, client), slots: slots.map(slot => ({ ...slot,
 		upgrade_ready: is_food_slot(slot.slot) ? slot.equipped_item === FOOD_DEFINITIONS[slot.tier - 1].item_id && item_is_unlocked(database, client, slot.equipped_item) : slot.tier === 0 || EQUIPMENT_PROJECTS.some(item => item.item_id === slot.equipped_item &&
 			item.slot === slot.slot && item.tier === slot.tier && gear[slot.slot] === item.item_id) })),
+		task_skip_cost_micros: PROJECT_TASK_SKIP_COST_MICROS,
 		reset: reset_quote(equipment_invested + food_invested),
 		resets: { equipment: reset_quote(equipment_invested), consumables: reset_quote(food_invested) },
 		unlocked: projects.filter(row => row.completed_at !== null).map(row => row.item_id),
@@ -156,7 +159,7 @@ function equip_item(database: Database, client: number, slot: string, item_id: s
 }
 // Called within the existing command transaction. No Bank effect, no equipment refund in the level ledger.
 export function change_equipment(database: Database, client: number, command: string, action: string,
-	input: { slot?: unknown; item_id?: unknown; revision?: unknown; discovered?: unknown; project_id?: unknown }, now = Date.now()) {
+	input: { slot?: unknown; item_id?: unknown; revision?: unknown; discovered?: unknown; project_id?: unknown; task_id?: unknown }, now = Date.now()) {
 	const character = database.query<{ revision: number }, [number]>('SELECT revision FROM combat_characters WHERE client_id=?').get(client);
 	if (!character || character.revision !== input.revision) return { success: false, error: 'quote_changed' };
 	if (blocked(database, client)) return { success: false, error: 'active' };
@@ -201,6 +204,9 @@ export function change_equipment(database: Database, client: number, command: st
 		if (tier < definition.tier || (previous !== null && (!previous || !item_is_unlocked(database, client, previous.item_id))) ||
 			database.query('SELECT 1 FROM combat_equipment_projects WHERE client_id=? AND (completed_at IS NULL OR item_id=?)').get(client, definition.item_id)) return { success: false, error: 'project_unavailable' };
 		database.query('INSERT INTO combat_equipment_projects(client_id,item_id,progress_json,created_at) VALUES(?,?,?,?)').run(client, definition.item_id, '{}', now);
+	} else if (action === 'skip-project-task') {
+		const error = skip_project_task(database, client, command, input, now);
+		if (error) return { success: false, error };
 	} else if (action === 'cancel-project') {
 		if (!Number.isSafeInteger(input.project_id)) return { success: false, error: 'project_unavailable' };
 		const row = database.query<Project, [number, number]>('SELECT * FROM combat_equipment_projects WHERE id=? AND client_id=? AND completed_at IS NULL').get(input.project_id as number, client);
@@ -214,6 +220,35 @@ export function change_equipment(database: Database, client: number, command: st
 	} else return { success: false, error: 'rejected' };
 	database.query('UPDATE combat_characters SET revision=revision+1 WHERE client_id=?').run(client);
 	return { success: true };
+}
+
+function skip_project_task(database: Database, client: number, command: string,
+	input: { project_id?: unknown; task_id?: unknown }, now: number) {
+	const { project_id, task_id } = input;
+	if (typeof project_id !== 'number' || !Number.isSafeInteger(project_id) || typeof task_id !== 'string')
+		return 'project_unavailable';
+	const project = database.query<Project, [number, number]>(
+		'SELECT * FROM combat_equipment_projects WHERE id=? AND client_id=? AND completed_at IS NULL'
+	).get(project_id, client);
+	const definition = EQUIPMENT_PROJECTS.find(item => item.item_id === project?.item_id);
+	if (!project || !definition) return 'project_unavailable';
+
+	const progress = JSON.parse(project.progress_json) as Record<string, number>;
+	const incomplete = (task: EquipmentDefinition['stages'][number][number]) =>
+		(progress[equipment_task_key(task)] ?? 0) < task.target_ms;
+	const stage = definition.stages.find(tasks => tasks.some(incomplete));
+	const task = stage?.find(task => equipment_task_key(task) === task_id && incomplete(task));
+	if (!task) return 'project_unavailable';
+	if (!pay_equipment_cost(database, client, command, PROJECT_TASK_SKIP_COST_MICROS, now))
+		return 'skip_insufficient_ep';
+
+	progress[task_id] = task.target_ms;
+	const completed_at = definition.stages.some(tasks => tasks.some(incomplete)) ? null : now;
+	database.query('UPDATE combat_equipment_projects SET progress_json=?,completed_at=? WHERE id=?')
+		.run(JSON.stringify(progress), completed_at, project_id);
+	database.query('DELETE FROM combat_project_tracking WHERE client_id=? AND project_id=? AND task_id=?')
+		.run(client, project_id, task_id);
+	return null;
 }
 
 // Caller owns the replay-safe command transaction; access purchases alone fund this refund.

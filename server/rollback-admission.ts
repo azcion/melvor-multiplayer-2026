@@ -36,7 +36,11 @@ export function evaluate_rollback_admission(database:Database,client:number,load
   const incident=detect_save_rollback(database,load,now);
   const clock=database.query<{quality:string},[number]>('SELECT quality FROM economy_clock_evidence WHERE save_load_id=?').get(load);
   if(!clock) return [];
-  if(incident===null) {append_admission(database,admission,'ready','No prior outgoing candidate',now);return [];}
+  if(incident===null) {
+   append_admission(database,admission,'ready','No prior outgoing candidate',now);
+   database.query('UPDATE clients SET event_revision=event_revision+1 WHERE id=?').run(client);
+   return [];
+  }
   const decision=database.query<{state:string},[number]>('SELECT state FROM economy_incident_decisions WHERE incident_id=? ORDER BY id DESC LIMIT 1').get(incident);
   if(decision?.state==='dismissed') {append_admission(database,admission,'released','Incident dismissed by operator',now);return [];}
   const eligible=database.query<{id:number;source_key:string},[number,number]>(`SELECT o.id,o.source_key FROM economy_incident_candidates c JOIN economy_operations o ON o.id=c.operation_id

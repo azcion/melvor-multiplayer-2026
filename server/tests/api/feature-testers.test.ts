@@ -6,7 +6,7 @@ import { db_all, db_run } from '../support/persistence';
 import { pending_test_data, council_test_data } from '../../feature-testers';
 
 test('Pending tester snapshots are character scoped, opt-in, revocable and contain every exchange role', async () => {
-	const pair = await make_guildmates('Preview Tester', 'Preview Ordinary', 'Preview Guild', { first: '1.7.0', second: '1.7.0' });
+	const pair = await make_guildmates('Preview Tester', 'Preview Ordinary', 'Preview Guild', { first: '1.7.9', second: '1.7.9' });
 	const events = (token: string, query = '') => get_json_with_session<{ pending_preview?: ReturnType<typeof pending_test_data> | null; revision: number; unchanged?: boolean }>('/api/events?pending_preview=1' + query, token);
 	expect((await events(pair.first.session_token)).json.pending_preview).toBeNull();
 	await db_run('INSERT INTO character_feature_testers(client_id,feature) VALUES (?,?)', [pair.first_id, 'pending']);
@@ -24,7 +24,7 @@ test('Pending tester snapshots are character scoped, opt-in, revocable and conta
 });
 
 test('Preview actions cannot mutate real exchanges, receipts, inventory or history', async () => {
-	const pair = await make_guildmates('Noop Tester', 'Noop Ordinary', 'Noop Guild', { first: '1.7.0', second: '1.7.0' });
+	const pair = await make_guildmates('Noop Tester', 'Noop Ordinary', 'Noop Guild', { first: '1.7.9', second: '1.7.9' });
 	await db_run('INSERT INTO character_feature_testers(client_id,feature) VALUES (?,?)', [pair.first_id, 'pending']);
 	const real = (await post_json<{ trade_id: number }>('/api/trade/offer', { recipient_id: pair.second_id,
 		items: [{ id: 'melvorD:Coal_Ore', qty: 4 }] }, pair.first.session_token)).json;
@@ -48,7 +48,7 @@ test('Preview actions cannot mutate real exchanges, receipts, inventory or histo
 });
 
 test('Council showcase covers all types, active variants and history without affecting ordinary members or pagination', async () => {
-	const pair = await make_guildmates('Council Tester', 'Council Ordinary', 'Council Preview', { first: '1.7.0', second: '1.7.0' });
+	const pair = await make_guildmates('Council Tester', 'Council Ordinary', 'Council Preview', { first: '1.7.9', second: '1.7.9' });
 	type Snapshot = { petitions: ReturnType<typeof council_test_data>['active']; available_petition_types: string[]; has_more: boolean; server_time: number };
 	const read = (token: string, page = 0) => get_json_with_session<Snapshot>('/api/guilds/council?page=' + page, token);
 	expect((await post_json('/api/guilds/petitions/raise', { type: 'appellation', name: 'Real Council Name' }, pair.first.session_token)).json).toMatchObject({ success: true });
@@ -87,7 +87,7 @@ test('Council showcase covers all types, active variants and history without aff
 });
 
 test('Council preview vote and withdraw enforce fixture affordances and never write real decisions', async () => {
-	const pair = await make_guildmates('Council Noop', 'Council Noop Other', 'Council Noop Guild', { first: '1.7.0', second: '1.7.0' });
+	const pair = await make_guildmates('Council Noop', 'Council Noop Other', 'Council Noop Guild', { first: '1.7.9', second: '1.7.9' });
 	await db_run('INSERT INTO character_feature_testers(client_id,feature) VALUES (?,?)', [pair.first_id, 'council']);
 	const fixtures = council_test_data(0);
 	const capture = async () => Promise.all([

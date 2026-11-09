@@ -1541,6 +1541,7 @@
 	"MOD_MP_EQUIPMENT_GO_TO_PROJECTS": "Aller aux projets",
 	"MOD_MP_EQUIPMENT_PERSONAL_INFO": "Le travail personnel débloque de l’équipement réutilisable du Colisée. Les projets ne rapportent pas d’EP et ne contribuent jamais au travail de Guilde. Les matériaux et produits natifs restent dans le jeu.",
 	"MOD_MP_EQUIPMENT_CREATE_FIRST": "Créez un combattant dans le Colisée pour commencer un projet.",
+	"MOD_MP_EQUIPMENT_SKIP_TASK": "Passer pour %s EP",
 	"MOD_MP_EQUIPMENT_CANCEL_PROJECT": "Annuler le projet",
 	"MOD_MP_EQUIPMENT_CANCEL_PROJECT_INFO": "Annuler le projet en cours et abandonner tout son travail ? Le suivi de ce projet s’arrêtera. Les déblocages permanents sont conservés.",
 	"MOD_MP_EQUIPMENT_CATALOG": "Projets disponibles",

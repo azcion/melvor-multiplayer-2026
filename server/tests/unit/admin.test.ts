@@ -356,7 +356,7 @@ describe('administration CLI', () => {
 
 	test('sets, reports, validates, and clears the minimum supported mod version', async () => {
 		const database_path = fixture_database();
-		const set = await run_admin(database_path, 'minimum-supported-version', '1.7.1');
+		const set = await run_admin(database_path, 'minimum-supported-version', '1.7.10');
 		const status = await run_admin(database_path, 'status');
 		const too_old = await run_admin(database_path, 'minimum-supported-version', '1.6.17');
 		const invalid = await run_admin(database_path, 'minimum-supported-version', 'latest');
@@ -364,13 +364,13 @@ describe('administration CLI', () => {
 		const cleared_status = await run_admin(database_path, 'status');
 
 		expect(set.exit_code).toBe(0);
-		expect(set.stdout).toBe('Minimum supported mod version set to 1.7.1.\n');
-		expect(status.stdout).toContain('minimum_supported_mod_version=1.7.1\n');
+		expect(set.stdout).toBe('Minimum supported mod version set to 1.7.10.\n');
+		expect(status.stdout).toContain('minimum_supported_mod_version=1.7.10\n');
 		expect(too_old.exit_code).toBe(2);
 		expect(invalid.exit_code).toBe(2);
 		expect(clear.exit_code).toBe(0);
 		expect(clear.stdout).toBe('Minimum supported mod version cleared.\n');
-		expect(cleared_status.stdout).toContain('minimum_supported_mod_version=1.7.0\n');
+		expect(cleared_status.stdout).toContain('minimum_supported_mod_version=1.7.9\n');
 	});
 
 	test('toggles and reports icon collection without accepting arbitrary values', async () => {

@@ -21,7 +21,7 @@ function fixture(filename?:string) {
  }
  return db;
 }
-function load(db:Database,save:number,time:number) {return record_character_save_load(db,101,{load_id:crypto.randomUUID(),save_timestamp:save,client_loaded_at:time-20,capture_source:'decode'},time,device)!;}
+function load(db:Database,save:number,time:number,installation=device) {return record_character_save_load(db,101,{load_id:crypto.randomUUID(),save_timestamp:save,client_loaded_at:time-20,capture_source:'decode'},time,installation)!;}
 function clock(db:Database,id:number,time:number) {expect(record_load_clock(db,101,id,{server_admitted_at:time,client_sent_at:time-10,client_received_at:time+10,elapsed_ms:20},time+20)).toBe(true);}
 function enable(db:Database) {return set_rollback_policy(db,crypto.randomUUID(),0,{enabled:true,first_operation_id:1,policy_version:1,client_ids:[101]},'Isolated fixture opt-in',true);}
 function outgoing(db:Database,old:number,key='outgoing') {
@@ -65,6 +65,46 @@ test('new admission gates every session until frozen calibrated classification; 
   expect(acknowledge_rollback_notice(db,101,status.notice!.notice_id)).toBe(true);
   expect(rollback_player_status(db,101,restored,true).notice).toBeNull();
   expect(db.query("SELECT state FROM economy_incident_decisions ORDER BY id DESC LIMIT 1").get()).toEqual({state:'confirmed'});
+ } finally {db.close();}
+});
+
+test('a calibrated same-installation reload clears an abandoned handshake without admitting that old load',()=>{
+ const db=fixture();try {
+  enable(db);
+  const interrupted=load(db,10,100);
+  admit_rollback_load(db,101,interrupted,true,100);
+  db.query('UPDATE client_sessions SET save_load_id=? WHERE client_id=101').run(interrupted);
+
+  const other_device=load(db,10,200,crypto.randomUUID());
+  admit_rollback_load(db,101,other_device,true,200);
+  clock(db,other_device,200);
+  evaluate_rollback_admission(db,101,other_device,true,240);
+  db.query('UPDATE client_sessions SET save_load_id=? WHERE client_id=101').run(other_device);
+  expect(rollback_held(db,101)).toBe(true);
+
+  const replacement=load(db,10,300);
+  admit_rollback_load(db,101,replacement,true,300);
+  db.query('UPDATE client_sessions SET save_load_id=? WHERE client_id=101').run(replacement);
+  clock(db,replacement,300);
+  expect(rollback_held(db,101)).toBe(true);
+  const before=db.query<{event_revision:number},[]>('SELECT event_revision FROM clients WHERE id=101').get()!.event_revision;
+  evaluate_rollback_admission(db,101,replacement,true,340);
+  expect(db.query('SELECT event_revision FROM clients WHERE id=101').get()).toEqual({event_revision:before+1});
+  expect(rollback_player_status(db,101,replacement,true)).toMatchObject({admission:'ready',economy_review_pending:false});
+  expect(related_rollback_gate(db,[101],101,true,replacement)).toBeNull();
+  expect(()=>guard_rollback_write(db,make_audit_context({
+   event_type:'test',actor_kind:'client',actor_client_id:101,actor_display_name:null,save_load_id:interrupted,
+   details:{path:'/api/crucible/cast',method:'POST',rollback_capable:true}
+  }))).toThrow('Economy review pending');
+  expect(db.query('SELECT state FROM economy_admissions WHERE save_load_id=?').all(interrupted)).toEqual([{state:'waiting'}]);
+  expect(db.query('SELECT * FROM economy_corrections').all()).toEqual([]);
+
+  db.query('UPDATE client_sessions SET save_load_id=? WHERE client_id=101').run(interrupted);
+  expect(rollback_player_status(db,101,interrupted,true)).toMatchObject({admission:'waiting',economy_review_pending:true});
+  expect(related_rollback_gate(db,[101],101,true)?.message).toBe('Economy review pending');
+  db.query('UPDATE client_sessions SET save_load_id=? WHERE client_id=101').run(replacement);
+  set_rollback_hold(db,crypto.randomUUID(),101,0,true,'Explicit operator hold');
+  expect(rollback_held(db,101)).toBe(true);
  } finally {db.close();}
 });
 

@@ -6283,6 +6283,19 @@ export async function setup(ctx) {
 		await refresh_expedition_state();
 		return true;
 	};
+	state.equipment_task_skip_cost = task => {
+		const cost = state.equipment_model()?.task_skip_cost_micros;
+		return task.available && task.player_ms < task.target_ms && Number.isSafeInteger(cost) && cost > 0 ? cost : 0;
+	};
+	state.equipment_task_skip_label = task => expedition_text('MOD_MP_EQUIPMENT_SKIP_TASK', format_ep(state.equipment_task_skip_cost(task)));
+	state.equipment_task_skip_ready = task => !!state.equipment_task_skip_cost(task) && !!state.combat.character &&
+		state.equipment_can_mutate() && !state.expedition_pending_report;
+	state.equipment_task_skip = async task => {
+		const project = state.equipment_model()?.project;
+		if (!project || !state.equipment_task_skip_ready(task)) return;
+		if (await combat_inventory.equipment('skip-project-task', { project_id: project.id, task_id: task.task_id }))
+			await refresh_expedition_state();
+	};
 	state.equipment_set_available = type => tutorial_module.equipment_set_available(state.combat, type, state.chat_is_admin);
 	state.equipment_set_select = type => {
 		if (!state.equipment_set_available(type)) return;
@@ -6408,7 +6421,8 @@ export async function setup(ctx) {
 	state.combat_cycle_opponents_view = () => combat_arena.cycle_opponents_view();
 	state.combat_opponents_compact = () => combat_module.combat_opponents_compact(state.combat);
 	state.combat_run_icon = () => assets.getURI('assets/media/skills/combat/run.png');
-	state.combat_inventory_error = () => state.combat.inventory_error === 'cap_locked' ? combat_localized('MOD_MP_COMBAT_CAP_LOCKED', 'Clear Dungeon tiers to unlock the recommended skill caps.') : state.combat.inventory_error === 'tutorial_required' ? combat_localized('MOD_MP_COMBAT_TUTORIAL_REQUIRED', 'Complete training to unlock this action.') : state.combat_name(['food_locked', 'quote_changed', 'max_level', 'insufficient_ep', 'nothing_to_reset', 'active', 'discovery_required', 'project_unavailable', 'requirements_unmet', 'equip_current_tier', 'slot_locked', 'slot_conflict'].includes(state.combat.inventory_error) ? state.combat.inventory_error : 'inventory_rejected');
+	state.combat_inventory_error = () => state.combat.inventory_error === 'skip_insufficient_ep'
+		? getLangString('MOD_MP_WISH_INSUFFICIENT_EP') : state.combat.inventory_error === 'cap_locked' ? combat_localized('MOD_MP_COMBAT_CAP_LOCKED', 'Clear Dungeon tiers to unlock the recommended skill caps.') : state.combat.inventory_error === 'tutorial_required' ? combat_localized('MOD_MP_COMBAT_TUTORIAL_REQUIRED', 'Complete training to unlock this action.') : state.combat_name(['food_locked', 'quote_changed', 'max_level', 'insufficient_ep', 'nothing_to_reset', 'active', 'discovery_required', 'project_unavailable', 'requirements_unmet', 'equip_current_tier', 'slot_locked', 'slot_conflict'].includes(state.combat.inventory_error) ? state.combat.inventory_error : 'inventory_rejected');
 	state.combat_run_copy = key => key === 'start' || key === 'stop' ? getLangString('MOD_MP_COMBAT_BATTLE_' + key.toUpperCase()) : combat_localized('MOD_MP_COMBAT_RUN_' + String(key).toUpperCase(), combat_module.COMBAT_RUN_COPY[key] ?? key);
 	tutorial_module.install_tutorial_review_actions(state, getLangString, state.get_item_name, state.equipment_slot_name);
 	state.combat_dungeon_debug_select = target_id => {

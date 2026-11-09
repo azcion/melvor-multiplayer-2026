@@ -24,7 +24,7 @@ test('real API and mod recovery flag a blocked receipt while Gifts and new trans
 		return { response, json: await response.json() };
 	}
 	const register = async name => (await request('/api/register', { client_key: crypto.randomUUID(), display_name: name,
-		client_runtime: { mod_version: '1.7.0', active_mods: [] } })).json;
+		client_runtime: { mod_version: '1.7.9', active_mods: [] } })).json;
 	const sender = await register('Integrated Sender'), recipient = await register('Integrated Recipient');
 	for (const client of [sender, recipient]) await request('/api/guilds/join-free', {}, client.session_token);
 	let transfer = []; // Reproduce a missing local donation snapshot without altering server history.
@@ -81,7 +81,7 @@ test('real API and mod recovery flag a blocked receipt while Gifts and new trans
 		economy_receipt_reviews: reviews, rollback_client: null, expedition_leaderboard: null, server_host: 'https://test.invalid', guild_revision_scope: null, last_guild_revision: null, apply_dev_badge_labels() {},
 		update_crucible_nav() {}, recover_paid_wish_actions: async () => {}, crucible_page_visible: false, crucible_page_hydrating: false, guild_page_visible: false, refresh_guild_state: async () => {},
 		state, client_events_hydrated: false, session_generation: 1, client_event_revision: 0, CHAT_CAPABILITIES: '', chat_page_visible: false,
-		MOD_VERSION: '1.7.0', get_instance_storage_item: () => undefined,
+		MOD_VERSION: '1.7.9', get_instance_storage_item: () => undefined,
 		polling: { has_pending_events: () => true }, event_snapshots, economy_command_journal: journal,
 		social_mode: { SOCIAL_MODE_FULL: 'full', SOCIAL_MODE_SOCIAL: 'social' },
 		enter_unsupported_multiplayer: () => false, check_released_mod_version() {}, maybe_auto_check_in_expedition() {},

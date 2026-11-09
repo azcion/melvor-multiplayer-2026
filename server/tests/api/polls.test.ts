@@ -6,14 +6,14 @@ const capability = 'capabilities=polls-v1';
 
 describe('Polls Chat', () => {
 	test('restricts Poll administration to configured identities', async () => {
-		const supported = await register_client('Poll Reader', undefined, '1.7.0');
+		const supported = await register_client('Poll Reader', undefined, '1.7.9');
 		const visible = await get_json_with_session<{ polls: unknown[]; can_create: boolean }>(
 			'/api/polls?' + capability, supported.session_token);
 		expect(visible.json).toMatchObject({ polls: [], can_create: false });
 		expect((await post('/api/polls/create?' + capability, {
 			idempotency_key: crypto.randomUUID(), content: 'Still nope?', options: ['No']
 		}, supported.session_token)).status).toBe(403);
-		const admin = await register_client('Poll Admin', undefined, '1.7.0');
+		const admin = await register_client('Poll Admin', undefined, '1.7.9');
 		await db_run('UPDATE `clients` SET `client_identifier` = ? WHERE `id` = ?',
 			['RESTART-ADMIN-POLL', admin.client_id]);
 		const admin_view = await get_json_with_session<{ can_create: boolean }>(
@@ -24,10 +24,10 @@ describe('Polls Chat', () => {
 	test('supports multi-select aggregates, append-only options, and discussion', async () => {
 		const creator = await register_client('Briar Test', {
 			cloud_username: 'PollObserver', playfab_id: 'POLL-OBSERVER'
-		}, '1.7.0');
+		}, '1.7.9');
 		const voter = await register_client('Poll Voter', {
 			cloud_username: 'PollShadowSender', playfab_id: 'POLL-SHADOW-SENDER'
-		}, '1.7.0');
+		}, '1.7.9');
 		await db_run('UPDATE `clients` SET `client_identifier` = ? WHERE `id` = ?',
 			['11111111-1111-4111-8111-111111111111', creator.client_id]);
 		await db_run('UPDATE `clients` SET `client_identifier` = ? WHERE `id` = ?',
@@ -113,7 +113,7 @@ describe('Polls Chat', () => {
 		expect(compatible_reaction.json).toMatchObject({
 			success: true, reactions: [{ reaction: '💯', count: 1, reacted: true }]
 		});
-		const reader = await register_client('Poll Reader Two', undefined, '1.7.0');
+		const reader = await register_client('Poll Reader Two', undefined, '1.7.9');
 		const visible = await get_json_with_session<{ polls: unknown[] }>('/api/polls?' + capability, reader.session_token);
 		expect(visible.json.polls).toHaveLength(1);
 		expect((await post('/api/polls/reaction?' + capability, {
@@ -126,8 +126,8 @@ describe('Polls Chat', () => {
 	});
 
 	test('supports single-choice voting and administrator-controlled voting status without closing discussion', async () => {
-		const creator = await register_client('Single Poll Creator', undefined, '1.7.0');
-		const voter = await register_client('Single Poll Voter', undefined, '1.7.0');
+		const creator = await register_client('Single Poll Creator', undefined, '1.7.9');
+		const voter = await register_client('Single Poll Voter', undefined, '1.7.9');
 		await db_run("UPDATE `clients` SET `client_identifier` = 'retired-' || `id` WHERE `client_identifier` IN (?, ?)",
 			['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222']);
 		await db_run('UPDATE `clients` SET `client_identifier` = ? WHERE `id` = ?',
@@ -165,10 +165,10 @@ describe('Polls Chat', () => {
 	});
 
 	test('shares selections, interaction state, and throttling across linked sibling characters', async () => {
-		const creator = await register_client('Account Poll Creator', undefined, '1.7.0');
+		const creator = await register_client('Account Poll Creator', undefined, '1.7.9');
 		const account = { cloud_username: 'Poll Account', playfab_id: crypto.randomUUID() };
-		const first_sibling = await register_client('Account Poll One', account, '1.7.0');
-		const second_sibling = await register_client('Account Poll Two', account, '1.7.0');
+		const first_sibling = await register_client('Account Poll One', account, '1.7.9');
+		const second_sibling = await register_client('Account Poll Two', account, '1.7.9');
 		await db_run("UPDATE `clients` SET `client_identifier` = 'retired-' || `id` WHERE `client_identifier` = ?",
 			['11111111-1111-4111-8111-111111111111']);
 		await db_run('UPDATE `clients` SET `client_identifier` = ? WHERE `id` = ?',
@@ -216,10 +216,10 @@ describe('Polls Chat', () => {
 	});
 
 	test('moves a legacy character Poll state into its account when the character becomes linked', async () => {
-		const creator = await register_client('Legacy Poll Creator', undefined, '1.7.0');
-		const legacy = await register_client('Legacy Poll Voter', undefined, '1.7.0');
+		const creator = await register_client('Legacy Poll Creator', undefined, '1.7.9');
+		const legacy = await register_client('Legacy Poll Voter', undefined, '1.7.9');
 		const account = { cloud_username: 'Legacy Poll Account', playfab_id: crypto.randomUUID() };
-		const sibling = await register_client('Linked Poll Sibling', account, '1.7.0');
+		const sibling = await register_client('Linked Poll Sibling', account, '1.7.9');
 		await db_run("UPDATE `clients` SET `client_identifier` = 'retired-' || `id` WHERE `client_identifier` = ?",
 			['11111111-1111-4111-8111-111111111111']);
 		await db_run('UPDATE `clients` SET `client_identifier` = ? WHERE `id` = ?',
@@ -234,7 +234,7 @@ describe('Polls Chat', () => {
 		await post_json('/api/polls/vote?' + capability,
 			{ poll_id, option_id: second.option_id, selected: true }, sibling.session_token);
 
-		const associated = await post_json<{ session_token?: string }>('/api/authenticate', { client_runtime: { mod_version: '1.7.0', active_mods: [] },
+		const associated = await post_json<{ session_token?: string }>('/api/authenticate', { client_runtime: { mod_version: '1.7.9', active_mods: [] },
 			client_identifier: legacy.client_identifier,
 			client_key: legacy.client_key,
 			...account
@@ -254,8 +254,8 @@ describe('Polls Chat', () => {
 	});
 
 	test('lets the authorized administrator delete a published poll and publishes the deletion', async () => {
-		const creator = await register_client('Briar Delete Test', undefined, '1.7.0');
-		const voter = await register_client('Poll Delete Voter', undefined, '1.7.0');
+		const creator = await register_client('Briar Delete Test', undefined, '1.7.9');
+		const voter = await register_client('Poll Delete Voter', undefined, '1.7.9');
 		await db_run("UPDATE `clients` SET `client_identifier` = 'retired-' || `id` WHERE `client_identifier` IN (?, ?, ?)",
 			['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333']);
 		await db_run('UPDATE `clients` SET `client_identifier` = ? WHERE `id` = ?',
@@ -297,8 +297,8 @@ describe('Polls Chat', () => {
 	});
 
 	test('keeps discussion unread counts on Poll cards', async () => {
-		const creator = await register_client('Unread Poll Creator', undefined, '1.7.0');
-		const reader = await register_client('Unread Poll Reader', undefined, '1.7.0');
+		const creator = await register_client('Unread Poll Creator', undefined, '1.7.9');
+		const reader = await register_client('Unread Poll Reader', undefined, '1.7.9');
 		await db_run("UPDATE `clients` SET `client_identifier` = 'retired-' || `id` WHERE `client_identifier` = ?",
 			['11111111-1111-4111-8111-111111111111']);
 		await db_run('UPDATE `clients` SET `client_identifier` = ? WHERE `id` = ?',

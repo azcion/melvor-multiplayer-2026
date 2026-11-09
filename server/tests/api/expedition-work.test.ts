@@ -14,7 +14,7 @@ type State = { expedition: { id: number; chamber: { visit_id: number; tasks: {
 }[] } } };
 
 async function entrance() {
-	const guild = await make_guildmates('Expedition Worker', 'Expedition Witness', 'Work Guild', { first: '1.7.0', second: '1.7.0' });
+	const guild = await make_guildmates('Expedition Worker', 'Expedition Witness', 'Work Guild', { first: '1.7.9', second: '1.7.9' });
 	const registered = await post_json<{ expedition_id: number }>(
 		'/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.first.session_token);
 	await db_run('UPDATE expeditions SET registered_at = ?, registration_ends_at = ? WHERE id = ?',

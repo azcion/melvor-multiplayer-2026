@@ -116,7 +116,7 @@ export function create_combat_inventory({ view, scope, request, reconcile, can_m
 				return false;
 			}
 			on_success?.();
-			await refresh({ fresh: action === 'skip-tutorial' }); return current === current_scope();
+			await refresh({ fresh: action === 'skip-tutorial' || action === 'skip-project-task' }); return current === current_scope();
 		} catch { if (current === current_scope()) view.inventory_error = 'rejected'; return false; }
 		finally { if (current === current_scope()) view.inventory_busy = false; }
 	}

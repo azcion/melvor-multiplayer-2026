@@ -5,7 +5,7 @@ import { db_all, db_count, db_run } from '../support/persistence';
 function payload() {
 	return { registration_id: crypto.randomUUID(), client_key: crypto.randomUUID(), display_name: 'Registration Retry',
 		cloud_username: 'Retry Player', playfab_id: crypto.randomUUID(),
-		client_runtime: { mod_version: '1.7.0', active_mods: [] } };
+		client_runtime: { mod_version: '1.7.9', active_mods: [] } };
 }
 
 test('advertises replay-safe registration and validates optional identifiers', async () => {

@@ -12,7 +12,7 @@ test('combat ticket requires a session and is disabled without explicit host con
 });
 
 test('Social Mode can skip the tutorial and unlock Colosseum', async () => {
-	const owner = await register_client('Social Colosseum', undefined, '1.7.3');
+	const owner = await register_client('Social Colosseum', undefined, '1.7.9');
 	expect((await post_json<any>('/api/social-mode/set', { mode:'social', command_id:crypto.randomUUID() }, owner.session_token)).json).toMatchObject({success:true,social_mode:'social'});
 	const payload = { command_id:crypto.randomUUID(), ep_micros:9_000_000 };
 	const skipped = (await post_json<any>('/api/combat/skip-tutorial', payload, owner.session_token)).json;
@@ -25,7 +25,7 @@ test('Social Mode can skip the tutorial and unlock Colosseum', async () => {
 });
 
 test('combat food custody routes are retired and preparation needs no deposit enrollment', async()=>{
-	const owner=await register_client('Food Unlocks',undefined,'1.7.0');
+	const owner=await register_client('Food Unlocks',undefined,'1.7.9');
 	expect((await post_json<any>('/api/combat/prepare',{command_id:crypto.randomUUID()},owner.session_token)).json.success).toBe(true);
 	await db_run('UPDATE combat_tutorial SET victories=7 WHERE client_id=?',[owner.client_id]);
 	await db_run('INSERT INTO combat_unlocks(client_id,skill_caps_json,material_caps_json,food_cap) VALUES(?,?,?,8)',[owner.client_id,JSON.stringify({attack:99,strength:99,defence:99,hitpoints:99}),JSON.stringify(Object.fromEntries(['Weapon','Shield','Helmet','Platebody','Platelegs','Boots','Gloves','Quiver'].map(slot=>[slot,6])))]);
@@ -37,8 +37,8 @@ test('combat food custody routes are retired and preparation needs no deposit en
 });
 
 test('combat levels debit EP once, serialize stale quotes and refund once without native input', async () => {
-	const owner = await register_client('Combat Levels', undefined, '1.7.0');
-	const other = await register_client('Unrelated Supported Client', undefined, '1.7.0');
+	const owner = await register_client('Combat Levels', undefined, '1.7.9');
+	const other = await register_client('Unrelated Supported Client', undefined, '1.7.9');
 	await db_run('INSERT INTO expedition_ep_balances(client_id,points_micros) VALUES(?,5000000)', [owner.client_id]);
 	await db_run('INSERT INTO expedition_ep_balances(client_id,points_micros) VALUES(?,7000000)', [other.client_id]);
 	expect((await post('/api/combat/register', { command_id: crypto.randomUUID(), levels: { attack:99 } }, owner.session_token)).status).toBe(404);
@@ -75,7 +75,7 @@ test('combat levels debit EP once, serialize stale quotes and refund once withou
 });
 
 test('bulk level command and free reset replay commit once and unavailable skills cannot spend', async () => {
-	const owner=await register_client('Bulk Reset',undefined,'1.7.0');
+	const owner=await register_client('Bulk Reset',undefined,'1.7.9');
 	await db_run('INSERT INTO expedition_ep_balances(client_id,points_micros) VALUES(?,100000000)',[owner.client_id]);
 	await post_json('/api/combat/prepare',{command_id:crypto.randomUUID()},owner.session_token);
 	await db_run('UPDATE combat_tutorial SET victories=7 WHERE client_id=?',[owner.client_id]);
@@ -98,8 +98,8 @@ test('bulk level command and free reset replay commit once and unavailable skill
 });
 
 test('guildless personal equipment commands replay without Bank effects and exact work remains private without EP', async () => {
-	const owner = await register_client('Personal Equipment', undefined, '1.7.0');
-	const other = await register_client('Other Equipment', undefined, '1.7.0');
+	const owner = await register_client('Personal Equipment', undefined, '1.7.9');
+	const other = await register_client('Other Equipment', undefined, '1.7.9');
 	expect((await post_json<any>('/api/social-mode/set', { mode:'social', command_id:crypto.randomUUID() }, owner.session_token)).json).toMatchObject({success:true,social_mode:'social'});
 	await db_run('INSERT INTO expedition_ep_balances(client_id,points_micros) VALUES(?,5000000)', [owner.client_id]);
 	await post_json('/api/combat/prepare', { command_id: crypto.randomUUID() }, owner.session_token);
@@ -162,7 +162,7 @@ test('guildless personal equipment commands replay without Bank effects and exac
 });
 
 test('all Bronze through Rune equipment recipes are server catalog data and equip enforces owned slot and tier', async () => {
-	const owner = await register_client('Equipment Catalog', undefined, '1.7.0');
+	const owner = await register_client('Equipment Catalog', undefined, '1.7.9');
 	await db_run('INSERT INTO expedition_ep_balances(client_id,points_micros) VALUES(?,50000000)', [owner.client_id]);
 	await post_json('/api/combat/prepare', { command_id: crypto.randomUUID() }, owner.session_token);
 	await db_run('UPDATE combat_tutorial SET victories=7 WHERE client_id=?',[owner.client_id]);
@@ -221,8 +221,8 @@ test('all Bronze through Rune equipment recipes are server catalog data and equi
 });
 
 test('equipment test completion is allowlisted, owner-only and replay-safe without Bank effects', async () => {
-	const owner = await register_client('Equipment Admin', undefined, '1.7.0');
-	const other = await register_client('Equipment Nonadmin', undefined, '1.7.0');
+	const owner = await register_client('Equipment Admin', undefined, '1.7.9');
+	const other = await register_client('Equipment Nonadmin', undefined, '1.7.9');
 	const debug_identifier = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 	const previous = await db_all<{id:number}>('SELECT id FROM clients WHERE client_identifier=?',[debug_identifier]);
 	for (const row of previous) await db_run('UPDATE clients SET client_identifier=? WHERE id=?',[crypto.randomUUID(),row.id]);
@@ -254,7 +254,7 @@ test('equipment test completion is allowlisted, owner-only and replay-safe witho
 });
 
 test('equipment reset refunds once, shares free resets with levels and preserves unlocks and active projects', async () => {
-	const owner=await register_client('Equipment Reset',undefined,'1.7.0');
+	const owner=await register_client('Equipment Reset',undefined,'1.7.9');
 	await post_json('/api/combat/prepare',{command_id:crypto.randomUUID()},owner.session_token);
 	await db_run('UPDATE combat_tutorial SET victories=7 WHERE client_id=?',[owner.client_id]);
 	await db_run('INSERT INTO combat_unlocks(client_id,skill_caps_json,material_caps_json,food_cap) VALUES(?,?,?,8)',[owner.client_id,JSON.stringify({attack:99,strength:99,defence:99,hitpoints:99}),JSON.stringify(Object.fromEntries(['Weapon','Shield','Helmet','Platebody','Platelegs','Boots','Gloves','Quiver'].map(slot=>[slot,6])))]);
@@ -291,7 +291,7 @@ test('equipment reset refunds once, shares free resets with levels and preserves
 });
 
 test('food EP purchase and selection use authenticated replay-safe commands and server revision gates', async () => {
-	const owner = await register_client('Food EP', undefined, '1.7.0');
+	const owner = await register_client('Food EP', undefined, '1.7.9');
 	await post_json('/api/combat/prepare', { command_id: crypto.randomUUID() }, owner.session_token);
 	await db_run('UPDATE combat_tutorial SET victories=7 WHERE client_id=?',[owner.client_id]);
 	await db_run('INSERT INTO combat_unlocks(client_id,skill_caps_json,material_caps_json,food_cap) VALUES(?,?,?,8)',[owner.client_id,JSON.stringify({attack:99,strength:99,defence:99,hitpoints:99}),JSON.stringify(Object.fromEntries(['Weapon','Shield','Helmet','Platebody','Platelegs','Boots','Gloves','Quiver'].map(slot=>[slot,6])))]);
@@ -314,9 +314,44 @@ test('food EP purchase and selection use authenticated replay-safe commands and 
 	expect((await db_all<{amount_micros:number}>('SELECT amount_micros FROM combat_ep_ledger WHERE client_id=?', [owner.client_id]))).toEqual([{ amount_micros: -1000000 }]);
 });
 
+test('the Endurance Bout tutorial can skip the Shrimp task for exactly 0.50 EP', async () => {
+	const owner = await register_client('Shrimp Skip', undefined, '1.7.9');
+	const read = async () => (await get_json_with_session<any>('/api/combat/inventory', owner.session_token)).json;
+	const act = async (action: string, payload: Record<string, unknown> = {}) =>
+		(await post_json<any>(`/api/combat/${action}`, { command_id: crypto.randomUUID(), ...payload }, owner.session_token)).json;
+	expect((await act('prepare')).success).toBe(true);
+	await db_run('UPDATE combat_tutorial SET victories=4 WHERE client_id=?', [owner.client_id]);
+	expect((await act('unlock-tier', { slot: 'Food', revision: (await read()).character.revision })).success).toBe(true);
+	expect((await act('start-project', { item_id: 'melvorD:Shrimp', revision: (await read()).character.revision })).success).toBe(true);
+	const before = await read();
+	expect(before.tutorial).toMatchObject({ complete: false, trial: { id: 'tutorial_5' }, next: 'work' });
+	expect(before.equipment_projects.task_skip_cost_micros).toBe(500_000);
+	const project_id = before.equipment_projects.project.id;
+	const task_id = 'melvorD:Cooking|melvorD:Shrimp';
+	const payload = { project_id, task_id, revision: before.character.revision, command_id: crypto.randomUUID() };
+	expect((await act('skip-project-task', { ...payload, task_id: 'melvorD:Fishing|melvorD:Raw_Shrimp' })).error).toBe('project_unavailable');
+	expect((await act('skip-project-task', payload)).error).toBe('skip_insufficient_ep');
+
+	await db_run('UPDATE expedition_ep_balances SET points_micros=750000 WHERE client_id=?', [owner.client_id]);
+	await db_run(`INSERT INTO combat_project_tracking(client_id,project_id,task_id,started_at,start_clock_offset_ms,epoch,counter_ms,statistics_json)
+		VALUES(?,?,?,0,0,?,0,'{}')`, [owner.client_id, project_id, task_id, crypto.randomUUID()]);
+	const results = await Promise.all([act('skip-project-task', payload), act('skip-project-task', payload)]);
+	expect(results[0]).toMatchObject({ success: true, receipt: { kind: 'combat-skip-project-task', effects: [] } });
+	expect(results[1]).toEqual(results[0]);
+	const after = await read();
+	expect(after.ep_micros).toBe(250_000);
+	expect(after.tutorial).toMatchObject({ complete: false, victories: 4, next: 'equip' });
+	expect(after.equipment_projects.project).toBeNull();
+	expect(after.equipment_projects.unlocked).toContain('melvorD:Shrimp');
+	expect(await db_all('SELECT project_id FROM combat_project_tracking WHERE client_id=?', [owner.client_id])).toEqual([]);
+	expect((await act('skip-project-task', { project_id, task_id, revision: after.character.revision })).error).toBe('project_unavailable');
+	expect((await act('equip', { slot: 'Food', item_id: 'melvorD:Shrimp', revision: after.character.revision })).success).toBe(true);
+	expect((await read()).food_id).toBe('melvorD:Shrimp');
+});
+
 test('card reset API carries the selected group and replays without resetting the other card', async () => {
 	for (const group of ['equipment','consumables']) {
-		const owner=await register_client('Card Reset',undefined,'1.7.0');
+		const owner=await register_client('Card Reset',undefined,'1.7.9');
 		await post_json('/api/combat/prepare',{command_id:crypto.randomUUID()},owner.session_token);
 	await db_run('UPDATE combat_tutorial SET victories=7 WHERE client_id=?',[owner.client_id]);
 	await db_run('INSERT INTO combat_unlocks(client_id,skill_caps_json,material_caps_json,food_cap) VALUES(?,?,?,8)',[owner.client_id,JSON.stringify({attack:99,strength:99,defence:99,hitpoints:99}),JSON.stringify(Object.fromEntries(['Weapon','Shield','Helmet','Platebody','Platelegs','Boots','Gloves','Quiver'].map(slot=>[slot,6])))]);
@@ -336,8 +371,8 @@ test('card reset API carries the selected group and replays without resetting th
 });
 
 test('omitted catalog selectors retain full responses; compact clients negotiate hashes across all reads', async () => {
-	const legacy = await register_client('Legacy Catalog', undefined, '1.7.0');
-	const modern = await register_client('Compact Catalog', undefined, '1.7.0');
+	const legacy = await register_client('Legacy Catalog', undefined, '1.7.9');
+	const modern = await register_client('Compact Catalog', undefined, '1.7.9');
 	for (const owner of [legacy, modern]) {
 		const first = (await get_json_with_session<any>('/api/combat/inventory', owner.session_token)).json;
 		const revision = first.equipment_projects.catalog_revision;
@@ -357,7 +392,7 @@ test('omitted catalog selectors retain full responses; compact clients negotiate
 });
 
 test('new characters receive one tutorial allowance and cannot buy levels before graduating', async () => {
-	const owner = await register_client('Training Gates', undefined, '1.7.0');
+	const owner = await register_client('Training Gates', undefined, '1.7.9');
 	const payload = { command_id:crypto.randomUUID() };
 	const prepared = (await post_json<any>('/api/combat/prepare',payload,owner.session_token)).json;
 	expect(prepared.success).toBe(true);
@@ -376,8 +411,8 @@ test('new characters receive one tutorial allowance and cannot buy levels before
 });
 
 test('actual tutorial controls require admin, stay self-scoped and replay without repeated resets', async () => {
-	const admin = await register_client('Tutorial Phase Admin', undefined, '1.7.0');
-	const other = await register_client('Tutorial Phase Other', undefined, '1.7.0');
+	const admin = await register_client('Tutorial Phase Admin', undefined, '1.7.9');
+	const other = await register_client('Tutorial Phase Other', undefined, '1.7.9');
 	await db_run('UPDATE clients SET client_identifier=? WHERE id=?',['TEST-ADMIN-COMBAT-TUTORIAL',admin.client_id]);
 	await post_json('/api/combat/prepare',{command_id:crypto.randomUUID()},admin.session_token);
 	await post_json('/api/combat/prepare',{command_id:crypto.randomUUID()},other.session_token);
@@ -422,7 +457,7 @@ test('actual tutorial controls require admin, stay self-scoped and replay withou
 });
 
 test('inventory omits retired Practice even when an older client requests its catalog', async () => {
-	const owner = await register_client('Retired Practice', undefined, '1.7.0');
+	const owner = await register_client('Retired Practice', undefined, '1.7.9');
 	await post_json('/api/combat/prepare', {command_id:crypto.randomUUID()}, owner.session_token);
 	await db_run('UPDATE combat_tutorial SET victories=7 WHERE client_id=?', [owner.client_id]);
 	const full = (await get_json_with_session<any>('/api/combat/inventory?practice_catalog=outdated', owner.session_token)).json;

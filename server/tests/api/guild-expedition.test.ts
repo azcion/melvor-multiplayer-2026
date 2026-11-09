@@ -36,7 +36,7 @@ describe('Guild Expedition registration', () => {
 			[EXPEDITION_CONTENT_V1.version, JSON.stringify(EXPEDITION_CONTENT_V1), expedition_id]);
 	}
 	test('restricts new preview runs to the seven-Chamber route while keeping votes', async () => {
-		const guild = await make_guildmates('Preview One', 'Preview Two', 'Preview Guild', { first: '1.7.2', second: '1.7.2' });
+		const guild = await make_guildmates('Preview One', 'Preview Two', 'Preview Guild', { first: '1.7.9', second: '1.7.9' });
 		const registration = await post_json<{ expedition_id: number }>('/api/expedition/register',
 			{ operation_id: crypto.randomUUID() }, guild.first.session_token);
 		await db_run('UPDATE expeditions SET registered_at = ?, registration_ends_at = ? WHERE id = ?',
@@ -725,7 +725,7 @@ describe('Guild Expedition registration', () => {
 
 	test.each([true, false])('destroys an inactive Stash once while Crucible open=%s', async (is_open) => {
 		const guild = await make_guildmates('Crucible Supply A', 'Crucible Supply B', 'Crucible Stash',
-			{ first: '1.7.0', second: '1.7.0' });
+			{ first: '1.7.9', second: '1.7.9' });
 		const started = await post_json<{ expedition_id: number }>(
 			'/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.first.session_token);
 		const now = Date.now();

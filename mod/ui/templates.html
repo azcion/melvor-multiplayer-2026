@@ -165,7 +165,11 @@
 								<h4>{{ state.equipment_stage_name(index) }}</h4>
 								<article v-for="task in tasks" :key="task.task_id" class="mp-expedition-task mp-equipment-task" :class="{ 'mp-expedition-task-self': state.equipment_tracking()?.source === 'equipment' && state.equipment_tracking()?.task_id === task.task_id, 'mp-tutorial-highlight': state.combat_tutorial_highlight('work') && task.available && task.player_ms < task.target_ms, 'mp-equipment-locked': !task.available && task.player_ms < task.target_ms }">
 									<div class="mp-equipment-item"><img :src="state.expedition_work_icon(task.skill_id)" alt="" width="24" height="24"><strong>{{ state.equipment_task_name(task) }}</strong></div>
-									<progress :value="task.player_ms" :max="task.target_ms" :aria-label="state.equipment_task_name(task)"></progress><small>{{ state.equipment_duration(task.player_ms) }} / {{ state.equipment_duration(task.target_ms) }}</small>
+									<progress :value="task.player_ms" :max="task.target_ms" :aria-label="state.equipment_task_name(task)"></progress>
+									<div class="mp-equipment-task-footer">
+										<small>{{ state.equipment_duration(task.player_ms) }} / {{ state.equipment_duration(task.target_ms) }}</small>
+										<button v-if="state.equipment_task_skip_cost(task)" type="button" class="btn btn-sm btn-outline-primary mp-equipment-task-skip" :disabled="!state.equipment_task_skip_ready(task)" @click.stop="state.equipment_task_skip(task)">{{ state.equipment_task_skip_label(task) }}</button>
+									</div>
 									<button v-if="state.can_open_chat_feature(task.skill_id)" type="button" class="mp-equipment-task-link" :aria-label="state.equipment_task_name(task)" @click="state.open_chat_feature(task.skill_id)"></button>
 								</article>
 							</div>

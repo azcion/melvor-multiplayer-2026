@@ -1300,7 +1300,7 @@ describe('Support Chat API', () => {
 });
 
 test('retires Expedition Chat for supported clients while retaining backend history', async () => {
- for (const version of ['1.7.0','1.7.1']) {
+ for (const version of ['1.7.9','1.7.10']) {
   const client = await register_client('Retired Expedition', undefined, version);
   await db_run("INSERT INTO global_chat_messages(channel,sender_id,idempotency_key,content,created_at) VALUES('testers',?,?,?,?)", [client.client_id,crypto.randomUUID(),'Retained history',Date.now()]);
   const inbox = await get_json_with_session<any>('/api/chat/conversations',client.session_token);

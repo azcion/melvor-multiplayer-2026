@@ -1586,6 +1586,7 @@
 	"MOD_MP_EQUIPMENT_GO_TO_PROJECTS": "Go to Projects",
 	"MOD_MP_EQUIPMENT_PERSONAL_INFO": "Personal work unlocks reusable Colosseum equipment. Projects award no EP and never contribute Guild work. Native materials and products stay in the native game.",
 	"MOD_MP_EQUIPMENT_CREATE_FIRST": "Create a fighter in Colosseum to start a project.",
+	"MOD_MP_EQUIPMENT_SKIP_TASK": "Skip for %s EP",
 	"MOD_MP_EQUIPMENT_CANCEL_PROJECT": "Cancel project",
 	"MOD_MP_EQUIPMENT_CANCEL_PROJECT_INFO": "Cancel the active project and discard all its work? Any tracking for this project will stop. Permanent unlocks are kept.",
 	"MOD_MP_EQUIPMENT_CATALOG": "Available projects",

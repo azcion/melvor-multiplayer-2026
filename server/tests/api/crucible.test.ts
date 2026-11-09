@@ -10,8 +10,8 @@ beforeAll(async () => {
 });
 
 test('Cast and Reclaim use Crucible receipts and audited custody', async () => {
-	const newer = await register_guild_client('Crucible New', 'Crucible New Guild', '1.7.0');
-	const older = await register_guild_client('Crucible Old', 'Crucible Old Guild', '1.7.0');
+	const newer = await register_guild_client('Crucible New', 'Crucible New Guild', '1.7.9');
+	const older = await register_guild_client('Crucible Old', 'Crucible Old Guild', '1.7.9');
 	const item_id = `test:Crucible_Ore_${crypto.randomUUID().replaceAll('-', '')}`;
 	const command_id = crypto.randomUUID();
 	const body = { command_id, source: 'bank', items: [{ id: item_id, qty: 3,
@@ -69,7 +69,7 @@ test('Cast and Reclaim use Crucible receipts and audited custody', async () => {
 
 test('Reclaim bonus creates audited Gloop in the Guild Crucible', async () => {
 	const pair = await make_guildmates('Crucible Bonus Donor', 'Crucible Bonus Taker',
-		'Crucible Bonus', { first: '1.7.0', second: '1.7.0' });
+		'Crucible Bonus', { first: '1.7.9', second: '1.7.9' });
 	const account = await db_run('INSERT INTO melvor_accounts (cloud_username, playfab_id, created_at) ' +
 		'VALUES (?, ?, ?)', [`crucible-bonus-${crypto.randomUUID()}`, crypto.randomUUID(), Date.now()]);
 	expect(account).toBe(1);
@@ -114,7 +114,7 @@ test('Reclaim bonus creates audited Gloop in the Guild Crucible', async () => {
 });
 
 test('legacy clearing is free of effects and Wishes preserve maximum compatibility visibility', async () => {
-	const client = await register_guild_client('Crucible Wish', 'Crucible Wish Guild', '1.7.0');
+	const client = await register_guild_client('Crucible Wish', 'Crucible Wish Guild', '1.7.9');
 	const account_id = await db_run('INSERT INTO melvor_accounts (cloud_username, playfab_id, created_at) VALUES (?, ?, ?)',
 		[`crucible-${crypto.randomUUID()}`, crypto.randomUUID(), Date.now()]);
 	expect(account_id).toBe(1);
@@ -169,7 +169,7 @@ test('legacy clearing is free of effects and Wishes preserve maximum compatibili
 });
 
 test('Council Purging targets only the captured Offering generation', async () => {
-	const newer = await register_guild_client('Crucible Council', 'Crucible Council', '1.7.0');
+	const newer = await register_guild_client('Crucible Council', 'Crucible Council', '1.7.9');
 	const cast = async (qty: number) => post_json<{ success: boolean }>('/api/crucible/cast', {
 		command_id: crypto.randomUUID(), source: 'bank',
 		items: [{ id: 'test:Council_Ore', qty, value_currency_id: 'melvorD:GP', value_per_item: 100 }]
@@ -193,8 +193,8 @@ test('Council Purging targets only the captured Offering generation', async () =
 
 test('linked characters share Wishes within each Guild with maximum legacy visibility everywhere', async () => {
 	const pair = await make_guildmates('Scope First', 'Scope Sibling', 'Scope Shared',
-		{ first: '1.7.0', second: '1.7.0' });
-	const other = await register_guild_client('Scope Other', 'Scope Other Guild', '1.7.0');
+		{ first: '1.7.9', second: '1.7.9' });
+	const other = await register_guild_client('Scope Other', 'Scope Other Guild', '1.7.9');
 	await db_run('INSERT INTO melvor_accounts (cloud_username, playfab_id, created_at) VALUES (?, ?, ?)',
 		[`scope-${crypto.randomUUID()}`, crypto.randomUUID(), Date.now()]);
 	const account = (await db_all<{ id: number }>('SELECT id FROM melvor_accounts ORDER BY id DESC LIMIT 1'))[0]!;
@@ -227,7 +227,7 @@ test('linked characters share Wishes within each Guild with maximum legacy visib
 });
 
 test('retired Charitree endpoints are absent for every supported client', async () => {
-	const client = await register_guild_client('Retired Endpoint', 'Retired Endpoint', '1.7.0');
+	const client = await register_guild_client('Retired Endpoint', 'Retired Endpoint', '1.7.9');
 	for (const endpoint of ['/api/charity/donate', '/api/charity/take', '/api/charity/shuffle', '/api/charity/wish/make'])
 		expect((await post(endpoint, { command_id: crypto.randomUUID() }, client.session_token)).status).toBe(404);
 });

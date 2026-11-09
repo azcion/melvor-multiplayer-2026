@@ -19,14 +19,14 @@ test('pair race, secure cookie, CSRF, game isolation, revocation and no browser 
 		await post_json<any>('/api/register', {
 			client_key: crypto.randomUUID(),
 			display_name: 'Browser auth',
-			client_runtime: { mod_version: '1.7.0', active_mods: [] }
+			client_runtime: { mod_version: '1.7.9', active_mods: [] }
 		})
 	).json;
 	const b = (
 		await post_json<any>('/api/register', {
 			client_key: crypto.randomUUID(),
 			display_name: 'Other browser',
-			client_runtime: { mod_version: '1.7.0', active_mods: [] }
+			client_runtime: { mod_version: '1.7.9', active_mods: [] }
 		})
 	).json;
 	expect((await post('/api/chat/browser-links/issue', {})).status).toBe(401);

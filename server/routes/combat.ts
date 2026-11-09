@@ -34,7 +34,7 @@ export function register_combat_routes() {
 			tutorial_debug_targets: is_admin(client) ? tutorial_debug_targets() : []
 		},url);
 	});
-	for (const action of ['unlock-slot','unlock-tier','start-project','cancel-project','equip','prepare','skip-tutorial','level','reset-levels','reset-equipment','debug-project','debug-tutorial','debug-dungeon'] as const) session_post_route(`/api/combat/${action}`, (_req,_url,client,json): HandlerResult => {
+	for (const action of ['unlock-slot','unlock-tier','start-project','cancel-project','skip-project-task','equip','prepare','skip-tutorial','level','reset-levels','reset-equipment','debug-project','debug-tutorial','debug-dungeon'] as const) session_post_route(`/api/combat/${action}`, (_req,_url,client,json): HandlerResult => {
 		if ((action === 'debug-tutorial' || action === 'debug-dungeon') && !is_admin(client)) return 403;
 		if (action === 'debug-project' && !can_debug_expedition(client)) return 403;
 		return run_economy_command(client,json.command_id,`combat-${action}`,() => {
@@ -44,7 +44,7 @@ export function register_combat_routes() {
 			if (action === 'debug-dungeon') return debug_dungeon(db,client,String(json.command_id),json);
 			if (action === 'debug-tutorial') return debug_tutorial(db,client,String(json.command_id),json);
 			if (action === 'debug-project') return debug_equipment_project(db,client,String(json.command_id),json);
-			if (['unlock-slot','unlock-tier','start-project','cancel-project','equip'].includes(action)) return change_equipment(db,client,String(json.command_id),action,json);
+			if (['unlock-slot','unlock-tier','start-project','cancel-project','skip-project-task','equip'].includes(action)) return change_equipment(db,client,String(json.command_id),action,json);
 			if (action === 'skip-tutorial') return skip_tutorial(db,client,json.ep_micros);
 			if (action === 'prepare') {
 				const response = prepare_combat(db,client);

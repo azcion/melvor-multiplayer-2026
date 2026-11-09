@@ -1541,6 +1541,7 @@
 	"MOD_MP_EQUIPMENT_GO_TO_PROJECTS": "Ir para Projetos",
 	"MOD_MP_EQUIPMENT_PERSONAL_INFO": "O trabalho pessoal desbloqueia equipamento reutilizável do Coliseu. Os projetos não concedem EP nem contam como trabalho da Guilda. Os materiais e produtos nativos permanecem no jogo nativo.",
 	"MOD_MP_EQUIPMENT_CREATE_FIRST": "Create your Online character on Combat to begin an equipment project.",
+	"MOD_MP_EQUIPMENT_SKIP_TASK": "Ignorar por %s EP",
 	"MOD_MP_EQUIPMENT_CANCEL_PROJECT": "Cancelar projeto",
 	"MOD_MP_EQUIPMENT_CANCEL_PROJECT_INFO": "Cancelar o projeto ativo e descartar todo o trabalho? O acompanhamento deste projeto será interrompido. Os desbloqueios permanentes serão mantidos.",
 	"MOD_MP_EQUIPMENT_CATALOG": "Projetos disponíveis",

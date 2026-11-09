@@ -1586,6 +1586,7 @@
 	"MOD_MP_EQUIPMENT_GO_TO_PROJECTS": "前往项目",
 	"MOD_MP_EQUIPMENT_PERSONAL_INFO": "个人工作可解锁可重复使用的斗技场装备。项目不奖励EP，也不会计入公会工作。原版材料和产物仍留在原版游戏中。",
 	"MOD_MP_EQUIPMENT_CREATE_FIRST": "请先在斗技场创建战斗角色，才能开始装备项目。",
+	"MOD_MP_EQUIPMENT_SKIP_TASK": "花费 %s EP 跳过",
 	"MOD_MP_EQUIPMENT_CANCEL_PROJECT": "取消项目",
 	"MOD_MP_EQUIPMENT_CANCEL_PROJECT_INFO": "要取消当前项目并丢弃所有进度吗？此项目的工作追踪也会停止。永久解锁内容会保留。",
 	"MOD_MP_EQUIPMENT_CATALOG": "可用项目",

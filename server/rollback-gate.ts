@@ -1,6 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import type { DurableAuditContext } from './audit-context';
-import { rollback_affected, rollback_held } from './rollback-policy';
+import { rollback_admission_state, rollback_affected, rollback_held } from './rollback-policy';
 
 // Bank/source mutations and membership transitions can consume, return, or reassign custody.
 // Friends, Raids, votes and independent work tracking do not spend these sources.
@@ -35,8 +35,8 @@ export function rollback_request_clients(database:Database,path:string,json:Reco
   for(const row of database.query<{id:number},[number]>(`SELECT sibling.id FROM clients actor JOIN clients sibling ON sibling.melvor_account_id=actor.melvor_account_id JOIN guild_memberships am ON am.client_id=actor.id JOIN guild_memberships sm ON sm.client_id=sibling.id AND sm.guild_id=am.guild_id WHERE actor.id=? AND actor.melvor_account_id IS NOT NULL`).all(actor)) clients.add(row.id);
  return [...clients];
 }
-export function related_rollback_gate(database:Database,clients:number[],actor:number,capable:boolean):RollbackGateError|null {
- const own=rollback_gate(database,actor,capable);if(own) return own;
+export function related_rollback_gate(database:Database,clients:number[],actor:number,capable:boolean,load:number|null=null):RollbackGateError|null {
+ const own=rollback_gate(database,actor,capable,load);if(own) return own;
  return clients.some(client=>client!==actor&&rollback_held(database,client))?new RollbackGateError(false):null;
 }
 export class RollbackGateError extends Error {
@@ -45,14 +45,15 @@ export class RollbackGateError extends Error {
   message:'Please update Multiplayer before using economy actions.'}:{success:false,error:'economy_review_pending',
   message:'Multiplayer economy actions are awaiting review. Please message Multiplayer Support.'},{status:this.upgrade?426:409});}
 }
-export function rollback_gate(database:Database,client:number,capable:boolean):RollbackGateError|null {
+export function rollback_gate(database:Database,client:number,capable:boolean,load:number|null=null):RollbackGateError|null {
  if(!capable&&rollback_affected(database,client)) return new RollbackGateError(true);
- return rollback_held(database,client)?new RollbackGateError(false):null;
+ const admission=rollback_admission_state(database,client,load);
+ return admission==='waiting'||admission==='review'?new RollbackGateError(false):null;
 }
 export function guard_rollback_write(database:Database,context:DurableAuditContext|undefined):void {
  if(context?.actor_kind!=='client'||context.actor_client_id===null ||
   !unsafe_rollback_request(String(context.details?.path??''),String(context.details?.method??''))) return;
  const clients=typeof context.details?.rollback_clients==='string'?JSON.parse(context.details.rollback_clients) as number[]:[context.actor_client_id];
- const gate=related_rollback_gate(database,clients,context.actor_client_id,context.details?.rollback_capable===true);
+ const gate=related_rollback_gate(database,clients,context.actor_client_id,context.details?.rollback_capable===true,context.save_load_id);
  if(gate) throw gate;
 }

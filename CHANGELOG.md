@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.9
+
+- You can skip a Colosseum Equipment Project task for 0.50 EP, including during the Fighter tutorial. Skipping the final task unlocks the item for your Fighter.
+
 ## 1.7.8
 
 - SAE Devs can post SAE-only announcements, visible to players using Super Awesome Expansion and admins.

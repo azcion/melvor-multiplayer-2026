@@ -2917,7 +2917,7 @@ export function validate_session_request(handler: SessionRequestHandler, json_bo
 
 			synchronize_rollback_caches();
 			const unsafe=unsafe_rollback_request(path,req.method);
-			const gate=unsafe?related_rollback_gate(db,rollback_clients,client_id,session.rollback_capable):null;
+			const gate=unsafe?related_rollback_gate(db,rollback_clients,client_id,session.rollback_capable,session.save_load_id):null;
 			const command_kind = ECONOMY_COMMAND_KINDS[url.pathname];
 			if (req.method === 'POST' && command_kind && json?.command_id !== undefined) {
 				const replay = replay_economy_command(client_id, json.command_id, command_kind);
@@ -2946,7 +2946,7 @@ export function validate_session_request(handler: SessionRequestHandler, json_bo
 				const result=await handler(req, url, client_id, json as JsonObject);
 				// Some legacy route wrappers turn domain exceptions into numeric errors.
 				// Recheck after awaited work so a racing hold still has an actionable response.
-				const late_gate=unsafe?related_rollback_gate(db,rollback_clients,client_id,session.rollback_capable):null;
+				const late_gate=unsafe?related_rollback_gate(db,rollback_clients,client_id,session.rollback_capable,session.save_load_id):null;
 				return late_gate ? late_gate.response() : result;
 			} catch(error) {if(error instanceof RollbackGateError) return error.response();throw error;}
 		});

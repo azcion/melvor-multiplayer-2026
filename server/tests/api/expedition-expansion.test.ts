@@ -17,7 +17,7 @@ for (const route of [
 	['entrance', 'rootforge_passage', 'glassroot_terraces', 'buried_observatory', 'prismatic_orrery', 'voidwatch_threshold', 'hollow_star'],
 	['entrance', 'prismatic_descent', 'glassroot_terraces', 'buried_observatory', 'prismatic_orrery', 'voidwatch_threshold', 'hollow_star']
 ]) test(`supported participants complete ${route.join(' → ')}`, async () => {
-	const guild = await make_guildmates('Expansion New', 'Expansion Legacy', 'Expansion Guild', { first: '1.7.0', second: '1.7.0' });
+	const guild = await make_guildmates('Expansion New', 'Expansion Legacy', 'Expansion Guild', { first: '1.7.9', second: '1.7.9' });
 	const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 3 }, guild.first.session_token);
 	expect(created.response.status).toBe(200);
 	const expedition_id = created.json.expedition_id;
@@ -92,7 +92,7 @@ for (const route of [
 });
 
 test('new client joins a legacy run without changing tasks, visits, history or an open work segment', async () => {
-	const guild = await make_guildmates('Legacy Creator', 'New Joiner', 'Continuity Guild', { first: '1.7.0', second: '1.7.0' });
+	const guild = await make_guildmates('Legacy Creator', 'New Joiner', 'Continuity Guild', { first: '1.7.9', second: '1.7.9' });
 	const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.first.session_token);
 	const id = created.json.expedition_id;
 	await db_run('UPDATE expeditions SET registered_at = ?, registration_ends_at = ? WHERE id = ?', [Date.now() - 20 * 3_600_000, Date.now() - 1, id]);
@@ -116,7 +116,7 @@ test('new client joins a legacy run without changing tasks, visits, history or a
 });
 
 test('legacy work reports unlock expanded phases only after all required arrival work and replay safely', async () => {
-	const guild = await make_guildmates('New Content Owner', 'Legacy Worker', 'Phase Gate Guild', { first: '1.7.0', second: '1.7.0' });
+	const guild = await make_guildmates('New Content Owner', 'Legacy Worker', 'Phase Gate Guild', { first: '1.7.9', second: '1.7.9' });
 	const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 3 }, guild.first.session_token);
 	await post_json('/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.second.session_token);
 	const expedition_id = created.json.expedition_id;
@@ -163,7 +163,7 @@ test('legacy work reports unlock expanded phases only after all required arrival
 
 
 test('Rift retains the previous Guild return only for participants, including claimed rewards', async () => {
-	const guild = await make_guildmates('Rift Returner', 'Rift Newcomer', 'Rift Recap', { first: '1.7.1', second: '1.7.1' });
+	const guild = await make_guildmates('Rift Returner', 'Rift Newcomer', 'Rift Recap', { first: '1.7.9', second: '1.7.9' });
 	const old = (await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 3 }, guild.first.session_token)).json.expedition_id;
 	await db_run("UPDATE expeditions SET status='completed', ended_at=? WHERE id=?", [Date.now(), old]);
 	await db_run("UPDATE expedition_personal_records SET status='completed', ended_at=?, ending_bonus_eligible=1 WHERE expedition_id=?", [Date.now(), old]);

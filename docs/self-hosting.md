@@ -1,12 +1,24 @@
 # Self-hosting from the public source
 
-The backend and the mod are separate. Start the backend from this repository and point the published mod at it
-first. Build a local mod only if you want to test or change the client source.
+Start with the main server and connect the published Melvor Multiplayer Remastered mod. Add the combat service
+only if you want Online Combat.
 
-## Start a fresh backend
+| Compose service | What it does | Default host address |
+| --- | --- | --- |
+| `server` | Required. Handles the multiplayer API, accounts, Guilds, Browser Chat, and the SQLite database. It also issues Online Combat tickets and saves combat progress. | `127.0.0.1:3000` |
+| `combat` | Optional. Runs Online Combat fights and streams updates to the game over WebSocket. It talks to `server` over the private Compose network and uses the main server's database through that connection. | `127.0.0.1:3002` |
 
-Install Docker with Docker Compose and start the Docker daemon. No host Bun installation or external database is
-needed. Obtain the public source, for example with Git:
+## Windows setup
+
+Install and start [Docker Desktop for Windows](https://docs.docker.com/desktop/setup/install/windows-install/)
+with Linux containers and the WSL 2 backend. Open PowerShell in the source folder, or install Git and use the
+clone command below. Run `docker compose version` to check that Compose is available. The Git and Compose
+commands in this guide work in PowerShell. Use `curl.exe` for the HTTP checks. Examples marked Bash require a
+Bash shell, such as WSL with Docker Desktop integration enabled.
+
+## Start the main server
+
+Start Docker with Compose support. The containers supply Bun and SQLite. Clone the public source:
 
 ```sh
 git clone https://github.com/azcion/melvor-multiplayer-2026.git
@@ -24,13 +36,12 @@ curl --fail --show-error http://127.0.0.1:3000/health
 curl --fail --show-error http://127.0.0.1:3000/api/versions
 ```
 
-The health response contains `"status":"ok"` and the backend deployment version. API discovery reports the supported
-API versions and any minimum mod version. A fresh database has no player identities, and registration is available
-without configuring an administrator. Optional translation credentials are not required.
+Expect `"status":"ok"` and a backend version from `/health`. The `/api/versions` response lists supported API
+versions and any minimum mod version. You can register on a fresh server with the default settings.
 
 The server binds to `127.0.0.1:3000` on the Docker host. If that port is occupied, set `MELVOR_SERVER_PORT=3001` in
-a local `.env` file before starting, and use that port in every URL below. `.env.example` lists optional settings;
-the defaults work for the API local test. To use Browser Chat locally, also set
+a local `.env` file before starting, and use that port for direct API requests. `.env.example` lists optional
+settings. To use Browser Chat locally, also set
 `MELVOR_CHAT_PUBLIC_ORIGIN=http://127.0.0.1:3000` (adjust the host and port to the exact browser origin), then
 recreate the server. Keep the same project name for subsequent commands.
 
@@ -59,16 +70,61 @@ In the source checkout used for the server, get the newer version. If the checko
 git pull --ff-only
 ```
 
-If you checked out a release tag, switch to the newer tag instead. Back up the database before updating. Then rebuild
-and start the server using the same Compose project name as before:
+If you checked out a release tag, fetch tags and switch to the newer tag instead. Back up the database before
+rebuilding. Then run the same start command and use the same Compose project name as before:
 
 ```sh
 docker compose --project-name melvor-selfhost up --build --detach --wait server
 ```
 
 Use your existing project name in place of `melvor-selfhost`; changing it creates a separate database volume. This
-command keeps the current database and applies the newer backend source. Do not add `down --volumes`, which deletes
-the database.
+command keeps the current database and applies the newer backend source. If you enabled Online Combat, use the
+two-service start command below so both services are rebuilt from the same checkout. Avoid `down --volumes`, which
+deletes the database.
+
+## Enable Online Combat
+
+Use a source checkout that includes the `combat` Compose profile and a compatible mod. First confirm the main
+server works. Then create a shared ticket key **once** and keep it private. If `config/combat-ticket.key` already
+exists for this instance, reuse it.
+
+**PowerShell**
+
+```powershell
+New-Item -ItemType Directory -Force config | Out-Null
+if (-not (Test-Path config/combat-ticket.key)) {
+    $combatKey = New-Object byte[] 32
+    $combatRng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $combatRng.GetBytes($combatKey)
+    $combatRng.Dispose()
+    [BitConverter]::ToString($combatKey).Replace('-', '') | Set-Content -Encoding ascii config/combat-ticket.key
+}
+```
+
+**Bash (requires OpenSSL)**
+
+```bash
+mkdir -p config
+test -f config/combat-ticket.key || openssl rand -hex 32 > config/combat-ticket.key
+```
+
+In the repository root, add this line to `.env`. The value is the path **inside** the containers, including on Windows.
+
+```dotenv
+MELVOR_COMBAT_TICKET_KEY_FILE=/app/config/combat-ticket.key
+```
+
+Build and start both services under the same project name. Check the combat process directly (use `curl.exe` in PowerShell).
+
+```sh
+docker compose --project-name melvor-selfhost --profile combat up --build --detach --wait server combat
+curl --fail --show-error http://127.0.0.1:3002/health
+```
+
+The combat health check returns `OK` when the process is listening. To play, put both services behind one origin
+using the [proxy example below](#example-nginx-on-the-docker-host). Route `/combat/socket` to `combat` and keep
+the API routes on `server`. The mod derives its WebSocket URL from the server URL in Connection settings.
+Keep the internal authority connection (`server:3003`) inside Docker.
 
 ## Connect the published mod on the same machine
 
@@ -90,6 +146,26 @@ client identities. The port is also part of the origin.
 The published mod's empty custom-server setting restores its bundled service. It does not select your local Docker
 server. Each normalized custom origin has its own multiplayer identity and server-coupled storage; switching servers
 does not move Guilds or other backend data between them.
+
+### Steam workaround for local HTTP on Windows
+
+If the Steam edition blocks your local HTTP server, you can try these Chromium flags for same-PC testing.
+They relax web security across the game client. Use them only with a trusted server on loopback.
+
+1. Exit Melvor Idle. In your Steam Library, right-click **Melvor Idle → Manage → Browse local files**.
+2. Back up the game's `package.json`, then open it in a text editor.
+3. Find `"chromium-args"`. Append the following inside its existing quoted value, separated from the other
+   arguments by a space. Keep the existing arguments. See the [NW.js manifest reference](https://docs.nwjs.io/References/Manifest%20Format/#chromium-args).
+4. Save the file, relaunch from Steam, and try connecting to `http://127.0.0.1:3000` (or your local proxy port).
+
+```text
+--allow-running-insecure-content --disable-web-security
+```
+
+The mod still requires HTTPS for LAN IPs and other hostnames. Restore the backed-up file to re-enable the
+client's default protections.
+
+Thanks, albertoacv4498!
 
 ## Use a hostname or another device
 
@@ -134,7 +210,7 @@ Set the browser-facing origin in `.env` before starting the server:
 MELVOR_CHAT_PUBLIC_ORIGIN=https://multiplayer.example.com
 ```
 
-After changing `.env`, recreate the server:
+After changing `.env`, rerun the start command for the services you enabled.
 
 ```sh
 docker compose --project-name melvor-selfhost up --build --detach --wait server
@@ -176,16 +252,46 @@ location = /wiki { proxy_pass http://127.0.0.1:3080; }
 location ^~ /wiki/ { proxy_pass http://127.0.0.1:3080; }
 ```
 
-The example does not enable the optional Online Combat service; that service needs its own WebSocket routing.
-Verify `/health`, `/api/versions`, `/chat`, `/chat/assets/chat.mjs`, and `/mod/chat-items.mjs` through HTTPS,
-and, if enabled, `/wiki/`. Pair Browser Chat and check the game connection from the actual client as well.
+For Online Combat, add this location inside the same `server` block. These headers let Nginx pass the
+[WebSocket upgrade](https://nginx.org/en/docs/http/websocket.html) through to the combat service.
+
+```nginx
+location = /combat/socket {
+    proxy_pass http://127.0.0.1:3002;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
+```
+
+For a proxy container on the same Compose network, use `server:3000` for the API and `combat:3002` for the socket.
+
+For same-PC play, you can use the same Nginx routes with HTTP on loopback. To keep an existing
+`http://127.0.0.1:3000` game connection, set `MELVOR_SERVER_PORT=3001` in `.env` and rerun the two-service
+start command. In the Nginx example, use `listen 127.0.0.1:3000;` and `server_name 127.0.0.1;`, remove both
+certificate lines, and change the API upstream to `http://127.0.0.1:3001`. Keep the combat upstream on port 3002.
+Use `http://127.0.0.1:3000` for the mod and, if using Browser Chat, for `MELVOR_CHAT_PUBLIC_ORIGIN`.
+
+On Windows, unpack [Nginx for Windows](https://nginx.org/en/docs/windows.html). In its `conf/nginx.conf`, replace
+the default `server` block inside `http` with the loopback version above, including the combat location. From the
+Nginx folder in PowerShell, check the config with `.\nginx.exe -t` and start it with `Start-Process .\nginx.exe`.
+If it is already running, use `.\nginx.exe -s reload`.
+
+Check `/health` and `/api/versions` on the proxy origin. If using Browser Chat or the wiki, open those through
+the proxy too. For Online Combat, start a fight with a test character and confirm it progresses. The game's
+network inspector should show a WebSocket upgrade (HTTP 101) on `/combat/socket`. If the main API works but
+combat fails, check the socket route and the logs for both services:
+
+```sh
+docker compose --project-name melvor-selfhost --profile combat logs --tail 100 server combat
+```
 
 ### Optional player wiki
 
 The default wiki link points to the official handbook. To host a copy, build the static site with Node.js 22.18+
 and run its separate Nginx container from the repository root:
 
-```sh
+```bash
 node wiki/scripts/build.mjs
 mkdir -p wiki/site/releases/initial
 cp -R wiki/dist/. wiki/site/releases/initial/
@@ -224,7 +330,7 @@ docker compose --project-name melvor-selfhost-toolkit up --build --detach --wait
 
 To keep the first backend running during this test, start the second on an unused port instead:
 
-```sh
+```bash
 MELVOR_SERVER_PORT=3002 docker compose --project-name melvor-selfhost-toolkit up --build --detach --wait server
 ```
 
@@ -232,24 +338,23 @@ In that case, set the local mod's custom server to `http://127.0.0.1:3002` and r
 uses port 3000. The different origin also keeps the second test's client identity separate from the first.
 
 Install Node.js and the `zip` command on the build host. Package the checked-in client and validate the archive
-with `unzip`:
+with `unzip`. Run these commands in Bash:
 
-```sh
-./scripts/package-mod.sh 1.7.0 A
-unzip -tq dist/melvor-multiplayer-local-1.7.0-A.zip
-unzip -p dist/melvor-multiplayer-local-1.7.0-A.zip main.mjs | head -n 5
+```bash
+./scripts/package-mod.sh 1.7.9 A
+unzip -tq dist/melvor-multiplayer-local-1.7.9-A.zip
+unzip -p dist/melvor-multiplayer-local-1.7.9-A.zip main.mjs | head -n 5
 ```
 
 The archive must have `manifest.json` and `main.mjs` at its root. The checked-in client defaults to
-`http://127.0.0.1:3000`. Pass the numeric `x.y.z` version matching your source checkout (for example, `1.7.0`
-for 1.7.0 source); the packager replaces `development` only in the staged copy. The backend rejects
+`http://127.0.0.1:3000`. Pass the numeric `x.y.z` version matching your source checkout (for example, `1.7.9`
+for 1.7.9 source); the packager replaces `development` only in the staged copy. The backend rejects
 `development` and versions below its supported minimum. A version override does not make older source compatible.
 The optional suffix (`A` above) distinguishes rebuilds in the filename without changing the API version.
 The script packages working-tree changes, including uncommitted edits, and leaves source files unchanged.
-A ZIP made this way does not inherit
-the published release's bundled endpoint. The Connection setting can override its endpoint in the same way.
+Use the mod’s Connection setting to change the endpoint.
 
-1. Import `dist/melvor-multiplayer-local-1.7.0-A.zip` using Creator Toolkit and enable it in a dedicated mod profile.
+1. Import `dist/melvor-multiplayer-local-1.7.9-A.zip` using Creator Toolkit and enable it in a dedicated mod profile.
 2. Disable the published remaster and the original Multiplayer mod in that profile so only this local client runs.
 3. Fully reload Melvor and open a separate test character. Verify the Connection setting uses the intended origin.
 4. Repeat registration, Guild-page, save/reload, and ongoing-connection checks against the fresh backend.
@@ -279,14 +384,10 @@ Entries followed by `prompt action: auto_allow` also appear for successful reque
 an API failure. Check the request's HTTP status and whether the mod reports an authenticated session. CORS headers
 from the backend do not grant the browser's device-access permission.
 
-Check browser preflight separately:
+Check browser preflight separately. In PowerShell, use `curl.exe` and paste this as one line:
 
 ```sh
-curl --include --request OPTIONS \
-  --header 'Origin: https://melvoridle.com' \
-  --header 'Access-Control-Request-Method: POST' \
-  --header 'Access-Control-Request-Headers: content-type,x-session-token' \
-  http://127.0.0.1:3000/api/v2/register
+curl --include --request OPTIONS --header 'Origin: https://melvoridle.com' --header 'Access-Control-Request-Method: POST' --header 'Access-Control-Request-Headers: content-type,x-session-token' http://127.0.0.1:3000/api/v2/register
 ```
 
 Expect HTTP 204 and `Access-Control-Allow-Origin: https://melvoridle.com`. For a hostname test, repeat with its HTTPS
@@ -296,7 +397,7 @@ validation. Do not include session tokens, identity credentials, or full saves i
 The automated fresh-stack smoke test registers a disposable player, requests authenticated events, and removes its
 own database. Run it on an unused port so it does not conflict with the persistent manual-test instance:
 
-```sh
+```bash
 MELVOR_SERVER_PORT=3001 ./scripts/smoke-test.sh
 ```
 

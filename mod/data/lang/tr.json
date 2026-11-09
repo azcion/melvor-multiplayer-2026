@@ -1541,6 +1541,7 @@
 	"MOD_MP_EQUIPMENT_GO_TO_PROJECTS": "Projelere git",
 	"MOD_MP_EQUIPMENT_PERSONAL_INFO": "Kişisel çalışmalar tekrar kullanılabilir Kolezyum ekipmanlarının kilidini açar. Projeler EP kazandırmaz ve Lonca çalışmalarına katkıda bulunmaz. Yerel oyuna ait malzemeler ve ürünler ana oyunda kalır.",
 	"MOD_MP_EQUIPMENT_CREATE_FIRST": "Bir projeye başlamak için Kolezyumda bir savaşçı oluşturun.",
+	"MOD_MP_EQUIPMENT_SKIP_TASK": "%s EP karşılığında atla",
 	"MOD_MP_EQUIPMENT_CANCEL_PROJECT": "Projeyi iptal et",
 	"MOD_MP_EQUIPMENT_CANCEL_PROJECT_INFO": "Etkin projeyi iptal edip tüm çalışmayı silmek istiyor musunuz? Bu proje için takip durdurulur. Kalıcı kilit açmaları korunur.",
 	"MOD_MP_EQUIPMENT_CATALOG": "Mevcut projeler",

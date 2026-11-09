@@ -7,7 +7,7 @@ describe('durable audit log', () => {
 	test('traces a FIFO Crucible lot through a Gift and acknowledged Inbox claim', async () => {
 		const [donor, picker, recipient] = await make_guild_group(
 			['Bob', 'Picker', 'Recipient'],
-			'Audit Guild', '1.7.0'
+			'Audit Guild', '1.7.9'
 		);
 		const item_id = 'melvorD:Audit_Apple';
 		const donate_command = crypto.randomUUID();

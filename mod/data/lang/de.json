@@ -1541,6 +1541,7 @@
 	"MOD_MP_EQUIPMENT_GO_TO_PROJECTS": "Zu den Projekten",
 	"MOD_MP_EQUIPMENT_PERSONAL_INFO": "Persönliche Arbeit schaltet wiederverwendbare Kolosseum-Ausrüstung frei. Projekte gewähren keine EP und tragen niemals zur Gildenarbeit bei. Native Materialien und Produkte bleiben im Spiel.",
 	"MOD_MP_EQUIPMENT_CREATE_FIRST": "Erstelle einen Kämpfer im Kolosseum, um ein Projekt zu beginnen.",
+	"MOD_MP_EQUIPMENT_SKIP_TASK": "Für %s EP überspringen",
 	"MOD_MP_EQUIPMENT_CANCEL_PROJECT": "Projekt abbrechen",
 	"MOD_MP_EQUIPMENT_CANCEL_PROJECT_INFO": "Aktives Projekt abbrechen und die gesamte Arbeit verwerfen? Die Verfolgung dieses Projekts wird beendet. Dauerhafte Freischaltungen bleiben erhalten.",
 	"MOD_MP_EQUIPMENT_CATALOG": "Verfügbare Projekte",

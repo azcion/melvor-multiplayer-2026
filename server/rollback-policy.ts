@@ -26,12 +26,27 @@ export function rollback_client_policy(database:Database,client:number) {
  const boundary=rollback_client_boundary(database,client,policy.config);
  return {...policy,config:{...policy.config,first_operation_id:boundary,client_ids:boundary===null?[]:[client]}};
 }
-// Only explicit holds and unfinished calibration suspend character-wide economy actions.
+// An interrupted handshake must not block a calibrated replacement on the same installation.
+// Keep the evidence and reapply the gate if a session ever binds to the unfinished load again.
 export function rollback_held(database:Database,client:number): boolean {
  const manual=database.query<{held:number},[number]>('SELECT held FROM economy_client_holds WHERE client_id=? ORDER BY id DESC LIMIT 1').get(client);
  return manual?.held===1 || database.query(`SELECT 1 FROM economy_admissions a JOIN economy_load_observations l ON l.id=a.save_load_id
   WHERE l.client_id=? AND (a.state='waiting' OR (a.state='review' AND NOT EXISTS(SELECT 1 FROM economy_clock_evidence e WHERE e.save_load_id=a.save_load_id)))
-  AND NOT EXISTS(SELECT 1 FROM economy_admissions newer WHERE newer.save_load_id=a.save_load_id AND newer.id>a.id) LIMIT 1`).get(client)!==null;
+  AND NOT EXISTS(SELECT 1 FROM economy_admissions newer WHERE newer.save_load_id=a.save_load_id AND newer.id>a.id)
+  AND NOT (
+   a.state='waiting' AND l.installation_id IS NOT NULL
+   AND NOT EXISTS(SELECT 1 FROM client_sessions s WHERE s.client_id=l.client_id AND s.save_load_id=l.id)
+   AND NOT EXISTS(SELECT 1 FROM economy_clock_evidence e WHERE e.save_load_id=l.id)
+   AND EXISTS(
+    SELECT 1 FROM economy_load_observations replacement
+    JOIN economy_clock_evidence e ON e.save_load_id=replacement.id AND e.quality='calibrated'
+    JOIN economy_admissions completed ON completed.id=(
+     SELECT MAX(id) FROM economy_admissions WHERE save_load_id=replacement.id
+    )
+    WHERE replacement.client_id=l.client_id AND replacement.installation_id=l.installation_id
+     AND replacement.id>l.id AND completed.state IN ('ready','review','released')
+   )
+  ) LIMIT 1`).get(client)!==null;
 }
 export function rollback_affected(database:Database,client:number):boolean {
  // Review evidence still requires a capable recovery client, but is not an economy hold.
