@@ -121,6 +121,8 @@ let read_cache = null;
 let unavailable_guild_previews = new Set();
 let guild_preview_scope = null;
 let page_snapshots_supported = false;
+let expedition_content_v4_supported = false;
+let expedition_content_v5_supported = false;
 let transfer_history_refresh_timer = null;
 let events_refreshed_at = 0;
 let last_events_result = null;
@@ -1776,6 +1778,15 @@ const EXPEDITION_CHAMBER_ART = {
 	"tideworn_crypts": "1.7.0/tideworn-crypts",
 	"embervein_machinery": "1.7.0/embervein-machinery",
 	"mossbound_reliquary": "1.7.0/mossbound-reliquary",
+	"drowned_basilica": "1.7.10/drowned-basilica",
+	"cinder_engine": "1.7.10/cinder-engine",
+	"mycelial_court": "1.7.10/mycelial-court",
+	"gilded_catacombs": "1.7.10/gilded-catacombs",
+	"starless_sanctum": "1.7.10/starless-sanctum",
+	"ashen_foundry": "1.7.10/ashen-foundry",
+	"blackwater_nave": "1.7.10/blackwater-nave",
+	"spore_cathedral": "1.7.10/spore-cathedral",
+	"convergence_gallery": "1.7.10/convergence-gallery",
 	"buried_observatory": "1.7.0/buried-observatory",
 	"prismatic_orrery": "1.7.0/prismatic-orrery",
 	"voidwatch_threshold": "1.7.0/voidwatch-threshold",
@@ -1789,6 +1800,15 @@ const EXPEDITION_EXIT_ART = {
 	"Tideworn Crypts": "1.7.0/tideworn-crypts",
 	"Embervein Machinery": "1.7.0/embervein-machinery",
 	"Mossbound Reliquary": "1.7.0/mossbound-reliquary",
+	"Drowned Basilica": "1.7.10/drowned-basilica",
+	"Cinder Engine": "1.7.10/cinder-engine",
+	"Mycelial Court": "1.7.10/mycelial-court",
+	"Gilded Catacombs": "1.7.10/gilded-catacombs",
+	"Starless Sanctum": "1.7.10/starless-sanctum",
+	"Ashen Foundry": "1.7.10/ashen-foundry",
+	"Blackwater Nave": "1.7.10/blackwater-nave",
+	"Spore Cathedral": "1.7.10/spore-cathedral",
+	"Convergence Gallery": "1.7.10/convergence-gallery",
 	"Buried Observatory": "1.7.0/buried-observatory",
 	"Prismatic Orrery": "1.7.0/prismatic-orrery",
 	"Voidwatch Threshold": "1.7.0/voidwatch-threshold",
@@ -2111,7 +2131,7 @@ async function register_expedition() {
 	if (state.expedition_action_pending) return;
 	state.expedition_action_pending = true;
 	try {
-		const result = await api_post('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 3 });
+		const result = await api_post('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: expedition_content_v5_supported ? 5 : expedition_content_v4_supported ? 4 : 3 });
 		if (result?.success) await refresh_expedition_state();
 		else expedition_notify(result?.error_lang ? getLangString(result.error_lang) : getLangString('MOD_MP_EXPEDITION_REGISTRATION_FAILED'), 'danger');
 	} finally {
@@ -3814,14 +3834,20 @@ async function apply_gift_contents(gift, gift_data) {
 	return false;
 }
 
-async function update_inbox() {
-	if (inbox_update_request !== null)
+async function update_inbox(after_claim = false) {
+	const generation = session_generation;
+	if (after_claim && inbox_update_request !== null)
+		await inbox_update_request;
+	if (generation !== session_generation)
+		return false;
+	if (!after_claim && inbox_update_request !== null)
 		return inbox_update_request;
+	const haul_revision = state.adventures.haul_revision;
 	const request = (async () => {
 		state.inbox_loading = true;
 		try {
-			const res = await api_get('/api/inbox');
-			if (res !== null) {
+			const res = await api_get('/api/inbox', after_claim ? () => generation === session_generation : null);
+			if (res !== null && generation === session_generation) {
 				state.inbox_items = Array.isArray(res.items) ? res.items.map(item => ({ ...item })) : [];
 				state.inbox_groups = Array.isArray(res.groups) ? res.groups.map(group => ({
 					...group,
@@ -3830,12 +3856,23 @@ async function update_inbox() {
 					? [{ source_type: 'other', source_name: '', items: state.inbox_items.map(item => ({ ...item })) }]
 					: [];
 				state.inbox_pending_claim = res.pending_claim === true;
-				state.adventures.has_items = state.inbox_groups.some(group=>group.source_type==='fighter_adventures');
+				const adventures = state.adventures;
+				const has_haul = state.inbox_groups.some(group => group.source_type === 'fighter_adventures' && group.items.length > 0);
+				// A cached Inbox can predate the login haul observed by Events.
+				if (haul_revision === adventures.haul_revision && (after_claim || !adventures.unread))
+					adventures.has_items = has_haul;
+				if (after_claim && !has_haul && !state.inbox_pending_claim && haul_revision > adventures.seen_revision) {
+					adventures.seen_revision = haul_revision;
+					adventures.unread = adventures.haul_revision > adventures.seen_revision;
+					void fighter_adventures?.seen(haul_revision);
+				}
 			}
-			return res !== null;
+			return res !== null && generation === session_generation;
 		} finally {
-			state.inbox_loading = false;
-			update_transfer_inventory_nav();
+			if (generation === session_generation) {
+				state.inbox_loading = false;
+				update_transfer_inventory_nav();
+			}
 		}
 	})();
 	inbox_update_request = request;
@@ -3893,7 +3930,7 @@ async function claim_inbox(event) {
 		});
 		const claim = res?.claim;
 		if (!claim) {
-			await update_inbox();
+			await update_inbox(res !== null);
 			if (res !== null && state.inbox_items.length > 0)
 				notify_error('MOD_MP_INBOX_CLAIM_BLOCKED');
 			return;
@@ -3930,7 +3967,7 @@ async function claim_inbox(event) {
 			remove_instance_storage_item('inbox_delivery_state');
 		else
 			set_instance_storage_item('inbox_delivery_state', inbox_delivery_state);
-		await update_inbox();
+		await update_inbox(true);
 	} finally {
 		hide_button_spinner($button);
 		state.inbox_claiming = false;
@@ -4090,15 +4127,19 @@ function update_transfer_inventory_nav() {
 		const num_transfer_offers = state.num_transfer_offers;
 		const has_items = state.transfer_inventory.length > 0;
 		const has_transfer_offers = num_transfer_offers > 0;
-		const inbox_count = typeof adventures_module !== 'undefined' && adventures_module && adventures_supported ? adventures_module.adventure_inbox_count(state.inbox_groups, state.adventures.unread) : state.inbox_items.length;
+		const use_adventure_groups = adventures_supported && !!adventures_module;
+		const inbox_count = use_adventure_groups ? adventures_module.regular_inbox_count(state.inbox_groups) : state.inbox_items.length;
 		const has_inbox_items = inbox_count > 0;
+		const has_unread_haul = use_adventure_groups && state.adventures.has_items && state.adventures.unread;
 		aside.textContent = has_transfer_offers
 			? String(num_transfer_offers)
 			: has_inbox_items ? String(inbox_count)
+			: has_unread_haul ? '1'
 			: has_items ? state.transfer_inventory.length + ' / ' + TRANSFER_INVENTORY_MAX_LIMIT : '';
-		aside.hidden = !has_transfer_offers && !has_inbox_items && !has_items;
+		aside.hidden = !has_transfer_offers && !has_inbox_items && !has_unread_haul && !has_items;
 		aside.classList.toggle('mp-transfer-action-nav', has_transfer_offers);
 		aside.classList.toggle('mp-transfer-inbox-nav', !has_transfer_offers && has_inbox_items);
+		aside.classList.toggle('mp-transfer-haul-nav', !has_transfer_offers && !has_inbox_items && has_unread_haul);
 	}
 	update_multiplayer_nav();
 }
@@ -4603,8 +4644,12 @@ async function discover_api_contract() {
 	adventures_supported = false;
 	client_preferences_supported = false;
 	extended_preferences_supported = false;
+	expedition_content_v4_supported = false;
+	expedition_content_v5_supported = false;
 	let minimum_supported_mod_version = null;
 	let discovered_wiki_url = null;
+	let discovered_expedition_v4 = false;
+	let discovered_expedition_v5 = false;
 	const major = await service_fetch(fetch, origin + '/api/versions', { method: 'GET' }, {
 		observe: entry => transport_diagnostics?.record(entry),
 		consume: async response => {
@@ -4612,6 +4657,8 @@ async function discover_api_contract() {
 			minimum_supported_mod_version = body?.minimum_supported_mod_version ?? null;
 			discovered_wiki_url = body?.wiki_url;
 			page_snapshots_supported = body?.page_snapshots === true;
+			discovered_expedition_v4 = Array.isArray(body?.capabilities) && body.capabilities.includes('expedition-content-v4');
+			discovered_expedition_v5 = Array.isArray(body?.capabilities) && body.capabilities.includes('expedition-content-v5');
 			identity_registration_supported = Array.isArray(body?.capabilities) && body.capabilities.includes('identity-registration-v1');
 			identity_onboarding_supported = Array.isArray(body?.capabilities) && body.capabilities.includes('identity-onboarding-v1');
 			identity_account_recovery_supported = Array.isArray(body?.capabilities) && body.capabilities.includes('identity-account-recovery-v1');
@@ -4624,6 +4671,8 @@ async function discover_api_contract() {
 	});
 	if (origin !== server_host || generation !== session_generation)
 		throw new Error('Stale API discovery');
+	expedition_content_v4_supported = discovered_expedition_v4;
+	expedition_content_v5_supported = discovered_expedition_v5;
 	state.adventures.supported = adventures_supported;
 	selected_api_major = major;
 	state.wiki_url = api_contract.wiki_url(discovered_wiki_url);
@@ -5842,6 +5891,8 @@ async function get_client_events_request(reconcile_gifts, request_generation) {
 		}
 		if (typeof res.adventure_unread === 'boolean' && res.adventure_haul_revision >= state.adventures.haul_revision) {
 			state.adventures.has_items = res.adventure_items_pending === true;
+			if (!res.adventure_unread)
+				state.adventures.seen_revision = Math.max(state.adventures.seen_revision, res.adventure_haul_revision);
 			state.adventures.unread = res.adventure_unread && res.adventure_haul_revision > state.adventures.seen_revision;
 			state.adventures.haul_revision = res.adventure_haul_revision;
 			update_transfer_inventory_nav();
@@ -6066,7 +6117,11 @@ export async function setup(ctx) {
 	state.adventure_upgrade = ()=>fighter_adventures.upgrade();
 	state.adventure_reset = ()=>fighter_adventures.reset_capacity();
 	state.adventure_cost = ()=>fighter_adventures.cost();
-	state.adventure_view_haul = ()=>{state.adventures.inbox_open=!state.adventures.inbox_open;if(state.adventures.inbox_open) void fighter_adventures.seen();};
+	state.adventure_view_haul = () => {
+		state.adventures.inbox_open = !state.adventures.inbox_open;
+		if (state.adventures.inbox_open && state.adventures.unread)
+			void fighter_adventures.seen();
+	};
 	const combat_module = await ctx.loadModule('combat-arena.mjs');
 	const tutorial_module = await ctx.loadModule('combat-tutorial.mjs');
 	const combat_localized = (id, fallback) => { const value = getLangString(id); return !value || value === id ? fallback : value; };
@@ -6707,12 +6762,13 @@ export async function setup(ctx) {
 	state.expedition_leaderboard_page = page => expedition_leaderboard.refresh(page);
 	// Independent renderer modules: load together after save capture and core runtime setup.
 	const [image_particles, crucible_heat, expedition_crystals, expedition_haze, expedition_observatory,
-		expedition_orrery, expedition_voidwatch, expedition_hollow_star, expedition_snow, expedition_branches] = await Promise.all([
+		expedition_orrery, expedition_voidwatch, expedition_hollow_star, expedition_snow, expedition_branches, expedition_ashen_foundry, expedition_blackwater_nave, expedition_spore_cathedral, expedition_convergence_gallery, expedition_drowned_basilica, expedition_cinder_engine, expedition_mycelial_court, expedition_gilded_catacombs, expedition_starless_sanctum] = await Promise.all([
 		ctx.loadModule('image-particles.mjs'), ctx.loadModule('crucible-heat.mjs'),
 		ctx.loadModule('expedition-crystals.mjs'), ctx.loadModule('expedition-haze.mjs'),
 		ctx.loadModule('expedition-observatory.mjs'), ctx.loadModule('expedition-orrery.mjs'),
 		ctx.loadModule('expedition-voidwatch.mjs'), ctx.loadModule('expedition-hollow-star.mjs'),
-		ctx.loadModule('expedition-snow.mjs'), ctx.loadModule('expedition-branches.mjs')
+		ctx.loadModule('expedition-snow.mjs'), ctx.loadModule('expedition-branches.mjs'),
+		ctx.loadModule('expedition-ashen-foundry.mjs'), ctx.loadModule('expedition-blackwater-nave.mjs'), ctx.loadModule('expedition-spore-cathedral.mjs'), ctx.loadModule('expedition-convergence-gallery.mjs'), ctx.loadModule('expedition-drowned-basilica.mjs'), ctx.loadModule('expedition-cinder-engine.mjs'), ctx.loadModule('expedition-mycelial-court.mjs'), ctx.loadModule('expedition-gilded-catacombs.mjs'), ctx.loadModule('expedition-starless-sanctum.mjs')
 	]);
 	state.expedition_snow = { ...expedition_snow.DEFAULT_SNOW_SETTINGS };
 	status_statistics = await ctx.loadModule('status-statistics.mjs');
@@ -7023,6 +7079,24 @@ export async function setup(ctx) {
 			image_particles.create_image_particle_element({ create_renderer: expedition_observatory.create_observatory_renderer }));
 		if (!customElements.get('mp-expedition-orrery')) customElements.define('mp-expedition-orrery',
 			image_particles.create_image_particle_element({ create_renderer: expedition_orrery.create_orrery_renderer }));
+		if (!customElements.get('mp-expedition-convergence-gallery')) customElements.define('mp-expedition-convergence-gallery',
+			image_particles.create_image_particle_element({ create_renderer: expedition_convergence_gallery.create_convergence_renderer }));
+		if (!customElements.get('mp-expedition-gilded-catacombs')) customElements.define('mp-expedition-gilded-catacombs',
+			image_particles.create_image_particle_element({ create_renderer: expedition_gilded_catacombs.create_catacombs_renderer }));
+		if (!customElements.get('mp-expedition-starless-sanctum')) customElements.define('mp-expedition-starless-sanctum',
+			image_particles.create_image_particle_element({ create_renderer: expedition_starless_sanctum.create_sanctum_renderer }));
+		if (!customElements.get('mp-expedition-mycelial-court')) customElements.define('mp-expedition-mycelial-court',
+			image_particles.create_image_particle_element({ create_renderer: expedition_mycelial_court.create_court_renderer }));
+		if (!customElements.get('mp-expedition-cinder-engine')) customElements.define('mp-expedition-cinder-engine',
+			image_particles.create_image_particle_element({ create_renderer: expedition_cinder_engine.create_cinder_renderer }));
+		if (!customElements.get('mp-expedition-drowned-basilica')) customElements.define('mp-expedition-drowned-basilica',
+			image_particles.create_image_particle_element({ create_renderer: expedition_drowned_basilica.create_basilica_renderer }));
+		if (!customElements.get('mp-expedition-spore-cathedral')) customElements.define('mp-expedition-spore-cathedral',
+			image_particles.create_image_particle_element({ create_renderer: expedition_spore_cathedral.create_spore_renderer }));
+		if (!customElements.get('mp-expedition-blackwater-nave')) customElements.define('mp-expedition-blackwater-nave',
+			image_particles.create_image_particle_element({ create_renderer: expedition_blackwater_nave.create_blackwater_renderer }));
+		if (!customElements.get('mp-expedition-ashen-foundry')) customElements.define('mp-expedition-ashen-foundry',
+			image_particles.create_image_particle_element({ create_renderer: expedition_ashen_foundry.create_ashen_foundry_renderer }));
 		if (!customElements.get('mp-expedition-voidwatch')) customElements.define('mp-expedition-voidwatch',
 			image_particles.create_image_particle_element({ create_renderer: expedition_voidwatch.create_voidwatch_renderer }));
 		for (const id of ['drowned_cloister', 'rootforge_passage', 'tideworn_crypts', 'embervein_machinery', 'mossbound_reliquary']) {
@@ -7225,6 +7299,8 @@ function apply_server_configuration() {
 		events_refreshed_at = 0;
 		last_events_result = null;
 		page_snapshots_supported = false;
+		expedition_content_v4_supported = false;
+		expedition_content_v5_supported = false;
 		state.is_connected = false;
 		state.pending_preview = null;
 		economy_command_journal = null;

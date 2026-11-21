@@ -229,3 +229,15 @@ export const EXPEDITION_CONTENT_V3 = JSON.parse(readFileSync(
 	new URL('./expedition-content-v3.json', import.meta.url), 'utf8'
 )) as ExpeditionContent;
 validate_expedition_content(EXPEDITION_CONTENT_V3);
+
+// Later catalogs are opt-in and never replace an existing Expedition snapshot.
+export const EXPEDITION_CONTENT_V4 = JSON.parse(readFileSync(
+	new URL('./expedition-content-v4.json', import.meta.url), 'utf8'
+)) as ExpeditionContent;
+validate_expedition_content(EXPEDITION_CONTENT_V4);
+
+// Opt-in depth-four expansion; older runs retain their original snapshots.
+export const EXPEDITION_CONTENT_V5 = JSON.parse(readFileSync(
+	new URL('./expedition-content-v5.json', import.meta.url), 'utf8'
+)) as ExpeditionContent;
+validate_expedition_content(EXPEDITION_CONTENT_V5);

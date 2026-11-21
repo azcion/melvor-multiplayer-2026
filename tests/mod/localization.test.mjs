@@ -15,6 +15,7 @@ import {
 } from '../../mod/localization.mjs';
 
 import { BADGE_FEATURES, TEXT_FEATURE_NAMES, feature_catalog, feature_name, fallback_feature_name } from '../../mod/chat-items.mjs';
+import { EXPEDITION_PREVIEW_LABEL_IDS, journey_flavor } from '../../mod/expedition-view.mjs';
 
 const root = new URL('../../', import.meta.url);
 
@@ -25,7 +26,8 @@ function placeholder_signature(value) {
 test('Expedition flavor and batch test controls are translated in every packaged locale', async () => {
 	const english = JSON.parse(await readFile(new URL('mod/data/lang/en.json', root), 'utf8'));
 	const flavor_keys = Object.keys(english).filter(key => key.startsWith('MOD_MP_EXPEDITION_FLAVOR_'));
-	assert.equal(flavor_keys.length, 24);
+	const content = JSON.parse(await readFile(new URL('server/expedition-content-v5.json', root), 'utf8'));
+	assert.equal(flavor_keys.length, content.chambers.length * 2);
 	const keys = [...flavor_keys,
 		'MOD_MP_EXPEDITION_TEST_COMPLETE_CHAMBER',
 		'MOD_MP_EXPEDITION_TEST_JUMP',
@@ -34,6 +36,34 @@ test('Expedition flavor and batch test controls are translated in every packaged
 	for (const language of MULTIPLAYER_SUPPORTED_LANGUAGES.filter(language => language !== 'en')) {
 		const translations = JSON.parse(await readFile(new URL(`mod/data/lang/${language}.json`, root), 'utf8'));
 		for (const key of keys) {
+			assert.ok(translations[key]?.trim(), `${language}:${key} must be present`);
+			assert.notEqual(translations[key], english[key], `${language}:${key} must be localized`);
+		}
+		for (const chamber of content.chambers) {
+			const get_lang = key => translations[key];
+			const active = journey_flavor({ chamber }, get_lang);
+			assert.ok(active.tagline?.trim(), `${language}:${chamber.id} must render a tagline`);
+			assert.ok(active.description?.trim(), `${language}:${chamber.id} must render a description`);
+			assert.deepEqual(journey_flavor({ history: [{ ...chamber, id: undefined, chamber_id: chamber.id }] }, get_lang), active);
+		}
+	}
+});
+
+test('new Expedition Chamber names, work and approach labels are translated in every packaged locale', async () => {
+	const english = JSON.parse(await readFile(new URL('mod/data/lang/en.json', root), 'utf8'));
+	const previous = JSON.parse(await readFile(new URL('server/expedition-content-v3.json', root), 'utf8'));
+	const current = JSON.parse(await readFile(new URL('server/expedition-content-v5.json', root), 'utf8'));
+	const previous_ids = new Set(previous.chambers.map(chamber => chamber.id));
+	const new_chambers = current.chambers.filter(chamber => !previous_ids.has(chamber.id));
+	assert.equal(new_chambers.length, 9);
+	const labels_in = content => new Set(content.chambers.flatMap(chamber => [chamber.label, ...chamber.tasks.map(task => task.title)]));
+	const previous_labels = labels_in(previous);
+	const labels = [...labels_in(current)].filter(label => !previous_labels.has(label));
+	for (const language of MULTIPLAYER_SUPPORTED_LANGUAGES.filter(language => language !== 'en')) {
+		const translations = JSON.parse(await readFile(new URL(`mod/data/lang/${language}.json`, root), 'utf8'));
+		for (const label of labels) {
+			const key = EXPEDITION_PREVIEW_LABEL_IDS[label];
+			assert.ok(key, `Missing localization mapping for ${label}`);
 			assert.ok(translations[key]?.trim(), `${language}:${key} must be present`);
 			assert.notEqual(translations[key], english[key], `${language}:${key} must be localized`);
 		}

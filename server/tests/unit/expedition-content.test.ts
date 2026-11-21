@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { EXPEDITION_CONTENT_PREVIEW, EXPEDITION_CONTENT_V1, EXPEDITION_CONTENT_V3, validate_expedition_content } from '../../expedition-content';
+import { EXPEDITION_CONTENT_PREVIEW, EXPEDITION_CONTENT_V1, EXPEDITION_CONTENT_V3, EXPEDITION_CONTENT_V4, EXPEDITION_CONTENT_V5, validate_expedition_content } from '../../expedition-content';
 import type { ExpeditionContent } from '../../expedition-content';
 
 function changed(change: (copy: ExpeditionContent) => void): ExpeditionContent {
@@ -143,4 +143,48 @@ test('expanded catalog exposes only finished routes, preserves exit IDs and ends
 	}
 	expect(c.chambers.find(ch => ch.id === 'glassroot_terraces')!.exits[0].id).toBe('glassroot_terraces:exit_3');
 	expect(c.chambers.find(ch => ch.id === 'prismatic_orrery')!.exits[0].id).toBe('prismatic_orrery:exit_3');
+});
+
+
+test('v4 extends only the supported third depth while preserving every v3 snapshot', () => {
+	const c = EXPEDITION_CONTENT_V4;
+	expect(() => validate_expedition_content(c)).not.toThrow();
+	expect(c.version).toBe(4);
+	expect(c.chambers).toHaveLength(16);
+	expect(c.chambers.filter(ch => ch.type === 'ending').map(ch => ch.id)).toEqual([
+		'blackwater_nave', 'ashen_foundry', 'spore_cathedral', 'hollow_star']);
+	for (const chamber of c.chambers) {
+		const original = EXPEDITION_CONTENT_V1.chambers.find(ch => ch.id === chamber.id)!;
+		for (const edge of chamber.exits) expect(original.exits).toContainEqual(edge);
+		if (!['voidwatch_threshold', 'hollow_star'].includes(chamber.id))
+			for (const task of chamber.tasks) expect(task.evidence.skill_ids).toHaveLength(3);
+	}
+	expect(c.chambers.find(ch => ch.id === 'glassroot_terraces')!.exits.map(edge => edge.slot)).toEqual([1, 2, 3]);
+	expect(c.chambers.find(ch => ch.id === 'convergence_gallery')!.exits.map(edge => edge.target)).toEqual(['prismatic_orrery']);
+	expect(EXPEDITION_CONTENT_V3.chambers.find(ch => ch.id === 'tideworn_crypts')!.type).toBe('ending');
+	expect(EXPEDITION_CONTENT_V3.chambers.some(ch => ch.id === 'ashen_foundry')).toBe(false);
+});
+
+
+test('v5 adds the canonical fourth depth without changing v4 frontiers', () => {
+	const c = EXPEDITION_CONTENT_V5;
+	expect(() => validate_expedition_content(c)).not.toThrow();
+	expect(c.version).toBe(5);
+	expect(c.chambers).toHaveLength(21);
+	const routes: Record<string, string[]> = {
+		convergence_gallery: ['prismatic_orrery', 'drowned_basilica', 'cinder_engine'],
+		blackwater_nave: ['drowned_basilica', 'mycelial_court'],
+		ashen_foundry: ['cinder_engine', 'gilded_catacombs'],
+		spore_cathedral: ['mycelial_court', 'starless_sanctum']
+	};
+	for (const [id, targets] of Object.entries(routes))
+		expect(c.chambers.find(ch => ch.id === id)!.exits.map(edge => edge.target)).toEqual(targets);
+	for (const chamber of c.chambers) {
+		const original = EXPEDITION_CONTENT_V1.chambers.find(ch => ch.id === chamber.id)!;
+		for (const edge of chamber.exits) expect(original.exits).toContainEqual(edge);
+	}
+	for (const id of ['blackwater_nave', 'ashen_foundry', 'spore_cathedral'])
+		expect(EXPEDITION_CONTENT_V4.chambers.find(ch => ch.id === id)!.type).toBe('ending');
+	for (const id of ['drowned_basilica', 'cinder_engine', 'mycelial_court', 'gilded_catacombs', 'starless_sanctum'])
+		expect(c.chambers.find(ch => ch.id === id)!.type).toBe('ending');
 });

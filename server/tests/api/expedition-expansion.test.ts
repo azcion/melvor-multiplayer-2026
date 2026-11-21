@@ -186,3 +186,104 @@ test('Rift retains the previous Guild return only for participants, including cl
 	await db_run("UPDATE expedition_visits SET chamber_id='drowned_cloister' WHERE id=?", [active.expedition.chamber.visit_id]);
 	expect((await state(guild.first.session_token)).expedition.previous_return).toBeNull();
 });
+
+
+for (const route of [
+	['entrance', 'drowned_cloister', 'tideworn_crypts', 'convergence_gallery', 'prismatic_orrery', 'voidwatch_threshold', 'hollow_star'],
+	['entrance', 'prismatic_descent', 'embervein_machinery', 'ashen_foundry'],
+	['entrance', 'drowned_cloister', 'mossbound_reliquary', 'blackwater_nave'],
+	['entrance', 'drowned_cloister', 'mossbound_reliquary', 'spore_cathedral'],
+	['entrance', 'rootforge_passage', 'glassroot_terraces', 'spore_cathedral'],
+	['entrance', 'rootforge_passage', 'glassroot_terraces', 'convergence_gallery', 'prismatic_orrery', 'voidwatch_threshold', 'hollow_star']
+]) test(`v4 and legacy participants complete ${route.join(' → ')}`, async () => {
+	const guild = await make_guildmates('Depth Four Owner', 'Depth Four Legacy', 'Depth Four Guild', { first: '1.7.9', second: '1.7.9' });
+	const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 4 }, guild.first.session_token);
+	expect(created.response.status).toBe(200);
+	const id = created.json.expedition_id;
+	const snapshot = await db_all('SELECT content_snapshot, content_version FROM expeditions WHERE id = ?', [id]);
+	expect((await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 3 }, guild.second.session_token)).json.content_version).toBe(4);
+	await db_run('UPDATE expeditions SET registered_at = ?, registration_ends_at = ? WHERE id = ?', [Date.now() - 20 * 3_600_000, Date.now() - 1, id]);
+	for (const [index, chamber_id] of route.entries()) {
+		const view = await state(guild.second.session_token);
+		expect(view.content_version).toBe(4);
+		const chamber = view.expedition.chamber;
+		expect(chamber.id).toBe(chamber_id);
+		if (index === route.length - 1) { expect(chamber.exits).toEqual([]); await finish(chamber.visit_id); break; }
+		await db_run("UPDATE expedition_tasks SET player_ms = target_ms, completed_at = ? WHERE visit_id = ? AND task_id IN ('arrival_chart', 'arrival_support')", [Date.now(), chamber.visit_id]);
+		const opened = (await state(guild.second.session_token)).expedition.chamber;
+		const catalog = JSON.parse(String(snapshot[0].content_snapshot));
+		const edge = catalog.chambers.find((entry: any) => entry.id === chamber_id).exits.find((entry: any) => entry.target === route[index + 1]);
+		expect(edge).toBeDefined();
+		if (opened.exits.length > 1) {
+			const vote = await post_json<any>('/api/expedition/vote', { operation_id: crypto.randomUUID(), expedition_id: id, visit_id: chamber.visit_id, exit_id: edge.id }, guild.second.session_token);
+			expect(vote.json.success).toBe(true);
+			await db_run('UPDATE expedition_visits SET vote_deadline_at = ? WHERE id = ?', [Date.now() - 1, chamber.visit_id]);
+		} else expect(opened.vote.chosen_exit_id).toBe(edge.id);
+		await finish(chamber.visit_id);
+	}
+	const completed = await state(guild.first.session_token);
+	expect(completed.expedition.status).toBe('completed');
+	expect(completed.expedition.history.map((visit: any) => visit.chamber_id)).toEqual(route);
+	expect(await db_all('SELECT content_snapshot, content_version FROM expeditions WHERE id = ?', [id])).toEqual(snapshot);
+});
+
+test('v4 joiner preserves an existing v3 run snapshot', async () => {
+	const guild = await make_guildmates('V3 Owner', 'V4 Joiner', 'V3 Continuity', { first: '1.7.9', second: '1.7.9' });
+	const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 3 }, guild.first.session_token);
+	const before = await db_all('SELECT content_snapshot, content_version, current_visit_id FROM expeditions WHERE id = ?', [created.json.expedition_id]);
+	const joined = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 4 }, guild.second.session_token);
+	expect(joined.json.content_version).toBe(3);
+	expect(await db_all('SELECT content_snapshot, content_version, current_visit_id FROM expeditions WHERE id = ?', [created.json.expedition_id])).toEqual(before);
+});
+
+
+for (const route of [
+ ['entrance', 'drowned_cloister', 'tideworn_crypts', 'convergence_gallery', 'drowned_basilica'],
+ ['entrance', 'drowned_cloister', 'tideworn_crypts', 'convergence_gallery', 'cinder_engine'],
+ ['entrance', 'drowned_cloister', 'mossbound_reliquary', 'blackwater_nave', 'drowned_basilica'],
+ ['entrance', 'prismatic_descent', 'embervein_machinery', 'ashen_foundry', 'cinder_engine'],
+ ['entrance', 'drowned_cloister', 'mossbound_reliquary', 'blackwater_nave', 'mycelial_court'],
+ ['entrance', 'prismatic_descent', 'embervein_machinery', 'ashen_foundry', 'gilded_catacombs'],
+ ['entrance', 'rootforge_passage', 'glassroot_terraces', 'spore_cathedral', 'starless_sanctum'],
+ ['entrance', 'rootforge_passage', 'glassroot_terraces', 'spore_cathedral', 'mycelial_court']
+]) test(`v5 and legacy participants complete ${route.join(' → ')}`, async () => {
+	const guild = await make_guildmates('Depth Five Owner', 'Depth Five Legacy', 'Depth Five Guild', { first: '1.7.9', second: '1.7.9' });
+	const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 5 }, guild.first.session_token);
+	expect(created.response.status).toBe(200);
+	const id = created.json.expedition_id;
+	const snapshot = await db_all('SELECT content_snapshot, content_version FROM expeditions WHERE id = ?', [id]);
+	expect((await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 3 }, guild.second.session_token)).json.content_version).toBe(5);
+	await db_run('UPDATE expeditions SET registered_at = ?, registration_ends_at = ? WHERE id = ?', [Date.now() - 20 * 3_600_000, Date.now() - 1, id]);
+	for (const [index, chamber_id] of route.entries()) {
+		const view = await state(guild.second.session_token);
+		expect(view.content_version).toBe(5);
+		const chamber = view.expedition.chamber;
+		expect(chamber.id).toBe(chamber_id);
+		if (index === route.length - 1) { expect(chamber.exits).toEqual([]); await finish(chamber.visit_id); break; }
+		await db_run("UPDATE expedition_tasks SET player_ms = target_ms, completed_at = ? WHERE visit_id = ? AND task_id IN ('arrival_chart', 'arrival_support')", [Date.now(), chamber.visit_id]);
+		const opened = (await state(guild.second.session_token)).expedition.chamber;
+		const catalog = JSON.parse(String(snapshot[0].content_snapshot));
+		const edge = catalog.chambers.find((entry: any) => entry.id === chamber_id).exits.find((entry: any) => entry.target === route[index + 1]);
+		expect(edge).toBeDefined();
+		if (opened.exits.length > 1) {
+			const vote = await post_json<any>('/api/expedition/vote', { operation_id: crypto.randomUUID(), expedition_id: id, visit_id: chamber.visit_id, exit_id: edge.id }, guild.second.session_token);
+			expect(vote.json.success).toBe(true);
+			await db_run('UPDATE expedition_visits SET vote_deadline_at = ? WHERE id = ?', [Date.now() - 1, chamber.visit_id]);
+		} else expect(opened.vote.chosen_exit_id).toBe(edge.id);
+		await finish(chamber.visit_id);
+	}
+	const completed = await state(guild.first.session_token);
+	expect(completed.expedition.status).toBe('completed');
+	expect(completed.expedition.history.map((visit: any) => visit.chamber_id)).toEqual(route);
+	expect(await db_all('SELECT content_snapshot, content_version FROM expeditions WHERE id = ?', [id])).toEqual(snapshot);
+});
+
+
+test('v5 joiner preserves an existing v4 run snapshot', async () => {
+ const guild = await make_guildmates('V4 Owner', 'V5 Joiner', 'V4 Continuity', { first: '1.7.9', second: '1.7.9' });
+ const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 4 }, guild.first.session_token);
+ const before = await db_all('SELECT content_snapshot, content_version, current_visit_id FROM expeditions WHERE id = ?', [created.json.expedition_id]);
+ const joined = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 5 }, guild.second.session_token);
+ expect(joined.json.content_version).toBe(4);
+ expect(await db_all('SELECT content_snapshot, content_version, current_visit_id FROM expeditions WHERE id = ?', [created.json.expedition_id])).toEqual(before);
+});

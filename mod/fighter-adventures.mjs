@@ -17,8 +17,8 @@ export function capacity_cost(current, target) {
 	let cost=0; for(let h=current+1;h<=target;h++) cost+=Math.floor(h/10)+1;
 	return cost;
 }
-export function adventure_inbox_count(groups, unread) {
-	return new Set(groups.filter(g=>g.source_type!=='fighter_adventures').flatMap(g=>g.items.map(i=>i.item_id))).size+(unread?1:0);
+export function regular_inbox_count(groups) {
+	return new Set(groups.filter(g=>g.source_type!=='fighter_adventures').flatMap(g=>g.items.map(i=>i.item_id))).size;
 }
 export function create_adventure_view() {
 	return {supported:false,busy:false,error:'',areas:[],active_area:null,active_monsters:[],capacity:1,target:2,editing_limit:false,revision:0,ep_micros:0,invested_micros:0,reset_refund_micros:0,free_reset:false,social_only:false,opted_in:false,character_ready:false,tutorial_complete:null,unread:false,haul_revision:0,seen_revision:0,inbox_open:false,has_items:false};
@@ -50,11 +50,34 @@ export function create_adventures({view,scope,supported,ready,request,discovered
 			update_area_estimate(area);
 		}
 		data.areas.sort((a,b)=>(b.fighter_count??0)-(a.fighter_count??0));
-		Object.assign(view,data,{supported:true});view.target=Math.min(99,Math.max(view.capacity+1,Number(view.target)||2));
+		const haul_revision = Math.max(view.haul_revision, data.haul_revision ?? 0);
+		const seen_revision = Math.max(view.seen_revision, data.seen_revision ?? 0);
+		Object.assign(view, data, {supported:true, haul_revision, seen_revision, unread: haul_revision > seen_revision});
+		view.target=Math.min(99,Math.max(view.capacity+1,Number(view.target)||2));
 		changed();return true;
 	}
 	function eligibility() {
 		return {discovered:[...new Set(view.areas.flatMap(a=>a.items.map(i=>i.item_id)))].filter(discovered),owned_dlc:owned_dlc()};
+	}
+	async function seen(haul_revision = view.haul_revision) {
+		sync();
+		if (!supported() || !ready() || haul_revision <= 0 || haul_revision > view.haul_revision)
+			return false;
+		const generation = epoch;
+		try {
+			const result = await request('/api/adventures/seen', { haul_revision });
+			sync();
+			if (generation !== epoch || !result?.success)
+				return false;
+			if (haul_revision > view.seen_revision) {
+				view.seen_revision = haul_revision;
+				view.unread = view.haul_revision > haul_revision;
+				changed();
+			}
+			return true;
+		} catch {
+			return false;
+		}
 	}
 	async function action(name,payload={}) {
 		const generation=epoch;
@@ -62,7 +85,7 @@ export function create_adventures({view,scope,supported,ready,request,discovered
 		view.busy=true;view.error='';
 		try {
 			if(!ready()) {view.error='MOD_MP_ADVENTURE_SYNC_ERROR';return false;}
-			const input=name==='seen'?payload:{...payload,revision:view.revision};
+			const input={...payload,revision:view.revision};
 			const result=await request(`/api/adventures/${name}`,input);sync();
 			if(generation!==epoch) return false;
 			if(!result?.success) {
@@ -126,7 +149,7 @@ export function create_adventures({view,scope,supported,ready,request,discovered
 		opt_in:enabled=>action('opt-in',{enabled}),
 		upgrade:()=>action('capacity',{target:Number(view.target)}),
 		reset_capacity:()=>action('reset-capacity'),
-		seen:()=>action('seen',{haul_revision:view.haul_revision}),
+		seen,
 		cost:()=>capacity_cost(view.capacity,Number(view.target))
 	};
 }

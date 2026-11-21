@@ -80,9 +80,9 @@ export function register_guild_expedition_routes(): void {
 		if (typeof json.operation_id !== 'string' || !operation_uuid.test(json.operation_id)) return 400;
 		const guild_id = await get_client_guild_id(client_id);
 		if (guild_id === null) return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
-		if (json.content_version !== undefined && json.content_version !== 2 && json.content_version !== 3) return 400;
+		if (json.content_version !== undefined && json.content_version !== 2 && json.content_version !== 3 && json.content_version !== 4 && json.content_version !== 5) return 400;
 		const expedition_id = register_for_expedition(guild_id, client_id, json.operation_id, Date.now(),
-			json.content_version === 3 ? 3 : 2);
+			json.content_version === 5 ? 5 : json.content_version === 4 ? 4 : json.content_version === 3 ? 3 : 2);
 		if (expedition_id === null) return 409;
 		const state = get_expedition_state(guild_id, client_id);
 		return state.expedition?.id === expedition_id

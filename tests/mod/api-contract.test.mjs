@@ -84,3 +84,26 @@ test('discovery applies the selected server wiki after the session check', async
 	state.open_page_guide_wiki();
 	assert.equal(links.at(-1), 'https://two.example/wiki/raids/');
 });
+
+test('Expedition registration negotiates v5, v4, or v3 with the selected backend', async () => {
+	const { readFile } = await import('node:fs/promises');
+	const { runInNewContext } = await import('node:vm');
+	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
+	const discovery = main.slice(main.indexOf('async function discover_api_contract('), main.indexOf('\nfunction resolve_api_endpoint('));
+	const registration = main.slice(main.indexOf('async function register_expedition('), main.indexOf('\nasync function retry_expedition_report('));
+	for (const [capabilities, expected] of [[['expedition-content-v5', 'expedition-content-v4'], 5], [['expedition-content-v4'], 4], [[], 3]]) {
+		let request;
+		const context = {
+			server_host: 'https://selected.example', session_generation: 1, selected_api_major: null,
+			fetch() {}, transport_diagnostics: null, api_contract: { select_api_major, wiki_url },
+			state: { adventures: {}, expedition_action_pending: false }, enter_unsupported_multiplayer() {},
+			crypto: { randomUUID: () => 'operation-id' }, refresh_expedition_state: async () => {},
+			api_post: async (_path, body) => { request = body; return { success: true }; },
+			service_fetch: async (_fetch, _url, _options, { consume }) => consume({
+				status: 200, json: async () => ({ api_versions: [2], capabilities })
+			})
+		};
+		await runInNewContext(`${discovery}\n${registration}\n(async () => { await discover_api_contract(); await register_expedition(); })()`, context);
+		assert.equal(request.content_version, expected);
+	}
+});

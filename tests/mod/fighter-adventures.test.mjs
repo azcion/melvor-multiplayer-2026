@@ -1,10 +1,10 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {capacity_cost,adventure_inbox_count,create_adventure_view,create_adventures} from '../../mod/fighter-adventures.mjs';
-test('capacity staircase and quiet online haul count',()=>{
+import {capacity_cost,regular_inbox_count,create_adventure_view,create_adventures} from '../../mod/fighter-adventures.mjs';
+test('capacity staircase and regular Inbox count',()=>{
 	assert.equal(capacity_cost(1,99),548);assert.equal(capacity_cost(9,10),2);assert.equal(capacity_cost(99,100),0);
 	const groups=[{source_type:'fighter_adventures',items:[{item_id:'a'}]},{source_type:'gift',items:[{item_id:'b'}]}];
-	assert.equal(adventure_inbox_count(groups,false),1);assert.equal(adventure_inbox_count(groups,true),2);
+	assert.equal(regular_inbox_count(groups),1);
 });
 test('a lost capacity response refreshes the committed server quote without replaying the write',async()=>{
 	const view=create_adventure_view(),calls=[];
@@ -37,17 +37,81 @@ test('late responses from another server cannot populate the current view',async
 	const c=create_adventures({view,scope:()=>server,supported:()=>true,ready:()=>true,discovered:()=>true,owned_dlc:()=>[],changed:()=>{},request:()=>new Promise(r=>resolve=r)});
 	const pending=c.refresh();server='second';resolve({supported:true,areas:[],active_area:'old'});assert.equal(await pending,false);assert.equal(view.active_area,null);
 });
-test('native Transfers badge transitions through quiet online haul, login unread and viewed',async()=>{
+test('native Transfers badge prioritizes offers and regular Inbox items, then shows an unread haul in blue',async()=>{
 	const {readFile}=await import('node:fs/promises');
 	const main=await readFile(new URL('../../mod/main.mjs',import.meta.url),'utf8');
 	const start=main.indexOf('function update_transfer_inventory_nav()');
 	const source=main.slice(start,main.indexOf('\n}\n',start)+2);
-	const aside={hidden:true,textContent:'',classList:{toggle(){}}};
-	const state={num_transfer_offers:0,transfer_inventory:[],inbox_items:[{item_id:'a'}],inbox_groups:[{source_type:'fighter_adventures',items:[{item_id:'a'}]}],adventures:{unread:false}};
-	const run=new Function('document','state','set_nav_ready','update_multiplayer_nav','adventures_module','adventures_supported','TRANSFER_INVENTORY_MAX_LIMIT',`${source};return update_transfer_inventory_nav;`)({querySelector:()=>aside},state,()=>{},()=>{},{adventure_inbox_count},true,6);
-	run();assert.equal(aside.hidden,true);assert.equal(aside.textContent,'');
-	state.adventures.unread=true;run();assert.equal(aside.hidden,false);assert.equal(aside.textContent,'1');
-	state.adventures.unread=false;run();assert.equal(aside.hidden,true);
+	const classes = new Set();
+	const aside = { hidden: true, textContent: '', classList: { toggle: (name, on) => on ? classes.add(name) : classes.delete(name) } };
+	const state = {
+		num_transfer_offers: 0, transfer_inventory: [], inbox_items: [{item_id:'a'}],
+		inbox_groups: [{source_type:'fighter_adventures',items:[{item_id:'a'}]}],
+		adventures: {unread:false, has_items:true}
+	};
+	const update = new Function('document','state','set_nav_ready','update_multiplayer_nav','adventures_module','adventures_supported','TRANSFER_INVENTORY_MAX_LIMIT',`${source};return update_transfer_inventory_nav;`)({querySelector:()=>aside},state,()=>{},()=>{},{regular_inbox_count},true,6);
+	const check = (label, badge) => {
+		update();
+		assert.equal(aside.textContent, label);
+		assert.equal(aside.hidden, label === '');
+		assert.deepEqual([...classes], badge ? [`mp-transfer-${badge}-nav`] : []);
+	};
+	check('');
+	state.adventures.unread = true;
+	check('1', 'haul');
+	state.inbox_groups.push({source_type:'gift',items:[{item_id:'b'},{item_id:'c'}]});
+	check('2', 'inbox');
+	state.num_transfer_offers = 3;
+	check('3', 'action');
+	state.num_transfer_offers = 0;
+	state.inbox_groups.pop();
+	state.adventures.unread = false;
+	check('');
+	state.adventures.unread = true;
+	state.adventures.has_items = false;
+	check('');
+});
+
+test('an Adventure refresh cannot revive a cleared haul or overwrite a newer login haul', async () => {
+	const view = create_adventure_view();
+	const controller = create_adventures({
+		view, scope: () => 'one', supported: () => true, ready: () => true,
+		discovered: () => true, owned_dlc: () => [], changed: () => {},
+		request: async () => ({ supported: true, areas: [], capacity: 1, haul_revision: 2, seen_revision: 1, unread: true })
+	});
+	await controller.refresh();
+	view.seen_revision = 2;
+	await controller.refresh();
+	assert.equal(view.unread, false);
+	view.haul_revision = 3;
+	await controller.refresh();
+	assert.equal(view.haul_revision, 3);
+	assert.equal(view.unread, true);
+});
+
+test('acknowledging a claimed revision works during an Adventure action and preserves a newer haul', async () => {
+	const view = create_adventure_view();
+	let finish_seen;
+	const controller = create_adventures({
+		view, scope: () => 'one', supported: () => true, ready: () => true,
+		discovered: () => true, owned_dlc: () => [], changed: () => {},
+		request: async (path, payload) => {
+			if (path === '/api/adventures/state')
+				return { supported: true, areas: [], capacity: 1, haul_revision: 2 };
+			assert.equal(path, '/api/adventures/seen');
+			assert.deepEqual(payload, { haul_revision: 2 });
+			return new Promise(resolve => { finish_seen = resolve; });
+		}
+	});
+	await controller.refresh();
+	view.busy = true;
+	const acknowledging = controller.seen(2);
+	view.haul_revision = 3;
+	finish_seen({ success: true });
+	assert.equal(await acknowledging, true);
+	assert.equal(view.seen_revision, 2);
+	assert.equal(view.unread, true);
+	assert.equal(view.busy, true);
 });
 test('lifecycle reset clears the view without issuing a capacity refund',()=>{
 	const view=create_adventure_view();let calls=0;

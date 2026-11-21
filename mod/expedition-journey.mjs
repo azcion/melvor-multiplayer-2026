@@ -21,7 +21,15 @@ export function create_journey_runtime({ topology, supported_versions, layout_gr
 			if (edge && edge.target === route[i + 1]) travelled.add(edge.id);
 		}
 		const current = expedition?.status === 'active' && !chamber?.preparation && by_id.has(chamber?.id) ? chamber.id : null;
-		return { route, revealed, frontier, snapshot_state: { current, visited: new Set(route), travelled }, supported_ids: new Set(expedition?.journey?.supported_ids ?? (supported_versions[content_version] ?? [])),
+		const choices = new Map();
+		const vote = chamber?.vote;
+		if (current && (vote?.opened_at != null || vote?.locked_at != null)) {
+			for (const exit of chamber.exits ?? []) {
+				if (vote.locked_at != null && exit.id !== vote.chosen_exit_id) continue;
+				choices.set(exit.id, { slot: exit.slot, status: vote.locked_at != null ? 'chosen' : vote.ballot === exit.id ? 'ballot' : 'choice' });
+			}
+		}
+		return { route, revealed, frontier, choices, snapshot_state: { current, visited: new Set(route), travelled }, supported_ids: new Set(expedition?.journey?.supported_ids ?? (supported_versions[content_version] ?? [])),
 			current };
 	}
 
@@ -81,7 +89,7 @@ export function create_journey_runtime({ topology, supported_versions, layout_gr
 				const graph = layout_graph(topology, { column_gap: 45, row_gap: 35, radius: 17, supported_ids: snapshot.supported_ids });
 				// IDs and topology are fixed; only visited names may be disclosed.
 				for (const node of graph.nodes) node.label = label(node.id === 'entrance' ? 'The Rift' : node.label);
-				render_graph(this.svg, graph, snapshot.route, { revealed: snapshot.revealed, frontier: snapshot.frontier, current: snapshot.current, snapshot_state: snapshot.snapshot_state,
+				render_graph(this.svg, graph, snapshot.route, { revealed: snapshot.revealed, frontier: snapshot.frontier, choices: snapshot.choices, choice_labels: { choice: getLangString('MOD_MP_EXPEDITION_PASSAGES'), ballot: getLangString('MOD_MP_EXPEDITION_YOUR_VOTE'), chosen: getLangString('MOD_MP_EXPEDITION_CHOSEN_PASSAGE') }, current: snapshot.current, snapshot_state: snapshot.snapshot_state,
 					unknown_label: getLangString('MOD_MP_EXPEDITION_UNKNOWN_CHAMBER') });
 				this.svg.setAttribute('aria-label', getLangString('MOD_MP_EXPEDITION_UI_JOURNEY'));
 				const current = this.svg.querySelector('.current');

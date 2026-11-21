@@ -1,0 +1,24 @@
+export const DEFAULT_CONVERGENCE_SETTINGS = Object.freeze({ dust_count: 37, dust_speed: 3, dust_opacity: 1, ember_count: 100, ember_speed: 2, ember_brightness: 1, fissure_glow: 1, fall_frequency: 1, fall_density: 5, fall_size: 0.9, fissure_pulses: 1, strand_count: 24, strand_intensity: 0.85 });
+
+export function create_convergence_renderer(){
+ const settings=DEFAULT_CONVERGENCE_SETTINGS;
+ const vents=[[.100,.245,.045],[.528,.625,.055],[.548,.72,.037]];
+ const dust=Array.from({length:220},()=>({x:Math.random(),y:Math.random(),size:.35+Math.random()*.9,phase:Math.random()*6.28,speed:.3+Math.random()*.8,depth:.35+Math.random()*.65}));
+ const sparks=Array.from({length:100},(_,i)=>({vent:i%vents.length,x:(Math.random()-.5)*.025,phase:Math.random(),speed:.55+Math.random()*.8,size:.4+Math.random()*.9,sway:Math.random()*6.28}));
+ const clusters=Array.from({length:6},(_,i)=>({x:.14+Math.random()*.73,offset:i/6,drift:(Math.random()-.5)*.06,fragments:Array.from({length:16},(_,j)=>({x:(Math.random()-.5)*(.035+j*.002),delay:j===0?0:.025+Math.random()*.16,scale:j===0?1:.15+Math.random()*.35,rotation:Math.random()*6.28,spin:(Math.random()-.5)*4,shape:Array.from({length:6},()=>.65+Math.random()*.5)}))}));
+ const strands=Array.from({length:24},(_,i)=>({vent:i%vents.length,phase:Math.random(),sway:Math.random()*6.28,slope:(Math.random()-.5)*.16,speed:.5+Math.random()*.7}));
+ let t=0,dustTime=0,emberTime=0,fallTime=0;return ({context:c,width:w,height:h,seconds})=>{t+=seconds;dustTime+=seconds*settings.dust_speed;emberTime+=seconds*settings.ember_speed;fallTime+=seconds*settings.fall_frequency;
+ // Restrained warmth comes only from fissures already painted in the chamber.
+ for(let i=0;i<vents.length;i++){let [x,y,r]=vents[i],rad=r*w,pulse=.7+.18*Math.sin(t*.9+i)+.12*Math.sin(t*1.7+i*3);let g=c.createRadialGradient(x*w,y*h,0,x*w,y*h,Math.max(1,rad));g.addColorStop(0,'rgba(255,155,65,.34)');g.addColorStop(.42,'rgba(236,108,33,.10)');g.addColorStop(1,'rgba(236,108,33,0)');let warning=0;for(const cluster of clusters){const phase=(fallTime*.045+cluster.offset)%1;if(phase<.12)warning=Math.max(warning,Math.sin(phase/.12*Math.PI));}c.globalAlpha=settings.fissure_glow*Math.min(1,pulse+warning*settings.fissure_pulses*.7);c.fillStyle=g;c.fillRect(x*w-rad,y*h-rad,rad*2,rad*2)}
+ for(let i=0;i<settings.dust_count;i++){let p=dust[i],x=(((p.x+Math.sin(dustTime*.15+p.phase)*.008+dustTime*.001*p.depth)%1+1)%1)*w,y=((p.y+dustTime*.004*p.speed)%1)*h;c.globalAlpha=settings.dust_opacity*(.35+.65*p.depth);c.fillStyle='#ccbca0';c.beginPath();c.arc(x,y,p.size,0,Math.PI*2);c.fill()}
+ for(let i=0;i<settings.ember_count;i++){let p=sparks[i],v=vents[p.vent],phase=(p.phase+emberTime*.05*p.speed)%1,x=(v[0]+p.x+Math.sin(t*.6+p.sway)*phase*.014)*w,y=(v[1]-phase*.18)*h;c.globalAlpha=settings.ember_brightness*Math.sin(Math.PI*phase)*(.65+.35*Math.sin(t*2+p.sway)**2);c.fillStyle='#ffb764';c.shadowColor='#ff8733';c.shadowBlur=5;c.beginPath();c.arc(x,y,p.size,0,Math.PI*2);c.fill()}c.shadowBlur=0;
+ // Thin, independently timed, tapered magical filaments float upward from each fissure.
+ for(let i=0;i<settings.strand_count;i++){const p=strands[i],v=vents[p.vent],phase=(t*.035*p.speed+p.phase)%1,life=Math.sin(Math.PI*phase),height=(.15+.18*phase)*h,x=v[0]*w,y=v[1]*h;c.strokeStyle='#ffd181';c.shadowColor='#f6a342';c.shadowBlur=5;c.globalAlpha=settings.strand_intensity*life*.7;c.lineWidth=.65;c.beginPath();c.moveTo(x,y);c.bezierCurveTo(x+(p.slope*.25+Math.sin(t*.4+p.sway)*.015)*w,y-height*.32,x+p.slope*.65*w,y-height*.7,x+p.slope*w,y-height);c.stroke();c.globalAlpha*=.55;c.beginPath();c.moveTo(x+p.slope*.55*w,y-height*.62);c.quadraticCurveTo(x+(p.slope+.025)*w,y-height*.72,x+(p.slope+.035)*w,y-height*.9);c.stroke();c.shadowBlur=0}
+ // A falling cluster starts with a brief fissure pulse; its largest stone leads smaller stragglers.
+ for(const cluster of clusters){const phase=(fallTime*.045+cluster.offset)%1;if(phase<.12||phase>.39)continue;const f=(phase-.12)/.27;
+ for(let j=0;j<settings.fall_density;j++){const p=cluster.fragments[j],q=Math.max(0,(f-p.delay)/(1-p.delay));if(q<=0||q>=.92)continue;const x=(cluster.x+p.x+cluster.drift*q)*w,y=(-.02+q*q*.98)*h,r=(j===0?5:5*p.scale)*settings.fall_size*w/1280,angle=p.rotation+p.spin*q;c.save();c.translate(x,y);c.rotate(angle);c.fillStyle=j===0?'#726b5d':'#918576';c.globalAlpha=Math.min(1,q*12)*.88;c.beginPath();for(let k=0;k<6;k++){let a=k*Math.PI/3,px=Math.cos(a)*r*p.shape[k],py=Math.sin(a)*r*p.shape[k];k?c.lineTo(px,py):c.moveTo(px,py)}c.closePath();c.fill();c.restore()}
+ if(f>.78){let z=(f-.78)/.22,x=(cluster.x+cluster.drift*.85)*w,y=h*.83,rad=(10+28*z)*w/1280,g=c.createRadialGradient(x,y,0,x,y,Math.max(1,rad));g.addColorStop(0,'rgba(174,157,128,.18)');g.addColorStop(1,'rgba(174,157,128,0)');c.globalAlpha=(1-z)*settings.fall_size;c.fillStyle=g;c.fillRect(x-rad,y-rad,rad*2,rad*2)}
+ }
+ c.globalAlpha=1;
+ };
+}

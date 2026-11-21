@@ -97,6 +97,15 @@
 						<mp-expedition-haze v-if="state.expedition_state?.expedition?.chamber?.id === 'glassroot_terraces'"></mp-expedition-haze>
 						<mp-expedition-observatory v-if="state.expedition_state?.expedition?.chamber?.id === 'buried_observatory'"></mp-expedition-observatory>
 						<mp-expedition-orrery v-if="state.expedition_state?.expedition?.chamber?.id === 'prismatic_orrery'"></mp-expedition-orrery>
+						<mp-expedition-convergence-gallery v-if="state.expedition_state?.expedition?.chamber?.id === 'convergence_gallery'"></mp-expedition-convergence-gallery>
+						<mp-expedition-gilded-catacombs v-if="state.expedition_state?.expedition?.chamber?.id === 'gilded_catacombs'"></mp-expedition-gilded-catacombs>
+						<mp-expedition-starless-sanctum v-if="state.expedition_state?.expedition?.chamber?.id === 'starless_sanctum'"></mp-expedition-starless-sanctum>
+						<mp-expedition-mycelial-court v-if="state.expedition_state?.expedition?.chamber?.id === 'mycelial_court'"></mp-expedition-mycelial-court>
+						<mp-expedition-cinder-engine v-if="state.expedition_state?.expedition?.chamber?.id === 'cinder_engine'"></mp-expedition-cinder-engine>
+						<mp-expedition-drowned-basilica v-if="state.expedition_state?.expedition?.chamber?.id === 'drowned_basilica'"></mp-expedition-drowned-basilica>
+						<mp-expedition-spore-cathedral v-if="state.expedition_state?.expedition?.chamber?.id === 'spore_cathedral'"></mp-expedition-spore-cathedral>
+						<mp-expedition-blackwater-nave v-if="state.expedition_state?.expedition?.chamber?.id === 'blackwater_nave'"></mp-expedition-blackwater-nave>
+						<mp-expedition-ashen-foundry v-if="state.expedition_state?.expedition?.chamber?.id === 'ashen_foundry'"></mp-expedition-ashen-foundry>
 						<mp-expedition-voidwatch v-if="state.expedition_state?.expedition?.chamber?.id === 'voidwatch_threshold'"></mp-expedition-voidwatch>
 						<mp-expedition-drowned-cloister v-if="state.expedition_state?.expedition?.chamber?.id === 'drowned_cloister'"></mp-expedition-drowned-cloister>
 						<mp-expedition-rootforge-passage v-if="state.expedition_state?.expedition?.chamber?.id === 'rootforge_passage'"></mp-expedition-rootforge-passage>
@@ -371,7 +380,7 @@
 		<div class="mp-expedition-exits">
 			<div class="mp-expedition-passage-card" v-for="edge in (state.expedition_state?.expedition?.chamber?.exits || []).filter(edge => !state.expedition_state?.expedition?.chamber?.vote?.locked_at || edge.id === state.expedition_state?.expedition?.chamber?.vote?.chosen_exit_id)" :key="edge.id">
 				<div class="mp-expedition-exit-art"><div class="mp-expedition-exit-unknown" v-if="edge.label === '???'"></div><img class="mp-expedition-exit-background" v-else :src="state.expedition_exit_art_url(edge.label)" alt=""><img :src="state.expedition_exit_gateway_url(state.expedition_state?.expedition?.chamber?.id, edge.slot)" alt=""></div>
-				<strong>{{ state.expedition_passage_name(edge.slot, state.expedition_state?.expedition?.chamber?.exits?.length) }} · {{ state.expedition_display_label(edge.label) }}</strong>
+				<strong><span class="mp-expedition-passage-number">{{ edge.slot }}</span> {{ state.expedition_passage_name(edge.slot, state.expedition_state?.expedition?.chamber?.exits?.length) }} · {{ state.expedition_display_label(edge.label) }}</strong>
 				<p v-if="state.expedition_state?.expedition?.chamber?.vote?.locked_at"><lang-string lang-id="MOD_MP_EXPEDITION_UI_ROUTE_LOCKED_PREPARE_THIS_PASSAGE_TO_DEPART"></lang-string></p>
 				<button type="button" class="mp-expedition-button" v-if="state.expedition_state?.expedition?.chamber?.exits?.length > 1 && state.expedition_state?.expedition?.registered && !state.expedition_state?.expedition?.chamber?.vote?.locked_at && (!state.expedition_state?.expedition?.chamber?.preview_exit_id || edge.id === state.expedition_state?.expedition?.chamber?.preview_exit_id)" :disabled="state.expedition_action_pending || state.expedition_vote_cooldown_until > 0" @click="state.vote_expedition_exit(edge.id)">{{ state.expedition_state?.expedition?.chamber?.vote?.ballot === edge.id ? getLangString('MOD_MP_EXPEDITION_VOTED_CHANGE') : getLangString('MOD_MP_EXPEDITION_VOTE_PASSAGE') }}</button>
 				<span class="mp-expedition-preview-unavailable" v-if="state.expedition_state?.expedition?.chamber?.preview_exit_id && edge.id !== state.expedition_state?.expedition?.chamber?.preview_exit_id && !state.expedition_state?.expedition?.chamber?.vote?.locked_at"><lang-string lang-id="MOD_MP_EXPEDITION_UI_VOTING_UNAVAILABLE"></lang-string></span>

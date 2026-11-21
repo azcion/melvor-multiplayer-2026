@@ -101,10 +101,10 @@ test('localizes supported chamber and task labels from persisted English content
 	assert.equal(display_expedition_label('Untranslated task', 3, english, 'entrance'),
 		'Untranslated task');
 	const [content, chinese] = await Promise.all([
-		readFile(new URL('../../server/expedition-content-v3.json', import.meta.url), 'utf8').then(JSON.parse),
+		readFile(new URL('../../server/expedition-content-v5.json', import.meta.url), 'utf8').then(JSON.parse),
 		readFile(new URL('../../mod/data/lang/zh-CN.json', import.meta.url), 'utf8').then(JSON.parse)
 	]);
-	assert.equal(EXPEDITION_PREVIEW_CHAMBER_IDS.length, 12);
+	assert.equal(EXPEDITION_PREVIEW_CHAMBER_IDS.length, 21);
 	for (const chamber of content.chambers.filter(value => EXPEDITION_PREVIEW_CHAMBER_IDS.includes(value.id))) {
 		const labels = [chamber.label, ...chamber.tasks.map(task => task.title)];
 		for (const label of labels) {

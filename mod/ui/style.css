@@ -96,6 +96,7 @@ mp-modal-component input.form-control[type="number"],
 .mp-raid-nav:not(.mp-nav-ready),
 .mp-combat-nav:not(.mp-nav-ready),
 .mp-crucible-nav:not(.mp-nav-ready),
+.mp-transfer-nav[hidden],
 .mp-transfer-nav:not(.mp-nav-ready),
 .mp-updates-nav:not(.mp-nav-ready) {
 	display: none;
@@ -119,6 +120,10 @@ mp-modal-component input.form-control[type="number"],
 
 .mp-transfer-inbox-nav {
 	background-color: orange;
+}
+
+.mp-transfer-haul-nav {
+	background-color: #179cd8;
 }
 
 .mp-guild-nav {
@@ -4816,7 +4821,7 @@ header.mp-combat-toolbar { box-sizing: border-box; }
 .mp-combat-raid-record-player > small { display: block; color: #b1c5d1; font-size: .75rem; }
 .mp-combat-raid-record-time { font-variant-numeric: tabular-nums; white-space: nowrap; font-size: .85rem; }
 .mp-combat-raid-rank { color: #c4d4dc; font-weight: 700; }
-.mp-combat-raid-records > li:first-child .mp-combat-raid-rank { color: #f5ca61; }
+.mp-combat-raid-records[start="1"] > li:first-child .mp-combat-raid-rank { color: #f5ca61; }
 @media (max-width: 767.98px) {
 	.mp-combat-raid-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 	.mp-combat-raid-columns { grid-template-columns: minmax(0, 1fr); }
@@ -4954,3 +4959,12 @@ header.mp-combat-toolbar { box-sizing: border-box; }
 .mp-adventure-fighters-list { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; }
 .mp-adventure-fighter-badge { display: inline-flex; align-items: center; gap: .45rem; padding: .4rem .65rem; border-radius: .4rem; background: rgba(255,255,255,.1); }
 .mp-adventure-fighter-badge img { object-fit: contain; flex-shrink: 0; }
+
+/* Match current passage cards to map destinations without revealing Chamber names. */
+.mp-expedition-passage-number { display:inline-flex; align-items:center; justify-content:center; min-width:1.5em; height:1.5em; border:1px solid #91c9e8; border-radius:50%; color:#d4efff; }
+.mp-journey-map .passage.vote-choice { stroke:#91c9e8; stroke-width:2.5; opacity:1; }
+.mp-journey-map .passage.vote-ballot, .mp-journey-map .passage.vote-chosen { stroke:#9de3b2; stroke-width:3; opacity:1; }
+.mp-journey-map .vote-choice .node-circle { stroke:#91c9e8; stroke-width:2.5; }
+.mp-journey-map .vote-ballot .node-circle, .mp-journey-map .vote-chosen .node-circle { stroke:#9de3b2; stroke-width:3; }
+.mp-journey-map .chamber .vote-marker { fill:#d4efff; font-weight:700; font-size:12px; paint-order:stroke; stroke:#10212b; stroke-width:4px; stroke-linejoin:round; }
+.mp-journey-map .vote-ballot .vote-marker, .mp-journey-map .vote-chosen .vote-marker { fill:#9de3b2; }

@@ -100,19 +100,19 @@ export function route_to(graph, target) {
 }
 
 // Discovery belongs to each passage, never to all edges incident to a visible node.
-export function discovery_state(graph, route, revealed = new Set(), snapshot_state, frontier = new Set()) {
+export function discovery_state(graph, route, revealed = new Set(), snapshot_state, frontier = new Set(), choices = new Map()) {
 	const state = snapshot_state ?? journey_state(graph, route);
 	const by_id = new Map(graph.nodes.map(node => [node.id, node]));
 	const visible_edges = graph.edges.filter(edge => by_id.get(edge.from).available && by_id.get(edge.to).available
 		&& state.visited.has(edge.from) && (state.travelled.has(edge.id) || revealed.has(edge.id)
-			|| frontier.has(edge.id) && !state.visited.has(edge.to)));
+			|| frontier.has(edge.id) && !state.visited.has(edge.to) || edge.from === state.current && choices.has(edge.id)));
 	const visible_nodes = new Set([...state.visited].filter(id => by_id.get(id).available));
 	for (const edge of visible_edges) visible_nodes.add(edge.to);
 	return { ...state, visible_edges, visible_nodes };
 }
 
-export function render_graph(svg, graph, route, { radius = 17, revealed = new Set(), frontier = new Set(), ghosts = false, current, snapshot_state, unknown_label = 'Unknown Chamber' } = {}) {
-	const state = discovery_state(graph, route, revealed, snapshot_state, frontier);
+export function render_graph(svg, graph, route, { radius = 17, revealed = new Set(), frontier = new Set(), ghosts = false, current, snapshot_state, unknown_label = 'Unknown Chamber', choices = new Map(), choice_labels = { choice: 'Passages', ballot: 'Your vote', chosen: 'Chosen passage' } } = {}) {
+	const state = discovery_state(graph, route, revealed, snapshot_state, frontier, choices);
 	if (current !== undefined) state.current = current;
 	const doc = svg.ownerDocument;
 	function el(tag, attributes, text) {
@@ -131,20 +131,23 @@ export function render_graph(svg, graph, route, { radius = 17, revealed = new Se
 		const visible = state.visible_edges.some(candidate => candidate.id === edge.id);
 		if (!visible && !ghosts) continue;
 		const from = by_id.get(edge.from), to = by_id.get(edge.to);
+		const choice = visible ? choices.get(edge.id) : null;
 		svg.append(el('line', { x1: from.x, y1: from.y, x2: to.x, y2: to.y,
-			class: `passage${state.travelled.has(edge.id) ? ' travelled' : frontier.has(edge.id) ? ' frontier' : ''}${visible ? '' : ' layout-ghost'}`, 'data-edge': edge.id }));
+			class: `passage${state.travelled.has(edge.id) ? ' travelled' : frontier.has(edge.id) ? ' frontier' : ''}${choice ? ` vote-${choice.status}` : ''}${visible ? '' : ' layout-ghost'}`, 'data-edge': edge.id }));
 	}
 	for (const node of graph.nodes) {
 		const visible = state.visible_nodes.has(node.id);
 		if (!visible && !ghosts) continue;
 		const status = node.id === state.current ? 'current' : state.visited.has(node.id) ? 'visited' : 'unknown';
+		const choice = visible ? state.visible_edges.filter(edge => edge.from === state.current && edge.to === node.id).map(edge => choices.get(edge.id)).find(Boolean) : null;
 		const label = !visible ? 'Hidden layout position' : status === 'unknown' ? unknown_label : node.label;
-		const group = el('g', { class: `chamber ${status}${visible ? '' : ' layout-ghost'}`, transform: `translate(${node.x} ${node.y})`,
-			'data-node': node.id, tabindex: visible ? 0 : -1, role: 'button', 'aria-disabled': !visible ? 'true' : 'false', 'aria-label': label });
+		const group = el('g', { class: `chamber ${status}${choice ? ` vote-${choice.status}` : ''}${visible ? '' : ' layout-ghost'}`, transform: `translate(${node.x} ${node.y})`,
+			'data-node': node.id, tabindex: visible ? 0 : -1, role: 'button', 'aria-disabled': !visible ? 'true' : 'false', 'aria-label': choice ? `${label} · ${choice.slot} · ${choice_labels[choice.status]}` : label });
 		if (status === 'current') group.append(el('circle', { r: radius + 7, class: 'current-ring' }));
 		group.append(el('circle', { r: radius, class: 'node-circle' }));
 		if (status === 'visited') group.append(el('circle', { r: 3, class: 'visited-dot' }));
 		if (status === 'unknown' && visible) group.append(el('text', { class: 'question-mark', 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': radius * 1.25 }, '?'));
+		if (choice) group.append(el('text', { class: 'vote-marker', y: radius + 16, 'text-anchor': 'middle' }, `${choice.slot}${choice.status === 'choice' ? '' : ' ✓'}`));
 		svg.append(group);
 	}
 	return state;

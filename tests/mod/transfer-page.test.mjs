@@ -78,7 +78,8 @@ test('hides the empty Transfer Inventory sidebar count', async () => {
 
 	assert.match(nav_update, /const has_inbox_items = inbox_count > 0/);
 	assert.match(nav_update, /aside\.textContent = has_transfer_offers[\s\S]*has_inbox_items \? String\(inbox_count\)[\s\S]*state\.transfer_inventory\.length \+ ' \/ ' \+ TRANSFER_INVENTORY_MAX_LIMIT/);
-	assert.match(nav_update, /aside\.hidden = !has_transfer_offers && !has_inbox_items && !has_items/);
+	assert.match(nav_update, /aside\.hidden = !has_transfer_offers && !has_inbox_items && !has_unread_haul && !has_items/);
+	assert.match(style, /\.mp-transfer-nav\[hidden\],[\s\S]*?\{\s*display: none;/);
 	assert.match(style, /\.mp-guild-member-button \{[\s\S]*min-height: 69px;/);
 });
 
@@ -316,12 +317,13 @@ test('prioritizes actionable Transfer / Gift work in the sidebar count', async (
 	assert.match(nav_update, /const has_transfer_offers = num_transfer_offers > 0/);
 	assert.match(nav_update, /const has_inbox_items = inbox_count > 0/);
 	assert.match(nav_update, /aside\.textContent = has_transfer_offers[\s\S]*String\(num_transfer_offers\)[\s\S]*has_inbox_items \? String\(inbox_count\)[\s\S]*state\.transfer_inventory\.length \+ ' \/ ' \+ TRANSFER_INVENTORY_MAX_LIMIT/);
-	assert.match(nav_update, /aside\.hidden = !has_transfer_offers && !has_inbox_items && !has_items/);
+	assert.match(nav_update, /aside\.hidden = !has_transfer_offers && !has_inbox_items && !has_unread_haul && !has_items/);
 	assert.match(nav_update, /aside\.classList\.toggle\('mp-transfer-action-nav', has_transfer_offers\)/);
 	assert.match(nav_update, /aside\.classList\.toggle\('mp-transfer-inbox-nav', !has_transfer_offers && has_inbox_items\)/);
 	assert.doesNotMatch(nav_update, /text-danger/);
 	assert.match(style, /\.mp-transfer-action-nav \{[\s\S]*background-color: #ff4545;/);
 	assert.match(style, /\.mp-transfer-inbox-nav \{[\s\S]*background-color: orange;/);
+	assert.match(style, /\.mp-transfer-haul-nav \{\s*background-color: #179cd8;/);
 	assert.match(main, /get num_transfer_offers\(\)[\s\S]*this\.gifts\.length \+ this\.num_attending_trades \+ this\.resolved_trades\.length/);
 });
 

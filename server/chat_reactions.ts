@@ -278,8 +278,8 @@ export function message_details(viewer_id: number, kind: ChatMessageKind, conver
 		values = [audience, message_id, audience, message_id];
 	} else {
 		const table = kind === 'petition-discussion' ? 'petition_discussion_read_state' : kind === 'poll-discussion' || kind === 'announcement-discussion' ? 'poll_discussion_read_state' :
-			kind === 'announcements' ? 'announcement_read_state' : kind === 'testers' ? 'tester_chat_read_state' : kind + '_chat_read_state';
-		const scope = kind === 'global' || kind === 'testers' || kind === 'announcements' ? '' : ` AND ${conversation_columns[kind]} = ?`;
+			kind === 'testers' ? 'tester_chat_read_state' : kind + '_chat_read_state';
+		const scope = kind === 'global' || kind === 'testers' ? '' : ` AND ${conversation_columns[kind]} = ?`;
 		reads = `SELECT client_id FROM ${table} WHERE last_read_message_id >= ?${scope}`;
 		values = scope ? [message_id, conversation_id] : [message_id];
 	}

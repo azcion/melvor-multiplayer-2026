@@ -1,0 +1,16 @@
+export const DEFAULT_CINDER_SETTINGS = Object.freeze({plume_count:50,plume_speed:1.15,plume_intensity:2,cinder_count:100,cinder_speed:0.3,cinder_glow:2,cinder_distance:1.1,coil_intensity:2,coil_halo:2,coil_pulse:2});
+
+export function create_cinder_renderer({ random = Math.random } = {}) {
+const settings = DEFAULT_CINDER_SETTINGS;
+const plumes=Array.from({length:50},()=>({phase:random(),x:(random()-.5)*.12,pace:.65+random()*.7,size:.7+random()*.6,sway:random()*6.28}));
+const cinders=Array.from({length:100},()=>({phase:random(),x:(random()-.5)*.10,pace:.6+random()*.8,angle:-Math.PI*.5+(random()-.5)*1.7,size:.4+random()*.9}));let plumeTime=0,cinderTime=0,coilTime=0;
+return({context:c,width:w,height:h,seconds})=>{plumeTime+=seconds*settings.plume_speed;cinderTime+=seconds*settings.cinder_speed;coilTime+=seconds*settings.coil_pulse;
+// Soft red-black smoke starts inside the painted flame; radial fades give every plume a soft edge.
+for(let i=0;i<Math.min(50,settings.plume_count);i++){const p=plumes[i],age=(p.phase+plumeTime*.055*p.pace)%1,fade=Math.sin(Math.PI*age),x=(.616+p.x+Math.sin(age*5+p.sway)*.008)*w,y=(.465-age*.17)*h,r=w*(.009+age*.018)*p.size,red=Math.round(155*(1-age)+20*age),green=Math.round(32*(1-age)+8*age),blue=Math.round(13*(1-age)+7*age),g=c.createRadialGradient(x,y,0,x,y,Math.max(.01,r));g.addColorStop(0,`rgba(${red},${green},${blue},.52)`);g.addColorStop(.42,`rgba(${Math.round(red*.55)},${Math.round(green*.5)},${blue},.24)`);g.addColorStop(1,`rgba(${red},${green},${blue},0)`);c.globalAlpha=Math.min(1,settings.plume_intensity*fade);c.fillStyle=g;c.fillRect(x-r,y-r,2*r,2*r)}
+// Hot flecks spring out quickly, then their quadratic trajectory decelerates and fades.
+for(let i=0;i<Math.min(100,settings.cinder_count);i++){const p=cinders[i],age=(p.phase+cinderTime*.12*p.pace)%1,travel=(1-(1-age)*(1-age))*settings.cinder_distance,x=(.616+p.x+Math.cos(p.angle)*.095*travel)*w,y=(.46+Math.sin(p.angle)*.16*travel)*h,fade=(1-age)*(1-age)*Math.min(1,age*12),r=(.65+p.size)*w/1300;c.save();c.globalAlpha=Math.min(1,fade*.95);c.fillStyle='#ffb450';c.shadowColor='#ff7320';c.shadowBlur=r*9*settings.cinder_glow;c.beginPath();c.arc(x,y,Math.max(.15,r),0,Math.PI*2);c.fill();c.restore()}
+const coils=[[[.383,.335],[.400,.301],[.446,.283],[.462,.293]],[[.382,.377],[.400,.345],[.447,.330],[.461,.341]],[[.765,.528],[.790,.516],[.850,.521],[.868,.555]],[[.765,.584],[.791,.574],[.849,.578],[.868,.611]]];
+for(let i=0;i<coils.length;i++){const p=coils[i],pulse=.3+.7*(.5+.5*Math.sin(coilTime*.72-(i>=2?.7:.3)-(i%2)*.18));c.save();for(let k=0;k<5;k++){let t=k/4,mt=1-t,x=(mt**3*p[0][0]+3*mt**2*t*p[1][0]+3*mt*t*t*p[2][0]+t**3*p[3][0])*w,y=(mt**3*p[0][1]+3*mt**2*t*p[1][1]+3*mt*t*t*p[2][1]+t**3*p[3][1])*h,r=w*.026,g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,'rgba(255,117,24,.17)');g.addColorStop(1,'rgba(255,75,12,0)');c.globalAlpha=Math.min(1,settings.coil_halo*pulse);c.fillStyle=g;c.fillRect(x-r,y-r,r*2,r*2)}c.beginPath();c.moveTo(p[0][0]*w,p[0][1]*h);c.bezierCurveTo(p[1][0]*w,p[1][1]*h,p[2][0]*w,p[2][1]*h,p[3][0]*w,p[3][1]*h);c.lineCap='round';c.strokeStyle='#ffb43d';c.lineWidth=Math.max(.6,w*.005);c.shadowColor='#ff740e';c.shadowBlur=w*.009;c.globalAlpha=Math.min(1,settings.coil_intensity*pulse*.35);c.stroke();c.restore()}
+c.globalAlpha=1;
+};
+}

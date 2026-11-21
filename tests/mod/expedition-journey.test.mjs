@@ -106,3 +106,47 @@ test('legacy hints become dotted without promoting known voting names to reveale
 		'rootforge_passage:exit_1': 'passage frontier'
 	});
 });
+
+function voting_map(vote, extra = {}) {
+	const snapshot = journey_snapshot({ status: 'active', history: [], ...extra,
+		chamber: { id: 'entrance', vote, exits: [
+			{ id: 'entrance:exit_1', slot: 1, label: '???' },
+			{ id: 'entrance:exit_2', slot: 2, label: '???' }
+		] } });
+	const svg = new Element('svg'); svg.ownerDocument = doc;
+	render_graph(svg, layout_graph(topology), snapshot.route, snapshot);
+	return { svg, snapshot };
+}
+
+test('open vote maps exact card slots to destinations and distinguishes the personal ballot without revealing names', () => {
+	const { svg } = voting_map({ opened_at: 1, locked_at: null, ballot: 'entrance:exit_2' });
+	const nodes = svg.children.filter(n => n.tag === 'g');
+	const first = nodes.find(n => n.attrs['data-node'] === 'prismatic_descent');
+	const ballot = nodes.find(n => n.attrs['data-node'] === 'drowned_cloister');
+	assert.equal(first.attrs['aria-label'], 'Unknown Chamber · 1 · Passages');
+	assert.equal(ballot.attrs['aria-label'], 'Unknown Chamber · 2 · Your vote');
+	assert.equal(first.children.find(n => n.attrs.class === 'vote-marker').textContent, '1');
+	assert.equal(ballot.children.find(n => n.attrs.class === 'vote-marker').textContent, '2 ✓');
+	assert.equal(svg.children.filter(n => n.tag === 'line').length, 2);
+	assert.equal(nodes.some(n => n.attrs['data-node'] === 'rootforge_passage'), false);
+});
+
+test('locked vote marks only the winning passage and removes old ballot styling', () => {
+	const { svg, snapshot } = voting_map({ opened_at: 1, locked_at: 2, ballot: 'entrance:exit_2', chosen_exit_id: 'entrance:exit_1' });
+	assert.deepEqual([...snapshot.choices.keys()], ['entrance:exit_1']);
+	const chosen = svg.children.find(n => n.attrs['data-node'] === 'prismatic_descent');
+	assert.equal(chosen.attrs['aria-label'], 'Unknown Chamber · 1 · Chosen passage');
+	assert.match(chosen.attrs.class, /vote-chosen/);
+	assert.equal(svg.children.some(n => /vote-ballot/.test(n.attrs.class)), false);
+});
+
+test('vote markers are absent before voting, after the run ends, and on unrelated incoming passages', () => {
+	assert.equal(voting_map({ opened_at: null, locked_at: null }).snapshot.choices.size, 0);
+	assert.equal(voting_map({ opened_at: 1 }, { status: 'completed' }).snapshot.choices.size, 0);
+	const { svg } = voting_map({ opened_at: 1, ballot: null }, {
+		history: [{ chamber_id: 'prismatic_descent' }],
+		journey: { revealed: [], frontier: ['entrance:exit_1'], supported_ids: topology.chambers.map(n => n.id) }
+	});
+	assert.match(svg.children.find(n => n.attrs['data-edge'] === 'entrance:exit_1').attrs.class, /vote-choice/);
+	assert.equal(svg.children.some(n => n.attrs['data-edge'] === 'prismatic_descent:exit_1'), false);
+});

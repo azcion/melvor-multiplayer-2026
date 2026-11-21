@@ -14,6 +14,10 @@ const bank_helpers_and_claim = main.slice(
 	main.indexOf('function get_bank_item_ids()'),
 	main.indexOf('async function reconcile_pending_gifts')
 );
+const update_inbox_source = main.slice(
+	main.indexOf('async function update_inbox'),
+	main.indexOf('function reconcile_guild_member_social_modes')
+);
 
 function claim_harness({ maximumSlots = 900, occupiedSlots = 808, existing = false, fail_ack = false } = {}) {
 	const item = { id: 'melvorTotH:Gauntlets_of_Rage' };
@@ -95,6 +99,39 @@ test('retrying a failed acknowledgement does not deliver the item twice', async 
 	assert.equal(runtime.deliveries.length, 1);
 	assert.equal(runtime.requests.filter(request => request.route.endsWith('/acknowledge')).length, 2);
 	assert.deepEqual(runtime.state.inbox_items, []);
+});
+
+test('claim refresh waits out an older Inbox read and clears only a fully collected Adventure Haul', async () => {
+	for (const remaining of [true, false]) {
+		const state = { adventures: { haul_revision: 4, seen_revision: 3, unread: true, has_items: true } };
+		const item = { item_id: 'melvorD:Logs', qty: 1 };
+		const haul = { items: [item], groups: [{ source_type: 'fighter_adventures', items: [item] }] };
+		const requests = [], seen = [];
+		let finish_older;
+		let nav_updates = 0;
+		const api_get = (path, is_current) => {
+			requests.push({ path, direct: typeof is_current === 'function' });
+			if (is_current)
+				return Promise.resolve(remaining ? haul : { items: [], groups: [] });
+			return new Promise(resolve => { finish_older = resolve; });
+		};
+		const update_inbox = new Function('state', 'api_get', 'fighter_adventures', 'update_transfer_inventory_nav', `
+			let inbox_update_request = null;
+			const session_generation = 1;
+			${update_inbox_source}
+			return update_inbox;
+		`)(state, api_get, { seen: revision => seen.push(revision) }, () => { nav_updates++; });
+		const older = update_inbox();
+		const claim_refresh = update_inbox(true);
+		finish_older(haul);
+		await Promise.all([older, claim_refresh]);
+		assert.deepEqual(requests, [{ path: '/api/inbox', direct: false }, { path: '/api/inbox', direct: true }]);
+		assert.equal(state.adventures.has_items, remaining);
+		assert.equal(state.adventures.unread, remaining);
+		assert.equal(state.adventures.seen_revision, remaining ? 3 : 4);
+		assert.deepEqual(seen, remaining ? [] : [4]);
+		assert.equal(nav_updates, 2);
+	}
 });
 
 test('native counters override map size and malformed or overfull counters grant no new slots', () => {

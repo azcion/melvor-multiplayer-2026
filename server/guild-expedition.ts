@@ -3,7 +3,7 @@ import type { JsonObject } from './http';
 import { PREPARATION_CHAMBER_ID, close_preparations, ensure_preparations, get_preparation_chamber, preparation_visit_id } from './expedition-preparations';
 import { record_economy_operation } from './save-rollback';
 import { db } from './db';
-import { EXPEDITION_CONTENT_V1, EXPEDITION_CONTENT_PREVIEW, EXPEDITION_CONTENT_V3, preview_task_available, parse_expedition_content } from './expedition-content';
+import { EXPEDITION_CONTENT_V1, EXPEDITION_CONTENT_PREVIEW, EXPEDITION_CONTENT_V3, EXPEDITION_CONTENT_V4, EXPEDITION_CONTENT_V5, preview_task_available, parse_expedition_content } from './expedition-content';
 import type { ExpeditionChamber, ExpeditionContent } from './expedition-content';
 import { RECENTLY_ACTIVE_AFTER } from './recent-activity';
 import { createHash } from 'node:crypto';
@@ -541,7 +541,8 @@ export function register_for_expedition(guild_id: number, client_id: number, ope
 		advance_registration(guild_id, now); // A late entrant cannot change the Entrance snapshot.
 		let expedition = current_expedition(guild_id);
 		if (!expedition) {
-			const new_content = content_version === 3 ? EXPEDITION_CONTENT_V3 : EXPEDITION_CONTENT_PREVIEW;
+			const new_content = content_version === 5 ? EXPEDITION_CONTENT_V5 : content_version === 4 ? EXPEDITION_CONTENT_V4 :
+				content_version === 3 ? EXPEDITION_CONTENT_V3 : EXPEDITION_CONTENT_PREVIEW;
 			const inserted = db.query<{ id: number }, [number, number, string, number, number, number]>(
 				'INSERT INTO expeditions (guild_id, status, content_version, content_snapshot, registered_at, ' +
 				'registration_ends_at, last_qualifying_activity_at) VALUES (?, \'registration\', ?, ?, ?, ?, ?) RETURNING id'
@@ -756,7 +757,7 @@ export function get_expedition_state(guild_id: number, client_id: number, now = 
 		const previous_summary = previous ? get_expedition_return_summary(db, client_id, previous.id) : null;
 		const visited = new Set(history.map(visit => visit.chamber_id));
 		if (typeof chamber?.id === 'string' && !chamber.preparation) visited.add(chamber.id);
-		const frontier = tracking_only ? [] : EXPEDITION_CONTENT_V3.chambers
+		const frontier = tracking_only ? [] : (content.version >= 5 ? EXPEDITION_CONTENT_V5 : content.version >= 4 ? EXPEDITION_CONTENT_V4 : EXPEDITION_CONTENT_V3).chambers
 			.filter(entry => visited.has(entry.id))
 			.flatMap(entry => entry.exits.filter(edge => !visited.has(edge.target) && !revealed.has(edge.id))
 				.map(edge => edge.id));

@@ -1,4 +1,103 @@
 export const EXPEDITION_PREVIEW_LABEL_IDS = Object.freeze({
+	"Trace the flooded passage": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_FLOODED_PASSAGE",
+	"Secure the flooded passage": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_FLOODED_PASSAGE",
+	"Trace the engine passage": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_ENGINE_PASSAGE",
+	"Secure the engine passage": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_ENGINE_PASSAGE",
+	"Trace the basilica passage": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_BASILICA_PASSAGE",
+	"Secure the basilica passage": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_BASILICA_PASSAGE",
+	"Trace the rootbound passage": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_ROOTBOUND_PASSAGE",
+	"Secure the rootbound passage": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_ROOTBOUND_PASSAGE",
+	"Trace the gilded passage": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_GILDED_PASSAGE",
+	"Secure the gilded passage": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_GILDED_PASSAGE",
+	"Trace the fungal passage": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_FUNGAL_PASSAGE",
+	"Secure the fungal passage": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_FUNGAL_PASSAGE",
+	"Trace the shadowed passage": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_SHADOWED_PASSAGE",
+	"Secure the shadowed passage": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_SHADOWED_PASSAGE",
+	"Drowned Basilica": "MOD_MP_EXPEDITION_CONTENT_DROWNED_BASILICA",
+	"Chart Drowned Basilica": "MOD_MP_EXPEDITION_CONTENT_CHART_DROWNED_BASILICA",
+	"Scout Drowned Basilica": "MOD_MP_EXPEDITION_CONTENT_SCOUT_DROWNED_BASILICA",
+	"Mark the flooded nave": "MOD_MP_EXPEDITION_CONTENT_MARK_THE_FLOODED_NAVE",
+	"Clear the submerged crossing": "MOD_MP_EXPEDITION_CONTENT_CLEAR_THE_SUBMERGED_CROSSING",
+	"Study the drowned mosaics": "MOD_MP_EXPEDITION_CONTENT_STUDY_THE_DROWNED_MOSAICS",
+	"Sound the silent aisles": "MOD_MP_EXPEDITION_CONTENT_SOUND_THE_SILENT_AISLES",
+	"Secure the high landing": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_HIGH_LANDING",
+	"Cinder Engine": "MOD_MP_EXPEDITION_CONTENT_CINDER_ENGINE",
+	"Chart Cinder Engine": "MOD_MP_EXPEDITION_CONTENT_CHART_CINDER_ENGINE",
+	"Scout Cinder Engine": "MOD_MP_EXPEDITION_CONTENT_SCOUT_CINDER_ENGINE",
+	"Inspect the engine chamber": "MOD_MP_EXPEDITION_CONTENT_INSPECT_THE_ENGINE_CHAMBER",
+	"Clear the engine floor": "MOD_MP_EXPEDITION_CONTENT_CLEAR_THE_ENGINE_FLOOR",
+	"Study the engine gears": "MOD_MP_EXPEDITION_CONTENT_STUDY_THE_ENGINE_GEARS",
+	"Trace the fuel channels": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_FUEL_CHANNELS",
+	"Secure the engine hall": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_ENGINE_HALL",
+	"Mycelial Court": "MOD_MP_EXPEDITION_CONTENT_MYCELIAL_COURT",
+	"Chart Mycelial Court": "MOD_MP_EXPEDITION_CONTENT_CHART_MYCELIAL_COURT",
+	"Scout Mycelial Court": "MOD_MP_EXPEDITION_CONTENT_SCOUT_MYCELIAL_COURT",
+	"Survey the fungal court": "MOD_MP_EXPEDITION_CONTENT_SURVEY_THE_FUNGAL_COURT",
+	"Clear the rootbound paths": "MOD_MP_EXPEDITION_CONTENT_CLEAR_THE_ROOTBOUND_PATHS",
+	"Study the fungal network": "MOD_MP_EXPEDITION_CONTENT_STUDY_THE_FUNGAL_NETWORK",
+	"Trace the spreading roots": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_SPREADING_ROOTS",
+	"Secure the inner court": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_INNER_COURT",
+	"Gilded Catacombs": "MOD_MP_EXPEDITION_CONTENT_GILDED_CATACOMBS",
+	"Chart Gilded Catacombs": "MOD_MP_EXPEDITION_CONTENT_CHART_GILDED_CATACOMBS",
+	"Scout Gilded Catacombs": "MOD_MP_EXPEDITION_CONTENT_SCOUT_GILDED_CATACOMBS",
+	"Survey the burial halls": "MOD_MP_EXPEDITION_CONTENT_SURVEY_THE_BURIAL_HALLS",
+	"Clear the fallen masonry": "MOD_MP_EXPEDITION_CONTENT_CLEAR_THE_FALLEN_MASONRY",
+	"Study the gilded carvings": "MOD_MP_EXPEDITION_CONTENT_STUDY_THE_GILDED_CARVINGS",
+	"Search the sealed passages": "MOD_MP_EXPEDITION_CONTENT_SEARCH_THE_SEALED_PASSAGES",
+	"Secure the burial hall": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_BURIAL_HALL",
+	"Starless Sanctum": "MOD_MP_EXPEDITION_CONTENT_STARLESS_SANCTUM",
+	"Chart Starless Sanctum": "MOD_MP_EXPEDITION_CONTENT_CHART_STARLESS_SANCTUM",
+	"Scout Starless Sanctum": "MOD_MP_EXPEDITION_CONTENT_SCOUT_STARLESS_SANCTUM",
+	"Survey the dark sanctum": "MOD_MP_EXPEDITION_CONTENT_SURVEY_THE_DARK_SANCTUM",
+	"Clear the sanctuary floor": "MOD_MP_EXPEDITION_CONTENT_CLEAR_THE_SANCTUARY_FLOOR",
+	"Study the silent inscriptions": "MOD_MP_EXPEDITION_CONTENT_STUDY_THE_SILENT_INSCRIPTIONS",
+	"Trace the shadowed halls": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_SHADOWED_HALLS",
+	"Secure the sanctuary": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_SANCTUARY",
+
+	"Trace the converging galleries": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_CONVERGING_GALLERIES",
+	"Brace the gallery entrance": "MOD_MP_EXPEDITION_CONTENT_BRACE_THE_GALLERY_ENTRANCE",
+	"Find the overgrown archway": "MOD_MP_EXPEDITION_CONTENT_FIND_THE_OVERGROWN_ARCHWAY",
+	"Clear the overgrown archway": "MOD_MP_EXPEDITION_CONTENT_CLEAR_THE_OVERGROWN_ARCHWAY",
+	"Trace the gallery service shaft": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_GALLERY_SERVICE_SHAFT",
+	"Secure the gallery lift": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_GALLERY_LIFT",
+	"Locate the foundry access": "MOD_MP_EXPEDITION_CONTENT_LOCATE_THE_FOUNDRY_ACCESS",
+	"Repair the foundry lift": "MOD_MP_EXPEDITION_CONTENT_REPAIR_THE_FOUNDRY_LIFT",
+	"Trace the flooded arch": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_FLOODED_ARCH",
+	"Brace the flooded arch": "MOD_MP_EXPEDITION_CONTENT_BRACE_THE_FLOODED_ARCH",
+	"Find the spore-covered stair": "MOD_MP_EXPEDITION_CONTENT_FIND_THE_SPORE_COVERED_STAIR",
+	"Clear the spore-covered stair": "MOD_MP_EXPEDITION_CONTENT_CLEAR_THE_SPORE_COVERED_STAIR",
+	"Convergence Gallery": "MOD_MP_EXPEDITION_CONTENT_CONVERGENCE_GALLERY",
+	"Chart Convergence Gallery": "MOD_MP_EXPEDITION_CONTENT_CHART_CONVERGENCE_GALLERY",
+	"Scout Convergence Gallery": "MOD_MP_EXPEDITION_CONTENT_SCOUT_CONVERGENCE_GALLERY",
+	"Survey the meeting galleries": "MOD_MP_EXPEDITION_CONTENT_SURVEY_THE_MEETING_GALLERIES",
+	"Clear the fallen galleries": "MOD_MP_EXPEDITION_CONTENT_CLEAR_THE_FALLEN_GALLERIES",
+	"Study the converging channels": "MOD_MP_EXPEDITION_CONTENT_STUDY_THE_CONVERGING_CHANNELS",
+	"Trace the crystal passage": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_CRYSTAL_PASSAGE",
+	"Secure the crystal passage": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_CRYSTAL_PASSAGE",
+	"Blackwater Nave": "MOD_MP_EXPEDITION_CONTENT_BLACKWATER_NAVE",
+	"Chart Blackwater Nave": "MOD_MP_EXPEDITION_CONTENT_CHART_BLACKWATER_NAVE",
+	"Scout Blackwater Nave": "MOD_MP_EXPEDITION_CONTENT_SCOUT_BLACKWATER_NAVE",
+	"Mark the submerged floor": "MOD_MP_EXPEDITION_CONTENT_MARK_THE_SUBMERGED_FLOOR",
+	"Restore the nave crossing": "MOD_MP_EXPEDITION_CONTENT_RESTORE_THE_NAVE_CROSSING",
+	"Study the drowned carvings": "MOD_MP_EXPEDITION_CONTENT_STUDY_THE_DROWNED_CARVINGS",
+	"Sound the darkened aisles": "MOD_MP_EXPEDITION_CONTENT_SOUND_THE_DARKENED_AISLES",
+	"Secure the dry landing": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_DRY_LANDING",
+	"Ashen Foundry": "MOD_MP_EXPEDITION_CONTENT_ASHEN_FOUNDRY",
+	"Chart Ashen Foundry": "MOD_MP_EXPEDITION_CONTENT_CHART_ASHEN_FOUNDRY",
+	"Scout Ashen Foundry": "MOD_MP_EXPEDITION_CONTENT_SCOUT_ASHEN_FOUNDRY",
+	"Inspect the silent casting hall": "MOD_MP_EXPEDITION_CONTENT_INSPECT_THE_SILENT_CASTING_HALL",
+	"Clear the casting floor": "MOD_MP_EXPEDITION_CONTENT_CLEAR_THE_CASTING_FLOOR",
+	"Study the casting molds": "MOD_MP_EXPEDITION_CONTENT_STUDY_THE_CASTING_MOLDS",
+	"Trace the foundry passages": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_FOUNDRY_PASSAGES",
+	"Secure the foundry route": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_FOUNDRY_ROUTE",
+	"Spore Cathedral": "MOD_MP_EXPEDITION_CONTENT_SPORE_CATHEDRAL",
+	"Chart Spore Cathedral": "MOD_MP_EXPEDITION_CONTENT_CHART_SPORE_CATHEDRAL",
+	"Scout Spore Cathedral": "MOD_MP_EXPEDITION_CONTENT_SCOUT_SPORE_CATHEDRAL",
+	"Survey the fungal growth": "MOD_MP_EXPEDITION_CONTENT_SURVEY_THE_FUNGAL_GROWTH",
+	"Clear the overgrown aisle": "MOD_MP_EXPEDITION_CONTENT_CLEAR_THE_OVERGROWN_AISLE",
+	"Study the spore formations": "MOD_MP_EXPEDITION_CONTENT_STUDY_THE_SPORE_FORMATIONS",
+	"Trace the rootbound galleries": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_ROOTBOUND_GALLERIES",
+	"Secure the rootbound route": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_ROOTBOUND_ROUTE",
 	"Rift Preparations": "MOD_MP_EXPEDITION_PREPARATIONS",
 	"Gather Rift Provisions": "MOD_MP_EXPEDITION_GATHER_RIFT_PROVISIONS",
 	"The Rift": "MOD_MP_EXPEDITION_CONTENT_THE_RIFT",
@@ -108,10 +207,19 @@ export const EXPEDITION_PREVIEW_CHAMBER_IDS = Object.freeze([
 	"tideworn_crypts",
 	"embervein_machinery",
 	"mossbound_reliquary",
+	"convergence_gallery",
+	"blackwater_nave",
+	"ashen_foundry",
+	"spore_cathedral",
 	"buried_observatory",
 	"prismatic_orrery",
 	"voidwatch_threshold",
-	"hollow_star"
+	"hollow_star",
+	"drowned_basilica",
+	"cinder_engine",
+	"mycelial_court",
+	"gilded_catacombs",
+	"starless_sanctum",
 ]);
 
 export const EXPEDITION_PREVIEW_CHAMBER_LABELS = Object.freeze([
@@ -123,10 +231,19 @@ export const EXPEDITION_PREVIEW_CHAMBER_LABELS = Object.freeze([
 	"Tideworn Crypts",
 	"Embervein Machinery",
 	"Mossbound Reliquary",
+	"Convergence Gallery",
+	"Blackwater Nave",
+	"Ashen Foundry",
+	"Spore Cathedral",
 	"Buried Observatory",
 	"Prismatic Orrery",
 	"Voidwatch Threshold",
-	"The Hollow Star"
+	"The Hollow Star",
+	"Drowned Basilica",
+	"Cinder Engine",
+	"Mycelial Court",
+	"Gilded Catacombs",
+	"Starless Sanctum",
 ]);
 
 const PASSAGE_ORDINALS = ['First', 'Second', 'Third'];
@@ -307,6 +424,42 @@ export function return_duration(registered_at, ended_at) {
 }
 
 const JOURNEY_FLAVOR = {
+	"convergence_gallery": {
+		"tagline": "MOD_MP_EXPEDITION_FLAVOR_CONVERGENCE_GALLERY_TAGLINE",
+		"description": "MOD_MP_EXPEDITION_FLAVOR_CONVERGENCE_GALLERY_DESCRIPTION"
+	},
+	"blackwater_nave": {
+		"tagline": "MOD_MP_EXPEDITION_FLAVOR_BLACKWATER_NAVE_TAGLINE",
+		"description": "MOD_MP_EXPEDITION_FLAVOR_BLACKWATER_NAVE_DESCRIPTION"
+	},
+	"ashen_foundry": {
+		"tagline": "MOD_MP_EXPEDITION_FLAVOR_ASHEN_FOUNDRY_TAGLINE",
+		"description": "MOD_MP_EXPEDITION_FLAVOR_ASHEN_FOUNDRY_DESCRIPTION"
+	},
+	"spore_cathedral": {
+		"tagline": "MOD_MP_EXPEDITION_FLAVOR_SPORE_CATHEDRAL_TAGLINE",
+		"description": "MOD_MP_EXPEDITION_FLAVOR_SPORE_CATHEDRAL_DESCRIPTION"
+	},
+	"drowned_basilica": {
+		"tagline": "MOD_MP_EXPEDITION_FLAVOR_DROWNED_BASILICA_TAGLINE",
+		"description": "MOD_MP_EXPEDITION_FLAVOR_DROWNED_BASILICA_DESCRIPTION"
+	},
+	"cinder_engine": {
+		"tagline": "MOD_MP_EXPEDITION_FLAVOR_CINDER_ENGINE_TAGLINE",
+		"description": "MOD_MP_EXPEDITION_FLAVOR_CINDER_ENGINE_DESCRIPTION"
+	},
+	"mycelial_court": {
+		"tagline": "MOD_MP_EXPEDITION_FLAVOR_MYCELIAL_COURT_TAGLINE",
+		"description": "MOD_MP_EXPEDITION_FLAVOR_MYCELIAL_COURT_DESCRIPTION"
+	},
+	"gilded_catacombs": {
+		"tagline": "MOD_MP_EXPEDITION_FLAVOR_GILDED_CATACOMBS_TAGLINE",
+		"description": "MOD_MP_EXPEDITION_FLAVOR_GILDED_CATACOMBS_DESCRIPTION"
+	},
+	"starless_sanctum": {
+		"tagline": "MOD_MP_EXPEDITION_FLAVOR_STARLESS_SANCTUM_TAGLINE",
+		"description": "MOD_MP_EXPEDITION_FLAVOR_STARLESS_SANCTUM_DESCRIPTION"
+	},
 	"entrance": {
 		"tagline": "MOD_MP_EXPEDITION_FLAVOR_ENTRANCE_TAGLINE",
 		"description": "MOD_MP_EXPEDITION_FLAVOR_ENTRANCE_DESCRIPTION"

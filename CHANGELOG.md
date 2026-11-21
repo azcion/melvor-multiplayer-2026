@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.7.10
+
+- Journey maps match voting passages to numbered cards, highlight your vote and mark the chosen route while keeping unknown Chamber names hidden.
+- Expeditions can venture into nine more Chambers across two new depths, opening more routes through the underground. Each has its own flavor text, with Chamber names and tasks translated into every supported language.
+- The Transfers sidebar shows unread Adventure Hauls in blue and clears the haul indicator when you claim the last Adventure rewards.
+
 ## 1.7.9
 
 - You can skip a Colosseum Equipment Project task for 0.50 EP, including during the Fighter tutorial. Skipping the final task unlocks the item for your Fighter.

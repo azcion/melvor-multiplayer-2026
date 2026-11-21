@@ -3,6 +3,17 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { create_combat_view, create_combat_controller, combat_socket_url, combat_elapsed_ms, combat_attack_progress, combat_max_hit_marker, combat_player_thresholds, combat_gear_debuffed, create_combat_animator, combat_effect_space, combat_effect_remaining, combat_effect_icon, combat_feedback, combat_tick, combat_eat_remaining, combat_eat_progress, combat_eat_overlay, combat_eat_opacity } from '../../mod/combat-arena.mjs';
 
+test('Dungeon leaderboard only highlights the first row of the first page', async () => {
+	const templates = await readFile(new URL('../../mod/ui/templates.html', import.meta.url), 'utf8');
+	const css = await readFile(new URL('../../mod/ui/style.css', import.meta.url), 'utf8');
+	assert.match(templates, /<ol class="mp-combat-raid-records" :start="state\.combat_dungeon\(\)\.leaderboard\.page \* 10 \+ 1">/);
+	const rank_rules = css.match(/^[^\n{}]*\.mp-combat-raid-rank\s*(?=\{)/gm)?.map(selector => selector.trim());
+	assert.deepEqual(rank_rules, [
+		'.mp-combat-raid-rank',
+		'.mp-combat-raid-records[start="1"] > li:first-child .mp-combat-raid-rank'
+	]);
+});
+
 test('equipment outlines follow living Blob corrosion and the selected target', () => {
 	const blob = { id: 'blob', hp: 10, bronze_corrosion: true }, other = { id: 'other', hp: 10 };
 	const arena = { enemies: [blob, other], target: 'blob' };
