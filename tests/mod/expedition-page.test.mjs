@@ -151,6 +151,29 @@ test('renders phased Chamber work, accepted activities, and obscured passages', 
 	assert.match(main, /offline_work_gate\?\.request\(\)/);
 });
 
+test('mounts the five depth-five Chamber overlays on matching 16:9 artwork', async () => {
+	const [main, templates] = await Promise.all([
+		read_client_source(root),
+		readFile(new URL('mod/ui/templates.html', root), 'utf8')
+	]);
+	const art_maps = runInNewContext(main.slice(main.indexOf('const EXPEDITION_CHAMBER_ART ='),
+		main.indexOf('let last_expedition_work_observed_at')) + '\n[EXPEDITION_CHAMBER_ART, EXPEDITION_EXIT_ART];', {});
+	for (const label of ['Sunken Bell Chamber', 'Everflame Anvil', 'Rootcrown Nexus', 'Royal Treasury', 'Echoing Dais']) {
+		const slug = label.toLowerCase().replaceAll(' ', '-');
+		const id = slug.replaceAll('-', '_');
+		const art = `1.7.11/${slug}`;
+		const tag = `mp-expedition-${slug}`;
+		assert.equal(art_maps[0][id], art);
+		assert.equal(art_maps[1][label], art);
+		assert.ok(main.includes(`ctx.loadModule('expedition-${slug}.mjs')`));
+		assert.ok(main.includes(`['${tag}', expedition_${id}.create_renderer]`));
+		assert.ok(templates.includes(`<${tag} v-if="state.expedition_state?.expedition?.chamber?.id === '${id}'"></${tag}>`));
+		const png = await readFile(new URL(`mod/assets/expedition-chambers/${art}.png`, root));
+		assert.equal(png.readUInt32BE(16), 1280, id);
+		assert.equal(png.readUInt32BE(20), 720, id);
+	}
+});
+
 test('continues capturing activities independently of profile sharing', async () => {
 	const main = await read_client_source(root);
 	const snapshot = main.slice(main.indexOf('function capture_status_snapshot'), main.indexOf('function update_local_status_member'));
@@ -603,7 +626,7 @@ test('sidebar vote reminder updates the existing aside alongside tracked skill i
 	let skills = [];
 	const update = runInNewContext(main.slice(main.indexOf('function update_expedition_nav('),
 		main.indexOf('async function refresh_changelog')) + '\nupdate_expedition_nav;', {
-		state, expedition_view, expedition_tasks: { tracked_skill_ids: () => skills },
+		state, expedition_view, expedition_time_offset: 0, expedition_tasks: { tracked_skill_ids: () => skills },
 		sidebar: { category: () => ({ item: () => ({ itemEl: { querySelector: () => aside } }) }) },
 		document: { createElement: tag => ({ tag }) }, set_nav_ready() {},
 		getLangString: () => 'vote', expedition_work_icon: id => id, expedition_work_name: id => id,
@@ -623,6 +646,19 @@ test('sidebar vote reminder updates the existing aside alongside tracked skill i
 	assert.equal(aside.children.length, 0);
 	state.expedition_state.expedition.chamber.vote.ballot = null; update([]);
 	assert.equal(aside.hidden, false);
+	state.expedition_state.expedition = null;
+	state.is_guild_member = true;
+	const ballot = { choice: null, can_vote: true, locks_at: Date.now() + 10_000 };
+	state.expedition_state.global_expedition = { ballot };
+	update([]);
+	assert.equal(aside.children[0].textContent, 'vote');
+	ballot.choice = 'aye';
+	update([]);
+	assert.equal(aside.hidden, true);
+	ballot.choice = null;
+	ballot.locks_at = Date.now();
+	update([]);
+	assert.equal(aside.hidden, true);
 	state.is_connected = false; update([]);
 	assert.equal(aside.hidden, true);
 	const data = JSON.parse(await readFile(new URL('mod/data.json', root), 'utf8'));

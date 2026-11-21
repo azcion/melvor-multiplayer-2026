@@ -241,3 +241,9 @@ export const EXPEDITION_CONTENT_V5 = JSON.parse(readFileSync(
 	new URL('./expedition-content-v5.json', import.meta.url), 'utf8'
 )) as ExpeditionContent;
 validate_expedition_content(EXPEDITION_CONTENT_V5);
+
+// Opt-in depth-five expansion; older runs retain their original snapshots.
+export const EXPEDITION_CONTENT_V6 = JSON.parse(readFileSync(
+	new URL('./expedition-content-v6.json', import.meta.url), 'utf8'
+)) as ExpeditionContent;
+validate_expedition_content(EXPEDITION_CONTENT_V6);

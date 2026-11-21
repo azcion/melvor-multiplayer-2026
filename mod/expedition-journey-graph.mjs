@@ -111,7 +111,12 @@ export function discovery_state(graph, route, revealed = new Set(), snapshot_sta
 	return { ...state, visible_edges, visible_nodes };
 }
 
-export function render_graph(svg, graph, route, { radius = 17, revealed = new Set(), frontier = new Set(), ghosts = false, current, snapshot_state, unknown_label = 'Unknown Chamber', choices = new Map(), choice_labels = { choice: 'Passages', ballot: 'Your vote', chosen: 'Chosen passage' } } = {}) {
+export function render_graph(svg, graph, route, {
+	radius = 17, revealed = new Set(), frontier = new Set(), ghosts = false, current, snapshot_state,
+	unknown_label = 'Unknown Chamber', choices = new Map(),
+	choice_labels = { choice: 'Passages', ballot: 'Your vote', chosen: 'Chosen passage' },
+	description = 'Question marks show unvisited destinations. Dotted lines show undiscovered passages from visited Chambers. Solid lines show discovered passages, and gold lines show the route travelled. A bright ring marks the current Chamber. Dashed circles show unvisited Chambers.'
+} = {}) {
 	const state = discovery_state(graph, route, revealed, snapshot_state, frontier, choices);
 	if (current !== undefined) state.current = current;
 	const doc = svg.ownerDocument;
@@ -125,7 +130,7 @@ export function render_graph(svg, graph, route, { radius = 17, revealed = new Se
 	svg.setAttribute('viewBox', `0 0 ${graph.width} ${graph.height}`);
 	svg.setAttribute('width', graph.width);
 	svg.setAttribute('height', graph.height);
-	svg.append(el('desc', {}, 'Question marks are unvisited destinations. Dotted lines show undiscovered passages from visited Chambers. Solid lines show discovered passages, and gold lines show the travelled route. A bright ring marks the current Chamber. Dashed circles are unvisited.'));
+	svg.append(el('desc', {}, description));
 	const by_id = new Map(graph.nodes.map(node => [node.id, node]));
 	for (const edge of graph.edges) {
 		const visible = state.visible_edges.some(candidate => candidate.id === edge.id);

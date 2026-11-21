@@ -85,13 +85,18 @@ test('discovery applies the selected server wiki after the session check', async
 	assert.equal(links.at(-1), 'https://two.example/wiki/raids/');
 });
 
-test('Expedition registration negotiates v5, v4, or v3 with the selected backend', async () => {
+test('Expedition registration negotiates the latest catalog supported by the selected backend', async () => {
 	const { readFile } = await import('node:fs/promises');
 	const { runInNewContext } = await import('node:vm');
 	const main = await readFile(new URL('../../mod/main.mjs', import.meta.url), 'utf8');
 	const discovery = main.slice(main.indexOf('async function discover_api_contract('), main.indexOf('\nfunction resolve_api_endpoint('));
 	const registration = main.slice(main.indexOf('async function register_expedition('), main.indexOf('\nasync function retry_expedition_report('));
-	for (const [capabilities, expected] of [[['expedition-content-v5', 'expedition-content-v4'], 5], [['expedition-content-v4'], 4], [[], 3]]) {
+	for (const [capabilities, expected] of [
+		[['expedition-content-v4', 'expedition-content-v6', 'expedition-content-v5'], 6],
+		[['expedition-content-v5', 'expedition-content-v4'], 5],
+		[['expedition-content-v4'], 4],
+		[[], 3]
+	]) {
 		let request;
 		const context = {
 			server_host: 'https://selected.example', session_generation: 1, selected_api_major: null,

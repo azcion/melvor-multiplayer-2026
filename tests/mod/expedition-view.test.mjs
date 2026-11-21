@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
-	EXPEDITION_PREVIEW_CHAMBER_IDS, EXPEDITION_PREVIEW_LABEL_IDS,
+	EXPEDITION_PREVIEW_CHAMBER_IDS,
 	return_duration, expedition_has_ended, arrival_complete, display_expedition_label, passage_gateway, passage_name, phase_tasks, phase_summary,
 	needs_passage_vote, sync_phase_state, tracked_task_ended, tracking_task_title, visible_tasks, work_skill_icon, work_skill_name
 } from '../../mod/expedition-view.mjs';
@@ -101,16 +101,16 @@ test('localizes supported chamber and task labels from persisted English content
 	assert.equal(display_expedition_label('Untranslated task', 3, english, 'entrance'),
 		'Untranslated task');
 	const [content, chinese] = await Promise.all([
-		readFile(new URL('../../server/expedition-content-v5.json', import.meta.url), 'utf8').then(JSON.parse),
+		readFile(new URL('../../server/expedition-content-v6.json', import.meta.url), 'utf8').then(JSON.parse),
 		readFile(new URL('../../mod/data/lang/zh-CN.json', import.meta.url), 'utf8').then(JSON.parse)
 	]);
-	assert.equal(EXPEDITION_PREVIEW_CHAMBER_IDS.length, 21);
-	for (const chamber of content.chambers.filter(value => EXPEDITION_PREVIEW_CHAMBER_IDS.includes(value.id))) {
+	assert.deepEqual(new Set(EXPEDITION_PREVIEW_CHAMBER_IDS), new Set(content.chambers.map(chamber => chamber.id)));
+	for (const chamber of content.chambers) {
 		const labels = [chamber.label, ...chamber.tasks.map(task => task.title)];
 		for (const label of labels) {
-			const key = EXPEDITION_PREVIEW_LABEL_IDS[label];
-			assert.ok(key, `${chamber.id}: ${label}`);
-			assert.ok(chinese[key], `${chamber.id}: ${key}`);
+			const translated = display_expedition_label(label, chamber.exits.length, key => chinese[key], chamber.id);
+			assert.ok(translated?.trim(), `${chamber.id}: ${label}`);
+			assert.notEqual(translated, label, `${chamber.id}: ${label}`);
 		}
 	}
 });

@@ -2,6 +2,16 @@ import type { Database } from 'bun:sqlite';
 import { settle_wish_capacity } from './wish-capacity';
 import { record_economy_operation } from './save-rollback';
 
+export function get_expedition_launch_bonus_estimate(db: Database, client_id: number, guild_id: number): number {
+	const earned = db.query<{ points_micros: number }, [number, number]>(`
+		SELECT COALESCE(SUM(ledger.points_micros), 0) AS points_micros
+		FROM expeditions run JOIN expedition_ep_ledger ledger ON ledger.expedition_id=run.id
+		WHERE run.guild_id=? AND run.status IN ('registration', 'active')
+			AND ledger.client_id=? AND ledger.source_kind <> 'ending'
+	`).get(guild_id, client_id)!.points_micros;
+	return Math.floor(earned / 5);
+}
+
 export function get_expedition_return_summary(db: Database, client_id: number, expedition_id: number) {
 	const record = db.query<{ registered_at: number; ended_at: number | null; status: string; ending_bonus_eligible: number }, [number, number]>(
 		'SELECT registered_at, ended_at, status, ending_bonus_eligible FROM expedition_personal_records WHERE client_id=? AND expedition_id=?'

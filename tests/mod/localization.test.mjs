@@ -15,7 +15,7 @@ import {
 } from '../../mod/localization.mjs';
 
 import { BADGE_FEATURES, TEXT_FEATURE_NAMES, feature_catalog, feature_name, fallback_feature_name } from '../../mod/chat-items.mjs';
-import { EXPEDITION_PREVIEW_LABEL_IDS, journey_flavor } from '../../mod/expedition-view.mjs';
+import { display_expedition_label, journey_flavor } from '../../mod/expedition-view.mjs';
 
 const root = new URL('../../', import.meta.url);
 
@@ -23,12 +23,16 @@ function placeholder_signature(value) {
 	return value.match(/%s/g)?.length ?? 0;
 }
 
-test('Expedition flavor and batch test controls are translated in every packaged locale', async () => {
+test('Expedition flavor, Journey map and batch test controls are translated in every packaged locale', async () => {
 	const english = JSON.parse(await readFile(new URL('mod/data/lang/en.json', root), 'utf8'));
 	const flavor_keys = Object.keys(english).filter(key => key.startsWith('MOD_MP_EXPEDITION_FLAVOR_'));
-	const content = JSON.parse(await readFile(new URL('server/expedition-content-v5.json', root), 'utf8'));
+	const content = JSON.parse(await readFile(new URL('server/expedition-content-v6.json', root), 'utf8'));
 	assert.equal(flavor_keys.length, content.chambers.length * 2);
 	const keys = [...flavor_keys,
+		'MOD_MP_EXPEDITION_UNKNOWN_CHAMBER',
+		'MOD_MP_EXPEDITION_JOURNEY_DESCRIPTION',
+		'MOD_MP_EXPEDITION_YOUR_VOTE',
+		'MOD_MP_EXPEDITION_CHOSEN_PASSAGE',
 		'MOD_MP_EXPEDITION_TEST_COMPLETE_CHAMBER',
 		'MOD_MP_EXPEDITION_TEST_JUMP',
 		'MOD_MP_EXPEDITION_TEST_CHOOSE_CHAMBER',
@@ -49,23 +53,29 @@ test('Expedition flavor and batch test controls are translated in every packaged
 	}
 });
 
-test('new Expedition Chamber names, work and approach labels are translated in every packaged locale', async () => {
+test('Expedition Chamber names and task labels render in every packaged locale for current and saved routes', async () => {
 	const english = JSON.parse(await readFile(new URL('mod/data/lang/en.json', root), 'utf8'));
-	const previous = JSON.parse(await readFile(new URL('server/expedition-content-v3.json', root), 'utf8'));
-	const current = JSON.parse(await readFile(new URL('server/expedition-content-v5.json', root), 'utf8'));
-	const previous_ids = new Set(previous.chambers.map(chamber => chamber.id));
-	const new_chambers = current.chambers.filter(chamber => !previous_ids.has(chamber.id));
-	assert.equal(new_chambers.length, 9);
-	const labels_in = content => new Set(content.chambers.flatMap(chamber => [chamber.label, ...chamber.tasks.map(task => task.title)]));
-	const previous_labels = labels_in(previous);
-	const labels = [...labels_in(current)].filter(label => !previous_labels.has(label));
+	// Version 2 uses the same labels as version 1, with a subset of the tasks enabled.
+	const catalogs = await Promise.all([1, 3, 4, 5, 6].map(version =>
+		readFile(new URL(`server/expedition-content-v${version}.json`, root), 'utf8').then(JSON.parse)));
 	for (const language of MULTIPLAYER_SUPPORTED_LANGUAGES.filter(language => language !== 'en')) {
 		const translations = JSON.parse(await readFile(new URL(`mod/data/lang/${language}.json`, root), 'utf8'));
-		for (const label of labels) {
-			const key = EXPEDITION_PREVIEW_LABEL_IDS[label];
-			assert.ok(key, `Missing localization mapping for ${label}`);
-			assert.ok(translations[key]?.trim(), `${language}:${key} must be present`);
-			assert.notEqual(translations[key], english[key], `${language}:${key} must be localized`);
+		for (const { version, chambers } of catalogs) {
+			for (const chamber of chambers) {
+				// The Journey map and passage cards resolve Chamber names without a Chamber ID.
+				const name = display_expedition_label(chamber.label, undefined, key => translations[key]);
+				assert.ok(name?.trim(), `${language}:v${version}:${chamber.id} must have a Chamber name`);
+				assert.notEqual(name, chamber.label, `${language}:v${version}:${chamber.id} must be localized`);
+				for (const { title } of chamber.tasks) {
+					const render = dictionary =>
+						display_expedition_label(title, chamber.exits.length, key => dictionary[key], chamber.id);
+					const localized = render(translations);
+					const context = `${language}:v${version}:${chamber.id}:${title}`;
+					assert.ok(localized?.trim(), `${context} must render a task label`);
+					assert.ok(!localized.includes('{chamber}'), `${context} must format the Chamber name`);
+					assert.notEqual(localized, render(english), `${context} must be localized`);
+				}
+			}
 		}
 	}
 });
@@ -476,6 +486,11 @@ test('localization inventory tracks runtime references and the unresolved baseli
 		'CRUCIBLE_PURGING', 'CRUCIBLE_SEALING',
 		'CRUCIBLE_UNSEALING']) {
 		for (const suffix of ['CONFIRM', 'PROPOSAL'])
+			dynamic.add(`MOD_MP_COUNCIL_${action}_${suffix}`);
+	}
+	for (const action of ['GLOBAL_EXPEDITION_OPT_IN', 'GLOBAL_EXPEDITION_OPT_OUT']) {
+		dynamic.add(`MOD_MP_COUNCIL_TYPE_${action}`);
+		for (const suffix of ['DESCRIPTION', 'CONFIRM'])
 			dynamic.add(`MOD_MP_COUNCIL_${action}_${suffix}`);
 	}
 	for (const event of ['JOINED', 'LEFT', 'BANISHED', 'RAID_STARTED', 'RAID_BOSS_DEFEATED',

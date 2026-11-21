@@ -6,7 +6,8 @@ All original images remain in `mod/assets/` and in source control.
 ## Configuration
 
 `asset-hosting.json` supplies the bundled default and exact managed PNG paths. The managed list covers four Colosseum
-Dungeon setting illustrations, four Raid bosses, the seven legacy Expedition scenes, eleven versioned 1.7.0 Expedition scenes, nine versioned 1.7.10 Expedition scenes, four passage gateways,
+Dungeon setting illustrations, four Raid bosses, seven legacy Expedition scenes, eleven versioned 1.7.0 Expedition
+scenes, nine versioned 1.7.10 Expedition scenes, five versioned 1.7.11 Expedition scenes, four passage gateways,
 and the Crucible visual guide. Other Crucible artwork,
 navigation icons, gamemode icons, and placeholders stay bundled.
 

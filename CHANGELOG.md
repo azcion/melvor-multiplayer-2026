@@ -1,10 +1,19 @@
 # Changelog
 
+## 1.7.11
+
+- Guilds can join the Global Expedition, sharing Chamber progression, route votes, and discoveries with other participating Guilds.
+- New Expeditions can reach five more Chambers at the fifth depth, with new passages, tasks, and animated artwork.
+- Localized Expedition Chamber names, tasks, flavor text and Journey maps, including their screen-reader descriptions, across all supported languages and for Expeditions already underway.
+- Expedition work earns 10 percentage points less EP and task progress for each simultaneous skill after the first, with a minimum rate of 10%.
+- Updated which mods are recognized by Marketplace Listing Filters and category badges.
+
 ## 1.7.10
 
 - Journey maps match voting passages to numbered cards, highlight your vote and mark the chosen route while keeping unknown Chamber names hidden.
-- Expeditions can venture into nine more Chambers across two new depths, opening more routes through the underground. Each has its own flavor text, with Chamber names and tasks translated into every supported language.
+- Expeditions can venture into nine more Chambers across two new depths, opening more routes through the underground. Each Chamber has its own flavor text and tasks.
 - The Transfers sidebar shows unread Adventure Hauls in blue and clears the haul indicator when you claim the last Adventure rewards.
+- Colosseum Dungeon leaderboards highlight the overall first-place rank in gold.
 
 ## 1.7.9
 

@@ -1,9 +1,10 @@
-import { claim_expedition_ending, unclaimed_expedition_endings } from '../expedition-ending';
+import { claim_expedition_ending, get_expedition_launch_bonus_estimate, unclaimed_expedition_endings } from '../expedition-ending';
 import { expedition_leaderboard } from '../expedition-leaderboard';
 import { equipment_catalog_response, change_equipment_work, parse_action_statistics } from '../equipment-projects';
 import * as runtime from '../app-runtime';
-import { can_debug_expedition, get_debug_expedition_chambers, debug_advance_expedition, debug_cancel_expedition, debug_wipe_expedition_data, cast_expedition_vote, get_expedition_state, get_personal_expedition_history, reconcile_expedition_visit,
+import { can_debug_expedition, get_debug_expedition_chambers, debug_advance_expedition, debug_cancel_expedition, debug_wipe_expedition_data, cast_expedition_vote, expedition_scope_for_guild, maintain_expedition_launch, get_expedition_state, get_personal_expedition_history, reconcile_expedition_visit,
 	register_for_expedition } from '../guild-expedition';
+import { cast_global_expedition_launch_ballot, get_global_expedition_guild_state } from '../global-expedition-governance';
 import type { HandlerResult } from '../http';
 import { change_expedition_work, get_expedition_work } from '../expedition-work';
 import { parse_work_statistics } from './expedition';
@@ -36,11 +37,28 @@ export function register_guild_expedition_routes(): void {
 	session_get_route('/api/expedition/state', async (req, url, client_id): Promise<HandlerResult> => {
 		const guild_id = await get_client_guild_id(client_id);
 		if (guild_id === null) return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
-		reconcile_expedition_visit(guild_id);
-		const state = get_expedition_state(guild_id, client_id, Date.now(), url.searchParams.get('view') === 'tracking');
-		return equipment_catalog_response({ ...state, ...(url.searchParams.get('view') === 'tracking' ? {} : { ending_rewards: unclaimed_expedition_endings(runtime.db, client_id) }), debug_enabled: can_debug_expedition(client_id),
-			...(can_debug_expedition(client_id) ? { debug_chambers: get_debug_expedition_chambers(guild_id) } : {}), ...get_expedition_work(client_id),
+		const now = Date.now();
+		maintain_expedition_launch(now);
+		const owner = expedition_scope_for_guild(guild_id);
+		reconcile_expedition_visit(owner, now);
+		const tracking_only = url.searchParams.get('view') === 'tracking';
+		const state = get_expedition_state(owner, client_id, now, tracking_only);
+		const debug_enabled = owner !== null && can_debug_expedition(client_id);
+		const global_expedition = get_global_expedition_guild_state(guild_id, client_id, now);
+		const ballot = global_expedition?.ballot;
+		return equipment_catalog_response({ ...state, ...(tracking_only ? {} : {
+			ending_rewards: unclaimed_expedition_endings(runtime.db, client_id),
+			...(ballot ? { global_expedition_bonus_estimate_micros: get_expedition_launch_bonus_estimate(runtime.db, client_id, guild_id) } : {})
+		}), global_expedition, debug_enabled,
+			...(debug_enabled ? { debug_chambers: get_debug_expedition_chambers(guild_id) } : {}), ...get_expedition_work(client_id),
 			supply_score: get_expedition_supply_score(client_id, state.expedition?.id ?? null) }, url);
+	});
+
+	session_post_route('/api/expedition/global-vote', async (req, url, client_id, json): Promise<HandlerResult> => {
+		if (json.choice !== 'aye' && json.choice !== 'nay') return 400;
+		const now = Date.now();
+		maintain_expedition_launch(now);
+		return cast_global_expedition_launch_ballot(client_id, json.choice, now) ?? 409;
 	});
 
 	session_post_route('/api/expedition/debug/advance', async (req, url, client_id, json): Promise<HandlerResult> => {
@@ -50,7 +68,7 @@ export function register_guild_expedition_routes(): void {
 			(json.task_id !== null && typeof json.task_id !== 'string') ||
 			!['registration', 'task', 'vote', 'phase', 'chamber', 'jump'].includes(String(json.action))) return 400;
 		const guild_id = await get_client_guild_id(client_id);
-		if (guild_id === null) return 403;
+		if (guild_id === null || expedition_scope_for_guild(guild_id) === null) return 403;
 		const advanced = debug_advance_expedition(guild_id, json.expedition_id as number,
 			json.visit_id as number | null, json.action as 'registration' | 'task' | 'vote' | 'phase' | 'chamber' | 'jump',
 			json.task_id as string | null);
@@ -61,7 +79,7 @@ export function register_guild_expedition_routes(): void {
 		if (!can_debug_expedition(client_id)) return 403;
 		if (!Number.isSafeInteger(json.expedition_id)) return 400;
 		const guild_id = await get_client_guild_id(client_id);
-		if (guild_id === null) return 403;
+		if (guild_id === null || expedition_scope_for_guild(guild_id) === null) return 403;
 		return debug_cancel_expedition(guild_id, json.expedition_id as number)
 			? { success: true } : 409;
 	});
@@ -71,7 +89,7 @@ export function register_guild_expedition_routes(): void {
 		if (json.current_expedition_id !== null && !Number.isSafeInteger(json.current_expedition_id)) return 400;
 		if (json.confirm !== 'WIPE EXPEDITION DATA') return 400;
 		const guild_id = await get_client_guild_id(client_id);
-		if (guild_id === null) return 403;
+		if (guild_id === null || expedition_scope_for_guild(guild_id) === null) return 403;
 		const wiped_count = debug_wipe_expedition_data(guild_id, json.current_expedition_id as number | null);
 		return wiped_count === null ? 409 : { success: true, wiped_count };
 	});
@@ -80,11 +98,15 @@ export function register_guild_expedition_routes(): void {
 		if (typeof json.operation_id !== 'string' || !operation_uuid.test(json.operation_id)) return 400;
 		const guild_id = await get_client_guild_id(client_id);
 		if (guild_id === null) return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
-		if (json.content_version !== undefined && json.content_version !== 2 && json.content_version !== 3 && json.content_version !== 4 && json.content_version !== 5) return 400;
-		const expedition_id = register_for_expedition(guild_id, client_id, json.operation_id, Date.now(),
-			json.content_version === 5 ? 5 : json.content_version === 4 ? 4 : json.content_version === 3 ? 3 : 2);
+		const now = Date.now();
+		maintain_expedition_launch(now);
+		if (get_global_expedition_guild_state(guild_id, client_id, now)?.registration_pending) return 409;
+		const content_version = json.content_version === undefined ? 2 : json.content_version;
+		if (content_version !== 2 && content_version !== 3 && content_version !== 4 && content_version !== 5 && content_version !== 6)
+			return 400;
+		const expedition_id = register_for_expedition(guild_id, client_id, json.operation_id, now, content_version);
 		if (expedition_id === null) return 409;
-		const state = get_expedition_state(guild_id, client_id);
+		const state = get_expedition_state(expedition_scope_for_guild(guild_id), client_id, now);
 		return state.expedition?.id === expedition_id
 			? { success: true, expedition_id, ...state }
 			: { success: true, expedition_id, replayed_terminal: true };
@@ -110,6 +132,7 @@ export function register_guild_expedition_routes(): void {
 			const activities = parse_player_status_activities(json.activities);
 			if ((json.statistics !== null && !statistics) || !activities) return 400;
 			if (kind === 'start' && (typeof json.task_id !== 'string' || !statistics)) return 400;
+			maintain_expedition_launch();
 			const result = change_expedition_work(client_id, json.operation_id, {
 				expedition_id: json.expedition_id as number, visit_id: json.visit_id as number,
 				task_id: json.task_id as string | null | undefined, statistics, activities,
@@ -117,7 +140,7 @@ export function register_guild_expedition_routes(): void {
 			});
 			const guild_id = await get_client_guild_id(client_id);
 			if (result.success && guild_id !== null)
-				reconcile_expedition_visit(guild_id);
+				reconcile_expedition_visit(expedition_scope_for_guild(guild_id));
 			return result;
 		});
 	}
@@ -128,7 +151,8 @@ export function register_guild_expedition_routes(): void {
 			typeof json.exit_id !== 'string') return 400;
 		const guild_id = await get_client_guild_id(client_id);
 		if (guild_id === null) return { error_lang: 'MOD_MP_GUILD_REQUIRED' };
-		reconcile_expedition_visit(guild_id);
+		maintain_expedition_launch();
+		reconcile_expedition_visit(expedition_scope_for_guild(guild_id));
 		return cast_expedition_vote(guild_id, client_id, json.expedition_id as number,
 			json.visit_id as number, json.exit_id, json.operation_id);
 	});

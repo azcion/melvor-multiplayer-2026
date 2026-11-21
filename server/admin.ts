@@ -11,7 +11,8 @@ import { DEV_BADGES, get_dev_badge_labels, valid_dev_badge_label, EXPEDITION_TES
 import { revoke_installation } from './installations';
 import { db, get_service_setting } from './db';
 import { make_audit_context, run_with_audit_context } from './audit-context';
-import { effective_minimum_client_version, is_minimum_supported_version } from './client-version-policy';
+import { effective_minimum_client_version, is_client_version_at_least, is_minimum_supported_version } from './client-version-policy';
+import { global_expedition_launch_summary, GLOBAL_EXPEDITION_MINIMUM_CLIENT_VERSION, trigger_global_expedition_launch } from './global-expedition-governance';
 import { preview_campaign_retirement, settle_campaign_retirement } from './campaign-retirement';
 import { preview_raid_cutover, settle_raid_cutover } from './raid';
 import { BACKEND_VERSION } from './version';
@@ -52,6 +53,7 @@ function usage(output: AdminOutput): number {
   bun run admin.ts registrations open|close
   bun run admin.ts maintenance on|off
   bun run admin.ts expedition-preparations status|enable confirm
+  bun run admin.ts global-expedition status|launch confirm
   bun run admin.ts alliance-preview on|off
   bun run admin.ts icon-collection on|off
   bun run admin.ts icon-collection-limit icon-bytes|manifest-items|catalog-bytes|observations VALUE
@@ -836,6 +838,29 @@ function run_admin_command(args: string[], output: AdminOutput = console_output)
 			}).immediate();
 			output.log('Rift Preparations enabled; new supply donations are closed.');
 			return 0;
+		case 'global-expedition': {
+			if (action === 'status' && args.length === 2) {
+				output.log(JSON.stringify(global_expedition_launch_summary() ?? { state: 'not_triggered' }));
+				return 0;
+			}
+			if (action !== 'launch' || args.length !== 3 || args[2] !== 'confirm') return usage(output);
+			const released = get_service_setting('released_mod_version');
+			const minimum = effective_minimum_client_version(get_service_setting('minimum_supported_mod_version'));
+			if (!is_client_version_at_least(released, GLOBAL_EXPEDITION_MINIMUM_CLIENT_VERSION)) {
+				output.error(`Global Expedition launch requires released mod ${GLOBAL_EXPEDITION_MINIMUM_CLIENT_VERSION} or newer.`);
+				return 1;
+			}
+			if (!is_client_version_at_least(minimum, GLOBAL_EXPEDITION_MINIMUM_CLIENT_VERSION)) {
+				output.error(`Global Expedition launch requires minimum supported mod ${GLOBAL_EXPEDITION_MINIMUM_CLIENT_VERSION} or newer.`);
+				return 1;
+			}
+			if (!trigger_global_expedition_launch(Date.now())) {
+				output.error('Global Expedition launch has already been triggered.');
+				return 1;
+			}
+			output.log(`Global Expedition launch ballot opened; voting closes in 40 hours and the switch is scheduled for 48 hours.`);
+			return 0;
+		}
 		case 'alliance-preview':
 			if (args.length !== 2 || (action !== 'on' && action !== 'off'))
 				return usage(output);

@@ -27,11 +27,14 @@ export const PETITION_TYPES = [
 	'indulgence',
 	'crucible_purging',
 	'crucible_sealing',
-	'crucible_unsealing'
+	'crucible_unsealing',
+	'global_expedition_opt_in',
+	'global_expedition_opt_out'
 ] as const;
 
 export function is_free_fellowship_petition(type: string): boolean {
-	return ['interdict', 'heresy', 'winnowing', 'temperance', 'indulgence'].includes(type) || type.startsWith('alliance_');
+	return ['interdict', 'heresy', 'winnowing', 'temperance', 'indulgence',
+		'global_expedition_opt_in', 'global_expedition_opt_out'].includes(type) || type.startsWith('alliance_');
 }
 
 export const PETITION_CHOICES = ['aye', 'nay'] as const;
@@ -83,6 +86,8 @@ export function get_petition_conflict_subject(type: PetitionType, target_members
 		return 'guild:market-discovery-policy';
 	if (type === 'winnowing')
 		return 'guild:winnowing';
+	if (type === 'global_expedition_opt_in' || type === 'global_expedition_opt_out')
+		return 'guild:global-expedition';
 	if (!Number.isSafeInteger(target_membership_id) || (target_membership_id as number) < 1)
 		throw new RangeError('target_membership_id must be a positive safe integer');
 	return `membership:${target_membership_id}`;

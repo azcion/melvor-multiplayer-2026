@@ -17,7 +17,7 @@ for (const route of [
 	['entrance', 'rootforge_passage', 'glassroot_terraces', 'buried_observatory', 'prismatic_orrery', 'voidwatch_threshold', 'hollow_star'],
 	['entrance', 'prismatic_descent', 'glassroot_terraces', 'buried_observatory', 'prismatic_orrery', 'voidwatch_threshold', 'hollow_star']
 ]) test(`supported participants complete ${route.join(' → ')}`, async () => {
-	const guild = await make_guildmates('Expansion New', 'Expansion Legacy', 'Expansion Guild', { first: '1.7.9', second: '1.7.9' });
+	const guild = await make_guildmates('Expansion New', 'Expansion Legacy', 'Expansion Guild', { first: '1.7.11', second: '1.7.11' });
 	const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 3 }, guild.first.session_token);
 	expect(created.response.status).toBe(200);
 	const expedition_id = created.json.expedition_id;
@@ -92,7 +92,7 @@ for (const route of [
 });
 
 test('new client joins a legacy run without changing tasks, visits, history or an open work segment', async () => {
-	const guild = await make_guildmates('Legacy Creator', 'New Joiner', 'Continuity Guild', { first: '1.7.9', second: '1.7.9' });
+	const guild = await make_guildmates('Legacy Creator', 'New Joiner', 'Continuity Guild', { first: '1.7.11', second: '1.7.11' });
 	const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.first.session_token);
 	const id = created.json.expedition_id;
 	await db_run('UPDATE expeditions SET registered_at = ?, registration_ends_at = ? WHERE id = ?', [Date.now() - 20 * 3_600_000, Date.now() - 1, id]);
@@ -116,7 +116,7 @@ test('new client joins a legacy run without changing tasks, visits, history or a
 });
 
 test('legacy work reports unlock expanded phases only after all required arrival work and replay safely', async () => {
-	const guild = await make_guildmates('New Content Owner', 'Legacy Worker', 'Phase Gate Guild', { first: '1.7.9', second: '1.7.9' });
+	const guild = await make_guildmates('New Content Owner', 'Legacy Worker', 'Phase Gate Guild', { first: '1.7.11', second: '1.7.11' });
 	const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 3 }, guild.first.session_token);
 	await post_json('/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.second.session_token);
 	const expedition_id = created.json.expedition_id;
@@ -163,7 +163,7 @@ test('legacy work reports unlock expanded phases only after all required arrival
 
 
 test('Rift retains the previous Guild return only for participants, including claimed rewards', async () => {
-	const guild = await make_guildmates('Rift Returner', 'Rift Newcomer', 'Rift Recap', { first: '1.7.9', second: '1.7.9' });
+	const guild = await make_guildmates('Rift Returner', 'Rift Newcomer', 'Rift Recap', { first: '1.7.11', second: '1.7.11' });
 	const old = (await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 3 }, guild.first.session_token)).json.expedition_id;
 	await db_run("UPDATE expeditions SET status='completed', ended_at=? WHERE id=?", [Date.now(), old]);
 	await db_run("UPDATE expedition_personal_records SET status='completed', ended_at=?, ending_bonus_eligible=1 WHERE expedition_id=?", [Date.now(), old]);
@@ -196,7 +196,7 @@ for (const route of [
 	['entrance', 'rootforge_passage', 'glassroot_terraces', 'spore_cathedral'],
 	['entrance', 'rootforge_passage', 'glassroot_terraces', 'convergence_gallery', 'prismatic_orrery', 'voidwatch_threshold', 'hollow_star']
 ]) test(`v4 and legacy participants complete ${route.join(' → ')}`, async () => {
-	const guild = await make_guildmates('Depth Four Owner', 'Depth Four Legacy', 'Depth Four Guild', { first: '1.7.9', second: '1.7.9' });
+	const guild = await make_guildmates('Depth Four Owner', 'Depth Four Legacy', 'Depth Four Guild', { first: '1.7.11', second: '1.7.11' });
 	const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 4 }, guild.first.session_token);
 	expect(created.response.status).toBe(200);
 	const id = created.json.expedition_id;
@@ -228,7 +228,7 @@ for (const route of [
 });
 
 test('v4 joiner preserves an existing v3 run snapshot', async () => {
-	const guild = await make_guildmates('V3 Owner', 'V4 Joiner', 'V3 Continuity', { first: '1.7.9', second: '1.7.9' });
+	const guild = await make_guildmates('V3 Owner', 'V4 Joiner', 'V3 Continuity', { first: '1.7.11', second: '1.7.11' });
 	const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 3 }, guild.first.session_token);
 	const before = await db_all('SELECT content_snapshot, content_version, current_visit_id FROM expeditions WHERE id = ?', [created.json.expedition_id]);
 	const joined = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 4 }, guild.second.session_token);
@@ -237,26 +237,33 @@ test('v4 joiner preserves an existing v3 run snapshot', async () => {
 });
 
 
-for (const route of [
- ['entrance', 'drowned_cloister', 'tideworn_crypts', 'convergence_gallery', 'drowned_basilica'],
- ['entrance', 'drowned_cloister', 'tideworn_crypts', 'convergence_gallery', 'cinder_engine'],
- ['entrance', 'drowned_cloister', 'mossbound_reliquary', 'blackwater_nave', 'drowned_basilica'],
- ['entrance', 'prismatic_descent', 'embervein_machinery', 'ashen_foundry', 'cinder_engine'],
- ['entrance', 'drowned_cloister', 'mossbound_reliquary', 'blackwater_nave', 'mycelial_court'],
- ['entrance', 'prismatic_descent', 'embervein_machinery', 'ashen_foundry', 'gilded_catacombs'],
- ['entrance', 'rootforge_passage', 'glassroot_terraces', 'spore_cathedral', 'starless_sanctum'],
- ['entrance', 'rootforge_passage', 'glassroot_terraces', 'spore_cathedral', 'mycelial_court']
-]) test(`v5 and legacy participants complete ${route.join(' → ')}`, async () => {
-	const guild = await make_guildmates('Depth Five Owner', 'Depth Five Legacy', 'Depth Five Guild', { first: '1.7.9', second: '1.7.9' });
-	const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 5 }, guild.first.session_token);
+const expansion_routes: [number, number, string[]][] = [
+	[5, 3, ['entrance', 'drowned_cloister', 'tideworn_crypts', 'convergence_gallery', 'drowned_basilica']],
+	[5, 3, ['entrance', 'drowned_cloister', 'tideworn_crypts', 'convergence_gallery', 'cinder_engine']],
+	[5, 3, ['entrance', 'drowned_cloister', 'mossbound_reliquary', 'blackwater_nave', 'drowned_basilica']],
+	[5, 3, ['entrance', 'prismatic_descent', 'embervein_machinery', 'ashen_foundry', 'cinder_engine']],
+	[5, 3, ['entrance', 'drowned_cloister', 'mossbound_reliquary', 'blackwater_nave', 'mycelial_court']],
+	[5, 3, ['entrance', 'prismatic_descent', 'embervein_machinery', 'ashen_foundry', 'gilded_catacombs']],
+	[5, 3, ['entrance', 'rootforge_passage', 'glassroot_terraces', 'spore_cathedral', 'starless_sanctum']],
+	[5, 3, ['entrance', 'rootforge_passage', 'glassroot_terraces', 'spore_cathedral', 'mycelial_court']],
+	[6, 5, ['entrance', 'drowned_cloister', 'tideworn_crypts', 'convergence_gallery', 'drowned_basilica', 'sunken_bell_chamber']],
+	[6, 5, ['entrance', 'prismatic_descent', 'embervein_machinery', 'ashen_foundry', 'cinder_engine', 'everflame_anvil']],
+	[6, 5, ['entrance', 'rootforge_passage', 'glassroot_terraces', 'buried_observatory', 'prismatic_orrery', 'rootcrown_nexus']],
+	[6, 5, ['entrance', 'prismatic_descent', 'embervein_machinery', 'ashen_foundry', 'gilded_catacombs', 'royal_treasury']],
+	[6, 5, ['entrance', 'rootforge_passage', 'glassroot_terraces', 'spore_cathedral', 'starless_sanctum', 'echoing_dais']],
+	[6, 5, ['entrance', 'rootforge_passage', 'glassroot_terraces', 'spore_cathedral', 'starless_sanctum', 'voidwatch_threshold', 'hollow_star']],
+];
+for (const [content_version, legacy_version, route] of expansion_routes) test(`v${content_version} and legacy participants complete ${route.join(' → ')}`, async () => {
+	const guild = await make_guildmates('Expansion Owner', 'Expansion Legacy', 'Expansion Guild', { first: '1.7.11', second: '1.7.11' });
+	const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version }, guild.first.session_token);
 	expect(created.response.status).toBe(200);
 	const id = created.json.expedition_id;
 	const snapshot = await db_all('SELECT content_snapshot, content_version FROM expeditions WHERE id = ?', [id]);
-	expect((await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 3 }, guild.second.session_token)).json.content_version).toBe(5);
+	expect((await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: legacy_version }, guild.second.session_token)).json.content_version).toBe(content_version);
 	await db_run('UPDATE expeditions SET registered_at = ?, registration_ends_at = ? WHERE id = ?', [Date.now() - 20 * 3_600_000, Date.now() - 1, id]);
 	for (const [index, chamber_id] of route.entries()) {
 		const view = await state(guild.second.session_token);
-		expect(view.content_version).toBe(5);
+		expect(view.content_version).toBe(content_version);
 		const chamber = view.expedition.chamber;
 		expect(chamber.id).toBe(chamber_id);
 		if (index === route.length - 1) { expect(chamber.exits).toEqual([]); await finish(chamber.visit_id); break; }
@@ -265,6 +272,7 @@ for (const route of [
 		const catalog = JSON.parse(String(snapshot[0].content_snapshot));
 		const edge = catalog.chambers.find((entry: any) => entry.id === chamber_id).exits.find((entry: any) => entry.target === route[index + 1]);
 		expect(edge).toBeDefined();
+		expect(view.expedition.journey.frontier).toContain(edge.id);
 		if (opened.exits.length > 1) {
 			const vote = await post_json<any>('/api/expedition/vote', { operation_id: crypto.randomUUID(), expedition_id: id, visit_id: chamber.visit_id, exit_id: edge.id }, guild.second.session_token);
 			expect(vote.json.success).toBe(true);
@@ -279,11 +287,11 @@ for (const route of [
 });
 
 
-test('v5 joiner preserves an existing v4 run snapshot', async () => {
- const guild = await make_guildmates('V4 Owner', 'V5 Joiner', 'V4 Continuity', { first: '1.7.9', second: '1.7.9' });
- const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 4 }, guild.first.session_token);
- const before = await db_all('SELECT content_snapshot, content_version, current_visit_id FROM expeditions WHERE id = ?', [created.json.expedition_id]);
- const joined = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: 5 }, guild.second.session_token);
- expect(joined.json.content_version).toBe(4);
- expect(await db_all('SELECT content_snapshot, content_version, current_visit_id FROM expeditions WHERE id = ?', [created.json.expedition_id])).toEqual(before);
+for (const content_version of [4, 5]) test(`v${content_version + 1} joiner preserves an existing v${content_version} run snapshot`, async () => {
+	const guild = await make_guildmates('Older Owner', 'Newer Joiner', 'Catalog Continuity', { first: '1.7.11', second: '1.7.11' });
+	const created = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version }, guild.first.session_token);
+	const before = await db_all('SELECT content_snapshot, content_version, current_visit_id FROM expeditions WHERE id = ?', [created.json.expedition_id]);
+	const joined = await post_json<any>('/api/expedition/register', { operation_id: crypto.randomUUID(), content_version: content_version + 1 }, guild.second.session_token);
+	expect(joined.json.content_version).toBe(content_version);
+	expect(await db_all('SELECT content_snapshot, content_version, current_visit_id FROM expeditions WHERE id = ?', [created.json.expedition_id])).toEqual(before);
 });

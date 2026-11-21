@@ -28,6 +28,15 @@ export async function build() {
 			await write(`wiki/${article.id}/index.html`,render_page(categories,{article,category,catalog,referenceData}));
 	}
 	await write('wiki/expedition-art-preview/index.html',await readFile(join(wiki_root,'helpers/expedition-art-preview.html'),'utf8'));
+	const marketplace_preview = join(wiki_root,'helpers/marketplace-preview');
+	const marketplace_files = [
+		'index.html', 'marketplace-alternatives.html', 'marketplace-bazaar.html', 'marketplace-catalog.html',
+		'marketplace-modern.html', 'marketplace-trade-desk.html', 'marketplace-alternatives.css',
+		'marketplace-alternatives.mjs', 'marketplace-layouts.css', 'marketplace-layouts.mjs',
+		'marketplace-modern.css', 'marketplace-modern.mjs'
+	];
+	for (const name of marketplace_files)
+		await write(`wiki/marketplace-preview/${name}`,await readFile(join(marketplace_preview,name)));
 	const documents = search_documents(categories);
 	documents.find(d => d.id === 'crucible').body += ' '+referenceData.wishes.map(w => w.name+' '+w.id).join(' ');
 	documents.find(d => d.id === 'cheat-tags').body += ' '+catalog.mods.map(m => [m.name,m.id,...m.aliases].join(' ')).join(' ');

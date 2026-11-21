@@ -180,7 +180,7 @@ describe('Rift Preparations', () => {
 
 
 	test.each(['parallel accepted', 'parallel unaccepted', 'sequential accepted', 'solo', 'combat'])(
-		'uses corrected verification for %s activity and replays concurrent reports', async mode => {
+		'credits %s activity at the Expedition rate and replays concurrent reports', async mode => {
 		const guild = await make_guildmates('Fixed Worker', 'Fixed Witness', 'Fixed Skills');
 		const expedition_id = await register(guild.first);
 		const chamber = (await state(guild.first)).chamber!;
@@ -202,10 +202,11 @@ describe('Rift Preparations', () => {
 		const payload = { ...base, operation_id: crypto.randomUUID(), statistics: end, captured_at: now };
 		const replies = await Promise.all([0, 1].map(() => post_json<any>('/api/expedition/task/stop', payload, guild.first.session_token)));
 		expect(replies[0]!.json).toEqual(replies[1]!.json);
-		expect(replies[0]!.json.settlement.credited_ms).toBe(parallel ? HOUR_MS / 2 : HOUR_MS);
-		expect(replies[0]!.json.settlement.points_micros).toBe(parallel ? 500000 : 1000000);
+		const expected_points_micros = parallel ? 900_000 : 1_000_000;
+		expect(replies[0]!.json.settlement.credited_ms).toBe(parallel ? 3_240_000 : HOUR_MS);
+		expect(replies[0]!.json.settlement.points_micros).toBe(expected_points_micros);
 		expect(await db_all("SELECT points_micros FROM expedition_ep_ledger WHERE source_kind='work' AND source_id=?", [session_id]))
-			.toEqual([{ points_micros: parallel ? 500000 : 1000000 }]);
+			.toEqual([{ points_micros: expected_points_micros }]);
 	});
 
 	test.each([false, true])('retains the deadline for late offline work, dissolved=%s', async dissolved => {

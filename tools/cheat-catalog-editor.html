@@ -1,13 +1,13 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Melvor · Cheat catalog editor</title><link rel="icon" href="data:,"><style>
 :root{color-scheme:light;--ink:#20392f;--muted:#66776f;--line:#dce4dc;--accent:#295d44;--paper:#f7f8f2}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 system-ui,sans-serif}button,input,select,textarea{font:inherit}button{cursor:pointer;border:1px solid var(--line);background:white;border-radius:8px;padding:9px 14px;color:var(--ink)}button:hover{background:#edf3eb}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid #8ebcab;outline-offset:2px}button.primary{background:var(--accent);color:white;border-color:var(--accent)}header{padding:26px max(24px,calc((100vw - 1300px)/2));background:white;border-bottom:1px solid var(--line)}.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:2px;color:var(--accent)}h1{font-size:29px;font-weight:650;letter-spacing:-.8px;margin:8px 0}h2{font-size:20px;margin:0}h3{font-size:17px;margin:0}p{margin:8px 0;color:var(--muted)}.top{display:flex;justify-content:space-between;align-items:center;gap:24px}.actions{display:flex;gap:8px;flex-wrap:wrap}.shell{max-width:1348px;margin:auto;padding:24px;display:grid;grid-template-columns:230px minmax(0,1fr);gap:26px}aside{align-self:start;position:sticky;top:24px}nav{display:grid;gap:7px}nav button{text-align:left;border:0;background:transparent}nav button.active{background:#e3eddf;font-weight:650}.note{font-size:13px;margin-top:22px}.status{font-size:13px;margin:12px 0 0;color:var(--accent)}.toolbar{display:flex;gap:10px;align-items:center;margin:20px 0;flex-wrap:wrap}input[type=search]{flex:1;min-width:180px}input[type=text],input[type=search],textarea,select{border:1px solid #cdd8ce;background:white;color:var(--ink);border-radius:7px;padding:9px 11px;width:100%}select{width:auto;max-width:100%}textarea{resize:vertical;min-height:78px;line-height:1.5}label.field{display:block;font-size:13px;font-weight:600;margin:12px 0 4px}article,.category-card,.preview{background:white;border:1px solid var(--line);border-radius:12px;padding:21px;margin:14px 0}article.changed,.category-card.changed{border-left:4px solid #ba853b}.cardtop{display:flex;align-items:center;justify-content:space-between;gap:14px}.meta{font-size:12px;color:var(--muted)}.badges{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}.choice{border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:13px;cursor:pointer;display:flex;gap:6px;align-items:center}.choice:has(:checked){background:#e7efdf;border-color:#afc6a6}input[type=checkbox]{accent-color:var(--accent)}.description{padding:10px 0;border-top:1px solid #edf0e9}.description .meta{float:right}.warning{background:#fff4dd;border:1px solid #e6d0a6;padding:10px 12px;border-radius:8px;font-size:13px;color:#77541c;margin:10px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.preview ol{padding-left:23px}.preview li{margin:20px 0}.count{border-radius:20px;background:#e7ecdf;font-size:12px;padding:3px 8px}.empty{padding:40px;text-align:center}.change{border-top:1px solid var(--line);padding:14px 0}del{color:#8a5550;white-space:pre-wrap}ins{color:#295d44;text-decoration:none;white-space:pre-wrap}footer{font-size:12px;color:var(--muted);margin:25px 0}.hidden{display:none!important}@media(max-width:760px){.top{display:block}.actions{margin-top:18px}.shell{display:block;padding:16px}aside{position:static}nav{display:flex;flex-wrap:wrap}.note{margin:10px 0 20px}.grid{grid-template-columns:1fr}header{padding:22px 18px}h1{font-size:25px}.cardtop{align-items:start}.description .meta{float:none;display:block}}
-</style></head><body><header><div class="top"><div><div class="eyebrow">Melvor Multiplayer · English content</div><h1>Cheat catalog editor</h1><p>Refine the wording. Adjust the assignments. Export when you’re ready.</p></div><div class="actions"><button id="import">Import draft</button><button id="export" class="primary">Export for review ↓</button></div></div><p class="status" id="status" role="status">Ready</p></header><div class="shell"><aside><nav aria-label="Editor sections"><button class="active" data-view="mods">Mod assignments <span class="count">55</span></button><button data-view="categories">Category titles</button><button data-view="preview">Modal preview</button><button data-view="review">Review changes <span id="change-count" class="count">0</span></button></nav><p class="note">English only. Changes are saved in this browser. Export a JSON file and attach it in our chat for review, application and later localization.</p><button id="reset">Reset all edits</button><p class="note">This is a baked-in repository snapshot. Assignment changes are proposals; review-only classifications remain marked.</p></aside><main id="main"></main></div><input id="import-file" type="file" accept=".json,application/json" hidden><script id="baseline" type="application/json">{
+</style></head><body><header><div class="top"><div><div class="eyebrow">Melvor Multiplayer · English content</div><h1>Cheat catalog editor</h1><p>Refine the wording. Adjust the assignments. Export when you’re ready.</p></div><div class="actions"><button id="import">Import draft</button><button id="export" class="primary">Export for review ↓</button></div></div><p class="status" id="status" role="status">Ready</p></header><div class="shell"><aside><nav aria-label="Editor sections"><button class="active" data-view="mods">Mod assignments <span class="count">63</span></button><button data-view="categories">Category titles</button><button data-view="preview">Modal preview</button><button data-view="review">Review changes <span id="change-count" class="count">0</span></button></nav><p class="note">English only. Changes are saved in this browser. Export a JSON file and attach it in our chat for review, application and later localization.</p><button id="reset">Reset all edits</button><p class="note">This is a baked-in repository snapshot. Assignment changes are proposals; review-only classifications remain marked.</p></aside><main id="main"></main></div><input id="import-file" type="file" accept=".json,application/json" hidden><script id="baseline" type="application/json">{
   "schema_version": 1,
   "language": "en",
   "source": {
     "catalog": "server/cheat-mod-catalog.json",
     "language": "mod/data/lang/en.json",
-    "fingerprint": "61f8b592b79548e21c85d6661af44d110cdd8aa351e17e8c4270331ebcb62eb8"
+    "fingerprint": "dac17587c2c7dc6c07d4f93f774291feb3ae453c079cc5f7c5bac73368488ace"
   },
   "categories": [
     {
@@ -967,6 +967,126 @@
           "rationale": "Historical eight-mod Interdict policy membership; loaded presence does not establish use.",
           "evidence_reference": "legacy server registry",
           "public_explanation": ""
+        }
+      ]
+    },
+    {
+      "id": 3737603,
+      "name": "[M] Worker Folks: Hiring",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "multitasking",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Publisher describes multiple hired workers running non-combat skills in parallel with the active player action.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/worker-folks",
+          "public_explanation": "Lets hired workers train non-combat skills while you fight or train another skill."
+        }
+      ]
+    },
+    {
+      "id": 6469285,
+      "name": "Action Reroll",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "loot_rng",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Publisher describes a reroll button for RNG on save load or chest opening.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/action-reroll",
+          "public_explanation": "Lets you reroll outcomes when loading a save or opening a chest."
+        }
+      ]
+    },
+    {
+      "id": 6491807,
+      "name": "Time Arcade - Minigames",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "time",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Time Tokens earned from minigames immediately simulate extra time for the active skill or fight.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/gemcrusher",
+          "public_explanation": "Lets you spend tokens earned from minigames to simulate extra time for your current skill or fight."
+        }
+      ]
+    },
+    {
+      "id": 6495516,
+      "name": "Non-Combat Speed Multiplier",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "time",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Publisher describes a non-combat tick multiplier.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/non-combat-speed-multiplier",
+          "public_explanation": "Speeds up non-combat actions."
+        }
+      ]
+    },
+    {
+      "id": 6498881,
+      "name": "Combat Speed Multiplier",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "time",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Publisher lists a combat speed multiplier.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/combat-speed-multiplier",
+          "public_explanation": "Increases combat speed."
+        }
+      ]
+    },
+    {
+      "id": 6503179,
+      "name": "Rare Extra Rolls",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "loot_rng",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Published 1.0.0 archive, mod.io file 8425254, adds configurable bonus trials per successful container opening and awards eligible rare outcomes.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/rare-extra-rolls",
+          "public_explanation": "Adds extra rolls for rare loot when opening eligible containers."
+        }
+      ]
+    },
+    {
+      "id": 6521190,
+      "name": "Cartoreduce",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "time",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Shortens the action intervals of Cartography and Archaeology.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/cartoreduce",
+          "public_explanation": "Shortens Cartography and Archaeology action intervals."
+        }
+      ]
+    },
+    {
+      "id": 6535136,
+      "name": "MY cheat",
+      "legacy_interdict_member": false,
+      "classifications": [
+        {
+          "category_id": "time",
+          "confidence": "high",
+          "publication_state": "approved",
+          "rationale": "Sets the base attack interval of three weapon sets to 800 ms.",
+          "evidence_reference": "https://mod.io/g/melvoridle/m/my-cheat",
+          "public_explanation": "Sets the base attack interval of three weapon sets to 0.8 seconds."
         }
       ]
     }

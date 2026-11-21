@@ -33,7 +33,7 @@
           "title": "Personal Rift Preparations (1.7.0)",
           "paragraphs": [
             "During the shared 20-hour registration window, each registrant has one optional personal task: Gather Rift Provisions. Combat, Cooking, Woodcutting, Fishing, Mining, Firemaking, Smithing and Crafting all count.",
-            "Work earns 1 EP per verified hour, up to 20 EP before multitasking penalties and existing limits. Two simultaneous activities earn 0.5 EP per real hour even when both are accepted. Sequential accepted activities retain the normal rate.",
+            "Work earns 1 EP per verified hour, up to 20 EP before multitasking penalties and existing limits. Rift Preparations follow the same multitasking rule as Chamber tasks.",
             "Late registrants have only the time remaining before the shared deadline. Preparation never delays departure and does not determine participant scaling. Progress belongs to your character, not the Guild.",
             "Supply donations end with the mandatory 1.7.0 upgrade. Previously earned EP and donation history remain, and committed donations can still be recovered. Held supplies are consumed at Expedition ending without refunds or a transfer to Crucible."
           ]
@@ -77,6 +77,7 @@
           "title": "Points and the next passage",
           "paragraphs": [
             "Your accepted work earns Expedition Points, usually called EP. A task can only award points up to its remaining allowance. Its progress display separates your work from other players’ contributions and assistance.",
+            "One skill at a time earns full EP and task progress. Each additional skill running at the same time subtracts 10 percentage points from both rates, even if that skill does not count toward the task. Two skills earn 90%, three earn 80%, nine earn 20%, and ten or more earn 10%.",
             "When passage voting opens, eligible participants can vote from Journey. Some passages may be locked; check the available choices in the game.",
             "A successful return can offer a claimable bonus of 20% of your earned EP when you opted in. Check the return summary for your reward."
           ]

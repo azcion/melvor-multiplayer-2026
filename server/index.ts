@@ -35,7 +35,7 @@ import { register_guild_expedition_routes } from './routes/guild_expedition';
 import { maintain_market_listings } from './market-expiry';
 import { chat_translation_worker, default_handler, flush_logs, report_error, server } from './app-runtime';
 import { create_shutdown_handler } from './shutdown';
-import { maintain_inactive_expeditions } from './guild-expedition';
+import { maintain_expedition_launch, maintain_inactive_expeditions } from './guild-expedition';
 import { maintain_crucibles } from './crucible-service';
 import { maintain_raids } from './raid';
 
@@ -85,6 +85,11 @@ const expedition_maintenance_timer = setInterval(() => {
 	}
 }, 6 * 60 * 60 * 1000);
 expedition_maintenance_timer.unref();
+const global_expedition_launch_timer = setInterval(() => {
+	try { maintain_expedition_launch(); }
+	catch (error) { report_error('Global Expedition launch maintenance failed', error); }
+}, 10_000);
+global_expedition_launch_timer.unref();
 const raid_maintenance_timer = setInterval(() => {
 	try { maintain_raids(); }
 	catch (error) { report_error('Raid schedule maintenance failed', error); }

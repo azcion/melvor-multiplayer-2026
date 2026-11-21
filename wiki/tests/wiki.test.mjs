@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { once } from 'node:events';
 import { load_content, validate_content, search_documents, render_page, escape_html } from '../scripts/site.mjs';
 import { build, output_root } from '../scripts/build.mjs';
@@ -86,13 +86,13 @@ async function html_files(dir) {
 
 test('every generated internal link, section target and bundled asset resolves without the backend', async () => {
 	const pages = await html_files(output_root);
-	assert.equal(pages.length,27);
+	assert.equal(pages.length,33);
 	for (const file of pages) {
 		const html = await readFile(file,'utf8');
 		// Keep every page compatible with the strict CSP: browser-injected code is not a site dependency.
 		assert.doesNotMatch(html, /<style\b|\sstyle\s*=|\son[a-z]+\s*=|file:\/\//i, file);
 		for (const [,attributes,body] of html.matchAll(/<script\b([^>]*)>([^]*?)<\/script>/gi)) {
-			assert.match(attributes, /\bsrc="\/wiki\/assets\/[^"\s]+\.mjs"/);
+			assert.match(attributes, /\bsrc="[^"\s]+\.mjs"/);
 			assert.equal(body.trim(), '', `inline script in ${file}`);
 		}
 		const reading = html.replace(/<section id="search-view"[^]*?<\/section>/,'');
@@ -102,8 +102,10 @@ test('every generated internal link, section target and bundled asset resolves w
 		for (const [,link] of html.matchAll(/(?:href|src)="([^"]+)"/g)) {
 			if (link === '/chat') continue; // Deliberately external to the independent static server.
 			if (link.startsWith('#')) { assert.ok(ids.includes(link.slice(1)),`${file}: ${link}`); continue; }
-			assert.ok(link.startsWith('/wiki/'),link);
-			const target = join(output_root,link.endsWith('/') ? link+'index.html' : link);
+			const url = new URL(link, `https://wiki.test/${relative(output_root, file)}`);
+			assert.equal(url.origin, 'https://wiki.test', link);
+			assert.ok(url.pathname.startsWith('/wiki/'),link);
+			const target = join(output_root,url.pathname.endsWith('/') ? url.pathname+'index.html' : url.pathname);
 			assert.ok((await stat(target)).isFile(),`${file}: ${link}`);
 		}
 	}
@@ -118,7 +120,7 @@ test('preview handles direct article routes, redirects, missing files, methods, 
 	const server = preview_server(); server.listen(0,'127.0.0.1'); await once(server,'listening');
 	t.after(() => new Promise(resolve => server.close(resolve)));
 	const origin = `http://127.0.0.1:${server.address().port}`;
-	for (const path of ['/wiki/','/wiki/council/','/wiki/category/economy/','/wiki/assets/wiki.mjs','/wiki/assets/search-index.json','/wiki/assets/logo.png']) {
+	for (const path of ['/wiki/','/wiki/council/','/wiki/category/economy/','/wiki/assets/wiki.mjs','/wiki/assets/search-index.json','/wiki/assets/logo.png','/wiki/marketplace-preview/','/wiki/marketplace-preview/marketplace-modern.html','/wiki/marketplace-preview/marketplace-modern.mjs']) {
 		const response = await fetch(origin+path);
 		assert.equal(response.status,200,path);
 		assert.equal(response.headers.get('x-content-type-options'),'nosniff');
@@ -247,7 +249,7 @@ test('EP reference includes all five capacity columns without a donation calcula
 	assert.match(table, /<th scope="row">1<\/th><td>0\.010 EP<\/td><td>0\.005 EP<\/td><td>0\.004 EP<\/td><td>0\.003 EP<\/td><td>0\.002 EP<\/td>/);
 	const expedition = await readFile(join(output_root,'wiki/expedition/index.html'),'utf8');
 	assert.match(expedition, /Late registrants/);
-	assert.match(expedition, /0\.5 EP/);
+	assert.match(expedition, /Two skills earn 90%, three earn 80%, nine earn 20%, and ten or more earn 10%/);
 });
 
 test('Raid guide explains shared HP scaling separately from Assault boss HP and fixed tier contributions', async () => {
@@ -277,4 +279,21 @@ test('art helper stays unlisted and uses only immutable R2 artwork', async () =>
  const artwork = [...script.matchAll(/"(?:art|originalArt)": "([^"]+)"/g)];
  assert.equal(artwork.length,18);
  for (const [,url] of artwork) assert.match(url, /^https:\/\/cdn\.melvor\.azcn\.io\/assets\/[a-f0-9]{16}\/[a-z-]+\.png$/);
+});
+
+test('Marketplace demos stay unlisted and all page assets are part of the wiki build', async () => {
+	const wiki = join(output_root, 'wiki');
+	const preview = join(wiki, 'marketplace-preview');
+	const index = await readFile(join(preview, 'index.html'), 'utf8');
+	const links = [...index.matchAll(/href="(marketplace-[a-z-]+\.html)"/g)].map(([, path]) => path);
+	assert.equal(new Set(links).size, 5);
+	for (const name of ['index.html', ...links]) {
+		const page = await readFile(join(preview, name), 'utf8');
+		assert.match(page, /name="robots" content="noindex, nofollow"/);
+		assert.doesNotMatch(page, /<style\b|<script>/);
+		for (const [, path] of page.matchAll(/(?:href|src)="([^"]+\.(?:css|mjs|html))"/g))
+			assert.ok((await stat(join(preview, path))).isFile(), path);
+	}
+	for (const path of ['index.html', 'assets/search-index.json'])
+		assert.doesNotMatch(await readFile(join(wiki, path), 'utf8'), /marketplace-preview/);
 });

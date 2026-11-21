@@ -1,4 +1,46 @@
 export const EXPEDITION_PREVIEW_LABEL_IDS = Object.freeze({
+	"Sunken Bell Chamber": "MOD_MP_EXPEDITION_CONTENT_SUNKEN_BELL_CHAMBER",
+	"Everflame Anvil": "MOD_MP_EXPEDITION_CONTENT_EVERFLAME_ANVIL",
+	"Rootcrown Nexus": "MOD_MP_EXPEDITION_CONTENT_ROOTCROWN_NEXUS",
+	"Royal Treasury": "MOD_MP_EXPEDITION_CONTENT_ROYAL_TREASURY",
+	"Echoing Dais": "MOD_MP_EXPEDITION_CONTENT_ECHOING_DAIS",
+	"Trace the echoing dais passage": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_ECHOING_DAIS_PASSAGE",
+	"Secure the echoing dais passage": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_ECHOING_DAIS_PASSAGE",
+	"Trace the rootcrown passage": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_ROOTCROWN_PASSAGE",
+	"Secure the rootcrown passage": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_ROOTCROWN_PASSAGE",
+	"Trace the bell passage": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_BELL_PASSAGE",
+	"Secure the bell passage": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_BELL_PASSAGE",
+	"Trace the forge passage": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_FORGE_PASSAGE",
+	"Secure the forge passage": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_FORGE_PASSAGE",
+	"Trace the treasury passage": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_TREASURY_PASSAGE",
+	"Secure the treasury passage": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_TREASURY_PASSAGE",
+	"Trace the voidwatch passage": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_VOIDWATCH_PASSAGE",
+	"Secure the voidwatch passage": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_VOIDWATCH_PASSAGE",
+	"Survey the cistern terraces": "MOD_MP_EXPEDITION_CONTENT_SURVEY_THE_CISTERN_TERRACES",
+	"Clear the flooded steps": "MOD_MP_EXPEDITION_CONTENT_CLEAR_THE_FLOODED_STEPS",
+	"Study the bronze bell": "MOD_MP_EXPEDITION_CONTENT_STUDY_THE_BRONZE_BELL",
+	"Sound the lower cistern": "MOD_MP_EXPEDITION_CONTENT_SOUND_THE_LOWER_CISTERN",
+	"Secure the bell platform": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_BELL_PLATFORM",
+	"Survey the vaulted forge": "MOD_MP_EXPEDITION_CONTENT_SURVEY_THE_VAULTED_FORGE",
+	"Clear the slag from the floor": "MOD_MP_EXPEDITION_CONTENT_CLEAR_THE_SLAG_FROM_THE_FLOOR",
+	"Study the great anvil": "MOD_MP_EXPEDITION_CONTENT_STUDY_THE_GREAT_ANVIL",
+	"Trace the forge channels": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_FORGE_CHANNELS",
+	"Secure the anvil platform": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_ANVIL_PLATFORM",
+	"Survey the root-crown convergence": "MOD_MP_EXPEDITION_CONTENT_SURVEY_THE_ROOT_CROWN_CONVERGENCE",
+	"Clear the rootbound galleries": "MOD_MP_EXPEDITION_CONTENT_CLEAR_THE_ROOTBOUND_GALLERIES",
+	"Study the fungal growth": "MOD_MP_EXPEDITION_CONTENT_STUDY_THE_FUNGAL_GROWTH",
+	"Trace the converging roots": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_CONVERGING_ROOTS",
+	"Secure the central root crown": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_CENTRAL_ROOT_CROWN",
+	"Survey the sunken vault": "MOD_MP_EXPEDITION_CONTENT_SURVEY_THE_SUNKEN_VAULT",
+	"Clear the vault approaches": "MOD_MP_EXPEDITION_CONTENT_CLEAR_THE_VAULT_APPROACHES",
+	"Study the royal carvings": "MOD_MP_EXPEDITION_CONTENT_STUDY_THE_ROYAL_CARVINGS",
+	"Trace the tarnished gold channels": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_TARNISHED_GOLD_CHANNELS",
+	"Secure the treasury floor": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_TREASURY_FLOOR",
+	"Survey the terraced rotunda": "MOD_MP_EXPEDITION_CONTENT_SURVEY_THE_TERRACED_ROTUNDA",
+	"Clear the stone terraces": "MOD_MP_EXPEDITION_CONTENT_CLEAR_THE_STONE_TERRACES",
+	"Study the mineral formations": "MOD_MP_EXPEDITION_CONTENT_STUDY_THE_MINERAL_FORMATIONS",
+	"Trace the echoing galleries": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_ECHOING_GALLERIES",
+	"Secure the stone dais": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_STONE_DAIS",
 	"Trace the flooded passage": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_FLOODED_PASSAGE",
 	"Secure the flooded passage": "MOD_MP_EXPEDITION_CONTENT_SECURE_THE_FLOODED_PASSAGE",
 	"Trace the engine passage": "MOD_MP_EXPEDITION_CONTENT_TRACE_THE_ENGINE_PASSAGE",
@@ -220,6 +262,11 @@ export const EXPEDITION_PREVIEW_CHAMBER_IDS = Object.freeze([
 	"mycelial_court",
 	"gilded_catacombs",
 	"starless_sanctum",
+	"sunken_bell_chamber",
+	"everflame_anvil",
+	"rootcrown_nexus",
+	"royal_treasury",
+	"echoing_dais",
 ]);
 
 export const EXPEDITION_PREVIEW_CHAMBER_LABELS = Object.freeze([
@@ -244,7 +291,49 @@ export const EXPEDITION_PREVIEW_CHAMBER_LABELS = Object.freeze([
 	"Mycelial Court",
 	"Gilded Catacombs",
 	"Starless Sanctum",
+	"Sunken Bell Chamber",
+	"Everflame Anvil",
+	"Rootcrown Nexus",
+	"Royal Treasury",
+	"Echoing Dais",
 ]);
+
+const LEGACY_CHAMBER_LABEL_IDS = Object.freeze({
+	'The Crown of Echoes': 'MOD_MP_EXPEDITION_CONTENT_CROWN_OF_ECHOES',
+	'The Everforge': 'MOD_MP_EXPEDITION_CONTENT_EVERFORGE',
+	'The Bell Below': 'MOD_MP_EXPEDITION_CONTENT_BELL_BELOW',
+	'The Verdant Sovereign': 'MOD_MP_EXPEDITION_CONTENT_VERDANT_SOVEREIGN',
+	'Vault of the First Kings': 'MOD_MP_EXPEDITION_CONTENT_VAULT_OF_THE_FIRST_KINGS'
+});
+
+const LEGACY_CHAMBER_TASK_IDS = Object.freeze({
+	Chart: 'MOD_MP_EXPEDITION_LEGACY_CHART',
+	Scout: 'MOD_MP_EXPEDITION_LEGACY_SCOUT',
+	Explore: 'MOD_MP_EXPEDITION_LEGACY_EXPLORE',
+	Study: 'MOD_MP_EXPEDITION_LEGACY_STUDY',
+	Secure: 'MOD_MP_EXPEDITION_LEGACY_SECURE',
+	Complete: 'MOD_MP_EXPEDITION_LEGACY_COMPLETE'
+});
+
+const LEGACY_PASSAGE_TASK_IDS = Object.freeze({
+	'Reveal the first passage': 'MOD_MP_EXPEDITION_LEGACY_REVEAL_FIRST_PASSAGE',
+	'Reveal the second passage': 'MOD_MP_EXPEDITION_LEGACY_REVEAL_SECOND_PASSAGE',
+	'Locate the first passage': 'MOD_MP_EXPEDITION_LEGACY_LOCATE_FIRST_PASSAGE',
+	'Locate the second passage': 'MOD_MP_EXPEDITION_LEGACY_LOCATE_SECOND_PASSAGE',
+	'Prepare the first passage': 'MOD_MP_EXPEDITION_LEGACY_PREPARE_FIRST_PASSAGE',
+	'Prepare the second passage': 'MOD_MP_EXPEDITION_LEGACY_PREPARE_SECOND_PASSAGE'
+});
+
+const TRACE_EXIT_IDS = [
+	'MOD_MP_EXPEDITION_CONTENT_TRACE_THE_FIRST_PASSAGE',
+	'MOD_MP_EXPEDITION_CONTENT_TRACE_THE_SECOND_PASSAGE',
+	'MOD_MP_EXPEDITION_CONTENT_TRACE_THE_THIRD_PASSAGE'
+];
+const PREPARE_EXIT_IDS = [
+	'MOD_MP_EXPEDITION_LEGACY_PREPARE_FIRST_PASSAGE',
+	'MOD_MP_EXPEDITION_LEGACY_PREPARE_SECOND_PASSAGE',
+	'MOD_MP_EXPEDITION_CONTENT_PREPARE_THE_THIRD_PASSAGE'
+];
 
 const PASSAGE_ORDINALS = ['First', 'Second', 'Third'];
 const DEFAULT_PASSAGE_GATEWAYS = ['rocky-cave', 'ruined-stone', 'petrified-roots'];
@@ -293,6 +382,28 @@ export function display_expedition_label(label, passage_count = 0, get_lang_stri
 	const key = EXPEDITION_PREVIEW_LABEL_IDS[source];
 	if (key && get_lang_string && (EXPEDITION_PREVIEW_CHAMBER_LABELS.includes(source) ||
 		EXPEDITION_PREVIEW_CHAMBER_IDS.includes(chamber_id) || chamber_id === 'rift_preparations')) return get_lang_string(key);
+	if (get_lang_string) {
+		if (Object.hasOwn(LEGACY_CHAMBER_LABEL_IDS, source)) return get_lang_string(LEGACY_CHAMBER_LABEL_IDS[source]);
+		if (Object.hasOwn(LEGACY_PASSAGE_TASK_IDS, source)) return get_lang_string(LEGACY_PASSAGE_TASK_IDS[source]);
+		if (source === 'Entrance') return get_lang_string('MOD_MP_EXPEDITION_CONTENT_THE_RIFT');
+
+		const separator = source.indexOf(' ');
+		const action = source.slice(0, separator);
+		const target = source.slice(separator + 1);
+		const chamber_key = Object.hasOwn(LEGACY_CHAMBER_LABEL_IDS, target) ? LEGACY_CHAMBER_LABEL_IDS[target] :
+			EXPEDITION_PREVIEW_CHAMBER_LABELS.includes(target) ? EXPEDITION_PREVIEW_LABEL_IDS[target] : null;
+		if (chamber_key && Object.hasOwn(LEGACY_CHAMBER_TASK_IDS, action))
+			return get_lang_string(LEGACY_CHAMBER_TASK_IDS[action]).replace('{chamber}', () => get_lang_string(chamber_key));
+
+		const exit_task = /^(Trace|Prepare) exit ([1-3])$/.exec(source);
+		if (exit_task) {
+			const [ , verb, slot] = exit_task;
+			if (verb === 'Trace') return get_lang_string(passage_count === 1 ?
+				'MOD_MP_EXPEDITION_CONTENT_TRACE_THE_PASSAGE' : TRACE_EXIT_IDS[Number(slot) - 1]);
+			return get_lang_string(passage_count === 1 ?
+				'MOD_MP_EXPEDITION_CONTENT_PREPARE_THE_PASSAGE' : PREPARE_EXIT_IDS[Number(slot) - 1]);
+		}
+	}
 	return source.replace(/\bEntrance\b/g, 'The Rift')
 		.replace(/\bexit ([1-3])\b/gi, (_, slot) => passage_name(Number(slot), passage_count));
 }
@@ -361,6 +472,11 @@ export function tracking_task_title(chamber, tracking, get_lang_string = null) {
 		get_lang_string?.('MOD_MP_EXPEDITION_UI_CHAMBER_WORK') ?? 'Chamber work';
 }
 
+export function can_vote_in_global_launch(snapshot, now) {
+	const ballot = snapshot?.global_expedition?.ballot;
+	return ballot?.can_vote === true && !ballot.result && now < ballot.locks_at;
+}
+
 export function needs_passage_vote(snapshot) {
 	const expedition = snapshot?.expedition;
 	const chamber = expedition?.chamber;
@@ -424,6 +540,26 @@ export function return_duration(registered_at, ended_at) {
 }
 
 const JOURNEY_FLAVOR = {
+	"sunken_bell_chamber": {
+		"tagline": "MOD_MP_EXPEDITION_FLAVOR_SUNKEN_BELL_CHAMBER_TAGLINE",
+		"description": "MOD_MP_EXPEDITION_FLAVOR_SUNKEN_BELL_CHAMBER_DESCRIPTION"
+	},
+	"everflame_anvil": {
+		"tagline": "MOD_MP_EXPEDITION_FLAVOR_EVERFLAME_ANVIL_TAGLINE",
+		"description": "MOD_MP_EXPEDITION_FLAVOR_EVERFLAME_ANVIL_DESCRIPTION"
+	},
+	"rootcrown_nexus": {
+		"tagline": "MOD_MP_EXPEDITION_FLAVOR_ROOTCROWN_NEXUS_TAGLINE",
+		"description": "MOD_MP_EXPEDITION_FLAVOR_ROOTCROWN_NEXUS_DESCRIPTION"
+	},
+	"royal_treasury": {
+		"tagline": "MOD_MP_EXPEDITION_FLAVOR_ROYAL_TREASURY_TAGLINE",
+		"description": "MOD_MP_EXPEDITION_FLAVOR_ROYAL_TREASURY_DESCRIPTION"
+	},
+	"echoing_dais": {
+		"tagline": "MOD_MP_EXPEDITION_FLAVOR_ECHOING_DAIS_TAGLINE",
+		"description": "MOD_MP_EXPEDITION_FLAVOR_ECHOING_DAIS_DESCRIPTION"
+	},
 	"convergence_gallery": {
 		"tagline": "MOD_MP_EXPEDITION_FLAVOR_CONVERGENCE_GALLERY_TAGLINE",
 		"description": "MOD_MP_EXPEDITION_FLAVOR_CONVERGENCE_GALLERY_DESCRIPTION"

@@ -1,6 +1,6 @@
 # Multiplayer API contracts
 
-The compiled minimum supported mod version is 1.7.9. The API exposes one current wire contract, API v2;
+The compiled minimum supported mod version is 1.7.11. The API exposes one current wire contract, API v2;
 backend deployment versions remain independent of mod releases.
 
 The operator may raise the minimum supported version; clearing an override restores the compiled baseline. Empty,
@@ -40,7 +40,7 @@ then use `/api/v2/register` or `/api/v2/authenticate`. Successful bootstrap resp
 `api_versions: [2]`. Discovery and bootstrap also report `minimum_supported_mod_version`.
 
 After bootstrap, ordinary authenticated game routes return HTTP 426 with
-`{ "minimum_supported_mod_version": "1.7.9" }` for clients below the effective floor or with a missing or malformed
+`{ "minimum_supported_mod_version": "1.7.11" }` for clients below the effective floor or with a missing or malformed
 version. `GET /api/v2/events` returns only `revision: 0`, `unchanged: true`, and the effective floor to unsupported
 clients that report a valid version of at least 1.5.10. Older or unreported clients receive HTTP 426 there as well.
 Public Updates remain readable at `GET /api/v2/updates`.

@@ -1,3 +1,5 @@
+import { global_expedition_governance_migration } from './migrations/global-expedition';
+import { global_expedition_runs_migration } from './migrations/global-expedition-runs';
 import { identity_recovery_state_migration } from './migrations/identity-recovery-state';
 import { verified_identity_accounts_migration } from './migrations/verified-identity-accounts';
 import { fighter_adventures_migration } from './migrations/fighter-adventures';
@@ -906,4 +908,7 @@ export const migrations: Migration[] = [
 			UPDATE clients SET event_revision=event_revision+1 WHERE id=NEW.client_id;
 		END;
 	` },
+	global_expedition_governance_migration,
+	global_expedition_runs_migration,
+	{ version: 231, sql: 'DROP TRIGGER global_expedition_launch_vote_immutable;' },
 ];

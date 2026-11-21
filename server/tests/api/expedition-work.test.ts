@@ -14,7 +14,7 @@ type State = { expedition: { id: number; chamber: { visit_id: number; tasks: {
 }[] } } };
 
 async function entrance() {
-	const guild = await make_guildmates('Expedition Worker', 'Expedition Witness', 'Work Guild', { first: '1.7.9', second: '1.7.9' });
+	const guild = await make_guildmates('Expedition Worker', 'Expedition Witness', 'Work Guild', { first: '1.7.11', second: '1.7.11' });
 	const registered = await post_json<{ expedition_id: number }>(
 		'/api/expedition/register', { operation_id: crypto.randomUUID() }, guild.first.session_token);
 	await db_run('UPDATE expeditions SET registered_at = ?, registration_ends_at = ? WHERE id = ?',
@@ -43,12 +43,17 @@ async function restore_v1_content(expedition_id: number, visit_id: number) {
 
 describe('Expedition verified work', () => {
 	for (const dissolve of [false, true]) {
-		for (const [label, activities, woodcutting_ms, fishing_ms, expected_ms] of [
-			['two accepted skills', [woodcutting, fishing], 3_600_000, 3_600_000, 1_800_000],
-			['one accepted and one unaccepted skill', [woodcutting, firemaking], 3_600_000, 0, 1_800_000],
-			['one accepted skill', [woodcutting], 3_600_000, 0, 3_600_000],
-			['sequential accepted half-hours', [woodcutting], 1_800_000, 1_800_000, 3_600_000],
-			['accepted work capped before division with counter tolerance', [woodcutting, fishing], 3_672_000, 3_672_000, 1_764_705]
+		for (const [label, activities, woodcutting_ms, fishing_ms, extra_skills, expected_ms] of [
+			['two accepted skills', [woodcutting, fishing], 3_600_000, 3_600_000, 0, 3_240_000],
+			['one accepted and one unaccepted skill', [woodcutting, firemaking], 3_600_000, 0, 0, 3_240_000],
+			['one accepted skill', [woodcutting], 3_600_000, 0, 0, 3_600_000],
+			['sequential accepted half-hours', [woodcutting], 1_800_000, 1_800_000, 0, 3_600_000],
+			['one skill with counter tolerance', [woodcutting], 3_672_000, 0, 0, 3_600_000],
+			['two skills with counter tolerance', [woodcutting, fishing], 3_672_000, 3_672_000, 0, 3_240_000],
+			['three concurrent skills', [woodcutting, fishing], 3_600_000, 3_600_000, 1, 2_880_000],
+			['nine concurrent skills', [woodcutting, fishing], 3_600_000, 3_600_000, 7, 720_000],
+			['ten concurrent skills', [woodcutting, fishing], 3_600_000, 3_600_000, 8, 360_000],
+			['thirteen concurrent skills', [woodcutting, fishing], 3_600_000, 3_600_000, 11, 360_000],
 		] as const) {
 			test(`supported reports credit ${label}, dissolution=${dissolve}`, async () => {
 				const { guild, expedition_id, visit_id, task } = await entrance();
@@ -60,13 +65,15 @@ describe('Expedition verified work', () => {
 					[JSON.stringify(content), expedition_id]);
 				await db_run('UPDATE expedition_tasks SET target_ms = ?, player_ms = 0, system_ms = 0 WHERE visit_id = ? AND task_id = ?',
 					[10 * hour, visit_id, task]);
+				const deltas = { [woodcutting.skill_id]: woodcutting_ms, [fishing.skill_id]: fishing_ms,
+					[firemaking.skill_id]: activities.some(a => a.skill_id === firemaking.skill_id) ? hour : 0,
+					...Object.fromEntries(Array.from({ length: extra_skills }, (_, index) => [`test:Skill${index}`, hour])) };
 				// Existing request fields remain valid without an additional capability or evidence format.
-				const report = (amount: number) => ({ operation_id: crypto.randomUUID(), expedition_id, visit_id,
+				const report = (finished: boolean) => ({ operation_id: crypto.randomUUID(), expedition_id, visit_id,
 					task_id: task, captured_at: Date.now(), activities: [...activities],
-					statistics: { version: 1, time_ms: { [woodcutting.skill_id]: amount ? woodcutting_ms : 0,
-						[fishing.skill_id]: amount ? fishing_ms : 0,
-						[firemaking.skill_id]: amount && activities.some(a => a.skill_id === firemaking.skill_id) ? hour : 0 } } });
-				const started = await post_json<any>('/api/expedition/task/start', report(0), guild.first.session_token);
+					statistics: { version: 1, time_ms: finished ? deltas :
+						Object.fromEntries(Object.keys(deltas).map(skill_id => [skill_id, 0])) } });
+				const started = await post_json<any>('/api/expedition/task/start', report(false), guild.first.session_token);
 				const start_at = Date.now() - hour;
 				await db_run('UPDATE expedition_work_sessions SET start_clock_offset_ms = NULL, started_at = ?, last_observed_at = ? WHERE id = ?',
 					[start_at, start_at, started.json.tracking.session_id]);
@@ -74,14 +81,15 @@ describe('Expedition verified work', () => {
 					await post_json('/api/guilds/leave', {}, guild.first.session_token);
 					await post_json('/api/guilds/leave', {}, guild.second.session_token);
 				}
-				const stop = { ...report(hour), captured_at: start_at + hour };
+				const stop = { ...report(true), captured_at: start_at + hour };
 				const settled = await post_json<any>('/api/expedition/task/stop', stop, guild.first.session_token);
+				const total_ms = Object.values(deltas).reduce((total, delta) => total + delta, 0);
 				expect(settled.json.settlement).toMatchObject({ credited_ms: expected_ms,
-					guild_ms: dissolve ? 0 : expected_ms, points_micros: Math.floor(expected_ms / hour * 1_000_000),
-					concurrency_factor: Math.max(1, (woodcutting_ms + fishing_ms + (activities.some(a => a.skill_id === firemaking.skill_id) ? hour : 0)) / hour) });
+					guild_ms: dissolve ? 0 : expected_ms, points_micros: expected_ms * 1_000_000 / hour,
+					concurrency_factor: Math.max(1, total_ms / hour) });
 				expect((await post_json<any>('/api/expedition/task/stop', stop, guild.first.session_token)).json).toEqual(settled.json);
 				expect((await db_all<{ points_micros: number }>('SELECT points_micros FROM expedition_ep_ledger WHERE client_id = ? AND source_kind = ?',
-					[guild.first_id, 'work'])).map(row => row.points_micros)).toEqual([Math.floor(expected_ms / hour * 1_000_000)]);
+					[guild.first_id, 'work'])).map(row => row.points_micros)).toEqual([expected_ms * 1_000_000 / hour]);
 			});
 		}
 	}

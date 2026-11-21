@@ -117,7 +117,7 @@ export function render_page(categories, {article, category, missing = false, cat
 <footer><span>Melvor Multiplayer Remastered</span><p>Written for players. What you see in the game can vary with your server and mod version.</p><a href="${article_url('support')}">Found something unclear? Get help ${symbol('arrow_forward')}</a><p class="fine-print">Unofficial community project. Not affiliated with Games by Malcs or Jagex.</p></footer></main></div></div></body></html>`;
 }
 
-export const tag_labels = {time:'Time Cheats', items:'Item Cheats', resources:'Resource Cheats', multitasking:'Multitasking', shops:'Shop Cheats', loot_rng:'Loot Cheats'};
+export const tag_labels = {time:'Time Cheats', items:'Item Cheats', resources:'Resource Cheats', multitasking:'Multitasking Cheats', shops:'Shop Cheats', loot_rng:'Loot Cheats'};
 export function render_mod_lookup({mods,revision}) {
 	return `<div id="mod-lookup"><p class="catalog-version">Catalog ${e(revision)} · ${mods.length} listed mods</p>
 	<form class="mod-controls" hidden role="search" aria-label="Look up a mod"><div><label for="mod-query">Mod name or mod.io ID</label><input id="mod-query" type="search" maxlength="160" placeholder="Try Add Items or 2429395" autocomplete="off" aria-controls="mod-results"></div><div><label for="mod-category">Tag</label><select id="mod-category" aria-controls="mod-results"><option value="">All tags</option>${Object.entries(tag_labels).map(([id,label]) => `<option value="${id}">${e(label)}</option>`).join('')}</select></div><button type="reset">Clear filters</button></form>

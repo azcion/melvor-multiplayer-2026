@@ -1,14 +1,23 @@
-import { get_expedition_return_summary } from './expedition-ending';
+import { claim_expedition_ending, get_expedition_return_summary } from './expedition-ending';
 import type { JsonObject } from './http';
 import { PREPARATION_CHAMBER_ID, close_preparations, ensure_preparations, get_preparation_chamber, preparation_visit_id } from './expedition-preparations';
 import { record_economy_operation } from './save-rollback';
 import { db } from './db';
-import { EXPEDITION_CONTENT_V1, EXPEDITION_CONTENT_PREVIEW, EXPEDITION_CONTENT_V3, EXPEDITION_CONTENT_V4, EXPEDITION_CONTENT_V5, preview_task_available, parse_expedition_content } from './expedition-content';
+import { EXPEDITION_CONTENT_V1, EXPEDITION_CONTENT_PREVIEW, EXPEDITION_CONTENT_V3, EXPEDITION_CONTENT_V4, EXPEDITION_CONTENT_V5, EXPEDITION_CONTENT_V6, preview_task_available, parse_expedition_content } from './expedition-content';
 import type { ExpeditionChamber, ExpeditionContent } from './expedition-content';
 import { RECENTLY_ACTIVE_AFTER } from './recent-activity';
 import { createHash } from 'node:crypto';
-import { update_unlocks } from './expedition-work';
+import { settle_expedition_work_for_launch_cutover, update_unlocks } from './expedition-work';
 import { destroy_expedition_stash } from './crucible-actions';
+
+import { global_expedition_guild_participates, maintain_global_expedition_launch,
+	set_global_expedition_participation_handler } from './global-expedition-governance';
+
+type ExpeditionOwner = number | null;
+
+export function expedition_scope_for_guild(guild_id: number): ExpeditionOwner {
+	return global_expedition_guild_participates(guild_id) ? null : guild_id;
+}
 
 export const EXPEDITION_REGISTRATION_MS = 20 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
@@ -182,7 +191,7 @@ export function debug_wipe_expedition_data(guild_id: number, expected_current_id
 
 type ExpeditionRow = {
 	id: number;
-	guild_id: number;
+	guild_id: ExpeditionOwner;
 	status: 'registration' | 'active' | 'completed' | 'inactive' | 'dissolved';
 	content_version: number;
 	content_snapshot: string;
@@ -204,10 +213,21 @@ export function scale_expedition_hours(baseline_hours: number, participants: num
 	return Math.ceil(baseline_hours * Math.sqrt(participants / 2)) + participants;
 }
 
-function current_expedition(guild_id: number): ExpeditionRow | null {
-	return db.query<ExpeditionRow, [number]>(
-		"SELECT * FROM expeditions WHERE guild_id = ? AND status IN ('registration', 'active') LIMIT 1"
+function current_expedition(guild_id: ExpeditionOwner): ExpeditionRow | null {
+	return db.query<ExpeditionRow, [ExpeditionOwner]>(
+		"SELECT * FROM expeditions WHERE guild_id IS ? AND status IN ('registration', 'active') LIMIT 1"
 	).get(guild_id);
+}
+
+function open_expedition(guild_id: ExpeditionOwner, now: number, content_version: number): ExpeditionRow {
+	const content = content_version === 6 ? EXPEDITION_CONTENT_V6 : content_version === 5 ? EXPEDITION_CONTENT_V5 :
+		content_version === 4 ? EXPEDITION_CONTENT_V4 : content_version === 3 ? EXPEDITION_CONTENT_V3 : EXPEDITION_CONTENT_PREVIEW;
+	const expedition = db.query<ExpeditionRow, [ExpeditionOwner, number, string, number, number, number]>(
+		"INSERT INTO expeditions (guild_id, status, content_version, content_snapshot, registered_at, " +
+		"registration_ends_at, last_qualifying_activity_at) VALUES (?, 'registration', ?, ?, ?, ?, ?) RETURNING *"
+	).get(guild_id, content.version, JSON.stringify(content), now, now + EXPEDITION_REGISTRATION_MS, now);
+	if (!expedition) throw new Error('Expedition registration was not created');
+	return expedition;
 }
 
 function dispose_stash(expedition: ExpeditionRow, now: number): void {
@@ -220,6 +240,7 @@ function dispose_stash(expedition: ExpeditionRow, now: number): void {
 			.run(expedition.id);
 		return;
 	}
+	if (expedition.guild_id === null) throw new Error('A shared Expedition cannot hold Guild supplies');
 	const outcome = destroy_expedition_stash(expedition.guild_id, expedition.id, now);
 	db.query('INSERT INTO expedition_crucible_outcomes ' +
 		'(expedition_id, source_guild_id, outcome, disposed_at) VALUES (?, ?, ?, ?)')
@@ -232,6 +253,53 @@ function dispose_stash(expedition: ExpeditionRow, now: number): void {
 	db.query("UPDATE expeditions SET stash_outcome = 'empty' WHERE id = ? AND stash_outcome = 'pending'")
 		.run(expedition.id);
 	return;
+}
+
+function import_guild_journey(guild_id: number): void {
+	db.query(`INSERT OR IGNORE INTO expedition_shared_knowledge (chamber_id, exit_id)
+		SELECT visit.chamber_id, '' FROM expedition_visits visit
+		JOIN expeditions run ON run.id = visit.expedition_id
+		WHERE run.guild_id = ? AND visit.chamber_id <> ?
+		UNION SELECT visit.chamber_id, passage.exit_id FROM expedition_exits passage
+		JOIN expedition_visits visit ON visit.id = passage.visit_id
+		JOIN expeditions run ON run.id = visit.expedition_id
+		WHERE run.guild_id = ? AND passage.discovered_at IS NOT NULL`)
+		.run(guild_id, PREPARATION_CHAMBER_ID, guild_id);
+}
+
+set_global_expedition_participation_handler((guild_id, opted_in, now) => {
+	const leaving = current_expedition(opted_in ? guild_id : null);
+	if (leaving)
+		db.query(`UPDATE expedition_membership_tenures SET ended_at = MAX(started_at, ?)
+			WHERE expedition_id = ? AND source_guild_id = ? AND ended_at IS NULL`)
+			.run(now, leaving.id, guild_id);
+	if (opted_in) import_guild_journey(guild_id);
+});
+
+export function maintain_expedition_launch(now = Date.now()): void {
+	maintain_global_expedition_launch(now, (guild_ids, switch_at) => {
+		for (const guild_id of guild_ids) {
+			import_guild_journey(guild_id);
+			const expedition = current_expedition(guild_id);
+			if (!expedition) continue;
+			settle_expedition_work_for_launch_cutover(db, expedition.id, switch_at, now);
+			dispose_stash(expedition, switch_at);
+			close_preparations(expedition.id, switch_at);
+			db.query('UPDATE expedition_visits SET departed_at = ? WHERE expedition_id = ? AND departed_at IS NULL')
+				.run(switch_at, expedition.id);
+			db.query("UPDATE expeditions SET status = 'completed', ended_at = ?, current_visit_id = NULL, revision = revision + 1 WHERE id = ?")
+				.run(switch_at, expedition.id);
+			db.query('UPDATE expedition_personal_records SET ending_bonus_eligible = 1 WHERE expedition_id = ?')
+				.run(expedition.id);
+			const contributors = db.query<{ client_id: number }, [number]>(
+				'SELECT client_id FROM expedition_personal_records WHERE expedition_id = ?'
+			).all(expedition.id);
+			for (const { client_id } of contributors)
+				if (!claim_expedition_ending(db, client_id, expedition.id, now))
+					throw new Error('Expedition cutover could not award an ending bonus');
+		}
+		open_expedition(null, switch_at, EXPEDITION_CONTENT_V6.version);
+	});
 }
 
 function end_if_inactive(expedition: ExpeditionRow, now: number): boolean {
@@ -254,12 +322,13 @@ function end_if_inactive(expedition: ExpeditionRow, now: number): boolean {
 // days must not make the old Expedition appear active again.
 export function catch_up_expedition_before_activity(client_id: number,
 	now = Date.now()): void {
+	maintain_expedition_launch(now);
 	db.transaction(() => {
 		const membership = db.query<{ id: number; guild_id: number }, [number]>(
 			'SELECT id, guild_id FROM guild_memberships WHERE client_id = ?'
 		).get(client_id);
 		if (!membership) return;
-		const expedition = current_expedition(membership.guild_id);
+		const expedition = current_expedition(expedition_scope_for_guild(membership.guild_id));
 		if (!expedition || end_if_inactive(expedition, now)) return;
 		const registered = db.query<{ found: number }, [number, number]>(
 			'SELECT 1 AS found FROM expedition_registrations WHERE expedition_id = ? AND client_id = ?'
@@ -267,7 +336,7 @@ export function catch_up_expedition_before_activity(client_id: number,
 		if (registered) {
 			db.query('INSERT INTO expedition_membership_tenures ' +
 				'(expedition_id, source_guild_id, membership_id, client_id, started_at) ' +
-				'VALUES (?, ?, ?, ?, ?) ON CONFLICT (expedition_id, membership_id) DO NOTHING')
+				'VALUES (?, ?, ?, ?, ?) ON CONFLICT (expedition_id, membership_id) WHERE ended_at IS NULL DO NOTHING')
 				.run(expedition.id, membership.guild_id, membership.id, client_id, now);
 			db.query('UPDATE expeditions SET last_qualifying_activity_at = ? WHERE id = ?')
 				.run(now, expedition.id);
@@ -276,8 +345,9 @@ export function catch_up_expedition_before_activity(client_id: number,
 }
 
 export function maintain_inactive_expeditions(now = Date.now()): number {
+	maintain_expedition_launch(now);
 	return db.transaction(() => {
-		const overdue = db.query<ExpeditionRow, [number]>(
+		const overdue = db.query<ExpeditionRow, [ExpeditionOwner]>(
 			"SELECT * FROM expeditions WHERE status IN ('registration', 'active') " +
 			'AND last_qualifying_activity_at <= ?'
 		).all(now - RECENTLY_ACTIVE_AFTER);
@@ -289,25 +359,37 @@ export function maintain_inactive_expeditions(now = Date.now()): number {
 }
 
 function recent_registered_participants(expedition: ExpeditionRow, now: number): number {
-	return db.query<{ count: number }, [number, number, number]>(
-		'SELECT COUNT(*) AS count FROM expedition_registrations AS registration ' +
-		'JOIN guild_memberships AS membership ON membership.client_id = registration.client_id ' +
-		'JOIN clients AS client ON client.id = registration.client_id ' +
-		'WHERE registration.expedition_id = ? AND membership.guild_id = ? ' +
-		'AND client.last_multiplayer_active_at >= ?'
-	).get(expedition.id, expedition.guild_id, now - RECENTLY_ACTIVE_AFTER)?.count ?? 0;
+	return db.query<{ count: number }, [number, number, ExpeditionOwner, ExpeditionOwner, number]>(`
+		SELECT COUNT(*) AS count FROM expedition_registrations AS registration
+		JOIN guild_memberships AS membership ON membership.client_id = registration.client_id
+		JOIN clients AS client ON client.id = registration.client_id
+		WHERE registration.expedition_id = ? AND client.last_multiplayer_active_at >= ?
+		AND (membership.guild_id = ? OR (? IS NULL AND EXISTS (
+			SELECT 1 FROM global_expedition_guild_participation AS participation
+			JOIN global_expedition_launch AS launch ON launch.id = 1 AND launch.applied_at IS NOT NULL
+			WHERE participation.guild_id = membership.guild_id AND participation.opted_in = 1 AND participation.effective_at <= ?
+		)))
+	`).get(expedition.id, now - RECENTLY_ACTIVE_AFTER, expedition.guild_id, expedition.guild_id, now)!.count;
 }
 
 // Visits and completed reveals are the durable Guild record, including preview runs.
-function guild_chamber_knowledge(guild_id: number) {
-	const evidence = db.query<{ chamber_id: string; exit_id: string | null }, [number, number]>(
+function guild_chamber_knowledge(guild_id: ExpeditionOwner, include_inherited = true) {
+	const evidence = db.query<{ chamber_id: string; exit_id: string | null }, [ExpeditionOwner, ExpeditionOwner]>(
 		'SELECT visit.chamber_id, NULL AS exit_id FROM expeditions AS run ' +
-		'JOIN expedition_visits AS visit ON visit.expedition_id = run.id WHERE run.guild_id = ? ' +
+		'JOIN expedition_visits AS visit ON visit.expedition_id = run.id WHERE run.guild_id IS ? ' +
 		'UNION SELECT visit.chamber_id, edge.exit_id FROM expeditions AS run ' +
 		'JOIN expedition_visits AS visit ON visit.expedition_id = run.id ' +
-		'JOIN expedition_exits AS edge ON edge.visit_id = visit.id WHERE run.guild_id = ? AND edge.discovered_at IS NOT NULL'
+		'JOIN expedition_exits AS edge ON edge.visit_id = visit.id WHERE run.guild_id IS ? AND edge.discovered_at IS NOT NULL'
 	).all(guild_id, guild_id);
-	const chambers = new Map(EXPEDITION_CONTENT_V1.chambers.map(chamber => [chamber.id, chamber]));
+	if (include_inherited) {
+		const inherited = guild_id === null
+			? db.query<{ chamber_id: string; exit_id: string }, []>('SELECT chamber_id, exit_id FROM expedition_shared_knowledge').all()
+			: db.query<{ chamber_id: string; exit_id: string }, [number]>(
+				'SELECT chamber_id, exit_id FROM expedition_inherited_knowledge WHERE guild_id = ?').all(guild_id);
+		evidence.push(...inherited.map(row => ({ ...row, exit_id: row.exit_id || null })));
+	}
+	const chambers = new Map([...EXPEDITION_CONTENT_V1.chambers, ...EXPEDITION_CONTENT_V6.chambers]
+		.map(chamber => [chamber.id, chamber]));
 	const known = new Set<string>();
 	const revealed = new Set<string>();
 	for (const { chamber_id, exit_id } of evidence) {
@@ -320,9 +402,10 @@ function guild_chamber_knowledge(guild_id: number) {
 
 function begin_visit(expedition: ExpeditionRow, content: ExpeditionContent, chamber: ExpeditionChamber,
 	participants: number, now: number): void {
-	const charted = db.query<{ found: number }, [number, string]>(
-		'SELECT 1 AS found FROM expedition_charted WHERE guild_id = ? AND chamber_id = ?'
-	).get(expedition.guild_id, chamber.id) !== null;
+	const charted = expedition.guild_id === null
+		? db.query('SELECT 1 FROM expedition_global_charted WHERE chamber_id = ?').get(chamber.id) !== null
+		: db.query('SELECT 1 FROM expedition_charted WHERE guild_id = ? AND chamber_id = ?')
+			.get(expedition.guild_id, chamber.id) !== null;
 	const { known } = guild_chamber_knowledge(expedition.guild_id);
 	const known_exits = new Set(chamber.exits.filter(edge => known.has(edge.target)).map(edge => edge.id));
 	const inserted = db.query<{ id: number }, [number, string, number, number, number]>(
@@ -344,7 +427,7 @@ function begin_visit(expedition: ExpeditionRow, content: ExpeditionContent, cham
 		.run(inserted.id, expedition.id);
 }
 
-function advance_registration(guild_id: number, now: number): void {
+function advance_registration(guild_id: ExpeditionOwner, now: number): void {
 	const expedition = current_expedition(guild_id);
 	if (!expedition || expedition.status !== 'registration' || now < expedition.registration_ends_at) return;
 	const participants = recent_registered_participants(expedition, now);
@@ -359,7 +442,7 @@ function advance_registration(guild_id: number, now: number): void {
 // The locked vote records its winner in chosen_exit_id. This reconciliation is safe to
 // repeat on reads and settlements after restart: the old visit is closed before the next
 // one is inserted in the same transaction.
-export function reconcile_expedition_visit(guild_id: number,
+export function reconcile_expedition_visit(guild_id: ExpeditionOwner,
 	now = Date.now()): boolean {
 	return db.transaction(() => {
 		const expedition = current_expedition(guild_id);
@@ -382,8 +465,8 @@ export function reconcile_expedition_visit(guild_id: number,
 		const reveal_targets = new Map(chamber.tasks.filter(task => task.discovery_target)
 			.map(task => [task.id, chamber.exits.find(edge => edge.id === task.discovery_target)?.target]));
 		const pending_discoveries = pending_reveals.filter(task => reveal_targets.has(task.task_id));
-		if (pending_discoveries.length > 0) {
-			const { known } = guild_chamber_knowledge(guild_id);
+		if (guild_id !== null && pending_discoveries.length > 0) {
+			const { known } = guild_chamber_knowledge(guild_id, false);
 			let shortened = false;
 			let completed = false;
 			for (const { task_id } of pending_discoveries) {
@@ -447,10 +530,14 @@ export function reconcile_expedition_visit(guild_id: number,
 		if (expected.some(task => !progress.has(task.id)))
 			throw new Error('Current Chamber lacks a snapshotted task');
 		const chart = progress.get('arrival_chart');
-		if (chart?.completed_at !== null && chart?.completed_at !== undefined)
-			db.query('INSERT INTO expedition_charted (guild_id, chamber_id, completed_at) VALUES (?, ?, ?) ' +
-				'ON CONFLICT (guild_id, chamber_id) DO NOTHING')
-				.run(guild_id, chamber.id, chart.completed_at);
+		if (chart?.completed_at != null) {
+			if (guild_id === null)
+				db.query('INSERT OR IGNORE INTO expedition_global_charted (chamber_id, completed_at) VALUES (?, ?)')
+					.run(chamber.id, chart.completed_at);
+			else
+				db.query('INSERT OR IGNORE INTO expedition_charted (guild_id, chamber_id, completed_at) VALUES (?, ?, ?)')
+					.run(guild_id, chamber.id, chart.completed_at);
+		}
 		const done = (task_id: string) => progress.get(task_id)?.completed_at != null;
 		const arrival = visit.charted_on_arrival ? 'arrival_scout' : 'arrival_chart';
 		const arrived = done(arrival) && (content.version < 3 || expected.filter(task =>
@@ -532,26 +619,15 @@ export function register_for_expedition(guild_id: number, client_id: number, ope
 			'SELECT id, guild_id FROM guild_memberships WHERE client_id = ? AND guild_id = ?'
 		).get(client_id, guild_id);
 		if (!member) throw new Error('Expedition registration requires current Guild membership');
-		const replay = db.query<{ expedition_id: number; guild_id: number; kind: string }, [number, string]>(
-			'SELECT operation.expedition_id, expedition.guild_id, operation.kind FROM expedition_operations AS operation ' +
-			'JOIN expeditions AS expedition ON expedition.id = operation.expedition_id ' +
+		const owner = expedition_scope_for_guild(guild_id);
+		const replay = db.query<{ expedition_id: number; kind: string }, [number, string]>(
+			'SELECT operation.expedition_id, operation.kind FROM expedition_operations AS operation ' +
 			'WHERE operation.client_id = ? AND operation.operation_id = ?'
 		).get(client_id, operation_id);
-		if (replay) return replay.guild_id === guild_id && replay.kind === 'register' ? replay.expedition_id : null;
-		advance_registration(guild_id, now); // A late entrant cannot change the Entrance snapshot.
-		let expedition = current_expedition(guild_id);
-		if (!expedition) {
-			const new_content = content_version === 5 ? EXPEDITION_CONTENT_V5 : content_version === 4 ? EXPEDITION_CONTENT_V4 :
-				content_version === 3 ? EXPEDITION_CONTENT_V3 : EXPEDITION_CONTENT_PREVIEW;
-			const inserted = db.query<{ id: number }, [number, number, string, number, number, number]>(
-				'INSERT INTO expeditions (guild_id, status, content_version, content_snapshot, registered_at, ' +
-				'registration_ends_at, last_qualifying_activity_at) VALUES (?, \'registration\', ?, ?, ?, ?, ?) RETURNING id'
-			).get(guild_id, new_content.version, JSON.stringify(new_content), now,
-				now + EXPEDITION_REGISTRATION_MS, now);
-			if (!inserted) throw new Error('Expedition registration was not created');
-			expedition = current_expedition(guild_id);
-		}
-		if (!expedition) throw new Error('Expedition registration was not found');
+		if (replay) return replay.kind === 'register' ? replay.expedition_id : null;
+		advance_registration(owner, now); // A late entrant cannot change the Entrance snapshot.
+		const expedition = current_expedition(owner) ??
+			open_expedition(owner, now, owner === null ? EXPEDITION_CONTENT_V6.version : content_version);
 		const result = db.query(
 			'INSERT INTO expedition_registrations (expedition_id, client_id, registered_at) VALUES (?, ?, ?) ' +
 			'ON CONFLICT (expedition_id, client_id) DO NOTHING'
@@ -560,11 +636,11 @@ export function register_for_expedition(guild_id: number, client_id: number, ope
 			db.query('INSERT INTO expedition_personal_records ' +
 				'(expedition_id, client_id, source_guild_id, source_guild_name, registered_at, status) ' +
 				'SELECT ?, ?, guild.id, guild.name, ?, expedition.status FROM guilds AS guild ' +
-				'JOIN expeditions AS expedition ON expedition.guild_id = guild.id ' +
-				'WHERE expedition.id = ?').run(expedition.id, client_id, now, expedition.id);
+				'JOIN expeditions AS expedition ON expedition.id = ? ' +
+				'WHERE guild.id = ?').run(expedition.id, client_id, now, expedition.id, guild_id);
 		db.query('INSERT INTO expedition_membership_tenures ' +
 			'(expedition_id, source_guild_id, membership_id, client_id, started_at) ' +
-			'VALUES (?, ?, ?, ?, ?) ON CONFLICT (expedition_id, membership_id) DO NOTHING')
+			'VALUES (?, ?, ?, ?, ?) ON CONFLICT (expedition_id, membership_id) WHERE ended_at IS NULL DO NOTHING')
 			.run(expedition.id, guild_id, member.id, client_id, now);
 		if (result.changes > 0)
 			db.query('UPDATE expeditions SET revision = revision + 1, last_qualifying_activity_at = ? WHERE id = ?')
@@ -587,7 +663,8 @@ export function cast_expedition_vote(guild_id: number, client_id: number, expedi
 		).get(client_id, operation_id);
 		if (replay) return replay.request_hash === request_hash ? JSON.parse(replay.response) :
 			{ success: false, error: 'operation_conflict' };
-		const expedition = current_expedition(guild_id);
+		const owner = expedition_scope_for_guild(guild_id);
+		const expedition = current_expedition(owner);
 		if (!expedition || expedition.id !== expedition_id || expedition.status !== 'active' ||
 			expedition.current_visit_id !== visit_id) return { success: false, error: 'stale_visit' };
 		const member = db.query<{ found: number }, [number, number, number]>(
@@ -618,11 +695,13 @@ export function cast_expedition_vote(guild_id: number, client_id: number, expedi
 		const registered_count = db.query<{ count: number }, [number]>(
 			'SELECT COUNT(*) AS count FROM expedition_registrations WHERE expedition_id = ?'
 		).get(expedition_id)?.count ?? 0;
-		const ppc = db.query<{ count: number }, [number, number, number]>(
-			'SELECT COUNT(*) AS count FROM expedition_interactions AS interaction ' +
+		const participants = db.query<{ client_id: number; guild_id: number }, [number, number]>(
+			'SELECT interaction.client_id, membership.guild_id FROM expedition_interactions AS interaction ' +
 			'JOIN guild_memberships AS membership ON membership.client_id = interaction.client_id ' +
-			'WHERE interaction.visit_id = ? AND membership.guild_id = ? AND interaction.interacted_at >= ?'
-		).get(visit_id, guild_id, now - PPC_MS)?.count ?? 0;
+			'WHERE interaction.visit_id = ? AND interaction.interacted_at >= ?'
+		).all(visit_id, now - PPC_MS)
+			.filter(member => expedition_scope_for_guild(member.guild_id) === owner);
+		const ppc = participants.length;
 		const voter_active = db.query<{ found: number }, [number, number, number]>(
 			'SELECT 1 AS found FROM expedition_interactions WHERE visit_id = ? AND client_id = ? AND interacted_at >= ?'
 		).get(visit_id, client_id, now - PPC_MS);
@@ -631,9 +710,10 @@ export function cast_expedition_vote(guild_id: number, client_id: number, expedi
 			half = 1;
 			full = 1;
 		} else if (ppc > 0 && voter_active) {
-			const ballots = db.query<{ count: number }, [number, number, number]>(
-				'SELECT COUNT(*) AS count FROM expedition_votes AS vote JOIN expedition_interactions AS interaction ON interaction.visit_id = vote.visit_id AND interaction.client_id = vote.client_id JOIN guild_memberships AS membership ON membership.client_id = vote.client_id WHERE vote.visit_id = ? AND membership.guild_id = ? AND interaction.interacted_at >= ?'
-			).get(visit_id, guild_id, now - PPC_MS)?.count ?? 0;
+			const votes = new Set(db.query<{ client_id: number }, [number]>(
+				'SELECT client_id FROM expedition_votes WHERE visit_id = ?'
+			).all(visit_id).map(vote => vote.client_id));
+			const ballots = participants.filter(member => votes.has(member.client_id)).length;
 			if (!half && ballots * 2 >= ppc) { deadline = Math.min(deadline, now + 4 * HOUR_MS); half = 1; }
 			if (!full && ballots >= ppc) { deadline = Math.min(deadline, now + HOUR_MS); full = 1; }
 		}
@@ -664,11 +744,11 @@ export function get_personal_expedition_history(client_id: number) {
 	).all(client_id);
 }
 
-export function get_expedition_state(guild_id: number, client_id: number, now = Date.now(), tracking_only = false) {
+export function get_expedition_state(guild_id: ExpeditionOwner, client_id: number, now = Date.now(), tracking_only = false) {
 	return db.transaction(() => {
 		advance_registration(guild_id, now);
-		const expedition = current_expedition(guild_id) ?? db.query<ExpeditionRow, [number]>(
-			'SELECT * FROM expeditions WHERE guild_id = ? ORDER BY id DESC LIMIT 1'
+		const expedition = current_expedition(guild_id) ?? db.query<ExpeditionRow, [ExpeditionOwner]>(
+			'SELECT * FROM expeditions WHERE guild_id IS ? ORDER BY id DESC LIMIT 1'
 		).get(guild_id);
 		if (!expedition) return { contract_version: 1, content_version: EXPEDITION_CONTENT_PREVIEW.version,
 			server_now: now, expedition: null };
@@ -685,9 +765,9 @@ export function get_expedition_state(guild_id: number, client_id: number, now = 
 		// The client infers traversal from adjacent visits. Never connect the end of one run to the next.
 		const history = tracking_only ? [] : db.query<{
 			chamber_id: string; entered_at: number; departed_at: number | null; chosen_exit_id: string | null;
-		}, [number, number, string]>(
+		}, [ExpeditionOwner, number, string]>(
 			'WITH visits AS (SELECT visit.*, LEAD(visit.id) OVER (PARTITION BY visit.expedition_id ORDER BY visit.id) AS next_visit_id ' +
-			'FROM expeditions AS run JOIN expedition_visits AS visit ON visit.expedition_id = run.id WHERE run.guild_id = ?) ' +
+			'FROM expeditions AS run JOIN expedition_visits AS visit ON visit.expedition_id = run.id WHERE run.guild_id IS ?) ' +
 			'SELECT chamber_id, entered_at, departed_at, CASE WHEN next_visit_id IS NOT NULL THEN chosen_exit_id END AS chosen_exit_id ' +
 			'FROM visits WHERE (expedition_id <> ? OR departed_at IS NOT NULL) AND chamber_id <> ? ORDER BY expedition_id, id'
 		).all(guild_id, expedition.id, PREPARATION_CHAMBER_ID).map(visit => {
@@ -751,13 +831,15 @@ export function get_expedition_state(guild_id: number, client_id: number, now = 
 		// Keep the immediately preceding Guild run visible to its participants while back in the Rift.
 		const previous = !tracking_only && (expedition.status === 'registration' ||
 			expedition.status === 'active' && chamber?.id === 'entrance')
-			? db.query<{ id: number }, [number, number]>(
-				"SELECT id FROM expeditions WHERE guild_id = ? AND id < ? AND status IN ('completed','inactive','dissolved') ORDER BY id DESC LIMIT 1"
+			? db.query<{ id: number }, [ExpeditionOwner, number]>(
+				"SELECT id FROM expeditions WHERE guild_id IS ? AND id < ? AND status IN ('completed','inactive','dissolved') ORDER BY id DESC LIMIT 1"
 			).get(guild_id, expedition.id) : null;
 		const previous_summary = previous ? get_expedition_return_summary(db, client_id, previous.id) : null;
 		const visited = new Set(history.map(visit => visit.chamber_id));
 		if (typeof chamber?.id === 'string' && !chamber.preparation) visited.add(chamber.id);
-		const frontier = tracking_only ? [] : (content.version >= 5 ? EXPEDITION_CONTENT_V5 : content.version >= 4 ? EXPEDITION_CONTENT_V4 : EXPEDITION_CONTENT_V3).chambers
+		const journey_catalog = content.version >= 6 ? EXPEDITION_CONTENT_V6 : content.version >= 5 ? EXPEDITION_CONTENT_V5 :
+			content.version >= 4 ? EXPEDITION_CONTENT_V4 : EXPEDITION_CONTENT_V3;
+		const frontier = tracking_only ? [] : journey_catalog.chambers
 			.filter(entry => visited.has(entry.id))
 			.flatMap(entry => entry.exits.filter(edge => !visited.has(edge.target) && !revealed.has(edge.id))
 				.map(edge => edge.id));

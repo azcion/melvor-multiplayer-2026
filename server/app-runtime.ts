@@ -81,6 +81,7 @@ import { BACKEND_VERSION } from './version';
 import { effective_minimum_client_version, MINIMUM_SUPPORTED_VERSION_FEATURE, is_client_version_at_least, is_client_version_unsupported } from './client-version-policy';
 import { is_admin } from './admin_identity';
 import { catch_up_expedition_before_activity } from './guild-expedition';
+import { apply_global_expedition_participation_petition, global_expedition_guild_participates, global_expedition_launch_applied } from './global-expedition-governance';
 import {
 	CHARITY_PET_ID,
 	CAMPAIGN_PET_IDS,
@@ -1082,6 +1083,7 @@ export function claim_council_action(now = Date.now()): db_row.guild_petitions |
 			"AND `type` IN ('appellation', 'heraldry', 'banishment', 'winnowing', " +
 			"'fellowship', 'enclosure', 'interdict', 'heresy', " +
 			"'temperance', 'indulgence', 'crucible_purging', 'crucible_sealing', 'crucible_unsealing', " +
+			"'global_expedition_opt_in','global_expedition_opt_out', " +
 			"'alliance_found','alliance_consider','alliance_join','alliance_leave','alliance_remove'," +
 			"'alliance_market_enable','alliance_market_disable','alliance_withdraw','alliance_ballot') AND (" +
 			"`execution_state` = 'pending' OR " +
@@ -1346,6 +1348,8 @@ export function apply_council_guild_action(petition: db_row.guild_petitions): st
 			).run(petition.guild_id);
 		return updated.changes === 1 ? (enabled === 1 ? 'tempered' : 'indulged') : 'already_applied_or_absent';
 	}
+	if (petition.type === 'global_expedition_opt_in' || petition.type === 'global_expedition_opt_out')
+		return apply_global_expedition_participation_petition(petition, Date.now());
 	if (petition.type === 'winnowing')
 		return apply_winnowing_action(petition);
 	return apply_banishment_action(petition);
@@ -2421,6 +2425,9 @@ export async function get_council_petitions(guild_id: number, client_id: number,
 		available_petition_types.push('indulgence');
 	else if (guild?.market_discovery_restriction_enabled === 0)
 		available_petition_types.push('temperance');
+	if (global_expedition_launch_applied())
+		available_petition_types.push(global_expedition_guild_participates(guild_id)
+			? 'global_expedition_opt_out' : 'global_expedition_opt_in');
 	{
 		const crucible = db.query<{ is_open: number }, [number]>(
 			'SELECT is_open FROM crucible_guilds WHERE guild_id = ?').get(guild_id);

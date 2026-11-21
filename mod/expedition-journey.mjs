@@ -89,8 +89,17 @@ export function create_journey_runtime({ topology, supported_versions, layout_gr
 				const graph = layout_graph(topology, { column_gap: 45, row_gap: 35, radius: 17, supported_ids: snapshot.supported_ids });
 				// IDs and topology are fixed; only visited names may be disclosed.
 				for (const node of graph.nodes) node.label = label(node.id === 'entrance' ? 'The Rift' : node.label);
-				render_graph(this.svg, graph, snapshot.route, { revealed: snapshot.revealed, frontier: snapshot.frontier, choices: snapshot.choices, choice_labels: { choice: getLangString('MOD_MP_EXPEDITION_PASSAGES'), ballot: getLangString('MOD_MP_EXPEDITION_YOUR_VOTE'), chosen: getLangString('MOD_MP_EXPEDITION_CHOSEN_PASSAGE') }, current: snapshot.current, snapshot_state: snapshot.snapshot_state,
-					unknown_label: getLangString('MOD_MP_EXPEDITION_UNKNOWN_CHAMBER') });
+				render_graph(this.svg, graph, snapshot.route, {
+					revealed: snapshot.revealed, frontier: snapshot.frontier, choices: snapshot.choices,
+					choice_labels: {
+						choice: getLangString('MOD_MP_EXPEDITION_PASSAGES'),
+						ballot: getLangString('MOD_MP_EXPEDITION_YOUR_VOTE'),
+						chosen: getLangString('MOD_MP_EXPEDITION_CHOSEN_PASSAGE')
+					},
+					current: snapshot.current, snapshot_state: snapshot.snapshot_state,
+					unknown_label: getLangString('MOD_MP_EXPEDITION_UNKNOWN_CHAMBER'),
+					description: getLangString('MOD_MP_EXPEDITION_JOURNEY_DESCRIPTION')
+				});
 				this.svg.setAttribute('aria-label', getLangString('MOD_MP_EXPEDITION_UI_JOURNEY'));
 				const current = this.svg.querySelector('.current');
 				if (current) current.setAttribute('aria-label', current.getAttribute('aria-label') + ' · ' + getLangString('MOD_MP_EXPEDITION_CURRENT'));

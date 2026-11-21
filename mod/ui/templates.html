@@ -88,6 +88,26 @@
 			<div class="mp-expedition-panel mp-expedition-notice" v-if="!state.expedition_pending_report && (state.expedition_state?.tracking?.pending_boundary_at || state.expedition_personal?.tracking?.pending_boundary_at)">
 				<p><lang-string lang-id="MOD_MP_EXPEDITION_UI_THE_ORIGINAL_WORK_INTERVAL_IS_AWAITING_A_BOUNDARY_SNAPSHOT_TRACKING_ACTIONS"></lang-string></p>
 			</div>
+			<section class="mp-expedition-panel" v-if="state.expedition_state?.global_expedition?.ballot || state.expedition_state?.global_expedition?.registration_pending">
+				<div v-for="ballot in [state.expedition_state.global_expedition.ballot].filter(Boolean)">
+					<h3><lang-string lang-id="MOD_MP_EXPEDITION_LAUNCH_TITLE"></lang-string></h3>
+					<p><lang-string lang-id="MOD_MP_EXPEDITION_LAUNCH_INTRO"></lang-string></p>
+					<div class="mp-expedition-launch-options">
+						<button type="button" class="mp-poll-option" :class="{ 'mp-poll-option-selected': ballot.choice === 'aye' }" :aria-pressed="ballot.choice === 'aye'" :disabled="state.expedition_action_pending || !state.expedition_can_vote_in_global_launch() || ballot.choice === 'aye'" @click="state.vote_global_expedition('aye')">
+							<span><mp-lang-string-f v-if="state.expedition_state.global_expedition_bonus_estimate_micros != null" lang-id="MOD_MP_EXPEDITION_LAUNCH_AYE_ESTIMATE" :lang-arg-1="state.format_ep(state.expedition_state.global_expedition_bonus_estimate_micros)"></mp-lang-string-f><lang-string v-else lang-id="MOD_MP_EXPEDITION_LAUNCH_AYE"></lang-string></span>
+							<span class="badge badge-primary">{{ ballot.aye }}</span>
+						</button>
+						<button type="button" class="mp-poll-option" :class="{ 'mp-poll-option-selected': ballot.choice === 'nay' }" :aria-pressed="ballot.choice === 'nay'" :disabled="state.expedition_action_pending || !state.expedition_can_vote_in_global_launch() || ballot.choice === 'nay'" @click="state.vote_global_expedition('nay')">
+							<span><lang-string lang-id="MOD_MP_EXPEDITION_LAUNCH_NAY"></lang-string></span>
+							<span class="badge badge-primary">{{ ballot.nay }}</span>
+						</button>
+					</div>
+					<p v-if="ballot.result"><span v-for="parts in [getLangString('MOD_MP_EXPEDITION_LAUNCH_RESULT').split('%s')]">{{ parts[0] }}<strong><lang-string :lang-id="ballot.result === 'aye' ? 'MOD_MP_COUNCIL_AYE' : 'MOD_MP_COUNCIL_NAY'"></lang-string></strong>{{ parts[1] }}</span></p>
+					<p v-else-if="state.expedition_clock_time < ballot.locks_at"><mp-lang-string-f lang-id="MOD_MP_EXPEDITION_LAUNCH_CLOSES_IN" :lang-arg-1="state.expedition_time_remaining(ballot.locks_at)"></mp-lang-string-f></p>
+					<p v-else-if="state.expedition_clock_time < ballot.ends_at"><lang-string lang-id="MOD_MP_EXPEDITION_LAUNCH_CLOSED"></lang-string></p>
+				</div>
+				<p v-if="state.expedition_state.global_expedition.registration_pending && state.expedition_clock_time < state.expedition_state.global_expedition.starts_at"><mp-lang-string-f lang-id="MOD_MP_EXPEDITION_LAUNCH_REGISTRATION_IN" :lang-arg-1="state.expedition_time_remaining(state.expedition_state.global_expedition.starts_at)"></mp-lang-string-f></p>
+			</section>
 			<div id="mp-expedition-hero" v-show="!state.expedition_has_ended(state.expedition_state?.expedition)">
 				<div class="mp-expedition-panel" :class="{ 'mp-expedition-chamber-card': state.expedition_state?.expedition?.status === 'registration' || state.expedition_state?.expedition?.chamber }">
 					<div class="mp-expedition-chamber-art-frame" v-if="state.expedition_state?.expedition?.status === 'registration' || state.expedition_state?.expedition?.chamber" :class="{ 'mp-expedition-rift-snow': ((state.expedition_state?.expedition?.chamber?.preparation ? 'entrance' : state.expedition_state?.expedition?.chamber?.id) ?? 'entrance') === 'entrance' }" aria-hidden="true">
@@ -103,6 +123,11 @@
 						<mp-expedition-mycelial-court v-if="state.expedition_state?.expedition?.chamber?.id === 'mycelial_court'"></mp-expedition-mycelial-court>
 						<mp-expedition-cinder-engine v-if="state.expedition_state?.expedition?.chamber?.id === 'cinder_engine'"></mp-expedition-cinder-engine>
 						<mp-expedition-drowned-basilica v-if="state.expedition_state?.expedition?.chamber?.id === 'drowned_basilica'"></mp-expedition-drowned-basilica>
+						<mp-expedition-sunken-bell-chamber v-if="state.expedition_state?.expedition?.chamber?.id === 'sunken_bell_chamber'"></mp-expedition-sunken-bell-chamber>
+						<mp-expedition-everflame-anvil v-if="state.expedition_state?.expedition?.chamber?.id === 'everflame_anvil'"></mp-expedition-everflame-anvil>
+						<mp-expedition-rootcrown-nexus v-if="state.expedition_state?.expedition?.chamber?.id === 'rootcrown_nexus'"></mp-expedition-rootcrown-nexus>
+						<mp-expedition-royal-treasury v-if="state.expedition_state?.expedition?.chamber?.id === 'royal_treasury'"></mp-expedition-royal-treasury>
+						<mp-expedition-echoing-dais v-if="state.expedition_state?.expedition?.chamber?.id === 'echoing_dais'"></mp-expedition-echoing-dais>
 						<mp-expedition-spore-cathedral v-if="state.expedition_state?.expedition?.chamber?.id === 'spore_cathedral'"></mp-expedition-spore-cathedral>
 						<mp-expedition-blackwater-nave v-if="state.expedition_state?.expedition?.chamber?.id === 'blackwater_nave'"></mp-expedition-blackwater-nave>
 						<mp-expedition-ashen-foundry v-if="state.expedition_state?.expedition?.chamber?.id === 'ashen_foundry'"></mp-expedition-ashen-foundry>
@@ -120,7 +145,7 @@
 						<p v-if="state.expedition_state?.expedition?.status === 'registration'"><strong>{{ state.expedition_state?.expedition?.registered_count }}</strong> <lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTERED"></lang-string></p>
 						<p v-if="state.expedition_state?.expedition?.chamber && !state.expedition_state?.expedition?.chamber?.preparation">{{ state.expedition_text(state.expedition_state?.expedition?.chamber?.participant_count === 1 ? 'MOD_MP_EXPEDITION_PARTICIPANT_AT_ARRIVAL' : 'MOD_MP_EXPEDITION_PARTICIPANTS_AT_ARRIVAL', state.expedition_state?.expedition?.chamber?.participant_count) }}</p>
 						<p class="mp-expedition-points"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOUR_EP"></lang-string> <strong>{{ state.format_ep(state.expedition_state?.points_micros ?? state.expedition_personal?.points_micros) }}</strong></p>
-						<button type="button" class="mp-expedition-button" v-if="state.expedition_state?.expedition?.chamber && !state.expedition_state?.expedition?.registered" :disabled="state.expedition_action_pending" @click="state.register_expedition()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTER_TO_WORK"></lang-string></button>
+						<button type="button" class="mp-expedition-button" v-if="state.expedition_state?.expedition?.chamber && !state.expedition_state?.expedition?.registered && !state.expedition_state?.global_expedition?.registration_pending" :disabled="state.expedition_action_pending" @click="state.register_expedition()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTER_TO_WORK"></lang-string></button>
 					</div>
 				</div>
 				<div class="mp-expedition-panel mp-expedition-tracking" v-if="state.expedition_state?.tracking && state.expedition_state?.tracking?.source !== 'equipment' && state.expedition_state?.tracking?.visit_id === state.expedition_state?.expedition?.chamber?.visit_id">
@@ -198,7 +223,7 @@
 				</div>
 				<div id="mp-chamber-work" role="tabpanel" aria-labelledby="mp-chamber-work-tab" v-show="state.expedition_work_tab === 'chamber'">
 					<p v-show="!state.is_guild_member"><lang-string lang-id="MOD_MP_EQUIPMENT_GUILD_CHAMBER"></lang-string></p>
-					<div class="mp-expedition-panel" v-if="state.expedition_state && !state.expedition_state?.expedition">
+					<div class="mp-expedition-panel" v-if="state.expedition_state && !state.expedition_state?.expedition && !state.expedition_state?.global_expedition?.registration_pending">
 						<p><lang-string lang-id="MOD_MP_EXPEDITION_UI_NO_EXPEDITION_IS_ACTIVE_IN_THIS_GUILD"></lang-string></p>
 						<button type="button" class="mp-expedition-button" :disabled="state.expedition_action_pending" @click="state.register_expedition()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_START_AND_REGISTER"></lang-string></button>
 					</div>
@@ -230,8 +255,8 @@
 										<div class="mp-expedition-panel">
 											<h3><lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTRATION"></lang-string></h3>
 											<p>{{ state.expedition_text('MOD_MP_EXPEDITION_REGISTRATION_CLOSES_IN', state.expedition_time_remaining(state.expedition_state?.expedition?.registration_ends_at)) }}</p>
-											<button type="button" class="mp-expedition-button" v-if="!state.expedition_state?.expedition?.registered" :disabled="state.expedition_action_pending" @click="state.register_expedition()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTER_FOR_THIS_EXPEDITION"></lang-string></button>
-											<p v-else><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOU_ARE_REGISTERED"></lang-string></p>
+											<button type="button" class="mp-expedition-button" v-if="!state.expedition_state?.expedition?.registered && !state.expedition_state?.global_expedition?.registration_pending" :disabled="state.expedition_action_pending" @click="state.register_expedition()"><lang-string lang-id="MOD_MP_EXPEDITION_UI_REGISTER_FOR_THIS_EXPEDITION"></lang-string></button>
+											<p v-else-if="state.expedition_state?.expedition?.registered"><lang-string lang-id="MOD_MP_EXPEDITION_UI_YOU_ARE_REGISTERED"></lang-string></p>
 										</div>
 									</div>
 									<div v-if="state.expedition_has_ended(state.expedition_state?.expedition)">
@@ -1549,6 +1574,10 @@
 	<div class="mp-modal-text"><lang-string lang-id="MOD_MP_COUNCIL_RAISE_INFO"></lang-string></div>
 	<hr class="mp-council-modal-rule">
 	<div class="mp-council-type-chooser">
+		<div class="mp-council-type-action" v-for="type in ['global_expedition_opt_in', 'global_expedition_opt_out'].filter(type => state.can_raise_council_petition(type))" :key="type">
+			<div><span class="font-w600">{{ state.get_council_type_lang(type) }}</span><button type="button" class="btn btn-sm btn-primary" @click="state.show_council_petition_modal(type)"><lang-string lang-id="MOD_MP_COUNCIL_RAISE_ACTION"></lang-string></button></div>
+			<em><lang-string :lang-id="state.get_council_description_lang_id(type)"></lang-string></em>
+		</div>
 		<div class="mp-council-type-action" v-if="state.can_raise_council_petition('appellation')">
 			<div><span class="font-w600"><lang-string lang-id="MOD_MP_COUNCIL_TYPE_APPELLATION"></lang-string></span><button type="button" class="btn btn-sm btn-primary" @click="state.show_council_petition_modal('appellation')"><lang-string lang-id="MOD_MP_COUNCIL_RAISE_ACTION"></lang-string></button></div>
 			<em><lang-string lang-id="MOD_MP_COUNCIL_APPELLATION_DESCRIPTION"></lang-string></em>
@@ -1641,7 +1670,7 @@
 	<div class="mp-council-petition-description"><em>{{ state.get_council_action_confirm(state.council_type) }}</em></div>
 	<div class="text-danger mt-3" v-if="state.council_error">{{ state.council_error }}</div>
 	<div class="mp-button-tray mt-3">
-		<button type="button" class="btn" :class="['crucible_unsealing', 'fellowship', 'heresy', 'indulgence'].includes(state.council_type) ? 'btn-success' : 'btn-danger'" @click="state.submit_council_petition($event, state.council_type)"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_RAISE"></lang-string></button>
+		<button type="button" class="btn" :class="(['crucible_unsealing', 'fellowship', 'heresy', 'indulgence'].includes(state.council_type) || state.council_type === 'global_expedition_opt_in') ? 'btn-success' : 'btn-danger'" @click="state.submit_council_petition($event, state.council_type)"><div class="spinner-border spinner-border-sm text-primary mr-2 d-none" role="status"></div><lang-string lang-id="MOD_MP_COUNCIL_RAISE"></lang-string></button>
 		<button type="button" class="btn btn-secondary" @click="state.close_modal()"><lang-string lang-id="MOD_MP_BUTTON_CANCEL"></lang-string></button>
 	</div>
 </template>

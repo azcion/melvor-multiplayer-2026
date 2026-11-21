@@ -6,6 +6,8 @@ import { expedition_capture_time, EXPEDITION_BOUNDARY_TOLERANCE_MS, EXPEDITION_F
 import { write_log } from './log';
 import { createHash } from 'node:crypto';
 import { db } from './db';
+import type { Database } from 'bun:sqlite';
+import { global_expedition_guild_participates } from './global-expedition-governance';
 import { EXPEDITION_WORK_SKILLS, preview_task_available, parse_expedition_content, expedition_skill_id } from './expedition-content';
 import type { ExpeditionTask } from './expedition-content';
 import { RECENTLY_ACTIVE_AFTER } from './recent-activity';
@@ -56,16 +58,21 @@ function verified_work(start_json: string, statistics: WorkStatistics, activitie
 	const tolerance = Math.max(30_000, Math.floor(elapsed_ms * 0.02));
 	let target_ms = 0;
 	let total_ms = 0;
+	let skills_with_work = 0;
 	for (const [skill_id, end_value] of Object.entries(statistics.time_ms)) {
 		const start_value = start.time_ms[skill_id];
 		if (start_value === undefined || end_value < start_value) continue;
 		const delta = Math.min(end_value - start_value, elapsed_ms + tolerance);
+		if (delta > 0) skills_with_work++;
 		total_ms += delta;
 		if (evidence.includes(skill_id)) target_ms += delta;
 	}
 	const concurrency = elapsed_ms === 0 ? 1 : Math.max(1, total_ms / elapsed_ms);
+	// Counter tolerance can push the estimate above the number of skills that did work.
+	const concurrent_skills = Math.min(concurrency, Math.max(1, skills_with_work));
+	const credit_tenths = Math.max(1, 11 - concurrent_skills);
 	const observed = eligible_activity(JSON.parse(activities_json) as Activity[], evidence);
-	const verified_ms = observed ? Math.floor(Math.min(elapsed_ms, target_ms) / concurrency) : 0;
+	const verified_ms = observed ? Math.floor(Math.min(elapsed_ms, target_ms) * credit_tenths / 10) : 0;
 	return { target_ms, total_ms, concurrency, verified_ms };
 }
 
@@ -140,6 +147,40 @@ export function update_unlocks(expedition_id: number, visit_id: number, now: num
 		progress.get(entry.id)?.completed_at != null))
 		if (task.discovery_target) db.query('UPDATE expedition_exits SET discovered_at = ? WHERE visit_id = ? AND exit_id = ? AND discovered_at IS NULL')
 			.run(now, visit_id, task.discovery_target);
+}
+
+// Launch cutover discards the old task snapshot, so finish open personal work at
+// the scheduled boundary without applying evidence, offline, concurrency, or task
+// allowance limits. Guild progress is intentionally not carried into the new run.
+export function settle_expedition_work_for_launch_cutover(database: Database, expedition_id: number,
+	cutover_at: number, now = Date.now()): number {
+	const sessions = database.query<Session & { tenure_ended_at: number | null }, [number]>(
+		`SELECT work.*, tenure.ended_at AS tenure_ended_at
+		FROM expedition_work_sessions work
+		JOIN expedition_membership_tenures tenure ON tenure.id = work.tenure_id
+		WHERE work.expedition_id = ? AND work.ended_at IS NULL ORDER BY work.id`
+	).all(expedition_id);
+	let settled = 0;
+	for (const session of sessions) {
+		const cutoff = Math.min(cutover_at, session.tenure_ended_at ?? cutover_at);
+		const credited_ms = Math.max(0, cutoff - session.started_at);
+		const ended_at = Math.max(session.started_at, cutover_at);
+		database.query("UPDATE expedition_work_sessions SET ended_at = ?, credited_ms = ?, guild_ms = 0, end_reason = 'launch_cutover' WHERE id = ? AND ended_at IS NULL")
+			.run(ended_at, credited_ms, session.id);
+		const points_micros = Math.floor(credited_ms * MICROS_PER_HOUR / HOUR_MS);
+		if (points_micros > 0) {
+			settle_wish_capacity(database, session.client_id, now);
+			database.query("INSERT INTO expedition_ep_ledger (client_id, source_kind, source_id, expedition_id, points_micros, created_at) VALUES (?, 'work', ?, ?, ?, ?)")
+				.run(session.client_id, session.id, expedition_id, points_micros, now);
+			database.query('INSERT INTO expedition_ep_balances (client_id, points_micros) VALUES (?, ?) ON CONFLICT (client_id) DO UPDATE SET points_micros = points_micros + excluded.points_micros')
+				.run(session.client_id, points_micros);
+			record_economy_operation(database, { source_key: `expedition-launch-cutover:${session.id}`,
+				client_id: session.client_id, kind: 'expedition-work', local_effect: 'server_only', committed_at: now,
+				evidence: { expedition_id, cutover_at, credited_ms, points_micros } });
+		}
+		settled++;
+	}
+	return settled;
 }
 
 function settle(session: Session, statistics: WorkStatistics, activities: Activity[], captured_at: number, now: number): JsonObject {
@@ -380,16 +421,23 @@ export function change_expedition_work(client_id: number, operation_id: string, 
 		if (task_id && source && !clock_reset && now - captured_at > EXPEDITION_FRESH_CAPTURE_MS)
 			fresh_snapshot_required = true;
 		if (task_id && !fresh_snapshot_required) {
-			const expedition = db.query<{ guild_id: number; status: string; current_visit_id: number | null;
+			const expedition = db.query<{ guild_id: number | null; status: string; current_visit_id: number | null;
 				registration_ends_at: number }, [number]>(
 				'SELECT guild_id, status, current_visit_id, registration_ends_at FROM expeditions WHERE id = ?'
 			).get(request.expedition_id);
 			const preparation = db.query<{ found: number }, [number, number, string]>(
 				'SELECT 1 AS found FROM expedition_visits WHERE id = ? AND expedition_id = ? AND chamber_id = ? AND departed_at IS NULL'
 			).get(request.visit_id, request.expedition_id, PREPARATION_CHAMBER_ID) !== null;
-			const tenure = db.query<{ id: number }, [number, number, number]>(
-				'SELECT tenure.id FROM expedition_membership_tenures AS tenure JOIN guild_memberships AS membership ON membership.id = tenure.membership_id WHERE tenure.expedition_id = ? AND tenure.client_id = ? AND membership.guild_id = ? AND tenure.ended_at IS NULL ORDER BY tenure.id DESC LIMIT 1'
-			).get(request.expedition_id, client_id, expedition?.guild_id ?? -1);
+			const memberships = db.query<{ guild_id: number }, [number]>(
+				'SELECT guild_id FROM guild_memberships WHERE client_id = ? ORDER BY id DESC'
+			).all(client_id);
+			const authorized_guild = expedition?.guild_id !== null && expedition?.guild_id !== undefined
+				? memberships.find(membership => membership.guild_id === expedition.guild_id &&
+					!global_expedition_guild_participates(membership.guild_id, db))?.guild_id
+				: memberships.find(membership => global_expedition_guild_participates(membership.guild_id, db))?.guild_id;
+			const tenure = authorized_guild === undefined ? null : db.query<{ id: number }, [number, number, number]>(
+				'SELECT tenure.id FROM expedition_membership_tenures AS tenure WHERE tenure.expedition_id = ? AND tenure.client_id = ? AND tenure.source_guild_id = ? AND tenure.ended_at IS NULL ORDER BY tenure.id DESC LIMIT 1'
+			).get(request.expedition_id, client_id, authorized_guild);
 			const registered = db.query<{ found: number }, [number, number]>(
 				'SELECT 1 AS found FROM expedition_registrations WHERE expedition_id = ? AND client_id = ?'
 			).get(request.expedition_id, client_id);

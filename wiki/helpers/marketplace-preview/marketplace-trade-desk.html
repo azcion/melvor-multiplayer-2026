@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Trade Desk · Marketplace prototype</title>
+<link rel="stylesheet" href="marketplace-layouts.css">
+</head>
+<body class="desk">
+<nav class="preview-back" aria-label="Marketplace prototypes"><a href="./">← All Marketplace prototypes</a></nav>
+<header class="bar"><div class="wrap"><span class="brand">Melvor Multiplayer</span><div class="variants" aria-label="Prototype variants"><a href="marketplace-catalog.html">Catalog</a><a href="marketplace-trade-desk.html">Trade Desk</a><a href="marketplace-bazaar.html">Guild Bazaar</a></div></div></header>
+<div class="hero"><div class="wrap"><div><div class="eyebrow">Oakshield Guild · Demo market</div><h1>Trade Desk</h1><p id="tagline"></p></div><button class="primary" data-action="create">+ Create listing</button></div></div>
+<div class="wrap toolbar"><nav id="nav" aria-label="Marketplace sections"></nav><span id="wallet" class="wallet"></span></div>
+<main class="wrap"><div id="filters" class="filters"><input type="search" id="search" aria-label="Find an item" placeholder="Search items…"><select id="direction" aria-label="Offer direction"><option value="all">All items</option><option value="sell">Available to buy</option><option value="buy">Wanted by players</option></select><select id="currency" aria-label="Currency"><option>All currencies</option><option>GP</option><option>SC</option><option>EP</option></select></div><div id="content"></div></main>
+<dialog id="dialog" aria-labelledby="dialogTitle"><div class="modalhead between"><h2 id="dialogTitle"></h2><button class="quiet" aria-label="Close" data-action="close">✕</button></div><div class="modalbody" id="dialogBody"></div><div class="actions"><button data-action="close">Cancel</button><button class="primary" id="confirm"></button></div></dialog>
+<div class="feedback" id="feedback" role="status"></div>
+<script type="module" src="marketplace-layouts.mjs"></script>
+</body>
+</html>

@@ -816,6 +816,7 @@ export function install_social_actions(runtime) {
 		},
 
 		get_council_action_proposal(type) {
+			if (type === 'global_expedition_opt_in' || type === 'global_expedition_opt_out') return this.get_council_type_lang(type);
 			return type.startsWith('alliance_') ? this.alliance_label(type.slice(9)) : getLangString('MOD_MP_COUNCIL_' + this.get_council_action_key(type) + '_PROPOSAL');
 		},
 

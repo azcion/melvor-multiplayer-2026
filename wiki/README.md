@@ -151,3 +151,9 @@ with a `noindex, nofollow` robots directive. It is public to anyone with the URL
 `helpers/expedition-art-preview.html` and `assets/expedition-art-preview.{css,mjs}`; the local prototype remains
 separate. Image URLs pin the same immutable R2 objects used by the mod. Only originals already hosted in R2
 are offered for comparison. This page describes proposals, not live Guild progress or guaranteed release behavior.
+
+## Unlisted Marketplace prototypes
+
+`/wiki/marketplace-preview/` links to five interactive Marketplace demos with sample data.
+The collection and each demo are marked `noindex, nofollow` and omitted from wiki navigation and search.
+Anyone with the URL can open them.

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { EXPEDITION_CONTENT_PREVIEW, EXPEDITION_CONTENT_V1, EXPEDITION_CONTENT_V3, EXPEDITION_CONTENT_V4, EXPEDITION_CONTENT_V5, validate_expedition_content } from '../../expedition-content';
+import { EXPEDITION_CONTENT_PREVIEW, EXPEDITION_CONTENT_V1, EXPEDITION_CONTENT_V3, EXPEDITION_CONTENT_V4, EXPEDITION_CONTENT_V5, EXPEDITION_CONTENT_V6, validate_expedition_content } from '../../expedition-content';
 import type { ExpeditionContent } from '../../expedition-content';
 
 function changed(change: (copy: ExpeditionContent) => void): ExpeditionContent {
@@ -187,4 +187,30 @@ test('v5 adds the canonical fourth depth without changing v4 frontiers', () => {
 		expect(EXPEDITION_CONTENT_V4.chambers.find(ch => ch.id === id)!.type).toBe('ending');
 	for (const id of ['drowned_basilica', 'cinder_engine', 'mycelial_court', 'gilded_catacombs', 'starless_sanctum'])
 		expect(c.chambers.find(ch => ch.id === id)!.type).toBe('ending');
+});
+
+test('v6 adds the canonical fifth depth while preserving every v5 passage', () => {
+	const c = EXPEDITION_CONTENT_V6;
+	expect(() => validate_expedition_content(c)).not.toThrow();
+	expect(c.version).toBe(6);
+	expect(c.chambers).toHaveLength(26);
+	const endings = c.chambers.filter(ch => ch.depth === 5 && ch.type === 'ending');
+	expect(endings.map(ch => ch.id).sort()).toEqual([
+		'echoing_dais', 'everflame_anvil', 'rootcrown_nexus', 'royal_treasury', 'sunken_bell_chamber']);
+	const continued = ['drowned_basilica', 'cinder_engine', 'mycelial_court', 'gilded_catacombs', 'starless_sanctum'];
+	for (const original of EXPEDITION_CONTENT_V5.chambers) {
+		const expanded = c.chambers.find(ch => ch.id === original.id)!;
+		for (const edge of original.exits) expect(expanded.exits).toContainEqual(edge);
+		if (continued.includes(original.id)) {
+			expect(original.type).toBe('ending');
+			expect(expanded.type).toBe('chamber');
+		} else if (original.id !== 'prismatic_orrery') {
+			expect(expanded).toEqual(original);
+		}
+	}
+	expect(c.chambers.flatMap(ch => ch.exits)).toHaveLength(40);
+	for (const chamber of c.chambers) {
+		const canonical = EXPEDITION_CONTENT_V1.chambers.find(ch => ch.id === chamber.id)!;
+		for (const edge of chamber.exits) expect(canonical.exits).toContainEqual(edge);
+	}
 });

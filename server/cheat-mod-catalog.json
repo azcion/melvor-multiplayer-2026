@@ -1142,5 +1142,157 @@
 				"public_explanation": ""
 			}
 		]
+	},
+	{
+		"id": 3737603,
+		"mod_io_id": 3737603,
+		"canonical_name": "[M] Worker Folks: Hiring",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"[M] Worker Folks: Hiring"
+		],
+		"classifications": [
+			{
+				"category_id": "multitasking",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Publisher describes multiple hired workers running non-combat skills in parallel with the active player action.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/worker-folks",
+				"public_explanation": "Lets hired workers train non-combat skills while you fight or train another skill."
+			}
+		]
+	},
+	{
+		"id": 6469285,
+		"mod_io_id": 6469285,
+		"canonical_name": "Action Reroll",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Action Reroll"
+		],
+		"classifications": [
+			{
+				"category_id": "loot_rng",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Publisher describes a reroll button for RNG on save load or chest opening.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/action-reroll",
+				"public_explanation": "Lets you reroll outcomes when loading a save or opening a chest."
+			}
+		]
+	},
+	{
+		"id": 6491807,
+		"mod_io_id": 6491807,
+		"canonical_name": "Time Arcade - Minigames",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Time Arcade - Minigames"
+		],
+		"classifications": [
+			{
+				"category_id": "time",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Time Tokens earned from minigames immediately simulate extra time for the active skill or fight.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/gemcrusher",
+				"public_explanation": "Lets you spend tokens earned from minigames to simulate extra time for your current skill or fight."
+			}
+		]
+	},
+	{
+		"id": 6495516,
+		"mod_io_id": 6495516,
+		"canonical_name": "Non-Combat Speed Multiplier",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Non-Combat Speed Multiplier"
+		],
+		"classifications": [
+			{
+				"category_id": "time",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Publisher describes a non-combat tick multiplier.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/non-combat-speed-multiplier",
+				"public_explanation": "Speeds up non-combat actions."
+			}
+		]
+	},
+	{
+		"id": 6498881,
+		"mod_io_id": 6498881,
+		"canonical_name": "Combat Speed Multiplier",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Combat Speed Multiplier"
+		],
+		"classifications": [
+			{
+				"category_id": "time",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Publisher lists a combat speed multiplier.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/combat-speed-multiplier",
+				"public_explanation": "Increases combat speed."
+			}
+		]
+	},
+	{
+		"id": 6503179,
+		"mod_io_id": 6503179,
+		"canonical_name": "Rare Extra Rolls",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Rare Extra Rolls"
+		],
+		"classifications": [
+			{
+				"category_id": "loot_rng",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Published 1.0.0 archive, mod.io file 8425254, adds configurable bonus trials per successful container opening and awards eligible rare outcomes.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/rare-extra-rolls",
+				"public_explanation": "Adds extra rolls for rare loot when opening eligible containers."
+			}
+		]
+	},
+	{
+		"id": 6521190,
+		"mod_io_id": 6521190,
+		"canonical_name": "Cartoreduce",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"Cartoreduce"
+		],
+		"classifications": [
+			{
+				"category_id": "time",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Shortens the action intervals of Cartography and Archaeology.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/cartoreduce",
+				"public_explanation": "Shortens Cartography and Archaeology action intervals."
+			}
+		]
+	},
+	{
+		"id": 6535136,
+		"mod_io_id": 6535136,
+		"canonical_name": "MY cheat",
+		"legacy_interdict_member": 0,
+		"aliases": [
+			"MY cheat"
+		],
+		"classifications": [
+			{
+				"category_id": "time",
+				"confidence": "high",
+				"publication_state": "approved",
+				"rationale": "Sets the base attack interval of three weapon sets to 800 ms.",
+				"evidence_reference": "https://mod.io/g/melvoridle/m/my-cheat",
+				"public_explanation": "Sets the base attack interval of three weapon sets to 0.8 seconds."
+			}
+		]
 	}
 ]

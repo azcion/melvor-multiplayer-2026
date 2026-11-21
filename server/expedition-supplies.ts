@@ -39,9 +39,10 @@ export function donate_expedition_supply(client_id: number, command_id: unknown,
 			return { success: false, error: 'catalog_mismatch', catalog_version: catalog.version };
 		if (is_social_only_client(client_id))
 			return { success: false, error: 'social_only' };
-		const expedition = db.query<{ guild_id: number; status: string; registration_ends_at: number }, [number]>(
+		const expedition = db.query<{ guild_id: number | null; status: string; registration_ends_at: number }, [number]>(
 			'SELECT guild_id, status, registration_ends_at FROM expeditions WHERE id = ?'
 		).get(expedition_id as number);
+		if (expedition?.guild_id === null) return { success: false, error: 'supplies_removed' };
 		const now = Date.now();
 		if (!expedition || expedition.status !== 'registration' || now >= expedition.registration_ends_at)
 			return { success: false, error: 'registration_closed' };

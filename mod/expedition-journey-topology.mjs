@@ -590,5 +590,33 @@ export const supported_versions = {
 		"mycelial_court",
 		"gilded_catacombs",
 		"starless_sanctum"
+	],
+	"6": [
+		"entrance",
+		"prismatic_descent",
+		"drowned_cloister",
+		"rootforge_passage",
+		"glassroot_terraces",
+		"tideworn_crypts",
+		"embervein_machinery",
+		"mossbound_reliquary",
+		"convergence_gallery",
+		"blackwater_nave",
+		"ashen_foundry",
+		"spore_cathedral",
+		"buried_observatory",
+		"prismatic_orrery",
+		"voidwatch_threshold",
+		"hollow_star",
+		"drowned_basilica",
+		"cinder_engine",
+		"mycelial_court",
+		"gilded_catacombs",
+		"starless_sanctum",
+		"sunken_bell_chamber",
+		"everflame_anvil",
+		"rootcrown_nexus",
+		"royal_treasury",
+		"echoing_dais"
 	]
 };

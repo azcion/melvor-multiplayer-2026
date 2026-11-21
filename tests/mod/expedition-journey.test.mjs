@@ -25,6 +25,20 @@ test('shipped topology matches authored geometry without task content', async ()
 	const content = JSON.parse(await readFile(new URL('../../server/expedition-content-v1.json', import.meta.url)));
 	assert.deepEqual(topology.chambers, content.chambers.map(({id,label,depth,type,exits}) => ({id,label,depth,type,exits})));
 });
+test('v6 fallback Journey unlocks only the chambers and passages in the expanded catalog', async () => {
+	const content = JSON.parse(await readFile(new URL('../../server/expedition-content-v6.json', import.meta.url)));
+	const snapshot = journey_snapshot({ status: 'active',
+		history: [{ chamber_id: 'drowned_basilica', chosen_exit_id: 'drowned_basilica:exit_1' }],
+		chamber: { id: 'sunken_bell_chamber' } }, 6);
+	const graph = layout_graph(topology, { supported_ids: snapshot.supported_ids });
+	const available = new Set(graph.nodes.filter(node => node.available).map(node => node.id));
+	assert.deepEqual(available, new Set(content.chambers.map(chamber => chamber.id)));
+	assert.deepEqual(new Set(graph.edges.filter(edge => available.has(edge.from) && available.has(edge.to))
+		.map(edge => edge.id)), new Set(content.chambers.flatMap(chamber => chamber.exits.map(exit => exit.id))));
+	assert.equal(snapshot.current, 'sunken_bell_chamber');
+	assert.deepEqual(Array.from(snapshot.snapshot_state.travelled), ['drowned_basilica:exit_1']);
+	assert.equal(journey_snapshot({}, 5).supported_ids.has('sunken_bell_chamber'), false);
+});
 class Element {
 	constructor(tag = '') { this.tag = tag; this.children = []; this.attrs = {}; this.classList = { add() {} }; }
 	append(...nodes) { this.children.push(...nodes); }
@@ -56,6 +70,7 @@ test('custom element reconnects and adopts cloned children with balanced observe
 	host.append(svg, detail); host.connectedCallback(); host.connectedCallback();
 	host.setAttribute('snapshot', JSON.stringify({ expedition: { status: 'active', history: [], chamber: { id: 'prismatic_descent' } } }));
 	assert.doesNotThrow(() => host.attributeChangedCallback());
+	assert.equal(svg.children.find(node => node.tag === 'desc').textContent, 'MOD_MP_EXPEDITION_JOURNEY_DESCRIPTION');
 	assert.equal(svg.children.some(node => node.attrs?.['data-node'] === 'prismatic_descent'), true);
 	assert.equal(host.children.length, 2); assert.equal(observed, 1);
 	host.disconnectedCallback(); host.connectedCallback();
